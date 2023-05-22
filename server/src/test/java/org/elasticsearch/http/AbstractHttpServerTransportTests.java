@@ -72,6 +72,7 @@ import static org.elasticsearch.http.AbstractHttpServerTransport.resolvePublishP
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 
@@ -219,6 +220,8 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 // specified request headers value are copied into the thread context
                 assertEquals("true", threadContext.getHeader("header.1"));
                 assertEquals("true", threadContext.getHeader("header.2"));
+                // trace start time is also set
+                assertThat(threadContext.getTransient(Task.TRACE_START_TIME), notNullValue());
                 // but unknown headers are not copied at all
                 assertNull(threadContext.getHeader("header.3"));
             }
@@ -229,6 +232,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 assertNull(threadContext.getHeader("header.1"));
                 assertNull(threadContext.getHeader("header.2"));
                 assertNull(threadContext.getHeader("header.3"));
+                assertNull(threadContext.getTransient(Task.TRACE_START_TIME));
             }
 
         };
@@ -312,6 +316,8 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 assertThat(threadContext.getHeader(Task.TRACE_ID), equalTo("0af7651916cd43dd8448eb211c80319c"));
                 assertThat(threadContext.getHeader(Task.TRACE_PARENT_HTTP_HEADER), nullValue());
                 assertThat(threadContext.getTransient("parent_" + Task.TRACE_PARENT_HTTP_HEADER), equalTo(traceParentValue));
+                // request trace start time is also set
+                assertThat(threadContext.getTransient(Task.TRACE_START_TIME), notNullValue());
             }
 
             @Override
@@ -320,6 +326,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 assertThat(threadContext.getHeader(Task.TRACE_ID), nullValue());
                 assertThat(threadContext.getHeader(Task.TRACE_PARENT_HTTP_HEADER), nullValue());
                 assertThat(threadContext.getTransient("parent_" + Task.TRACE_PARENT_HTTP_HEADER), nullValue());
+                assertThat(threadContext.getTransient(Task.TRACE_START_TIME), nullValue());
             }
 
         };

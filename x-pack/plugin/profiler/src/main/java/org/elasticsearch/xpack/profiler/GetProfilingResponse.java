@@ -54,7 +54,6 @@ public class GetProfilingResponse extends ActionResponse implements StatusToXCon
                     i.readList(StreamInput::readString),
                     i.readList(StreamInput::readString),
                     i.readList(StreamInput::readInt),
-                    i.readList(StreamInput::readInt),
                     i.readList(StreamInput::readInt)
                 )
             )
@@ -115,7 +114,6 @@ public class GetProfilingResponse extends ActionResponse implements StatusToXCon
                 o.writeCollection(v.functionName, StreamOutput::writeString);
                 o.writeCollection(v.functionOffset, StreamOutput::writeInt);
                 o.writeCollection(v.lineNumber, StreamOutput::writeInt);
-                o.writeCollection(v.sourceType, StreamOutput::writeInt);
             });
         } else {
             out.writeBoolean(false);

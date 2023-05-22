@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateFormat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.AutoBucket;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.IsFinite;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.IsInfinite;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.IsNaN;
@@ -209,6 +210,7 @@ public final class PlanNamedTypes {
             of(ESQL_UNARY_SCLR_CLS, IsNull.class, PlanNamedTypes::writeESQLUnaryScalar, PlanNamedTypes::readESQLUnaryScalar),
             of(ESQL_UNARY_SCLR_CLS, ToString.class, PlanNamedTypes::writeESQLUnaryScalar, PlanNamedTypes::readESQLUnaryScalar),
             // ScalarFunction
+            of(ScalarFunction.class, AutoBucket.class, PlanNamedTypes::writeAutoBucket, PlanNamedTypes::readAutoBucket),
             of(ScalarFunction.class, Case.class, PlanNamedTypes::writeCase, PlanNamedTypes::readCase),
             of(ScalarFunction.class, Concat.class, PlanNamedTypes::writeConcat, PlanNamedTypes::readConcat),
             of(ScalarFunction.class, DateFormat.class, PlanNamedTypes::writeDateFormat, PlanNamedTypes::readDateFormat),
@@ -699,6 +701,17 @@ public final class PlanNamedTypes {
     }
 
     // -- ScalarFunction
+
+    static AutoBucket readAutoBucket(PlanStreamInput in) throws IOException {
+        return new AutoBucket(Source.EMPTY, in.readExpression(), in.readExpression(), in.readExpression(), in.readExpression());
+    }
+
+    static void writeAutoBucket(PlanStreamOutput out, AutoBucket bucket) throws IOException {
+        out.writeExpression(bucket.field());
+        out.writeExpression(bucket.buckets());
+        out.writeExpression(bucket.from());
+        out.writeExpression(bucket.to());
+    }
 
     static Case readCase(PlanStreamInput in) throws IOException {
         return new Case(Source.EMPTY, in.readList(readerFromPlanReader(PlanStreamInput::readExpression)));

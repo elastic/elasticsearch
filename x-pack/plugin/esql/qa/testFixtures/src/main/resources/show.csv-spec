@@ -10,6 +10,7 @@ show functions;
 
   name:keyword           |           synopsis:keyword
 abs                      |abs(arg1)
+auto_bucket              |auto_bucket(arg1, arg2, arg3, arg4)
 avg                      |avg(arg1)
 case                     |case(arg1...)
 cidr_match               |cidr_match(arg1, arg2...)

@@ -76,7 +76,7 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
 
     @Override
     protected final DataType expressionForSimpleDataType() {
-        return expectedType(simpleData().stream().map(v -> EsqlDataTypes.fromJava(v instanceof List ? ((List<?>) v).get(0) : v)).toList());
+        return expectedType(expressionForSimpleData().children().stream().map(e -> e.dataType()).toList());
     }
 
     public final void testSimpleResolveTypeValid() {

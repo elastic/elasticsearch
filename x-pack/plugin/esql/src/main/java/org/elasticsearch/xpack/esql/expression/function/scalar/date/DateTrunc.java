@@ -167,6 +167,13 @@ public class DateTrunc extends BinaryDateTimeFunction implements Mappable {
                 "Function [" + sourceText() + "] has invalid interval [" + interval().sourceText() + "]. " + e.getMessage()
             );
         }
-        return () -> new DateTruncEvaluator(fieldEvaluator.get(), DateTrunc.createRounding(foldedInterval, zoneId()));
+        return evaluator(fieldEvaluator, DateTrunc.createRounding(foldedInterval, zoneId()));
+    }
+
+    public static Supplier<EvalOperator.ExpressionEvaluator> evaluator(
+        Supplier<EvalOperator.ExpressionEvaluator> fieldEvaluator,
+        Rounding.Prepared rounding
+    ) {
+        return () -> new DateTruncEvaluator(fieldEvaluator.get(), rounding);
     }
 }

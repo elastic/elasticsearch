@@ -1,0 +1,5 @@
+pr: 95895
+summary: "Move synonym set code to server, add PUT request"
+area: Analysis
+type: enhancement
+issues: []

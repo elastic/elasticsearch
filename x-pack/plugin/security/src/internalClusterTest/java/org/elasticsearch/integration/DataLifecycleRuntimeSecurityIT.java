@@ -58,7 +58,7 @@ import static org.hamcrest.Matchers.startsWith;
  * This test suite ensures that DLM runtime tasks work correctly with security enabled, i.e., that the internal user for DLM has all
  * requisite privileges to orchestrate DLM
  */
-public class DataLifecycleRuntimeSecurityIntegTests extends SecurityIntegTestCase {
+public class DataLifecycleRuntimeSecurityIT extends SecurityIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -223,7 +223,7 @@ public class DataLifecycleRuntimeSecurityIntegTests extends SecurityIntegTestCas
 
         @Override
         public String getFeatureDescription() {
-            return "A plugin for testing snapshots of system data streams";
+            return "A plugin for testing DLM runtime actions on system data streams";
         }
     }
 }

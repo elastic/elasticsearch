@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.authz;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.metadata.DataLifecycle;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.persistent.PersistentTasksService;
@@ -139,6 +140,10 @@ public class AuthorizationUtilsTests extends ESTestCase {
 
     public void testSwitchWithTaskOrigin() throws Exception {
         assertSwitchBasedOnOriginAndExecute(TASKS_ORIGIN, InternalUsers.XPACK_USER, randomTransportVersion());
+    }
+
+    public void testSwitchWithDlmOrigin() throws Exception {
+        assertSwitchBasedOnOriginAndExecute(DataLifecycle.DLM_ORIGIN, InternalUsers.DLM_USER, randomTransportVersion());
     }
 
     private void assertSwitchBasedOnOriginAndExecute(String origin, User user, TransportVersion version) throws Exception {

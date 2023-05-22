@@ -99,7 +99,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             : source.rankBuilder().buildRankCoordinatorContext(size, from);
         this.hasTopDocs = (source == null || size != 0) && rankCoordinatorContext == null;
         this.hasAggs = source != null && source.aggregations() != null;
-        this.aggReduceContextBuilder = hasAggs ? controller.getReduceContext(isCanceled, request) : null;
+        this.aggReduceContextBuilder = hasAggs ? controller.getReduceContext(isCanceled, source.aggregations()) : null;
         int batchReduceSize = (hasAggs || hasTopDocs) ? Math.min(request.getBatchedReduceSize(), expectedResultSize) : expectedResultSize;
         this.pendingMerges = new PendingMerges(batchReduceSize, request.resolveTrackTotalHitsUpTo());
     }

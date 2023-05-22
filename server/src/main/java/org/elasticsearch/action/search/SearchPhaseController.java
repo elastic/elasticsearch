@@ -751,8 +751,8 @@ public final class SearchPhaseController {
         }
     }
 
-    AggregationReduceContext.Builder getReduceContext(Supplier<Boolean> isCanceled, SearchRequest request) {
-        return requestToAggReduceContextBuilder.apply(isCanceled, request.source().aggregations());
+    AggregationReduceContext.Builder getReduceContext(Supplier<Boolean> isCanceled, AggregatorFactories.Builder aggs) {
+        return requestToAggReduceContextBuilder.apply(isCanceled, aggs);
     }
 
     /**

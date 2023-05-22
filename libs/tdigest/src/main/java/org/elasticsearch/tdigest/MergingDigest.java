@@ -162,14 +162,13 @@ public class MergingDigest extends AbstractTDigest {
         double sizeFudge = 0;
         if (useWeightLimit) {
             sizeFudge = 10;
-            if (compression < 30) sizeFudge += 20;
         }
 
         // default size
-        size = (int) Math.max(2 * compression + sizeFudge, size);
+        size = (int) Math.max(compression + sizeFudge, size);
 
-        // default buffer
-        if (bufferSize == -1) {
+        // default buffer size has enough capacity
+        if (bufferSize < 5 * size) {
             // TODO update with current numbers
             // having a big buffer is good for speed
             // experiments show bufferSize = 1 gives half the performance of bufferSize=10
@@ -194,11 +193,6 @@ public class MergingDigest extends AbstractTDigest {
             // 500 5 0.127552
             // 500 10 0.121505
             bufferSize = 5 * size;
-        }
-
-        // ensure enough space in buffer
-        if (bufferSize <= 2 * size) {
-            bufferSize = 2 * size;
         }
 
         // scale is the ratio of extra buffer to the final size

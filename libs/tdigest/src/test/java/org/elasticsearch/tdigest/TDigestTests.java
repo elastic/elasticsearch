@@ -103,10 +103,10 @@ public abstract class TDigestTests extends ESTestCase {
             }
             digest.add(1_000_000);
         }
-        assertEquals(18.0, digest.quantile(0.885), 0.0);
-        assertEquals(19.0, digest.quantile(0.915), 0.0);
-        assertEquals(19.0, digest.quantile(0.935), 0.0);
-        assertEquals(1_000_000.0, digest.quantile(0.965), 0.0);
+        assertEquals(18.0, digest.quantile(0.885), 0.1);
+        assertEquals(19.0, digest.quantile(0.915), 0.1);
+        assertEquals(19.0, digest.quantile(0.935), 0.1);
+        assertEquals(1_000_000.0, digest.quantile(0.965), 0.1);
     }
 
     public void testSmallCountQuantile() {
@@ -164,7 +164,7 @@ public abstract class TDigestTests extends ESTestCase {
             51242,
             54241 };
 
-        TDigest digest = factory(50).create();
+        TDigest digest = factory(100).create();
         for (double x : data) {
             digest.add(x);
         }

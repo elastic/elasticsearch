@@ -61,8 +61,8 @@ public class InternalDistributionModuleCheckTaskProvider {
         "org.elasticsearch.preallocate",
         "org.elasticsearch.securesm",
         "org.elasticsearch.server",
-        "org.elasticsearch.xcontent",
-        "org.elasticsearch.tdigest"
+        "org.elasticsearch.tdigest",
+        "org.elasticsearch.xcontent"
     );
 
     private static final Predicate<ModuleReference> isESModule = mref -> mref.descriptor().name().startsWith("org.elasticsearch");

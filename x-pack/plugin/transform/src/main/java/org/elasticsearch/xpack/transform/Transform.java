@@ -438,5 +438,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         return "Manages configuration and state for transforms";
     }
 
-    public boolean includeNodeInfo() { return true; }
+    public boolean includeNodeInfo() {
+        return true;
+    }
 }

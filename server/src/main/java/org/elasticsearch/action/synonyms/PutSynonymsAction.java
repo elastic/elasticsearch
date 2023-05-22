@@ -40,29 +40,29 @@ public class PutSynonymsAction extends ActionType<PutSynonymsAction.Response> {
     }
 
     public static class Request extends ActionRequest {
-        private final String name;
+        private final String synonymSetId;
         private final SynonymSet synonymSet;
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            this.name = in.readString();
+            this.synonymSetId = in.readString();
             this.synonymSet = new SynonymSet(in);
         }
 
-        public Request(String name, BytesReference content, XContentType contentType) throws IOException {
-            this.name = name;
+        public Request(String synonymSetId, BytesReference content, XContentType contentType) throws IOException {
+            this.synonymSetId = synonymSetId;
             this.synonymSet = SynonymSet.fromXContent(XContentHelper.createParser(XContentParserConfiguration.EMPTY, content, contentType));
         }
 
-        Request(String name, SynonymSet synonymSet) {
-            this.name = name;
+        Request(String synonymSetId, SynonymSet synonymSet) {
+            this.synonymSetId = synonymSetId;
             this.synonymSet = synonymSet;
         }
 
         @Override
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = null;
-            if (Strings.isEmpty(name)) {
+            if (Strings.isEmpty(synonymSetId)) {
                 validationException = ValidateActions.addValidationError("synonym set must be specified", validationException);
             }
 
@@ -73,12 +73,12 @@ public class PutSynonymsAction extends ActionType<PutSynonymsAction.Response> {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeString(name);
+            out.writeString(synonymSetId);
             synonymSet.writeTo(out);
         }
 
         public String name() {
-            return name;
+            return synonymSetId;
         }
 
         public SynonymSet synonymSet() {
@@ -90,12 +90,12 @@ public class PutSynonymsAction extends ActionType<PutSynonymsAction.Response> {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Objects.equals(name, request.name) && Objects.equals(synonymSet, request.synonymSet);
+            return Objects.equals(synonymSetId, request.synonymSetId) && Objects.equals(synonymSet, request.synonymSet);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(name, synonymSet);
+            return Objects.hash(synonymSetId, synonymSet);
         }
     }
 

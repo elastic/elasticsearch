@@ -13,6 +13,8 @@ import org.elasticsearch.common.util.FeatureFlag;
 public class SynonymsAPI {
     private static final FeatureFlag SYNONYMS_API_FEATURE_FLAG = new FeatureFlag("synonyms_api");
 
+    public static final String SYNONYMS_ORIGIN = "synonyms";
+
     public static boolean isEnabled() {
         return SYNONYMS_API_FEATURE_FLAG.isEnabled();
     }

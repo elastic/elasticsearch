@@ -15,6 +15,7 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.synonyms.PutSynonymsAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
@@ -31,11 +32,11 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
+import static org.elasticsearch.synonyms.SynonymsAPI.SYNONYMS_ORIGIN;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
 public class SynonymsManagementAPIService {
     public static final String SYNONYMS_INDEX = ".synonyms";
-    public static final String SYNONYMS_ORIGIN = "synonyms";
 
     public static final String SYNONYMS_FEATURE_NAME = "synonyms";
     public static final String SYNONYM_SET_FIELD = "synonym_set";
@@ -137,7 +138,8 @@ public class SynonymsManagementAPIService {
                     listener.onFailure(ex);
                 }
 
-                bulkRequestBuilder.execute(deleteByQueryResponseListener.delegateFailure((bulkResponseListener, bulkResponse) -> {
+                bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                    .execute(deleteByQueryResponseListener.delegateFailure((bulkResponseListener, bulkResponse) -> {
                     if (bulkResponse.hasFailures() == false) {
                         PutSynonymsAction.Response.Result result = created
                             ? PutSynonymsAction.Response.Result.CREATED

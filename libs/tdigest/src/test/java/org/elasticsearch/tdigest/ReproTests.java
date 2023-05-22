@@ -29,7 +29,6 @@ public class ReproTests extends ESTestCase {
 
     public void testRepro() {
         Random gen = random();
-        gen.setSeed(1);
         double[] data = new double[10000];
         for (int i = 0; i < data.length; i++) {
             // these samples are truncated and thus have lots of duplicates
@@ -45,15 +44,15 @@ public class ReproTests extends ESTestCase {
             TDigest distMedian = new MergingDigest(100);
             TDigest distHigh = new MergingDigest(100);
             for (int i = 0; i < 500; i++) {
-                MergingDigest d1 = new MergingDigest(100);
-                d1.setScaleFunction(ScaleFunction.K_2);
+                MergingDigest digest = new MergingDigest(100);
+                digest.setScaleFunction(ScaleFunction.K_2);
                 for (double x : data) {
-                    d1.add(x);
+                    digest.add(x);
                 }
-                d1.compress();
-                distLow.add(d1.quantile(0.001));
-                distMedian.add(d1.quantile(0.5));
-                distHigh.add(d1.quantile(0.999));
+                digest.compress();
+                distLow.add(digest.quantile(0.001));
+                distMedian.add(digest.quantile(0.5));
+                distHigh.add(digest.quantile(0.999));
             }
             assertEquals(0, distLow.quantile(0.0), 0);
             assertEquals(0, distLow.quantile(0.5), 0);

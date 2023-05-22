@@ -25,7 +25,6 @@ import org.junit.Assert;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
@@ -46,11 +45,6 @@ public class MergingDigestTests extends TDigestTests {
                 return new MergingDigest(compression);
             }
         };
-    }
-
-    @Override
-    protected TDigest fromBytes(ByteBuffer bytes) {
-        return MergingDigest.fromBytes(bytes);
     }
 
     // This test came from PR#145 by github user pulver

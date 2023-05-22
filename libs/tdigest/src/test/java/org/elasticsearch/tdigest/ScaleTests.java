@@ -40,7 +40,7 @@ public class ScaleTests extends ESTestCase {
             new PiecewiseLinearLimit(0.05),
             new PiecewiseLinearLimit(0.1),
             new PiecewiseLinearLimit(0.2), }) {
-            for (long n : new long[] { 1000, 10000, 100000, 1000000L, 10000000L, 100000000L, 1000000000L }) {
+            for (long n : new long[] { 1000, 10000, 100000, 1000000L, 10000000L, 100000000L }) {
                 List<Centroid> r = size(n, 200.0, limit);
                 int nonTrivial = 0;
                 for (Centroid centroid : r) {

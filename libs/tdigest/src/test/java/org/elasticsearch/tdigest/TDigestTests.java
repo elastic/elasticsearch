@@ -24,11 +24,9 @@ package org.elasticsearch.tdigest;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Random;
@@ -338,8 +336,6 @@ public abstract class TDigestTests extends ESTestCase {
         assertEquals(9000.0, d.quantile(0.98), 1e-5);
         assertEquals(9000.0, d.quantile(1.00), 1e-5);
     }
-
-    protected abstract TDigest fromBytes(ByteBuffer bytes);
 
     public void testSingleValue() {
         Random rand = random();
@@ -692,60 +688,6 @@ public abstract class TDigestTests extends ESTestCase {
     // }
     // }
 
-    public void testSerialization() {
-        Random gen = random();
-        final double compression = 20 + randomDouble() * 100;
-        TDigest dist = factory(compression).create();
-        for (int i = 0; i < 100000; i++) {
-            double x = gen.nextDouble();
-            dist.add(x);
-        }
-        dist.compress();
-
-        ByteBuffer buf = ByteBuffer.allocate(20000);
-        dist.asBytes(buf);
-        assertTrue("size is " + buf.position(), buf.position() < 12000);
-        assertEquals(dist.byteSize(), buf.position());
-
-        buf.flip();
-        TDigest dist2 = fromBytes(buf);
-        assertEquals(dist.centroids().size(), dist2.centroids().size());
-        assertEquals(dist.compression(), dist2.compression(), 1e-4);
-        assertEquals(dist.size(), dist2.size());
-
-        for (double q = 0; q < 1; q += 0.01) {
-            assertEquals(dist.quantile(q), dist2.quantile(q), 1e-5);
-        }
-
-        Iterator<? extends Centroid> ix = dist2.centroids().iterator();
-        for (Centroid centroid : dist.centroids()) {
-            assertTrue(ix.hasNext());
-            assertEquals(centroid.count(), ix.next().count());
-        }
-        assertFalse(ix.hasNext());
-
-        buf.flip();
-        dist.asSmallBytes(buf);
-        assertTrue(buf.position() < 6000);
-
-        buf.flip();
-        dist2 = fromBytes(buf);
-        assertEquals(dist.centroids().size(), dist2.centroids().size());
-        assertEquals(dist.compression(), dist2.compression(), 1e-4);
-        assertEquals(dist.size(), dist2.size());
-
-        for (double q = 0; q < 1; q += 0.01) {
-            assertEquals(dist.quantile(q), dist2.quantile(q), 1e-6);
-        }
-
-        ix = dist2.centroids().iterator();
-        for (Centroid centroid : dist.centroids()) {
-            assertTrue(ix.hasNext());
-            assertEquals(centroid.count(), ix.next().count());
-        }
-        assertFalse(ix.hasNext());
-    }
-
     /**
      * Does basic sanity testing for a particular small example that used to fail. See
      * https://github.com/addthis/stream-lib/issues/138
@@ -799,33 +741,13 @@ public abstract class TDigestTests extends ESTestCase {
         assertEquals(20.0, dist.quantile(1), 0);
     }
 
-    public void testIntEncoding() {
-        Random gen = random();
-        ByteBuffer buf = ByteBuffer.allocate(10000);
-        List<Integer> ref = new ArrayList<>();
-        for (int i = 0; i < 3000; i++) {
-            int n = gen.nextInt();
-            n = n >>> (i / 100);
-            ref.add(n);
-            AbstractTDigest.encode(buf, n);
-        }
-
-        buf.flip();
-
-        for (int i = 0; i < 3000; i++) {
-            int n = AbstractTDigest.decode(buf);
-            assertEquals(i, ref.get(i), n);
-        }
-    }
-
     public void testSizeControl() throws ExecutionException, InterruptedException {
         List<Callable<String>> tasks = new ArrayList<>();
         for (final int size : new int[] { 10, 100, 1000, 10000 }) {
             tasks.add(new Callable<>() {
-                final Random gen = random();
-
                 @Override
                 public String call() {
+                    final Random gen = random();
                     for (double compression : new double[] { 50, 100, 200, 500 }) {
                         TDigest dist = factory(compression).create();
                         for (int i = 0; i < size * 1000; i++) {

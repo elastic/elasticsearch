@@ -23,10 +23,6 @@ package org.elasticsearch.tdigest;
 
 import org.elasticsearch.test.ESTestCase;
 
-import java.io.IOException;
-import java.io.PrintStream;
-import java.io.PrintWriter;
-import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -53,65 +49,48 @@ public class ScaleFunctionTests extends ESTestCase {
      * This also throws off a diagnostic file that can be visualized if desired under the name of
      * scale-function-sizes.csv
      */
-    public void testSize() throws IOException {
-        try (PrintWriter out = new PrintWriter("scale-function-sizes.csv", StandardCharsets.UTF_8)) {
-            out.printf(Locale.ROOT, "alg,compression,n,centroids,singletons,normalizer\n");
-            for (double compression : new double[] { 20, 50, 100, 200, 500, 1000, 2000 }) {
-                for (double n : new double[] { 10, 20, 50, 100, 200, 500, 1e3, 2e3, 5e3, 10e3, 20e3, 100e3, 1e6 }) {
-                    Map<String, Integer> clusterCount = new HashMap<>();
-                    for (ScaleFunction k : ScaleFunction.values()) {
-                        if (k.toString().equals("K_0")) {
-                            continue;
+    public void testSize() {
+        for (double compression : new double[] { 20, 50, 100, 200, 500, 1000, 2000 }) {
+            for (double n : new double[] { 10, 20, 50, 100, 200, 500, 1e3, 2e3, 5e3, 10e3, 20e3, 100e3, 1e6 }) {
+                Map<String, Integer> clusterCount = new HashMap<>();
+                for (ScaleFunction k : ScaleFunction.values()) {
+                    if (k.toString().equals("K_0")) {
+                        continue;
+                    }
+                    double k0 = k.k(0, compression, n);
+                    int m = 0;
+                    for (int i = 0; i < n;) {
+                        double cnt = 1;
+                        while (i + cnt < n && k.k((i + cnt + 1) / (n - 1), compression, n) - k0 < 1) {
+                            cnt++;
                         }
-                        double k0 = k.k(0, compression, n);
-                        int m = 0;
-                        int singles = 0;
-                        for (int i = 0; i < n;) {
-                            double cnt = 1;
-                            while (i + cnt < n && k.k((i + cnt + 1) / (n - 1), compression, n) - k0 < 1) {
-                                cnt++;
-                            }
-                            if (cnt == 1) {
-                                singles++;
-                            }
-                            double size = n * max(k.max(i / (n - 1), compression, n), k.max((i + cnt) / (n - 1), compression, n));
+                        double size = n * max(k.max(i / (n - 1), compression, n), k.max((i + cnt) / (n - 1), compression, n));
 
-                            // check that we didn't cross the midline (which makes the size limit very conservative)
-                            double left = i - (n - 1) / 2;
-                            double right = i + cnt - (n - 1) / 2;
-                            boolean sameSide = left * right > 0;
-                            if (k.toString().endsWith("NO_NORM") == false && sameSide) {
-                                assertTrue(
-                                    String.format(
-                                        Locale.ROOT,
-                                        "%s %.0f %.0f %.3f vs %.3f @ %.3f",
-                                        k,
-                                        compression,
-                                        n,
-                                        cnt,
-                                        size,
-                                        i / (n - 1)
-                                    ),
-                                    cnt == 1 || cnt <= max(1.1 * size, size + 1)
-                                );
-                            }
-                            i += cnt;
-                            k0 = k.k(i / (n - 1), compression, n);
-                            m++;
-                        }
-                        clusterCount.put(k.toString(), m);
-                        out.printf(Locale.ROOT, "%s,%.0f,%.0f,%d,%d,%.4f\n", k, compression, n, m, singles, k.normalizer(compression, n));
-
-                        if (k.toString().endsWith("NO_NORM") == false) {
+                        // check that we didn't cross the midline (which makes the size limit very conservative)
+                        double left = i - (n - 1) / 2;
+                        double right = i + cnt - (n - 1) / 2;
+                        boolean sameSide = left * right > 0;
+                        if (k.toString().endsWith("NO_NORM") == false && sameSide) {
                             assertTrue(
-                                String.format(Locale.ROOT, "%s %d, %.0f", k, m, compression),
-                                n < 3 * compression || (m >= compression / 3 && m <= compression)
+                                String.format(Locale.ROOT, "%s %.0f %.0f %.3f vs %.3f @ %.3f", k, compression, n, cnt, size, i / (n - 1)),
+                                cnt == 1 || cnt <= max(1.1 * size, size + 1)
                             );
                         }
+                        i += cnt;
+                        k0 = k.k(i / (n - 1), compression, n);
+                        m++;
                     }
-                    // make sure that the approximate version gets same results
-                    assertEquals(clusterCount.get("K_1"), clusterCount.get("K_1_FAST"));
+                    clusterCount.put(k.toString(), m);
+
+                    if (k.toString().endsWith("NO_NORM") == false) {
+                        assertTrue(
+                            String.format(Locale.ROOT, "%s %d, %.0f", k, m, compression),
+                            n < 3 * compression || (m >= compression / 3 && m <= compression)
+                        );
+                    }
                 }
+                // make sure that the approximate version gets same results
+                assertEquals(clusterCount.get("K_1"), clusterCount.get("K_1_FAST"));
             }
         }
     }
@@ -122,8 +101,7 @@ public class ScaleFunctionTests extends ESTestCase {
      * can have centroids with >1 sample should be small enough to meet the size limit of
      * the digest, but not small enough to degrade accuracy.
      */
-    public void testK() throws IOException {
-        PrintStream out = new PrintStream("scale-function.csv", StandardCharsets.UTF_8);
+    public void testK() {
         for (ScaleFunction k : ScaleFunction.values()) {
             if (k.name().contains("NO_NORM")) {
                 continue;
@@ -192,7 +170,6 @@ public class ScaleFunctionTests extends ESTestCase {
                     // nor too few. This is where issue #151 shows up
                     label = String.format(Locale.ROOT, "min diff: %.3f, scale: %s, compression: %.0f, n: %d", diff, k, compression, n);
                     assertTrue(label, diff >= Math.min(n, compression / 4));
-                    out.printf(Locale.ROOT, "%s, %.0f, %d, %.0f, %.3f, %.3f\n", k, compression, n, singletons, mink, maxk);
                 }
             }
         }

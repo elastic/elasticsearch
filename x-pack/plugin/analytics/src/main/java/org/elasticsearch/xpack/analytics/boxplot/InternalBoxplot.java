@@ -176,6 +176,7 @@ public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValu
     InternalBoxplot(String name, TDigestState state, DocValueFormat formatter, Map<String, Object> metadata) {
         super(name, formatter, metadata);
         this.state = state;
+        this.state.compress();
     }
 
     /**
@@ -184,6 +185,7 @@ public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValu
     public InternalBoxplot(StreamInput in) throws IOException {
         super(in);
         state = TDigestState.read(in);
+        state.compress();
     }
 
     @Override

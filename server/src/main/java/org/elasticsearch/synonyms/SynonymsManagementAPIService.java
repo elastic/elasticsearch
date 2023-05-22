@@ -139,17 +139,17 @@ public class SynonymsManagementAPIService {
 
                 bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                     .execute(deleteByQueryResponseListener.delegateFailure((bulkResponseListener, bulkResponse) -> {
-                    if (bulkResponse.hasFailures() == false) {
-                        PutSynonymsAction.Response.Result result = created
-                            ? PutSynonymsAction.Response.Result.CREATED
-                            : PutSynonymsAction.Response.Result.UPDATED;
-                        bulkResponseListener.onResponse(new PutSynonymsAction.Response(result));
-                    } else {
-                        bulkResponseListener.onFailure(
-                            new ElasticsearchException("Couldn't update synonyms: " + bulkResponse.buildFailureMessage())
-                        );
-                    }
-                }));
+                        if (bulkResponse.hasFailures() == false) {
+                            PutSynonymsAction.Response.Result result = created
+                                ? PutSynonymsAction.Response.Result.CREATED
+                                : PutSynonymsAction.Response.Result.UPDATED;
+                            bulkResponseListener.onResponse(new PutSynonymsAction.Response(result));
+                        } else {
+                            bulkResponseListener.onFailure(
+                                new ElasticsearchException("Couldn't update synonyms: " + bulkResponse.buildFailureMessage())
+                            );
+                        }
+                    }));
             })
         );
     }

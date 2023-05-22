@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.action.admin.cluster.node.tasks;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
@@ -40,6 +41,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
+import org.elasticsearch.test.ReachabilityChecker;
 import org.elasticsearch.test.tasks.MockTaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
@@ -55,9 +57,12 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.support.PlainActionFuture.newFuture;
@@ -68,6 +73,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 public class TransportTasksActionTests extends TaskManagerTestCase {
 
@@ -672,6 +678,152 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         checkLatch.countDown();
         NodesResponse responses = future.get();
         assertEquals(0, responses.failureCount());
+    }
+
+    public void testTaskResponsesDiscardedOnCancellation() throws Exception {
+        setupTestNodes(Settings.EMPTY);
+        connectNodes(testNodes);
+        CountDownLatch blockedActionLatch = new CountDownLatch(1);
+        ActionFuture<NodesResponse> future = startBlockingTestNodesAction(blockedActionLatch);
+
+        final var taskResponseListeners = new LinkedBlockingQueue<ActionListener<TestTaskResponse>>();
+        final var taskResponseListenersCountDown = new CountDownLatch(2); // test action plus the list[n] action
+
+        final TestTasksAction tasksAction = new TestTasksAction(
+            "internal:testTasksAction",
+            testNodes[0].clusterService,
+            testNodes[0].transportService
+        ) {
+            @Override
+            protected void taskOperation(
+                CancellableTask actionTask,
+                TestTasksRequest request,
+                Task task,
+                ActionListener<TestTaskResponse> listener
+            ) {
+                taskResponseListeners.add(listener);
+                taskResponseListenersCountDown.countDown();
+            }
+        };
+
+        TestTasksRequest testTasksRequest = new TestTasksRequest();
+        testTasksRequest.setNodes(testNodes[0].getNodeId()); // only local node
+        PlainActionFuture<TestTasksResponse> taskFuture = newFuture();
+        CancellableTask task = (CancellableTask) testNodes[0].transportService.getTaskManager()
+            .registerAndExecute(
+                "direct",
+                tasksAction,
+                testTasksRequest,
+                testNodes[0].transportService.getLocalNodeConnection(),
+                taskFuture
+            );
+        safeAwait(taskResponseListenersCountDown);
+
+        final var reachabilityChecker = new ReachabilityChecker();
+
+        final var listener0 = Objects.requireNonNull(taskResponseListeners.poll());
+        if (randomBoolean()) {
+            listener0.onResponse(reachabilityChecker.register(new TestTaskResponse("status")));
+        } else {
+            listener0.onFailure(reachabilityChecker.register(new ElasticsearchException("simulated")));
+        }
+        reachabilityChecker.checkReachable();
+
+        PlainActionFuture.<Void, RuntimeException>get(
+            fut -> testNodes[0].transportService.getTaskManager().cancelTaskAndDescendants(task, "test", false, fut),
+            10,
+            TimeUnit.SECONDS
+        );
+
+        reachabilityChecker.ensureUnreachable();
+
+        while (true) {
+            final var listener = taskResponseListeners.poll();
+            if (listener == null) {
+                break;
+            }
+            if (randomBoolean()) {
+                listener.onResponse(reachabilityChecker.register(new TestTaskResponse("status")));
+            } else {
+                listener.onFailure(reachabilityChecker.register(new ElasticsearchException("simulated")));
+            }
+            reachabilityChecker.ensureUnreachable();
+        }
+
+        expectThrows(TaskCancelledException.class, taskFuture::actionGet);
+
+        blockedActionLatch.countDown();
+        NodesResponse responses = future.get(10, TimeUnit.SECONDS);
+        assertEquals(0, responses.failureCount());
+    }
+
+    public void testNodeResponsesDiscardedOnCancellation() {
+        setupTestNodes(Settings.EMPTY);
+        connectNodes(testNodes);
+
+        final var taskResponseListeners = new AtomicReferenceArray<ActionListener<TestTaskResponse>>(testNodes.length);
+        final var taskResponseListenersCountDown = new CountDownLatch(testNodes.length); // one list[n] action per node
+        final var tasksActions = new TestTasksAction[testNodes.length];
+        for (int i = 0; i < testNodes.length; i++) {
+            final var nodeIndex = i;
+            tasksActions[i] = new TestTasksAction("internal:testTasksAction", testNodes[i].clusterService, testNodes[i].transportService) {
+                @Override
+                protected void taskOperation(
+                    CancellableTask actionTask,
+                    TestTasksRequest request,
+                    Task task,
+                    ActionListener<TestTaskResponse> listener
+                ) {
+                    assertThat(taskResponseListeners.getAndSet(nodeIndex, ActionListener.notifyOnce(listener)), nullValue());
+                    taskResponseListenersCountDown.countDown();
+                }
+            };
+        }
+
+        TestTasksRequest testTasksRequest = new TestTasksRequest();
+        testTasksRequest.setActions("internal:testTasksAction[n]");
+        PlainActionFuture<TestTasksResponse> taskFuture = newFuture();
+        CancellableTask task = (CancellableTask) testNodes[0].transportService.getTaskManager()
+            .registerAndExecute(
+                "direct",
+                tasksActions[0],
+                testTasksRequest,
+                testNodes[0].transportService.getLocalNodeConnection(),
+                taskFuture
+            );
+        safeAwait(taskResponseListenersCountDown);
+
+        final var reachabilityChecker = new ReachabilityChecker();
+
+        if (randomBoolean()) {
+            // local node does not de/serialize node-level response so retains references to the task-level response
+            if (randomBoolean()) {
+                taskResponseListeners.get(0).onResponse(reachabilityChecker.register(new TestTaskResponse("status")));
+            } else {
+                taskResponseListeners.get(0).onFailure(reachabilityChecker.register(new ElasticsearchException("simulated")));
+            }
+            reachabilityChecker.checkReachable();
+        }
+
+        PlainActionFuture.<Void, RuntimeException>get(
+            fut -> testNodes[0].transportService.getTaskManager().cancelTaskAndDescendants(task, "test", false, fut),
+            10,
+            TimeUnit.SECONDS
+        );
+
+        reachabilityChecker.ensureUnreachable();
+        assertFalse(taskFuture.isDone());
+
+        for (int i = 0; i < testNodes.length; i++) {
+            if (randomBoolean()) {
+                taskResponseListeners.get(i).onResponse(reachabilityChecker.register(new TestTaskResponse("status")));
+            } else {
+                taskResponseListeners.get(i).onFailure(reachabilityChecker.register(new ElasticsearchException("simulated")));
+            }
+            reachabilityChecker.ensureUnreachable();
+        }
+
+        expectThrows(TaskCancelledException.class, taskFuture::actionGet);
     }
 
     public void testTaskLevelActionFailures() throws Exception {

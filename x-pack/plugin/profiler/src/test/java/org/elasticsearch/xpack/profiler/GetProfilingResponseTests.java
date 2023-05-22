@@ -41,8 +41,7 @@ public class GetProfilingResponseTests extends AbstractWireSerializingTestCase<G
                     randomList(0, maxInlined, () -> randomAlphaOfLength(20)),
                     randomList(0, maxInlined, () -> randomAlphaOfLength(20)),
                     randomList(0, maxInlined, () -> randomIntBetween(1, Integer.MAX_VALUE)),
-                    randomList(0, maxInlined, () -> randomIntBetween(1, 30_000)),
-                    randomList(0, maxInlined, () -> randomIntBetween(1, 10))
+                    randomList(0, maxInlined, () -> randomIntBetween(1, 30_000))
                 )
             )
         );

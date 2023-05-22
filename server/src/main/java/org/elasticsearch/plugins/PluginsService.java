@@ -286,10 +286,12 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         LinkedHashMap<String, LoadedPlugin> loaded = new LinkedHashMap<>();
         Map<String, Set<URL>> transitiveUrls = new HashMap<>();
         List<PluginBundle> sortedBundles = PluginsUtils.sortBundles(bundles);
-        Set<URL> systemLoaderURLs = JarHell.parseModulesAndClassPath();
-        for (PluginBundle bundle : sortedBundles) {
-            PluginsUtils.checkBundleJarHell(systemLoaderURLs, bundle, transitiveUrls);
-            loadBundle(bundle, loaded, qualifiedExports);
+        if (sortedBundles.isEmpty() == false) {
+            Set<URL> systemLoaderURLs = JarHell.parseModulesAndClassPath();
+            for (PluginBundle bundle : sortedBundles) {
+                PluginsUtils.checkBundleJarHell(systemLoaderURLs, bundle, transitiveUrls);
+                loadBundle(bundle, loaded, qualifiedExports);
+            }
         }
 
         loadExtensions(loaded.values());

@@ -115,7 +115,7 @@ public abstract class AbstractQueryVectorBuilderTestCase<T extends QueryVectorBu
                 TransportVersion.CURRENT
             );
             try (NoOpClient client = new AssertingClient(expected, queryVectorBuilder)) {
-                QueryRewriteContext context = new QueryRewriteContext(null, null, client, null);
+                QueryRewriteContext context = new QueryRewriteContext(null, client, null);
                 PlainActionFuture<KnnSearchBuilder> future = new PlainActionFuture<>();
                 Rewriteable.rewriteAndFetch(randomFrom(serialized, searchBuilder), context, future);
                 KnnSearchBuilder rewritten = future.get();

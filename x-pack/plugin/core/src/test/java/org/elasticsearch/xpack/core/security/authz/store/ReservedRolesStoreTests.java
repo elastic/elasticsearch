@@ -54,6 +54,7 @@ import org.elasticsearch.action.ingest.PutPipelineAction;
 import org.elasticsearch.action.ingest.SimulatePipelineAction;
 import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.SearchAction;
+import org.elasticsearch.action.search.SearchShardsAction;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
@@ -3194,6 +3195,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
             GetFieldMappingsAction.NAME + "*",
             GetMappingsAction.NAME,
             ClusterSearchShardsAction.NAME,
+            SearchShardsAction.NAME,
             ValidateQueryAction.NAME + "*",
             GetSettingsAction.NAME,
             ExplainLifecycleAction.NAME,

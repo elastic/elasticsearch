@@ -422,9 +422,9 @@ public class SearchIdleIT extends ESSingleNodeTestCase {
         assertActiveShardsRefreshStats(activeIndexStatsBefore, activeIndexStatsAfter);
     }
 
-    private static void assertIdleShard(final IndicesStatsResponse activeIndexStatsBefore) {
-        Arrays.stream(activeIndexStatsBefore.getShards()).forEach(shardStats -> assertTrue(shardStats.isSearchIdle()));
-        Arrays.stream(activeIndexStatsBefore.getShards()).forEach(shardStats -> assertTrue(shardStats.getSearchIdleTime() >= 100));
+    private static void assertIdleShard(final IndicesStatsResponse statsResponse) {
+        Arrays.stream(statsResponse.getShards()).forEach(shardStats -> assertTrue(shardStats.isSearchIdle()));
+        Arrays.stream(statsResponse.getShards()).forEach(shardStats -> assertTrue(shardStats.getSearchIdleTime() >= 100));
     }
 
     private void assertActiveShardsRefreshStats(final IndicesStatsResponse before, final IndicesStatsResponse after) {

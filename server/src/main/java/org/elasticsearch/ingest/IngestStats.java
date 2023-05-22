@@ -35,7 +35,6 @@ public record IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Ma
         Writeable,
         ChunkedToXContent {
 
-    public static final IngestStats IDENTITY = new IngestStats(Stats.IDENTITY, List.of(), Map.of());
     private static final Comparator<PipelineStat> PIPELINE_STAT_COMPARATOR = (p1, p2) -> {
         final Stats p2Stats = p2.stats;
         final Stats p1Stats = p1.stats;
@@ -46,6 +45,8 @@ public record IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Ma
             return ingestTimeCompare;
         }
     };
+
+    public static final IngestStats IDENTITY = new IngestStats(Stats.IDENTITY, List.of(), Map.of());
 
     /**
      * @param totalStats - The total stats for Ingest. This is logically the sum of all pipeline stats,
@@ -158,7 +159,20 @@ public record IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Ma
     }
 
     public static IngestStats merge(IngestStats first, IngestStats second) {
-        return null;
+        return new IngestStats(
+            Stats.merge(first.totalStats, second.totalStats),
+            PipelineStat.merge(first.pipelineStats, second.pipelineStats),
+            merge(first.processorStats, second.processorStats)
+        );
+    }
+
+    static Map<String, List<ProcessorStat>> merge(Map<String, List<ProcessorStat>> first, Map<String, List<ProcessorStat>> second) {
+        var totalsPerPipelineProcessor = new HashMap<String, List<ProcessorStat>>();
+
+        first.forEach((pipelineId, stats) -> totalsPerPipelineProcessor.merge(pipelineId, stats, ProcessorStat::merge));
+        second.forEach((pipelineId, stats) -> totalsPerPipelineProcessor.merge(pipelineId, stats, ProcessorStat::merge));
+
+        return totalsPerPipelineProcessor;
     }
 
     public record Stats(long ingestCount, long ingestTimeInMillis, long ingestCurrent, long ingestFailedCount)
@@ -192,7 +206,7 @@ public record IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Ma
             return builder;
         }
 
-        public static Stats merge(Stats first, Stats second) {
+        static Stats merge(Stats first, Stats second) {
             return new Stats(
                 first.ingestCount + second.ingestCount,
                 first.ingestTimeInMillis + second.ingestTimeInMillis,
@@ -235,10 +249,34 @@ public record IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Ma
     /**
      * Container for pipeline stats.
      */
-    public record PipelineStat(String pipelineId, Stats stats) {}
+    public record PipelineStat(String pipelineId, Stats stats) {
+        static List<PipelineStat> merge(List<PipelineStat> first, List<PipelineStat> second) {
+            var totalsPerPipeline = new HashMap<String, Stats>();
+
+            first.forEach(ps -> totalsPerPipeline.merge(ps.pipelineId, ps.stats, Stats::merge));
+            second.forEach(ps -> totalsPerPipeline.merge(ps.pipelineId, ps.stats, Stats::merge));
+
+            return totalsPerPipeline.entrySet()
+                .stream()
+                .map(v -> new PipelineStat(v.getKey(), v.getValue()))
+                .sorted(PIPELINE_STAT_COMPARATOR)
+                .toList();
+        }
+    }
 
     /**
      * Container for processor stats.
      */
-    public record ProcessorStat(String name, String type, Stats stats) {}
+    public record ProcessorStat(String name, String type, Stats stats) {
+
+        // The list of ProcessorStats has *always* stats for each processor (even if processor was executed or not), so it's safe to zip
+        // both lists using a common index iterator.
+        private static List<ProcessorStat> merge(List<ProcessorStat> first, List<ProcessorStat> second) {
+            var merged = new ArrayList<ProcessorStat>();
+            for (var i = 0; i < first.size(); i++) {
+                merged.add(new ProcessorStat(first.get(i).name, first.get(i).type, Stats.merge(first.get(i).stats, second.get(i).stats)));
+            }
+            return merged;
+        }
+    }
 }

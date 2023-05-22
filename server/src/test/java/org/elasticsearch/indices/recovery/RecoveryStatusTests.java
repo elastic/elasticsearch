@@ -22,8 +22,8 @@ import java.util.Set;
 import java.util.regex.Pattern;
 
 public class RecoveryStatusTests extends ESSingleNodeTestCase {
-    private static final Version MIN_SUPPORTED_LUCENE_VERSION = org.elasticsearch.Version.CURRENT
-            .minimumIndexCompatibilityVersion().luceneVersion();
+    private static final Version MIN_SUPPORTED_LUCENE_VERSION = org.elasticsearch.Version.CURRENT.minimumIndexCompatibilityVersion()
+        .luceneVersion();
 
     public void testRenameTempFiles() throws IOException {
         IndexService service = createIndex("foo");

@@ -274,7 +274,10 @@ public class AnalysisModuleTests extends ESTestCase {
                 .build()
         );
         assertTokenStreamContents(analyzers.get("no_version").tokenStream("", "test"), new String[] { "testno_version" });
-        assertTokenStreamContents(analyzers.get("lucene_version").tokenStream("", "test"), new String[] {"test" + version.luceneVersion() });
+        assertTokenStreamContents(
+            analyzers.get("lucene_version").tokenStream("", "test"),
+            new String[] { "test" + version.luceneVersion() }
+        );
         assertTokenStreamContents(analyzers.get("elasticsearch_version").tokenStream("", "test"), new String[] { "test" + version });
 
         assertEquals(
@@ -340,7 +343,10 @@ public class AnalysisModuleTests extends ESTestCase {
                 .build()
         );
         assertTokenStreamContents(analyzers.get("no_version").tokenStream("", "test"), new String[] { "testno_version" });
-        assertTokenStreamContents(analyzers.get("lucene_version").tokenStream("", "test"), new String[] {"test" + version.luceneVersion() });
+        assertTokenStreamContents(
+            analyzers.get("lucene_version").tokenStream("", "test"),
+            new String[] { "test" + version.luceneVersion() }
+        );
         assertTokenStreamContents(analyzers.get("elasticsearch_version").tokenStream("", "test"), new String[] { "test" + version });
 
         assertEquals(
@@ -426,7 +432,7 @@ public class AnalysisModuleTests extends ESTestCase {
         assertTokenStreamContents(analyzers.get("no_version").tokenStream("", "test"), new String[] { "no_version" });
         assertTokenStreamContents(
             analyzers.get("lucene_version").tokenStream("", "test"),
-            new String[] {version.luceneVersion().toString() }
+            new String[] { version.luceneVersion().toString() }
         );
         assertTokenStreamContents(analyzers.get("elasticsearch_version").tokenStream("", "test"), new String[] { version.toString() });
 

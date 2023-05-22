@@ -300,14 +300,14 @@ public class TumblingWindow implements Executable {
                     if (leading) {
                         builder.sorts().clear();
                         builder.sort(r.timestampField(), SortOrder.DESC);
-                        range.lt(sequence.startOrdinal().timestamp());
+                        range.lt(sequence.startOrdinal().timestamp().instant().toEpochMilli());
                     } else if (trailing(i)) {
                         builder.sorts().clear();
                         builder.sort(r.timestampField(), SortOrder.ASC);
-                        range.gt(sequence.ordinal().timestamp());
+                        range.gt(sequence.ordinal().timestamp().instant().toEpochMilli());
                     } else {
-                        range.lt(sequence.matchAt(matcher.nextPositiveStage(i)).ordinal().timestamp());
-                        range.gt(sequence.matchAt(matcher.previousPositiveStage(i)).ordinal().timestamp());
+                        range.lt(sequence.matchAt(matcher.nextPositiveStage(i)).ordinal().timestamp().instant().toEpochMilli());
+                        range.gt(sequence.matchAt(matcher.previousPositiveStage(i)).ordinal().timestamp().instant().toEpochMilli());
                         builder.sort(r.timestampField(), SortOrder.ASC);
                     }
                     addKeyFilter(i, sequence, builder);

@@ -111,10 +111,6 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
         return format;
     }
 
-    public long getEstimatedMemoryFootprint() {
-        return state.byteSize();
-    }
-
     /**
      * Return the internal {@link TDigestState} sketch for this metric.
      */

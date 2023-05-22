@@ -23,12 +23,8 @@ package org.elasticsearch.tdigest;
 
 import org.elasticsearch.test.ESTestCase;
 
-import java.io.IOException;
-import java.io.PrintStream;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.Random;
 
 public class ComparisonTests extends ESTestCase {
@@ -38,22 +34,18 @@ public class ComparisonTests extends ESTestCase {
      * some small fraction of transactions take 5x longer than normal. We need to
      * detect this by looking at the overall response time distribution.
      */
-    public void testLatencyProblem() throws IOException {
+    public void testLatencyProblem() {
         Random gen = random();
+        runSimulation(gen, new TdigestDetector(), 1000);
+        runSimulation(gen, new TdigestDetector(), 100);
+        runSimulation(gen, new TdigestDetector(), 10);
 
-        try (PrintStream out = new PrintStream("detector.csv", StandardCharsets.UTF_8)) {
-            out.printf(Locale.ROOT, "name,rate,t,failure,llr\n");
-            runSimulation(gen, new TdigestDetector(), out, 1000);
-            runSimulation(gen, new TdigestDetector(), out, 100);
-            runSimulation(gen, new TdigestDetector(), out, 10);
-
-            runSimulation(gen, new LogHistogramDetector(), out, 1000);
-            runSimulation(gen, new LogHistogramDetector(), out, 100);
-            runSimulation(gen, new LogHistogramDetector(), out, 10);
-        }
+        runSimulation(gen, new LogHistogramDetector(), 1000);
+        runSimulation(gen, new LogHistogramDetector(), 100);
+        runSimulation(gen, new LogHistogramDetector(), 10);
     }
 
-    private void runSimulation(Random gen, Detector d, PrintStream out, double rate) {
+    private void runSimulation(Random gen, Detector d, double rate) {
         double dt = 1 / rate;
 
         double t = 0;
@@ -64,20 +56,7 @@ public class ComparisonTests extends ESTestCase {
         while (t < 2 * 7200) {
             if (t - currentMinute >= 60) {
                 currentMinute += 60;
-                if (d.isReady()) {
-                    out.printf(
-                        Locale.ROOT,
-                        "%s, %.0f, %.0f, %.0f, %.3f\n",
-                        d.name(),
-                        rate,
-                        currentMinute,
-                        failureRate > 0 ? -Math.log10(failureRate) : 0,
-                        d.score()
-                    );
-                }
-                d.flush();
             }
-
             if (t >= 7200) {
                 // after one hour of no failure, we add 0.1% failures, half an hour later we go to 1% failure rate
                 if (t >= 7200 + 3600) {

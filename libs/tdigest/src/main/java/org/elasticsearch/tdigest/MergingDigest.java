@@ -439,7 +439,7 @@ public class MergingDigest extends AbstractTDigest {
             } else {
                 addThis = projectedW <= wLimit;
             }
-            if (i == incomingCount - 1) {
+            if (i == 1 || i == incomingCount - 1) {
                 // force last centroid to never merge
                 addThis = false;
             }
@@ -832,22 +832,6 @@ public class MergingDigest extends AbstractTDigest {
         return publicCompression;
     }
 
-    @Override
-    public int byteSize() {
-        compress();
-        // format code, compression(float), buffer-size(int), temp-size(int), #centroids-1(int),
-        // then two doubles per centroid
-        return lastUsedCell * 16 + 32;
-    }
-
-    @Override
-    public int smallByteSize() {
-        compress();
-        // format code(int), compression(float), buffer-size(short), temp-size(short), #centroids-1(short),
-        // then two floats per centroid
-        return lastUsedCell * 8 + 30;
-    }
-
     @SuppressWarnings("WeakerAccess")
     public ScaleFunction getScaleFunction() {
         return scale;
@@ -866,36 +850,6 @@ public class MergingDigest extends AbstractTDigest {
 
         Encoding(int code) {
             this.code = code;
-        }
-    }
-
-    @Override
-    public void asBytes(ByteBuffer buf) {
-        compress();
-        buf.putInt(Encoding.VERBOSE_ENCODING.code);
-        buf.putDouble(min);
-        buf.putDouble(max);
-        buf.putDouble(publicCompression);
-        buf.putInt(lastUsedCell);
-        for (int i = 0; i < lastUsedCell; i++) {
-            buf.putDouble(weight[i]);
-            buf.putDouble(mean[i]);
-        }
-    }
-
-    @Override
-    public void asSmallBytes(ByteBuffer buf) {
-        compress();
-        buf.putInt(Encoding.SMALL_ENCODING.code);    // 4
-        buf.putDouble(min);                          // + 8
-        buf.putDouble(max);                          // + 8
-        buf.putFloat((float) publicCompression);           // + 4
-        buf.putShort((short) mean.length);           // + 2
-        buf.putShort((short) tempMean.length);       // + 2
-        buf.putShort((short) lastUsedCell);          // + 2 = 30
-        for (int i = 0; i < lastUsedCell; i++) {
-            buf.putFloat((float) weight[i]);
-            buf.putFloat((float) mean[i]);
         }
     }
 

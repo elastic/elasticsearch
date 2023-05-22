@@ -21,7 +21,6 @@
 
 package org.elasticsearch.tdigest;
 
-import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
@@ -155,48 +154,12 @@ public abstract class TDigest {
      */
     public abstract double compression();
 
-    /**
-     * Returns the number of bytes required to encode this TDigest using #asBytes().
-     *
-     * @return The number of bytes required.
-     */
-    public abstract int byteSize();
-
-    /**
-     * Returns the number of bytes required to encode this TDigest using #asSmallBytes().
-     *
-     * Note that this is just as expensive as actually compressing the digest. If you don't
-     * care about time, but want to never over-allocate, this is fine. If you care about compression
-     * and speed, you pretty much just have to overallocate by using allocating #byteSize() bytes.
-     *
-     * @return The number of bytes required.
-     */
-    public abstract int smallByteSize();
-
     public void setScaleFunction(ScaleFunction scaleFunction) {
         if (scaleFunction.toString().endsWith("NO_NORM")) {
             throw new IllegalArgumentException(String.format(Locale.ROOT, "Can't use %s as scale with %s", scaleFunction, this.getClass()));
         }
         this.scale = scaleFunction;
     }
-
-    /**
-     * Serialize this TDigest into a byte buffer.  Note that the serialization used is
-     * very straightforward and is considerably larger than strictly necessary.
-     *
-     * @param buf The byte buffer into which the TDigest should be serialized.
-     */
-    public abstract void asBytes(ByteBuffer buf);
-
-    /**
-     * Serialize this TDigest into a byte buffer.  Some simple compression is used
-     * such as using variable byte representation to store the centroid weights and
-     * using delta-encoding on the centroid means so that floats can be reasonably
-     * used to store the centroid means.
-     *
-     * @param buf The byte buffer into which the TDigest should be serialized.
-     */
-    public abstract void asSmallBytes(ByteBuffer buf);
 
     /**
      * Tell this TDigest to record the original data as much as possible for test

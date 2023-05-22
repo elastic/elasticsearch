@@ -24,7 +24,6 @@ package org.elasticsearch.tdigest;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 
 public class AVLTreeDigestTests extends TDigestTests {
     @BeforeClass
@@ -41,10 +40,5 @@ public class AVLTreeDigestTests extends TDigestTests {
                 return digest;
             }
         };
-    }
-
-    @Override
-    protected TDigest fromBytes(ByteBuffer bytes) {
-        return AVLTreeDigest.fromBytes(bytes);
     }
 }

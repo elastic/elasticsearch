@@ -23,29 +23,16 @@ package org.elasticsearch.tdigest;
 
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
 
 public class MegaMergeTests extends ESTestCase {
 
-    private static final int DAY = 280;
     private static final int WIDTH = 1000;
     private static final int DATA_STRIDE = 23;
 
-    public void testLargeMerge() throws InterruptedException, ExecutionException {
-        // prove we can summarize a days worth of data at 5 minute intervals. Each interval has
-        // 1000 samples each with 1500 data points
-        double t0 = System.nanoTime() * 1e-9;
-        // we cheat by only having 23 samples that we rotate into the data summaries
-        // the raw data
+    public void testLargeMerge() {
         double[][] data = new double[DATA_STRIDE][1500];
         Random gen = random();
         for (int i = 0; i < DATA_STRIDE; i++) {
@@ -53,62 +40,27 @@ public class MegaMergeTests extends ESTestCase {
                 data[i][j] = gen.nextGaussian();
             }
         }
-        double t1 = System.nanoTime() * 1e-9;
-        // record the basic summaries
-        final MergingDigest[][] td = new MergingDigest[DAY][WIDTH];
-        int m = 0;
-        for (int i = 0; i < DAY; i++) {
-            for (int j = 0; j < WIDTH; j++) {
-                td[i][j] = new MergingDigest(100);
-                for (int k = 0; k < 1500; k++) {
-                    td[i][j].add(data[m][k]);
-                }
-                m = (m + 1) % DATA_STRIDE;
+        final MergingDigest[] td = new MergingDigest[WIDTH];
+        for (int i = 0, m = 0; i < WIDTH; i++) {
+            td[i] = new MergingDigest(100);
+            for (int k = 0; k < 1500; k++) {
+                td[i].add(data[m][k]);
             }
+            m = (m + 1) % DATA_STRIDE;
         }
-        double t2 = System.nanoTime() * 1e-9;
-        int cores = Runtime.getRuntime().availableProcessors();
-        for (int threads = 1; threads < 2 * cores; threads++) {
-            t2 = System.nanoTime() * 1e-9;
-            // pull the summaries together into 288 reasonably high resolution t-digests
-            List<Callable<MergingDigest>> tasks = new ArrayList<>();
-            for (int i = 0; i < DAY; i++) {
-                final MergingDigest[] elements = td[i];
-                tasks.add(new Callable<MergingDigest>() {
-                    @Override
-                    public MergingDigest call() {
-                        MergingDigest rx = new MergingDigest(100);
-                        rx.add(Arrays.stream(elements).toList());
-                        return rx;
-                    }
-                });
-            }
-            ExecutorService pool = Executors.newFixedThreadPool(threads);
-            List<Future<MergingDigest>> results = pool.invokeAll(tasks);
-            final MergingDigest[] r = new MergingDigest[DAY];
-            try {
-                int i = 0;
-                for (Future<MergingDigest> result : results) {
-                    r[i++] = result.get();
-                }
-            } finally {
-                pool.shutdown();
-                pool.awaitTermination(2, TimeUnit.SECONDS);
-            }
-            double t3 = System.nanoTime() * 1e-9;
-        }
+
+        MergingDigest merged = new MergingDigest(100);
+        merged.add(Arrays.stream(td).toList());
     }
 
-    public void megaMerge() {
-        final int SUMMARIES = 1000;
-        final int POINTS = 1000000;
-        double t0 = System.nanoTime() * 1e-9;
-        double[] data = new double[10013];
+    public void testMegaMerge() {
+        final int SUMMARIES = 100;
+        final int POINTS = 100000;
+        double[] data = new double[POINTS];
         Random gen = random();
         for (int i = 0; i < data.length; i++) {
             data[i] = gen.nextGaussian();
         }
-        double t1 = System.nanoTime() * 1e-9;
 
         // record the basic summaries
         final MergingDigest[] td = new MergingDigest[SUMMARIES];
@@ -120,10 +72,8 @@ public class MegaMergeTests extends ESTestCase {
                 k = (k + 1) % data.length;
             }
         }
-        double t2 = System.nanoTime() * 1e-9;
 
         MergingDigest tAll = new MergingDigest(200);
         tAll.add(List.of(td));
-        double t3 = System.nanoTime() * 1e-9;
     }
 }

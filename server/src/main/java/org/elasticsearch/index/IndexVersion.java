@@ -298,6 +298,11 @@ public record IndexVersion(int id, Version luceneVersion) implements Comparable<
         return version.id >= id;
     }
 
+    public boolean between(IndexVersion lowerInclusive, IndexVersion upperExclusive) {
+        if (upperExclusive.onOrBefore(lowerInclusive)) throw new IllegalArgumentException();
+        return onOrAfter(lowerInclusive) && before(upperExclusive);
+    }
+
     public boolean isLegacyIndexVersion() {
         return before(MINIMUM_COMPATIBLE);
     }

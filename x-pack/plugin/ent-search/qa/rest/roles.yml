@@ -33,7 +33,8 @@ user:
     - post_behavioral_analytics_event
   indices:
     - names: [
-      "test-search-application"
+      "test-search-application",
+      "test-search-application-1"
     ]
       privileges: [ "read" ]
 

@@ -116,11 +116,12 @@ public class SearchIndexInput extends BufferedIndexInput {
         final ByteBufferReference byteBufferReference = new ByteBufferReference(b);
         logger.trace("readInternal: read [{}-{}] ([{}] bytes) from [{}]", position, position + length, length, this);
         try {
-            final ByteRange startRangeToWrite = computeRange(position);
-            final ByteRange endRangeToWrite = computeRange(position + length - 1);
-            assert startRangeToWrite.end() <= endRangeToWrite.end() : startRangeToWrite + " vs " + endRangeToWrite;
-            final ByteRange rangeToWrite = startRangeToWrite.minEnvelope(endRangeToWrite);
-
+            final ByteRange rangeToWrite = BlobCacheUtils.computeRange(
+                cacheService.getRangeSize(),
+                position,
+                length,
+                cacheFile.getLength()
+            );
             assert rangeToWrite.start() <= position && position + length <= rangeToWrite.end()
                 : "[" + position + "-" + (position + length) + "] vs " + rangeToWrite;
             final ByteRange rangeToRead = ByteRange.of(position, position + length);
@@ -189,9 +190,5 @@ public class SearchIndexInput extends BufferedIndexInput {
     private static final ThreadLocal<ByteBuffer> writeBuffer = ThreadLocal.withInitial(
         () -> ByteBuffer.allocateDirect(MAX_BYTES_PER_WRITE)
     );
-
-    private ByteRange computeRange(long position) {
-        return BlobCacheUtils.computeRange(cacheService.getRangeSize(), position, cacheFile.getLength());
-    }
 
 }

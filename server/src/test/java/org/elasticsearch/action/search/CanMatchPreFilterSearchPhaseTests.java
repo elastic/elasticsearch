@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
@@ -904,7 +903,6 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         public CoordinatorRewriteContextProvider build() {
             return new CoordinatorRewriteContextProvider(
                 XContentParserConfiguration.EMPTY,
-                mock(NamedWriteableRegistry.class),
                 mock(Client.class),
                 System::currentTimeMillis,
                 () -> clusterState,

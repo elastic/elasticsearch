@@ -21,7 +21,7 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -256,7 +256,7 @@ public class DeploymentManager {
         NlpInferenceInput input,
         boolean skipQueue,
         TimeValue timeout,
-        Task parentActionTask,
+        CancellableTask parentActionTask,
         ActionListener<InferenceResults> listener
     ) {
         var processContext = getProcessContext(task, listener::onFailure);

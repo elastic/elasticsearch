@@ -250,6 +250,11 @@ public record TransportVersion(int id) implements Comparable<TransportVersion> {
         return version.id >= id;
     }
 
+    public boolean between(TransportVersion lowerInclusive, TransportVersion upperExclusive) {
+        if (upperExclusive.onOrBefore(lowerInclusive)) throw new IllegalArgumentException();
+        return onOrAfter(lowerInclusive) && before(upperExclusive);
+    }
+
     public static TransportVersion fromString(String str) {
         return TransportVersion.fromId(Integer.parseInt(str));
     }

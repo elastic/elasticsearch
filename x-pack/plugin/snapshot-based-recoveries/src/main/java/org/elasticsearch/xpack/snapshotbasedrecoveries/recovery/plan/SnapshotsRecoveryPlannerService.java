@@ -187,8 +187,8 @@ public class SnapshotsRecoveryPlannerService implements RecoveryPlannerService {
         // NodeVersionAllocationDecider ensures that we only recover to a node that has newer or
         // same version.
         if (commitVersion == null) {
-            assert SEQ_NO_SNAPSHOT_RECOVERIES_SUPPORTED_VERSION.luceneVersion.onOrAfter(snapshot.getCommitLuceneVersion());
-            return Version.CURRENT.luceneVersion.onOrAfter(snapshot.getCommitLuceneVersion());
+            assert SEQ_NO_SNAPSHOT_RECOVERIES_SUPPORTED_VERSION.luceneVersion().onOrAfter(snapshot.getCommitLuceneVersion());
+            return Version.CURRENT.luceneVersion().onOrAfter(snapshot.getCommitLuceneVersion());
         }
         return commitVersion.onOrBefore(Version.CURRENT);
     }

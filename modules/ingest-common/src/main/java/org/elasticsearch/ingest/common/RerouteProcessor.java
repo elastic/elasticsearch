@@ -94,10 +94,15 @@ public final class RerouteProcessor extends AbstractProcessor {
         ingestDocument.setFieldValue(DATA_STREAM_TYPE, type);
         ingestDocument.setFieldValue(DATA_STREAM_DATASET, dataset);
         ingestDocument.setFieldValue(DATA_STREAM_NAMESPACE, namespace);
-        if (ingestDocument.hasField(EVENT_DATASET)) {
+        // remove fields with dotted field names
+        ingestDocument.getCtxMap().remove(DATA_STREAM_TYPE);
+        ingestDocument.getCtxMap().remove(DATA_STREAM_DATASET);
+        ingestDocument.getCtxMap().remove(DATA_STREAM_NAMESPACE);
+        if (ingestDocument.getCtxMap().containsKey(EVENT_DATASET) || ingestDocument.hasField(EVENT_DATASET)) {
             // ECS specifies that "event.dataset should have the same value as data_stream.dataset"
             // not eagerly set event.dataset but only if the doc contains it already to ensure it's consistent with data_stream.dataset
             ingestDocument.setFieldValue(EVENT_DATASET, dataset);
+            ingestDocument.getCtxMap().remove(EVENT_DATASET);
         }
         return ingestDocument;
     }
@@ -253,10 +258,33 @@ public final class RerouteProcessor extends AbstractProcessor {
         @Nullable
         public String resolve(IngestDocument ingestDocument) {
             if (fieldReference != null) {
-                return sanitizer.apply(ingestDocument.getFieldValue(fieldReference, String.class, true));
+                String value = ingestDocument.getFieldValue(fieldReference, String.class, true);
+                if (value == null) {
+                    value = getStringFieldValueInDottedNotation(ingestDocument);
+                }
+                return sanitizer.apply(value);
             } else {
                 return value;
             }
+        }
+
+        private String getStringFieldValueInDottedNotation(IngestDocument ingestDocument) {
+            String value = null;
+            Object valueObject = ingestDocument.getCtxMap().get(fieldReference);
+            if (valueObject instanceof String) {
+                value = (String) valueObject;
+            } else if (valueObject != null) {
+                throw new IllegalArgumentException(
+                    "field ["
+                        + fieldReference
+                        + "] of type ["
+                        + valueObject.getClass().getName()
+                        + "] cannot be cast to ["
+                        + String.class.getName()
+                        + "]"
+                );
+            }
+            return value;
         }
     }
 }

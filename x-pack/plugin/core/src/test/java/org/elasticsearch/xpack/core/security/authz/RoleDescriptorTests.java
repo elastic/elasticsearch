@@ -30,7 +30,6 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.ApplicationResourcePrivileges;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
-import org.elasticsearch.xpack.core.security.authz.permission.WorkflowsRestrictionResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
@@ -997,8 +996,8 @@ public class RoleDescriptorTests extends ESTestCase {
             randomRoleDescriptorMetadata(allowReservedMetadata),
             Map.of(),
             remoteIndexPrivileges,
-            allowWorkflows
-                ? new RoleDescriptor.RoleRestriction(randomSubsetOf(WorkflowsRestrictionResolver.names()).toArray(String[]::new))
+            allowWorkflows // TODO: Use real workflow names once we have defined them.
+                ? new RoleDescriptor.RoleRestriction(randomSet(0, 3, () -> randomAlphaOfLength(5)).toArray(String[]::new))
                 : null
         );
     }

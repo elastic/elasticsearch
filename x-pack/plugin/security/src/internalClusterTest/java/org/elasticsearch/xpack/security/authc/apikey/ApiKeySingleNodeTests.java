@@ -625,8 +625,7 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
         final UpdateApiKeyResponse updateApiKeyResponse = client().execute(UpdateCrossClusterApiKeyAction.INSTANCE, updateApiKeyRequest)
             .actionGet();
 
-        if ((roleDescriptorBuilder == null || roleDescriptorBuilder.build().equals(originalRoleDescriptor))
-            && (updateMetadata == null)) {
+        if ((roleDescriptorBuilder == null || roleDescriptorBuilder.build().equals(originalRoleDescriptor)) && (updateMetadata == null)) {
             assertThat(updateApiKeyResponse.isUpdated(), is(false));
         } else {
             assertThat(updateApiKeyResponse.isUpdated(), is(true));

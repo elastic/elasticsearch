@@ -15,7 +15,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyRequestTests.ACCESS_CANDIDATES;
+import static org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyRequestTests.randomCrossClusterApiKeyAccessField;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -28,7 +28,7 @@ public class UpdateCrossClusterApiKeyRequestTests extends ESTestCase {
 
         final CrossClusterApiKeyRoleDescriptorBuilder roleDescriptorBuilder;
         if (metadata == null || randomBoolean()) {
-            roleDescriptorBuilder = CrossClusterApiKeyRoleDescriptorBuilder.parse(randomFrom(ACCESS_CANDIDATES));
+            roleDescriptorBuilder = CrossClusterApiKeyRoleDescriptorBuilder.parse(randomCrossClusterApiKeyAccessField());
         } else {
             roleDescriptorBuilder = null;
         }

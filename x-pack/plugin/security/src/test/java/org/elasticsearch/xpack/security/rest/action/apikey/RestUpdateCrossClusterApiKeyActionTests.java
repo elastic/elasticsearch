@@ -26,7 +26,7 @@ import org.mockito.ArgumentCaptor;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyRequestTests.ACCESS_CANDIDATES;
+import static org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyRequestTests.randomCrossClusterApiKeyAccessField;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -39,7 +39,7 @@ public class RestUpdateCrossClusterApiKeyActionTests extends ESTestCase {
 
     public void testUpdateHasTypeOfCrossCluster() throws Exception {
         final String id = randomAlphaOfLength(10);
-        final String access = randomFrom(ACCESS_CANDIDATES);
+        final String access = randomCrossClusterApiKeyAccessField();
         final boolean hasMetadata = randomBoolean();
         final FakeRestRequest restRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withContent(
             new BytesArray(Strings.format("""

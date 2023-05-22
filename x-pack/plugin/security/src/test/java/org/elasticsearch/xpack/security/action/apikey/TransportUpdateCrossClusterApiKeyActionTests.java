@@ -32,7 +32,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
-import static org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyRequestTests.ACCESS_CANDIDATES;
+import static org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyRequestTests.randomCrossClusterApiKeyAccessField;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -66,14 +66,14 @@ public class TransportUpdateCrossClusterApiKeyActionTests extends ESTestCase {
 
         final CrossClusterApiKeyRoleDescriptorBuilder roleDescriptorBuilder;
         if (metadata == null || randomBoolean()) {
-            roleDescriptorBuilder = CrossClusterApiKeyRoleDescriptorBuilder.parse(randomFrom(ACCESS_CANDIDATES));
+            roleDescriptorBuilder = CrossClusterApiKeyRoleDescriptorBuilder.parse(randomCrossClusterApiKeyAccessField());
         } else {
             roleDescriptorBuilder = null;
         }
 
         final String id = randomAlphaOfLength(10);
         final var request = new UpdateCrossClusterApiKeyRequest(id, roleDescriptorBuilder, metadata);
-        final int updateStatus =  randomIntBetween(0, 2); // 0 - success, 1 - noop, 2 - error
+        final int updateStatus = randomIntBetween(0, 2); // 0 - success, 1 - noop, 2 - error
 
         doAnswer(invocation -> {
             final var bulkRequest = (BaseBulkUpdateApiKeyRequest) invocation.getArgument(1);

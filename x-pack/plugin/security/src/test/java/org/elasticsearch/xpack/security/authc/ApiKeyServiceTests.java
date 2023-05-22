@@ -153,7 +153,7 @@ import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.test.SecurityIntegTestCase.getFastStoredHashAlgoForTests;
 import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
 import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS;
-import static org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyRequestTests.ACCESS_CANDIDATES;
+import static org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyRequestTests.randomCrossClusterApiKeyAccessField;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_ID_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_METADATA_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_TYPE_KEY;
@@ -1474,12 +1474,12 @@ public class ApiKeyServiceTests extends ESTestCase {
             service.getRoleDescriptorsBytesCache().get(cachedApiKeyDoc31.limitedByRoleDescriptorsHash).utf8ToString(),
             equalTo("{}")
         );
-if (metadata31 == null) {
-    assertNull(cachedApiKeyDoc31.metadataFlattened);
-} else {
-    assertThat(cachedApiKeyDoc31.metadataFlattened, equalTo(XContentTestUtils.convertToXContent(metadata31, XContentType.JSON)));
-}       
-       assertThat(service.getRoleDescriptorsBytesCache().get(cachedApiKeyDoc31.roleDescriptorsHash), sameInstance(roleDescriptorsBytes3));
+        if (metadata31 == null) {
+            assertNull(cachedApiKeyDoc31.metadataFlattened);
+        } else {
+            assertThat(cachedApiKeyDoc31.metadataFlattened, equalTo(XContentTestUtils.convertToXContent(metadata31, XContentType.JSON)));
+        }
+        assertThat(service.getRoleDescriptorsBytesCache().get(cachedApiKeyDoc31.roleDescriptorsHash), sameInstance(roleDescriptorsBytes3));
         assertThat(cachedApiKeyDoc31.type, is(ApiKey.Type.CROSS_CLUSTER));
 
         // 4. Will fetch document from security index if role descriptors are not found even when
@@ -1908,7 +1908,7 @@ if (metadata31 == null) {
             : randomSet(0, 3, RoleDescriptorTests::randomRoleDescriptor);
         final List<RoleDescriptor> oldKeyRoles;
         if (type == ApiKey.Type.CROSS_CLUSTER) {
-            oldKeyRoles = List.of(CrossClusterApiKeyRoleDescriptorBuilder.parse(randomFrom(ACCESS_CANDIDATES)).build());
+            oldKeyRoles = List.of(CrossClusterApiKeyRoleDescriptorBuilder.parse(randomCrossClusterApiKeyAccessField()).build());
         } else {
             oldKeyRoles = randomList(3, RoleDescriptorTests::randomRoleDescriptor);
         }
@@ -1948,7 +1948,7 @@ if (metadata31 == null) {
             if (type == ApiKey.Type.CROSS_CLUSTER) {
                 newKeyRoles = randomValueOtherThan(oldKeyRoles, () -> {
                     try {
-                        return List.of(CrossClusterApiKeyRoleDescriptorBuilder.parse(randomFrom(ACCESS_CANDIDATES)).build());
+                        return List.of(CrossClusterApiKeyRoleDescriptorBuilder.parse(randomCrossClusterApiKeyAccessField()).build());
                     } catch (IOException e) {
                         throw new UncheckedIOException(e);
                     }

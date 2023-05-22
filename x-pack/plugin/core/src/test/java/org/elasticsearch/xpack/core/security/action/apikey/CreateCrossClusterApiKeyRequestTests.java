@@ -19,36 +19,12 @@ import java.util.Map;
 
 public class CreateCrossClusterApiKeyRequestTests extends AbstractWireSerializingTestCase<CreateCrossClusterApiKeyRequest> {
 
-    public static final List<String> ACCESS_CANDIDATES = List.of("""
-        {
-          "search": [ {"names": ["logs"]} ]
-        }""", """
-        {
-          "search": [ {"names": ["logs"], "query": "abc" } ]
-        }""", """
-        {
-          "search": [ {"names": ["logs"], "field_security": {"grant": ["*"], "except": ["private"]} } ]
-        }""", """
-        {
-          "search": [ {"names": ["logs"], "query": "abc", "field_security": {"grant": ["*"], "except": ["private"]} } ]
-        }""", """
-        {
-          "replication": [ {"names": ["archive"], "allow_restricted_indices": true } ]
-        }""", """
-        {
-          "replication": [ {"names": ["archive"]} ]
-        }""", """
-        {
-          "search": [ {"names": ["logs"]} ],
-          "replication": [ {"names": ["archive"]} ]
-        }""");
-
     private String access;
     private CrossClusterApiKeyRoleDescriptorBuilder roleDescriptorBuilder;
 
     @Before
     public void init() throws IOException {
-        access = randomFrom(ACCESS_CANDIDATES);
+        access = randomCrossClusterApiKeyAccessField();
         roleDescriptorBuilder = CrossClusterApiKeyRoleDescriptorBuilder.parse(access);
     }
 
@@ -81,7 +57,9 @@ public class CreateCrossClusterApiKeyRequestTests extends AbstractWireSerializin
             case 2 -> {
                 return new CreateCrossClusterApiKeyRequest(
                     instance.getName(),
-                    CrossClusterApiKeyRoleDescriptorBuilder.parse(randomValueOtherThan(access, () -> randomFrom(ACCESS_CANDIDATES))),
+                    CrossClusterApiKeyRoleDescriptorBuilder.parse(
+                        randomValueOtherThan(access, CreateCrossClusterApiKeyRequestTests::randomCrossClusterApiKeyAccessField)
+                    ),
                     instance.getExpiration(),
                     instance.getMetadata()
                 );
@@ -121,5 +99,33 @@ public class CreateCrossClusterApiKeyRequestTests extends AbstractWireSerializin
             ),
             null
         );
+    }
+
+    private static final List<String> ACCESS_CANDIDATES = List.of("""
+        {
+          "search": [ {"names": ["logs"]} ]
+        }""", """
+        {
+          "search": [ {"names": ["logs"], "query": "abc" } ]
+        }""", """
+        {
+          "search": [ {"names": ["logs"], "field_security": {"grant": ["*"], "except": ["private"]} } ]
+        }""", """
+        {
+          "search": [ {"names": ["logs"], "query": "abc", "field_security": {"grant": ["*"], "except": ["private"]} } ]
+        }""", """
+        {
+          "replication": [ {"names": ["archive"], "allow_restricted_indices": true } ]
+        }""", """
+        {
+          "replication": [ {"names": ["archive"]} ]
+        }""", """
+        {
+          "search": [ {"names": ["logs"]} ],
+          "replication": [ {"names": ["archive"]} ]
+        }""");
+
+    public static String randomCrossClusterApiKeyAccessField() {
+        return randomFrom(ACCESS_CANDIDATES);
     }
 }

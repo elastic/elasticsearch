@@ -302,7 +302,7 @@ public class ManageOwnApiKeyClusterPrivilegeTests extends ESTestCase {
         final CreateCrossClusterApiKeyRequest request = CreateCrossClusterApiKeyRequest.withNameAndAccess(
             randomAlphaOfLengthBetween(3, 8),
             """
-                                                                                                {
+                {
                   "search": [ {"names": ["logs"]} ]
                 }"""
         );

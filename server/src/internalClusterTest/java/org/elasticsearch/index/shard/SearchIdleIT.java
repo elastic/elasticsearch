@@ -42,7 +42,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.IntToLongFunction;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoSearchHits;
 import static org.hamcrest.Matchers.equalTo;
@@ -241,55 +240,43 @@ public class SearchIdleIT extends ESSingleNodeTestCase {
         // are executed only if we have enough shards.
         int idleIndexShardsCount = 3;
         int activeIndexShardsCount = 3;
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate(idleIndex)
-                .setSettings(
-                    Settings.builder()
-                        .put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), "500ms")
-                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, idleIndexShardsCount)
-                        .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
-                        .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
-                        .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "routing_field")
-                        .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2021-05-10T00:00:00.000Z")
-                        .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-05-11T00:00:00.000Z")
-                )
-                .setMapping(
-                    new String[] {
-                        "keyword",
-                        "type=keyword",
-                        "@timestamp",
-                        "type=date",
-                        "routing_field",
-                        "type=keyword,time_series_dimension=true" }
-                )
-                .get()
+        createIndex(
+            idleIndex,
+            Settings.builder()
+                .put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), "500ms")
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, idleIndexShardsCount)
+                .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
+                .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+                .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "routing_field")
+                .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2021-05-10T00:00:00.000Z")
+                .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-05-11T00:00:00.000Z")
+                .build(),
+            "doc",
+            "keyword",
+            "type=keyword",
+            "@timestamp",
+            "type=date",
+            "routing_field",
+            "type=keyword,time_series_dimension=true"
         );
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate(activeIndex)
-                .setSettings(
-                    Settings.builder()
-                        .put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), "500ms")
-                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, activeIndexShardsCount)
-                        .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
-                        .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
-                        .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "routing_field")
-                        .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2021-05-12T00:00:00.000Z")
-                        .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-05-13T23:59:59.999Z")
-                )
-                .setMapping(
-                    new String[] {
-                        "keyword",
-                        "type=keyword",
-                        "@timestamp",
-                        "type=date",
-                        "routing_field",
-                        "type=keyword,time_series_dimension=true" }
-                )
-                .get()
+        createIndex(
+            activeIndex,
+            Settings.builder()
+                .put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), "500ms")
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, activeIndexShardsCount)
+                .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
+                .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+                .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "routing_field")
+                .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2021-05-12T00:00:00.000Z")
+                .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-05-13T23:59:59.999Z")
+                .build(),
+            "doc",
+            "keyword",
+            "type=keyword",
+            "@timestamp",
+            "type=date",
+            "routing_field",
+            "type=keyword,time_series_dimension=true"
         );
 
         assertEquals(
@@ -352,31 +339,27 @@ public class SearchIdleIT extends ESSingleNodeTestCase {
         // are executed only if we have enough shards.
         int idleIndexShardsCount = 3;
         int activeIndexShardsCount = 3;
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate(idleIndex)
-                .setSettings(
-                    Settings.builder()
-                        .put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), "500ms")
-                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, idleIndexShardsCount)
-                        .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
-                )
-                .setMapping(new String[] { "keyword", "type=keyword" })
-                .get()
+        createIndex(
+            idleIndex,
+            Settings.builder()
+                .put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), "500ms")
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, idleIndexShardsCount)
+                .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
+                .build(),
+            "doc",
+            "keyword",
+            "type=keyword"
         );
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate(activeIndex)
-                .setSettings(
-                    Settings.builder()
-                        .put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), "500ms")
-                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, activeIndexShardsCount)
-                        .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
-                )
-                .setMapping(new String[] { "keyword", "type=keyword" })
-                .get()
+        createIndex(
+            activeIndex,
+            Settings.builder()
+                .put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), "500ms")
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, activeIndexShardsCount)
+                .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
+                .build(),
+            "doc",
+            "keyword",
+            "type=keyword"
         );
 
         assertEquals(RestStatus.CREATED, client().prepareIndex(idleIndex).setSource("keyword", "idle").get().status());

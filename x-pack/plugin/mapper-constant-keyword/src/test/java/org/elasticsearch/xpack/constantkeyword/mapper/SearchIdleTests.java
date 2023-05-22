@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.constantkeyword.mapper;
 
-import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.search.SearchResponse;
@@ -30,8 +29,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-
 public class SearchIdleTests extends ESSingleNodeTestCase {
 
     @Override
@@ -47,25 +44,31 @@ public class SearchIdleTests extends ESSingleNodeTestCase {
         // are executed only if we have enough shards.
         int idleIndexShardsCount = 3;
         int activeIndexShardsCount = 3;
-        assertAcked(
-            createIndex(
-                idleIndex,
-                idleIndexShardsCount,
-                "constant_keyword",
-                "type=constant_keyword,value=constant_value1",
-                "keyword",
-                "type=keyword"
-            )
+        createIndex(
+            idleIndex,
+            Settings.builder()
+                .put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), "500ms")
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, idleIndexShardsCount)
+                .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
+                .build(),
+            "doc",
+            "constant_keyword",
+            "type=constant_keyword,value=constant_value1",
+            "keyword",
+            "type=keyword"
         );
-        assertAcked(
-            createIndex(
-                activeIndex,
-                activeIndexShardsCount,
-                "constant_keyword",
-                "type=constant_keyword,value=constant_value2",
-                "keyword",
-                "type=keyword"
-            )
+        createIndex(
+            activeIndex,
+            Settings.builder()
+                .put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), "500ms")
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, activeIndexShardsCount)
+                .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
+                .build(),
+            "doc",
+            "constant_keyword",
+            "type=constant_keyword,value=constant_value2",
+            "keyword",
+            "type=keyword"
         );
 
         assertEquals(RestStatus.CREATED, client().prepareIndex(idleIndex).setSource("keyword", randomAlphaOfLength(10)).get().status());
@@ -109,25 +112,31 @@ public class SearchIdleTests extends ESSingleNodeTestCase {
         // are executed only if we have enough shards.
         int idleIndexShardsCount = 3;
         int activeIndexShardsCount = 3;
-        assertAcked(
-            createIndex(
-                idleIndex,
-                idleIndexShardsCount,
-                "constant_keyword",
-                "type=constant_keyword,value=constant_value1",
-                "keyword",
-                "type=keyword"
-            )
+        createIndex(
+            idleIndex,
+            Settings.builder()
+                .put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), "500ms")
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, idleIndexShardsCount)
+                .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
+                .build(),
+            "doc",
+            "constant_keyword",
+            "type=constant_keyword,value=constant_value1",
+            "keyword",
+            "type=keyword"
         );
-        assertAcked(
-            createIndex(
-                activeIndex,
-                activeIndexShardsCount,
-                "constant_keyword",
-                "type=constant_keyword,value=constant_value2",
-                "keyword",
-                "type=keyword"
-            )
+        createIndex(
+            activeIndex,
+            Settings.builder()
+                .put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), "500ms")
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, activeIndexShardsCount)
+                .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
+                .build(),
+            "doc",
+            "constant_keyword",
+            "type=constant_keyword,value=constant_value2",
+            "keyword",
+            "type=keyword"
         );
 
         assertEquals(RestStatus.CREATED, client().prepareIndex(idleIndex).setSource("keyword", randomAlphaOfLength(10)).get().status());
@@ -173,25 +182,31 @@ public class SearchIdleTests extends ESSingleNodeTestCase {
         // are executed only if we have enough shards.
         int idleIndexShardsCount = 3;
         int activeIndexShardsCount = 3;
-        assertAcked(
-            createIndex(
-                idleIndex,
-                idleIndexShardsCount,
-                "constant_keyword",
-                "type=constant_keyword,value=constant",
-                "keyword",
-                "type=keyword"
-            )
+        createIndex(
+            idleIndex,
+            Settings.builder()
+                .put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), "500ms")
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, idleIndexShardsCount)
+                .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
+                .build(),
+            "doc",
+            "constant_keyword",
+            "type=constant_keyword,value=constant",
+            "keyword",
+            "type=keyword"
         );
-        assertAcked(
-            createIndex(
-                activeIndex,
-                activeIndexShardsCount,
-                "constant_keyword",
-                "type=constant_keyword,value=constant",
-                "keyword",
-                "type=keyword"
-            )
+        createIndex(
+            activeIndex,
+            Settings.builder()
+                .put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), "500ms")
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, activeIndexShardsCount)
+                .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
+                .build(),
+            "doc",
+            "constant_keyword",
+            "type=constant_keyword,value=constant",
+            "keyword",
+            "type=keyword"
         );
 
         assertEquals(RestStatus.CREATED, client().prepareIndex(idleIndex).setSource("keyword", randomAlphaOfLength(10)).get().status());
@@ -233,8 +248,28 @@ public class SearchIdleTests extends ESSingleNodeTestCase {
         // are executed only if we have enough shards.
         int idleIndexShardsCount = 3;
         int activeIndexShardsCount = 3;
-        assertAcked(createIndex(idleIndex, idleIndexShardsCount, "constant_keyword", "type=constant_keyword,value=test1_value"));
-        assertAcked(createIndex(activeIndex, activeIndexShardsCount, "constant_keyword", "type=constant_keyword,value=test2_value"));
+        createIndex(
+            idleIndex,
+            Settings.builder()
+                .put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), "500ms")
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, idleIndexShardsCount)
+                .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
+                .build(),
+            "doc",
+            "constant_keyword",
+            "type=constant_keyword,value=test1_value"
+        );
+        createIndex(
+            activeIndex,
+            Settings.builder()
+                .put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), "500ms")
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, activeIndexShardsCount)
+                .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
+                .build(),
+            "doc",
+            "constant_keyword",
+            "type=constant_keyword,value=test2_value"
+        );
 
         assertEquals(RestStatus.CREATED, client().prepareIndex(idleIndex).setSource("keyword", "value").get().status());
         assertEquals(RestStatus.CREATED, client().prepareIndex(activeIndex).setSource("keyword", "value").get().status());
@@ -272,20 +307,6 @@ public class SearchIdleTests extends ESSingleNodeTestCase {
 
         assertIdleShardsRefreshStats(idleIndexStatsBefore, idleIndexStatsAfter);
         assertActiveShardsRefreshStats(activeIndexStatsBefore, activeIndexStatsAfter);
-    }
-
-    private CreateIndexResponse createIndex(final String idleIndex, int shardsCount, final String... mapping) {
-        return client().admin()
-            .indices()
-            .prepareCreate(idleIndex)
-            .setSettings(
-                Settings.builder()
-                    .put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), "500ms")
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, shardsCount)
-                    .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
-            )
-            .setMapping(mapping)
-            .get();
     }
 
     private SearchResponse search(final String index, final String field, final String value, int preFilterShardSize) {

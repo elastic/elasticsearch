@@ -7,11 +7,16 @@
 
 package org.elasticsearch.xpack.security.operator;
 
+import org.elasticsearch.transport.TcpTransport;
+
+import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class Constants {
 
-    public static final Set<String> NON_OPERATOR_ACTIONS = Set.of(
+    public static final Set<String> NON_OPERATOR_ACTIONS = Stream.of(
         // "cluster:admin/autoscaling/delete_autoscaling_policy",
         "cluster:admin/autoscaling/get_autoscaling_capacity",
         "cluster:admin/autoscaling/get_autoscaling_policy",
@@ -194,7 +199,8 @@ public class Constants {
         "cluster:admin/xpack/security/api_key/update",
         "cluster:admin/xpack/security/api_key/bulk_update",
         "cluster:admin/xpack/security/cache/clear",
-        "cluster:admin/xpack/security/cross_cluster/api_key/create",
+        TcpTransport.isUntrustedRemoteClusterEnabled() ? "cluster:admin/xpack/security/cross_cluster/api_key/create" : null,
+        TcpTransport.isUntrustedRemoteClusterEnabled() ? "cluster:admin/xpack/security/cross_cluster/api_key/update" : null,
         "cluster:admin/xpack/security/delegate_pki",
         "cluster:admin/xpack/security/enroll/node",
         "cluster:admin/xpack/security/enroll/kibana",
@@ -520,5 +526,5 @@ public class Constants {
         "internal:cluster/formation/info",
         "internal:gateway/local/started_shards",
         "internal:admin/indices/prevalidate_shard_path"
-    );
+    ).filter(Objects::nonNull).collect(Collectors.toUnmodifiableSet());
 }

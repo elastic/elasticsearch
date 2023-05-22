@@ -7,33 +7,31 @@
 
 package org.elasticsearch.xpack.core.security.action.apikey;
 
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public final class UpdateApiKeyRequest extends BaseUpdateApiKeyRequest {
-    public static UpdateApiKeyRequest usingApiKeyId(final String id) {
-        return new UpdateApiKeyRequest(id, null, null);
-    }
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 
+public final class UpdateCrossClusterApiKeyRequest extends BaseUpdateApiKeyRequest {
     private final String id;
 
-    public UpdateApiKeyRequest(
+    public UpdateCrossClusterApiKeyRequest(
         final String id,
-        @Nullable final List<RoleDescriptor> roleDescriptors,
+        @Nullable CrossClusterApiKeyRoleDescriptorBuilder roleDescriptorBuilder,
         @Nullable final Map<String, Object> metadata
     ) {
-        super(roleDescriptors, metadata);
+        super(roleDescriptorBuilder == null ? null : List.of(roleDescriptorBuilder.build()), metadata);
         this.id = Objects.requireNonNull(id, "API key ID must not be null");
     }
 
-    public UpdateApiKeyRequest(StreamInput in) throws IOException {
+    public UpdateCrossClusterApiKeyRequest(StreamInput in) throws IOException {
         super(in);
         this.id = in.readString();
     }
@@ -50,6 +48,18 @@ public final class UpdateApiKeyRequest extends BaseUpdateApiKeyRequest {
 
     @Override
     public ApiKey.Type getType() {
-        return ApiKey.Type.REST;
+        return ApiKey.Type.CROSS_CLUSTER;
+    }
+
+    @Override
+    public ActionRequestValidationException validate() {
+        ActionRequestValidationException validationException = super.validate();
+        if (roleDescriptors == null && metadata == null) {
+            validationException = addValidationError(
+                "must update either [access] or [metadata] for cross-cluster API keys",
+                validationException
+            );
+        }
+        return validationException;
     }
 }

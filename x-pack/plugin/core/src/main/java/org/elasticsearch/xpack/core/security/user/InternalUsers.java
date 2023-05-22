@@ -7,7 +7,11 @@
 
 package org.elasticsearch.xpack.core.security.user;
 
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
+import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
@@ -112,10 +116,15 @@ public class InternalUsers {
             new String[] {},
             new RoleDescriptor.IndicesPrivileges[] {
                 RoleDescriptor.IndicesPrivileges.builder()
+                    // There are no active plans to manage the security index or async search index with DLM, so excluding them here
                     .indices("/@&~(\\.security.*)&~(\\.async-search.*)/")
-                    // TODO set correct privileges here
-                    .privileges("none")
-                    // TODO sanity check
+                    .privileges(
+                        RolloverAction.NAME,
+                        DeleteIndexAction.NAME,
+                        ForceMergeAction.NAME,
+                        // indices stats is used by rollover, so we need to grant it here
+                        IndicesStatsAction.NAME
+                    )
                     .allowRestrictedIndices(true)
                     .build() },
             null,

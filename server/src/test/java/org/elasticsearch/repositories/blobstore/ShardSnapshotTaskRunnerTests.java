@@ -100,7 +100,7 @@ public class ShardSnapshotTaskRunnerTests extends ESTestCase {
 
     public static BlobStoreIndexShardSnapshot.FileInfo dummyFileInfo() {
         String filename = randomAlphaOfLength(10);
-        StoreFileMetadata metadata = new StoreFileMetadata(filename, 10, "CHECKSUM", Version.CURRENT.luceneVersion.toString());
+        StoreFileMetadata metadata = new StoreFileMetadata(filename, 10, "CHECKSUM", Version.CURRENT.luceneVersion().toString());
         return new BlobStoreIndexShardSnapshot.FileInfo(filename, metadata, null);
     }
 

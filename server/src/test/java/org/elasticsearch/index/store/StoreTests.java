@@ -106,7 +106,7 @@ public class StoreTests extends ESTestCase {
         Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT).build()
     );
     private static final Version MIN_SUPPORTED_LUCENE_VERSION = org.elasticsearch.Version.CURRENT
-        .minimumIndexCompatibilityVersion().luceneVersion;
+            .minimumIndexCompatibilityVersion().luceneVersion();
 
     public void testRefCount() {
         final ShardId shardId = new ShardId("index", "_na_", 1);

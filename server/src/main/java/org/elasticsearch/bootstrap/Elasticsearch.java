@@ -322,10 +322,10 @@ class Elasticsearch {
     }
 
     static void checkLucene() {
-        if (Version.CURRENT.luceneVersion.equals(org.apache.lucene.util.Version.LATEST) == false) {
+        if (Version.CURRENT.luceneVersion().equals(org.apache.lucene.util.Version.LATEST) == false) {
             throw new AssertionError(
                 "Lucene version mismatch this version of Elasticsearch requires lucene version ["
-                    + Version.CURRENT.luceneVersion
+                    + Version.CURRENT.luceneVersion()
                     + "]  but the current lucene version is ["
                     + org.apache.lucene.util.Version.LATEST
                     + "]"

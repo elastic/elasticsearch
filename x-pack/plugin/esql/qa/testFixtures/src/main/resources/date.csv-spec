@@ -157,3 +157,10 @@ x:date                  |hire_date:date
 1996-01-01T00:00:00.000Z|1996-11-05T00:00:00.000Z
 1995-01-01T00:00:00.000Z|1995-01-27T00:00:00.000Z
 ;
+
+convertToString
+from employees | sort emp_no| eval hired_at = to_string(hire_date) | project emp_no, hired_at, hire_date  | limit 1;
+
+emp_no:integer |hired_at:keyword         |hire_date:date
+10001          |1986-06-26T00:00:00.000Z |1986-06-26T00:00:00.000Z
+;

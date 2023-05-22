@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.gen;
 
+import org.elasticsearch.compute.ann.ConvertEvaluator;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.MvEvaluator;
 
@@ -37,7 +38,7 @@ public class EvaluatorProcessor implements Processor {
 
     @Override
     public Set<String> getSupportedAnnotationTypes() {
-        return Set.of(Evaluator.class.getName(), MvEvaluator.class.getName());
+        return Set.of(Evaluator.class.getName(), MvEvaluator.class.getName(), ConvertEvaluator.class.getName());
     }
 
     @Override
@@ -84,6 +85,19 @@ public class EvaluatorProcessor implements Processor {
                             (ExecutableElement) evaluatorMethod,
                             mvEvaluatorAnn.extraName(),
                             mvEvaluatorAnn.finish()
+                        ).sourceFile(),
+                        env
+                    );
+                }
+                ConvertEvaluator convertEvaluatorAnn = evaluatorMethod.getAnnotation(ConvertEvaluator.class);
+                if (convertEvaluatorAnn != null) {
+                    AggregatorProcessor.write(
+                        evaluatorMethod,
+                        "evaluator",
+                        new ConvertEvaluatorImplementer(
+                            env.getElementUtils(),
+                            (ExecutableElement) evaluatorMethod,
+                            convertEvaluatorAnn.extraName()
                         ).sourceFile(),
                         env
                     );

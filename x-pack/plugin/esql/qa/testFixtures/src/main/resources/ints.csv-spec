@@ -1,0 +1,9 @@
+// Integral types-specific tests
+
+convertToString
+from employees | sort emp_no| eval byte = to_string(languages.byte), short = to_string(languages.short), long = to_string(languages.long), int = to_string(languages) | project emp_no, byte, short, long, int, languages  | limit 2;
+
+emp_no:integer |byte:keyword   |short:keyword  |long:keyword |int:keyword |languages:integer
+10001          |2              |2              |2            |2           |2
+10002          |5              |5              |5            |5           |5
+;

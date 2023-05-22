@@ -268,3 +268,14 @@ min(salary):integer | max(salary):integer | job_positions:keyword
 25945               | 74999               | Data Scientist
 25324               | 58715               | Head Human Resources
 ;
+
+convertToString
+from employees | eval positions = to_string(job_positions) | project emp_no, positions, job_positions | limit 5;
+
+emp_no:integer |positions:keyword                                                     |job_positions:keyword
+10001          |[Accountant, Senior Python Developer]                                 |[Accountant, Senior Python Developer]                                 
+10002          |Senior Team Lead                                                      |Senior Team Lead                                                      
+10003          |null                                                                  |null                                                                  
+10004          |[Head Human Resources, Reporting Analyst, Support Engineer, Tech Lead]|[Head Human Resources, Reporting Analyst, Support Engineer, Tech Lead]
+10005          |null                                                                  |null                                                                  
+;

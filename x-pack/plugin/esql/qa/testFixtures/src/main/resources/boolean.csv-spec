@@ -141,3 +141,14 @@ row v=null | eval v=NOT v | project v;
 v:boolean
 null
 ;
+
+convertToString
+from employees | eval rehired = to_string(is_rehired) | project emp_no, rehired, is_rehired | limit 5;
+
+emp_no:integer |rehired:string              |is_rehired:boolean
+10001          |[false, true]               |[false, true]              
+10002          |[false, false]              |[false, false]             
+10003          |null                        |null                       
+10004          |true                        |true                       
+10005          |[false, false, false, true] |[false, false, false, true]
+;

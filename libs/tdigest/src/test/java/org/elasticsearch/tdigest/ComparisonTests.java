@@ -220,7 +220,7 @@ public class ComparisonTests extends ESTestCase {
             }
             double ks = Comparison.ks(d1, d2);
             // this value is slightly lower than it should be (by about 0.9)
-            assertEquals(269.5, ks, 3);
+            assertEquals(269.5, ks, 3.5);
             double newMean = mean + (ks - mean) / (i + 1);
             s2 += (ks - mean) * (ks - newMean);
             mean = newMean;

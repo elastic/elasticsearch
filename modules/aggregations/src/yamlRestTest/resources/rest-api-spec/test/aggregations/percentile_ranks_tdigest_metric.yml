@@ -158,7 +158,6 @@ invalid params:
 
 ---
 non-keyed test:
-
   - do:
       search:
         body:

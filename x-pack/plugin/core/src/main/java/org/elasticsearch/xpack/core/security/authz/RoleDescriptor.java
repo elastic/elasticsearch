@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.security.authz;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -31,7 +32,6 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.PrivilegesToCheck;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
-import org.elasticsearch.xpack.core.security.authz.permission.WorkflowsRestriction;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
 import org.elasticsearch.xpack.core.security.support.Validation;
@@ -49,6 +49,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS;
+import static org.elasticsearch.xpack.core.security.authz.RoleDescriptor.RoleRestriction.WORKFLOWS_RESTRICTION_VERSION;
 
 /**
  * A holder for a Role that contains user-readable information about the Role
@@ -200,7 +201,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         } else {
             this.remoteIndicesPrivileges = RemoteIndicesPrivileges.NONE;
         }
-        if (in.getTransportVersion().onOrAfter(WorkflowsRestriction.WORKFLOWS_RESTRICTION_VERSION)) {
+        if (in.getTransportVersion().onOrAfter(WORKFLOWS_RESTRICTION_VERSION)) {
             this.restriction = new RoleRestriction(in);
         } else {
             this.restriction = RoleRestriction.NONE;
@@ -417,7 +418,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         if (out.getTransportVersion().onOrAfter(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS)) {
             out.writeArray(remoteIndicesPrivileges);
         }
-        if (out.getTransportVersion().onOrAfter(WorkflowsRestriction.WORKFLOWS_RESTRICTION_VERSION)) {
+        if (out.getTransportVersion().onOrAfter(WORKFLOWS_RESTRICTION_VERSION)) {
             restriction.writeTo(out);
         }
     }
@@ -1565,6 +1566,8 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
     }
 
     public static class RoleRestriction implements Writeable, ToXContentObject {
+
+        public static final TransportVersion WORKFLOWS_RESTRICTION_VERSION = TransportVersion.V_8_9_0;
 
         public static final RoleRestriction NONE = RoleRestriction.builder().build();
 

@@ -133,7 +133,11 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
     @Override
     public final void clusterChanged(ClusterChangedEvent event) {
         ClusterState clusterState = event.state();
-        startIfMaster(clusterState);
+        if (clusterState.nodes().isLocalNodeElectedMaster()) {
+            startWatcher(clusterState);
+        } else if (event.previousState().nodes().isLocalNodeElectedMaster()) {
+            stopWatcher();
+        }
     }
 
     @Override
@@ -178,18 +182,6 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
         fileUpdateState = new FileUpdateState(attr.lastModifiedTime().toMillis(), path.toRealPath().toString(), attr.fileKey());
 
         return (previousUpdateState == null || previousUpdateState.equals(fileUpdateState) == false);
-    }
-
-    protected final boolean currentNodeMaster(ClusterState clusterState) {
-        return clusterState.nodes().getLocalNodeId().equals(clusterState.nodes().getMasterNodeId());
-    }
-
-    private void startIfMaster(ClusterState clusterState) {
-        if (currentNodeMaster(clusterState)) {
-            startWatcher(clusterState);
-        } else {
-            stopWatcher();
-        }
     }
 
     private synchronized void startWatcher(ClusterState clusterState) {

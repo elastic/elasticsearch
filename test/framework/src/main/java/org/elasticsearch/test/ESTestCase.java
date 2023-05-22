@@ -2002,4 +2002,9 @@ public abstract class ESTestCase extends LuceneTestCase {
             throw new AssertionError("unexpected", e);
         }
     }
+
+    protected static boolean isTurkishLocale() {
+        return Locale.getDefault().getLanguage().equals(new Locale("tr").getLanguage())
+            || Locale.getDefault().getLanguage().equals(new Locale("az").getLanguage());
+    }
 }

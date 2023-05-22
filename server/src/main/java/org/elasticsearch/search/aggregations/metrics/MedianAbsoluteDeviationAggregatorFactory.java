@@ -36,7 +36,6 @@ public class MedianAbsoluteDeviationAggregatorFactory extends ValuesSourceAggreg
         double compression,
         MedianAbsoluteDeviationAggregatorSupplier aggregatorSupplier
     ) throws IOException {
-
         super(name, config, context, parent, subFactoriesBuilder, metadata);
         this.aggregatorSupplier = aggregatorSupplier;
         this.compression = compression;
@@ -53,12 +52,13 @@ public class MedianAbsoluteDeviationAggregatorFactory extends ValuesSourceAggreg
 
     @Override
     protected Aggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException {
-        return new MedianAbsoluteDeviationAggregator(name, null, config.format(), context, parent, metadata, compression);
+        final InternalMedianAbsoluteDeviation empty = InternalMedianAbsoluteDeviation.empty(name, metadata, config.format(), compression);
+        return new NonCollectingSingleMetricAggregator(name, context, parent, empty, metadata);
     }
 
     @Override
     protected Aggregator doCreateInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
         throws IOException {
-        return aggregatorSupplier.build(name, config.getValuesSource(), config.format(), context, parent, metadata, compression);
+        return aggregatorSupplier.build(name, config, config.format(), context, parent, metadata, compression);
     }
 }

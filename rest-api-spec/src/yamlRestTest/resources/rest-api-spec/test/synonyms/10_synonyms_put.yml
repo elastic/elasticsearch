@@ -3,7 +3,6 @@
   - skip:
       version: " - 8.8.99"
       reason: Introduced in 8.9.0
-      features: [ "allowed_warnings" ]
   - do:
       synonyms.put:
         synonym_set: test-create-synonyms
@@ -12,9 +11,6 @@
             - synonym: "hello, hi"
             - synonym: "bye => goodbye"
               id: "test-id"
-      allowed_warnings:
-        - "this request accesses system indices: [.synonyms], but in a future major version, direct access to system indices will be prevented by default"
-
 
   - match: { result: "created" }
 
@@ -23,7 +19,6 @@
   - skip:
       version: " - 8.8.99"
       reason: Introduced in 8.9.0
-      features: [ "allowed_warnings" ]
   - do:
       synonyms.put:
         synonym_set: test-update-synonyms
@@ -32,9 +27,6 @@
             - synonym: "hello, hi"
             - synonym: "bye => goodbye"
               id: "test-id"
-      allowed_warnings:
-        - "this request accesses system indices: [.synonyms], but in a future major version, direct access to system indices will be prevented by default"
-
 
   - do:
       synonyms.put:
@@ -42,7 +34,5 @@
         body:
           synonyms:
             - synonym: "other, another"
-      allowed_warnings:
-        - "this request accesses system indices: [.synonyms], but in a future major version, direct access to system indices will be prevented by default"
 
   - match: { result: "updated" }

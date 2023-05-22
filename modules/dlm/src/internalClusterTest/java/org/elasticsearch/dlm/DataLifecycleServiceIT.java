@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataLifecycle;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamAction;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -385,7 +386,14 @@ public class DataLifecycleServiceIT extends ESIntegTestCase {
         // empty lifecycle contains the default rollover
         DataLifecycle lifecycle = new DataLifecycle();
 
-        putComposableIndexTemplate("id1", null, List.of("metrics-foo*"), null, null, lifecycle);
+        putComposableIndexTemplate(
+            "id1",
+            null,
+            List.of("metrics-foo*"),
+            Settings.builder().put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1").build(),
+            null,
+            lifecycle
+        );
         Iterable<DataLifecycleService> dataLifecycleServices = internalCluster().getInstances(DataLifecycleService.class);
 
         String dataStreamName = "metrics-foo";
@@ -451,16 +459,7 @@ public class DataLifecycleServiceIT extends ESIntegTestCase {
             Iterable<DataLifecycleService> lifecycleServices = internalCluster().getInstances(DataLifecycleService.class);
 
             for (DataLifecycleService lifecycleService : lifecycleServices) {
-                if (internalCluster().numDataNodes() > 1) {
-                    assertThat(lifecycleService.getErrorStore().getError(previousWriteInddex), nullValue());
-                } else {
-                    if (lifecycleService.getErrorStore().getError(previousWriteInddex) != null) {
-                        assertThat(
-                            lifecycleService.getErrorStore().getError(previousWriteInddex),
-                            containsString("Force merge request only had 1 successful shards out of a total of 2")
-                        );
-                    }
-                }
+                assertThat(lifecycleService.getErrorStore().getError(previousWriteInddex), nullValue());
             }
         });
     }
@@ -470,7 +469,14 @@ public class DataLifecycleServiceIT extends ESIntegTestCase {
         // that its retention execution fails
         DataLifecycle lifecycle = new DataLifecycle();
 
-        putComposableIndexTemplate("id1", null, List.of("metrics-foo*"), null, null, lifecycle);
+        putComposableIndexTemplate(
+            "id1",
+            null,
+            List.of("metrics-foo*"),
+            Settings.builder().put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1").build(),
+            null,
+            lifecycle
+        );
         Iterable<DataLifecycleService> dataLifecycleServices = internalCluster().getInstances(DataLifecycleService.class);
 
         String dataStreamName = "metrics-foo";
@@ -541,16 +547,7 @@ public class DataLifecycleServiceIT extends ESIntegTestCase {
                 // error stores don't contain anything for the first generation index anymore
                 Iterable<DataLifecycleService> lifecycleServices = internalCluster().getInstances(DataLifecycleService.class);
                 for (DataLifecycleService lifecycleService : lifecycleServices) {
-                    if (internalCluster().numDataNodes() > 1) {
-                        assertThat(lifecycleService.getErrorStore().getError(firstGenerationIndex), nullValue());
-                    } else {
-                        if (lifecycleService.getErrorStore().getError(firstGenerationIndex) != null) {
-                            assertThat(
-                                lifecycleService.getErrorStore().getError(firstGenerationIndex),
-                                containsString("Force merge request only had 1 successful shards out of a total of 2")
-                            );
-                        }
-                    }
+                    assertThat(lifecycleService.getErrorStore().getError(firstGenerationIndex), nullValue());
                 }
             });
         } finally {

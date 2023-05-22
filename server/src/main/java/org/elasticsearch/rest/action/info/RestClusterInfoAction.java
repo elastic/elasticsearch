@@ -39,11 +39,11 @@ import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 
 public class RestClusterInfoAction extends BaseRestHandler {
 
-    private static final Map<String, Function<NodesStatsResponse, ChunkedToXContent>> RESPONSE_MAPPER = Map.of(
+    static final Map<String, Function<NodesStatsResponse, ChunkedToXContent>> RESPONSE_MAPPER = Map.of(
         NodesInfoRequest.Metric.HTTP.metricName(),
         nodesStatsResponse -> nodesStatsResponse.getNodes().stream().map(NodeStats::getHttp).reduce(HttpStats.IDENTITY, HttpStats::merge)
     );
-    private static final Set<String> AVAILABLE_METRICS = RESPONSE_MAPPER.keySet();
+    static final Set<String> AVAILABLE_METRICS = RESPONSE_MAPPER.keySet();
 
     @Override
     public String getName() {
@@ -91,20 +91,15 @@ public class RestClusterInfoAction extends BaseRestHandler {
 
         return channel -> client.admin().cluster().nodesStats(nodesStatsRequest, new RestResponseListener<>(channel) {
             @Override
-            public RestResponse buildResponse(NodesStatsResponse nodesStatsResponse) throws Exception {
-                var chunkedResponses = metrics.stream()
-                    .map(RESPONSE_MAPPER::get)
-                    .map(mapper -> mapper.apply(nodesStatsResponse))
-                    .iterator();
+            public RestResponse buildResponse(NodesStatsResponse response) throws Exception {
+                var chunkedResponses = metrics.stream().map(RESPONSE_MAPPER::get).map(mapper -> mapper.apply(response)).iterator();
 
                 return new RestResponse(
                     RestStatus.OK,
                     ChunkedRestResponseBody.fromXContent(
                         outerParams -> Iterators.concat(
                             ChunkedToXContentHelper.startObject(),
-                            Iterators.single(
-                                (builder, params) -> builder.field("cluster_name", nodesStatsResponse.getClusterName().value())
-                            ),
+                            Iterators.single((builder, params) -> builder.field("cluster_name", response.getClusterName().value())),
                             Iterators.flatMap(chunkedResponses, chunk -> chunk.toXContentChunked(outerParams)),
                             ChunkedToXContentHelper.endObject()
                         ),

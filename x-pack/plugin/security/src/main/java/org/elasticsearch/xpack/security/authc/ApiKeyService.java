@@ -1233,7 +1233,7 @@ public class ApiKeyService {
                 .filter(QueryBuilders.termQuery("doc_type", "api_key"))
                 .filter(QueryBuilders.termQuery("type", ApiKey.Type.CROSS_CLUSTER.value()));
             findApiKeys(boolQuery, true, true, this::convertSearchHitToApiKeyInfo, ActionListener.wrap(apiKeyInfos -> {
-                int ccsKeys = 0, ccrKeys = 0, ccsAndCcrKeys = 0;
+                int ccsKeys = 0, ccrKeys = 0, ccsCcrKeys = 0;
                 for (ApiKey apiKeyInfo : apiKeyInfos) {
                     assert apiKeyInfo.getType() == ApiKey.Type.CROSS_CLUSTER;
                     assert apiKeyInfo.getRoleDescriptors().size() == 1;
@@ -1243,7 +1243,7 @@ public class ApiKeyService {
                     } else if (Arrays.equals(clusterPrivileges, CCR_CLUSTER_PRIVILEGE_NAMES)) {
                         ccrKeys += 1;
                     } else if (Arrays.equals(clusterPrivileges, CCS_AND_CCR_CLUSTER_PRIVILEGE_NAMES)) {
-                        ccsAndCcrKeys += 1;
+                        ccsCcrKeys += 1;
                     } else {
                         final String message = "invalid cluster privileges ["
                             + Strings.arrayToCommaDelimitedString(clusterPrivileges)
@@ -1254,7 +1254,7 @@ public class ApiKeyService {
                         listener.onFailure(new IllegalStateException(message));
                     }
                 }
-                listener.onResponse(Map.of("total", apiKeyInfos.size(), "ccs", ccsKeys, "ccr", ccrKeys, "ccs_ccr", ccsAndCcrKeys));
+                listener.onResponse(Map.of("total", apiKeyInfos.size(), "ccs", ccsKeys, "ccr", ccrKeys, "ccs_ccr", ccsCcrKeys));
             }, listener::onFailure));
         }
     }
@@ -2058,7 +2058,7 @@ public class ApiKeyService {
             );
             return tuple.v2();
         } else {
-            return java.util.Map.of();
+            return Map.of();
         }
     }
 

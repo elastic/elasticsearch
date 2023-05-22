@@ -9,7 +9,7 @@ Test log message JSON-parsing pipeline:
             "processors": [
               {
                 "pipeline" : {
-                  "name": "logs-json-pipeline",
+                  "name": "logs@json-message",
                   "description": "A pipeline that automatically parses JSON log events into top-level fields if they are such"
                 }
               }

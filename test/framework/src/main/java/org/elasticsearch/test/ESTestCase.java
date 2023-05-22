@@ -44,7 +44,9 @@ import org.elasticsearch.bootstrap.BootstrapForTesting;
 import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -798,6 +800,17 @@ public abstract class ESTestCase extends LuceneTestCase {
         return bytes;
     }
 
+    public static BytesReference randomBytesReference(int length) {
+        final var slices = new ArrayList<BytesReference>();
+        var remaining = length;
+        while (remaining > 0) {
+            final var sliceLen = between(1, remaining);
+            slices.add(new BytesArray(randomByteArrayOfLength(sliceLen)));
+            remaining -= sliceLen;
+        }
+        return CompositeBytesReference.of(slices.toArray(BytesReference[]::new));
+    }
+
     public static short randomShort() {
         return (short) random().nextInt();
     }
@@ -1286,6 +1299,13 @@ public abstract class ESTestCase extends LuceneTestCase {
     /** Return consistent index settings for the provided index version, shard- and replica-count. */
     public static Settings.Builder indexSettings(Version indexVersionCreated, int shards, int replicas) {
         return settings(indexVersionCreated).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, shards)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, replicas);
+    }
+
+    /** Return consistent index settings for the provided shard- and replica-count. */
+    public static Settings.Builder indexSettings(int shards, int replicas) {
+        return Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, shards)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, replicas);
     }
 
@@ -1981,5 +2001,10 @@ public abstract class ESTestCase extends LuceneTestCase {
             Thread.currentThread().interrupt();
             throw new AssertionError("unexpected", e);
         }
+    }
+
+    protected static boolean isTurkishLocale() {
+        return Locale.getDefault().getLanguage().equals(new Locale("tr").getLanguage())
+            || Locale.getDefault().getLanguage().equals(new Locale("az").getLanguage());
     }
 }

@@ -55,8 +55,6 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.util.CollectionUtils.iterableAsArrayList;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
@@ -677,9 +675,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
             .get();
         ensureGreen(INDEX);
 
-        AcknowledgedResponse putMappingResponse = client().admin()
-            .indices()
-            .preparePutMapping(INDEX)
+        AcknowledgedResponse putMappingResponse = indicesAdmin().preparePutMapping(INDEX)
             .setSource(
                 jsonBuilder().startObject()
                     .startObject("_doc")
@@ -936,15 +932,9 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
 
     public void testThatStatsAreWorking() throws Exception {
         String otherField = "testOtherField";
-        client().admin()
-            .indices()
-            .prepareCreate(INDEX)
-            .setSettings(Settings.builder().put("index.number_of_replicas", 0).put("index.number_of_shards", 2))
-            .get();
+        client().admin().indices().prepareCreate(INDEX).setSettings(indexSettings(2, 0)).get();
         ensureGreen();
-        AcknowledgedResponse putMappingResponse = client().admin()
-            .indices()
-            .preparePutMapping(INDEX)
+        AcknowledgedResponse putMappingResponse = indicesAdmin().preparePutMapping(INDEX)
             .setSource(
                 jsonBuilder().startObject()
                     .startObject("_doc")
@@ -985,28 +975,19 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
             .get();
 
         // Get all stats
-        IndicesStatsResponse indicesStatsResponse = client().admin()
-            .indices()
-            .prepareStats(INDEX)
-            .setIndices(INDEX)
-            .setCompletion(true)
-            .get();
+        IndicesStatsResponse indicesStatsResponse = indicesAdmin().prepareStats(INDEX).setIndices(INDEX).setCompletion(true).get();
         CompletionStats completionStats = indicesStatsResponse.getIndex(INDEX).getPrimaries().completion;
         assertThat(completionStats, notNullValue());
         long totalSizeInBytes = completionStats.getSizeInBytes();
         assertThat(totalSizeInBytes, is(greaterThan(0L)));
 
-        IndicesStatsResponse singleFieldStats = client().admin()
-            .indices()
-            .prepareStats(INDEX)
+        IndicesStatsResponse singleFieldStats = indicesAdmin().prepareStats(INDEX)
             .setIndices(INDEX)
             .setCompletion(true)
             .setCompletionFields(FIELD)
             .get();
         long singleFieldSizeInBytes = singleFieldStats.getIndex(INDEX).getPrimaries().completion.getFields().get(FIELD);
-        IndicesStatsResponse otherFieldStats = client().admin()
-            .indices()
-            .prepareStats(INDEX)
+        IndicesStatsResponse otherFieldStats = indicesAdmin().prepareStats(INDEX)
             .setIndices(INDEX)
             .setCompletion(true)
             .setCompletionFields(otherField)
@@ -1015,9 +996,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         assertThat(singleFieldSizeInBytes + otherFieldSizeInBytes, is(totalSizeInBytes));
 
         // regexes
-        IndicesStatsResponse regexFieldStats = client().admin()
-            .indices()
-            .prepareStats(INDEX)
+        IndicesStatsResponse regexFieldStats = indicesAdmin().prepareStats(INDEX)
             .setIndices(INDEX)
             .setCompletion(true)
             .setCompletionFields("*")
@@ -1300,12 +1279,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         mapping = mapping.endObject().endObject().endObject().endObject();
 
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate(INDEX)
-                .setSettings(Settings.builder().put(indexSettings()).put(settings))
-                .setMapping(mapping)
-                .get()
+            indicesAdmin().prepareCreate(INDEX).setSettings(Settings.builder().put(indexSettings()).put(settings)).setMapping(mapping).get()
         );
     }
 
@@ -1315,10 +1289,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
 
     // see #3555
     public void testPrunedSegments() throws IOException {
-        createIndexAndMappingAndSettings(
-            Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0).build(),
-            completionMappingBuilder
-        );
+        createIndexAndMappingAndSettings(indexSettings(1, 0).build(), completionMappingBuilder);
 
         client().prepareIndex(INDEX)
             .setId("1")
@@ -1350,9 +1321,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
     // see #3596
     public void testVeryLongInput() throws IOException {
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate(INDEX)
+            indicesAdmin().prepareCreate(INDEX)
                 .setMapping(
                     jsonBuilder().startObject()
                         .startObject("_doc")
@@ -1381,9 +1350,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
     // see #3648
     public void testReservedChars() throws IOException {
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate(INDEX)
+            indicesAdmin().prepareCreate(INDEX)
                 .setMapping(
                     jsonBuilder().startObject()
                         .startObject("_doc")
@@ -1421,9 +1388,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
     // see #5930
     public void testIssue5930() throws IOException {
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate(INDEX)
+            indicesAdmin().prepareCreate(INDEX)
                 .setMapping(
                     jsonBuilder().startObject()
                         .startObject("_doc")
@@ -1550,12 +1515,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
 
         String index = "test";
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate(index)
-                .setSettings(Settings.builder().put("index.number_of_shards", 2))
-                .setMapping(mapping)
-                .get()
+            indicesAdmin().prepareCreate(index).setSettings(Settings.builder().put("index.number_of_shards", 2)).setMapping(mapping).get()
         );
 
         int numDocs = 2;

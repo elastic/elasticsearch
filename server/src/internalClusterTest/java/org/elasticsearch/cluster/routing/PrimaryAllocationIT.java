@@ -55,8 +55,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -89,16 +87,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         internalCluster().startDataOnlyNodes(2);
 
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("test")
-                .setSettings(
-                    Settings.builder()
-                        .put("index.number_of_shards", 1)
-                        .put("index.number_of_replicas", 1)
-                        .put("index.global_checkpoint_sync.interval", "1s")
-                )
-                .get()
+            indicesAdmin().prepareCreate("test").setSettings(indexSettings(1, 1).put("index.global_checkpoint_sync.interval", "1s")).get()
         );
         ensureGreen();
 
@@ -127,7 +116,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
     private Settings createStaleReplicaScenario(String master) throws Exception {
         client().prepareIndex("test").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).get();
         refresh();
-        ClusterState state = client().admin().cluster().prepareState().all().get().getState();
+        ClusterState state = clusterAdmin().prepareState().all().get().getState();
         List<ShardRouting> shards = state.routingTable().allShards("test");
         assertThat(shards.size(), equalTo(2));
 
@@ -205,9 +194,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         internalCluster().stopNode(dataNodeWithShardCopy);
         ensureStableCluster(1);
         assertThat(
-            client().admin()
-                .cluster()
-                .prepareState()
+            clusterAdmin().prepareState()
                 .get()
                 .getState()
                 .getRoutingTable()
@@ -222,9 +209,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         logger.info("--> force allocation of stale copy to node that does not have shard copy");
         Throwable iae = expectThrows(
             IllegalArgumentException.class,
-            () -> client().admin()
-                .cluster()
-                .prepareReroute()
+            () -> clusterAdmin().prepareReroute()
                 .add(new AllocateStalePrimaryAllocationCommand("test", 0, dataNodeWithNoShardCopy, true))
                 .get()
         );
@@ -232,13 +217,11 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
 
         logger.info("--> wait until shard is failed and becomes unassigned again");
         assertTrue(
-            client().admin().cluster().prepareState().get().getState().toString(),
-            client().admin().cluster().prepareState().get().getState().getRoutingTable().index("test").allPrimaryShardsUnassigned()
+            clusterAdmin().prepareState().get().getState().toString(),
+            clusterAdmin().prepareState().get().getState().getRoutingTable().index("test").allPrimaryShardsUnassigned()
         );
         assertThat(
-            client().admin()
-                .cluster()
-                .prepareState()
+            clusterAdmin().prepareState()
                 .get()
                 .getState()
                 .getRoutingTable()
@@ -257,23 +240,21 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         internalCluster().startDataOnlyNodes(2);
         createIndex("test", 1, 1);
         ensureGreen();
-        Set<String> historyUUIDs = Arrays.stream(client().admin().indices().prepareStats("test").clear().get().getShards())
+        Set<String> historyUUIDs = Arrays.stream(indicesAdmin().prepareStats("test").clear().get().getShards())
             .map(shard -> shard.getCommitStats().getUserData().get(Engine.HISTORY_UUID_KEY))
             .collect(Collectors.toSet());
         createStaleReplicaScenario(master);
         if (randomBoolean()) {
-            assertAcked(client().admin().indices().prepareClose("test").setWaitForActiveShards(0));
+            assertAcked(indicesAdmin().prepareClose("test").setWaitForActiveShards(0));
         }
         boolean useStaleReplica = randomBoolean(); // if true, use stale replica, otherwise a completely empty copy
         logger.info("--> explicitly promote old primary shard");
         final String idxName = "test";
-        Map<Integer, List<IndicesShardStoresResponse.StoreStatus>> storeStatuses = client().admin()
-            .indices()
-            .prepareShardStores(idxName)
+        Map<Integer, List<IndicesShardStoresResponse.StoreStatus>> storeStatuses = indicesAdmin().prepareShardStores(idxName)
             .get()
             .getStoreStatuses()
             .get(idxName);
-        ClusterRerouteRequestBuilder rerouteBuilder = client().admin().cluster().prepareReroute();
+        ClusterRerouteRequestBuilder rerouteBuilder = clusterAdmin().prepareReroute();
         for (Map.Entry<Integer, List<IndicesShardStoresResponse.StoreStatus>> shardStoreStatuses : storeStatuses.entrySet()) {
             int shardId = shardStoreStatuses.getKey();
             IndicesShardStoresResponse.StoreStatus storeStatus = randomFrom(shardStoreStatuses.getValue());
@@ -315,14 +296,10 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
             // search can throw an "all shards failed" exception. We will wait until the shard initialization has completed before
             // verifying the search hit count.
             assertBusy(
-                () -> assertTrue(
-                    client().admin().cluster().prepareState().get().getState().routingTable().index(idxName).allPrimaryShardsActive()
-                )
+                () -> assertTrue(clusterAdmin().prepareState().get().getState().routingTable().index(idxName).allPrimaryShardsActive())
             );
         }
-        ShardStats[] shardStats = client().admin()
-            .indices()
-            .prepareStats("test")
+        ShardStats[] shardStats = indicesAdmin().prepareStats("test")
             .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED)
             .get()
             .getShards();
@@ -330,7 +307,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
             assertThat(shardStat.getCommitStats().getNumDocs(), equalTo(useStaleReplica ? 1 : 0));
         }
         // allocation id of old primary was cleaned from the in-sync set
-        final ClusterState state = client().admin().cluster().prepareState().get().getState();
+        final ClusterState state = clusterAdmin().prepareState().get().getState();
 
         assertEquals(
             Collections.singleton(state.routingTable().index(idxName).shard(0).primary.allocationId().getId()),
@@ -358,9 +335,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         final int shardId = 0;
         final List<String> nodeNames = new ArrayList<>(Arrays.asList(internalCluster().getNodeNames()));
         nodeNames.remove(master);
-        client().admin()
-            .indices()
-            .prepareShardStores(idxName)
+        indicesAdmin().prepareShardStores(idxName)
             .get()
             .getStoreStatuses()
             .get(idxName)
@@ -370,9 +345,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         final String nodeWithoutData = nodeNames.get(0);
         Throwable iae = expectThrows(
             IllegalArgumentException.class,
-            () -> client().admin()
-                .cluster()
-                .prepareReroute()
+            () -> clusterAdmin().prepareReroute()
                 .add(new AllocateStalePrimaryAllocationCommand(idxName, shardId, nodeWithoutData, true))
                 .get()
         );
@@ -392,9 +365,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         final int shardId = 0;
         IllegalArgumentException iae = expectThrows(
             IllegalArgumentException.class,
-            () -> client().admin()
-                .cluster()
-                .prepareReroute()
+            () -> clusterAdmin().prepareReroute()
                 .add(new AllocateStalePrimaryAllocationCommand(idxName, shardId, nodeWithoutData, true))
                 .get()
         );
@@ -407,35 +378,21 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         final String idxName = "test";
         IndexNotFoundException ex = expectThrows(
             IndexNotFoundException.class,
-            () -> client().admin()
-                .cluster()
-                .prepareReroute()
-                .add(new AllocateStalePrimaryAllocationCommand(idxName, 0, dataNode, true))
-                .get()
+            () -> clusterAdmin().prepareReroute().add(new AllocateStalePrimaryAllocationCommand(idxName, 0, dataNode, true)).get()
         );
         assertThat(ex.getIndex().getName(), equalTo(idxName));
     }
 
     public void testForcePrimaryShardIfAllocationDecidersSayNoAfterIndexCreation() throws ExecutionException, InterruptedException {
         String node = internalCluster().startNode();
-        client().admin()
-            .indices()
-            .prepareCreate("test")
+        indicesAdmin().prepareCreate("test")
             .setWaitForActiveShards(ActiveShardCount.NONE)
-            .setSettings(
-                Settings.builder()
-                    .put("index.routing.allocation.exclude._name", node)
-                    .put("index.number_of_shards", 1)
-                    .put("index.number_of_replicas", 0)
-            )
+            .setSettings(indexSettings(1, 0).put("index.routing.allocation.exclude._name", node))
             .get();
 
-        assertThat(
-            client().admin().cluster().prepareState().get().getState().getRoutingTable().shardRoutingTable("test", 0).assignedShards(),
-            empty()
-        );
+        assertThat(clusterAdmin().prepareState().get().getState().getRoutingTable().shardRoutingTable("test", 0).assignedShards(), empty());
 
-        client().admin().cluster().prepareReroute().add(new AllocateEmptyPrimaryAllocationCommand("test", 0, node, true)).get();
+        clusterAdmin().prepareReroute().add(new AllocateEmptyPrimaryAllocationCommand("test", 0, node, true)).get();
         ensureGreen("test");
     }
 
@@ -443,15 +400,8 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         internalCluster().startMasterOnlyNode(Settings.EMPTY);
         internalCluster().startDataOnlyNode(Settings.EMPTY);
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("test")
-                .setSettings(
-                    Settings.builder()
-                        .put("index.number_of_shards", 1)
-                        .put("index.number_of_replicas", 1)
-                        .put("index.unassigned.node_left.delayed_timeout", "0ms")
-                )
+            indicesAdmin().prepareCreate("test")
+                .setSettings(indexSettings(1, 1).put("index.unassigned.node_left.delayed_timeout", "0ms"))
                 .get()
         );
         String replicaNode = internalCluster().startDataOnlyNode(Settings.EMPTY);
@@ -459,7 +409,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         final Settings inSyncDataPathSettings = internalCluster().dataPathSettings(replicaNode);
         internalCluster().stopNode(replicaNode);
         ensureYellow("test");
-        assertEquals(2, client().admin().cluster().prepareState().get().getState().metadata().index("test").inSyncAllocationIds(0).size());
+        assertEquals(2, clusterAdmin().prepareState().get().getState().metadata().index("test").inSyncAllocationIds(0).size());
         internalCluster().restartRandomDataNode(new InternalTestCluster.RestartCallback() {
             @Override
             public boolean clearData(String nodeName) {
@@ -468,11 +418,9 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         });
         logger.info("--> wait until shard is failed and becomes unassigned again");
         assertBusy(
-            () -> assertTrue(
-                client().admin().cluster().prepareState().get().getState().getRoutingTable().index("test").allPrimaryShardsUnassigned()
-            )
+            () -> assertTrue(clusterAdmin().prepareState().get().getState().getRoutingTable().index("test").allPrimaryShardsUnassigned())
         );
-        assertEquals(2, client().admin().cluster().prepareState().get().getState().metadata().index("test").inSyncAllocationIds(0).size());
+        assertEquals(2, clusterAdmin().prepareState().get().getState().metadata().index("test").inSyncAllocationIds(0).size());
 
         logger.info("--> starting node that reuses data folder with the up-to-date shard");
         internalCluster().startDataOnlyNode(inSyncDataPathSettings);
@@ -483,15 +431,8 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         internalCluster().startMasterOnlyNode(Settings.EMPTY);
         internalCluster().startDataOnlyNode(Settings.EMPTY);
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("test")
-                .setSettings(
-                    Settings.builder()
-                        .put("index.number_of_shards", 1)
-                        .put("index.number_of_replicas", 1)
-                        .put("index.unassigned.node_left.delayed_timeout", "0ms")
-                )
+            indicesAdmin().prepareCreate("test")
+                .setSettings(indexSettings(1, 1).put("index.unassigned.node_left.delayed_timeout", "0ms"))
                 .get()
         );
         String replicaNode = internalCluster().startDataOnlyNode(Settings.EMPTY);
@@ -499,10 +440,10 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         final Settings inSyncDataPathSettings = internalCluster().dataPathSettings(replicaNode);
         internalCluster().stopNode(replicaNode);
         ensureYellow("test");
-        assertEquals(2, client().admin().cluster().prepareState().get().getState().metadata().index("test").inSyncAllocationIds(0).size());
+        assertEquals(2, clusterAdmin().prepareState().get().getState().metadata().index("test").inSyncAllocationIds(0).size());
         logger.info("--> indexing...");
         client().prepareIndex("test").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).get();
-        assertEquals(1, client().admin().cluster().prepareState().get().getState().metadata().index("test").inSyncAllocationIds(0).size());
+        assertEquals(1, clusterAdmin().prepareState().get().getState().metadata().index("test").inSyncAllocationIds(0).size());
         internalCluster().restartRandomDataNode(new InternalTestCluster.RestartCallback() {
             @Override
             public boolean clearData(String nodeName) {
@@ -511,18 +452,14 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         });
         logger.info("--> wait until shard is failed and becomes unassigned again");
         assertBusy(
-            () -> assertTrue(
-                client().admin().cluster().prepareState().get().getState().getRoutingTable().index("test").allPrimaryShardsUnassigned()
-            )
+            () -> assertTrue(clusterAdmin().prepareState().get().getState().getRoutingTable().index("test").allPrimaryShardsUnassigned())
         );
-        assertEquals(1, client().admin().cluster().prepareState().get().getState().metadata().index("test").inSyncAllocationIds(0).size());
+        assertEquals(1, clusterAdmin().prepareState().get().getState().metadata().index("test").inSyncAllocationIds(0).size());
 
         logger.info("--> starting node that reuses data folder with the up-to-date shard");
         internalCluster().startDataOnlyNode(inSyncDataPathSettings);
         assertBusy(
-            () -> assertTrue(
-                client().admin().cluster().prepareState().get().getState().getRoutingTable().index("test").allPrimaryShardsUnassigned()
-            )
+            () -> assertTrue(clusterAdmin().prepareState().get().getState().getRoutingTable().index("test").allPrimaryShardsUnassigned())
         );
     }
 
@@ -561,15 +498,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         ensureGreen(indexName);
         assertEquals(
             1,
-            client().admin()
-                .cluster()
-                .prepareState()
-                .get()
-                .getState()
-                .routingTable()
-                .index(indexName)
-                .shardsWithState(ShardRoutingState.STARTED)
-                .size()
+            clusterAdmin().prepareState().get().getState().routingTable().index(indexName).shardsWithState(ShardRoutingState.STARTED).size()
         );
     }
 
@@ -580,12 +509,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         String master = internalCluster().startMasterOnlyNode(Settings.EMPTY);
         final int numberOfReplicas = between(2, 3);
         final String oldPrimary = internalCluster().startDataOnlyNode();
-        assertAcked(
-            prepareCreate(
-                "test",
-                Settings.builder().put(indexSettings()).put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, numberOfReplicas)
-            )
-        );
+        assertAcked(prepareCreate("test", indexSettings(1, numberOfReplicas)));
         final ShardId shardId = new ShardId(clusterService().state().metadata().index("test").getIndex(), 0);
         final Set<String> replicaNodes = new HashSet<>(internalCluster().startDataOnlyNodes(numberOfReplicas));
         ensureGreen();

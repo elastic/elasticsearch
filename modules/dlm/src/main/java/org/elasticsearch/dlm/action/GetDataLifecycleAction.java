@@ -38,7 +38,7 @@ import java.util.Objects;
 public class GetDataLifecycleAction extends ActionType<GetDataLifecycleAction.Response> {
 
     public static final GetDataLifecycleAction INSTANCE = new GetDataLifecycleAction();
-    public static final String NAME = "indices:admin/data_lifecycle/get";
+    public static final String NAME = "indices:admin/dlm/get";
 
     private GetDataLifecycleAction() {
         super(NAME, Response::new);
@@ -139,7 +139,7 @@ public class GetDataLifecycleAction extends ActionType<GetDataLifecycleAction.Re
     public static class Response extends ActionResponse implements ChunkedToXContentObject {
         public static final ParseField DATA_STREAMS_FIELD = new ParseField("data_streams");
 
-        public record DataStreamLifecycle(String dataStreamName, DataLifecycle lifecycle) implements Writeable, ToXContentObject {
+        public record DataStreamLifecycle(String dataStreamName, @Nullable DataLifecycle lifecycle) implements Writeable, ToXContentObject {
 
             public static final ParseField NAME_FIELD = new ParseField("name");
             public static final ParseField LIFECYCLE_FIELD = new ParseField("lifecycle");
@@ -166,8 +166,10 @@ public class GetDataLifecycleAction extends ActionType<GetDataLifecycleAction.Re
                 throws IOException {
                 builder.startObject();
                 builder.field(NAME_FIELD.getPreferredName(), dataStreamName);
-                builder.field(LIFECYCLE_FIELD.getPreferredName());
-                lifecycle.toXContent(builder, params, rolloverConfiguration);
+                if (lifecycle != null) {
+                    builder.field(LIFECYCLE_FIELD.getPreferredName());
+                    lifecycle.toXContent(builder, params, rolloverConfiguration);
+                }
                 builder.endObject();
                 return builder;
             }

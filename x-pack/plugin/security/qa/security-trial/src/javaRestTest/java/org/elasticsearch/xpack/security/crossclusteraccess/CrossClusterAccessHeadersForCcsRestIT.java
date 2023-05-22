@@ -14,22 +14,20 @@ import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.remote.RemoteClusterNodesAction;
-import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsAction;
-import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
-import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
-import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchShardsAction;
+import org.elasticsearch.action.search.SearchShardsRequest;
+import org.elasticsearch.action.search.SearchShardsResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -720,12 +718,12 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                 .boundRemoteIngressAddress()
                 .publishAddress();
             final int numberOfRemoteClusters = randomIntBetween(0, 5);
-            final int numberOfConfigurables = randomIntBetween(0, Math.min(2, numberOfRemoteClusters));
-            final int numberOfBasics = numberOfRemoteClusters - numberOfConfigurables;
+            final int numberOfApiKeySecured = randomIntBetween(0, Math.min(2, numberOfRemoteClusters));
+            final int numberOfCertSecured = numberOfRemoteClusters - numberOfApiKeySecured;
             final List<Boolean> useProxyModes = randomList(numberOfRemoteClusters, numberOfRemoteClusters, ESTestCase::randomBoolean);
 
             // Remote clusters with new configurable model
-            switch (numberOfConfigurables) {
+            switch (numberOfApiKeySecured) {
                 case 0 -> {
                 }
                 case 1 -> setupClusterSettings(CLUSTER_A, remoteClusterServerPortAddress, useProxyModes.get(0));
@@ -733,12 +731,12 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                     setupClusterSettings(CLUSTER_A, remoteClusterServerPortAddress, useProxyModes.get(0));
                     setupClusterSettings(CLUSTER_B, remoteClusterServerPortAddress, useProxyModes.get(1));
                 }
-                default -> throw new IllegalArgumentException("invalid number of configurable remote clusters");
+                default -> throw new IllegalArgumentException("invalid number of api_key secured remote clusters");
             }
 
             // Remote clusters with basic model
-            for (int i = 0; i < numberOfBasics; i++) {
-                setupClusterSettings("basic_cluster_" + i, transportPortAddress, useProxyModes.get(i + numberOfConfigurables));
+            for (int i = 0; i < numberOfCertSecured; i++) {
+                setupClusterSettings("basic_cluster_" + i, transportPortAddress, useProxyModes.get(i + numberOfApiKeySecured));
             }
 
             final Request xPackUsageRequest = new Request("GET", "/_xpack/usage");
@@ -750,8 +748,8 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
             final int numberOfProxyModes = (int) useProxyModes.stream().filter(e -> e).count();
             assertThat(path.evaluate("remote_clusters.mode.proxy"), equalTo(numberOfProxyModes));
             assertThat(path.evaluate("remote_clusters.mode.sniff"), equalTo(numberOfRemoteClusters - numberOfProxyModes));
-            assertThat(path.evaluate("remote_clusters.security.basic"), equalTo(numberOfBasics));
-            assertThat(path.evaluate("remote_clusters.security.configurable"), equalTo(numberOfConfigurables));
+            assertThat(path.evaluate("remote_clusters.security.cert"), equalTo(numberOfCertSecured));
+            assertThat(path.evaluate("remote_clusters.security.api_key"), equalTo(numberOfApiKeySecured));
 
             assertThat(path.evaluate("security.remote_cluster_server.available"), is(true));
             assertThat(path.evaluate("security.remote_cluster_server.enabled"), is(false));
@@ -965,7 +963,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
         if (minimizeRoundtrips) {
             expectedActions.add(SearchAction.NAME);
         } else {
-            expectedActions.add(ClusterSearchShardsAction.NAME);
+            expectedActions.add(SearchShardsAction.NAME);
         }
         if (false == useProxyMode) {
             expectedActions.add(RemoteClusterNodesAction.NAME);
@@ -994,7 +992,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                     );
                     assertThat(actualCrossClusterAccessSubjectInfo, equalTo(expectedCrossClusterAccessSubjectInfo));
                 }
-                case SearchAction.NAME, ClusterSearchShardsAction.NAME -> {
+                case SearchAction.NAME, SearchShardsAction.NAME -> {
                     assertContainsHeadersExpectedForCrossClusterAccess(actual.headers());
                     assertContainsCrossClusterAccessCredentialsHeader(encodedCredential, actual);
                     final var actualCrossClusterAccessSubjectInfo = CrossClusterAccessSubjectInfo.decode(
@@ -1060,16 +1058,14 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                 }
             );
             service.registerRequestHandler(
-                ClusterSearchShardsAction.NAME,
+                SearchShardsAction.NAME,
                 ThreadPool.Names.SAME,
-                ClusterSearchShardsRequest::new,
+                SearchShardsRequest::new,
                 (request, channel, task) -> {
                     capturedHeaders.add(
                         new CapturedActionWithHeaders(task.getAction(), Map.copyOf(threadPool.getThreadContext().getHeaders()))
                     );
-                    channel.sendResponse(
-                        new ClusterSearchShardsResponse(new ClusterSearchShardsGroup[0], new DiscoveryNode[0], Collections.emptyMap())
-                    );
+                    channel.sendResponse(new SearchShardsResponse(List.of(), List.of(), Collections.emptyMap()));
                 }
             );
             service.registerRequestHandler(SearchAction.NAME, ThreadPool.Names.SAME, SearchRequest::new, (request, channel, task) -> {

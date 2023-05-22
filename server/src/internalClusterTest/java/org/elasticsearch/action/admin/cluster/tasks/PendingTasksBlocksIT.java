@@ -37,7 +37,7 @@ public class PendingTasksBlocksIT extends ESIntegTestCase {
         )) {
             try {
                 enableIndexBlock("test", blockSetting);
-                PendingClusterTasksResponse response = client().admin().cluster().preparePendingClusterTasks().get();
+                PendingClusterTasksResponse response = clusterAdmin().preparePendingClusterTasks().get();
                 assertNotNull(response.pendingTasks());
             } finally {
                 disableIndexBlock("test", blockSetting);
@@ -53,7 +53,7 @@ public class PendingTasksBlocksIT extends ESIntegTestCase {
 
         try {
             setClusterReadOnly(true);
-            PendingClusterTasksResponse response = client().admin().cluster().preparePendingClusterTasks().get();
+            PendingClusterTasksResponse response = clusterAdmin().preparePendingClusterTasks().get();
             assertNotNull(response.pendingTasks());
         } finally {
             setClusterReadOnly(false);
@@ -67,7 +67,7 @@ public class PendingTasksBlocksIT extends ESIntegTestCase {
         }
 
         // restart the cluster but prevent it from performing state recovery
-        final int nodeCount = client().admin().cluster().prepareNodesInfo("data:true").get().getNodes().size();
+        final int nodeCount = clusterAdmin().prepareNodesInfo("data:true").get().getNodes().size();
         internalCluster().fullRestart(new InternalTestCluster.RestartCallback() {
             @Override
             public Settings onNodeStopped(String nodeName) {
@@ -80,7 +80,7 @@ public class PendingTasksBlocksIT extends ESIntegTestCase {
             }
         });
 
-        assertNotNull(client().admin().cluster().preparePendingClusterTasks().get().pendingTasks());
+        assertNotNull(clusterAdmin().preparePendingClusterTasks().get().pendingTasks());
 
         // starting one more node allows the cluster to recover
         internalCluster().startNode();

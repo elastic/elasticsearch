@@ -43,6 +43,7 @@ import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.FakeThreadPoolMasterService;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -88,6 +89,7 @@ import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
@@ -298,7 +300,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             this.countingPageCacheRecycler = new CountingPageCacheRecycler();
             this.recycler = new BytesRefRecycler(countingPageCacheRecycler);
             deterministicTaskQueue.setExecutionDelayVariabilityMillis(DEFAULT_DELAY_VARIABILITY);
-            this.coordinatorStrategy = getCoordinatorStrategy();
+            this.coordinatorStrategy = createCoordinatorStrategy();
 
             assertThat(initialNodeCount, greaterThan(0));
 
@@ -567,6 +569,15 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             bootstrapIfNecessary();
 
             runFor(stabilisationDurationMillis, "stabilising");
+
+            // There's no timeout on the register check when committing a publication, so if there's a blackholed former-master then we must
+            // complete that check exceptionally. Relates https://github.com/elastic/elasticsearch/issues/80400.
+            // noinspection ReplaceInefficientStreamCount using .count() to run the filter on every node
+            while (clusterNodes.stream().filter(ClusterNode::deliverBlackholedRegisterRequests).count() != 0L) {
+                logger.debug("--> delivering blackholed register requests");
+                // one delay to schedule the request failure, but this forks back to CLUSTER_COORDINATION so a second delay is needed
+                runFor(DEFAULT_DELAY_VARIABILITY * 2, "re-stabilising");
+            }
 
             final ClusterNode leader = getAnyLeader();
             final long leaderTerm = leader.coordinator.getCurrentTerm();
@@ -873,6 +884,10 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             blackholedConnections.clear();
         }
 
+        CoordinatorStrategy getCoordinatorStrategy() {
+            return coordinatorStrategy;
+        }
+
         @Override
         public void close() {
             // noinspection ReplaceInefficientStreamCount using .count() to run the filter on every node
@@ -888,6 +903,8 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             deterministicTaskQueue.runAllRunnableTasks();
 
             countingPageCacheRecycler.assertAllPagesReleased();
+
+            coordinatorStrategy.close();
         }
 
         protected List<NamedWriteableRegistry.Entry> extraNamedWriteables() {
@@ -942,6 +959,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             private final NodeHealthService nodeHealthService;
             List<BiConsumer<DiscoveryNode, ClusterState>> extraJoinValidators = new ArrayList<>();
             private ClearableRecycler clearableRecycler;
+            private List<Runnable> blackholedRegisterOperations = new ArrayList<>();
 
             ClusterNode(int nodeIndex, boolean masterEligible, Settings nodeSettings, NodeHealthService nodeHealthService) {
                 this(
@@ -1083,7 +1101,8 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     threadPool,
                     settings,
                     clusterSettings,
-                    persistedState
+                    persistedState,
+                    new NodeDisruptibleRegisterConnection()
                 );
                 coordinator = new Coordinator(
                     "test_node",
@@ -1453,11 +1472,74 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             }
 
             boolean deliverBlackholedRequests() {
-                return mockTransport.deliverBlackholedRequests();
+                final boolean deliveredBlackholedRequests = mockTransport.deliverBlackholedRequests();
+                final boolean deliveredBlackholedRegisterRequests = deliverBlackholedRegisterRequests();
+                return deliveredBlackholedRequests || deliveredBlackholedRegisterRequests;
+            }
+
+            boolean deliverBlackholedRegisterRequests() {
+                if (blackholedRegisterOperations.isEmpty()) {
+                    return false;
+                } else {
+                    blackholedRegisterOperations.forEach(deterministicTaskQueue::scheduleNow);
+                    blackholedRegisterOperations.clear();
+                    return true;
+                }
             }
 
             int getPendingTaskCount() {
                 return masterService.numberOfPendingTasks();
+            }
+
+            private class NodeDisruptibleRegisterConnection implements DisruptibleRegisterConnection {
+                @Override
+                public <R> void runDisrupted(ActionListener<R> listener, Consumer<ActionListener<R>> consumer) {
+                    if (isDisconnected()) {
+                        listener.onFailure(new IOException("simulated disrupted connection to register"));
+                    } else if (isBlackholed()) {
+                        final var exception = new IOException("simulated eventual failure to blackholed register");
+                        logger.trace(() -> Strings.format("delaying failure of register request for [%s]", listener), exception);
+                        blackholedRegisterOperations.add(onNode(new DisruptableMockTransport.RebootSensitiveRunnable() {
+                            @Override
+                            public void ifRebooted() {
+                                run();
+                            }
+
+                            @Override
+                            public void run() {
+                                listener.onFailure(exception);
+                            }
+
+                            @Override
+                            public String toString() {
+                                return "simulated eventual failure to blackholed register: " + listener;
+                            }
+                        }));
+                    } else {
+                        consumer.accept(listener);
+                    }
+                }
+
+                @Override
+                public <R> void runDisruptedOrDrop(ActionListener<R> listener, Consumer<ActionListener<R>> consumer) {
+                    if (isDisconnected()) {
+                        listener.onFailure(new IOException("simulated disrupted connection to register"));
+                    } else if (isBlackholed()) {
+                        logger.trace(() -> Strings.format("dropping register request for [%s]", listener));
+                    } else {
+                        consumer.accept(listener);
+                    }
+                }
+
+                private boolean isDisconnected() {
+                    return disconnectedNodes.contains(localNode.getId())
+                        || nodeHealthService.getHealth().getStatus() != HEALTHY
+                        || (disruptStorage && rarely());
+                }
+
+                private boolean isBlackholed() {
+                    return blackholedNodes.contains(localNode.getId());
+                }
             }
         }
 
@@ -1472,12 +1554,27 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
         return NOOP_TRANSPORT_INTERCEPTOR;
     }
 
-    protected interface CoordinatorStrategy {
+    public interface DisruptibleRegisterConnection {
+
+        /**
+         * If disconnected, fail the listener; if blackholed then retain the listener for future failure; otherwise pass the listener to the
+         * consumer.
+         */
+        <R> void runDisrupted(ActionListener<R> listener, Consumer<ActionListener<R>> consumer);
+
+        /**
+         * If disconnected, fail the listener; if blackholed then do nothing; otherwise pass the listener to the consumer.
+         */
+        <R> void runDisruptedOrDrop(ActionListener<R> listener, Consumer<ActionListener<R>> consumer);
+    }
+
+    protected interface CoordinatorStrategy extends Closeable {
         CoordinationServices getCoordinationServices(
             ThreadPool threadPool,
             Settings settings,
             ClusterSettings clusterSettings,
-            CoordinationState.PersistedState persistedState
+            CoordinationState.PersistedState persistedState,
+            DisruptibleRegisterConnection disruptibleRegisterConnection
         );
 
         CoordinationState.PersistedState createFreshPersistedState(
@@ -1496,6 +1593,8 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             BooleanSupplier disruptStorage,
             ThreadPool threadPool
         );
+
+        default void close() {};
     }
 
     protected interface CoordinationServices {
@@ -1524,7 +1623,8 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             ThreadPool threadPool,
             Settings settings,
             ClusterSettings clusterSettings,
-            CoordinationState.PersistedState persistedState
+            CoordinationState.PersistedState persistedState,
+            DisruptibleRegisterConnection disruptibleRegisterConnection
         ) {
             return new CoordinationServices() {
                 @Override
@@ -1582,7 +1682,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
         }
     }
 
-    protected CoordinatorStrategy getCoordinatorStrategy() {
+    protected CoordinatorStrategy createCoordinatorStrategy() {
         return new DefaultCoordinatorStrategy();
     }
 

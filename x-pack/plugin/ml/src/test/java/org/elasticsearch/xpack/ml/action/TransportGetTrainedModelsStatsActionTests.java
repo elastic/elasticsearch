@@ -125,7 +125,16 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
             )
         );
         clusterService = new ClusterService(settings, clusterSettings, tp, null);
-        ingestService = new IngestService(clusterService, tp, null, null, null, Collections.singletonList(SKINNY_INGEST_PLUGIN), client);
+        ingestService = new IngestService(
+            clusterService,
+            tp,
+            null,
+            null,
+            null,
+            Collections.singletonList(SKINNY_INGEST_PLUGIN),
+            client,
+            null
+        );
     }
 
     public void testInferenceIngestStatsByModelId() {
@@ -239,7 +248,7 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
         List<IngestStats.PipelineStat> pipelineNames,
         List<List<IngestStats.ProcessorStat>> processorStats
     ) {
-        List<String> pipelineids = pipelineNames.stream().map(IngestStats.PipelineStat::getPipelineId).collect(Collectors.toList());
+        List<String> pipelineids = pipelineNames.stream().map(IngestStats.PipelineStat::pipelineId).collect(Collectors.toList());
         IngestStats ingestStats = new IngestStats(
             overallStats,
             pipelineNames,

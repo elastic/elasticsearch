@@ -62,6 +62,19 @@ public final class IngestDocument {
 
     // Contains all pipelines that have been executed for this document
     private final Set<String> executedPipelines = new LinkedHashSet<>();
+
+    /**
+     * An ordered set of the values of the _index that have been used for this document.
+     * <p>
+     * IMPORTANT: This is only updated after a top-level pipeline has run (see {@code IngestService#executePipelines(...)}).
+     * <p>
+     * For example, if a processor changes the _index for a document from 'foo' to 'bar',
+     * and then another processor changes the value back to 'foo', then the overall effect
+     * of the pipeline was that the _index value did not change and so only 'foo' would appear
+     * in the index history.
+     */
+    private Set<String> indexHistory = new LinkedHashSet<>();
+
     private boolean doNoSelfReferencesCheck = false;
     private boolean reroute = false;
 
@@ -70,21 +83,27 @@ public final class IngestDocument {
         this.ingestMetadata = new HashMap<>();
         this.ingestMetadata.put(TIMESTAMP, ctxMap.getMetadata().getNow());
         this.templateModel = initializeTemplateModel();
+
+        // initialize the index history by putting the current index into it
+        this.indexHistory.add(index);
     }
 
+    // note: these rest of these constructors deal with the data-centric view of the IngestDocument, not the execution-centric view.
+    // For example, the copy constructor doesn't populate the `executedPipelines` or `indexHistory` (as well as some other fields),
+    // because those fields are execution-centric.
+
     /**
-     * Copy constructor that creates a new {@link IngestDocument} which has exactly the same properties as the one provided as argument
+     * Copy constructor that creates a new {@link IngestDocument} which has exactly the same properties as the one provided.
      */
     public IngestDocument(IngestDocument other) {
         this(
             new IngestCtxMap(deepCopyMap(other.ctxMap.getSource()), other.ctxMap.getMetadata().clone()),
             deepCopyMap(other.ingestMetadata)
         );
-        this.reroute = other.reroute;
     }
 
     /**
-     * Constructor to create an IngestDocument from its constituent maps.  The maps are shallow copied.
+     * Constructor to create an IngestDocument from its constituent maps. The maps are shallow copied.
      */
     public IngestDocument(Map<String, Object> sourceAndMetadata, Map<String, Object> ingestMetadata) {
         Map<String, Object> source;
@@ -107,7 +126,7 @@ public final class IngestDocument {
     }
 
     /**
-     * Constructor to create an IngestDocument from its constituent maps
+     * Constructor to create an IngestDocument from its constituent maps.
      */
     IngestDocument(IngestCtxMap ctxMap, Map<String, Object> ingestMetadata) {
         this.ctxMap = Objects.requireNonNull(ctxMap);
@@ -160,7 +179,7 @@ public final class IngestDocument {
     /**
      * Returns the value contained in the document with the provided templated path
      * @param pathTemplate The path within the document in dot-notation
-     * @param clazz The expected class fo the field value
+     * @param clazz The expected class of the field value
      * @return the value for the provided path if existing, null otherwise
      * @throws IllegalArgumentException if the pathTemplate is null, empty, invalid, if the field doesn't exist,
      * or if the field that is found at the provided path is not of the expected type.
@@ -438,22 +457,6 @@ public final class IngestDocument {
      * existing (or newly created) list.
      * @param fieldPathTemplate Resolves to the path with dot-notation within the document
      * @param valueSource The value source that will produce the value or values to append to the existing ones
-     * @throws IllegalArgumentException if the path is null, empty or invalid.
-     */
-    public void appendFieldValue(TemplateScript.Factory fieldPathTemplate, ValueSource valueSource) {
-        appendFieldValue(fieldPathTemplate.newInstance(templateModel).execute(), valueSource.copyAndResolve(templateModel));
-    }
-
-    /**
-     * Appends the provided value to the provided path in the document.
-     * Any non existing path element will be created.
-     * If the path identifies a list, the value will be appended to the existing list.
-     * If the path identifies a scalar, the scalar will be converted to a list and
-     * the provided value will be added to the newly created list.
-     * Supports multiple values too provided in forms of list, in that case all the values will be appended to the
-     * existing (or newly created) list.
-     * @param fieldPathTemplate Resolves to the path with dot-notation within the document
-     * @param valueSource The value source that will produce the value or values to append to the existing ones
      * @param allowDuplicates When false, any values that already exist in the field will not be added
      * @throws IllegalArgumentException if the path is null, empty or invalid.
      */
@@ -476,7 +479,7 @@ public final class IngestDocument {
      * item identified by the provided path.
      */
     public void setFieldValue(String path, Object value) {
-        setFieldValue(path, value, false);
+        setFieldValue(path, value, false, true);
     }
 
     /**
@@ -489,7 +492,7 @@ public final class IngestDocument {
      * item identified by the provided path.
      */
     public void setFieldValue(TemplateScript.Factory fieldPathTemplate, ValueSource valueSource) {
-        setFieldValue(fieldPathTemplate.newInstance(templateModel).execute(), valueSource.copyAndResolve(templateModel), false);
+        setFieldValue(fieldPathTemplate.newInstance(templateModel).execute(), valueSource.copyAndResolve(templateModel));
     }
 
     /**
@@ -514,7 +517,7 @@ public final class IngestDocument {
             }
         }
 
-        setFieldValue(fieldPathTemplate.newInstance(templateModel).execute(), value, false);
+        setFieldValue(fieldPathTemplate.newInstance(templateModel).execute(), value);
     }
 
     /**
@@ -539,11 +542,7 @@ public final class IngestDocument {
             }
         }
 
-        setFieldValue(fieldPathTemplate.newInstance(templateModel).execute(), value, false);
-    }
-
-    private void setFieldValue(String path, Object value, boolean append) {
-        setFieldValue(path, value, append, true);
+        setFieldValue(fieldPathTemplate.newInstance(templateModel).execute(), value);
     }
 
     private void setFieldValue(String path, Object value, boolean append, boolean allowDuplicates) {
@@ -862,6 +861,24 @@ public final class IngestDocument {
     }
 
     /**
+     * Adds an index to the index history for this document, returning true if the index
+     * was added to the index history (i.e. if it wasn't already in the index history).
+     *
+     * @param index the index to potentially add to the index history
+     * @return true if the index history did not already contain the index in question
+     */
+    public boolean updateIndexHistory(String index) {
+        return indexHistory.add(index);
+    }
+
+    /**
+     * @return an unmodifiable view of the document's index history
+     */
+    public Set<String> getIndexHistory() {
+        return Collections.unmodifiableSet(indexHistory);
+    }
+
+    /**
      * @return Whether a self referencing check should be performed
      */
     public boolean doNoSelfReferencesCheck() {
@@ -969,11 +986,11 @@ public final class IngestDocument {
             String newPath;
             if (path.startsWith(INGEST_KEY_PREFIX)) {
                 initialContext = ingestMetadata;
-                newPath = path.substring(INGEST_KEY_PREFIX.length(), path.length());
+                newPath = path.substring(INGEST_KEY_PREFIX.length());
             } else {
                 initialContext = ctxMap;
                 if (path.startsWith(SOURCE_PREFIX)) {
-                    newPath = path.substring(SOURCE_PREFIX.length(), path.length());
+                    newPath = path.substring(SOURCE_PREFIX.length());
                 } else {
                     newPath = path;
                 }
@@ -1010,7 +1027,7 @@ public final class IngestDocument {
     /**
      * Provides a shallowly read-only, very limited, map-like view of two maps. The only methods that are implemented are
      * {@link Map#get(Object)} and {@link Map#containsKey(Object)}, everything else throws UnsupportedOperationException.
-     *
+     * <p>
      * The overrides map has higher priority than the primary map -- values in that map under some key will take priority over values
      * in the primary map under the same key.
      *

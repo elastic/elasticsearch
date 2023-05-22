@@ -445,7 +445,7 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
             .map(TimeValue::nanos)
             .map(knownRestartDelay -> Math.max(indexLevelDelay, knownRestartDelay))
             .orElse(indexLevelDelay);
-        assert nanoTimeNow >= unassignedTimeNanos;
+        assert nanoTimeNow - unassignedTimeNanos >= 0;
         return Math.max(0L, delayTimeoutNanos - (nanoTimeNow - unassignedTimeNanos));
     }
 

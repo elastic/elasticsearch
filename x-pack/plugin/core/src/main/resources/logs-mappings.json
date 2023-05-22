@@ -2,6 +2,10 @@
   "template": {
     "mappings": {
       "properties": {
+        "@timestamp": {
+          "type": "date",
+          "ignore_malformed": false
+        },
         "data_stream": {
           "properties": {
             "type": {

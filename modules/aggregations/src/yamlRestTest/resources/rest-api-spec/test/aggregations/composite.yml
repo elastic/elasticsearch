@@ -268,7 +268,7 @@ setup:
   - match: { aggregations.test.buckets.1.doc_count: 2 }
 
 ---
-"Nested Composite aggregation":
+"Composite aggregation with multiple terms sources":
   - do:
       search:
         rest_total_hits_as_int: true
@@ -311,6 +311,104 @@ setup:
   - match: { aggregations.test.buckets.4.key.long: 1000 }
   - match: { aggregations.test.buckets.4.key.kw: "bar" }
   - match: { aggregations.test.buckets.4.doc_count: 1 }
+---
+"Basic numeric histogram":
+  - skip:
+      version: " - 8.3.99"
+      reason:  Multivalue Handling changed in 8.4
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          aggregations:
+            test:
+              composite:
+                sources: [
+                  "histo": {
+                    "histogram": {
+                      "field": "long",
+                      "interval": 50
+                    }
+                  }
+                ]
+
+  - match: {hits.total: 6}
+  - length: { aggregations.test.buckets: 3 }
+  - match: { aggregations.test.buckets.0.key.histo: 0}
+  - match: { aggregations.test.buckets.0.doc_count: 3}
+  - match: { aggregations.test.buckets.1.key.histo: 100}
+  - match: { aggregations.test.buckets.1.doc_count: 1}
+  - match: { aggregations.test.buckets.2.key.histo: 1000}
+  - match: { aggregations.test.buckets.2.doc_count: 1}
+---
+"Basic numeric histogram with missing bucket":
+  - skip:
+      version: " - 8.3.99"
+      reason:  Multivalue Handling changed in 8.4
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          aggregations:
+            test:
+              composite:
+                sources: [
+                  "histo": {
+                    "histogram": {
+                      "field": "long",
+                      "interval": 50,
+                      "missing_bucket": true
+                    }
+                  }
+                ]
+
+  - match: {hits.total: 6}
+  - length: { aggregations.test.buckets: 4 }
+  - match: { aggregations.test.buckets.0.key.histo: null}
+  - match: { aggregations.test.buckets.0.doc_count: 3}
+  - match: { aggregations.test.buckets.1.key.histo: 0}
+  - match: { aggregations.test.buckets.1.doc_count: 3}
+  - match: { aggregations.test.buckets.2.key.histo: 100}
+  - match: { aggregations.test.buckets.2.doc_count: 1}
+  - match: { aggregations.test.buckets.3.key.histo: 1000}
+  - match: { aggregations.test.buckets.3.doc_count: 1}
+---
+"Basic numeric histogram with missing bucket order desc":
+  - skip:
+      version: " - 8.3.99"
+      reason:  Multivalue Handling changed in 8.4
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          aggregations:
+            test:
+              composite:
+                sources: [
+                  "histo": {
+                    "histogram": {
+                      "field": "long",
+                      "interval": 50,
+                      "order": "desc",
+                      "missing_bucket": true
+                    }
+                  }
+                ]
+
+  - match: {hits.total: 6}
+  - length: { aggregations.test.buckets: 4 }
+  - match: { aggregations.test.buckets.3.key.histo: null}
+  - match: { aggregations.test.buckets.3.doc_count: 3}
+  - match: { aggregations.test.buckets.2.key.histo: 0}
+  - match: { aggregations.test.buckets.2.doc_count: 3}
+  - match: { aggregations.test.buckets.1.key.histo: 100}
+  - match: { aggregations.test.buckets.1.doc_count: 1}
+  - match: { aggregations.test.buckets.0.key.histo: 1000}
+  - match: { aggregations.test.buckets.0.doc_count: 1}
+
 
 ---
 "Aggregate After":

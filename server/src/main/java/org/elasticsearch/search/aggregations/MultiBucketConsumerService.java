@@ -75,7 +75,7 @@ public class MultiBucketConsumerService {
 
         @Override
         public RestStatus status() {
-            return RestStatus.SERVICE_UNAVAILABLE;
+            return RestStatus.BAD_REQUEST;
         }
 
         @Override
@@ -125,20 +125,16 @@ public class MultiBucketConsumerService {
             }
         }
 
-        public void reset() {
-            this.count = 0;
-        }
-
         public int getCount() {
             return count;
-        }
-
-        public int getLimit() {
-            return limit;
         }
     }
 
     public MultiBucketConsumer create() {
         return new MultiBucketConsumer(maxBucket, breaker);
+    }
+
+    public int getLimit() {
+        return maxBucket;
     }
 }

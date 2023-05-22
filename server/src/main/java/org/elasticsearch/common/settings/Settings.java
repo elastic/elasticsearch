@@ -1140,8 +1140,7 @@ public final class Settings implements ToXContentFragment, Writeable, Diffable<S
         }
 
         private void processLegacyLists(Map<String, Object> map) {
-            String[] array = map.keySet().toArray(new String[map.size()]);
-            for (String key : array) {
+            for (String key : map.keySet().toArray(String[]::new)) {
                 if (key.endsWith(".0")) { // let's only look at the head of the list and convert in order starting there.
                     int counter = 0;
                     String prefix = key.substring(0, key.lastIndexOf('.'));

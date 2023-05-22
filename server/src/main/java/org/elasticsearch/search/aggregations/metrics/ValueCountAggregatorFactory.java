@@ -45,7 +45,8 @@ class ValueCountAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     @Override
     protected Aggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException {
-        return new ValueCountAggregator(name, config, context, parent, metadata);
+        final InternalValueCount empty = InternalValueCount.empty(name, metadata);
+        return new NonCollectingSingleMetricAggregator(name, context, parent, empty, metadata);
     }
 
     @Override

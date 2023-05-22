@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.core.security.SecurityFeatureSetUsage;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
+import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
@@ -61,6 +62,7 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
     private NativeRoleMappingStore roleMappingStore;
     private ProfileService profileService;
     private SecurityUsageServices securityServices;
+    private ApiKeyService apiKeyService;
 
     @Before
     public void init() throws Exception {
@@ -71,7 +73,8 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
         rolesStore = mock(CompositeRolesStore.class);
         roleMappingStore = mock(NativeRoleMappingStore.class);
         profileService = mock(ProfileService.class);
-        securityServices = new SecurityUsageServices(realms, rolesStore, roleMappingStore, ipFilter, profileService);
+        apiKeyService = mock(ApiKeyService.class);
+        securityServices = new SecurityUsageServices(realms, rolesStore, roleMappingStore, ipFilter, profileService, apiKeyService);
     }
 
     public void testAvailable() {
@@ -196,6 +199,25 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
             return null;
         }).when(profileService).usageStats(anyActionListener());
 
+        final int totalCcKeys = randomIntBetween(100, 200);
+        final int ccsKeys = randomIntBetween(0, 50);
+        final int ccrKeys = randomIntBetween(0, 50);
+        final Map<String, Object> crossClusterApiKeyUsage = Map.of(
+            "total",
+            totalCcKeys,
+            "ccs",
+            ccsKeys,
+            "ccr",
+            ccrKeys,
+            "ccs_ccr",
+            totalCcKeys - ccsKeys - ccrKeys
+        );
+        doAnswer(invocation -> {
+            final ActionListener<Map<String, Object>> listener = invocation.getArgument(0);
+            listener.onResponse(crossClusterApiKeyUsage);
+            return null;
+        }).when(apiKeyService).crossClusterApiKeyUsageStats(anyActionListener());
+
         var usageAction = newUsageAction(settings.build());
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
         usageAction.masterOperation(null, null, null, future);
@@ -281,6 +303,10 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
                     assertThat(source.getValue("ssl.remote_cluster_client.enabled"), is(remoteClusterClientSslEnabled));
                     assertThat(source.getValue("remote_cluster_server.available"), is(remoteClusterServerAvailable));
                     assertThat(source.getValue("remote_cluster_server.enabled"), is(remoteClusterServerEnabled));
+                    assertThat(source.getValue("remote_cluster_server.api_keys.total"), equalTo(totalCcKeys));
+                    assertThat(source.getValue("remote_cluster_server.api_keys.ccs"), equalTo(ccsKeys));
+                    assertThat(source.getValue("remote_cluster_server.api_keys.ccr"), equalTo(ccrKeys));
+                    assertThat(source.getValue("remote_cluster_server.api_keys.ccs_ccr"), equalTo(crossClusterApiKeyUsage.get("ccs_ccr")));
                 }
             } else {
                 assertThat(source.getValue("ssl"), is(nullValue()));

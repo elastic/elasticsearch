@@ -322,10 +322,10 @@ class Elasticsearch {
     }
 
     static void checkLucene() {
-        if (Version.CURRENT.luceneVersion.equals(org.apache.lucene.util.Version.LATEST) == false) {
+        if (Version.CURRENT.luceneVersion().equals(org.apache.lucene.util.Version.LATEST) == false) {
             throw new AssertionError(
                 "Lucene version mismatch this version of Elasticsearch requires lucene version ["
-                    + Version.CURRENT.luceneVersion
+                    + Version.CURRENT.luceneVersion()
                     + "]  but the current lucene version is ["
                     + org.apache.lucene.util.Version.LATEST
                     + "]"
@@ -444,6 +444,7 @@ class Elasticsearch {
             return; // never got far enough
         }
         var es = INSTANCE;
+        es.node.prepareForClose();
         try {
             IOUtils.close(es.node, es.spawner);
             if (es.node != null && es.node.awaitClose(10, TimeUnit.SECONDS) == false) {

@@ -49,7 +49,7 @@ public class MergingDigestTests extends TDigestTests {
 
     // This test came from PR#145 by github user pulver
     public void testNanDueToBadInitialization() {
-        int compression = 30;
+        int compression = 100;
         int factor = 5;
         MergingDigest md = new MergingDigest(compression, (factor + 1) * compression, compression);
 
@@ -93,7 +93,7 @@ public class MergingDigestTests extends TDigestTests {
      * Verifies interpolation between a singleton and a larger centroid.
      */
     public void testSingleMultiRange() {
-        TDigest digest = factory(50).create();
+        TDigest digest = factory(100).create();
         digest.setScaleFunction(ScaleFunction.K_0);
         for (int i = 0; i < 100; i++) {
             digest.add(1);

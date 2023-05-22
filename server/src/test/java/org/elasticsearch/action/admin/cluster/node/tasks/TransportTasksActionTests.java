@@ -55,7 +55,6 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -733,85 +732,6 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         // Get successful responses from all nodes except one
         assertEquals(testNodes.length - 1, response.tasks.size());
         assertEquals(0, response.getNodeFailures().size()); // no nodes failed
-
-        // Release all node tasks and wait for response
-        checkLatch.countDown();
-        NodesResponse responses = future.get();
-        assertEquals(0, responses.failureCount());
-    }
-
-    /**
-     * This test starts nodes actions that blocks on all nodes. While node actions are blocked in the middle of execution
-     * it executes a tasks action that targets these blocked node actions. The test verifies that task actions are only
-     * getting executed on nodes that are not listed in the node filter.
-     */
-    public void testTaskNodeFiltering() throws Exception {
-        setupTestNodes(Settings.EMPTY);
-        connectNodes(testNodes);
-        CountDownLatch checkLatch = new CountDownLatch(1);
-        // Start some test nodes action so we could have something to run tasks actions on
-        ActionFuture<NodesResponse> future = startBlockingTestNodesAction(checkLatch);
-
-        String[] allNodes = new String[testNodes.length];
-        for (int i = 0; i < testNodes.length; i++) {
-            allNodes[i] = testNodes[i].getNodeId();
-        }
-
-        int filterNodesSize = randomInt(allNodes.length);
-        Set<String> filterNodes = new HashSet<>(randomSubsetOf(filterNodesSize, allNodes));
-        logger.info("Filtering out nodes {} size: {}", filterNodes, filterNodesSize);
-
-        TestTasksAction[] tasksActions = new TestTasksAction[nodesCount];
-        for (int i = 0; i < testNodes.length; i++) {
-            final int node = i;
-            // Simulate a task action that works on all nodes except nodes listed in filterNodes.
-            // We are testing that it works.
-            tasksActions[i] = new TestTasksAction("internal:testTasksAction", testNodes[i].clusterService, testNodes[i].transportService) {
-
-                @Override
-                protected String[] filterNodeIds(DiscoveryNodes nodes, String[] nodesIds) {
-                    String[] superNodes = super.filterNodeIds(nodes, nodesIds);
-                    List<String> filteredNodes = new ArrayList<>();
-                    for (String node : superNodes) {
-                        if (filterNodes.contains(node) == false) {
-                            filteredNodes.add(node);
-                        }
-                    }
-                    return filteredNodes.toArray(new String[0]);
-                }
-
-                @Override
-                protected void taskOperation(
-                    Task actionTask,
-                    TestTasksRequest request,
-                    Task task,
-                    ActionListener<TestTaskResponse> listener
-                ) {
-                    if (randomBoolean()) {
-                        listener.onResponse(new TestTaskResponse(testNodes[node].getNodeId()));
-                    } else {
-                        threadPool.generic().execute(() -> listener.onResponse(new TestTaskResponse(testNodes[node].getNodeId())));
-                    }
-                }
-            };
-        }
-
-        // Run task action on node tasks that are currently running
-        // should be successful on all nodes except nodes that we filtered out
-        TestTasksRequest testTasksRequest = new TestTasksRequest();
-        testTasksRequest.setActions("internal:testAction[n]"); // pick all test actions
-        TestTasksResponse response = ActionTestUtils.executeBlocking(tasksActions[randomIntBetween(0, nodesCount - 1)], testTasksRequest);
-
-        // Get successful responses from all nodes except nodes that we filtered out
-        assertEquals(testNodes.length - filterNodes.size(), response.tasks.size());
-        assertEquals(0, response.getTaskFailures().size()); // no task failed
-        assertEquals(0, response.getNodeFailures().size()); // no nodes failed
-
-        // Make sure that filtered nodes didn't send any responses
-        for (TestTaskResponse taskResponse : response.tasks) {
-            String nodeId = taskResponse.getStatus();
-            assertFalse("Found response from filtered node " + nodeId, filterNodes.contains(nodeId));
-        }
 
         // Release all node tasks and wait for response
         checkLatch.countDown();

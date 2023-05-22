@@ -17,7 +17,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -145,10 +144,6 @@ public abstract class TransportTasksAction<
         }
     }
 
-    protected String[] filterNodeIds(DiscoveryNodes nodes, String[] nodesIds) {
-        return nodesIds;
-    }
-
     protected String[] resolveNodes(TasksRequest request, ClusterState clusterState) {
         if (request.getTargetTaskId().isSet()) {
             return new String[] { request.getTargetTaskId().getNodeId() };
@@ -238,8 +233,7 @@ public abstract class TransportTasksAction<
             this.request = request;
             this.listener = listener;
             ClusterState clusterState = clusterService.state();
-            String[] nodesIds = resolveNodes(request, clusterState);
-            this.nodesIds = filterNodeIds(clusterState.nodes(), nodesIds);
+            this.nodesIds = resolveNodes(request, clusterState);
             Map<String, DiscoveryNode> nodes = clusterState.nodes().getNodes();
             this.nodes = new DiscoveryNode[nodesIds.length];
             for (int i = 0; i < this.nodesIds.length; i++) {

@@ -81,7 +81,7 @@ public class DesiredBalanceReconciler {
 
     public void reconcile(DesiredBalance desiredBalance, RoutingAllocation allocation) {
         allocationOrdering.retainNodes(getNodeIds(allocation.routingNodes()));
-        new Reconciler(desiredBalance, allocation).run();
+        new Reconciliation(desiredBalance, allocation).run();
     }
 
     public void clear() {
@@ -92,13 +92,13 @@ public class DesiredBalanceReconciler {
         return nodes.stream().map(RoutingNode::nodeId).collect(toSet());
     }
 
-    private class Reconciler {
+    private class Reconciliation {
 
         private final DesiredBalance desiredBalance;
         private final RoutingAllocation allocation;
         private final RoutingNodes routingNodes;
 
-        Reconciler(DesiredBalance desiredBalance, RoutingAllocation allocation) {
+        Reconciliation(DesiredBalance desiredBalance, RoutingAllocation allocation) {
             this.desiredBalance = desiredBalance;
             this.allocation = allocation;
             this.routingNodes = allocation.routingNodes();

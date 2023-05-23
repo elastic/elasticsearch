@@ -5,7 +5,7 @@
 <titleabbrev>Functions</titleabbrev>
 ++++
 :keywords: {es}, ESQL, {es} query language, functions
-:description: ESQL supports various functions for calculating values. 
+:description: ESQL supports various functions for calculating values.
 
 <<esql-row,`ROW`>>, <<esql-eval,`EVAL`>> and <<esql-where,`WHERE`>> support
 these functions:
@@ -24,6 +24,7 @@ these functions:
 * <<esql-mv_avg>>
 * <<esql-mv_count>>
 * <<esql-mv_max>>
+* <<esql-mv_median>>
 * <<esql-mv_min>>
 * <<esql-mv_sum>>
 * <<esql-pow>>
@@ -46,6 +47,7 @@ include::functions/length.asciidoc[]
 include::functions/mv_avg.asciidoc[]
 include::functions/mv_count.asciidoc[]
 include::functions/mv_max.asciidoc[]
+include::functions/mv_median.asciidoc[]
 include::functions/mv_min.asciidoc[]
 include::functions/mv_sum.asciidoc[]
 include::functions/pow.asciidoc[]

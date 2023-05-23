@@ -210,8 +210,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
     }
 
     protected void deleteTransform(String id) throws IOException {
-        Request request = new Request("DELETE", TRANSFORM_ENDPOINT + id);
-        assertOK(adminClient().performRequest(request));
+        deleteTransform(id, false);
     }
 
     protected void deleteTransform(String id, boolean force) throws IOException {
@@ -391,7 +390,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
         return TransformConfig.builder()
             .setId(id)
             .setSource(new SourceConfig(sourceIndices, queryConfig, Collections.emptyMap()))
-            .setDest(new DestConfig(destinationIndex, null))
+            .setDest(new DestConfig(destinationIndex, null, null))
             .setFrequency(TimeValue.timeValueSeconds(10))
             .setDescription("Test transform config id: " + id);
     }

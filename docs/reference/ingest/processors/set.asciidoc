@@ -90,6 +90,68 @@ Result:
 }
 --------------------------------------------------
 // TESTRESPONSE[s/2019-03-11T21:54:37.909224Z/$body.docs.0.doc._ingest.timestamp/]
+
+This processor can also access array fields using dot notation:
+[source,console]
+--------------------------------------------------
+POST /_ingest/pipeline/_simulate
+{
+  "pipeline": {
+    "processors": [
+      {
+        "set": {
+          "field": "my_field",
+          "value": "{{{input_field.1}}}"
+        }
+      }
+    ]
+  },
+  "docs": [
+    {
+      "_index": "index",
+      "_id": "id",
+      "_source": {
+        "input_field": [
+          "Ubuntu",
+          "Windows",
+          "Ventura"
+        ]
+      }
+    }
+  ]
+}
+--------------------------------------------------
+
+Result:
+
+[source,console-result]
+--------------------------------------------------
+{
+  "docs": [
+    {
+      "doc": {
+        "_index": "index",
+        "_id": "id",
+        "_version": "-3",
+        "_source": {
+          "input_field": [
+            "Ubuntu",
+            "Windows",
+            "Ventura"
+          ],
+          "my_field": "Windows"
+        },
+        "_ingest": {
+          "timestamp": "2023-05-05T16:04:16.456475214Z"
+        }
+      }
+    }
+  ]
+}
+--------------------------------------------------
+// TESTRESPONSE[s/2023-05-05T16:04:16.456475214Z/$body.docs.0.doc._ingest.timestamp/]
+
+
 The contents of a field including complex values such as arrays and objects can be copied to another field using `copy_from`:
 [source,console]
 --------------------------------------------------

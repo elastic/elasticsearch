@@ -51,7 +51,7 @@ public class PyTorchBuilderTests extends ESTestCase {
         new PyTorchBuilder(
             nativeController,
             processPipes,
-            new TaskParams("my_model", 42L, 4, 2, 1024, ByteSizeValue.ofBytes(12), Priority.NORMAL)
+            new TaskParams("my_model", "my_deployment", 42L, 4, 2, 1024, ByteSizeValue.ofBytes(12), Priority.NORMAL)
         ).build();
 
         verify(nativeController).startProcess(commandCaptor.capture());
@@ -70,8 +70,11 @@ public class PyTorchBuilderTests extends ESTestCase {
     }
 
     public void testBuildWithNoCache() throws IOException, InterruptedException {
-        new PyTorchBuilder(nativeController, processPipes, new TaskParams("my_model", 42L, 4, 2, 1024, ByteSizeValue.ZERO, Priority.NORMAL))
-            .build();
+        new PyTorchBuilder(
+            nativeController,
+            processPipes,
+            new TaskParams("my_model", "my_deployment", 42L, 4, 2, 1024, ByteSizeValue.ZERO, Priority.NORMAL)
+        ).build();
 
         verify(nativeController).startProcess(commandCaptor.capture());
 
@@ -91,7 +94,7 @@ public class PyTorchBuilderTests extends ESTestCase {
         new PyTorchBuilder(
             nativeController,
             processPipes,
-            new TaskParams("my_model", 42L, 1, 1, 1024, ByteSizeValue.ofBytes(42), Priority.LOW)
+            new TaskParams("my_model", "my_deployment", 42L, 1, 1, 1024, ByteSizeValue.ofBytes(42), Priority.LOW)
         ).build();
 
         verify(nativeController).startProcess(commandCaptor.capture());

@@ -6,6 +6,8 @@ setup:
       indices.create:
         index: locations
         body:
+          settings:
+            number_of_shards: 1
           mappings:
             properties:
               location:
@@ -43,6 +45,8 @@ setup:
       indices.create:
         index: shapes
         body:
+          settings:
+            number_of_shards: 1
           mappings:
             properties:
               shape:

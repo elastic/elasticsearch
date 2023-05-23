@@ -33,6 +33,7 @@ import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
@@ -283,7 +284,7 @@ public class SearchApplicationIndexService {
                     .field(SearchApplication.UPDATED_AT_MILLIS_FIELD.getPreferredName(), app.updatedAtMillis())
                     .directFieldAsBase64(
                         SearchApplication.BINARY_CONTENT_FIELD.getPreferredName(),
-                        os -> writeSearchApplicationBinaryWithVersion(app, os, clusterService.state().nodes().getMinNodeVersion())
+                        os -> writeSearchApplicationBinaryWithVersion(app, os, clusterService.state().getMinTransportVersion())
                     )
                     .endObject();
             }
@@ -453,6 +454,8 @@ public class SearchApplicationIndexService {
             throw new ElasticsearchParseException("[" + SearchApplication.BINARY_CONTENT_FIELD.getPreferredName() + "] field is missing");
         } catch (IOException e) {
             throw new ElasticsearchParseException("Failed to parse: " + source.utf8ToString(), e);
+        } catch (ValidationException e) {
+            throw new ElasticsearchParseException("Invalid Search Application: " + source.utf8ToString(), e);
         }
     }
 
@@ -463,12 +466,13 @@ public class SearchApplicationIndexService {
         return new SearchApplication(in);
     }
 
-    static void writeSearchApplicationBinaryWithVersion(SearchApplication app, OutputStream os, Version minNodeVersion) throws IOException {
+    static void writeSearchApplicationBinaryWithVersion(SearchApplication app, OutputStream os, TransportVersion minTransportVersion)
+        throws IOException {
         // do not close the output
         os = Streams.noCloseStream(os);
-        TransportVersion.writeVersion(minNodeVersion.transportVersion, new OutputStreamStreamOutput(os));
+        TransportVersion.writeVersion(minTransportVersion, new OutputStreamStreamOutput(os));
         try (OutputStreamStreamOutput out = new OutputStreamStreamOutput(os)) {
-            out.setTransportVersion(minNodeVersion.transportVersion);
+            out.setTransportVersion(minTransportVersion);
             app.writeTo(out);
         }
     }

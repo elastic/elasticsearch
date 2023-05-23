@@ -11,7 +11,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
+import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.cluster.metadata.DataLifecycle;
@@ -38,7 +38,7 @@ import java.util.Objects;
 public class GetDataLifecycleAction extends ActionType<GetDataLifecycleAction.Response> {
 
     public static final GetDataLifecycleAction INSTANCE = new GetDataLifecycleAction();
-    public static final String NAME = "indices:admin/data_lifecycle/get";
+    public static final String NAME = "indices:admin/dlm/get";
 
     private GetDataLifecycleAction() {
         super(NAME, Response::new);
@@ -139,7 +139,7 @@ public class GetDataLifecycleAction extends ActionType<GetDataLifecycleAction.Re
     public static class Response extends ActionResponse implements ChunkedToXContentObject {
         public static final ParseField DATA_STREAMS_FIELD = new ParseField("data_streams");
 
-        public record DataStreamLifecycle(String dataStreamName, DataLifecycle lifecycle) implements Writeable, ToXContentObject {
+        public record DataStreamLifecycle(String dataStreamName, @Nullable DataLifecycle lifecycle) implements Writeable, ToXContentObject {
 
             public static final ParseField NAME_FIELD = new ParseField("name");
             public static final ParseField LIFECYCLE_FIELD = new ParseField("lifecycle");
@@ -162,12 +162,14 @@ public class GetDataLifecycleAction extends ActionType<GetDataLifecycleAction.Re
             /**
              * Converts the response to XContent and passes the RolloverConditions, when provided, to the data lifecycle.
              */
-            public XContentBuilder toXContent(XContentBuilder builder, Params params, @Nullable RolloverConditions rolloverConditions)
+            public XContentBuilder toXContent(XContentBuilder builder, Params params, @Nullable RolloverConfiguration rolloverConfiguration)
                 throws IOException {
                 builder.startObject();
                 builder.field(NAME_FIELD.getPreferredName(), dataStreamName);
-                builder.field(LIFECYCLE_FIELD.getPreferredName());
-                lifecycle.toXContent(builder, params, rolloverConditions);
+                if (lifecycle != null) {
+                    builder.field(LIFECYCLE_FIELD.getPreferredName());
+                    lifecycle.toXContent(builder, params, rolloverConfiguration);
+                }
                 builder.endObject();
                 return builder;
             }
@@ -175,19 +177,19 @@ public class GetDataLifecycleAction extends ActionType<GetDataLifecycleAction.Re
 
         private final List<DataStreamLifecycle> dataStreamLifecycles;
         @Nullable
-        private final RolloverConditions rolloverConditions;
+        private final RolloverConfiguration rolloverConfiguration;
 
         public Response(List<DataStreamLifecycle> dataStreamLifecycles) {
             this(dataStreamLifecycles, null);
         }
 
-        public Response(List<DataStreamLifecycle> dataStreamLifecycles, @Nullable RolloverConditions rolloverConditions) {
+        public Response(List<DataStreamLifecycle> dataStreamLifecycles, @Nullable RolloverConfiguration rolloverConfiguration) {
             this.dataStreamLifecycles = dataStreamLifecycles;
-            this.rolloverConditions = rolloverConditions;
+            this.rolloverConfiguration = rolloverConfiguration;
         }
 
         public Response(StreamInput in) throws IOException {
-            this(in.readList(DataStreamLifecycle::new), in.readOptionalWriteable(RolloverConditions::new));
+            this(in.readList(DataStreamLifecycle::new), in.readOptionalWriteable(RolloverConfiguration::new));
         }
 
         public List<DataStreamLifecycle> getDataStreamLifecycles() {
@@ -195,14 +197,14 @@ public class GetDataLifecycleAction extends ActionType<GetDataLifecycleAction.Re
         }
 
         @Nullable
-        public RolloverConditions getRolloverConditions() {
-            return rolloverConditions;
+        public RolloverConfiguration getRolloverConfiguration() {
+            return rolloverConfiguration;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeList(dataStreamLifecycles);
-            out.writeOptionalWriteable(rolloverConditions);
+            out.writeOptionalWriteable(rolloverConfiguration);
         }
 
         @Override
@@ -212,7 +214,7 @@ public class GetDataLifecycleAction extends ActionType<GetDataLifecycleAction.Re
                     dataStreamLifecycle -> (ToXContent) (builder, params) -> dataStreamLifecycle.toXContent(
                         builder,
                         params,
-                        rolloverConditions
+                        rolloverConfiguration
                     )
                 )
                 .iterator();
@@ -234,12 +236,12 @@ public class GetDataLifecycleAction extends ActionType<GetDataLifecycleAction.Re
             if (o == null || getClass() != o.getClass()) return false;
             Response response = (Response) o;
             return dataStreamLifecycles.equals(response.dataStreamLifecycles)
-                && Objects.equals(rolloverConditions, response.rolloverConditions);
+                && Objects.equals(rolloverConfiguration, response.rolloverConfiguration);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(dataStreamLifecycles, rolloverConditions);
+            return Objects.hash(dataStreamLifecycles, rolloverConfiguration);
         }
     }
 }

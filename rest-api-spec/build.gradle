@@ -35,6 +35,7 @@ artifacts {
 
 dependencies {
   clusterModules project(":modules:mapper-extras")
+  clusterModules project(":modules:rest-root")
 }
 
 tasks.named("yamlRestTestV7CompatTransform").configure { task ->

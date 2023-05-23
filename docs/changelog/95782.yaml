@@ -1,0 +1,5 @@
+pr: 95782
+summary: Adding ability to auto-install ingest pipelines and refer to them from index templates
+area: Data streams
+type: feature
+issues: []

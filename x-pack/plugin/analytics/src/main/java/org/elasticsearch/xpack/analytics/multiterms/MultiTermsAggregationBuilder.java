@@ -152,6 +152,11 @@ public class MultiTermsAggregationBuilder extends AbstractAggregationBuilder<Mul
         return true;
     }
 
+    @Override
+    public boolean supportsConcurrentExecution() {
+        return false;
+    }
+
     /**
      * Sets the field to use for this aggregation.
      */

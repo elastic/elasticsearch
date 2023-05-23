@@ -929,14 +929,14 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     private class FailedShardHandler implements Consumer<IndexShard.ShardFailure> {
         @Override
         public void accept(final IndexShard.ShardFailure shardFailure) {
-            final ShardRouting shardRouting = shardFailure.routing;
+            final ShardRouting shardRouting = shardFailure.routing();
             threadPool.generic().execute(() -> {
                 synchronized (IndicesClusterStateService.this) {
                     failAndRemoveShard(
                         shardRouting,
                         true,
-                        "shard failure, reason [" + shardFailure.reason + "]",
-                        shardFailure.cause,
+                        "shard failure, reason [" + shardFailure.reason() + "]",
+                        shardFailure.cause(),
                         clusterService.state()
                     );
                 }

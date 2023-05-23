@@ -7,9 +7,9 @@
  */
 package org.elasticsearch.indices;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingHelper;
@@ -32,8 +32,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.DELETED;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
@@ -41,12 +39,7 @@ public class IndicesLifecycleListenerSingleNodeTests extends ESSingleNodeTestCas
 
     public void testStartDeleteIndexEventCallback() throws Throwable {
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("test")
-                .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0))
-        );
+        assertAcked(client().admin().indices().prepareCreate("test").setSettings(indexSettings(1, 0)));
         ensureGreen();
         Index idx = resolveIndex("test");
         IndexMetadata metadata = indicesService.indexService(idx).getMetadata();
@@ -127,13 +120,7 @@ public class IndicesLifecycleListenerSingleNodeTests extends ESSingleNodeTestCas
             IndexShard shard = index.createShard(newRouting, s -> {}, RetentionLeaseSyncer.EMPTY);
             IndexShardTestCase.updateRoutingEntry(shard, newRouting);
             assertEquals(5, counter.get());
-            final DiscoveryNode localNode = new DiscoveryNode(
-                "foo",
-                buildNewFakeTransportAddress(),
-                emptyMap(),
-                emptySet(),
-                Version.CURRENT
-            );
+            final DiscoveryNode localNode = TestDiscoveryNode.create("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet());
             shard.markAsRecovering("store", new RecoveryState(newRouting, localNode, null));
             IndexShardTestCase.recoverFromStore(shard);
             newRouting = ShardRoutingHelper.moveToStarted(newRouting);

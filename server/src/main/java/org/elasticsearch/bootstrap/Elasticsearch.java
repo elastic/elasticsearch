@@ -322,10 +322,10 @@ class Elasticsearch {
     }
 
     static void checkLucene() {
-        if (Version.CURRENT.luceneVersion.equals(org.apache.lucene.util.Version.LATEST) == false) {
+        if (Version.CURRENT.luceneVersion().equals(org.apache.lucene.util.Version.LATEST) == false) {
             throw new AssertionError(
                 "Lucene version mismatch this version of Elasticsearch requires lucene version ["
-                    + Version.CURRENT.luceneVersion
+                    + Version.CURRENT.luceneVersion()
                     + "]  but the current lucene version is ["
                     + org.apache.lucene.util.Version.LATEST
                     + "]"
@@ -444,10 +444,9 @@ class Elasticsearch {
             return; // never got far enough
         }
         var es = INSTANCE;
+        es.node.prepareForClose();
         try {
             IOUtils.close(es.node, es.spawner);
-            LoggerContext context = (LoggerContext) LogManager.getContext(false);
-            Configurator.shutdown(context);
             if (es.node != null && es.node.awaitClose(10, TimeUnit.SECONDS) == false) {
                 throw new IllegalStateException(
                     "Node didn't stop within 10 seconds. " + "Any outstanding requests or tasks might get killed."
@@ -459,6 +458,9 @@ class Elasticsearch {
             LogManager.getLogger(Elasticsearch.class).warn("Thread got interrupted while waiting for the node to shutdown.");
             Thread.currentThread().interrupt();
         } finally {
+            LoggerContext context = (LoggerContext) LogManager.getContext(false);
+            Configurator.shutdown(context);
+
             es.keepAliveLatch.countDown();
         }
     }

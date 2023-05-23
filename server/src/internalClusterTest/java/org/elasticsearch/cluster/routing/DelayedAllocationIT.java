@@ -10,11 +10,9 @@ package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.List;
 
@@ -29,16 +27,12 @@ public class DelayedAllocationIT extends ESIntegTestCase {
      */
     public void testNoDelayedTimeout() throws Exception {
         internalCluster().startNodes(3);
-        prepareCreate("test").setSettings(
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), 0)
-        ).get();
+        prepareCreate("test").setSettings(indexSettings(1, 1).put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), 0))
+            .get();
         ensureGreen("test");
         indexRandomData();
         internalCluster().stopNode(findNodeWithShard());
-        assertThat(client().admin().cluster().prepareHealth().get().getDelayedUnassignedShards(), equalTo(0));
+        assertThat(clusterAdmin().prepareHealth().get().getDelayedUnassignedShards(), equalTo(0));
         ensureGreen("test");
     }
 
@@ -51,10 +45,7 @@ public class DelayedAllocationIT extends ESIntegTestCase {
     public void testDelayedAllocationNodeLeavesAndComesBack() throws Exception {
         internalCluster().startNodes(3);
         prepareCreate("test").setSettings(
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueHours(1))
+            indexSettings(1, 1).put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueHours(1))
         ).get();
         ensureGreen("test");
         indexRandomData();
@@ -62,12 +53,9 @@ public class DelayedAllocationIT extends ESIntegTestCase {
         Settings nodeWithShardDataPathSettings = internalCluster().dataPathSettings(nodeWithShard);
         internalCluster().stopNode(nodeWithShard);
         assertBusy(
-            () -> assertThat(
-                client().admin().cluster().prepareState().all().get().getState().getRoutingNodes().unassigned().size() > 0,
-                equalTo(true)
-            )
+            () -> assertThat(clusterAdmin().prepareState().all().get().getState().getRoutingNodes().unassigned().size() > 0, equalTo(true))
         );
-        assertThat(client().admin().cluster().prepareHealth().get().getDelayedUnassignedShards(), equalTo(1));
+        assertThat(clusterAdmin().prepareHealth().get().getDelayedUnassignedShards(), equalTo(1));
         internalCluster().startNode(nodeWithShardDataPathSettings); // this will use the same data location as the stopped node
         ensureGreen("test");
     }
@@ -79,10 +67,7 @@ public class DelayedAllocationIT extends ESIntegTestCase {
     public void testDelayedAllocationTimesOut() throws Exception {
         internalCluster().startNodes(3);
         prepareCreate("test").setSettings(
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueMillis(100))
+            indexSettings(1, 1).put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueMillis(100))
         ).get();
         ensureGreen("test");
         indexRandomData();
@@ -103,35 +88,25 @@ public class DelayedAllocationIT extends ESIntegTestCase {
      * allocation to a very small value, it kicks the allocation of the unassigned shard
      * even though the node it was hosted on will not come back.
      */
-    @TestLogging(
-        value = "org.elasticsearch.cluster.routing.allocation.allocator:TRACE",
-        reason = "https://github.com/elastic/elasticsearch/issues/93470"
-    )
     public void testDelayedAllocationChangeWithSettingTo100ms() throws Exception {
         internalCluster().startNodes(3);
         prepareCreate("test").setSettings(
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueHours(1))
+            indexSettings(1, 1).put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueHours(1))
         ).get();
         ensureGreen("test");
         indexRandomData();
         internalCluster().stopNode(findNodeWithShard());
         assertBusy(
-            () -> assertThat(
-                client().admin().cluster().prepareState().all().get().getState().getRoutingNodes().unassigned().size() > 0,
-                equalTo(true)
-            )
+            () -> assertThat(clusterAdmin().prepareState().all().get().getState().getRoutingNodes().unassigned().size() > 0, equalTo(true))
         );
-        assertThat(client().admin().cluster().prepareHealth().get().getDelayedUnassignedShards(), equalTo(1));
+        assertThat(clusterAdmin().prepareHealth().get().getDelayedUnassignedShards(), equalTo(1));
         logger.info("Setting shorter allocation delay");
         updateIndexSettings(
             Settings.builder().put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueMillis(100)),
             "test"
         );
         ensureGreen("test");
-        assertThat(client().admin().cluster().prepareHealth().get().getDelayedUnassignedShards(), equalTo(0));
+        assertThat(clusterAdmin().prepareHealth().get().getDelayedUnassignedShards(), equalTo(0));
     }
 
     /**
@@ -142,27 +117,21 @@ public class DelayedAllocationIT extends ESIntegTestCase {
     public void testDelayedAllocationChangeWithSettingTo0() throws Exception {
         internalCluster().startNodes(3);
         prepareCreate("test").setSettings(
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueHours(1))
+            indexSettings(1, 1).put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueHours(1))
         ).get();
         ensureGreen("test");
         indexRandomData();
         internalCluster().stopNode(findNodeWithShard());
         assertBusy(
-            () -> assertThat(
-                client().admin().cluster().prepareState().all().get().getState().getRoutingNodes().unassigned().size() > 0,
-                equalTo(true)
-            )
+            () -> assertThat(clusterAdmin().prepareState().all().get().getState().getRoutingNodes().unassigned().size() > 0, equalTo(true))
         );
-        assertThat(client().admin().cluster().prepareHealth().get().getDelayedUnassignedShards(), equalTo(1));
+        assertThat(clusterAdmin().prepareHealth().get().getDelayedUnassignedShards(), equalTo(1));
         updateIndexSettings(
             Settings.builder().put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueMillis(0)),
             "test"
         );
         ensureGreen("test");
-        assertThat(client().admin().cluster().prepareHealth().get().getDelayedUnassignedShards(), equalTo(0));
+        assertThat(clusterAdmin().prepareHealth().get().getDelayedUnassignedShards(), equalTo(0));
     }
 
     private void indexRandomData() throws Exception {
@@ -178,7 +147,7 @@ public class DelayedAllocationIT extends ESIntegTestCase {
     }
 
     private String findNodeWithShard() {
-        ClusterState state = client().admin().cluster().prepareState().get().getState();
+        ClusterState state = clusterAdmin().prepareState().get().getState();
         List<ShardRouting> startedShards = RoutingNodesHelper.shardsWithState(state.getRoutingNodes(), ShardRoutingState.STARTED);
         return state.nodes().get(randomFrom(startedShards).currentNodeId()).getName();
     }

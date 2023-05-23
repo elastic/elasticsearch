@@ -133,6 +133,7 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
                     settings,
                     client,
                     transformConfigManager,
+                    auditor,
                     configAndVersion.v1(),
                     update,
                     configAndVersion.v2(),
@@ -204,6 +205,8 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
                                     authState,
                                     ActionListener.wrap(aVoid -> listener.onResponse(new Response(updatedConfig)), listener::onFailure)
                                 );
+                            } else {
+                                listener.onResponse(new Response(updatedConfig));
                             }
                         } else {
                             listener.onResponse(new Response(updatedConfig));

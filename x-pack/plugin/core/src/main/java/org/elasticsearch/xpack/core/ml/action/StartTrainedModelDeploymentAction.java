@@ -61,6 +61,13 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
      */
     private static final ByteSizeValue MEMORY_OVERHEAD = ByteSizeValue.ofMb(240);
 
+    /**
+     * The ELSER model turned out to use more memory then what we usually estimate.
+     * We overwrite the estimate with this static value for ELSER V1 for now. Soon to be
+     * replaced with a better estimate provided by the model.
+     */
+    private static final ByteSizeValue ELSER_1_MEMORY_USAGE = ByteSizeValue.ofMb(2004);
+
     public StartTrainedModelDeploymentAction() {
         super(NAME, CreateTrainedModelAssignmentAction.Response::new);
     }
@@ -79,6 +86,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
         private static final int MAX_QUEUE_CAPACITY = 1_000_000;
 
         public static final ParseField MODEL_ID = new ParseField("model_id");
+        public static final ParseField DEPLOYMENT_ID = new ParseField("deployment_id");
         public static final ParseField TIMEOUT = new ParseField("timeout");
         public static final ParseField WAIT_FOR = new ParseField("wait_for");
         public static final ParseField THREADS_PER_ALLOCATION = new ParseField("threads_per_allocation", "inference_threads");
@@ -91,6 +99,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
 
         static {
             PARSER.declareString(Request::setModelId, MODEL_ID);
+            PARSER.declareString(Request::setDeploymentId, DEPLOYMENT_ID);
             PARSER.declareString((request, val) -> request.setTimeout(TimeValue.parseTimeValue(val, TIMEOUT.getPreferredName())), TIMEOUT);
             PARSER.declareString((request, waitFor) -> request.setWaitForState(AllocationStatus.State.fromString(waitFor)), WAIT_FOR);
             PARSER.declareInt(Request::setThreadsPerAllocation, THREADS_PER_ALLOCATION);
@@ -105,7 +114,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             PARSER.declareString(Request::setPriority, PRIORITY);
         }
 
-        public static Request parseRequest(String modelId, XContentParser parser) {
+        public static Request parseRequest(String modelId, String deploymentId, XContentParser parser) {
             Request request = PARSER.apply(parser, null);
             if (request.getModelId() == null) {
                 request.setModelId(modelId);
@@ -114,10 +123,15 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
                     Messages.getMessage(Messages.INCONSISTENT_ID, MODEL_ID, request.getModelId(), modelId)
                 );
             }
+
+            if (deploymentId != null) {
+                request.setDeploymentId(deploymentId);
+            }
             return request;
         }
 
         private String modelId;
+        private String deploymentId;
         private TimeValue timeout = DEFAULT_TIMEOUT;
         private AllocationStatus.State waitForState = AllocationStatus.State.STARTED;
         private ByteSizeValue cacheSize;
@@ -128,8 +142,9 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
 
         private Request() {}
 
-        public Request(String modelId) {
+        public Request(String modelId, String deploymentId) {
             setModelId(modelId);
+            setDeploymentId(deploymentId);
         }
 
         public Request(StreamInput in) throws IOException {
@@ -148,14 +163,28 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             } else {
                 this.priority = Priority.NORMAL;
             }
+
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+                this.deploymentId = in.readString();
+            } else {
+                this.deploymentId = modelId;
+            }
         }
 
         public final void setModelId(String modelId) {
             this.modelId = ExceptionsHelper.requireNonNull(modelId, MODEL_ID);
         }
 
+        public final void setDeploymentId(String deploymentId) {
+            this.deploymentId = ExceptionsHelper.requireNonNull(deploymentId, DEPLOYMENT_ID);
+        }
+
         public String getModelId() {
             return modelId;
+        }
+
+        public String getDeploymentId() {
+            return deploymentId;
         }
 
         public void setTimeout(TimeValue timeout) {
@@ -230,12 +259,16 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_6_0)) {
                 out.writeEnum(priority);
             }
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+                out.writeString(deploymentId);
+            }
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(MODEL_ID.getPreferredName(), modelId);
+            builder.field(DEPLOYMENT_ID.getPreferredName(), deploymentId);
             builder.field(TIMEOUT.getPreferredName(), timeout.getStringRep());
             builder.field(WAIT_FOR.getPreferredName(), waitForState);
             builder.field(NUMBER_OF_ALLOCATIONS.getPreferredName(), numberOfAllocations);
@@ -299,6 +332,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
         public int hashCode() {
             return Objects.hash(
                 modelId,
+                deploymentId,
                 timeout,
                 waitForState,
                 numberOfAllocations,
@@ -319,6 +353,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             }
             Request other = (Request) obj;
             return Objects.equals(modelId, other.modelId)
+                && Objects.equals(deploymentId, other.deploymentId)
                 && Objects.equals(timeout, other.timeout)
                 && Objects.equals(waitForState, other.waitForState)
                 && Objects.equals(cacheSize, other.cacheSize)
@@ -360,19 +395,21 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             true,
             a -> new TaskParams(
                 (String) a[0],
-                (Long) a[1],
-                (Integer) a[2],
+                (String) a[1],
+                (Long) a[2],
                 (Integer) a[3],
-                (int) a[4],
-                (ByteSizeValue) a[5],
-                (Integer) a[6],
+                (Integer) a[4],
+                (int) a[5],
+                (ByteSizeValue) a[6],
                 (Integer) a[7],
-                a[8] == null ? null : Priority.fromString((String) a[8])
+                (Integer) a[8],
+                a[9] == null ? null : Priority.fromString((String) a[9])
             )
         );
 
         static {
             PARSER.declareString(ConstructingObjectParser.constructorArg(), TrainedModelConfig.MODEL_ID);
+            PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), Request.DEPLOYMENT_ID);
             PARSER.declareLong(ConstructingObjectParser.constructorArg(), MODEL_BYTES);
             PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), NUMBER_OF_ALLOCATIONS);
             PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), THREADS_PER_ALLOCATION);
@@ -393,6 +430,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
         }
 
         private final String modelId;
+        private final String deploymentId;
         private final ByteSizeValue cacheSize;
         private final long modelBytes;
         // How many threads are used by the model during inference. Used to increase inference speed.
@@ -404,6 +442,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
 
         private TaskParams(
             String modelId,
+            @Nullable String deploymentId,
             long modelBytes,
             Integer numberOfAllocations,
             Integer threadsPerAllocation,
@@ -415,6 +454,9 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
         ) {
             this(
                 modelId,
+                // deploymentId should only be null in a mixed cluster
+                // with pre-8.8 nodes
+                deploymentId == null ? modelId : deploymentId,
                 modelBytes,
                 numberOfAllocations == null ? legacyModelThreads : numberOfAllocations,
                 threadsPerAllocation == null ? legacyInferenceThreads : threadsPerAllocation,
@@ -426,6 +468,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
 
         public TaskParams(
             String modelId,
+            String deploymentId,
             long modelBytes,
             int numberOfAllocations,
             int threadsPerAllocation,
@@ -434,6 +477,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             Priority priority
         ) {
             this.modelId = Objects.requireNonNull(modelId);
+            this.deploymentId = Objects.requireNonNull(deploymentId);
             this.modelBytes = modelBytes;
             this.threadsPerAllocation = threadsPerAllocation;
             this.numberOfAllocations = numberOfAllocations;
@@ -458,19 +502,29 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             } else {
                 this.priority = Priority.NORMAL;
             }
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+                this.deploymentId = in.readString();
+            } else {
+                this.deploymentId = modelId;
+            }
         }
 
         public String getModelId() {
             return modelId;
         }
 
+        public String getDeploymentId() {
+            return deploymentId;
+        }
+
         public long estimateMemoryUsageBytes() {
             // We already take into account 2x the model bytes. If the cache size is larger than the model bytes, then
             // we need to take it into account when returning the estimate.
             if (cacheSize != null && cacheSize.getBytes() > modelBytes) {
-                return StartTrainedModelDeploymentAction.estimateMemoryUsageBytes(modelBytes) + (cacheSize.getBytes() - modelBytes);
+                return StartTrainedModelDeploymentAction.estimateMemoryUsageBytes(modelId, modelBytes) + (cacheSize.getBytes()
+                    - modelBytes);
             }
-            return StartTrainedModelDeploymentAction.estimateMemoryUsageBytes(modelBytes);
+            return StartTrainedModelDeploymentAction.estimateMemoryUsageBytes(modelId, modelBytes);
         }
 
         public Version getMinimalSupportedVersion() {
@@ -490,12 +544,16 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_6_0)) {
                 out.writeEnum(priority);
             }
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+                out.writeString(deploymentId);
+            }
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(TrainedModelConfig.MODEL_ID.getPreferredName(), modelId);
+            builder.field(Request.DEPLOYMENT_ID.getPreferredName(), deploymentId);
             builder.field(MODEL_BYTES.getPreferredName(), modelBytes);
             builder.field(THREADS_PER_ALLOCATION.getPreferredName(), threadsPerAllocation);
             builder.field(NUMBER_OF_ALLOCATIONS.getPreferredName(), numberOfAllocations);
@@ -510,7 +568,16 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
 
         @Override
         public int hashCode() {
-            return Objects.hash(modelId, modelBytes, threadsPerAllocation, numberOfAllocations, queueCapacity, cacheSize, priority);
+            return Objects.hash(
+                modelId,
+                deploymentId,
+                modelBytes,
+                threadsPerAllocation,
+                numberOfAllocations,
+                queueCapacity,
+                cacheSize,
+                priority
+            );
         }
 
         @Override
@@ -520,6 +587,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
 
             TaskParams other = (TaskParams) o;
             return Objects.equals(modelId, other.modelId)
+                && Objects.equals(deploymentId, other.deploymentId)
                 && modelBytes == other.modelBytes
                 && threadsPerAllocation == other.threadsPerAllocation
                 && numberOfAllocations == other.numberOfAllocations
@@ -581,8 +649,12 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
         }
     }
 
-    public static long estimateMemoryUsageBytes(long totalDefinitionLength) {
+    public static long estimateMemoryUsageBytes(String modelId, long totalDefinitionLength) {
         // While loading the model in the process we need twice the model size.
-        return MEMORY_OVERHEAD.getBytes() + 2 * totalDefinitionLength;
+        return isElserModel(modelId) ? ELSER_1_MEMORY_USAGE.getBytes() : MEMORY_OVERHEAD.getBytes() + 2 * totalDefinitionLength;
+    }
+
+    private static boolean isElserModel(String modelId) {
+        return modelId.startsWith(".elser_model_1");
     }
 }

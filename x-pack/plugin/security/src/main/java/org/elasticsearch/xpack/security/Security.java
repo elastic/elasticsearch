@@ -6,9 +6,12 @@
  */
 package org.elasticsearch.xpack.security;
 
+import io.netty.channel.Channel;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -49,9 +52,11 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.NodeMetadata;
+import org.elasticsearch.http.HttpPreRequest;
 import org.elasticsearch.http.HttpServerTransport;
-import org.elasticsearch.http.netty4.Netty4HttpHeaderValidator;
 import org.elasticsearch.http.netty4.Netty4HttpServerTransport;
+import org.elasticsearch.http.netty4.internal.HttpHeadersAuthenticatorUtils;
+import org.elasticsearch.http.netty4.internal.HttpValidator;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -76,6 +81,7 @@ import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestHeaderDefinition;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.threadpool.ExecutorBuilder;
@@ -83,6 +89,7 @@ import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
@@ -105,6 +112,7 @@ import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheAction;
 import org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationAction;
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyAction;
@@ -188,6 +196,7 @@ import org.elasticsearch.xpack.security.action.TransportClearSecurityCacheAction
 import org.elasticsearch.xpack.security.action.TransportDelegatePkiAuthenticationAction;
 import org.elasticsearch.xpack.security.action.apikey.TransportBulkUpdateApiKeyAction;
 import org.elasticsearch.xpack.security.action.apikey.TransportCreateApiKeyAction;
+import org.elasticsearch.xpack.security.action.apikey.TransportCreateCrossClusterApiKeyAction;
 import org.elasticsearch.xpack.security.action.apikey.TransportGetApiKeyAction;
 import org.elasticsearch.xpack.security.action.apikey.TransportGrantApiKeyAction;
 import org.elasticsearch.xpack.security.action.apikey.TransportInvalidateApiKeyAction;
@@ -284,12 +293,14 @@ import org.elasticsearch.xpack.security.operator.OperatorOnlyRegistry;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges.OperatorPrivilegesService;
 import org.elasticsearch.xpack.security.profile.ProfileService;
+import org.elasticsearch.xpack.security.rest.RemoteHostHeader;
 import org.elasticsearch.xpack.security.rest.SecurityRestFilter;
 import org.elasticsearch.xpack.security.rest.action.RestAuthenticateAction;
 import org.elasticsearch.xpack.security.rest.action.RestDelegatePkiAuthenticationAction;
 import org.elasticsearch.xpack.security.rest.action.apikey.RestBulkUpdateApiKeyAction;
 import org.elasticsearch.xpack.security.rest.action.apikey.RestClearApiKeyCacheAction;
 import org.elasticsearch.xpack.security.rest.action.apikey.RestCreateApiKeyAction;
+import org.elasticsearch.xpack.security.rest.action.apikey.RestCreateCrossClusterApiKeyAction;
 import org.elasticsearch.xpack.security.rest.action.apikey.RestGetApiKeyAction;
 import org.elasticsearch.xpack.security.rest.action.apikey.RestGrantApiKeyAction;
 import org.elasticsearch.xpack.security.rest.action.apikey.RestInvalidateApiKeyAction;
@@ -362,6 +373,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
@@ -379,6 +391,7 @@ import static org.elasticsearch.xpack.core.XPackSettings.API_KEY_SERVICE_ENABLED
 import static org.elasticsearch.xpack.core.XPackSettings.HTTP_SSL_ENABLED;
 import static org.elasticsearch.xpack.core.security.SecurityField.FIELD_LEVEL_SECURITY_FEATURE;
 import static org.elasticsearch.xpack.security.operator.OperatorPrivileges.OPERATOR_PRIVILEGES_ENABLED;
+import static org.elasticsearch.xpack.security.transport.SSLEngineUtils.extractClientCertificates;
 
 public class Security extends Plugin
     implements
@@ -490,9 +503,9 @@ public class Security extends Plugin
     /**
      * Configurable cross cluster access is Enterprise feature.
      */
-    public static final LicensedFeature.Momentary CONFIGURABLE_CROSS_CLUSTER_ACCESS_FEATURE = LicensedFeature.momentary(
+    public static final LicensedFeature.Momentary ADVANCED_REMOTE_CLUSTER_SECURITY_FEATURE = LicensedFeature.momentary(
         null,
-        "configurable-cross-cluster-access",
+        "advanced-remote-cluster-security",
         License.OperationMode.ENTERPRISE
     );
 
@@ -1167,15 +1180,7 @@ public class Security extends Plugin
         settingsList.add(SimpleRole.CACHE_SIZE_SETTING);
 
         // hide settings
-        settingsList.add(
-            Setting.listSetting(
-                SecurityField.setting("hide_settings"),
-                Collections.emptyList(),
-                Function.identity(),
-                Property.NodeScope,
-                Property.Filtered
-            )
-        );
+        settingsList.add(Setting.stringListSetting(SecurityField.setting("hide_settings"), Property.NodeScope, Property.Filtered));
         return settingsList;
     }
 
@@ -1261,7 +1266,7 @@ public class Security extends Plugin
             return Arrays.asList(usageAction, infoAction);
         }
 
-        return Arrays.asList(
+        return Stream.of(
             new ActionHandler<>(ClearRealmCacheAction.INSTANCE, TransportClearRealmCacheAction.class),
             new ActionHandler<>(ClearRolesCacheAction.INSTANCE, TransportClearRolesCacheAction.class),
             new ActionHandler<>(ClearPrivilegesCacheAction.INSTANCE, TransportClearPrivilegesCacheAction.class),
@@ -1298,6 +1303,9 @@ public class Security extends Plugin
             new ActionHandler<>(PutPrivilegesAction.INSTANCE, TransportPutPrivilegesAction.class),
             new ActionHandler<>(DeletePrivilegesAction.INSTANCE, TransportDeletePrivilegesAction.class),
             new ActionHandler<>(CreateApiKeyAction.INSTANCE, TransportCreateApiKeyAction.class),
+            TcpTransport.isUntrustedRemoteClusterEnabled()
+                ? new ActionHandler<>(CreateCrossClusterApiKeyAction.INSTANCE, TransportCreateCrossClusterApiKeyAction.class)
+                : null,
             new ActionHandler<>(GrantApiKeyAction.INSTANCE, TransportGrantApiKeyAction.class),
             new ActionHandler<>(InvalidateApiKeyAction.INSTANCE, TransportInvalidateApiKeyAction.class),
             new ActionHandler<>(GetApiKeyAction.INSTANCE, TransportGetApiKeyAction.class),
@@ -1320,7 +1328,7 @@ public class Security extends Plugin
             new ActionHandler<>(SetProfileEnabledAction.INSTANCE, TransportSetProfileEnabledAction.class),
             usageAction,
             infoAction
-        );
+        ).filter(Objects::nonNull).toList();
     }
 
     @Override
@@ -1344,7 +1352,7 @@ public class Security extends Plugin
         if (enabled == false) {
             return emptyList();
         }
-        return Arrays.asList(
+        return Stream.<RestHandler>of(
             new RestAuthenticateAction(settings, securityContext.get(), getLicenseState()),
             new RestClearRealmCacheAction(settings, getLicenseState()),
             new RestClearRolesCacheAction(settings, getLicenseState()),
@@ -1381,6 +1389,7 @@ public class Security extends Plugin
             new RestPutPrivilegesAction(settings, getLicenseState()),
             new RestDeletePrivilegesAction(settings, getLicenseState()),
             new RestCreateApiKeyAction(settings, getLicenseState()),
+            TcpTransport.isUntrustedRemoteClusterEnabled() ? new RestCreateCrossClusterApiKeyAction(settings, getLicenseState()) : null,
             new RestUpdateApiKeyAction(settings, getLicenseState()),
             new RestBulkUpdateApiKeyAction(settings, getLicenseState()),
             new RestGrantApiKeyAction(settings, getLicenseState()),
@@ -1401,7 +1410,7 @@ public class Security extends Plugin
             new RestSuggestProfilesAction(settings, getLicenseState()),
             new RestEnableProfileAction(settings, getLicenseState()),
             new RestDisableProfileAction(settings, getLicenseState())
-        );
+        ).filter(Objects::nonNull).toList();
     }
 
     @Override
@@ -1592,6 +1601,7 @@ public class Security extends Plugin
         NamedXContentRegistry xContentRegistry,
         NetworkService networkService,
         HttpServerTransport.Dispatcher dispatcher,
+        BiConsumer<HttpPreRequest, ThreadContext> perRequestThreadContext,
         ClusterSettings clusterSettings,
         Tracer tracer
     ) {
@@ -1615,8 +1625,9 @@ public class Security extends Plugin
         Map<String, Supplier<HttpServerTransport>> httpTransports = new HashMap<>();
         httpTransports.put(SecurityField.NAME4, () -> {
             final boolean ssl = HTTP_SSL_ENABLED.get(settings);
-            SSLService sslService = getSslService();
+            final SSLService sslService = getSslService();
             final SslConfiguration sslConfiguration;
+            final BiConsumer<Channel, ThreadContext> populateClientCertificate;
             if (ssl) {
                 sslConfiguration = sslService.getHttpTransportSSLConfiguration();
                 if (SSLService.isConfigurationValidForServerUsage(sslConfiguration) == false) {
@@ -1625,10 +1636,38 @@ public class Security extends Plugin
                             + "[xpack.security.http.ssl.key] or [xpack.security.http.ssl.keystore.path] setting"
                     );
                 }
+                if (SSLService.isSSLClientAuthEnabled(sslConfiguration)) {
+                    populateClientCertificate = (channel, threadContext) -> extractClientCertificates(logger, threadContext, channel);
+                } else {
+                    populateClientCertificate = (channel, threadContext) -> {};
+                }
             } else {
                 sslConfiguration = null;
+                populateClientCertificate = (channel, threadContext) -> {};
             }
-            return new Netty4HttpServerTransport(
+            final AuthenticationService authenticationService = this.authcService.get();
+            final ThreadContext threadContext = this.threadContext.get();
+            final HttpValidator httpValidator = (httpRequest, channel, listener) -> {
+                HttpPreRequest httpPreRequest = HttpHeadersAuthenticatorUtils.asHttpPreRequest(httpRequest);
+                // step 1: Populate the thread context with credentials and any other HTTP request header values (eg run-as) that the
+                // authentication process looks for while doing its duty.
+                perRequestThreadContext.accept(httpPreRequest, threadContext);
+                populateClientCertificate.accept(channel, threadContext);
+                RemoteHostHeader.process(channel, threadContext);
+                // step 2: Run authentication on the now properly prepared thread-context.
+                // This inspects and modifies the thread context.
+                if (httpPreRequest.method() != RestRequest.Method.OPTIONS) {
+                    authenticationService.authenticate(
+                        httpPreRequest,
+                        ActionListener.wrap(ignored -> listener.onResponse(null), listener::onFailure)
+                    );
+                } else {
+                    // allow for unauthenticated OPTIONS request
+                    // this includes CORS preflight, and regular OPTIONS that return permitted methods for a given path
+                    listener.onResponse(null);
+                }
+            };
+            return getHttpServerTransportWithHeadersValidator(
                 settings,
                 networkService,
                 threadPool,
@@ -1639,30 +1678,57 @@ public class Security extends Plugin
                 tracer,
                 new TLSConfig(sslConfiguration, sslService::createSSLEngine),
                 acceptPredicate,
-                Netty4HttpHeaderValidator.NOOP_VALIDATOR
+                httpValidator
             );
         });
         return httpTransports;
     }
 
+    // "public" so it can be used in tests
+    public static Netty4HttpServerTransport getHttpServerTransportWithHeadersValidator(
+        Settings settings,
+        NetworkService networkService,
+        ThreadPool threadPool,
+        NamedXContentRegistry xContentRegistry,
+        HttpServerTransport.Dispatcher dispatcher,
+        ClusterSettings clusterSettings,
+        SharedGroupFactory sharedGroupFactory,
+        Tracer tracer,
+        TLSConfig tlsConfig,
+        @Nullable AcceptChannelHandler.AcceptPredicate acceptPredicate,
+        HttpValidator httpValidator
+    ) {
+        return new Netty4HttpServerTransport(
+            settings,
+            networkService,
+            threadPool,
+            xContentRegistry,
+            dispatcher,
+            clusterSettings,
+            sharedGroupFactory,
+            tracer,
+            tlsConfig,
+            acceptPredicate,
+            Objects.requireNonNull(httpValidator)
+        ) {
+            @Override
+            protected void populatePerRequestThreadContext(RestRequest restRequest, ThreadContext threadContext) {
+                ThreadContext.StoredContext authenticationThreadContext = HttpHeadersAuthenticatorUtils.extractAuthenticationContext(
+                    restRequest.getHttpRequest()
+                );
+                if (authenticationThreadContext != null) {
+                    authenticationThreadContext.restore();
+                } else {
+                    // this is an unexpected internal error condition where {@code Netty4HttpHeaderValidator} does not work correctly
+                    throw new ElasticsearchSecurityException("Request is not authenticated");
+                }
+            }
+        };
+    }
+
     @Override
     public UnaryOperator<RestHandler> getRestHandlerInterceptor(ThreadContext threadContext) {
-        final boolean extractClientCertificate;
-        if (enabled && HTTP_SSL_ENABLED.get(settings)) {
-            final SslConfiguration httpSSLConfig = getSslService().getHttpTransportSSLConfiguration();
-            extractClientCertificate = SSLService.isSSLClientAuthEnabled(httpSSLConfig);
-        } else {
-            extractClientCertificate = false;
-        }
-        return handler -> new SecurityRestFilter(
-            enabled,
-            threadContext,
-            authcService.get(),
-            secondayAuthc.get(),
-            auditTrailService.get(),
-            handler,
-            extractClientCertificate
-        );
+        return handler -> new SecurityRestFilter(enabled, threadContext, secondayAuthc.get(), auditTrailService.get(), handler);
     }
 
     @Override

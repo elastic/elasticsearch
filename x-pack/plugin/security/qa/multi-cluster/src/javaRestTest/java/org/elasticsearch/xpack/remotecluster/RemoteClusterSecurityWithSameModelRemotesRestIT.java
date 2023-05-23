@@ -53,12 +53,13 @@ public class RemoteClusterSecurityWithSameModelRemotesRestIT extends AbstractRem
             .keystore("cluster.remote.my_remote_cluster.credentials", () -> {
                 if (API_KEY_MAP_REF.get() == null) {
                     final Map<String, Object> apiKeyMap = createCrossClusterAccessApiKey("""
-                        [
-                          {
-                             "names": ["cluster1_index*"],
-                             "privileges": ["read", "read_cross_cluster"]
-                          }
-                        ]""");
+                        {
+                            "search": [
+                              {
+                                  "names": ["cluster1_index*"]
+                              }
+                            ]
+                        }""");
                     API_KEY_MAP_REF.set(apiKeyMap);
                 }
                 return (String) API_KEY_MAP_REF.get().get("encoded");
@@ -67,12 +68,13 @@ public class RemoteClusterSecurityWithSameModelRemotesRestIT extends AbstractRem
                 initOtherFulfillingClusterClient();
                 if (OTHER_API_KEY_MAP_REF.get() == null) {
                     final Map<String, Object> apiKeyMap = createCrossClusterAccessApiKey(otherFulfillingClusterClient, """
-                        [
-                          {
-                             "names": ["cluster2_index*"],
-                             "privileges": ["read", "read_cross_cluster"]
-                          }
-                        ]""");
+                         {
+                            "search": [
+                              {
+                                  "names": ["cluster2_index*"]
+                              }
+                            ]
+                        }""");
                     OTHER_API_KEY_MAP_REF.set(apiKeyMap);
                 }
                 return (String) OTHER_API_KEY_MAP_REF.get().get("encoded");
@@ -123,8 +125,8 @@ public class RemoteClusterSecurityWithSameModelRemotesRestIT extends AbstractRem
     }
 
     @Override
-    protected void configureRemoteClusters() throws Exception {
-        super.configureRemoteClusters();
+    protected void configureRemoteCluster() throws Exception {
+        super.configureRemoteCluster();
         configureRemoteCluster("my_remote_cluster_2", otherFulfillingCluster, false, randomBoolean(), randomBoolean());
     }
 }

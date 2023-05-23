@@ -153,6 +153,7 @@ if (providers.systemProperty('idea.active').getOrNull() == 'true') {
               // TODO: only open these for mockito when it is modularized
               '--add-opens=java.base/java.security.cert=ALL-UNNAMED',
               '--add-opens=java.base/java.nio.channels=ALL-UNNAMED',
+              '--add-opens=java.base/java.io=ALL-UNNAMED',
               '--add-opens=java.base/java.net=ALL-UNNAMED',
               '--add-opens=java.base/javax.net.ssl=ALL-UNNAMED',
               '--add-opens=java.base/java.nio.file=ALL-UNNAMED',
@@ -244,20 +245,20 @@ Node parseXml(Object path) {
   return xml
 }
 
-Pair<File, IncludedBuild> locateElasticsearchWorkspace(Gradle project) {
-  if (project.parent == null) {
-    // See if any of these included builds is the Elasticsearch project
-    for (IncludedBuild includedBuild : project.includedBuilds) {
+Pair<File, IncludedBuild> locateElasticsearchWorkspace(Gradle gradle) {
+  if (gradle.parent == null) {
+    // See if any of these included builds is the Elasticsearch gradle
+    for (IncludedBuild includedBuild : gradle.includedBuilds) {
       File versionProperties = new File(includedBuild.projectDir, 'build-tools-internal/version.properties')
       if (versionProperties.exists()) {
         return Pair.of(includedBuild.projectDir, includedBuild)
       }
     }
 
-    // Otherwise assume this project is the root elasticsearch workspace
-    return Pair.of(project.getRootProject().getRootDir(), null)
+    // Otherwise assume this gradle is the root elasticsearch workspace
+    return Pair.of(gradle.getRootProject().getRootDir(), null)
   } else {
     // We're an included build, so keep looking
-    return locateElasticsearchWorkspace(project.parent)
+    return locateElasticsearchWorkspace(gradle.parent)
   }
 }

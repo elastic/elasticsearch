@@ -1,0 +1,27 @@
+{
+  "watcher.update_settings":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/watcher-api-update-settings.html",
+      "description":"Update settings for the watcher system index"
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_watcher/settings",
+          "methods":["PUT"]
+        }
+      ]
+    },
+    "params":{},
+    "body":{
+      "description": "An object with the new index settings",
+      "required": true
+    }
+  }
+}

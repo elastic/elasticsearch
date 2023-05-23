@@ -40,11 +40,7 @@ public class DesiredBalanceShutdownIT extends ESIntegTestCase {
 
         createIndex(
             INDEX,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5))
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._name", oldNodeName)
-                .build()
+            indexSettings(between(1, 5), 0).put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._name", oldNodeName).build()
         );
         ensureGreen(INDEX);
 
@@ -68,7 +64,14 @@ public class DesiredBalanceShutdownIT extends ESIntegTestCase {
                 assertAcked(
                     client().execute(
                         PutShutdownNodeAction.INSTANCE,
-                        new PutShutdownNodeAction.Request(oldNodeId, SingleNodeShutdownMetadata.Type.REPLACE, "test", null, newNodeName)
+                        new PutShutdownNodeAction.Request(
+                            oldNodeId,
+                            SingleNodeShutdownMetadata.Type.REPLACE,
+                            "test",
+                            null,
+                            newNodeName,
+                            null
+                        )
                     ).actionGet(10, TimeUnit.SECONDS)
                 );
 

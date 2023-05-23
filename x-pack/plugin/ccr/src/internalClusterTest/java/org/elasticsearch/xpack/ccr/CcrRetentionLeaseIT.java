@@ -235,8 +235,8 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                 senderNode.getName()
             );
             senderTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
-                if (ClearCcrRestoreSessionAction.NAME.equals(action)
-                    || TransportActionProxy.getProxyAction(ClearCcrRestoreSessionAction.NAME).equals(action)) {
+                if (ClearCcrRestoreSessionAction.INTERNAL_NAME.equals(action)
+                    || TransportActionProxy.getProxyAction(ClearCcrRestoreSessionAction.INTERNAL_NAME).equals(action)) {
                     try {
                         latch.await();
                     } catch (final InterruptedException e) {

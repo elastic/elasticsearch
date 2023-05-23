@@ -161,7 +161,6 @@ PUT /my-index
     }
   }
 }
-
 POST /my-index/_bulk?refresh
 {"index": {}}
 {"nr": 1, "state": "started"}
@@ -171,7 +170,6 @@ POST /my-index/_bulk?refresh
 {"nr": 3, "state": "N/A"}
 {"index": {}}
 {"nr": 4} <2>
-
 POST /my-index/_search
 {
   "aggs": {

@@ -64,7 +64,7 @@ public class LambdaMatchers {
         }
     }
 
-    public static <T, U> Matcher<T> transformed(Function<T, U> function, Matcher<U> matcher) {
+    public static <T, U> Matcher<T> transformedMatch(Function<T, U> function, Matcher<U> matcher) {
         return new TransformMatcher<>(matcher, function);
     }
 
@@ -118,7 +118,7 @@ public class LambdaMatchers {
         }
     }
 
-    public static <T, U> Matcher<Iterable<T>> transformedItems(Function<T, U> function, Matcher<Iterable<? extends U>> matcher) {
+    public static <T, U> Matcher<Iterable<T>> transformedItemsMatch(Function<T, U> function, Matcher<Iterable<? extends U>> matcher) {
         return new ListTransformMatcher<>(matcher, function);
     }
 
@@ -185,7 +185,7 @@ public class LambdaMatchers {
         }
     }
 
-    public static <T, U> Matcher<T[]> transformedArrayItems(Function<T, U> function, Matcher<U[]> matcher) {
+    public static <T, U> Matcher<T[]> transformedArrayItemsMatch(Function<T, U> function, Matcher<U[]> matcher) {
         return new ArrayTransformMatcher<>(matcher, function);
     }
 }

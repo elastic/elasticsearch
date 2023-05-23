@@ -12,7 +12,7 @@ import org.elasticsearch.xcontent.yaml.YamlXContent;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.test.LambdaMatchers.transformedItems;
+import static org.elasticsearch.test.LambdaMatchers.transformedItemsMatch;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -99,7 +99,7 @@ public class AssertionTests extends AbstractClientYamlTestFragmentParserTestCase
         assertThat(matchAssertion.getField(), equalTo("matches"));
         assertThat(matchAssertion.getExpectedValue(), instanceOf(List.class));
         List<?> strings = (List<?>) matchAssertion.getExpectedValue();
-        assertThat(strings, transformedItems(Object::toString, contains("test_percolator_1", "test_percolator_2")));
+        assertThat(strings, transformedItemsMatch(Object::toString, contains("test_percolator_1", "test_percolator_2")));
     }
 
     @SuppressWarnings("unchecked")

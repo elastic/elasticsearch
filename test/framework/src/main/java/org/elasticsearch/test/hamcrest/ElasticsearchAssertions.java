@@ -60,9 +60,9 @@ import java.util.concurrent.TimeUnit;
 
 import static org.apache.lucene.tests.util.LuceneTestCase.expectThrows;
 import static org.apache.lucene.tests.util.LuceneTestCase.expectThrowsAnyOf;
-import static org.elasticsearch.test.LambdaMatchers.transformed;
-import static org.elasticsearch.test.LambdaMatchers.transformedArrayItems;
-import static org.elasticsearch.test.LambdaMatchers.transformedItems;
+import static org.elasticsearch.test.LambdaMatchers.transformedArrayItemsMatch;
+import static org.elasticsearch.test.LambdaMatchers.transformedItemsMatch;
+import static org.elasticsearch.test.LambdaMatchers.transformedMatch;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -173,7 +173,7 @@ public class ElasticsearchAssertions {
             assertThat(
                 "Request should have been blocked by [" + expectedBlockId + "] instead of " + e.blocks(),
                 e.blocks(),
-                hasItem(transformed(ClusterBlock::id, equalTo(expectedBlockId)))
+                hasItem(transformedMatch(ClusterBlock::id, equalTo(expectedBlockId)))
             );
         }
     }
@@ -231,7 +231,7 @@ public class ElasticsearchAssertions {
         assertThat(
             "Incorrect SearchHit ids. " + formatShardStatus(searchResponse),
             searchResponse.getHits(),
-            transformedItems(SearchHit::getId, containsInAnyOrder(ids))
+            transformedItemsMatch(SearchHit::getId, containsInAnyOrder(ids))
         );
     }
 
@@ -249,7 +249,7 @@ public class ElasticsearchAssertions {
         assertThat(
             "Incorrect SearchHit ids. " + formatShardStatus(searchResponse),
             searchResponse.getHits().getHits(),
-            transformedArrayItems(SearchHit::getId, arrayContaining(ids))
+            transformedArrayItemsMatch(SearchHit::getId, arrayContaining(ids))
         );
     }
 
@@ -458,14 +458,14 @@ public class ElasticsearchAssertions {
      * Assert that an index template is missing
      */
     public static void assertIndexTemplateMissing(GetIndexTemplatesResponse templatesResponse, String name) {
-        assertThat(templatesResponse.getIndexTemplates(), not(hasItem(transformed(IndexTemplateMetadata::name, equalTo(name)))));
+        assertThat(templatesResponse.getIndexTemplates(), not(hasItem(transformedMatch(IndexTemplateMetadata::name, equalTo(name)))));
     }
 
     /**
      * Assert that an index template exists
      */
     public static void assertIndexTemplateExists(GetIndexTemplatesResponse templatesResponse, String name) {
-        assertThat(templatesResponse.getIndexTemplates(), hasItem(transformed(IndexTemplateMetadata::name, equalTo(name))));
+        assertThat(templatesResponse.getIndexTemplates(), hasItem(transformedMatch(IndexTemplateMetadata::name, equalTo(name))));
     }
 
     /*
@@ -473,15 +473,15 @@ public class ElasticsearchAssertions {
      * matchers
      */
     public static Matcher<SearchHit> hasId(final String id) {
-        return transformed(SearchHit::getId, equalTo(id));
+        return transformedMatch(SearchHit::getId, equalTo(id));
     }
 
     public static Matcher<SearchHit> hasIndex(final String index) {
-        return transformed(SearchHit::getIndex, equalTo(index));
+        return transformedMatch(SearchHit::getIndex, equalTo(index));
     }
 
     public static Matcher<SearchHit> hasScore(final float score) {
-        return transformed(SearchHit::getScore, equalTo(score));
+        return transformedMatch(SearchHit::getScore, equalTo(score));
     }
 
     public static <T extends Query> T assertBooleanSubQuery(Query query, Class<T> subqueryType, int i) {

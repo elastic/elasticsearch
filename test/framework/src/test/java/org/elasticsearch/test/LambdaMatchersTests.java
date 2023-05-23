@@ -13,9 +13,9 @@ import org.hamcrest.StringDescription;
 
 import java.util.List;
 
-import static org.elasticsearch.test.LambdaMatchers.transformed;
-import static org.elasticsearch.test.LambdaMatchers.transformedArrayItems;
-import static org.elasticsearch.test.LambdaMatchers.transformedItems;
+import static org.elasticsearch.test.LambdaMatchers.transformedArrayItemsMatch;
+import static org.elasticsearch.test.LambdaMatchers.transformedItemsMatch;
+import static org.elasticsearch.test.LambdaMatchers.transformedMatch;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -50,45 +50,49 @@ public class LambdaMatchersTests extends ESTestCase {
     }
 
     public void testTransformMatcher() {
-        assertThat(new A("1"), transformed(a -> a.str, equalTo("1")));
-        assertThat(new B("1"), transformed((A a) -> a.str, equalTo("1")));
+        assertThat(new A("1"), transformedMatch(a -> a.str, equalTo("1")));
+        assertThat(new B("1"), transformedMatch((A a) -> a.str, equalTo("1")));
 
-        assertMismatch(new A("1"), transformed(a -> a.str, emptyString()), equalTo("transformed value was \"1\""));
+        assertMismatch(new A("1"), transformedMatch(a -> a.str, emptyString()), equalTo("transformed value was \"1\""));
     }
 
     public void testTransformDescription() {
-        assertDescribeTo(transformed((A a) -> a.str, emptyString()), equalTo("transformed to match an empty string"));
+        assertDescribeTo(transformedMatch((A a) -> a.str, emptyString()), equalTo("transformed to match an empty string"));
     }
 
     public void testListTransformMatcher() {
         List<A> as = List.of(new A("1"), new A("2"), new A("3"));
-        assertThat(as, transformedItems(a -> a.str, containsInAnyOrder("1", "2", "3")));
-        assertThat(as, transformedItems(a -> a.str, containsInAnyOrder("1", "2", "3")));
+        assertThat(as, transformedItemsMatch(a -> a.str, containsInAnyOrder("1", "2", "3")));
+        assertThat(as, transformedItemsMatch(a -> a.str, containsInAnyOrder("1", "2", "3")));
 
-        assertMismatch(as, transformedItems(a -> a.str, containsInAnyOrder("1", "2", "4")), equalTo("transformed item not matched: \"3\""));
+        assertMismatch(
+            as,
+            transformedItemsMatch(a -> a.str, containsInAnyOrder("1", "2", "4")),
+            equalTo("transformed item not matched: \"3\"")
+        );
     }
 
     public void testListTransformDescription() {
         assertDescribeTo(
-            transformedItems((A a) -> a.str, containsInAnyOrder("1")),
+            transformedItemsMatch((A a) -> a.str, containsInAnyOrder("1")),
             equalTo("iterable with transformed items to match iterable with items [\"1\"] in any order")
         );
     }
 
     public void testArrayTransformMatcher() {
         A[] as = new A[] { new A("1"), new A("2"), new A("3") };
-        assertThat(as, transformedArrayItems(a -> a.str, arrayContaining("1", "2", "3")));
+        assertThat(as, transformedArrayItemsMatch(a -> a.str, arrayContaining("1", "2", "3")));
 
         assertMismatch(
             as,
-            transformedArrayItems(a -> a.str, arrayContainingInAnyOrder("1", "2", "4")),
+            transformedArrayItemsMatch(a -> a.str, arrayContainingInAnyOrder("1", "2", "4")),
             equalTo("transformed item not matched: \"3\"")
         );
     }
 
     public void testArrayTransformDescription() {
         assertDescribeTo(
-            transformedArrayItems((A a) -> a.str, arrayContainingInAnyOrder("1")),
+            transformedArrayItemsMatch((A a) -> a.str, arrayContainingInAnyOrder("1")),
             equalTo("array with transformed items to match [\"1\"] in any order")
         );
     }

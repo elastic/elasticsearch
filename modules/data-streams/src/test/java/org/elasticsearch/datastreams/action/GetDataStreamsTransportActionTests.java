@@ -26,8 +26,8 @@ import java.time.temporal.ChronoUnit;
 import java.util.List;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.getClusterStateWithDataStreams;
-import static org.elasticsearch.test.LambdaMatchers.transformed;
-import static org.elasticsearch.test.LambdaMatchers.transformedItems;
+import static org.elasticsearch.test.LambdaMatchers.transformedItemsMatch;
+import static org.elasticsearch.test.LambdaMatchers.transformedMatch;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -44,7 +44,7 @@ public class GetDataStreamsTransportActionTests extends ESTestCase {
         ClusterState cs = getClusterStateWithDataStreams(List.of(new Tuple<>(dataStreamName, 1)), List.of());
         GetDataStreamAction.Request req = new GetDataStreamAction.Request(new String[] { dataStreamName });
         List<DataStream> dataStreams = GetDataStreamsTransportAction.getDataStreams(cs, resolver, req);
-        assertThat(dataStreams, transformedItems(DataStream::getName, contains(dataStreamName)));
+        assertThat(dataStreams, transformedItemsMatch(DataStream::getName, contains(dataStreamName)));
     }
 
     public void testGetDataStreamsWithWildcards() {
@@ -56,15 +56,15 @@ public class GetDataStreamsTransportActionTests extends ESTestCase {
 
         GetDataStreamAction.Request req = new GetDataStreamAction.Request(new String[] { dataStreamNames[1].substring(0, 5) + "*" });
         List<DataStream> dataStreams = GetDataStreamsTransportAction.getDataStreams(cs, resolver, req);
-        assertThat(dataStreams, transformedItems(DataStream::getName, contains(dataStreamNames[1])));
+        assertThat(dataStreams, transformedItemsMatch(DataStream::getName, contains(dataStreamNames[1])));
 
         req = new GetDataStreamAction.Request(new String[] { "*" });
         dataStreams = GetDataStreamsTransportAction.getDataStreams(cs, resolver, req);
-        assertThat(dataStreams, transformedItems(DataStream::getName, contains(dataStreamNames[1], dataStreamNames[0])));
+        assertThat(dataStreams, transformedItemsMatch(DataStream::getName, contains(dataStreamNames[1], dataStreamNames[0])));
 
         req = new GetDataStreamAction.Request((String[]) null);
         dataStreams = GetDataStreamsTransportAction.getDataStreams(cs, resolver, req);
-        assertThat(dataStreams, transformedItems(DataStream::getName, contains(dataStreamNames[1], dataStreamNames[0])));
+        assertThat(dataStreams, transformedItemsMatch(DataStream::getName, contains(dataStreamNames[1], dataStreamNames[0])));
 
         req = new GetDataStreamAction.Request(new String[] { "matches-none*" });
         dataStreams = GetDataStreamsTransportAction.getDataStreams(cs, resolver, req);
@@ -80,15 +80,15 @@ public class GetDataStreamsTransportActionTests extends ESTestCase {
 
         GetDataStreamAction.Request req = new GetDataStreamAction.Request(new String[] { dataStreamNames[0], dataStreamNames[1] });
         List<DataStream> dataStreams = GetDataStreamsTransportAction.getDataStreams(cs, resolver, req);
-        assertThat(dataStreams, transformedItems(DataStream::getName, contains(dataStreamNames[1], dataStreamNames[0])));
+        assertThat(dataStreams, transformedItemsMatch(DataStream::getName, contains(dataStreamNames[1], dataStreamNames[0])));
 
         req = new GetDataStreamAction.Request(new String[] { dataStreamNames[1] });
         dataStreams = GetDataStreamsTransportAction.getDataStreams(cs, resolver, req);
-        assertThat(dataStreams, transformedItems(DataStream::getName, contains(dataStreamNames[1])));
+        assertThat(dataStreams, transformedItemsMatch(DataStream::getName, contains(dataStreamNames[1])));
 
         req = new GetDataStreamAction.Request(new String[] { dataStreamNames[0] });
         dataStreams = GetDataStreamsTransportAction.getDataStreams(cs, resolver, req);
-        assertThat(dataStreams, transformedItems(DataStream::getName, contains(dataStreamNames[0])));
+        assertThat(dataStreams, transformedItemsMatch(DataStream::getName, contains(dataStreamNames[0])));
 
         GetDataStreamAction.Request req2 = new GetDataStreamAction.Request(new String[] { "foo" });
         IndexNotFoundException e = expectThrows(
@@ -154,12 +154,12 @@ public class GetDataStreamsTransportActionTests extends ESTestCase {
             response.getDataStreams(),
             contains(
                 allOf(
-                    transformed(d -> d.getDataStream().getName(), equalTo(dataStream1)),
-                    transformed(d -> d.getTimeSeries().temporalRanges(), contains(new Tuple<>(sixHoursAgo, twoHoursAhead)))
+                    transformedMatch(d -> d.getDataStream().getName(), equalTo(dataStream1)),
+                    transformedMatch(d -> d.getTimeSeries().temporalRanges(), contains(new Tuple<>(sixHoursAgo, twoHoursAhead)))
                 ),
                 allOf(
-                    transformed(d -> d.getDataStream().getName(), equalTo(dataStream2)),
-                    transformed(d -> d.getTimeSeries().temporalRanges(), contains(new Tuple<>(sixHoursAgo, twoHoursAhead)))
+                    transformedMatch(d -> d.getDataStream().getName(), equalTo(dataStream2)),
+                    transformedMatch(d -> d.getTimeSeries().temporalRanges(), contains(new Tuple<>(sixHoursAgo, twoHoursAhead)))
                 )
             )
         );
@@ -183,15 +183,15 @@ public class GetDataStreamsTransportActionTests extends ESTestCase {
             response.getDataStreams(),
             contains(
                 allOf(
-                    transformed(d -> d.getDataStream().getName(), equalTo(dataStream1)),
-                    transformed(
+                    transformedMatch(d -> d.getDataStream().getName(), equalTo(dataStream1)),
+                    transformedMatch(
                         d -> d.getTimeSeries().temporalRanges(),
                         contains(new Tuple<>(sixHoursAgo, fourHoursAgo), new Tuple<>(twoHoursAgo, twoHoursAhead))
                     )
                 ),
                 allOf(
-                    transformed(d -> d.getDataStream().getName(), equalTo(dataStream2)),
-                    transformed(d -> d.getTimeSeries().temporalRanges(), contains(new Tuple<>(sixHoursAgo, twoHoursAhead)))
+                    transformedMatch(d -> d.getDataStream().getName(), equalTo(dataStream2)),
+                    transformedMatch(d -> d.getTimeSeries().temporalRanges(), contains(new Tuple<>(sixHoursAgo, twoHoursAhead)))
                 )
             )
         );

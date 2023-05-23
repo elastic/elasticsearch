@@ -69,7 +69,7 @@ import java.util.concurrent.TimeUnit;
 import static java.net.InetAddress.getByName;
 import static java.util.Arrays.asList;
 import static org.elasticsearch.http.AbstractHttpServerTransport.resolvePublishPort;
-import static org.elasticsearch.test.LambdaMatchers.transformed;
+import static org.elasticsearch.test.LambdaMatchers.transformedMatch;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -770,9 +770,9 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 httpStats.getClientStats(),
                 contains(
                     allOf(
-                        transformed(HttpStats.ClientStats::remoteAddress, equalTo(NetworkAddress.format(remoteAddress))),
-                        transformed(HttpStats.ClientStats::opaqueId, equalTo(opaqueId)),
-                        transformed(HttpStats.ClientStats::lastUri, equalTo("/internal/stats_test"))
+                        transformedMatch(HttpStats.ClientStats::remoteAddress, equalTo(NetworkAddress.format(remoteAddress))),
+                        transformedMatch(HttpStats.ClientStats::opaqueId, equalTo(opaqueId)),
+                        transformedMatch(HttpStats.ClientStats::lastUri, equalTo("/internal/stats_test"))
                     )
                 )
             );

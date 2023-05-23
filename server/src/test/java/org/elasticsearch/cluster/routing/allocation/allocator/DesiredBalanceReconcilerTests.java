@@ -1083,7 +1083,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
                 "Should log first too many shards on undesired locations",
                 DesiredBalanceReconciler.class.getCanonicalName(),
                 Level.WARN,
-                "1/1 of shards are allocated on undesired nodes"
+                "[100.0%] of assigned shards (1/1) are not on their desired nodes, which exceeds the warn threshold of [10.0%]"
             )
         );
         assertThatLogger(
@@ -1093,7 +1093,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
                 "Should not log immediate second too many shards on undesired locations",
                 DesiredBalanceReconciler.class.getCanonicalName(),
                 Level.WARN,
-                "1/1 of shards are allocated on undesired nodes"
+                "[100.0%] of assigned shards (1/1) are not on their desired nodes, which exceeds the warn threshold of [10.0%]"
             )
         );
     }

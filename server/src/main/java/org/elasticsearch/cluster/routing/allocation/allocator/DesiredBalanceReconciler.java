@@ -409,11 +409,14 @@ public class DesiredBalanceReconciler {
 
             long allAllocations = 0;
             long undesiredAllocations = 0;
+
             // Iterate over the started shards interleaving between nodes, and try to move any which are on undesired nodes. In the presence
             // of throttling shard movements, the goal of this iteration order is to achieve a fairer movement of shards from the nodes that
             // are offloading the shards.
             for (final var iterator = routingNodes.nodeInterleavedShardIterator(); iterator.hasNext();) {
                 final var shardRouting = iterator.next();
+
+                allAllocations++;
 
                 if (shardRouting.started() == false) {
                     // can only rebalance started shards
@@ -425,8 +428,6 @@ public class DesiredBalanceReconciler {
                     // balance is not computed
                     continue;
                 }
-
-                allAllocations++;
 
                 if (assignment.nodeIds().contains(shardRouting.currentNodeId())) {
                     // shard is already on a desired node
@@ -462,7 +463,13 @@ public class DesiredBalanceReconciler {
         private void maybeLogUndesiredAllocationsWarning(long allAllocations, long undesiredAllocations) {
             if (allAllocations > 0 && undesiredAllocations > undesiredAllocationsLogThreshold * allAllocations) {
                 undesiredAllocationLogInterval.maybeExecute(
-                    () -> logger.warn("{}/{} of shards are allocated on undesired nodes", allAllocations, undesiredAllocations)
+                    () -> logger.warn(
+                        "[{}%] of assigned shards ({}/{}) are not on their desired nodes, which exceeds the warn threshold of [{}%]",
+                        100.0 * undesiredAllocations / allAllocations,
+                        undesiredAllocations,
+                        allAllocations,
+                        100.0 * undesiredAllocationsLogThreshold
+                    )
                 );
             }
         }

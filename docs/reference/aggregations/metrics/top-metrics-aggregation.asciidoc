@@ -150,7 +150,7 @@ By default, if any of the key components are missing, the entire document is
 ignored. It is possible to treat the missing components as if they had a value 
 by using the `missing` parameter.
 
-[source,js]
+[source,console]
 ----
 PUT /my-index
 {

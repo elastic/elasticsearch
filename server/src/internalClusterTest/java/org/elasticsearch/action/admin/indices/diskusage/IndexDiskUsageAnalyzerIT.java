@@ -13,7 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineException;
@@ -60,7 +60,7 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
         return plugins;
     }
 
-    private static final Set<ShardId> failOnFlushShards = Sets.newConcurrentHashSet();
+    private static final Set<ShardId> failOnFlushShards = ConcurrentCollections.newConcurrentSet();
 
     public static class EngineTestPlugin extends Plugin implements EnginePlugin {
         @Override

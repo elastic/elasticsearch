@@ -24,7 +24,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
-import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.persistent.PersistentTasksClusterService;
@@ -263,7 +263,7 @@ public class TransportStopDatafeedAction extends TransportTasksAction<
         request.setResolvedStartedDatafeedIds(resolvedStartedDatafeeds.toArray(new String[0]));
         request.setNodes(executorNodes.toArray(new String[0]));
 
-        final Set<String> movedDatafeeds = Sets.newConcurrentHashSet();
+        final Set<String> movedDatafeeds = ConcurrentCollections.newConcurrentSet();
 
         ActionListener<StopDatafeedAction.Response> finalListener = ActionListener.wrap(
             response -> waitForDatafeedStopped(allDataFeedsToWaitFor, request, response, ActionListener.wrap(finished -> {

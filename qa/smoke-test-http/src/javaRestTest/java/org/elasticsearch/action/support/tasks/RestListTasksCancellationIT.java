@@ -16,12 +16,14 @@ import org.elasticsearch.client.Cancellable;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.http.HttpSmokeTestCase;
+import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.transport.TransportService;
 
+import java.util.ArrayList;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.action.support.ActionTestUtils.wrapAsRestResponseListener;
-import static org.elasticsearch.test.TaskAssertions.assertAllCancellableTasksAreCancelled;
 import static org.elasticsearch.test.TaskAssertions.awaitTaskWithPrefix;
 
 public class RestListTasksCancellationIT extends HttpSmokeTestCase {
@@ -42,17 +44,28 @@ public class RestListTasksCancellationIT extends HttpSmokeTestCase {
         final Request tasksRequest = new Request(HttpGet.METHOD_NAME, "/_tasks");
         tasksRequest.addParameter("actions", ClusterStateAction.NAME);
         tasksRequest.addParameter("wait_for_completion", Boolean.toString(true));
+        tasksRequest.addParameter("timeout", "1h");
 
         final PlainActionFuture<Response> tasksFuture = new PlainActionFuture<>();
         final Cancellable tasksCancellable = getRestClient().performRequestAsync(tasksRequest, wrapAsRestResponseListener(tasksFuture));
 
-        awaitTaskWithPrefix(ListTasksAction.NAME);
+        awaitTaskWithPrefix(ListTasksAction.NAME + "[n]");
 
         tasksCancellable.cancel();
 
-        assertAllCancellableTasksAreCancelled(ListTasksAction.NAME);
-        expectThrows(CancellationException.class, () -> tasksFuture.actionGet(10, TimeUnit.SECONDS));
+        final var taskManagers = new ArrayList<TaskManager>(internalCluster().getNodeNames().length);
+        for (final var transportService : internalCluster().getInstances(TransportService.class)) {
+            taskManagers.add(transportService.getTaskManager());
+        }
+        assertBusy(
+            () -> assertFalse(
+                taskManagers.stream()
+                    .flatMap(taskManager -> taskManager.getCancellableTasks().values().stream())
+                    .anyMatch(t -> t.getAction().startsWith(ListTasksAction.NAME))
+            )
+        );
 
+        expectThrows(CancellationException.class, () -> tasksFuture.actionGet(10, TimeUnit.SECONDS));
         clusterStateCancellable.cancel();
     }
 

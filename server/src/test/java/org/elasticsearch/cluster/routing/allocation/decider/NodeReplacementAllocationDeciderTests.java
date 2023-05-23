@@ -188,6 +188,55 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
         );
     }
 
+    public void testShouldNotAutoExpandReplicasDuringUnrelatedNodeReplacement() {
+
+        var indexMetadata = IndexMetadata.builder(idxName)
+            .settings(indexSettings(Version.CURRENT, 1, 0).put(SETTING_AUTO_EXPAND_REPLICAS, "0-1"))
+            .build();
+        var shardId = new ShardId(indexMetadata.getIndex(), 0);
+
+        var state = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(NODE_A).add(NODE_B).add(NODE_C).build())
+            .metadata(
+                Metadata.builder()
+                    .put(IndexMetadata.builder(indexMetadata))
+                    .putCustom(NodesShutdownMetadata.TYPE, createNodeShutdownReplacementMetadata(NODE_A.getId(), NODE_B.getName()))
+            )
+            .routingTable(
+                RoutingTable.builder()
+                    .add(
+                        IndexRoutingTable.builder(indexMetadata.getIndex())
+                            .addShard(newShardRouting(shardId, NODE_C.getId(), true, STARTED))
+                            .build()
+                    )
+                    .build()
+            )
+            .build();
+
+        var allocation = new RoutingAllocation(allocationDeciders, state, null, null, 0);
+
+        // index is already allocated on both nodes
+        assertThat(indexMetadata.getAutoExpandReplicas().getDesiredNumberOfReplicas(indexMetadata, allocation), equalTo(0));
+        assertThatDecision(
+            decider.shouldAutoExpandToNode(indexMetadata, NODE_A, allocation),
+            Decision.Type.NO,
+            String.format("node [%s] is being replaced by [%s], shards cannot auto expand to be on it", NODE_A.getId(), NODE_B.getId())
+        );
+        assertThatDecision(
+            decider.shouldAutoExpandToNode(indexMetadata, NODE_B, allocation),
+            Decision.Type.NO,
+            String.format(
+                "node [%s] is a node replacement target for node [%s], shards cannot auto expand to be on it until the replacement is complete",
+                NODE_B.getId(),
+                NODE_A.getId()
+            )
+        );
+        assertThat(
+            decider.shouldAutoExpandToNode(indexMetadata, NODE_C, allocation),
+            equalTo(NodeReplacementAllocationDecider.YES__NO_APPLICABLE_REPLACEMENTS)
+        );
+    }
+
     public void testShouldNotContractAutoExpandReplicasDuringNodeReplacement() {
 
         var indexMetadata = IndexMetadata.builder(idxName)
@@ -283,13 +332,17 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
         assertThatDecision(
             decider.shouldAutoExpandToNode(indexMetadata, NODE_A, allocation),
             Decision.Type.NO,
-            "node [node-a] is being replaced by [node-b], shards cannot auto expand to be on it"
+            Strings.format("node [%s] is being replaced by [%s], shards cannot auto expand to be on it", NODE_A.getId(), NODE_B.getId())
         );
         assertThatDecision(
             decider.shouldAutoExpandToNode(indexMetadata, NODE_B, allocation),
             Decision.Type.YES,
-            "node [node-b] is a node replacement target for node [node-a], "
-                + "shards can auto expand to it as they were already present of the source node"
+            Strings.format(
+                "node [%s] is a node replacement target for node [%s], "
+                    + "shards can auto expand to it as they were already present of the source node",
+                NODE_B.getId(),
+                NODE_A.getId()
+            )
         );
         assertThatDecision(
             decider.shouldAutoExpandToNode(indexMetadata, NODE_C, allocation),

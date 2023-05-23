@@ -43,7 +43,7 @@ docker pull {docker-repo}:{version}
 
 endif::[]
 
-==== Verify the {es} Docker image signature
+==== Optional: Verify the {es} Docker image signature
 
 Elastic images are signed with https://docs.sigstore.dev/cosign/overview/[Cosign] which is part of the https://www.sigstore.dev/[Sigstore] project.
 

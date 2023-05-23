@@ -25,6 +25,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
+import org.elasticsearch.dlm.DataLifecycleErrorStore;
 import org.elasticsearch.dlm.DataLifecyclePlugin;
 import org.elasticsearch.dlm.DataLifecycleService;
 import org.elasticsearch.index.Index;
@@ -42,6 +43,7 @@ import org.elasticsearch.xpack.security.LocalStateSecurity;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -49,8 +51,11 @@ import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.backingIndexEqualTo;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.DEFAULT_TIMESTAMP_FIELD;
-import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -79,22 +84,22 @@ public class DataLifecycleServiceRuntimeSecurityIT extends SecurityIntegTestCase
         prepareDataStreamAndIndex(dataStreamName, new DataLifecycle());
 
         assertBusy(() -> {
+            assertNoErrors();
             List<Index> backingIndices = getDataStreamBackingIndices(dataStreamName);
             assertThat(backingIndices.size(), equalTo(2));
             String backingIndex = backingIndices.get(0).getName();
             assertThat(backingIndex, backingIndexEqualTo(dataStreamName, 1));
             String writeIndex = backingIndices.get(1).getName();
             assertThat(writeIndex, backingIndexEqualTo(dataStreamName, 2));
-            assertNoErrors();
         });
 
         // Index another docs to force another rollover and trigger an attempted force-merge. The force-merge may be a noop under
         // the hood but for authz purposes this doesn't matter, it only matters that the force-merge API was called
         indexDocs(dataStreamName, 1);
         assertBusy(() -> {
+            assertNoErrors();
             List<Index> backingIndices = getDataStreamBackingIndices(dataStreamName);
             assertThat(backingIndices.size(), equalTo(3));
-            assertNoErrors();
         });
     }
 
@@ -103,13 +108,33 @@ public class DataLifecycleServiceRuntimeSecurityIT extends SecurityIntegTestCase
         prepareDataStreamAndIndex(dataStreamName, new DataLifecycle(TimeValue.timeValueMillis(0)));
 
         assertBusy(() -> {
+            assertNoErrors();
             List<Index> backingIndices = getDataStreamBackingIndices(dataStreamName);
             assertThat(backingIndices.size(), equalTo(1));
             // we expect the data stream to have only one backing index, the write one, with generation 2
             // as generation 1 would've been deleted by DLM given the lifecycle configuration
             String writeIndex = backingIndices.get(0).getName();
             assertThat(writeIndex, backingIndexEqualTo(dataStreamName, 2));
-            assertNoErrors();
+        });
+    }
+
+    public void testUnauthorized() throws Exception {
+        // the DLM user is not authorized for this pattern since it matches the security index
+        String dataStreamName = ".security-foo";
+        prepareDataStreamAndIndex(dataStreamName, new DataLifecycle(TimeValue.timeValueMillis(0)));
+
+        assertBusy(() -> {
+            Iterable<DataLifecycleService> lifecycleServices = internalCluster().getInstances(DataLifecycleService.class);
+            Map<String, String> indicesAndErrors = new HashMap<>();
+            for (DataLifecycleService lifecycleService : lifecycleServices) {
+                DataLifecycleErrorStore errorStore = lifecycleService.getErrorStore();
+                List<String> allIndices = errorStore.getAllIndices();
+                for (var index : allIndices) {
+                    indicesAndErrors.put(index, errorStore.getError(index));
+                }
+            }
+            assertThat(indicesAndErrors, is(not(anEmptyMap())));
+            assertThat(indicesAndErrors.values().iterator().next(), containsString("unauthorized for user [_dlm]"));
         });
     }
 
@@ -118,13 +143,13 @@ public class DataLifecycleServiceRuntimeSecurityIT extends SecurityIntegTestCase
         indexDocs(dataStreamName, 1);
 
         assertBusy(() -> {
+            assertNoErrors();
             List<Index> backingIndices = getDataStreamBackingIndices(dataStreamName);
             assertThat(backingIndices.size(), equalTo(1));
             // we expect the data stream to have only one backing index, the write one, with generation 2
             // as generation 1 would've been deleted by DLM given the lifecycle configuration
             String writeIndex = backingIndices.get(0).getName();
             assertThat(writeIndex, backingIndexEqualTo(dataStreamName, 2));
-            assertNoErrors();
         });
     }
 
@@ -148,7 +173,15 @@ public class DataLifecycleServiceRuntimeSecurityIT extends SecurityIntegTestCase
     private void assertNoErrors() {
         Iterable<DataLifecycleService> lifecycleServices = internalCluster().getInstances(DataLifecycleService.class);
         for (DataLifecycleService lifecycleService : lifecycleServices) {
-            assertThat(lifecycleService.getErrorStore().getAllIndices(), empty());
+            DataLifecycleErrorStore errorStore = lifecycleService.getErrorStore();
+            List<String> allIndices = errorStore.getAllIndices();
+            if (false == allIndices.isEmpty()) {
+                Map<String, String> indicesAndErrors = new HashMap<>();
+                for (var index : allIndices) {
+                    indicesAndErrors.put(index, errorStore.getError(index));
+                }
+                fail("Expected no errors but found: [" + indicesAndErrors + "]");
+            }
         }
     }
 

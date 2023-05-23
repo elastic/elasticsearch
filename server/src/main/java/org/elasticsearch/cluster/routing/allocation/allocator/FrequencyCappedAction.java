@@ -13,6 +13,9 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.function.LongSupplier;
 
+/**
+ * Execute an action at most once per time interval
+ */
 public class FrequencyCappedAction {
 
     private final LongSupplier currentTimeMillisSupplier;

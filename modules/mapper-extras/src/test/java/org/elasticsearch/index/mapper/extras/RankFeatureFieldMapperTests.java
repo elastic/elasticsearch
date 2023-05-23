@@ -146,9 +146,9 @@ public class RankFeatureFieldMapperTests extends MapperTestCase {
     }
 
     public void testNullValue() throws IOException {
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "rank_feature")));
         ParsedDocument doc = mapper.parse(source(b -> b.nullField("field")));
-        assertThat(doc.rootDoc().getFields("field"), empty());
+        assertThat(doc.rootDoc().getFields("_feature"), empty());
 
         mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "rank_feature").field("null_value", "24")));
         doc = mapper.parse(source(b -> {}));

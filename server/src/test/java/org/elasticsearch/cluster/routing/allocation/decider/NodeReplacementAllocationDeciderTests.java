@@ -220,12 +220,12 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
         assertThatDecision(
             decider.shouldAutoExpandToNode(indexMetadata, NODE_A, allocation),
             Decision.Type.NO,
-            String.format("node [%s] is being replaced by [%s], shards cannot auto expand to be on it", NODE_A.getId(), NODE_B.getId())
+            Strings.format("node [%s] is being replaced by [%s], shards cannot auto expand to be on it", NODE_A.getId(), NODE_B.getId())
         );
         assertThatDecision(
             decider.shouldAutoExpandToNode(indexMetadata, NODE_B, allocation),
             Decision.Type.NO,
-            String.format(
+            Strings.format(
                 "node [%s] is a node replacement target for node [%s], "
                     + "shards cannot auto expand to be on it until the replacement is complete",
                 NODE_B.getId(),

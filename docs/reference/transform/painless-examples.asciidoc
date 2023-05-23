@@ -140,7 +140,7 @@ POST _scripts/last-value-map
       def current_date = doc['@timestamp'].getValue().toInstant().toEpochMilli();
         if (current_date > state.timestamp_latest)
         {state.timestamp_latest = current_date;
-        state.last_value = params['_source'][params['key']];}
+        state.last_value = doc[params['key']].value;}
     """
   }
 }

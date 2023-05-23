@@ -18,6 +18,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -40,6 +41,8 @@ public class DataLifecycleTests extends AbstractXContentSerializingTestCase<Data
 
     @Override
     protected DataLifecycle createTestInstance() {
+        // We exclude the nullified data lifecycle because on the XContent level we cannot differentiate it from the
+        // implicit infinite retention. We test wire serialization in a separate test case
         return switch (randomInt(2)) {
             case 0 -> DataLifecycle.IMPLICIT_INFINITE_RETENTION;
             case 1 -> DataLifecycle.EXPLICIT_INFINITE_RETENTION;
@@ -49,7 +52,19 @@ public class DataLifecycleTests extends AbstractXContentSerializingTestCase<Data
 
     @Override
     protected DataLifecycle mutateInstance(DataLifecycle instance) throws IOException {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        if (DataLifecycle.IMPLICIT_INFINITE_RETENTION.equals(instance)) {
+            return randomBoolean() ? DataLifecycle.EXPLICIT_INFINITE_RETENTION : new DataLifecycle(randomMillisUpToYear9999());
+        }
+        if (DataLifecycle.EXPLICIT_INFINITE_RETENTION.equals(instance)) {
+            return randomBoolean() ? DataLifecycle.IMPLICIT_INFINITE_RETENTION : new DataLifecycle(randomMillisUpToYear9999());
+        }
+        return switch (randomInt(2)) {
+            case 0 -> DataLifecycle.IMPLICIT_INFINITE_RETENTION;
+            case 1 -> DataLifecycle.EXPLICIT_INFINITE_RETENTION;
+            default -> new DataLifecycle(
+                randomValueOtherThan(instance.getEffectiveDataRetention().millis(), ESTestCase::randomMillisUpToYear9999)
+            );
+        };
     }
 
     @Override

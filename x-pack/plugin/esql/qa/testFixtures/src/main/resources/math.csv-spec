@@ -249,6 +249,45 @@ a:integer | max_a:integer
 // end::mv_max-result[]
 ;
 
+mvMedian
+from employees | where emp_no > 10008 | eval med = mv_median(salary_change) | sort emp_no | project emp_no, salary_change, med | limit 7;
+
+emp_no:integer | salary_change:double         | med:double
+10009          | null                         | null
+10010          | [-6.77, 4.69, 5.05, 12.15]   | 4.87
+10011          | [-7.82, 3.48, 8.73, 10.35]   | 6.105
+10012          | 0.04                         | 0.04
+10013          | null                         | null
+10014          | [-1.89, 9.07]                | 3.5900000000000003
+10015          | [12.4, 14.25]                | 13.325
+;
+
+mvMedianSimple
+// tag::mv_median[]
+ROW a=[3, 5, 1]
+| EVAL median_a = MV_MEDIAN(a)
+// end::mv_median[]
+;
+
+// tag::mv_median-result[]
+a:integer | median_a:integer
+[3, 5, 1] | 3
+// end::mv_median-result[]
+;
+
+mvMedianRoundDown
+// tag::mv_median_round_down[]
+ROW a=[3, 7, 1, 6]
+| EVAL median_a = MV_MEDIAN(a)
+// end::mv_median_round_down[]
+;
+
+// tag::mv_median_round_down-result[]
+   a:integer | median_a:integer
+[3, 7, 1, 6] | 4
+// end::mv_median_round_down-result[]
+;
+
 mvMin
 from employees | where emp_no > 10008 | eval salary_change = mv_min(salary_change.int) | sort emp_no | project emp_no, salary_change.int, salary_change | limit 7;
 

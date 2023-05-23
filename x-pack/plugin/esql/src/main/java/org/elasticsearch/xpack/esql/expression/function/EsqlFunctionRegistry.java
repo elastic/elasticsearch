@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAvg;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCount;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMax;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMedian;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
@@ -96,6 +97,7 @@ public class EsqlFunctionRegistry extends FunctionRegistry {
                 def(MvAvg.class, MvAvg::new, "mv_avg"),
                 def(MvCount.class, MvCount::new, "mv_count"),
                 def(MvMax.class, MvMax::new, "mv_max"),
+                def(MvMedian.class, MvMedian::new, "mv_median"),
                 def(MvMin.class, MvMin::new, "mv_min"),
                 def(MvSum.class, MvSum::new, "mv_sum"),
                 def(Split.class, Split::new, "split") } };

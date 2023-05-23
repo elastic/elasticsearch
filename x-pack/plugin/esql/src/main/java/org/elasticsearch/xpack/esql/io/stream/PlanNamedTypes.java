@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.Abstra
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAvg;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCount;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMax;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMedian;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
@@ -240,6 +241,7 @@ public final class PlanNamedTypes {
             of(AbstractMultivalueFunction.class, MvAvg.class, PlanNamedTypes::writeMvFunction, PlanNamedTypes::readMvFunction),
             of(AbstractMultivalueFunction.class, MvCount.class, PlanNamedTypes::writeMvFunction, PlanNamedTypes::readMvFunction),
             of(AbstractMultivalueFunction.class, MvMax.class, PlanNamedTypes::writeMvFunction, PlanNamedTypes::readMvFunction),
+            of(AbstractMultivalueFunction.class, MvMedian.class, PlanNamedTypes::writeMvFunction, PlanNamedTypes::readMvFunction),
             of(AbstractMultivalueFunction.class, MvMin.class, PlanNamedTypes::writeMvFunction, PlanNamedTypes::readMvFunction),
             of(AbstractMultivalueFunction.class, MvSum.class, PlanNamedTypes::writeMvFunction, PlanNamedTypes::readMvFunction),
             // Expressions (other)
@@ -872,6 +874,7 @@ public final class PlanNamedTypes {
         entry(name(MvAvg.class), MvAvg::new),
         entry(name(MvCount.class), MvCount::new),
         entry(name(MvMax.class), MvMax::new),
+        entry(name(MvMedian.class), MvMedian::new),
         entry(name(MvMin.class), MvMin::new),
         entry(name(MvSum.class), MvSum::new)
     );

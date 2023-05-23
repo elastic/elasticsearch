@@ -13,7 +13,7 @@ import org.apache.lucene.search.Query;
 /**
  * {@code SearchQuery} is a wrapper class for containing all
  * the information required to perform a single search query
- * as part of a series of multiple queries for something like ranking.
+ * as part of a series of multiple queries for features like ranking.
  * It's expected to typically be used as part of a {@link java.util.List}.
  */
 public class SearchQuery {

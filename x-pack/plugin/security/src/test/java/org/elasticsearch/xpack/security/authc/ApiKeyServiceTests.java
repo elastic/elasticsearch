@@ -142,6 +142,7 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -160,6 +161,7 @@ import static org.elasticsearch.xpack.security.Security.SECURITY_CRYPTO_THREAD_P
 import static org.elasticsearch.xpack.security.authc.ApiKeyService.LEGACY_SUPERUSER_ROLE_DESCRIPTOR;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -965,6 +967,34 @@ public class ApiKeyServiceTests extends ESTestCase {
                 apiKeyRoleType == RoleReference.ApiKeyRoleType.LIMITED_BY ? SUPERUSER_ROLE_DESCRIPTOR : LEGACY_SUPERUSER_ROLE_DESCRIPTOR
             )
         );
+
+        // Tests parsing of role descriptor with and without workflows restriction.
+        roleBytes = new BytesArray("""
+                {
+                    "role_with_restriction":{
+                        "indices":[{"names":["books"],"privileges":["read"]}],
+                        "restriction":{"workflows":["search_application"]}
+                    },
+                    "role_without_restriction":{
+                        "indices":[{"names":["movies"],"privileges":["read"]}]
+                    }
+                }
+            """);
+        roleDescriptors = service.parseRoleDescriptorsBytes(apiKeyId, roleBytes, apiKeyRoleType);
+        assertEquals(2, roleDescriptors.size());
+        Map<String, RoleDescriptor> roleDescriptorsByName = roleDescriptors.stream()
+            .collect(Collectors.toMap(RoleDescriptor::getName, Function.identity()));
+        assertEquals(Set.of("role_with_restriction", "role_without_restriction"), roleDescriptorsByName.keySet());
+
+        RoleDescriptor roleWithRestriction = roleDescriptorsByName.get("role_with_restriction");
+        assertThat(roleWithRestriction.hasRestriction(), equalTo(true));
+        assertThat(roleWithRestriction.getRestriction().hasWorkflowsRestriction(), equalTo(true));
+        assertThat(roleWithRestriction.getRestriction().getWorkflows(), arrayContainingInAnyOrder("search_application"));
+
+        RoleDescriptor roleWithoutRestriction = roleDescriptorsByName.get("role_without_restriction");
+        assertThat(roleWithoutRestriction.hasRestriction(), equalTo(false));
+        assertThat(roleWithoutRestriction.getRestriction().hasWorkflowsRestriction(), equalTo(false));
+        assertThat(roleWithoutRestriction.getRestriction().getWorkflows().length, equalTo(0));
     }
 
     public void testApiKeyServiceDisabled() throws Exception {
@@ -2272,7 +2302,8 @@ public class ApiKeyServiceTests extends ESTestCase {
             RoleDescriptorTests.randomRoleDescriptorMetadata(randomBoolean()),
             Map.of(),
             RoleDescriptorTests.randomRemoteIndicesPrivileges(1, 3),
-            new RoleDescriptor.RoleRestriction(new String[] {})
+            // TODO: Change this to use actual workflow names instead of random ones.
+            new RoleDescriptor.RoleRestriction(randomArray(3, String[]::new, () -> randomAlphaOfLength(6)))
         );
     }
 

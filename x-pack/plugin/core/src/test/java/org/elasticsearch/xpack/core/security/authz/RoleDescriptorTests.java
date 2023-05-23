@@ -234,7 +234,10 @@ public class RoleDescriptorTests extends ESTestCase {
                   },
                   "clusters": ["*"]
                 }
-              ]
+              ],
+              "restriction":{
+                "workflows": ["search_application"]
+              }
             }""";
         rd = RoleDescriptor.parse("test", new BytesArray(q), false, XContentType.JSON);
         assertEquals("test", rd.getName());
@@ -245,7 +248,9 @@ public class RoleDescriptorTests extends ESTestCase {
         assertArrayEquals(new String[] { "r1", "*-*" }, rd.getRemoteIndicesPrivileges()[1].remoteClusters());
         assertArrayEquals(new String[] { "*" }, rd.getRemoteIndicesPrivileges()[2].remoteClusters());
         assertArrayEquals(new String[] { "m", "n" }, rd.getRunAs());
-
+        assertThat(rd.hasRestriction(), equalTo(true));
+        assertThat(rd.getRestriction().hasWorkflowsRestriction(), equalTo(true));
+        assertArrayEquals(new String[] { "search_application" }, rd.getRestriction().getWorkflows());
         q = """
             {
               "cluster": [ "a", "b" ],
@@ -398,6 +403,30 @@ public class RoleDescriptorTests extends ESTestCase {
             () -> RoleDescriptor.parse("test", new BytesArray(badJson), false, XContentType.JSON)
         );
         assertThat(ex.getMessage(), containsString("not_supported"));
+
+        q = """
+            {
+              "index": [{"names": "idx1", "privileges": [ "p1", "p2" ]}],
+              "restriction":{}
+            }""";
+        rd = RoleDescriptor.parse("test_empty_restriction", new BytesArray(q), false, XContentType.JSON);
+        assertThat(rd.getName(), is("test_empty_restriction"));
+        assertThat(rd.hasRestriction(), equalTo(false));
+        assertThat(rd.getRestriction().isEmpty(), equalTo(true));
+        assertThat(rd.hasWorkflowsRestriction(), equalTo(false));
+        assertThat(rd.getRestriction().getWorkflows().length, equalTo(0));
+
+        q = """
+            {
+              "index": [{"names": ["idx1"], "privileges": [ "p1", "p2" ]}],
+              "restriction":{"workflows":[]}
+            }""";
+        rd = RoleDescriptor.parse("test_empty_workflows", new BytesArray(q), false, XContentType.JSON);
+        assertThat(rd.getName(), is("test_empty_workflows"));
+        assertThat(rd.hasRestriction(), equalTo(false));
+        assertThat(rd.getRestriction().isEmpty(), equalTo(true));
+        assertThat(rd.hasWorkflowsRestriction(), equalTo(false));
+        assertThat(rd.getRestriction().getWorkflows().length, equalTo(0));
     }
 
     public void testParsingFieldPermissionsUsesCache() throws IOException {
@@ -501,6 +530,48 @@ public class RoleDescriptorTests extends ESTestCase {
                         descriptor.getTransientMetadata(),
                         null,
                         descriptor.getRestriction()
+                    )
+                )
+            );
+        } else {
+            assertThat(descriptor, equalTo(serialized));
+        }
+    }
+
+    public void testSerializationWithWorkflowsRestrictionAndUnsupportedVersions() throws IOException {
+        final TransportVersion versionBeforeWorkflowsRestriction = TransportVersionUtils.getPreviousVersion(WORKFLOWS_RESTRICTION_VERSION);
+        final TransportVersion version = TransportVersionUtils.randomVersionBetween(
+            random(),
+            TransportVersion.V_7_17_0,
+            versionBeforeWorkflowsRestriction
+        );
+        final BytesStreamOutput output = new BytesStreamOutput();
+        output.setTransportVersion(version);
+
+        final RoleDescriptor descriptor = randomRoleDescriptor(true, false, true);
+        descriptor.writeTo(output);
+        final NamedWriteableRegistry registry = new NamedWriteableRegistry(new XPackClientPlugin().getNamedWriteables());
+        StreamInput streamInput = new NamedWriteableAwareStreamInput(
+            ByteBufferStreamInput.wrap(BytesReference.toBytes(output.bytes())),
+            registry
+        );
+        streamInput.setTransportVersion(version);
+        final RoleDescriptor serialized = new RoleDescriptor(streamInput);
+        if (descriptor.hasWorkflowsRestriction()) {
+            assertThat(
+                serialized,
+                equalTo(
+                    new RoleDescriptor(
+                        descriptor.getName(),
+                        descriptor.getClusterPrivileges(),
+                        descriptor.getIndicesPrivileges(),
+                        descriptor.getApplicationPrivileges(),
+                        descriptor.getConditionalClusterPrivileges(),
+                        descriptor.getRunAs(),
+                        descriptor.getMetadata(),
+                        descriptor.getTransientMetadata(),
+                        descriptor.getRemoteIndicesPrivileges(),
+                        null
                     )
                 )
             );

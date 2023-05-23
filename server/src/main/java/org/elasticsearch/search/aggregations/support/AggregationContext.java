@@ -230,6 +230,11 @@ public abstract class AggregationContext implements Releasable {
     public abstract void addReleasable(Aggregator aggregator);
 
     /**
+     * Cause this aggregation to be released when the search is finished.
+     */
+    public abstract void removeReleasable(Aggregator aggregator);
+
+    /**
      * Max buckets provided by the search.max_buckets setting
      */
     public abstract int maxBuckets();
@@ -517,7 +522,16 @@ public abstract class AggregationContext implements Releasable {
 
         @Override
         public void addReleasable(Aggregator aggregator) {
+            assert releaseMe.contains(aggregator) == false
+                : "adding aggregator [" + aggregator.name() + "] twice in the aggregation context";
             releaseMe.add(aggregator);
+        }
+
+        @Override
+        public void removeReleasable(Aggregator aggregator) {
+            assert releaseMe.contains(aggregator)
+                : "removing non-existing aggregator [" + aggregator.name() + "] from the the aggregation context";
+            releaseMe.remove(aggregator);
         }
 
         @Override

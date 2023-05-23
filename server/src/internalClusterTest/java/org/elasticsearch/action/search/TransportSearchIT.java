@@ -672,6 +672,9 @@ public class TransportSearchIT extends ESIntegTestCase {
         }
 
         @Override
+        public void releaseAggregations() {}
+
+        @Override
         public InternalAggregation buildEmptyAggregation() {
             return new Max(name(), Double.NaN, DocValueFormat.RAW, null);
         }

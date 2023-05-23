@@ -63,19 +63,5 @@ BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
     tasks.register(bwcTaskName(bwcVersion)) {
       dependsOn "${baseName}#mixedClusterTest"
     }
-
-    tasks.named("${baseName}#mixedClusterTest").configure {
-      systemProperty 'tests.rest.blacklist', [
-        'aggregations/percentile_ranks_tdigest_metric/basic',
-        'aggregations/percentile_ranks_tdigest_metric/filtered',
-        'aggregations/percentile_ranks_tdigest_metric/non-keyed test',
-        'aggregations/percentiles_tdigest_metric/Basic test',
-        'aggregations/percentiles_tdigest_metric/Only aggs test',
-        'aggregations/percentiles_tdigest_metric/Filtered test',
-        'aggregations/percentiles_tdigest_metric/Metadata test',
-        'aggregations/percentiles_tdigest_metric/Explicit Percents test',
-        'aggregations/percentiles_tdigest_metric/Non-keyed test',
-      ].join(',')
-    }
   }
 }

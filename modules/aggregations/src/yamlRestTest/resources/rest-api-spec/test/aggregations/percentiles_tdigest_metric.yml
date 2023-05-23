@@ -46,6 +46,9 @@ setup:
 
 ---
 "Basic test":
+  - skip:
+      version: " - 8.8.99"
+      reason: t-digest forked in 8.9.0
   - do:
       search:
         rest_total_hits_as_int: true
@@ -116,6 +119,9 @@ setup:
 
 ---
 "Only aggs test":
+  - skip:
+      version: " - 8.8.99"
+      reason: t-digest forked in 8.9.0
   - do:
       search:
         rest_total_hits_as_int: true
@@ -150,6 +156,9 @@ setup:
 
 ---
 "Filtered test":
+  - skip:
+      version: " - 8.8.99"
+      reason: t-digest forked in 8.9.0
   - do:
       search:
         rest_total_hits_as_int: true
@@ -229,6 +238,9 @@ setup:
 
 ---
 "Metadata test":
+  - skip:
+      version: " - 8.8.99"
+      reason: t-digest forked in 8.9.0
   - do:
       search:
         rest_total_hits_as_int: true
@@ -313,6 +325,9 @@ setup:
 
 ---
 "Explicit Percents test":
+  - skip:
+      version: " - 8.8.99"
+      reason: t-digest forked in 8.9.0
   - do:
       search:
         rest_total_hits_as_int: true
@@ -342,6 +357,9 @@ setup:
 
 ---
 "Non-keyed test":
+  - skip:
+      version: " - 8.8.99"
+      reason: t-digest forked in 8.9.0
   - do:
       search:
         rest_total_hits_as_int: true

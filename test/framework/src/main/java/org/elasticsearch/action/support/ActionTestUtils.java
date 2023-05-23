@@ -14,7 +14,6 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
@@ -32,11 +31,7 @@ public class ActionTestUtils {
         Request request
     ) {
         return PlainActionFuture.get(
-            future -> action.execute(
-                request.createTask(1L, "direct", action.actionName, TaskId.EMPTY_TASK_ID, Map.of()),
-                request,
-                future
-            ),
+            future -> action.execute(request.createTask(1L, "direct", action.actionName, TaskId.EMPTY_TASK_ID, Map.of()), request, future),
             10,
             TimeUnit.SECONDS
         );

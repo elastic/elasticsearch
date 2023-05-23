@@ -72,7 +72,7 @@ public class CheckShrinkReadyStep extends ClusterStateWaitStep {
         }
 
         var shutdown = clusterState.metadata().nodeShutdowns().get(idShardsShouldBeOn);
-        boolean nodeBeingRemoved = shutdown == null || shutdown.getType() != SingleNodeShutdownMetadata.Type.RESTART;
+        boolean nodeBeingRemoved = shutdown != null && shutdown.getType() != SingleNodeShutdownMetadata.Type.RESTART;
 
         final IndexRoutingTable routingTable = clusterState.getRoutingTable().index(index);
         int foundShards = 0;

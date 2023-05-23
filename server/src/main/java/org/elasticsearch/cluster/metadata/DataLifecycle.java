@@ -95,6 +95,9 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
     }
 
     private DataLifecycle(@Nullable Retention dataRetention, boolean nullified) {
+        if (nullified && dataRetention != null) {
+            throw new IllegalArgumentException("When the lifecycle is nullified, retention should also be null.");
+        }
         this.dataRetention = dataRetention;
         this.nullified = nullified;
     }

@@ -16,8 +16,6 @@ import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.util.MockPageCacheRecycler;
-import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.HttpTransportSettings;
@@ -28,7 +26,9 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.netty4.SharedGroupFactory;
+import org.elasticsearch.transport.netty4.TLSConfig;
 import org.junit.After;
 import org.junit.Before;
 
@@ -44,13 +44,11 @@ import static org.hamcrest.Matchers.hasSize;
 public class Netty4BadRequestTests extends ESTestCase {
 
     private NetworkService networkService;
-    private PageCacheRecycler recycler;
     private ThreadPool threadPool;
 
     @Before
     public void setup() throws Exception {
         networkService = new NetworkService(Collections.emptyList());
-        recycler = new MockPageCacheRecycler(Settings.EMPTY);
         threadPool = new TestThreadPool("test");
     }
 
@@ -86,7 +84,11 @@ public class Netty4BadRequestTests extends ESTestCase {
                 xContentRegistry(),
                 dispatcher,
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                new SharedGroupFactory(Settings.EMPTY)
+                new SharedGroupFactory(Settings.EMPTY),
+                Tracer.NOOP,
+                TLSConfig.noTLS(),
+                null,
+                randomFrom((httpPreRequest, channel, listener) -> listener.onResponse(null), null)
             )
         ) {
             httpServerTransport.start();

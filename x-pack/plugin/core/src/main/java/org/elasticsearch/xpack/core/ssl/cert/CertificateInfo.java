@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ssl.cert;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -56,7 +56,7 @@ public class CertificateInfo implements ToXContentObject, Writeable, Comparable<
     }
 
     public CertificateInfo(StreamInput in) throws IOException {
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0)) {
             this.path = in.readOptionalString();
         } else {
             this.path = in.readString();
@@ -67,7 +67,7 @@ public class CertificateInfo implements ToXContentObject, Writeable, Comparable<
         this.serialNumber = in.readString();
         this.hasPrivateKey = in.readBoolean();
         this.expiry = Instant.ofEpochMilli(in.readLong()).atZone(ZoneOffset.UTC);
-        if (in.getVersion().onOrAfter(Version.V_8_4_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
             this.issuer = in.readString();
         } else {
             this.issuer = "";
@@ -76,7 +76,7 @@ public class CertificateInfo implements ToXContentObject, Writeable, Comparable<
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0)) {
             out.writeOptionalString(this.path);
         } else {
             out.writeString(this.path == null ? "" : this.path);
@@ -87,7 +87,7 @@ public class CertificateInfo implements ToXContentObject, Writeable, Comparable<
         out.writeString(serialNumber);
         out.writeBoolean(hasPrivateKey);
         out.writeLong(expiry.toInstant().toEpochMilli());
-        if (out.getVersion().onOrAfter(Version.V_8_4_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
             out.writeString(issuer);
         }
     }

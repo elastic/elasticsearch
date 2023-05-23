@@ -25,6 +25,7 @@ import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.rescore.RescorerBuilder;
 import org.elasticsearch.search.searchafter.SearchAfterBuilder;
 import org.elasticsearch.search.slice.SliceBuilder;
@@ -34,11 +35,10 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.test.AbstractQueryTestCase;
-import org.elasticsearch.xcontent.DeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -116,6 +116,7 @@ public class RandomSearchRequestGenerator {
     public static SearchSourceBuilder randomSearchSourceBuilder(
         Supplier<HighlightBuilder> randomHighlightBuilder,
         Supplier<SuggestBuilder> randomSuggestBuilder,
+        Supplier<RankBuilder> rankContextBuilderSupplier,
         Supplier<RescorerBuilder<?>> randomRescoreBuilder,
         Supplier<List<SearchExtBuilder>> randomExtBuilders,
         Supplier<CollapseBuilder> randomCollapseBuilder,
@@ -249,15 +250,20 @@ public class RandomSearchRequestGenerator {
         }
 
         if (randomBoolean()) {
-            String field = randomAlphaOfLength(6);
-            int dim = randomIntBetween(2, 30);
-            float[] vector = new float[dim];
-            for (int i = 0; i < vector.length; i++) {
-                vector[i] = randomFloat();
+            int numKClauses = randomIntBetween(1, 5);
+            List<KnnSearchBuilder> knnSearchBuilders = new ArrayList<>(numKClauses);
+            for (int j = 0; j < numKClauses; j++) {
+                String field = randomAlphaOfLength(6);
+                int dim = randomIntBetween(2, 30);
+                float[] vector = new float[dim];
+                for (int i = 0; i < vector.length; i++) {
+                    vector[i] = randomFloat();
+                }
+                int k = randomIntBetween(1, 100);
+                int numCands = randomIntBetween(k, 1000);
+                knnSearchBuilders.add(new KnnSearchBuilder(field, vector, k, numCands, randomBoolean() ? null : randomFloat()));
             }
-            int k = randomIntBetween(1, 100);
-            int numCands = randomIntBetween(k, 1000);
-            builder.knnSearch(new KnnSearchBuilder(field, vector, k, numCands));
+            builder.knnSearch(knnSearchBuilders);
         }
 
         if (randomBoolean()) {
@@ -310,11 +316,7 @@ public class RandomSearchRequestGenerator {
                 jsonBuilder.endArray();
                 jsonBuilder.endObject();
                 XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                    .createParser(
-                        NamedXContentRegistry.EMPTY,
-                        DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                        BytesReference.bytes(jsonBuilder).streamInput()
-                    );
+                    .createParser(XContentParserConfiguration.EMPTY, BytesReference.bytes(jsonBuilder).streamInput());
                 parser.nextToken();
                 parser.nextToken();
                 parser.nextToken();
@@ -328,6 +330,9 @@ public class RandomSearchRequestGenerator {
         }
         if (randomBoolean()) {
             builder.suggest(randomSuggestBuilder.get());
+        }
+        if (randomBoolean()) {
+            builder.rankBuilder(rankContextBuilderSupplier.get());
         }
         if (randomBoolean()) {
             int numRescores = randomIntBetween(1, 5);

@@ -9,17 +9,15 @@
 package org.elasticsearch.discovery;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.core.LogEvent;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.coordination.PeersResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.node.DiscoveryNodes.Builder;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
@@ -31,6 +29,7 @@ import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.test.transport.CapturingTransport.CapturedRequest;
 import org.elasticsearch.test.transport.StubbableConnectionManager;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.ClusterConnectionManager;
 import org.elasticsearch.transport.ConnectionManager;
 import org.elasticsearch.transport.TransportException;
@@ -235,7 +234,8 @@ public class PeerFinderTests extends ESTestCase {
             boundTransportAddress -> localNode,
             null,
             connectionManager,
-            new TaskManager(settings, threadPool, emptySet())
+            new TaskManager(settings, threadPool, emptySet()),
+            Tracer.NOOP
         );
 
         transportService.start();
@@ -330,12 +330,11 @@ public class PeerFinderTests extends ESTestCase {
     }
 
     public void testDoesNotAddNonMasterEligibleNodesFromUnicastHostsList() {
-        final DiscoveryNode nonMasterNode = new DiscoveryNode(
+        final DiscoveryNode nonMasterNode = TestDiscoveryNode.create(
             "node-from-hosts-list",
             buildNewFakeTransportAddress(),
             emptyMap(),
-            emptySet(),
-            Version.CURRENT
+            emptySet()
         );
 
         providedAddresses.add(nonMasterNode.getAddress());
@@ -419,13 +418,7 @@ public class PeerFinderTests extends ESTestCase {
     }
 
     public void testDoesNotAddReachableNonMasterEligibleNodesFromIncomingRequests() {
-        final DiscoveryNode sourceNode = new DiscoveryNode(
-            "request-source",
-            buildNewFakeTransportAddress(),
-            emptyMap(),
-            emptySet(),
-            Version.CURRENT
-        );
+        final DiscoveryNode sourceNode = TestDiscoveryNode.create("request-source", buildNewFakeTransportAddress(), emptyMap(), emptySet());
         final DiscoveryNode otherKnownNode = newDiscoveryNode("other-known-node");
 
         transportAddressConnector.addReachableNode(otherKnownNode);
@@ -787,10 +780,7 @@ public class PeerFinderTests extends ESTestCase {
             .millis();
 
         MockLogAppender appender = new MockLogAppender();
-        try {
-            appender.start();
-            Loggers.addAppender(LogManager.getLogger("org.elasticsearch.discovery.PeerFinder"), appender);
-
+        try (var ignored = appender.capturing(PeerFinder.class)) {
             appender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "discovery result",
@@ -809,10 +799,6 @@ public class PeerFinderTests extends ESTestCase {
                 runAllRunnableTasks();
             }
             appender.assertAllExpectationsMatched();
-
-        } finally {
-            Loggers.removeAppender(LogManager.getLogger("org.elasticsearch.discovery.PeerFinder"), appender);
-            appender.stop();
         }
     }
 
@@ -828,9 +814,7 @@ public class PeerFinderTests extends ESTestCase {
             .millis();
 
         MockLogAppender appender = new MockLogAppender();
-        try {
-            appender.start();
-            Loggers.addAppender(LogManager.getLogger("org.elasticsearch.discovery.PeerFinder"), appender);
+        try (var ignored = appender.capturing(PeerFinder.class)) {
             appender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "discovery result",
@@ -867,10 +851,6 @@ public class PeerFinderTests extends ESTestCase {
                 runAllRunnableTasks();
             }
             appender.assertAllExpectationsMatched();
-
-        } finally {
-            Loggers.removeAppender(LogManager.getLogger("org.elasticsearch.discovery.PeerFinder"), appender);
-            appender.stop();
         }
     }
 
@@ -885,7 +865,7 @@ public class PeerFinderTests extends ESTestCase {
         assertFoundPeers(otherNode);
 
         transportAddressConnector.reachableNodes.clear();
-        final DiscoveryNode rebootedOtherNode = new DiscoveryNode("rebooted-node", otherNode.getAddress(), Version.CURRENT);
+        final DiscoveryNode rebootedOtherNode = TestDiscoveryNode.create("rebooted-node", otherNode.getAddress());
         transportAddressConnector.addReachableNode(rebootedOtherNode);
 
         connectedNodes.remove(otherNode);
@@ -924,7 +904,7 @@ public class PeerFinderTests extends ESTestCase {
     }
 
     private DiscoveryNode newDiscoveryNode(String nodeId) {
-        return new DiscoveryNode(nodeId, buildNewFakeTransportAddress(), Version.CURRENT);
+        return TestDiscoveryNode.create(nodeId);
     }
 
     private void runAllRunnableTasks() {

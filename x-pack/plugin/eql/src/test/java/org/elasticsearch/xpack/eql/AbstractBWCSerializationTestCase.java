@@ -6,49 +6,44 @@
  */
 package org.elasticsearch.xpack.eql;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
-import java.util.stream.Collectors;
 
-import static org.elasticsearch.Version.getDeclaredVersions;
-import static org.elasticsearch.xpack.eql.EqlTestUtils.EQL_GA_VERSION;
+import static org.elasticsearch.KnownTransportVersions.ALL_VERSIONS;
 import static org.hamcrest.Matchers.equalTo;
 
-public abstract class AbstractBWCSerializationTestCase<T extends Writeable & ToXContent> extends AbstractSerializingTestCase<T> {
+public abstract class AbstractBWCSerializationTestCase<T extends Writeable & ToXContent> extends AbstractXContentSerializingTestCase<T> {
 
-    private static final List<Version> ALL_VERSIONS = Collections.unmodifiableList(getDeclaredVersions(Version.class));
-
-    private static List<Version> getAllBWCVersions(Version version) {
-        return ALL_VERSIONS.stream()
-            .filter(v -> v.onOrAfter(EQL_GA_VERSION) && v.before(version) && version.isCompatible(v))
-            .collect(Collectors.toList());
+    private static List<TransportVersion> getAllBWCVersions() {
+        int minCompatVersion = Collections.binarySearch(ALL_VERSIONS, TransportVersion.MINIMUM_COMPATIBLE);
+        return ALL_VERSIONS.subList(minCompatVersion, ALL_VERSIONS.size());
     }
 
-    private static final List<Version> DEFAULT_BWC_VERSIONS = getAllBWCVersions(Version.CURRENT);
+    private static final List<TransportVersion> DEFAULT_BWC_VERSIONS = getAllBWCVersions();
 
-    protected abstract T mutateInstanceForVersion(T instance, Version version);
+    protected abstract T mutateInstanceForVersion(T instance, TransportVersion version);
 
     public final void testBwcSerialization() throws IOException {
         for (int runs = 0; runs < NUMBER_OF_TEST_RUNS; runs++) {
             T testInstance = createTestInstance();
-            for (Version bwcVersion : DEFAULT_BWC_VERSIONS) {
+            for (TransportVersion bwcVersion : DEFAULT_BWC_VERSIONS) {
                 assertBwcSerialization(testInstance, bwcVersion);
             }
         }
     }
 
-    protected final void assertBwcSerialization(T testInstance, Version version) throws IOException {
+    protected final void assertBwcSerialization(T testInstance, TransportVersion version) throws IOException {
         T deserializedInstance = copyInstance(testInstance, version);
         assertOnBWCObject(mutateInstanceForVersion(testInstance, version), deserializedInstance, version);
     }
 
-    protected void assertOnBWCObject(T testInstance, T bwcDeserializedObject, Version version) {
+    protected void assertOnBWCObject(T testInstance, T bwcDeserializedObject, TransportVersion version) {
         assertNotSame(version.toString(), bwcDeserializedObject, testInstance);
         assertThat(version.toString(), testInstance, equalTo(bwcDeserializedObject));
         assertEquals(version.toString(), testInstance.hashCode(), bwcDeserializedObject.hashCode());

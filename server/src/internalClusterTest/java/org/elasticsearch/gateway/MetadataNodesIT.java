@@ -68,12 +68,8 @@ public class MetadataNodesIT extends ESIntegTestCase {
         assertIndexDirectoryDeleted(masterNode, resolveIndex);
 
         logger.debug("relocating index...");
-        client().admin()
-            .indices()
-            .prepareUpdateSettings(index)
-            .setSettings(Settings.builder().put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "_name", node2))
-            .get();
-        client().admin().cluster().prepareHealth().setWaitForNoRelocatingShards(true).get();
+        updateIndexSettings(Settings.builder().put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "_name", node2), index);
+        clusterAdmin().prepareHealth().setWaitForNoRelocatingShards(true).get();
         ensureGreen();
         assertIndexDirectoryDeleted(node1, resolveIndex);
         assertIndexInMetaState(node2, index);
@@ -102,13 +98,11 @@ public class MetadataNodesIT extends ESIntegTestCase {
         logger.info("--> close index");
         client().admin().indices().prepareClose(index).get();
         // close the index
-        ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().get();
+        ClusterStateResponse clusterStateResponse = clusterAdmin().prepareState().get();
         assertThat(clusterStateResponse.getState().getMetadata().index(index).getState().name(), equalTo(IndexMetadata.State.CLOSE.name()));
 
         // update the mapping. this should cause the new meta data to be written although index is closed
-        client().admin()
-            .indices()
-            .preparePutMapping(index)
+        indicesAdmin().preparePutMapping(index)
             .setSource(
                 jsonBuilder().startObject()
                     .startObject("properties")
@@ -139,9 +133,7 @@ public class MetadataNodesIT extends ESIntegTestCase {
          * what we write. This is why we explicitly test for it.
          */
         internalCluster().restartNode(dataNode, new RestartCallback());
-        client().admin()
-            .indices()
-            .preparePutMapping(index)
+        indicesAdmin().preparePutMapping(index)
             .setSource(
                 jsonBuilder().startObject()
                     .startObject("properties")

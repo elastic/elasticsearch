@@ -17,12 +17,14 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.health.ClusterStateHealth;
+import org.elasticsearch.cluster.metadata.DataLifecycle;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
@@ -46,6 +48,7 @@ public class GetDataStreamsTransportAction extends TransportMasterNodeReadAction
 
     private static final Logger LOGGER = LogManager.getLogger(GetDataStreamsTransportAction.class);
     private final SystemIndices systemIndices;
+    private final ClusterSettings clusterSettings;
 
     @Inject
     public GetDataStreamsTransportAction(
@@ -68,6 +71,7 @@ public class GetDataStreamsTransportAction extends TransportMasterNodeReadAction
             ThreadPool.Names.SAME
         );
         this.systemIndices = systemIndices;
+        clusterSettings = clusterService.getClusterSettings();
     }
 
     @Override
@@ -77,14 +81,15 @@ public class GetDataStreamsTransportAction extends TransportMasterNodeReadAction
         ClusterState state,
         ActionListener<GetDataStreamAction.Response> listener
     ) throws Exception {
-        listener.onResponse(innerOperation(state, request, indexNameExpressionResolver, systemIndices));
+        listener.onResponse(innerOperation(state, request, indexNameExpressionResolver, systemIndices, clusterSettings));
     }
 
     static GetDataStreamAction.Response innerOperation(
         ClusterState state,
         GetDataStreamAction.Request request,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        SystemIndices systemIndices
+        SystemIndices systemIndices,
+        ClusterSettings clusterSettings
     ) {
         List<DataStream> dataStreams = getDataStreams(state, indexNameExpressionResolver, request);
         List<GetDataStreamAction.Response.DataStreamInfo> dataStreamInfos = new ArrayList<>(dataStreams.size());
@@ -165,7 +170,12 @@ public class GetDataStreamsTransportAction extends TransportMasterNodeReadAction
                 )
             );
         }
-        return new GetDataStreamAction.Response(dataStreamInfos);
+        return new GetDataStreamAction.Response(
+            dataStreamInfos,
+            request.includeDefaults() && DataLifecycle.isEnabled()
+                ? clusterSettings.get(DataLifecycle.CLUSTER_DLM_DEFAULT_ROLLOVER_SETTING)
+                : null
+        );
     }
 
     static List<DataStream> getDataStreams(

@@ -8,14 +8,12 @@
 
 package org.elasticsearch.script;
 
-import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 
 import java.util.AbstractCollection;
 import java.util.AbstractMap;
 import java.util.AbstractSet;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
@@ -28,10 +26,10 @@ import java.util.stream.Collectors;
  * all other updates to source.  Implements the {@link Map} interface for backwards compatibility while performing
  * validation via {@link Metadata}.
  */
-public class CtxMap extends AbstractMap<String, Object> {
+public class CtxMap<T extends Metadata> extends AbstractMap<String, Object> {
     protected static final String SOURCE = "_source";
-    protected final Map<String, Object> source;
-    protected final Metadata metadata;
+    protected Map<String, Object> source;
+    protected final T metadata;
 
     /**
      * Create CtxMap from a source and metadata
@@ -39,8 +37,8 @@ public class CtxMap extends AbstractMap<String, Object> {
      * @param source the source document map
      * @param metadata the metadata map
      */
-    protected CtxMap(Map<String, Object> source, Metadata metadata) {
-        this.source = wrapSource(source != null ? source : new HashMap<>());
+    public CtxMap(Map<String, Object> source, T metadata) {
+        this.source = source;
         this.metadata = metadata;
         Set<String> badKeys = Sets.intersection(this.metadata.keySet(), this.source.keySet());
         if (badKeys.size() > 0) {
@@ -52,26 +50,27 @@ public class CtxMap extends AbstractMap<String, Object> {
         }
     }
 
-    protected Map<String, Object> wrapSource(Map<String, Object> source) {
-        Map<String, Object> wrapper = Maps.newHashMapWithExpectedSize(1);
-        wrapper.put(SOURCE, source);
-        return wrapper;
+    /**
+     * Does this access to the internal {@link #source} map occur directly via ctx? ie {@code ctx['myField']}.
+     * Or does it occur via the {@link #SOURCE} key? ie {@code ctx['_source']['myField']}.
+     *
+     * Defaults to indirect, {@code ctx['_source']}
+     */
+    protected boolean directSourceAccess() {
+        return false;
     }
 
     /**
      * get the source map, if externally modified then the guarantees of this class are not enforced
      */
-    @SuppressWarnings("unchecked")
-    public Map<String, Object> getSource() {
-        Object rawSource = source.get(SOURCE);
-        assert rawSource instanceof Map<?, ?> : " wrapped source of unexpected type";
-        return (Map<String, Object>) rawSource;
+    public final Map<String, Object> getSource() {
+        return source;
     }
 
     /**
      * get the metadata map, if externally modified then the guarantees of this class are not enforced
      */
-    public Metadata getMetadata() {
+    public T getMetadata() {
         return metadata;
     }
 
@@ -81,7 +80,8 @@ public class CtxMap extends AbstractMap<String, Object> {
     @Override
     public Set<Map.Entry<String, Object>> entrySet() {
         // Make a copy of the Metadata.keySet() to avoid a ConcurrentModificationException when removing a value from the iterator
-        return new EntrySet(source.entrySet(), new HashSet<>(metadata.keySet()));
+        Set<Map.Entry<String, Object>> sourceEntries = directSourceAccess() ? source.entrySet() : Set.of(new IndirectSourceEntry());
+        return new EntrySet(sourceEntries, new HashSet<>(metadata.keySet()));
     }
 
     /**
@@ -93,7 +93,34 @@ public class CtxMap extends AbstractMap<String, Object> {
         if (metadata.isAvailable(key)) {
             return metadata.put(key, value);
         }
-        return source.put(key, value);
+        if (directSourceAccess()) {
+            return source.put(key, value);
+        } else if (SOURCE.equals(key)) {
+            return replaceSource(value);
+        }
+        throw new IllegalArgumentException("Cannot put key [" + key + "] with value [" + value + "] into ctx");
+    }
+
+    private Object replaceSource(Object value) {
+        if (value instanceof Map == false) {
+            throw new IllegalArgumentException(
+                "Expected ["
+                    + SOURCE
+                    + "] to be a Map, not ["
+                    + value
+                    + "]"
+                    + (value != null ? " with type [" + value.getClass().getName() + "]" : "")
+            );
+
+        }
+        var oldSource = source;
+        source = castSourceMap(value);
+        return oldSource;
+    }
+
+    @SuppressWarnings({ "unchecked", "raw" })
+    private static Map<String, Object> castSourceMap(Object value) {
+        return (Map<String, Object>) value;
     }
 
     /**
@@ -108,7 +135,11 @@ public class CtxMap extends AbstractMap<String, Object> {
                 return metadata.remove(str);
             }
         }
-        return source.remove(key);
+        if (directSourceAccess()) {
+            return source.remove(key);
+        } else {
+            throw new UnsupportedOperationException("Cannot remove key " + key + " from ctx");
+        }
     }
 
     /**
@@ -121,28 +152,33 @@ public class CtxMap extends AbstractMap<String, Object> {
         for (String key : metadata.keySet()) {
             metadata.remove(key);
         }
+        // TODO: this is just bogus, there isn't any case where metadata won't trip a failure above?
         source.clear();
     }
 
     @Override
     public int size() {
         // uses map directly to avoid creating an EntrySet via AbstractMaps implementation, which returns entrySet().size()
-        return source.size() + metadata.size();
+        final int sourceSize = directSourceAccess() ? source.size() : 1;
+        return sourceSize + metadata.size();
     }
 
     @Override
     public boolean containsValue(Object value) {
         // uses map directly to avoid AbstractMaps linear time implementation using entrySet()
-        return metadata.containsValue(value) || source.containsValue(value);
+        return metadata.containsValue(value) || (directSourceAccess() ? source.containsValue(value) : source.equals(value));
     }
 
     @Override
     public boolean containsKey(Object key) {
         // uses map directly to avoid AbstractMaps linear time implementation using entrySet()
         if (key instanceof String str) {
-            return metadata.containsKey(str) || source.containsKey(key);
+            if (metadata.isAvailable(str)) {
+                return metadata.containsKey(str);
+            }
+            return directSourceAccess() ? source.containsKey(key) : SOURCE.equals(key);
         }
-        return source.containsKey(key);
+        return false;
     }
 
     @Override
@@ -153,7 +189,7 @@ public class CtxMap extends AbstractMap<String, Object> {
                 return metadata.get(str);
             }
         }
-        return source.get(key);
+        return directSourceAccess() ? source.get(key) : (SOURCE.equals(key) ? source : null);
     }
 
     /**
@@ -186,7 +222,7 @@ public class CtxMap extends AbstractMap<String, Object> {
         @Override
         public boolean remove(Object o) {
             if (o instanceof Map.Entry<?, ?> entry) {
-                if (entry.getKey()instanceof String key) {
+                if (entry.getKey() instanceof String key) {
                     if (metadata.containsKey(key)) {
                         if (Objects.equals(entry.getValue(), metadata.get(key))) {
                             metadata.remove(key);
@@ -239,10 +275,34 @@ public class CtxMap extends AbstractMap<String, Object> {
                 throw new IllegalStateException();
             }
             if (sourceCur) {
-                sourceIter.remove();
+                try {
+                    sourceIter.remove();
+                } catch (UnsupportedOperationException e) {
+                    // UnsupportedOperationException's message is "remove", rethrowing with more helpful message
+                    throw new UnsupportedOperationException("Cannot remove key [" + cur.getKey() + "] from ctx");
+                }
+
             } else {
                 metadata.remove(cur.getKey());
             }
+        }
+    }
+
+    private class IndirectSourceEntry implements Map.Entry<String, Object> {
+
+        @Override
+        public String getKey() {
+            return SOURCE;
+        }
+
+        @Override
+        public Object getValue() {
+            return source;
+        }
+
+        @Override
+        public Object setValue(Object value) {
+            return replaceSource(value);
         }
     }
 
@@ -277,7 +337,7 @@ public class CtxMap extends AbstractMap<String, Object> {
         if (this == o) return true;
         if ((o instanceof CtxMap) == false) return false;
         if (super.equals(o) == false) return false;
-        CtxMap ctxMap = (CtxMap) o;
+        CtxMap<?> ctxMap = (CtxMap<?>) o;
         return source.equals(ctxMap.source) && metadata.equals(ctxMap.metadata);
     }
 

@@ -20,6 +20,8 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -65,6 +67,8 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 
 public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransportAction {
+
+    private static final Logger logger = LogManager.getLogger(MachineLearningUsageTransportAction.class);
 
     private final Client client;
     private final XPackLicenseState licenseState;
@@ -124,8 +128,8 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
         int nodeCount = mlNodeCount(state);
 
         // Step 5. return final ML usage
-        ActionListener<Map<String, Object>> inferenceUsageListener = ActionListener.wrap(inferenceUsage -> {
-            listener.onResponse(
+        ActionListener<Map<String, Object>> inferenceUsageListener = ActionListener.wrap(
+            inferenceUsage -> listener.onResponse(
                 new XPackUsageFeatureResponse(
                     new MachineLearningFeatureSetUsage(
                         MachineLearningField.ML_API_FEATURE.checkWithoutTracking(licenseState),
@@ -137,45 +141,76 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
                         nodeCount
                     )
                 )
-            );
-        }, listener::onFailure);
+            ),
+            e -> {
+                logger.warn("Failed to get inference usage to include in ML usage", e);
+                listener.onResponse(
+                    new XPackUsageFeatureResponse(
+                        new MachineLearningFeatureSetUsage(
+                            MachineLearningField.ML_API_FEATURE.checkWithoutTracking(licenseState),
+                            enabled,
+                            jobsUsage,
+                            datafeedsUsage,
+                            analyticsUsage,
+                            Collections.emptyMap(),
+                            nodeCount
+                        )
+                    )
+                );
+            }
+        );
 
         // Step 4. Extract usage from data frame analytics configs and then get inference usage
         ActionListener<GetDataFrameAnalyticsAction.Response> dataframeAnalyticsListener = ActionListener.wrap(response -> {
             addDataFrameAnalyticsUsage(response, analyticsUsage);
             addInferenceUsage(inferenceUsageListener);
-        }, listener::onFailure);
+        }, e -> {
+            logger.warn("Failed to get data frame analytics configs to include in ML usage", e);
+            addInferenceUsage(inferenceUsageListener);
+        });
 
         // Step 3. Extract usage from data frame analytics stats and then request data frame analytics configs
+        GetDataFrameAnalyticsAction.Request getDfaRequest = new GetDataFrameAnalyticsAction.Request(Metadata.ALL);
+        getDfaRequest.setPageParams(new PageParams(0, 10_000));
         ActionListener<GetDataFrameAnalyticsStatsAction.Response> dataframeAnalyticsStatsListener = ActionListener.wrap(response -> {
             addDataFrameAnalyticsStatsUsage(response, analyticsUsage);
-            GetDataFrameAnalyticsAction.Request getDfaRequest = new GetDataFrameAnalyticsAction.Request(Metadata.ALL);
-            getDfaRequest.setPageParams(new PageParams(0, 10_000));
             client.execute(GetDataFrameAnalyticsAction.INSTANCE, getDfaRequest, dataframeAnalyticsListener);
-        }, listener::onFailure);
+        }, e -> {
+            logger.warn("Failed to get data frame analytics stats to include in ML usage", e);
+            client.execute(GetDataFrameAnalyticsAction.INSTANCE, getDfaRequest, dataframeAnalyticsListener);
+        });
 
         // Step 2. Extract usage from datafeeds stats and then request stats for data frame analytics
+        GetDataFrameAnalyticsStatsAction.Request dataframeAnalyticsStatsRequest = new GetDataFrameAnalyticsStatsAction.Request(
+            Metadata.ALL
+        );
+        dataframeAnalyticsStatsRequest.setPageParams(new PageParams(0, 10_000));
         ActionListener<GetDatafeedsStatsAction.Response> datafeedStatsListener = ActionListener.wrap(response -> {
             addDatafeedsUsage(response, datafeedsUsage);
-            GetDataFrameAnalyticsStatsAction.Request dataframeAnalyticsStatsRequest = new GetDataFrameAnalyticsStatsAction.Request(
-                Metadata.ALL
-            );
-            dataframeAnalyticsStatsRequest.setPageParams(new PageParams(0, 10_000));
             client.execute(GetDataFrameAnalyticsStatsAction.INSTANCE, dataframeAnalyticsStatsRequest, dataframeAnalyticsStatsListener);
-        }, listener::onFailure);
+        }, e -> {
+            logger.warn("Failed to get datafeed stats to include in ML usage", e);
+            client.execute(GetDataFrameAnalyticsStatsAction.INSTANCE, dataframeAnalyticsStatsRequest, dataframeAnalyticsStatsListener);
+        });
 
         // Step 1. Extract usage from jobs stats and then request stats for all datafeeds
-        GetJobsStatsAction.Request jobStatsRequest = new GetJobsStatsAction.Request(Metadata.ALL);
+        GetDatafeedsStatsAction.Request datafeedStatsRequest = new GetDatafeedsStatsAction.Request(Metadata.ALL);
         ActionListener<GetJobsStatsAction.Response> jobStatsListener = ActionListener.wrap(
             response -> jobManagerHolder.getJobManager().expandJobs(Metadata.ALL, true, ActionListener.wrap(jobs -> {
                 addJobsUsage(response, jobs.results(), jobsUsage);
-                GetDatafeedsStatsAction.Request datafeedStatsRequest = new GetDatafeedsStatsAction.Request(Metadata.ALL);
                 client.execute(GetDatafeedsStatsAction.INSTANCE, datafeedStatsRequest, datafeedStatsListener);
-            }, listener::onFailure)),
-            listener::onFailure
+            }, e -> {
+                logger.warn("Failed to get job configs to include in ML usage", e);
+                client.execute(GetDatafeedsStatsAction.INSTANCE, datafeedStatsRequest, datafeedStatsListener);
+            })),
+            e -> {
+                logger.warn("Failed to get job stats to include in ML usage", e);
+                client.execute(GetDatafeedsStatsAction.INSTANCE, datafeedStatsRequest, datafeedStatsListener);
+            }
         );
 
         // Step 0. Kick off the chain of callbacks by requesting jobs stats
+        GetJobsStatsAction.Request jobStatsRequest = new GetJobsStatsAction.Request(Metadata.ALL);
         client.execute(GetJobsStatsAction.INSTANCE, jobStatsRequest, jobStatsListener);
     }
 
@@ -440,11 +475,11 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
 
         for (GetTrainedModelsStatsAction.Response.TrainedModelStats modelStats : statsResponse.getResources().results()) {
             pipelineCount += modelStats.getPipelineCount();
-            modelStats.getIngestStats().getProcessorStats().values().stream().flatMap(List::stream).forEach(processorStat -> {
-                if (processorStat.getName().equals(InferenceProcessor.TYPE)) {
-                    docCountStats.add(processorStat.getStats().getIngestCount());
-                    timeStats.add(processorStat.getStats().getIngestTimeInMillis());
-                    failureStats.add(processorStat.getStats().getIngestFailedCount());
+            modelStats.getIngestStats().processorStats().values().stream().flatMap(List::stream).forEach(processorStat -> {
+                if (processorStat.name().equals(InferenceProcessor.TYPE)) {
+                    docCountStats.add(processorStat.stats().ingestCount());
+                    timeStats.add(processorStat.stats().ingestTimeInMillis());
+                    failureStats.add(processorStat.stats().ingestFailedCount());
                 }
             });
         }

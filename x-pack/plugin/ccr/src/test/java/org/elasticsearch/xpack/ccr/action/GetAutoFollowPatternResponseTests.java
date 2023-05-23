@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ccr.action;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
@@ -43,15 +42,20 @@ public class GetAutoFollowPatternResponseTests extends AbstractWireSerializingTe
                 randomIntBetween(0, Integer.MAX_VALUE),
                 randomIntBetween(0, Integer.MAX_VALUE),
                 randomIntBetween(0, Integer.MAX_VALUE),
-                new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES),
-                new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES),
+                ByteSizeValue.ofBytes(randomNonNegativeLong()),
+                ByteSizeValue.ofBytes(randomNonNegativeLong()),
                 randomIntBetween(0, Integer.MAX_VALUE),
-                new ByteSizeValue(randomNonNegativeLong()),
+                ByteSizeValue.ofBytes(randomNonNegativeLong()),
                 TimeValue.timeValueMillis(500),
                 TimeValue.timeValueMillis(500)
             );
             patterns.put(randomAlphaOfLength(4), autoFollowPattern);
         }
         return new GetAutoFollowPatternAction.Response(patterns);
+    }
+
+    @Override
+    protected GetAutoFollowPatternAction.Response mutateInstance(GetAutoFollowPatternAction.Response instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 }

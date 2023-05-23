@@ -70,7 +70,8 @@ setup:
 
   - do:
       indices.resolve_index:
-        name: '*'
+        # exclude security index for test to work with and without security
+        name: '*,-.security*'
         expand_wildcards: [all]
 
   - match: {indices.0.name: test_index1}

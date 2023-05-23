@@ -41,8 +41,8 @@ public class SourceLoaderTests extends MapperServiceTestCase {
         assertThat(
             e.getMessage(),
             equalTo(
-                "field [txt] of type [text] doesn't support synthetic source unless"
-                    + " it has a sub-field of type [keyword] with doc values enabled and without ignore_above or a normalizer"
+                "field [txt] of type [text] doesn't support synthetic source unless it is stored or has a sub-field "
+                    + "of type [keyword] with doc values or stored and without a normalizer"
             )
         );
     }

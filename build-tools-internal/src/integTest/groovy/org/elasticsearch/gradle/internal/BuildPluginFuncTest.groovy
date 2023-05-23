@@ -52,6 +52,7 @@ class BuildPluginFuncTest extends AbstractGradleFuncTest {
         THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.""".stripIndent()
 
     def setup() {
+        configurationCacheCompatible = false
         buildFile << """
         plugins {
           id 'java'

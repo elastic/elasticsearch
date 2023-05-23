@@ -37,24 +37,26 @@ public class DesiredNodesStatusIT extends ESIntegTestCase {
         final var updateDesiredNodesRequest = new UpdateDesiredNodesRequest(
             randomAlphaOfLength(10),
             1,
-            concatLists(actualizedDesiredNodes, pendingDesiredNodes)
+            concatLists(actualizedDesiredNodes, pendingDesiredNodes),
+            false
         );
         updateDesiredNodes(updateDesiredNodesRequest);
 
         {
-            final var clusterState = client().admin().cluster().prepareState().get().getState();
+            final var clusterState = clusterAdmin().prepareState().get().getState();
             assertDesiredNodesStatusIsCorrect(clusterState, actualizedDesiredNodes, pendingDesiredNodes);
         }
 
         final var newVersionUpdateDesiredNodesRequest = new UpdateDesiredNodesRequest(
             updateDesiredNodesRequest.getHistoryID(),
             updateDesiredNodesRequest.getVersion() + 1,
-            updateDesiredNodesRequest.getNodes()
+            updateDesiredNodesRequest.getNodes(),
+            false
         );
         updateDesiredNodes(newVersionUpdateDesiredNodesRequest);
 
         {
-            final var clusterState = client().admin().cluster().prepareState().get().getState();
+            final var clusterState = clusterAdmin().prepareState().get().getState();
             assertDesiredNodesStatusIsCorrect(clusterState, actualizedDesiredNodes, pendingDesiredNodes);
         }
     }
@@ -70,19 +72,20 @@ public class DesiredNodesStatusIT extends ESIntegTestCase {
         final var updateDesiredNodesRequest = new UpdateDesiredNodesRequest(
             randomAlphaOfLength(10),
             1,
-            concatLists(actualizedDesiredNodes, pendingDesiredNodes)
+            concatLists(actualizedDesiredNodes, pendingDesiredNodes),
+            false
         );
         updateDesiredNodes(updateDesiredNodesRequest);
 
         {
-            final var clusterState = client().admin().cluster().prepareState().get().getState();
+            final var clusterState = clusterAdmin().prepareState().get().getState();
             DesiredNodesTestCase.assertDesiredNodesStatusIsCorrect(clusterState, actualizedDesiredNodes, pendingDesiredNodes);
         }
 
         updateDesiredNodes(updateDesiredNodesRequest);
 
         {
-            final var clusterState = client().admin().cluster().prepareState().get().getState();
+            final var clusterState = clusterAdmin().prepareState().get().getState();
             DesiredNodesTestCase.assertDesiredNodesStatusIsCorrect(clusterState, actualizedDesiredNodes, pendingDesiredNodes);
         }
     }
@@ -98,11 +101,12 @@ public class DesiredNodesStatusIT extends ESIntegTestCase {
         final var updateDesiredNodesRequest = new UpdateDesiredNodesRequest(
             randomAlphaOfLength(10),
             1,
-            concatLists(actualizedDesiredNodes, pendingDesiredNodes)
+            concatLists(actualizedDesiredNodes, pendingDesiredNodes),
+            false
         );
         updateDesiredNodes(updateDesiredNodesRequest);
 
-        final var clusterState = client().admin().cluster().prepareState().get().getState();
+        final var clusterState = clusterAdmin().prepareState().get().getState();
         DesiredNodesTestCase.assertDesiredNodesStatusIsCorrect(clusterState, actualizedDesiredNodes, pendingDesiredNodes);
 
         final var leavingNodeNames = randomSubsetOf(nodeNames);
@@ -110,7 +114,7 @@ public class DesiredNodesStatusIT extends ESIntegTestCase {
             internalCluster().stopNode(leavingNodeName);
         }
 
-        final var newClusterState = client().admin().cluster().prepareState().get().getState();
+        final var newClusterState = clusterAdmin().prepareState().get().getState();
         final var latestDesiredNodes = DesiredNodes.latestFromClusterState(newClusterState);
 
         for (String leavingNodeName : leavingNodeNames) {
@@ -130,11 +134,12 @@ public class DesiredNodesStatusIT extends ESIntegTestCase {
         final var updateDesiredNodesRequest = new UpdateDesiredNodesRequest(
             randomAlphaOfLength(10),
             1,
-            concatLists(actualizedDesiredNodes, pendingDesiredNodes)
+            concatLists(actualizedDesiredNodes, pendingDesiredNodes),
+            false
         );
         updateDesiredNodes(updateDesiredNodesRequest);
 
-        final var clusterState = client().admin().cluster().prepareState().get().getState();
+        final var clusterState = clusterAdmin().prepareState().get().getState();
         DesiredNodesTestCase.assertDesiredNodesStatusIsCorrect(clusterState, actualizedDesiredNodes, pendingDesiredNodes);
 
         // Stop some nodes, these shouldn't be actualized within the new desired node's history until they join back
@@ -146,12 +151,13 @@ public class DesiredNodesStatusIT extends ESIntegTestCase {
         final var updateDesiredNodesWithNewHistoryRequest = new UpdateDesiredNodesRequest(
             randomAlphaOfLength(10),
             1,
-            updateDesiredNodesRequest.getNodes()
+            updateDesiredNodesRequest.getNodes(),
+            false
         );
         final var response = updateDesiredNodes(updateDesiredNodesWithNewHistoryRequest);
         assertThat(response.hasReplacedExistingHistoryId(), is(equalTo(true)));
 
-        final var updatedClusterState = client().admin().cluster().prepareState().get().getState();
+        final var updatedClusterState = clusterAdmin().prepareState().get().getState();
         final var latestDesiredNodes = DesiredNodes.latestFromClusterState(updatedClusterState);
 
         for (String clusterNodeName : clusterNodeNames) {

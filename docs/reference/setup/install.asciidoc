@@ -20,6 +20,8 @@ If you want to install and manage {es} yourself, you can:
 * Run {es} in a <<docker, Docker container>>. 
 * Set up and manage {es}, {kib}, {agent}, and the rest of the Elastic Stack on Kubernetes with {eck-ref}[{eck}].
 
+TIP: To try out Elasticsearch on your own machine, we recommend using Docker and running both Elasticsearch and Kibana. For more information, see <<run-elasticsearch-locally,Run Elasticsearch locally>>.
+
 [discrete]
 [[elasticsearch-install-packages]]
 === Elasticsearch install packages

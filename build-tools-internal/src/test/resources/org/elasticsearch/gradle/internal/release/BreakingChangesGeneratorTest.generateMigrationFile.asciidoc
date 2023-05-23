@@ -89,7 +89,7 @@ Breaking change impact description 3
 The following functionality has been deprecated in {es} 8.4
 and will be removed in a future version.
 While this won't have an immediate impact on your applications,
-we strongly encourage you take the described steps to update your code
+we strongly encourage you to take the described steps to update your code
 after upgrading to 8.4.
 
 To find out if you are using any deprecated functionality,

@@ -10,7 +10,6 @@ package org.elasticsearch.datastreams;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.LocalNodeMasterListener;
@@ -18,6 +17,7 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
@@ -31,7 +31,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
@@ -51,13 +50,14 @@ public class UpdateTimeSeriesRangeService extends AbstractLifecycleComponent imp
     volatile TimeValue pollInterval;
     volatile Scheduler.Cancellable job;
     private final AtomicBoolean running = new AtomicBoolean(false);
-    private final ClusterStateTaskExecutor<UpdateTimeSeriesTask> taskExecutor = new UpdateTimeSeriesExecutor();
+    private final MasterServiceTaskQueue<UpdateTimeSeriesTask> taskQueue;
 
     UpdateTimeSeriesRangeService(Settings settings, ThreadPool threadPool, ClusterService clusterService) {
         this.pollInterval = DataStreamsPlugin.TIME_SERIES_POLL_INTERVAL.get(settings);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         clusterService.getClusterSettings().addSettingsUpdateConsumer(DataStreamsPlugin.TIME_SERIES_POLL_INTERVAL, this::setPollInterval);
+        this.taskQueue = clusterService.createTaskQueue("update-time-series-range", Priority.URGENT, new UpdateTimeSeriesExecutor());
     }
 
     void perform(Runnable onComplete) {
@@ -70,8 +70,7 @@ public class UpdateTimeSeriesRangeService extends AbstractLifecycleComponent imp
                 running.set(false);
                 onComplete.run();
             });
-            var config = ClusterStateTaskConfig.build(Priority.URGENT);
-            clusterService.submitStateUpdateTask("update_tsdb_data_stream_end_times", task, config, taskExecutor);
+            taskQueue.submitTask("update_tsdb_data_stream_end_times", task, null);
         } else {
             LOGGER.debug("not starting tsdb update task, because another execution is still running");
         }
@@ -108,7 +107,9 @@ public class UpdateTimeSeriesRangeService extends AbstractLifecycleComponent imp
             IndexMetadata im = current.metadata().getIndexSafe(head);
             Instant currentEnd = IndexSettings.TIME_SERIES_END_TIME.get(im.getSettings());
             TimeValue lookAheadTime = DataStreamsPlugin.LOOK_AHEAD_TIME.get(im.getSettings());
-            Instant newEnd = now.plus(lookAheadTime.getMillis(), ChronoUnit.MILLIS).plus(pollInterval.getMillis(), ChronoUnit.MILLIS);
+            Instant newEnd = DataStream.getCanonicalTimestampBound(
+                now.plus(lookAheadTime.getMillis(), ChronoUnit.MILLIS).plus(pollInterval.getMillis(), ChronoUnit.MILLIS)
+            );
             if (newEnd.isAfter(currentEnd)) {
                 try {
                     Settings settings = Settings.builder()
@@ -200,9 +201,12 @@ public class UpdateTimeSeriesRangeService extends AbstractLifecycleComponent imp
 
     private class UpdateTimeSeriesExecutor implements ClusterStateTaskExecutor<UpdateTimeSeriesTask> {
         @Override
-        public ClusterState execute(ClusterState currentState, List<TaskContext<UpdateTimeSeriesTask>> taskContexts) throws Exception {
-            var result = updateTimeSeriesTemporalRange(currentState, Instant.now());
-            for (final var taskContext : taskContexts) {
+        public ClusterState execute(BatchExecutionContext<UpdateTimeSeriesTask> batchExecutionContext) throws Exception {
+            final ClusterState result;
+            try (var ignored = batchExecutionContext.dropHeadersContext()) {
+                result = updateTimeSeriesTemporalRange(batchExecutionContext.initialState(), Instant.now());
+            }
+            for (final var taskContext : batchExecutionContext.taskContexts()) {
                 taskContext.success(() -> taskContext.getTask().listener().accept(null));
             }
             return result;

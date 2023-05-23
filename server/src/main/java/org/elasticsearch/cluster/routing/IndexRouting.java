@@ -35,6 +35,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.IntConsumer;
+import java.util.function.IntSupplier;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
@@ -232,7 +234,7 @@ public abstract class IndexRouting {
     }
 
     public static class ExtractFromSource extends IndexRouting {
-        private final List<String> routingPaths;
+        private final Predicate<String> isRoutingPath;
         private final XContentParserConfiguration parserConfig;
 
         ExtractFromSource(IndexMetadata metadata) {
@@ -240,7 +242,8 @@ public abstract class IndexRouting {
             if (metadata.isRoutingPartitionedIndex()) {
                 throw new IllegalArgumentException("routing_partition_size is incompatible with routing_path");
             }
-            this.routingPaths = metadata.getRoutingPaths();
+            List<String> routingPaths = metadata.getRoutingPaths();
+            isRoutingPath = Regex.simpleMatcher(routingPaths.toArray(String[]::new));
             this.parserConfig = XContentParserConfiguration.EMPTY.withFiltering(Set.copyOf(routingPaths), null, true);
         }
 
@@ -251,26 +254,33 @@ public abstract class IndexRouting {
         public int indexShard(String id, @Nullable String routing, XContentType sourceType, BytesReference source) {
             assert Transports.assertNotTransportThread("parsing the _source can get slow");
             checkNoRouting(routing);
-            return hashToShardId(hashSource(sourceType, source));
+            return hashToShardId(hashSource(sourceType, source).buildHash(IndexRouting.ExtractFromSource::defaultOnEmpty));
         }
 
         public String createId(XContentType sourceType, BytesReference source, byte[] suffix) {
-            return createId(hashSource(sourceType, source), suffix);
+            return hashSource(sourceType, source).createId(suffix, IndexRouting.ExtractFromSource::defaultOnEmpty);
         }
 
         public String createId(Map<String, Object> flat, byte[] suffix) {
-            return createId(hashSource(flat), suffix);
+            Builder b = builder();
+            for (Map.Entry<String, Object> e : flat.entrySet()) {
+                if (isRoutingPath.test(e.getKey())) {
+                    b.hashes.add(new NameAndHash(new BytesRef(e.getKey()), hash(new BytesRef(e.getValue().toString()))));
+                }
+            }
+            return b.createId(suffix, IndexRouting.ExtractFromSource::defaultOnEmpty);
         }
 
-        private static String createId(int routingHash, byte[] suffix) {
-            byte[] idBytes = new byte[4 + suffix.length];
-            ByteUtils.writeIntLE(routingHash, idBytes, 0);
-            System.arraycopy(suffix, 0, idBytes, 4, suffix.length);
-            return Base64.getUrlEncoder().withoutPadding().encodeToString(idBytes);
+        private static int defaultOnEmpty() {
+            throw new IllegalArgumentException("Error extracting routing: source didn't contain any routing fields");
         }
 
-        private int hashSource(XContentType sourceType, BytesReference source) {
-            List<NameAndHash> hashes = new ArrayList<>();
+        public Builder builder() {
+            return new Builder();
+        }
+
+        private Builder hashSource(XContentType sourceType, BytesReference source) {
+            Builder b = builder();
             try {
                 try (XContentParser parser = sourceType.xContent().createParser(parserConfig, source.streamInput())) {
                     parser.nextToken(); // Move to first token
@@ -278,80 +288,87 @@ public abstract class IndexRouting {
                         throw new IllegalArgumentException("Error extracting routing: source didn't contain any routing fields");
                     }
                     parser.nextToken();
-                    extractObject(hashes, null, parser);
+                    b.extractObject(null, parser);
                     ensureExpectedToken(null, parser.nextToken(), parser);
                 }
             } catch (IOException | ParsingException e) {
                 throw new IllegalArgumentException("Error extracting routing: " + e.getMessage(), e);
             }
-            return hashesToHash(hashes);
+            return b;
         }
 
-        private static void extractObject(List<NameAndHash> hashes, @Nullable String path, XContentParser source) throws IOException {
-            while (source.currentToken() != Token.END_OBJECT) {
-                ensureExpectedToken(Token.FIELD_NAME, source.currentToken(), source);
-                String fieldName = source.currentName();
-                String subPath = path == null ? fieldName : path + "." + fieldName;
-                source.nextToken();
-                extractItem(hashes, subPath, source);
-            }
-        }
+        public class Builder {
+            private final List<NameAndHash> hashes = new ArrayList<>();
 
-        private static void extractItem(List<NameAndHash> hashes, String path, XContentParser source) throws IOException {
-            switch (source.currentToken()) {
-                case START_OBJECT:
-                    source.nextToken();
-                    extractObject(hashes, path, source);
-                    source.nextToken();
-                    break;
-                case VALUE_STRING:
-                    hashes.add(new NameAndHash(new BytesRef(path), hash(new BytesRef(source.text()))));
-                    source.nextToken();
-                    break;
-                case VALUE_NULL:
-                    source.nextToken();
-                    break;
-                default:
-                    throw new ParsingException(
-                        source.getTokenLocation(),
-                        "Routing values must be strings but found [{}]",
-                        source.currentToken()
-                    );
-            }
-        }
-
-        private int hashSource(Map<String, Object> flat) {
-            List<NameAndHash> hashes = new ArrayList<>();
-            for (Map.Entry<String, Object> e : flat.entrySet()) {
-                if (Regex.simpleMatch(routingPaths, e.getKey())) {
-                    hashes.add(new NameAndHash(new BytesRef(e.getKey()), hash(new BytesRef(e.getValue().toString()))));
+            public void addMatching(String fieldName, BytesRef string) {
+                if (isRoutingPath.test(fieldName)) {
+                    hashes.add(new NameAndHash(new BytesRef(fieldName), hash(string)));
                 }
             }
-            return hashesToHash(hashes);
+
+            public String createId(byte[] suffix, IntSupplier onEmpty) {
+                byte[] idBytes = new byte[4 + suffix.length];
+                ByteUtils.writeIntLE(buildHash(onEmpty), idBytes, 0);
+                System.arraycopy(suffix, 0, idBytes, 4, suffix.length);
+                return Base64.getUrlEncoder().withoutPadding().encodeToString(idBytes);
+            }
+
+            private void extractObject(@Nullable String path, XContentParser source) throws IOException {
+                while (source.currentToken() != Token.END_OBJECT) {
+                    ensureExpectedToken(Token.FIELD_NAME, source.currentToken(), source);
+                    String fieldName = source.currentName();
+                    String subPath = path == null ? fieldName : path + "." + fieldName;
+                    source.nextToken();
+                    extractItem(subPath, source);
+                }
+            }
+
+            private void extractItem(String path, XContentParser source) throws IOException {
+                switch (source.currentToken()) {
+                    case START_OBJECT:
+                        source.nextToken();
+                        extractObject(path, source);
+                        source.nextToken();
+                        break;
+                    case VALUE_STRING:
+                        hashes.add(new NameAndHash(new BytesRef(path), hash(new BytesRef(source.text()))));
+                        source.nextToken();
+                        break;
+                    case VALUE_NULL:
+                        source.nextToken();
+                        break;
+                    default:
+                        throw new ParsingException(
+                            source.getTokenLocation(),
+                            "Routing values must be strings but found [{}]",
+                            source.currentToken()
+                        );
+                }
+            }
+
+            private int buildHash(IntSupplier onEmpty) {
+                Collections.sort(hashes);
+                Iterator<NameAndHash> itr = hashes.iterator();
+                if (itr.hasNext() == false) {
+                    return onEmpty.getAsInt();
+                }
+                NameAndHash prev = itr.next();
+                int hash = hash(prev.name) ^ prev.hash;
+                while (itr.hasNext()) {
+                    NameAndHash next = itr.next();
+                    if (prev.name.equals(next.name)) {
+                        throw new IllegalArgumentException("Duplicate routing dimension for [" + next.name + "]");
+                    }
+                    int thisHash = hash(next.name) ^ next.hash;
+                    hash = 31 * hash + thisHash;
+                    prev = next;
+                }
+                return hash;
+            }
         }
 
         private static int hash(BytesRef ref) {
             return StringHelper.murmurhash3_x86_32(ref, 0);
-        }
-
-        private static int hashesToHash(List<NameAndHash> hashes) {
-            Collections.sort(hashes);
-            Iterator<NameAndHash> itr = hashes.iterator();
-            if (itr.hasNext() == false) {
-                throw new IllegalArgumentException("Error extracting routing: source didn't contain any routing fields");
-            }
-            NameAndHash prev = itr.next();
-            int hash = hash(prev.name) ^ prev.hash;
-            while (itr.hasNext()) {
-                NameAndHash next = itr.next();
-                if (prev.name.equals(next.name)) {
-                    throw new IllegalArgumentException("Duplicate routing dimension for [" + next.name + "]");
-                }
-                int thisHash = hash(next.name) ^ next.hash;
-                hash = 31 * hash + thisHash;
-                prev = next;
-            }
-            return hash;
         }
 
         @Override

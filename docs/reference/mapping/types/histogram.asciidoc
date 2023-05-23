@@ -24,23 +24,6 @@ per document. Nested arrays are not supported.
 ========
 
 [role="child_attributes"]
-[[histogram-params]]
-==== Parameters
-
-ifeval::["{release-state}"=="unreleased"]
-`time_series_metric`::
-preview:[] (Optional, string)
-include::numeric.asciidoc[tag=time_series_metric]
-+
-.Valid `time_series_metric` values for `histogram` fields
-[%collapsible%open]
-====
-include::{es-repo-dir}/data-streams/tsds.asciidoc[tag=time-series-metric-histogram]
-
-include::{es-repo-dir}/data-streams/tsds.asciidoc[tag=time-series-metric-null]
-====
-endif::[]
-
 [[histogram-uses]]
 ==== Uses
 
@@ -84,6 +67,25 @@ therefore the value used when generating the histogram would be the maximum accu
 The histogram field is "algorithm agnostic" and does not store data specific to either T-Digest or HDRHistogram. While this
 means the field can technically be aggregated with either algorithm, in practice the user should chose one algorithm and
 index data in that manner (e.g. centroids for T-Digest or intervals for HDRHistogram) to ensure best accuracy.
+
+[[histogram-synthetic-source]]
+==== Synthetic `_source`
+
+IMPORTANT: Synthetic `_source` is Generally Available only for TSDB indices
+(indices that have `index.mode` set to `time_series`). For other indices
+synthetic `_source` is in technical preview. Features in technical preview may
+be changed or removed in a future release. Elastic will apply best effort to fix
+any issues, but features in technical preview are not subject to the support SLA
+of official GA features.
+
+`histogram` fields support <<synthetic-source,synthetic `_source`>> in their
+default configuration. Synthetic `_source` cannot be used together with
+<<ignore-malformed,`ignore_malformed`>> or <<copy-to,`copy_to`>>.
+
+NOTE: To save space, zero-count buckets are not stored in the histogram doc values.
+As a result, when indexing a histogram field in an index with synthetic source enabled,
+indexing a histogram including zero-count buckets will result in missing buckets when
+fetching back the histogram.
 
 [[histogram-ex]]
 ==== Examples

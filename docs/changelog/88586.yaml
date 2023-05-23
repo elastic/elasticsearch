@@ -1,6 +1,0 @@
-pr: 88586
-summary: Disable URL connection caching in SPIClassIterator
-area: Infra/Plugins
-type: bug
-issues:
- - 88275

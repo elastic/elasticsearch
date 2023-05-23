@@ -11,6 +11,7 @@ package org.elasticsearch;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.monitor.jvm.JvmInfo;
@@ -26,7 +27,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.NavigableMap;
 import java.util.Objects;
+import java.util.TreeMap;
 
 public class Version implements Comparable<Version>, ToXContentFragment {
     /*
@@ -103,6 +106,11 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     public static final Version V_7_17_4 = new Version(7_17_04_99, org.apache.lucene.util.Version.LUCENE_8_11_1);
     public static final Version V_7_17_5 = new Version(7_17_05_99, org.apache.lucene.util.Version.LUCENE_8_11_1);
     public static final Version V_7_17_6 = new Version(7_17_06_99, org.apache.lucene.util.Version.LUCENE_8_11_1);
+    public static final Version V_7_17_7 = new Version(7_17_07_99, org.apache.lucene.util.Version.LUCENE_8_11_1);
+    public static final Version V_7_17_8 = new Version(7_17_08_99, org.apache.lucene.util.Version.LUCENE_8_11_1);
+    public static final Version V_7_17_9 = new Version(7_17_09_99, org.apache.lucene.util.Version.LUCENE_8_11_1);
+    public static final Version V_7_17_10 = new Version(7_17_10_99, org.apache.lucene.util.Version.LUCENE_8_11_1);
+    public static final Version V_7_17_11 = new Version(7_17_11_99, org.apache.lucene.util.Version.LUCENE_8_11_1);
     public static final Version V_8_0_0 = new Version(8_00_00_99, org.apache.lucene.util.Version.LUCENE_9_0_0);
     public static final Version V_8_0_1 = new Version(8_00_01_99, org.apache.lucene.util.Version.LUCENE_9_0_0);
     public static final Version V_8_1_0 = new Version(8_01_00_99, org.apache.lucene.util.Version.LUCENE_9_0_0);
@@ -118,13 +126,28 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     public static final Version V_8_3_2 = new Version(8_03_02_99, org.apache.lucene.util.Version.LUCENE_9_2_0);
     public static final Version V_8_3_3 = new Version(8_03_03_99, org.apache.lucene.util.Version.LUCENE_9_2_0);
     public static final Version V_8_4_0 = new Version(8_04_00_99, org.apache.lucene.util.Version.LUCENE_9_3_0);
-    public static final Version CURRENT = V_8_4_0;
+    public static final Version V_8_4_1 = new Version(8_04_01_99, org.apache.lucene.util.Version.LUCENE_9_3_0);
+    public static final Version V_8_4_2 = new Version(8_04_02_99, org.apache.lucene.util.Version.LUCENE_9_3_0);
+    public static final Version V_8_4_3 = new Version(8_04_03_99, org.apache.lucene.util.Version.LUCENE_9_3_0);
+    public static final Version V_8_5_0 = new Version(8_05_00_99, org.apache.lucene.util.Version.LUCENE_9_4_1);
+    public static final Version V_8_5_1 = new Version(8_05_01_99, org.apache.lucene.util.Version.LUCENE_9_4_1);
+    public static final Version V_8_5_2 = new Version(8_05_02_99, org.apache.lucene.util.Version.LUCENE_9_4_1);
+    public static final Version V_8_5_3 = new Version(8_05_03_99, org.apache.lucene.util.Version.LUCENE_9_4_2);
+    public static final Version V_8_6_0 = new Version(8_06_00_99, org.apache.lucene.util.Version.LUCENE_9_4_2);
+    public static final Version V_8_6_1 = new Version(8_06_01_99, org.apache.lucene.util.Version.LUCENE_9_4_2);
+    public static final Version V_8_6_2 = new Version(8_06_02_99, org.apache.lucene.util.Version.LUCENE_9_4_2);
+    public static final Version V_8_7_0 = new Version(8_07_00_99, org.apache.lucene.util.Version.LUCENE_9_5_0);
+    public static final Version V_8_7_1 = new Version(8_07_01_99, org.apache.lucene.util.Version.LUCENE_9_5_0);
+    public static final Version V_8_7_2 = new Version(8_07_02_99, org.apache.lucene.util.Version.LUCENE_9_5_0);
+    public static final Version V_8_8_0 = new Version(8_08_00_99, org.apache.lucene.util.Version.LUCENE_9_6_0);
+    public static final Version V_8_9_0 = new Version(8_09_00_99, org.apache.lucene.util.Version.LUCENE_9_6_0);
+    public static final Version CURRENT = V_8_9_0;
 
-    private static final Map<Integer, Version> idToVersion;
-    private static final Map<String, Version> stringToVersion;
+    private static final NavigableMap<Integer, Version> VERSION_IDS;
+    private static final Map<String, Version> VERSION_STRINGS;
 
     static {
-        final Map<Integer, Version> builder = new HashMap<>();
+        final NavigableMap<Integer, Version> builder = new TreeMap<>();
         final Map<String, Version> builderByString = new HashMap<>();
 
         for (final Field declaredField : Version.class.getFields()) {
@@ -166,8 +189,9 @@ public class Version implements Comparable<Version>, ToXContentFragment {
                 + "]";
         builder.put(V_EMPTY_ID, V_EMPTY);
         builderByString.put(V_EMPTY.toString(), V_EMPTY);
-        idToVersion = Map.copyOf(builder);
-        stringToVersion = Map.copyOf(builderByString);
+
+        VERSION_IDS = Collections.unmodifiableNavigableMap(builder);
+        VERSION_STRINGS = Map.copyOf(builderByString);
     }
 
     public static Version readVersion(StreamInput in) throws IOException {
@@ -175,7 +199,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     }
 
     public static Version fromId(int id) {
-        final Version known = idToVersion.get(id);
+        final Version known = VERSION_IDS.get(id);
         if (known != null) {
             return known;
         }
@@ -211,14 +235,14 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     }
 
     /**
-     * Returns the minimum version between the 2.
+     * Returns the minimum version of {@code version1} and {@code version2}
      */
     public static Version min(Version version1, Version version2) {
         return version1.id < version2.id ? version1 : version2;
     }
 
     /**
-     * Returns the maximum version between the 2
+     * Returns the maximum version of {@code version1} and {@code version2}
      */
     public static Version max(Version version1, Version version2) {
         return version1.id > version2.id ? version1 : version2;
@@ -231,7 +255,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         if (Strings.hasLength(version) == false) {
             return Version.CURRENT;
         }
-        final Version cached = stringToVersion.get(version);
+        final Version cached = VERSION_STRINGS.get(version);
         if (cached != null) {
             return cached;
         }
@@ -286,7 +310,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     public final byte minor;
     public final byte revision;
     public final byte build;
-    public final org.apache.lucene.util.Version luceneVersion;
+    private final org.apache.lucene.util.Version luceneVersion;
     private final String toString;
     private final int previousMajorId;
 
@@ -325,6 +349,10 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         return builder.value(toString());
+    }
+
+    public org.apache.lucene.util.Version luceneVersion() {
+        return luceneVersion;
     }
 
     /*

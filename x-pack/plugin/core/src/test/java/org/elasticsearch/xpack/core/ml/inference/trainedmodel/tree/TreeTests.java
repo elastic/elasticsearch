@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
 import org.junit.Before;
@@ -24,7 +24,7 @@ import java.util.function.Predicate;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class TreeTests extends AbstractSerializingTestCase<Tree> {
+public class TreeTests extends AbstractXContentSerializingTestCase<Tree> {
 
     private boolean lenient;
 
@@ -53,17 +53,26 @@ public class TreeTests extends AbstractSerializingTestCase<Tree> {
         return createRandom();
     }
 
-    public static Tree createRandom(TargetType targetType) {
-        int numberOfFeatures = randomIntBetween(1, 10);
-        List<String> featureNames = new ArrayList<>();
-        for (int i = 0; i < numberOfFeatures; i++) {
-            featureNames.add(randomAlphaOfLength(10));
-        }
-        return buildRandomTree(targetType, featureNames, 6);
+    @Override
+    protected Tree mutateInstance(Tree instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     public static Tree createRandom() {
         return createRandom(randomFrom(TargetType.values()));
+    }
+
+    public static Tree createRandom(TargetType targetType) {
+        int numberOfFeatures = randomIntBetween(1, 10);
+        return createRandom(targetType, numberOfFeatures, 6);
+    }
+
+    public static Tree createRandom(TargetType targetType, int numberOfFeatures, int depth) {
+        List<String> featureNames = new ArrayList<>();
+        for (int i = 0; i < numberOfFeatures; i++) {
+            featureNames.add(randomAlphaOfLength(10));
+        }
+        return buildRandomTree(targetType, featureNames, depth);
     }
 
     public static Tree buildRandomTree(TargetType targetType, List<String> featureNames, int depth) {

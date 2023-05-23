@@ -2,17 +2,7 @@
 [[es-monitoring-exporters]]
 == Exporters
 
-[IMPORTANT]
-=========================
-{metricbeat} is the recommended method for collecting and shipping monitoring
-data to a monitoring cluster.
-
-If you have previously configured legacy collection methods, you should migrate
-to using {metricbeat} collection methods. Use either {metricbeat} collection or
-legacy collection methods; do not use both.
-
-Learn more about <<configuring-metricbeat>>.
-=========================
+include::production.asciidoc[tag=monitoring-rec]
 
 The purpose of exporters is to take data collected from any Elastic Stack
 source and route it to the monitoring cluster. It is possible to configure

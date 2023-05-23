@@ -17,6 +17,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -81,16 +82,17 @@ public class AggregateDoubleMetricFieldTypeTests extends FieldTypeTestCase {
 
     public void testFetchSourceValueWithOneMetric() throws IOException {
         final MappedFieldType fieldType = createDefaultFieldType("field", Collections.emptyMap(), Metric.min);
-        final double defaultValue = 45.8;
-        final Map<String, Object> metric = Collections.singletonMap("min", defaultValue);
-        assertEquals(List.of(defaultValue), fetchSourceValue(fieldType, metric));
+        final double min = 45.8;
+        final Map<String, Object> metric = Collections.singletonMap("min", min);
+        assertEquals(List.of(metric), fetchSourceValue(fieldType, metric));
     }
 
     public void testFetchSourceValueWithMultipleMetrics() throws IOException {
         final MappedFieldType fieldType = createDefaultFieldType("field", Collections.emptyMap(), Metric.max);
-        final double defaultValue = 45.8;
-        final Map<String, Object> metric = Map.of("min", 14.2, "max", defaultValue);
-        assertEquals(List.of(defaultValue), fetchSourceValue(fieldType, metric));
+        final double max = 45.8;
+        final double min = 14.2;
+        final Map<String, Object> metric = Map.of("min", min, "max", max);
+        assertEquals(List.of(metric), fetchSourceValue(fieldType, metric));
     }
 
     /** Tests that aggregate_metric_double uses the default_metric subfield's doc-values as values in scripts */
@@ -121,7 +123,10 @@ public class AggregateDoubleMetricFieldTypeTests extends FieldTypeTestCase {
                 when(searchExecutionContext.allowExpensiveQueries()).thenReturn(true);
                 SearchLookup lookup = new SearchLookup(
                     searchExecutionContext::getFieldType,
-                    (mft, lookupSupplier) -> mft.fielddataBuilder("test", lookupSupplier).build(null, null)
+                    (mft, lookupSupplier, fdo) -> mft.fielddataBuilder(
+                        new FieldDataContext("test", lookupSupplier, searchExecutionContext::sourcePath, fdo)
+                    ).build(null, null),
+                    (ctx, doc) -> null
                 );
                 when(searchExecutionContext.lookup()).thenReturn(lookup);
                 IndexSearcher searcher = newSearcher(reader);

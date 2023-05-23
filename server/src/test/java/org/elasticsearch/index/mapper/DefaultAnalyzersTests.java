@@ -41,7 +41,7 @@ public class DefaultAnalyzersTests extends MapperServiceTestCase {
             );
         }
         analyzers.put("configured", new NamedAnalyzer("configured", AnalyzerScope.INDEX, new StandardAnalyzer()));
-        return new IndexAnalyzers(analyzers, Map.of(), Map.of());
+        return IndexAnalyzers.of(analyzers);
     }
 
     public void testDefaultSearchAnalyzer() throws IOException {

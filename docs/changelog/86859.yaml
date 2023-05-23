@@ -1,5 +1,0 @@
-pr: 86859
-summary: Add mapping stats for indexed `dense_vectors`
-area: Search
-type: enhancement
-issues: []

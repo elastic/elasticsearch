@@ -10,8 +10,13 @@ package org.elasticsearch.xpack.versionfield;
 import org.apache.commons.codec.Charsets;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.apache.lucene.util.automaton.Automata;
+import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.CompiledAutomaton;
+import org.apache.lucene.util.automaton.MinimizationOperations;
+import org.apache.lucene.util.automaton.Operations;
 
-import java.nio.charset.StandardCharsets;
+import java.util.Locale;
 import java.util.regex.Pattern;
 
 /**
@@ -142,7 +147,7 @@ class VersionEncoder {
         return mainVersionComponents;
     }
 
-    public static String decodeVersion(BytesRef version) {
+    public static BytesRef decodeVersion(BytesRef version) {
         int inputPos = version.offset;
         int resultPos = 0;
         byte[] result = new byte[version.length];
@@ -159,7 +164,7 @@ class VersionEncoder {
             }
             inputPos++;
         }
-        return new String(result, 0, resultPos, StandardCharsets.UTF_8);
+        return new BytesRef(result, 0, resultPos);
     }
 
     static boolean legalVersionString(VersionParts versionParts) {
@@ -173,6 +178,44 @@ class VersionEncoder {
             legalBuildSuffix = LEGAL_BUILDSUFFIX_SEMVER.matcher(versionParts.buildSuffix).matches();
         }
         return legalMainVersion && legalPreRelease && legalBuildSuffix;
+    }
+
+    static CompiledAutomaton prefixAutomaton(String versionPrefix, boolean caseInsensitive) {
+        Automaton a = new Automaton();
+        Automaton.Builder builder = new Automaton.Builder();
+        int lastState = builder.createState();
+        if (versionPrefix.isEmpty() == false) {
+            if (caseInsensitive) {
+                versionPrefix = versionPrefix.toLowerCase(Locale.ROOT);
+            }
+            BytesRef bytesRef = new BytesRef(versionPrefix);
+            byte[] prefixBytes = bytesRef.bytes;
+            for (int i = 0; i < bytesRef.length; i++) {
+                // add self-loop transition for possibility of marker bytes after each original byte
+                builder.addTransition(lastState, lastState, NO_PRERELEASE_SEPARATOR_BYTE);
+                builder.addTransition(lastState, lastState, PRERELEASE_SEPARATOR_BYTE);
+                // for numeric marker we need to be able to skip two bytes
+                int intermediateState = builder.createState();
+                builder.addTransition(lastState, intermediateState, NUMERIC_MARKER_BYTE);
+                builder.addTransition(intermediateState, lastState, 0, 255);
+
+                int state = builder.createState();
+                byte b = prefixBytes[i];
+                int label = b & 0xff;
+                builder.addTransition(lastState, state, label);
+                lastState = state;
+            }
+        }
+        builder.setAccept(lastState, true);
+        a = builder.finish();
+
+        assert a.isDeterministic();
+        assert Operations.hasDeadStates(a) == false;
+
+        a = Operations.concatenate(a, Automata.makeAnyBinary());
+        a = MinimizationOperations.minimize(a, Integer.MAX_VALUE);
+
+        return new CompiledAutomaton(a, null, true, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, true);
     }
 
     static class EncodedVersion {

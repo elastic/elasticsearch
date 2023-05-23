@@ -144,6 +144,14 @@ the follower indices, search activity will no longer steal resources from
 indexing on the cluster that hosts the leader indices.
 
 [discrete]
+=== Avoid hot spotting
+
+<<hotspotting,Hot Spotting>> can occur when node resources, shards, or requests 
+are not evenly distributed. {es} maintains cluster state by syncing it across 
+nodes, so continually hot spotted nodes can cause overall cluster performance 
+degredation.
+
+[discrete]
 === Additional optimizations
 
 Many of the strategies outlined in <<tune-for-disk-usage>> also

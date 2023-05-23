@@ -11,8 +11,8 @@ The recommended installation platform is Windows 10 64 bit or Windows Server 201
 
 Before you install the {odbc} you need to meet the following prerequisites;
 
-* .NET Framework 4.0 full - https://www.microsoft.com/en-au/download/details.aspx?id=17718
-* Microsoft Visual C++ Redistributable for Visual Studio 2017 or later - https://support.microsoft.com/en-au/help/2977003/the-latest-supported-visual-c-downloads
+* .NET Framework 4.x full, latest - https://dotnet.microsoft.com/download/dotnet-framework
+* Microsoft Visual C++ Redistributable for Visual Studio 2017 or later - https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist
 - The 64 bit driver requires the x64 redistributable
 - The 32 bit driver requires the x86 or the x64 redistributable (the latter also installs the components needed for the 32 bit driver)
 * Elevated privileges (administrator) for the User performing the installation.

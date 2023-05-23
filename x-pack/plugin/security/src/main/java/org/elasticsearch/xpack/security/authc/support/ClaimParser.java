@@ -15,9 +15,11 @@ import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.ClaimSetting;
+import org.elasticsearch.xpack.security.authc.jwt.FallbackableClaim;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 import java.util.regex.Matcher;
@@ -80,9 +82,9 @@ public final class ClaimParser {
     }
 
     @SuppressWarnings("unchecked")
-    private static Collection<String> parseClaimValues(JWTClaimsSet claimsSet, String claimName, String settingKey) {
+    private static Collection<String> parseClaimValues(JWTClaimsSet claimsSet, FallbackableClaim fallbackableClaim, String settingKey) {
         Collection<String> values;
-        final Object claimValueObject = claimsSet.getClaim(claimName);
+        final Object claimValueObject = claimsSet.getClaim(fallbackableClaim.getActualName());
         if (claimValueObject == null) {
             values = List.of();
         } else if (claimValueObject instanceof String) {
@@ -91,50 +93,67 @@ public final class ClaimParser {
             && ((Collection<?>) claimValueObject).stream().allMatch(c -> c instanceof String)) {
                 values = (Collection<String>) claimValueObject;
             } else {
-                throw new SettingsException("Setting [ " + settingKey + " expects a claim with String or a String Array value");
+                throw new SettingsException(
+                    "Setting [ " + settingKey + "] expects claim [" + fallbackableClaim + "] with String or a String Array value"
+                );
             }
         return values;
     }
 
     public static ClaimParser forSetting(Logger logger, ClaimSetting setting, RealmConfig realmConfig, boolean required) {
+        return forSetting(logger, setting, Map.of(), realmConfig, required);
+    }
+
+    public static ClaimParser forSetting(
+        Logger logger,
+        ClaimSetting setting,
+        Map<String, String> fallbackClaimNames,
+        RealmConfig realmConfig,
+        boolean required
+    ) {
 
         if (realmConfig.hasSetting(setting.getClaim())) {
-            String claimName = realmConfig.getSetting(setting.getClaim());
+            final String claimName = realmConfig.getSetting(setting.getClaim());
             if (realmConfig.hasSetting(setting.getPattern())) {
                 Pattern regex = Pattern.compile(realmConfig.getSetting(setting.getPattern()));
                 return new ClaimParser(setting.name(realmConfig), claimName, regex.pattern(), claims -> {
+                    final FallbackableClaim fallbackableClaim = new FallbackableClaim(claimName, fallbackClaimNames, claims);
                     Collection<String> values = parseClaimValues(
                         claims,
-                        claimName,
+                        fallbackableClaim,
                         RealmSettings.getFullSettingKey(realmConfig, setting.getClaim())
                     );
                     return values.stream().map(s -> {
                         if (s == null) {
-                            logger.debug("Claim [{}] is null", claimName);
+                            logger.debug("Claim [{}] is null", fallbackableClaim);
                             return null;
                         }
                         final Matcher matcher = regex.matcher(s);
                         if (matcher.find() == false) {
-                            logger.debug("Claim [{}] is [{}], which does not match [{}]", claimName, s, regex.pattern());
+                            logger.debug("Claim [{}] is [{}], which does not match [{}]", fallbackableClaim, s, regex.pattern());
                             return null;
                         }
                         final String value = matcher.group(1);
                         if (Strings.isNullOrEmpty(value)) {
-                            logger.debug("Claim [{}] is [{}], which does match [{}] but group(1) is empty", claimName, s, regex.pattern());
+                            logger.debug(
+                                "Claim [{}] is [{}], which does match [{}] but group(1) is empty",
+                                fallbackableClaim,
+                                s,
+                                regex.pattern()
+                            );
                             return null;
                         }
                         return value;
                     }).filter(Objects::nonNull).toList();
                 });
             } else {
-                return new ClaimParser(
-                    setting.name(realmConfig),
-                    claimName,
-                    null,
-                    claims -> parseClaimValues(claims, claimName, RealmSettings.getFullSettingKey(realmConfig, setting.getClaim())).stream()
+                return new ClaimParser(setting.name(realmConfig), claimName, null, claims -> {
+                    final FallbackableClaim fallbackableClaim = new FallbackableClaim(claimName, fallbackClaimNames, claims);
+                    return parseClaimValues(claims, fallbackableClaim, RealmSettings.getFullSettingKey(realmConfig, setting.getClaim()))
+                        .stream()
                         .filter(Objects::nonNull)
-                        .toList()
-                );
+                        .toList();
+                });
             }
         } else if (required) {
             throw new SettingsException("Setting [" + RealmSettings.getFullSettingKey(realmConfig, setting.getClaim()) + "] is required");

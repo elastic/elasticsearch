@@ -9,13 +9,10 @@ package org.elasticsearch.xpack.searchablesnapshots.store.input;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.codecs.CodecUtil;
-import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.store.IOContext;
-import org.apache.lucene.store.IndexInput;
-import org.elasticsearch.core.Tuple;
+import org.elasticsearch.blobcache.BlobCacheUtils;
+import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
-import org.elasticsearch.xpack.searchablesnapshots.cache.common.ByteRange;
 import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheFile;
 import org.elasticsearch.xpack.searchablesnapshots.store.IndexInputStats;
 import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectory;
@@ -25,16 +22,18 @@ import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
-import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsUtils.toIntBytes;
+import static org.elasticsearch.blobcache.BlobCacheUtils.readSafe;
+import static org.elasticsearch.blobcache.BlobCacheUtils.toIntBytes;
 
 public class CachedBlobContainerIndexInput extends MetadataCachingIndexInput {
 
     /**
      * Specific IOContext used for prewarming the cache. This context allows to write
      * a complete part of the {@link #fileInfo} at once in the cache and should not be
-     * used for anything else than what the {@link #prefetchPart(int)} method does.
+     * used for anything else than what the {@link #prefetchPart(int, Supplier)} method does.
      */
     public static final IOContext CACHE_WARMING_CONTEXT = new IOContext();
 
@@ -101,13 +100,6 @@ public class CachedBlobContainerIndexInput extends MetadataCachingIndexInput {
     }
 
     @Override
-    protected long getDefaultRangeSize() {
-        return (context != CACHE_WARMING_CONTEXT) ? (directory.isRecoveryFinalized() ? defaultRangeSize : recoveryRangeSize)
-            : fileInfo.numberOfParts() == 1 ? Long.MAX_VALUE
-            : fileInfo.partSize().getBytes();
-    }
-
-    @Override
     protected void readWithoutBlobCache(ByteBuffer b) throws Exception {
         ensureContext(ctx -> ctx != CACHE_WARMING_CONTEXT);
         final long position = getAbsolutePosition();
@@ -115,42 +107,50 @@ public class CachedBlobContainerIndexInput extends MetadataCachingIndexInput {
 
         final CacheFile cacheFile = cacheFileReference.get();
 
-        final ByteRange startRangeToWrite = computeRange(position);
-        final ByteRange endRangeToWrite = computeRange(position + length - 1);
-        assert startRangeToWrite.end() <= endRangeToWrite.end() : startRangeToWrite + " vs " + endRangeToWrite;
-        final ByteRange rangeToWrite = startRangeToWrite.minEnvelope(endRangeToWrite);
-
+        final ByteRange rangeToWrite = BlobCacheUtils.computeRange(
+            directory.isRecoveryFinalized() ? defaultRangeSize : recoveryRangeSize,
+            position,
+            length,
+            fileInfo.length()
+        );
         final ByteRange rangeToRead = ByteRange.of(position, position + length);
         assert rangeToRead.isSubRangeOf(rangeToWrite) : rangeToRead + " vs " + rangeToWrite;
         assert rangeToRead.length() == b.remaining() : b.remaining() + " vs " + rangeToRead;
 
-        final Future<Integer> populateCacheFuture = cacheFile.populateAndRead(
-            rangeToWrite,
-            rangeToRead,
-            channel -> readCacheFile(channel, position, b),
-            this::writeCacheFile,
-            directory.cacheFetchAsyncExecutor()
-        );
-
+        final Future<Integer> populateCacheFuture = populateAndRead(b, position, length, cacheFile, rangeToWrite);
         final int bytesRead = populateCacheFuture.get();
         assert bytesRead == length : bytesRead + " vs " + length;
     }
 
     /**
      * Prefetches a complete part and writes it in cache. This method is used to prewarm the cache.
-     * @return a tuple with {@code Tuple<Persistent Cache Length, Prefetched Length>} values
+     *
+     * @param part the index of the part to prewarm
+     * @param isCancelled a {@link Supplier<Boolean>} that allows to check if prewarming must be cancelled
+     *
+     * @return the number of bytes that has been read from the blob store when prewarming the part,
+     * or {@code -1} if the prewarming was cancelled
      */
-    public Tuple<Long, Long> prefetchPart(final int part) throws IOException {
+    public long prefetchPart(final int part, Supplier<Boolean> isCancelled) throws IOException {
         ensureContext(ctx -> ctx == CACHE_WARMING_CONTEXT);
         if (part >= fileInfo.numberOfParts()) {
             throw new IllegalArgumentException("Unexpected part number [" + part + "]");
         }
-        final ByteRange partRange = computeRange(IntStream.range(0, part).mapToLong(fileInfo::partBytes).sum());
+        if (isCancelled.get()) {
+            return -1L;
+        }
+        final ByteRange partRange;
+        if (fileInfo.numberOfParts() == 1) {
+            partRange = ByteRange.of(0, fileInfo.length());
+        } else {
+            long rangeSize = fileInfo.partSize().getBytes();
+            long rangeStart = (IntStream.range(0, part).mapToLong(fileInfo::partBytes).sum() / rangeSize) * rangeSize;
+            partRange = ByteRange.of(rangeStart, Math.min(rangeStart + rangeSize, fileInfo.length()));
+        }
         assert assertRangeIsAlignedWithPart(partRange);
 
         try {
             final CacheFile cacheFile = cacheFileReference.get();
-
             final ByteRange range = cacheFile.getAbsentRangeWithin(partRange);
             if (range == null) {
                 logger.trace(
@@ -160,9 +160,8 @@ public class CachedBlobContainerIndexInput extends MetadataCachingIndexInput {
                     partRange.end(),
                     cacheFileReference
                 );
-                return Tuple.tuple(cacheFile.getInitialLength(), 0L);
+                return 0L;
             }
-
             logger.trace(
                 "prefetchPart: prewarming part [{}] bytes [{}-{}] by fetching bytes [{}-{}] for cache file [{}]",
                 part,
@@ -172,9 +171,7 @@ public class CachedBlobContainerIndexInput extends MetadataCachingIndexInput {
                 range.end(),
                 cacheFileReference
             );
-
-            final byte[] copyBuffer = new byte[toIntBytes(Math.min(COPY_BUFFER_SIZE, range.length()))];
-
+            final ByteBuffer copyBuffer = writeBuffer.get();
             long totalBytesRead = 0L;
             final AtomicLong totalBytesWritten = new AtomicLong();
             long remainingBytes = range.length();
@@ -182,8 +179,11 @@ public class CachedBlobContainerIndexInput extends MetadataCachingIndexInput {
             try (InputStream input = openInputStreamFromBlobStore(range.start(), range.length())) {
                 while (remainingBytes > 0L) {
                     assert totalBytesRead + remainingBytes == range.length();
-                    final int bytesRead = readSafe(input, copyBuffer, range.start(), range.end(), remainingBytes, cacheFileReference);
-
+                    copyBuffer.clear();
+                    if (isCancelled.get()) {
+                        return -1L;
+                    }
+                    final int bytesRead = readSafe(input, copyBuffer, range.start(), remainingBytes, cacheFileReference);
                     // The range to prewarm in cache
                     final long readStart = range.start() + totalBytesRead;
                     final ByteRange rangeToWrite = ByteRange.of(readStart, readStart + bytesRead);
@@ -192,8 +192,11 @@ public class CachedBlobContainerIndexInput extends MetadataCachingIndexInput {
                     // noinspection UnnecessaryLocalVariable
                     final ByteRange rangeToRead = rangeToWrite;
                     cacheFile.populateAndRead(rangeToWrite, rangeToRead, (channel) -> bytesRead, (channel, start, end, progressUpdater) -> {
-                        final ByteBuffer byteBuffer = ByteBuffer.wrap(copyBuffer, toIntBytes(start - readStart), toIntBytes(end - start));
-                        final int writtenBytes = positionalWrite(channel, start, byteBuffer);
+                        final int writtenBytes = positionalWrite(
+                            channel,
+                            start,
+                            copyBuffer.slice(toIntBytes(start - readStart), toIntBytes(end - start))
+                        );
                         logger.trace(
                             "prefetchPart: writing range [{}-{}] of file [{}], [{}] bytes written",
                             start,
@@ -211,7 +214,7 @@ public class CachedBlobContainerIndexInput extends MetadataCachingIndexInput {
                 stats.addCachedBytesWritten(totalBytesWritten.get(), endTimeNanos - startTimeNanos);
             }
             assert totalBytesRead == range.length();
-            return Tuple.tuple(cacheFile.getInitialLength(), range.length());
+            return totalBytesRead;
         } catch (final Exception e) {
             throw new IOException("Failed to prefetch file part in cache", e);
         }
@@ -240,47 +243,15 @@ public class CachedBlobContainerIndexInput extends MetadataCachingIndexInput {
     }
 
     @Override
-    public IndexInput slice(String sliceName, long sliceOffset, long sliceLength) {
-        if (sliceOffset < 0 || sliceLength < 0 || sliceOffset + sliceLength > length()) {
-            throw new IllegalArgumentException(
-                "slice() "
-                    + sliceName
-                    + " out of bounds: offset="
-                    + sliceOffset
-                    + ",length="
-                    + sliceLength
-                    + ",fileLength="
-                    + length()
-                    + ": "
-                    + this
-            );
-        }
-
-        // Are we creating a slice from a CFS file?
-        final boolean sliceCompoundFile = IndexFileNames.matchesExtension(name, "cfs")
-            && IndexFileNames.getExtension(sliceName) != null
-            && compoundFileOffset == 0L // not already a compound file
-            && isClone == false; // tests aggressively clone and slice
-
-        final ByteRange sliceHeaderByteRange;
-        final ByteRange sliceFooterByteRange;
-        final long sliceCompoundFileOffset;
-
-        if (sliceCompoundFile) {
-            sliceCompoundFileOffset = this.offset + sliceOffset;
-            sliceHeaderByteRange = directory.getBlobCacheByteRange(sliceName, sliceLength).shift(sliceCompoundFileOffset);
-            if (sliceHeaderByteRange.isEmpty() == false && sliceHeaderByteRange.length() < sliceLength) {
-                sliceFooterByteRange = ByteRange.of(sliceLength - CodecUtil.footerLength(), sliceLength).shift(sliceCompoundFileOffset);
-            } else {
-                sliceFooterByteRange = ByteRange.EMPTY;
-            }
-        } else {
-            sliceCompoundFileOffset = this.compoundFileOffset;
-            sliceHeaderByteRange = ByteRange.EMPTY;
-            sliceFooterByteRange = ByteRange.EMPTY;
-        }
-
-        final CachedBlobContainerIndexInput slice = new CachedBlobContainerIndexInput(
+    protected MetadataCachingIndexInput doSlice(
+        String sliceName,
+        long sliceOffset,
+        long sliceLength,
+        ByteRange sliceHeaderByteRange,
+        ByteRange sliceFooterByteRange,
+        long sliceCompoundFileOffset
+    ) {
+        return new CachedBlobContainerIndexInput(
             sliceName,
             directory,
             fileInfo,
@@ -295,8 +266,6 @@ public class CachedBlobContainerIndexInput extends MetadataCachingIndexInput {
             sliceHeaderByteRange,
             sliceFooterByteRange
         );
-        slice.isClone = true;
-        return slice;
     }
 
     @Override

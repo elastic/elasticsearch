@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.store.MockFSIndexStore;
@@ -73,7 +74,8 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
             LocalStateMonitoring.class,
             MockClusterAlertScriptEngine.TestPlugin.class,
             MockIngestPlugin.class,
-            CommonAnalysisPlugin.class
+            CommonAnalysisPlugin.class,
+            MapperExtrasPlugin.class
         );
     }
 
@@ -161,20 +163,10 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
     }
 
     protected void enableMonitoringCollection() {
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setTransientSettings(Settings.builder().put(MonitoringService.ENABLED.getKey(), true))
-        );
+        updateClusterSettings(Settings.builder().put(MonitoringService.ENABLED.getKey(), true));
     }
 
     protected void disableMonitoringCollection() {
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setTransientSettings(Settings.builder().putNull(MonitoringService.ENABLED.getKey()))
-        );
+        updateClusterSettings(Settings.builder().putNull(MonitoringService.ENABLED.getKey()));
     }
 }

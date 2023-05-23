@@ -1,0 +1,722 @@
+setup:
+  - do:
+      indices.create:
+        index:  test
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              page:
+                type: integer
+              text:
+                type: text
+                store: true
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "index": {} }'
+          - '{ "page": 1, "text": "the quick brown fox" }'
+          - '{ "index": {} }'
+          - '{ "page": 1, "text": "jumped over the lazy dog" }'
+          - '{ "index": {} }'
+          - '{ "page": 2, "text": "The vorpal blade went snicker-snack!" }'
+
+---
+highlight:
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            match:
+              text: the
+          aggs:
+            page:
+              terms:
+                field: page
+              aggs:
+                top_hits:
+                  top_hits:
+                    highlight:
+                      fields:
+                        text: {}
+
+  - match:  { hits.total.value: 3 }
+  - length: { aggregations.page.buckets: 2 }
+  - match:  { aggregations.page.buckets.0.key: 1 }
+  - match:  { aggregations.page.buckets.0.top_hits.hits.hits.0.highlight.text.0: "<em>the</em> quick brown fox" }
+  - match:  { aggregations.page.buckets.0.top_hits.hits.hits.1.highlight.text.0: "jumped over <em>the</em> lazy dog" }
+  - match:  { aggregations.page.buckets.1.key: 2 }
+  - match:  { aggregations.page.buckets.1.top_hits.hits.hits.0.highlight.text.0: "<em>The</em> vorpal blade went snicker-snack!" }
+
+---
+highlight_query:
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            match:
+              text: the
+          aggs:
+            page:
+              terms:
+                field: page
+              aggs:
+                top_hits:
+                  top_hits:
+                    highlight:
+                      fields:
+                        text:
+                          highlight_query:
+                            match:
+                              text: snack
+
+  - match:  { hits.total.value: 3 }
+  - length: { aggregations.page.buckets: 2 }
+  - match:  { aggregations.page.buckets.0.key: 1 }
+  - is_false: aggregations.page.buckets.0.top_hits.hits.hits.0.highlight.text.0
+  - is_false: aggregations.page.buckets.0.top_hits.hits.hits.1.highlight.text.0
+  - match:  { aggregations.page.buckets.1.key: 2 }
+  - match:  { aggregations.page.buckets.1.top_hits.hits.hits.0.highlight.text.0: "The vorpal blade went snicker-<em>snack</em>!" }
+
+---
+explain:
+  - skip:
+      features: close_to
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            match:
+              text: the
+          aggs:
+            page:
+              terms:
+                field: page
+              aggs:
+                top_hits:
+                  top_hits:
+                    explain: true
+
+  - match:    { hits.total.value: 3 }
+  - length:   { aggregations.page.buckets: 2 }
+  - match:    { aggregations.page.buckets.0.key: 1 }
+  - close_to: { aggregations.page.buckets.0.top_hits.hits.hits.0._explanation.value: { value: 0.14543022, error: 0.001 }}
+  - match:    { aggregations.page.buckets.0.top_hits.hits.hits.0._explanation.description: "/weight\\(text:the\\ in\\ \\d\\)\\ \\[PerFieldSimilarity\\],\\ result\\ of:/" }
+  - close_to: { aggregations.page.buckets.0.top_hits.hits.hits.1._explanation.value: { value: 0.13353139, error: 0.001 }}
+  - match:    { aggregations.page.buckets.0.top_hits.hits.hits.1._explanation.description: "/weight\\(text:the\\ in\\ \\d\\)\\ \\[PerFieldSimilarity\\],\\ result\\ of:/" }
+  - match:    { aggregations.page.buckets.1.key: 2 }
+  - close_to: { aggregations.page.buckets.1.top_hits.hits.hits.0._explanation.value: { value: 0.12343238, error: 0.001 }}
+  - match:    { aggregations.page.buckets.1.top_hits.hits.hits.0._explanation.description: "/weight\\(text:the\\ in\\ \\d\\)\\ \\[PerFieldSimilarity\\],\\ result\\ of:/" }
+
+---
+from:
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            match:
+              text: the
+          aggs:
+            page:
+              terms:
+                field: page
+              aggs:
+                top_hits:
+                  top_hits:
+                    from: 1
+
+  - match:    { hits.total.value: 3 }
+  - length:   { aggregations.page.buckets: 2 }
+  - match:    { aggregations.page.buckets.0.key: 1 }
+  - length:   { aggregations.page.buckets.0.top_hits.hits.hits: 1 }
+  - match:    { aggregations.page.buckets.0.top_hits.hits.hits.0._source.text: "jumped over the lazy dog" }
+  - match:    { aggregations.page.buckets.1.key: 2 }
+  - length:   { aggregations.page.buckets.1.top_hits.hits.hits: 0 }
+
+---
+size:
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            match:
+              text: the
+          aggs:
+            page:
+              terms:
+                field: page
+              aggs:
+                top_hits:
+                  top_hits:
+                    size: 1
+
+  - match:    { hits.total.value: 3 }
+  - length:   { aggregations.page.buckets: 2 }
+  - match:    { aggregations.page.buckets.0.key: 1 }
+  - length:   { aggregations.page.buckets.0.top_hits.hits.hits: 1 }
+  - match:    { aggregations.page.buckets.0.top_hits.hits.hits.0._source.text: "the quick brown fox" }
+  - match:    { aggregations.page.buckets.1.key: 2 }
+  - length:   { aggregations.page.buckets.1.top_hits.hits.hits: 1 }
+  - match:    { aggregations.page.buckets.1.top_hits.hits.hits.0._source.text: "The vorpal blade went snicker-snack!" }
+
+---
+named queries:
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            bool:
+              should:
+                - match:
+                    text:
+                      query: the
+                      _name: the
+                - match:
+                    text:
+                      query: snack
+                      _name: snack
+          aggs:
+            page:
+              terms:
+                field: page
+              aggs:
+                top_hits:
+                  top_hits: {}
+
+  - match:  { hits.total.value: 3 }
+  - length: { aggregations.page.buckets: 2 }
+  - match:  { aggregations.page.buckets.0.key: 1 }
+  - match:  { aggregations.page.buckets.0.top_hits.hits.hits.0.matched_queries: [the] }
+  - match:  { aggregations.page.buckets.0.top_hits.hits.hits.1.matched_queries: [the] }
+  - match:  { aggregations.page.buckets.1.key: 2 }
+  - match:  { aggregations.page.buckets.1.top_hits.hits.hits.0.matched_queries: [the, snack] }
+
+---
+fetch fields:
+  - do:
+      search:
+        index: test
+        body:
+          fields: [text, page]
+          aggs:
+            page:
+              terms:
+                field: page
+              aggs:
+                top_hits:
+                  top_hits: {}
+
+  - match:  { hits.total.value: 3 }
+  - length: { aggregations.page.buckets: 2 }
+  - match:  { aggregations.page.buckets.0.key: 1 }
+  - match:  { aggregations.page.buckets.0.top_hits.hits.hits.0.fields.text: [the quick brown fox] }
+  - match:  { aggregations.page.buckets.0.top_hits.hits.hits.0.fields.page: [1] }
+  - match:  { aggregations.page.buckets.0.top_hits.hits.hits.1.fields.text: [jumped over the lazy dog] }
+  - match:  { aggregations.page.buckets.0.top_hits.hits.hits.1.fields.page: [1] }
+  - match:  { aggregations.page.buckets.1.key: 2 }
+  - match:  { aggregations.page.buckets.1.top_hits.hits.hits.0.fields.text: [The vorpal blade went snicker-snack!] }
+  - match:  { aggregations.page.buckets.1.top_hits.hits.hits.0.fields.page: [2] }
+
+---
+source filtering:
+  - do:
+      search:
+        index: test
+        body:
+          aggs:
+            page:
+              terms:
+                field: page
+              aggs:
+                top_hits:
+                  top_hits:
+                    _source: text
+
+  - match:  { hits.total.value: 3 }
+  - length: { aggregations.page.buckets: 2 }
+  - match:  { aggregations.page.buckets.0.key: 1 }
+  - match:  { aggregations.page.buckets.0.top_hits.hits.hits.0._source: {"text": "the quick brown fox" }}
+  - match:  { aggregations.page.buckets.0.top_hits.hits.hits.1._source: {"text": "jumped over the lazy dog" }}
+  - match:  { aggregations.page.buckets.1.key: 2 }
+  - match:  { aggregations.page.buckets.1.top_hits.hits.hits.0._source: {"text": "The vorpal blade went snicker-snack!" }}
+
+---
+stored fields:
+  - do:
+      search:
+        index: test
+        body:
+          aggs:
+            page:
+              terms:
+                field: page
+              aggs:
+                top_hits:
+                  top_hits:
+                    stored_fields: text
+
+  - match:  { hits.total.value: 3 }
+  - length: { aggregations.page.buckets: 2 }
+  - match:  { aggregations.page.buckets.0.key: 1 }
+  - match:  { aggregations.page.buckets.0.top_hits.hits.hits.0.fields.text: [the quick brown fox] }
+  - match:  { aggregations.page.buckets.0.top_hits.hits.hits.1.fields.text: [jumped over the lazy dog] }
+  - match:  { aggregations.page.buckets.1.key: 2 }
+  - match:  { aggregations.page.buckets.1.top_hits.hits.hits.0.fields.text: [The vorpal blade went snicker-snack!] }
+
+---
+docvalue fields:
+  - do:
+      search:
+        index: test
+        body:
+          aggs:
+            page:
+              terms:
+                field: page
+              aggs:
+                top_hits:
+                  top_hits:
+                    docvalue_fields: [page]
+
+  - match:  { hits.total.value: 3 }
+  - length: { aggregations.page.buckets: 2 }
+  - match:  { aggregations.page.buckets.0.key: 1 }
+  - match:  { aggregations.page.buckets.0.top_hits.hits.hits.0.fields.page: [1] }
+  - match:  { aggregations.page.buckets.0.top_hits.hits.hits.1.fields.page: [1] }
+  - match:  { aggregations.page.buckets.1.key: 2 }
+  - match:  { aggregations.page.buckets.1.top_hits.hits.hits.0.fields.page: [2] }
+
+---
+version:
+  - do:
+      search:
+        index: test
+        body:
+          aggs:
+            page:
+              terms:
+                field: page
+              aggs:
+                top_hits:
+                  top_hits:
+                    version: true
+
+  - match:  { hits.total.value: 3 }
+  - length: { aggregations.page.buckets: 2 }
+  - match:  { aggregations.page.buckets.0.key: 1 }
+  - match:  { aggregations.page.buckets.0.top_hits.hits.hits.0._version: 1 }
+  - match:  { aggregations.page.buckets.0.top_hits.hits.hits.1._version: 1 }
+  - match:  { aggregations.page.buckets.1.key: 2 }
+  - match:  { aggregations.page.buckets.1.top_hits.hits.hits.0._version: 1 }
+
+---
+sequence number and primary term:
+  - do:
+      search:
+        index: test
+        body:
+          aggs:
+            page:
+              terms:
+                field: page
+              aggs:
+                top_hits:
+                  top_hits:
+                    seq_no_primary_term: true
+
+  - match:  { hits.total.value: 3 }
+  - length: { aggregations.page.buckets: 2 }
+  - match:  { aggregations.page.buckets.0.key: 1 }
+  - gte:    { aggregations.page.buckets.0.top_hits.hits.hits.0._seq_no: 0 }
+  - gte:    { aggregations.page.buckets.0.top_hits.hits.hits.0._primary_term: 0 }
+  - gte:    { aggregations.page.buckets.0.top_hits.hits.hits.1._seq_no: 0 }
+  - gte:    { aggregations.page.buckets.0.top_hits.hits.hits.1._primary_term: 0 }
+  - match:  { aggregations.page.buckets.1.key: 2 }
+  - gte:    { aggregations.page.buckets.1.top_hits.hits.hits.0._seq_no: 0 }
+  - gte:    { aggregations.page.buckets.1.top_hits.hits.hits.0._primary_term: 0 }
+
+---
+synthetic _source:
+  - skip:
+      version: " - 8.3.99"
+      reason: introduced in 8.4.0
+
+  - do:
+      indices.create:
+        index: test_synthetic
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              page:
+                type: keyword
+              extra:
+                type: keyword
+
+  - do:
+      index:
+        index:   test_synthetic
+        id:      1
+        refresh: true
+        body:
+          page: a
+          extra: foo
+
+  - do:
+      index:
+        index:   test_synthetic
+        id:      2
+        refresh: true
+        body:
+          page: b
+          extra: bar
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          size: 0
+          aggs:
+            page:
+              terms:
+                field: page
+              aggs:
+                top_hits:
+                  top_hits: {}
+  - is_false: aggregations.page.buckets.0.top_hits.hits.hits.0.fields
+  - match:
+      aggregations.page.buckets.0.top_hits.hits.hits.0._source:
+        extra: foo
+        page: a
+  - is_false: aggregations.page.buckets.1.top_hits.hits.hits.0.fields
+  - match:
+      aggregations.page.buckets.1.top_hits.hits.hits.0._source:
+        extra: bar
+        page: b
+
+  # Now do it again with _source filtering
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          size: 0
+          aggs:
+            page:
+              terms:
+                field: page
+              aggs:
+                top_hits:
+                  top_hits:
+                    _source: extra
+  - is_false: aggregations.page.buckets.0.top_hits.hits.hits.0.fields
+  - match:
+      aggregations.page.buckets.0.top_hits.hits.hits.0._source:
+        extra: foo
+  - is_false: aggregations.page.buckets.1.top_hits.hits.hits.0.fields
+  - match:
+      aggregations.page.buckets.1.top_hits.hits.hits.0._source:
+        extra: bar
+
+
+---
+"having":
+  - skip:
+      version: " - 8.8.99"
+      reason: fixed in 8.9.0
+  - do:
+      bulk:
+        index: test2
+        refresh: true
+        body:
+          - { index: { } }
+          - { gender: 1, salary: 1000, birth_date: 1981 }
+          - { index: { } }
+          - { gender: 1, salary: 2000, birth_date: 1982 }
+          - { index: { } }
+          - { gender: 1, salary: 3000, birth_date: 1981 }
+          - { index: { } }
+          - { gender: 1, salary: 4000, birth_date: 1982 }
+          - { index: { } }
+          - { gender: 2, salary: 6000, birth_date: 1982 }
+          - { index: { } }
+          - { gender: 2, salary: 7000, birth_date: 1981 }
+          - { index: { } }
+          - { gender: 2, salary: 8000, birth_date: 1982 }
+          - { index: { } }
+          - { gender: 2, salary: 9000, birth_date: 1981 }
+
+  # Similar to a SQL query for top salaries per birth date, grouped by gender:
+  #
+  # SELECT gender, FIRST(salary, birth_date) as first
+  # FROM test_emp
+  # GROUP BY gender
+  # ORDER BY salary desc
+  - do:
+      search:
+        index: test2
+        size: 0
+        body:
+          aggs:
+            genders:
+              terms:
+                field: gender
+              aggs:
+                top_salary_hits:
+                  top_hits:
+                    sort:
+                      salary:
+                        order: "desc"
+                    _source:
+                      includes:
+                        - gender
+                        - salary
+                        - birth_date
+                    size: 1
+
+  - length: { aggregations.genders.buckets: 2}
+  - match: { aggregations.genders.buckets.0.top_salary_hits.hits.total.value: 4}
+  - match: { aggregations.genders.buckets.0.top_salary_hits.hits.hits.0._source.gender: 1}
+  - match: { aggregations.genders.buckets.0.top_salary_hits.hits.hits.0._source.salary: 4000}
+  - match: { aggregations.genders.buckets.0.top_salary_hits.hits.hits.0._source.birth_date: 1982}
+  - match: { aggregations.genders.buckets.1.top_salary_hits.hits.total.value: 4}
+  - match: { aggregations.genders.buckets.1.top_salary_hits.hits.hits.0._source.gender: 2}
+  - match: { aggregations.genders.buckets.1.top_salary_hits.hits.hits.0._source.salary: 9000}
+  - match: { aggregations.genders.buckets.1.top_salary_hits.hits.hits.0._source.birth_date: 1981}
+
+  # Similar to a SQL query with HAVING clause:
+  #
+  # SELECT gender, FIRST(salary, birth_date) as first
+  # FROM test_emp
+  # GROUP BY gender
+  # HAVING first < 80000
+  # ORDER BY salary desc
+  - do:
+      search:
+        index: test2
+        size: 0
+        body:
+          aggs:
+            genders:
+              terms:
+                field: gender
+              aggs:
+                top_salary_hits:
+                  top_hits:
+                    sort:
+                      salary:
+                        order: "desc"
+                    _source:
+                      includes:
+                        - gender
+                        - salary
+                        - birth_date
+                    size: 1
+                having.top_salary:
+                  bucket_selector:
+                    buckets_path:
+                      ts: top_salary_hits[_source.salary]
+                    script: "params.ts < 8000"
+
+  # The bucket for gender '2' gets filtered out by the selector.
+  - length: { aggregations.genders.buckets: 1}
+  - match: { aggregations.genders.buckets.0.top_salary_hits.hits.total.value: 4}
+  - match: { aggregations.genders.buckets.0.top_salary_hits.hits.hits.0._source.gender: 1}
+  - match: { aggregations.genders.buckets.0.top_salary_hits.hits.hits.0._source.salary: 4000}
+  - match: { aggregations.genders.buckets.0.top_salary_hits.hits.hits.0._source.birth_date: 1982}
+
+  - do:
+      search:
+        index: test2
+        size: 0
+        body:
+          aggs:
+            genders:
+              terms:
+                field: gender
+              aggs:
+                top_salary_hits:
+                  top_hits:
+                    sort:
+                      salary:
+                        order: "desc"
+                    _source:
+                      includes:
+                        - gender
+                        - birth_date
+                    size: 1
+                having.top_salary:
+                  bucket_selector:
+                    buckets_path:
+                      ts: top_salary_hits[_sort]
+                    script: "params.ts < 8000"
+
+  # Bucket path on sort value works the same.
+  - length: { aggregations.genders.buckets: 1 }
+  - match: { aggregations.genders.buckets.0.top_salary_hits.hits.total.value: 4 }
+  - match: { aggregations.genders.buckets.0.top_salary_hits.hits.hits.0._source.gender: 1 }
+  - match: { aggregations.genders.buckets.0.top_salary_hits.hits.hits.0._source.birth_date: 1982 }
+
+  - do:
+      search:
+        index: test2
+        size: 0
+        body:
+          aggs:
+            genders:
+              terms:
+                field: gender
+              aggs:
+                top_salary_hits:
+                  top_hits:
+                    sort:
+                      salary:
+                        order: "desc"
+                    _source:
+                      includes:
+                        - gender
+                        - birth_date
+                    size: 1
+                having.top_salary:
+                  bucket_selector:
+                    buckets_path:
+                      ts: top_salary_hits[_score]
+                    script: "params.ts < 8000"
+
+  # Bucket path on score is supported. Here, score is NaN so all values are filtered out.
+  - length: { aggregations.genders.buckets: 0 }
+
+  - do:
+      bulk:
+        index: test2
+        body:
+          - { index: { } }
+          - { gender: 3 }
+  - do:
+      search:
+        index: test2
+        size: 0
+        body:
+          aggs:
+            genders:
+              terms:
+                field: gender
+              aggs:
+                top_salary_hits:
+                  top_hits:
+                    sort:
+                      salary:
+                        order: "desc"
+                    _source:
+                      includes:
+                        - gender
+                        - salary
+                        - birth_date
+                    size: 1
+                having.top_salary:
+                  bucket_selector:
+                    buckets_path:
+                      ts: top_salary_hits[_source.salary]
+                    script: "params.ts < 8000"
+
+  # Empty bucket for gender '3' affects nothing.
+  - length: { aggregations.genders.buckets: 1}
+  - match: { aggregations.genders.buckets.0.top_salary_hits.hits.total.value: 4}
+  - match: { aggregations.genders.buckets.0.top_salary_hits.hits.hits.0._source.gender: 1}
+  - match: { aggregations.genders.buckets.0.top_salary_hits.hits.hits.0._source.salary: 4000}
+  - match: { aggregations.genders.buckets.0.top_salary_hits.hits.hits.0._source.birth_date: 1982}
+
+  - do:
+      catch: /path not supported for \[top_salary_hits\]:\ \[_source.nosuchfield\]./
+      search:
+        index: test2
+        size: 0
+        body:
+          aggs:
+            genders:
+              terms:
+                field: gender
+              aggs:
+                top_salary_hits:
+                  top_hits:
+                    sort:
+                      salary:
+                        order: "desc"
+                    _source:
+                      includes:
+                        - gender
+                        - salary
+                        - birth_date
+                    size: 1
+                having.top_salary:
+                  bucket_selector:
+                    buckets_path:
+                      ts: top_salary_hits[_source.nosuchfield]
+                    script: "params.ts < 8000"
+
+  - do:
+      catch: / No aggregation found for path \[nosuchagg\[_source.salary\]\]/
+      search:
+        index: test2
+        size: 0
+        body:
+          aggs:
+            genders:
+              terms:
+                field: gender
+              aggs:
+                top_salary_hits:
+                  top_hits:
+                    sort:
+                      salary:
+                        order: "desc"
+                    _source:
+                      includes:
+                        - gender
+                        - salary
+                        - birth_date
+                    size: 1
+                having.top_salary:
+                  bucket_selector:
+                    buckets_path:
+                      ts: nosuchagg[_source.salary]
+                    script: "params.ts < 8000"
+
+  - do:
+      catch: /property paths for top_hits \[top_salary_hits\] require configuring it with size to 1/
+      search:
+        index: test2
+        size: 0
+        body:
+          aggs:
+            genders:
+              terms:
+                field: gender
+              aggs:
+                top_salary_hits:
+                  top_hits:
+                    sort:
+                      salary:
+                        order: "desc"
+                    _source:
+                      includes:
+                        - gender
+                        - salary
+                        - birth_date
+                    size: 10
+                having.top_salary:
+                  bucket_selector:
+                    buckets_path:
+                      ts: top_salary_hits[salary]
+                    script: "params.ts < 8000"

@@ -11,7 +11,7 @@ a given distance of a geopoint.
 [[geo-distance-query-ex]]
 ==== Example
 
-Assume the following the following documents are indexed:
+Assume the following documents are indexed:
 
 [source,console]
 --------------------------------------------------

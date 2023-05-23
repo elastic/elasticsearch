@@ -40,7 +40,8 @@ indices. These costs are typically lower but, in some environments, may be
 higher. See <<searchable-snapshots-costs>> for more details.
 
 By default, this snapshot is deleted by the <<ilm-delete, delete action>> in the delete phase.
-To keep the snapshot, set `delete_searchable_snapshot` to `false` in the delete action.
+To keep the snapshot, set `delete_searchable_snapshot` to `false` in the delete action. This 
+snapshot retention runs off the index lifecycle management (ILM) policies and is not effected by snapshot lifecycle management (SLM) policies.
 
 [[ilm-searchable-snapshot-options]]
 ==== Options

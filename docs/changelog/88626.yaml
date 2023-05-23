@@ -1,5 +1,0 @@
-pr: 88626
-summary: Adding the ability to register a `PeerFinderListener` to Coordinator
-area: Distributed
-type: enhancement
-issues: []

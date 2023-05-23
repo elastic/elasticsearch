@@ -23,13 +23,14 @@ grant codeBase "${codebase.elasticsearch}" {
   // needed for loading plugins which may expect the context class loader to be set
   permission java.lang.RuntimePermission "setContextClassLoader";
   // needed for the readiness service
-  permission java.net.SocketPermission "127.0.0.1", "listen, accept";
-  // required if started with -Djava.net.preferIPv6Addresses=true
-  permission java.net.SocketPermission "0:0:0:0:0:0:0:1", "listen, accept";
+  permission java.net.SocketPermission "*", "listen, accept";
 
   // for module layer
   permission java.lang.RuntimePermission "createClassLoader";
   permission java.lang.RuntimePermission "getClassLoader";
+
+  // for plugin api dynamic settings instances
+  permission java.lang.RuntimePermission "accessClassInPackage.jdk.internal.reflect";
 };
 
 //// Very special jar permissions:
@@ -69,6 +70,17 @@ grant codeBase "${codebase.elasticsearch-cli}" {
 grant codeBase "${codebase.jna}" {
   // for registering native methods
   permission java.lang.RuntimePermission "accessDeclaredMembers";
+};
+
+grant codeBase "${codebase.log4j-api}" {
+  permission java.lang.RuntimePermission "getClassLoader";
+};
+
+grant codeBase "${codebase.elasticsearch-preallocate}" {
+  // for registering native methods
+  permission java.lang.RuntimePermission "accessDeclaredMembers";
+  // for accessing the file descriptor field in FileChannel
+  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
 };
 
 //// Everything else:
@@ -168,6 +180,4 @@ grant {
   permission java.io.FilePermission "/proc/self/cgroup", "read";
   permission java.io.FilePermission "/sys/fs/cgroup/-", "read";
 
-  // system memory on Linux systems affected by JDK bug (#66629)
-  permission java.io.FilePermission "/proc/meminfo", "read";
 };

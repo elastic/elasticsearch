@@ -1,0 +1,48 @@
+---
+"Rollover with min_age condition":
+  - skip:
+      version: " - 8.3.99"
+      reason: introduced in 8.4.0
+
+  # create index with alias and replica
+  - do:
+      indices.create:
+        index: logs-1
+        wait_for_active_shards: 1
+        body:
+          aliases:
+            logs_search: {}
+
+  # index first document and wait for refresh
+  - do:
+      index:
+        index: logs-1
+        id:    "1"
+        body:  { "foo": "hello world" }
+        refresh: true
+
+  # perform alias rollover with no result
+  - do:
+      indices.rollover:
+        alias: "logs_search"
+        wait_for_active_shards: 1
+        body:
+          conditions:
+            max_docs: 1
+            min_age: "7d"
+
+  - match: { conditions: { "[max_docs: 1]": true, "[min_age: 7d]": false } }
+  - match: { rolled_over: false }
+
+  # perform alias rollover
+  - do:
+      indices.rollover:
+        alias: "logs_search"
+        wait_for_active_shards: 1
+        body:
+          conditions:
+            max_docs: 1
+            min_age: "0s"
+
+  - match: { conditions: { "[max_docs: 1]": true, "[min_age: 0s]": true } }
+  - match: { rolled_over: true }

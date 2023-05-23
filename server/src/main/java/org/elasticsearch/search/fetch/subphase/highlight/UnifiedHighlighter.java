@@ -68,8 +68,7 @@ public class UnifiedHighlighter implements Highlighter {
                 highlighter,
                 fieldContext.context.getSearchExecutionContext(),
                 fieldType,
-                hitContext,
-                fieldContext.forceSource
+                hitContext
             );
             if (fieldValues.size() == 0) {
                 return null;
@@ -169,10 +168,9 @@ public class UnifiedHighlighter implements Highlighter {
         CustomUnifiedHighlighter highlighter,
         SearchExecutionContext searchContext,
         MappedFieldType fieldType,
-        FetchSubPhase.HitContext hitContext,
-        boolean forceSource
+        FetchSubPhase.HitContext hitContext
     ) throws IOException {
-        return HighlightUtils.loadFieldValues(fieldType, searchContext, hitContext, forceSource)
+        return HighlightUtils.loadFieldValues(fieldType, searchContext, hitContext)
             .stream()
             .<Object>map((s) -> convertFieldValue(fieldType, s))
             .toList();
@@ -195,7 +193,7 @@ public class UnifiedHighlighter implements Highlighter {
                 // ignore maxLen
                 return BreakIterator.getWordInstance(locale);
             default:
-                throw new IllegalArgumentException("Invalid boundary scanner type: " + type.toString());
+                throw new IllegalArgumentException("Invalid boundary scanner type: " + type);
         }
     }
 

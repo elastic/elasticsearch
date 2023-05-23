@@ -22,6 +22,7 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -29,6 +30,7 @@ import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -42,7 +44,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.VersionType;
@@ -133,7 +134,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                         null,
                         indexShardSnapshotStatus,
                         Version.CURRENT,
-                        Collections.emptyMap(),
+                        randomMillisUpToYear9999(),
                         future
                     )
                 )
@@ -175,7 +176,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                         null,
                         indexShardSnapshotStatus,
                         Version.CURRENT,
-                        Collections.emptyMap(),
+                        randomMillisUpToYear9999(),
                         future
                     )
                 )
@@ -206,7 +207,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                         null,
                         indexShardSnapshotStatus,
                         Version.CURRENT,
-                        Collections.emptyMap(),
+                        randomMillisUpToYear9999(),
                         future
                     )
                 )
@@ -237,7 +238,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                         null,
                         indexShardSnapshotStatus,
                         Version.CURRENT,
-                        Collections.emptyMap(),
+                        randomMillisUpToYear9999(),
                         future
                     )
                 )
@@ -298,12 +299,12 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                         null,
                         indexShardSnapshotStatus,
                         Version.CURRENT,
-                        Collections.emptyMap(),
+                        randomMillisUpToYear9999(),
                         future
                     )
                 );
                 future.actionGet();
-                final PlainActionFuture<Tuple<RepositoryData, SnapshotInfo>> finFuture = PlainActionFuture.newFuture();
+                final PlainActionFuture<SnapshotInfo> finFuture = PlainActionFuture.newFuture();
                 final ShardGenerations shardGenerations = ShardGenerations.builder()
                     .put(indexId, 0, indexShardSnapshotStatus.generation())
                     .build();
@@ -327,7 +328,18 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                             Collections.emptyMap()
                         ),
                         Version.CURRENT,
-                        finFuture
+                        new ActionListener<>() {
+                            @Override
+                            public void onResponse(RepositoryData repositoryData) {
+                                // nothing will resolve in the onDone callback below
+                            }
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                finFuture.onFailure(e);
+                            }
+                        },
+                        finFuture::onResponse
                     )
                 );
                 finFuture.actionGet();
@@ -361,7 +373,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
             () -> {},
             RetentionLeaseSyncer.EMPTY
         );
-        DiscoveryNode discoveryNode = new DiscoveryNode("node_g", buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode discoveryNode = TestDiscoveryNode.create("node_g");
         restoredShard.markAsRecovering("test from snap", new RecoveryState(restoredShard.routingEntry(), discoveryNode, null));
         runAsSnapshot(shard.getThreadPool(), () -> {
             final PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();

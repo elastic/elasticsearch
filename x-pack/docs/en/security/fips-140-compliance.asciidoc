@@ -8,14 +8,16 @@ government computer security standard used to approve cryptographic modules.
 {es} offers a FIPS 140-2 compliant mode and as such can run in a FIPS 140-2
 configured JVM.
 
-IMPORTANT: The JVM bundled with {es} is not configured for FIPS 140-2. You must
-either configure the bundled JVM to run with a FIPS 140-2 certified Java
-Security Provider or use an external JVM configured for FIPS 140-2.
+IMPORTANT: The JVM bundled with {es} is not configured for FIPS 140-2. You must 
+configure an external JDK with a FIPS 140-2 certified Java Security Provider.
+Refer to the {es}
+https://www.elastic.co/support/matrix#matrix_jvm[JVM support matrix] for
+supported JVM configurations.
 
 After configuring your JVM for FIPS 140-2, you can run {es} in FIPS 140-2 mode by
 setting the `xpack.security.fips_mode.enabled` to `true` in `elasticsearch.yml`.
 
-For {es}, adherence to FIPS 140-2 is ensured by
+For {es}, adherence to FIPS 140-2 is ensured by:
 
 - Using FIPS approved / NIST recommended cryptographic algorithms.
 - Delegating the implementation of these cryptographic algorithms to a NIST

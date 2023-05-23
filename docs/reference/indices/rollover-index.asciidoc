@@ -111,7 +111,7 @@ include::{es-repo-dir}/indices/create-index.asciidoc[tag=index-name-reqs]
 
 `dry_run`::
 (Optional, Boolean)
-If `true`, checks whether the current index matches one or more specified
+If `true`, checks whether the current index satisfies the specified
 `conditions` but does not perform a rollover. Defaults to `false`.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
@@ -132,10 +132,14 @@ include::{es-repo-dir}/indices/create-index.asciidoc[tag=aliases-props]
 `conditions`::
 (Optional, object)
 Conditions for the rollover. If specified, {es} only performs the rollover if
-the current index meets one or more of these conditions. If this parameter is
+the current index satisfies these conditions. If this parameter is
 not specified, {es} performs the rollover unconditionally.
 +
-IMPORTANT: To trigger a rollover, the current index must meet these conditions
+If conditions are specified, at least one of them must be a max_* condition.
+The index will rollover if any max_* condition is satisfied and all
+min_* conditions are satisfied.
++
+IMPORTANT: To trigger a rollover, the current index must satisfy these conditions
 at the time of the request. {es} does not monitor the index after the API
 response. To automate rollover, use {ilm-init}'s <<ilm-rollover,`rollover`>>
 instead.
@@ -197,7 +201,7 @@ conditions were specified, this is an empty object.
 ====
 `<condition>`::
 (Boolean) The key is each condition. The value is its result. If `true`, the
-index met the condition at rollover.
+index met the condition.
 ====
 
 [[rollover-index-api-example]]

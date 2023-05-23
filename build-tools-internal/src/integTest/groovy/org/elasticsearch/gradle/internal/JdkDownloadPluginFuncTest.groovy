@@ -8,6 +8,7 @@
 
 package org.elasticsearch.gradle.internal
 
+import spock.lang.TempDir
 import spock.lang.Unroll
 import com.github.tomakehurst.wiremock.WireMockServer
 
@@ -34,6 +35,10 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
     private static final String OPEN_JDK_VERSION = "12.0.1+99@123456789123456789123456789abcde"
     private static final Pattern JDK_HOME_LOGLINE = Pattern.compile("JDK HOME: (.*)")
 
+    def setup() {
+        configurationCacheCompatible = false
+    }
+
     @Unroll
     def "jdk #jdkVendor for #platform#suffix are downloaded and extracted"() {
         given:
@@ -53,10 +58,11 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
               }
             }
 
+            def theJdks = jdks
             tasks.register("getJdk") {
                 dependsOn jdks.myJdk
                 doLast {
-                    println "JDK HOME: " + jdks.myJdk
+                    println "JDK HOME: " + theJdks.myJdk
                 }
             }
         """
@@ -126,7 +132,7 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
         when:
         def result = WiremockFixture.withWireMock(mockRepoUrl, mockedContent) { server ->
             buildFile << repositoryMockSetup(server, jdkVendor, jdkVersion)
-            gradleRunner('getJdk', '-i', '-g', testProjectDir.newFolder().toString()).build()
+            gradleRunner('getJdk', '-i', '-g', gradleUserHome).build()
         }
 
         then:
@@ -179,13 +185,12 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
         def result = WiremockFixture.withWireMock(mockRepoUrl, mockedContent) { server ->
             buildFile << repositoryMockSetup(server, VENDOR_ADOPTIUM, ADOPT_JDK_VERSION)
 
-            def commonGradleUserHome = testProjectDir.newFolder().toString()
             // initial run
-            def firstResult = gradleRunner('clean', 'getJdk', '-i', '--warning-mode', 'all', '-g', commonGradleUserHome).build()
+            def firstResult = gradleRunner('clean', 'getJdk', '-i', '--warning-mode', 'all', '-g', gradleUserHome).build()
             // assert the output of an executed transform is shown
             assertOutputContains(firstResult.output, "Unpacking $expectedArchiveName using $transformType")
             // run against up-to-date transformations
-            gradleRunner('clean', 'getJdk', '-i', '--warning-mode', 'all', '-g', commonGradleUserHome).build()
+            gradleRunner('clean', 'getJdk', '-i', '--warning-mode', 'all', '-g', gradleUserHome).build()
         }
 
         then:

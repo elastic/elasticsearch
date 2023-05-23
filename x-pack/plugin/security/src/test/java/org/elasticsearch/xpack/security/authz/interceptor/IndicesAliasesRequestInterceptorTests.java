@@ -17,6 +17,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
@@ -24,7 +25,6 @@ import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationResult;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.EmptyAuthorizationInfo;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.RequestInfo;
-import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.permission.DocumentPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
@@ -55,7 +55,7 @@ public class IndicesAliasesRequestInterceptorTests extends ESTestCase {
         when(licenseState.isAllowed(Security.AUDITING_FEATURE)).thenReturn(true);
         when(licenseState.isAllowed(DOCUMENT_LEVEL_SECURITY_FEATURE)).thenReturn(true);
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        AuditTrailService auditTrailService = new AuditTrailService(Collections.emptyList(), licenseState);
+        AuditTrailService auditTrailService = new AuditTrailService(null, licenseState);
         Authentication authentication = AuthenticationTestHelper.builder()
             .user(new User("not-john", "not-role"))
             .realmRef(new RealmRef("auth_name", "auth_type", "node"))
@@ -68,7 +68,7 @@ public class IndicesAliasesRequestInterceptorTests extends ESTestCase {
         if (useFls) {
             fieldPermissions = new FieldPermissions(new FieldPermissionsDefinition(new String[] { "foo" }, null));
         } else {
-            fieldPermissions = new FieldPermissions();
+            fieldPermissions = FieldPermissions.DEFAULT;
         }
         final boolean useDls = (useFls == false) || randomBoolean();
         final Set<BytesReference> queries;
@@ -83,14 +83,12 @@ public class IndicesAliasesRequestInterceptorTests extends ESTestCase {
             Collections.singletonMap(
                 "foo",
                 new IndicesAccessControl.IndexAccessControl(
-                    true,
                     fieldPermissions,
                     (useDls) ? DocumentPermissions.filteredBy(queries) : DocumentPermissions.allowAll()
                 )
             )
         );
-        threadContext.putTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, accessControl);
-
+        new SecurityContext(Settings.EMPTY, threadContext).putIndicesAccessControl(accessControl);
         IndicesAliasesRequestInterceptor interceptor = new IndicesAliasesRequestInterceptor(threadContext, licenseState, auditTrailService);
 
         IndicesAliasesRequest indicesAliasesRequest = new IndicesAliasesRequest();
@@ -127,7 +125,7 @@ public class IndicesAliasesRequestInterceptorTests extends ESTestCase {
         when(licenseState.isAllowed(Security.AUDITING_FEATURE)).thenReturn(true);
         when(licenseState.isAllowed(DOCUMENT_LEVEL_SECURITY_FEATURE)).thenReturn(randomBoolean());
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        AuditTrailService auditTrailService = new AuditTrailService(Collections.emptyList(), licenseState);
+        AuditTrailService auditTrailService = new AuditTrailService(null, licenseState);
         Authentication authentication = AuthenticationTestHelper.builder()
             .user(new User("not-john", "not-role"))
             .realmRef(new RealmRef("auth_name", "auth_type", "node"))
@@ -137,7 +135,7 @@ public class IndicesAliasesRequestInterceptorTests extends ESTestCase {
             .build();
         final String action = IndicesAliasesAction.NAME;
         IndicesAccessControl accessControl = new IndicesAccessControl(true, Collections.emptyMap());
-        threadContext.putTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, accessControl);
+        new SecurityContext(Settings.EMPTY, threadContext).putIndicesAccessControl(accessControl);
         IndicesAliasesRequestInterceptor interceptor = new IndicesAliasesRequestInterceptor(threadContext, licenseState, auditTrailService);
 
         final IndicesAliasesRequest indicesAliasesRequest = new IndicesAliasesRequest();

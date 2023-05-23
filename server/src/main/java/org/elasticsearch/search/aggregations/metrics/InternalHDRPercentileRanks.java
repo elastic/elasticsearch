@@ -41,6 +41,16 @@ public class InternalHDRPercentileRanks extends AbstractInternalHDRPercentiles i
         return NAME;
     }
 
+    public static InternalHDRPercentileRanks empty(
+        String name,
+        double[] keys,
+        boolean keyed,
+        DocValueFormat format,
+        Map<String, Object> metadata
+    ) {
+        return new InternalHDRPercentileRanks(name, keys, null, keyed, format, metadata);
+    }
+
     @Override
     public Iterator<Percentile> iterator() {
         return new Iter(keys, state);
@@ -73,7 +83,7 @@ public class InternalHDRPercentileRanks extends AbstractInternalHDRPercentiles i
     }
 
     public static double percentileRank(DoubleHistogram state, double value) {
-        if (state.getTotalCount() == 0) {
+        if (state == null || state.getTotalCount() == 0) {
             return Double.NaN;
         }
         double percentileRank = state.getPercentileAtOrBelowValue(value);

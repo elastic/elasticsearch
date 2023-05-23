@@ -11,7 +11,6 @@ package org.elasticsearch.indices.analysis;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -64,8 +63,7 @@ public class PreBuiltAnalyzerIntegrationIT extends ESIntegTestCase {
                 .endObject()
                 .endObject();
 
-            Settings versionSettings = settings(randomVersion).build();
-            client().admin().indices().prepareCreate(indexName).setMapping(mapping).setSettings(versionSettings).get();
+            client().admin().indices().prepareCreate(indexName).setMapping(mapping).setSettings(settings(randomVersion)).get();
         }
 
         ensureGreen();

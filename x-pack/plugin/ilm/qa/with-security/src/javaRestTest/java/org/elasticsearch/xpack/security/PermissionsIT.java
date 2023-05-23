@@ -30,6 +30,7 @@ import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -55,7 +56,6 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
-@SuppressWarnings("removal")
 public class PermissionsIT extends ESRestTestCase {
 
     private static final String jsonDoc = """
@@ -143,9 +143,11 @@ public class PermissionsIT extends ESRestTestCase {
                         equalTo(
                             "action [indices:monitor/stats] is unauthorized"
                                 + " for user [test_ilm]"
-                                + " with roles [ilm]"
+                                + " with effective roles [ilm]"
                                 + " on indices [not-ilm],"
-                                + " this action is granted by the index privileges [monitor,manage,all]"
+                                + " this action is granted by the index privileges [monitor,"
+                                + (TcpTransport.isUntrustedRemoteClusterEnabled() ? "cross_cluster_replication," : "")
+                                + "manage,all]"
                         )
                     );
                 }
@@ -275,7 +277,12 @@ public class PermissionsIT extends ESRestTestCase {
          * - Create role with just write and manage privileges on alias
          * - Create user and assign newly created role.
          */
-        createNewSingletonPolicy(adminClient(), "foo-policy", "hot", new RolloverAction(null, null, null, 2L, null));
+        createNewSingletonPolicy(
+            adminClient(),
+            "foo-policy",
+            "hot",
+            new RolloverAction(null, null, null, 2L, null, null, null, null, null, null)
+        );
         createIndexTemplate("foo-template", "foo-logs-*", "foo_alias", "foo-policy");
         createIndexAsAdmin("foo-logs-000001", "foo_alias", randomBoolean());
         createRole("foo_alias_role", "foo_alias");
@@ -335,10 +342,10 @@ public class PermissionsIT extends ESRestTestCase {
 
     private void createIndexAsAdmin(String name, Settings settings, String mapping) throws IOException {
         Request request = new Request("PUT", "/" + name);
-        request.setJsonEntity("""
+        request.setJsonEntity(Strings.format("""
             {
              "settings": %s, "mappings" : {%s}
-            }""".formatted(Strings.toString(settings), mapping));
+            }""", Strings.toString(settings), mapping));
         assertOK(adminClient().performRequest(request));
     }
 
@@ -350,7 +357,7 @@ public class PermissionsIT extends ESRestTestCase {
 
     private void createIndexTemplate(String name, String pattern, String alias, String policy) throws IOException {
         Request request = new Request("PUT", "/_template/" + name);
-        request.setJsonEntity("""
+        request.setJsonEntity(Strings.format("""
             {
               "index_patterns": [
                 "%s"
@@ -361,7 +368,7 @@ public class PermissionsIT extends ESRestTestCase {
                 "index.lifecycle.name": "%s",
                 "index.lifecycle.rollover_alias": "%s"
               }
-            }""".formatted(pattern, policy, alias));
+            }""", pattern, policy, alias));
         request.setOptions(expectWarnings(RestPutIndexTemplateAction.DEPRECATION_WARNING));
         assertOK(adminClient().performRequest(request));
     }

@@ -17,6 +17,8 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
+import java.util.function.LongConsumer;
 
 /**
  * Aggregates data expressed as GeoHash longs (for efficiency's sake) but formats results as Geohash strings.
@@ -26,7 +28,7 @@ public class GeoHashGridAggregator extends GeoGridAggregator<InternalGeoHashGrid
     public GeoHashGridAggregator(
         String name,
         AggregatorFactories factories,
-        ValuesSource.Numeric valuesSource,
+        Function<LongConsumer, ValuesSource.Numeric> valuesSource,
         int requiredSize,
         int shardSize,
         AggregationContext context,

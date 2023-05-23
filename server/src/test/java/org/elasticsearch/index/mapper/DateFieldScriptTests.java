@@ -19,6 +19,7 @@ import org.elasticsearch.script.AbstractFieldScript;
 import org.elasticsearch.script.DateFieldScript;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
@@ -31,11 +32,12 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 
 public class DateFieldScriptTests extends FieldScriptTestCase<DateFieldScript.Factory> {
-    public static final DateFieldScript.Factory DUMMY = (fieldName, params, lookup, formatter) -> ctx -> new DateFieldScript(
+    public static final DateFieldScript.Factory DUMMY = (fieldName, params, lookup, formatter, onScriptError) -> ctx -> new DateFieldScript(
         fieldName,
         params,
         lookup,
         formatter,
+        OnScriptError.FAIL,
         ctx
     ) {
         @Override
@@ -66,8 +68,9 @@ public class DateFieldScriptTests extends FieldScriptTestCase<DateFieldScript.Fa
                 DateFieldScript script = new DateFieldScript(
                     "test",
                     Map.of(),
-                    new SearchLookup(field -> null, (ft, lookup) -> null),
+                    new SearchLookup(field -> null, (ft, lookup, fdt) -> null, (ctx, doc) -> null),
                     DateFormatter.forPattern(randomDateFormatterPattern()).withLocale(randomLocale(random())),
+                    OnScriptError.FAIL,
                     reader.leaves().get(0)
                 ) {
                     @Override
@@ -102,8 +105,9 @@ public class DateFieldScriptTests extends FieldScriptTestCase<DateFieldScript.Fa
                 DateFieldScript.LeafFactory leafFactory = fromSource().newFactory(
                     "field",
                     Collections.emptyMap(),
-                    new SearchLookup(field -> null, (ft, lookup) -> null),
-                    DateFormatter.forPattern("epoch_millis")
+                    new SearchLookup(field -> null, (ft, lookup, fdt) -> null, SourceProvider.fromStoredFields()),
+                    DateFormatter.forPattern("epoch_millis"),
+                    OnScriptError.FAIL
                 );
                 DateFieldScript dateFieldScript = leafFactory.newInstance(reader.leaves().get(0));
                 List<Long> results = new ArrayList<>();

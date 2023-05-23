@@ -531,272 +531,6 @@ public class DateRangeIT extends ESIntegTestCase {
         assertThat(bucket.getDocCount(), equalTo(numDocs - 2L));
     }
 
-    /*
-        Feb 2,  Mar 3,      1
-        Mar 2,  Apr 3,      2
-        Mar 15, Apr 16,     3
-        Apr 2,  May 3,      4
-        Apr 15, May 16      5
-        Apr 23, May 24      6
-     */
-
-    public void testMultiValuedFieldWithValueScript() throws Exception {
-        Map<String, Object> params = new HashMap<>();
-        params.put("fieldname", "dates");
-        SearchResponse response = client().prepareSearch("idx")
-            .addAggregation(
-                dateRange("range").field("dates")
-                    .script(new Script(ScriptType.INLINE, "mockscript", DateScriptMocksPlugin.DOUBLE_PLUS_ONE_MONTH, params))
-                    .addUnboundedTo(date(2, 15))
-                    .addRange(date(2, 15), date(3, 15))
-                    .addUnboundedFrom(date(3, 15))
-            )
-            .get();
-
-        assertSearchResponse(response);
-
-        Range range = response.getAggregations().get("range");
-        assertThat(range, notNullValue());
-        assertThat(range.getName(), equalTo("range"));
-        List<? extends Bucket> buckets = range.getBuckets();
-        assertThat(buckets.size(), equalTo(3));
-
-        Range.Bucket bucket = buckets.get(0);
-        assertThat(bucket, notNullValue());
-        assertThat((String) bucket.getKey(), equalTo("*-2012-02-15T00:00:00.000Z"));
-        assertThat(((ZonedDateTime) bucket.getFrom()), nullValue());
-        assertThat(((ZonedDateTime) bucket.getTo()), equalTo(date(2, 15)));
-        assertThat(bucket.getFromAsString(), nullValue());
-        assertThat(bucket.getToAsString(), equalTo("2012-02-15T00:00:00.000Z"));
-        assertThat(bucket.getDocCount(), equalTo(1L));
-
-        bucket = buckets.get(1);
-        assertThat(bucket, notNullValue());
-        assertThat((String) bucket.getKey(), equalTo("2012-02-15T00:00:00.000Z-2012-03-15T00:00:00.000Z"));
-        assertThat(((ZonedDateTime) bucket.getFrom()), equalTo(date(2, 15)));
-        assertThat(((ZonedDateTime) bucket.getTo()), equalTo(date(3, 15)));
-        assertThat(bucket.getFromAsString(), equalTo("2012-02-15T00:00:00.000Z"));
-        assertThat(bucket.getToAsString(), equalTo("2012-03-15T00:00:00.000Z"));
-        assertThat(bucket.getDocCount(), equalTo(2L));
-
-        bucket = buckets.get(2);
-        assertThat(bucket, notNullValue());
-        assertThat((String) bucket.getKey(), equalTo("2012-03-15T00:00:00.000Z-*"));
-        assertThat(((ZonedDateTime) bucket.getFrom()), equalTo(date(3, 15)));
-        assertThat(((ZonedDateTime) bucket.getTo()), nullValue());
-        assertThat(bucket.getFromAsString(), equalTo("2012-03-15T00:00:00.000Z"));
-        assertThat(bucket.getToAsString(), nullValue());
-        assertThat(bucket.getDocCount(), equalTo(numDocs - 1L));
-    }
-
-    /*
-        Feb 2,  Mar 3,      1
-        Mar 2,  Apr 3,      2
-        Mar 15, Apr 16,     3
-        Apr 2,  May 3,      4
-        Apr 15, May 16      5
-        Apr 23, May 24      6
-     */
-
-    public void testScriptSingleValue() throws Exception {
-        Map<String, Object> params = new HashMap<>();
-        params.put("fieldname", "date");
-        SearchResponse response = client().prepareSearch("idx")
-            .addAggregation(
-                dateRange("range").script(new Script(ScriptType.INLINE, "mockscript", DateScriptMocksPlugin.EXTRACT_FIELD, params))
-                    .addUnboundedTo(date(2, 15))
-                    .addRange(date(2, 15), date(3, 15))
-                    .addUnboundedFrom(date(3, 15))
-            )
-            .get();
-
-        assertSearchResponse(response);
-
-        Range range = response.getAggregations().get("range");
-        assertThat(range, notNullValue());
-        assertThat(range.getName(), equalTo("range"));
-        List<? extends Bucket> buckets = range.getBuckets();
-        assertThat(buckets.size(), equalTo(3));
-
-        Range.Bucket bucket = buckets.get(0);
-        assertThat(bucket, notNullValue());
-        assertThat((String) bucket.getKey(), equalTo("*-2012-02-15T00:00:00.000Z"));
-        assertThat(((ZonedDateTime) bucket.getFrom()), nullValue());
-        assertThat(((ZonedDateTime) bucket.getTo()), equalTo(date(2, 15)));
-        assertThat(bucket.getFromAsString(), nullValue());
-        assertThat(bucket.getToAsString(), equalTo("2012-02-15T00:00:00.000Z"));
-        assertThat(bucket.getDocCount(), equalTo(2L));
-
-        bucket = buckets.get(1);
-        assertThat(bucket, notNullValue());
-        assertThat((String) bucket.getKey(), equalTo("2012-02-15T00:00:00.000Z-2012-03-15T00:00:00.000Z"));
-        assertThat(((ZonedDateTime) bucket.getFrom()), equalTo(date(2, 15)));
-        assertThat(((ZonedDateTime) bucket.getTo()), equalTo(date(3, 15)));
-        assertThat(bucket.getFromAsString(), equalTo("2012-02-15T00:00:00.000Z"));
-        assertThat(bucket.getToAsString(), equalTo("2012-03-15T00:00:00.000Z"));
-        assertThat(bucket.getDocCount(), equalTo(2L));
-
-        bucket = buckets.get(2);
-        assertThat(bucket, notNullValue());
-        assertThat((String) bucket.getKey(), equalTo("2012-03-15T00:00:00.000Z-*"));
-        assertThat(((ZonedDateTime) bucket.getFrom()), equalTo(date(3, 15)));
-        assertThat(((ZonedDateTime) bucket.getTo()), nullValue());
-        assertThat(bucket.getFromAsString(), equalTo("2012-03-15T00:00:00.000Z"));
-        assertThat(bucket.getToAsString(), nullValue());
-        assertThat(bucket.getDocCount(), equalTo(numDocs - 4L));
-    }
-
-    /*
-        Jan 2,  Feb 3,      1
-        Feb 2,  Mar 3,      2
-        Feb 15, Mar 16,     3
-        Mar 2,  Apr 3,      4
-        Mar 15, Apr 16      5
-        Mar 23, Apr 24      6
-     */
-
-    public void testScriptMultiValued() throws Exception {
-        Map<String, Object> params = new HashMap<>();
-        params.put("fieldname", "dates");
-        SearchResponse response = client().prepareSearch("idx")
-            .addAggregation(
-                dateRange("range").script(new Script(ScriptType.INLINE, "mockscript", DateScriptMocksPlugin.EXTRACT_FIELD, params))
-                    .addUnboundedTo(date(2, 15))
-                    .addRange(date(2, 15), date(3, 15))
-                    .addUnboundedFrom(date(3, 15))
-            )
-            .get();
-
-        assertSearchResponse(response);
-
-        Range range = response.getAggregations().get("range");
-        assertThat(range, notNullValue());
-        assertThat(range.getName(), equalTo("range"));
-        List<? extends Bucket> buckets = range.getBuckets();
-        assertThat(buckets.size(), equalTo(3));
-
-        Range.Bucket bucket = buckets.get(0);
-        assertThat(bucket, notNullValue());
-        assertThat((String) bucket.getKey(), equalTo("*-2012-02-15T00:00:00.000Z"));
-        assertThat(((ZonedDateTime) bucket.getFrom()), nullValue());
-        assertThat(((ZonedDateTime) bucket.getTo()), equalTo(date(2, 15)));
-        assertThat(bucket.getFromAsString(), nullValue());
-        assertThat(bucket.getToAsString(), equalTo("2012-02-15T00:00:00.000Z"));
-        assertThat(bucket.getDocCount(), equalTo(2L));
-
-        bucket = buckets.get(1);
-        assertThat(bucket, notNullValue());
-        assertThat((String) bucket.getKey(), equalTo("2012-02-15T00:00:00.000Z-2012-03-15T00:00:00.000Z"));
-        assertThat(((ZonedDateTime) bucket.getFrom()), equalTo(date(2, 15)));
-        assertThat(((ZonedDateTime) bucket.getTo()), equalTo(date(3, 15)));
-        assertThat(bucket.getFromAsString(), equalTo("2012-02-15T00:00:00.000Z"));
-        assertThat(bucket.getToAsString(), equalTo("2012-03-15T00:00:00.000Z"));
-        assertThat(bucket.getDocCount(), equalTo(3L));
-
-        bucket = buckets.get(2);
-        assertThat(bucket, notNullValue());
-        assertThat((String) bucket.getKey(), equalTo("2012-03-15T00:00:00.000Z-*"));
-        assertThat(((ZonedDateTime) bucket.getFrom()), equalTo(date(3, 15)));
-        assertThat(((ZonedDateTime) bucket.getTo()), nullValue());
-        assertThat(bucket.getFromAsString(), equalTo("2012-03-15T00:00:00.000Z"));
-        assertThat(bucket.getToAsString(), nullValue());
-        assertThat(bucket.getDocCount(), equalTo(numDocs - 2L));
-    }
-
-    public void testUnmapped() throws Exception {
-        client().admin().cluster().prepareHealth("idx_unmapped").setWaitForYellowStatus().get();
-
-        SearchResponse response = client().prepareSearch("idx_unmapped")
-            .addAggregation(
-                dateRange("range").field("date")
-                    .addUnboundedTo(date(2, 15))
-                    .addRange(date(2, 15), date(3, 15))
-                    .addUnboundedFrom(date(3, 15))
-            )
-            .get();
-
-        assertSearchResponse(response);
-
-        Range range = response.getAggregations().get("range");
-        assertThat(range, notNullValue());
-        assertThat(range.getName(), equalTo("range"));
-        List<? extends Bucket> buckets = range.getBuckets();
-        assertThat(buckets.size(), equalTo(3));
-
-        Range.Bucket bucket = buckets.get(0);
-        assertThat(bucket, notNullValue());
-        assertThat((String) bucket.getKey(), equalTo("*-2012-02-15T00:00:00.000Z"));
-        assertThat(((ZonedDateTime) bucket.getFrom()), nullValue());
-        assertThat(((ZonedDateTime) bucket.getTo()), equalTo(date(2, 15)));
-        assertThat(bucket.getFromAsString(), nullValue());
-        assertThat(bucket.getToAsString(), equalTo("2012-02-15T00:00:00.000Z"));
-        assertThat(bucket.getDocCount(), equalTo(0L));
-
-        bucket = buckets.get(1);
-        assertThat(bucket, notNullValue());
-        assertThat((String) bucket.getKey(), equalTo("2012-02-15T00:00:00.000Z-2012-03-15T00:00:00.000Z"));
-        assertThat(((ZonedDateTime) bucket.getFrom()), equalTo(date(2, 15)));
-        assertThat(((ZonedDateTime) bucket.getTo()), equalTo(date(3, 15)));
-        assertThat(bucket.getFromAsString(), equalTo("2012-02-15T00:00:00.000Z"));
-        assertThat(bucket.getToAsString(), equalTo("2012-03-15T00:00:00.000Z"));
-        assertThat(bucket.getDocCount(), equalTo(0L));
-
-        bucket = buckets.get(2);
-        assertThat(bucket, notNullValue());
-        assertThat((String) bucket.getKey(), equalTo("2012-03-15T00:00:00.000Z-*"));
-        assertThat(((ZonedDateTime) bucket.getFrom()), equalTo(date(3, 15)));
-        assertThat(((ZonedDateTime) bucket.getTo()), nullValue());
-        assertThat(bucket.getFromAsString(), equalTo("2012-03-15T00:00:00.000Z"));
-        assertThat(bucket.getToAsString(), nullValue());
-        assertThat(bucket.getDocCount(), equalTo(0L));
-    }
-
-    public void testUnmappedWithStringDates() throws Exception {
-        SearchResponse response = client().prepareSearch("idx_unmapped")
-            .addAggregation(
-                dateRange("range").field("date")
-                    .addUnboundedTo("2012-02-15")
-                    .addRange("2012-02-15", "2012-03-15")
-                    .addUnboundedFrom("2012-03-15")
-            )
-            .get();
-
-        assertSearchResponse(response);
-
-        Range range = response.getAggregations().get("range");
-        assertThat(range, notNullValue());
-        assertThat(range.getName(), equalTo("range"));
-        List<? extends Bucket> buckets = range.getBuckets();
-        assertThat(buckets.size(), equalTo(3));
-
-        Range.Bucket bucket = buckets.get(0);
-        assertThat(bucket, notNullValue());
-        assertThat((String) bucket.getKey(), equalTo("*-2012-02-15T00:00:00.000Z"));
-        assertThat(((ZonedDateTime) bucket.getFrom()), nullValue());
-        assertThat(((ZonedDateTime) bucket.getTo()), equalTo(date(2, 15)));
-        assertThat(bucket.getFromAsString(), nullValue());
-        assertThat(bucket.getToAsString(), equalTo("2012-02-15T00:00:00.000Z"));
-        assertThat(bucket.getDocCount(), equalTo(0L));
-
-        bucket = buckets.get(1);
-        assertThat(bucket, notNullValue());
-        assertThat((String) bucket.getKey(), equalTo("2012-02-15T00:00:00.000Z-2012-03-15T00:00:00.000Z"));
-        assertThat(((ZonedDateTime) bucket.getFrom()), equalTo(date(2, 15)));
-        assertThat(((ZonedDateTime) bucket.getTo()), equalTo(date(3, 15)));
-        assertThat(bucket.getFromAsString(), equalTo("2012-02-15T00:00:00.000Z"));
-        assertThat(bucket.getToAsString(), equalTo("2012-03-15T00:00:00.000Z"));
-        assertThat(bucket.getDocCount(), equalTo(0L));
-
-        bucket = buckets.get(2);
-        assertThat(bucket, notNullValue());
-        assertThat((String) bucket.getKey(), equalTo("2012-03-15T00:00:00.000Z-*"));
-        assertThat(((ZonedDateTime) bucket.getFrom()), equalTo(date(3, 15)));
-        assertThat(((ZonedDateTime) bucket.getTo()), nullValue());
-        assertThat(bucket.getFromAsString(), equalTo("2012-03-15T00:00:00.000Z"));
-        assertThat(bucket.getToAsString(), nullValue());
-        assertThat(bucket.getDocCount(), equalTo(0L));
-    }
-
     public void testPartiallyUnmapped() throws Exception {
         SearchResponse response = client().prepareSearch("idx", "idx_unmapped")
             .addAggregation(
@@ -905,25 +639,11 @@ public class DateRangeIT extends ESIntegTestCase {
 
         // Make sure we are starting with a clear cache
         assertThat(
-            client().admin()
-                .indices()
-                .prepareStats("cache_test_idx")
-                .setRequestCache(true)
-                .get()
-                .getTotal()
-                .getRequestCache()
-                .getHitCount(),
+            indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
             equalTo(0L)
         );
         assertThat(
-            client().admin()
-                .indices()
-                .prepareStats("cache_test_idx")
-                .setRequestCache(true)
-                .get()
-                .getTotal()
-                .getRequestCache()
-                .getMissCount(),
+            indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
             equalTo(0L)
         );
 
@@ -944,25 +664,11 @@ public class DateRangeIT extends ESIntegTestCase {
         assertSearchResponse(r);
 
         assertThat(
-            client().admin()
-                .indices()
-                .prepareStats("cache_test_idx")
-                .setRequestCache(true)
-                .get()
-                .getTotal()
-                .getRequestCache()
-                .getHitCount(),
+            indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
             equalTo(0L)
         );
         assertThat(
-            client().admin()
-                .indices()
-                .prepareStats("cache_test_idx")
-                .setRequestCache(true)
-                .get()
-                .getTotal()
-                .getRequestCache()
-                .getMissCount(),
+            indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
             equalTo(0L)
         );
 
@@ -981,25 +687,11 @@ public class DateRangeIT extends ESIntegTestCase {
         assertSearchResponse(r);
 
         assertThat(
-            client().admin()
-                .indices()
-                .prepareStats("cache_test_idx")
-                .setRequestCache(true)
-                .get()
-                .getTotal()
-                .getRequestCache()
-                .getHitCount(),
+            indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
             equalTo(0L)
         );
         assertThat(
-            client().admin()
-                .indices()
-                .prepareStats("cache_test_idx")
-                .setRequestCache(true)
-                .get()
-                .getTotal()
-                .getRequestCache()
-                .getMissCount(),
+            indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
             equalTo(1L)
         );
 
@@ -1017,25 +709,11 @@ public class DateRangeIT extends ESIntegTestCase {
         assertSearchResponse(r);
 
         assertThat(
-            client().admin()
-                .indices()
-                .prepareStats("cache_test_idx")
-                .setRequestCache(true)
-                .get()
-                .getTotal()
-                .getRequestCache()
-                .getHitCount(),
+            indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
             equalTo(0L)
         );
         assertThat(
-            client().admin()
-                .indices()
-                .prepareStats("cache_test_idx")
-                .setRequestCache(true)
-                .get()
-                .getTotal()
-                .getRequestCache()
-                .getMissCount(),
+            indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
             equalTo(2L)
         );
     }

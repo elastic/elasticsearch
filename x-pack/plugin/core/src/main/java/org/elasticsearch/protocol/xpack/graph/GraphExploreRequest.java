@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.protocol.xpack.graph;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
@@ -111,7 +111,7 @@ public class GraphExploreRequest extends ActionRequest implements IndicesRequest
 
         indices = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
-        if (in.getVersion().before(Version.V_8_0_0)) {
+        if (in.getTransportVersion().before(TransportVersion.V_8_0_0)) {
             String[] types = in.readStringArray();
             assert types.length == 0;
         }
@@ -180,7 +180,7 @@ public class GraphExploreRequest extends ActionRequest implements IndicesRequest
         super.writeTo(out);
         out.writeStringArray(indices);
         indicesOptions.writeIndicesOptions(out);
-        if (out.getVersion().before(Version.V_8_0_0)) {
+        if (out.getTransportVersion().before(TransportVersion.V_8_0_0)) {
             out.writeStringArray(Strings.EMPTY_ARRAY);
         }
         out.writeOptionalString(routing);

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.upgrades;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
@@ -19,7 +20,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
-import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
@@ -46,6 +46,7 @@ import static org.hamcrest.Matchers.is;
  * </ul>
  */
 @SuppressWarnings("removal")
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/94459")
 public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
 
     private enum TestStep {
@@ -243,11 +244,7 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
     private List<Map<String, Object>> listSnapshots(String repoName) throws IOException {
         try (
             InputStream entity = client().performRequest(new Request("GET", "/_snapshot/" + repoName + "/_all")).getEntity().getContent();
-            XContentParser parser = JsonXContent.jsonXContent.createParser(
-                xContentRegistry(),
-                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                entity
-            )
+            XContentParser parser = createParser(JsonXContent.jsonXContent, entity)
         ) {
             return (List<Map<String, Object>>) parser.map().get("snapshots");
         }
@@ -285,7 +282,7 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
 
     private void createIndex(String name, int shards) throws IOException {
         final Request putIndexRequest = new Request("PUT", "/" + name);
-        putIndexRequest.setJsonEntity("""
+        putIndexRequest.setJsonEntity(Strings.format("""
             {
                 "settings" : {
                     "index" : {
@@ -293,7 +290,7 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
                         "number_of_replicas" : 0
                     }
                 }
-            }""".formatted(shards));
+            }""", shards));
         final Response response = client().performRequest(putIndexRequest);
         assertThat(response.getStatusLine().getStatusCode(), is(HttpURLConnection.HTTP_OK));
     }

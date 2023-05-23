@@ -23,4 +23,9 @@ public class GetUsersRequestBuilder extends ActionRequestBuilder<GetUsersRequest
         request.usernames(usernames);
         return this;
     }
+
+    public GetUsersRequestBuilder withProfileUid(boolean withProfileUid) {
+        request.setWithProfileUid(withProfileUid);
+        return this;
+    }
 }

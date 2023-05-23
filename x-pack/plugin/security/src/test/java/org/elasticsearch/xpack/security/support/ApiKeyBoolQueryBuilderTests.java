@@ -69,11 +69,19 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
         final QueryBuilder query = randomSimpleQuery("name");
         final ApiKeyBoolQueryBuilder apiKeysQuery = ApiKeyBoolQueryBuilder.build(query, authentication);
         assertThat(apiKeysQuery.filter().get(0), is(QueryBuilders.termQuery("doc_type", "api_key")));
-        assertThat(apiKeysQuery.filter().get(1), is(QueryBuilders.termQuery("creator.principal", authentication.getUser().principal())));
-        if (authentication.getDomain().realms().size() == 1) {
+        assertThat(
+            apiKeysQuery.filter().get(1),
+            is(QueryBuilders.termQuery("creator.principal", authentication.getEffectiveSubject().getUser().principal()))
+        );
+        if (authentication.getEffectiveSubject().getRealm().getDomain().realms().size() == 1) {
             assertThat(
                 apiKeysQuery.filter().get(2),
-                is(QueryBuilders.termQuery("creator.realm", authentication.getDomain().realms().stream().findFirst().get().getName()))
+                is(
+                    QueryBuilders.termQuery(
+                        "creator.realm",
+                        authentication.getEffectiveSubject().getRealm().getDomain().realms().stream().findFirst().get().getName()
+                    )
+                )
             );
         } else {
             assertThat(apiKeysQuery.filter().get(2), instanceOf(BoolQueryBuilder.class));
@@ -81,7 +89,7 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
             assertThat(((BoolQueryBuilder) apiKeysQuery.filter().get(2)).mustNot().size(), is(0));
             assertThat(((BoolQueryBuilder) apiKeysQuery.filter().get(2)).filter().size(), is(0));
             assertThat(((BoolQueryBuilder) apiKeysQuery.filter().get(2)).minimumShouldMatch(), is("1"));
-            for (RealmConfig.RealmIdentifier realmIdentifier : authentication.getDomain().realms()) {
+            for (RealmConfig.RealmIdentifier realmIdentifier : authentication.getEffectiveSubject().getRealm().getDomain().realms()) {
                 assertThat(
                     ((BoolQueryBuilder) apiKeysQuery.filter().get(2)).should(),
                     hasItem(QueryBuilders.termQuery("creator.realm", realmIdentifier.getName()))
@@ -327,7 +335,10 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
             return;
         }
         assertTrue(
-            tqb.stream().anyMatch(q -> q.equals(QueryBuilders.termQuery("creator.principal", authentication.getUser().principal())))
+            tqb.stream()
+                .anyMatch(
+                    q -> q.equals(QueryBuilders.termQuery("creator.principal", authentication.getEffectiveSubject().getUser().principal()))
+                )
         );
         assertTrue(
             tqb.stream()

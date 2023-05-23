@@ -31,8 +31,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class FileInfoTests extends ESTestCase {
-    private static final org.apache.lucene.util.Version MIN_SUPPORTED_LUCENE_VERSION = org.elasticsearch.Version.CURRENT
-        .minimumIndexCompatibilityVersion().luceneVersion;
+    private static final Version MIN_SUPPORTED_LUCENE_VERSION = org.elasticsearch.Version.CURRENT.minimumIndexCompatibilityVersion()
+        .luceneVersion();
 
     public void testToFromXContent() throws IOException {
         final int iters = scaledRandomIntBetween(1, 10);
@@ -51,7 +51,7 @@ public class FileInfoTests extends ESTestCase {
                 hash,
                 writerUuid
             );
-            ByteSizeValue size = new ByteSizeValue(Math.abs(randomLong()));
+            ByteSizeValue size = ByteSizeValue.ofBytes(Math.abs(randomLong()));
             BlobStoreIndexShardSnapshot.FileInfo info = new BlobStoreIndexShardSnapshot.FileInfo("_foobar", meta, size);
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON).prettyPrint();
             boolean serializeWriterUUID = randomBoolean();
@@ -164,7 +164,7 @@ public class FileInfoTests extends ESTestCase {
         BlobStoreIndexShardSnapshot.FileInfo info = new BlobStoreIndexShardSnapshot.FileInfo(
             "foo",
             new StoreFileMetadata("foo", 36, "666", MIN_SUPPORTED_LUCENE_VERSION.toString()),
-            new ByteSizeValue(6)
+            ByteSizeValue.ofBytes(6)
         );
         int numBytes = 0;
         for (int i = 0; i < info.numberOfParts(); i++) {
@@ -175,7 +175,7 @@ public class FileInfoTests extends ESTestCase {
         info = new BlobStoreIndexShardSnapshot.FileInfo(
             "foo",
             new StoreFileMetadata("foo", 35, "666", MIN_SUPPORTED_LUCENE_VERSION.toString()),
-            new ByteSizeValue(6)
+            ByteSizeValue.ofBytes(6)
         );
         numBytes = 0;
         for (int i = 0; i < info.numberOfParts(); i++) {
@@ -190,7 +190,7 @@ public class FileInfoTests extends ESTestCase {
                 "666",
                 MIN_SUPPORTED_LUCENE_VERSION.toString()
             );
-            info = new BlobStoreIndexShardSnapshot.FileInfo("foo", metadata, new ByteSizeValue(randomIntBetween(1, 1000)));
+            info = new BlobStoreIndexShardSnapshot.FileInfo("foo", metadata, ByteSizeValue.ofBytes(randomIntBetween(1, 1000)));
             numBytes = 0;
             for (int i = 0; i < info.numberOfParts(); i++) {
                 numBytes += info.partBytes(i);

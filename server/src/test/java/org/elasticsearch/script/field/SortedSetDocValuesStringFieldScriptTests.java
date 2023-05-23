@@ -40,7 +40,7 @@ public class SortedSetDocValuesStringFieldScriptTests extends ESTestCase {
             try (DirectoryReader reader = iw.getReader()) {
                 SortedSetDocValuesStringFieldScript docValues = new SortedSetDocValuesStringFieldScript(
                     "test",
-                    new SearchLookup(field -> null, (ft, lookup) -> null),
+                    new SearchLookup(field -> null, (ft, lookup, ftd) -> null, (ctx, doc) -> null),
                     reader.leaves().get(0)
                 );
                 List<String> values = new ArrayList<>();

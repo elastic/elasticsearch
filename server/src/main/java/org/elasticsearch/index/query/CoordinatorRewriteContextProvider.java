@@ -10,7 +10,6 @@ package org.elasticsearch.index.query;
 
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -23,7 +22,6 @@ import java.util.function.Supplier;
 
 public class CoordinatorRewriteContextProvider {
     private final XContentParserConfiguration parserConfig;
-    private final NamedWriteableRegistry writeableRegistry;
     private final Client client;
     private final LongSupplier nowInMillis;
     private final Supplier<ClusterState> clusterStateSupplier;
@@ -31,14 +29,12 @@ public class CoordinatorRewriteContextProvider {
 
     public CoordinatorRewriteContextProvider(
         XContentParserConfiguration parserConfig,
-        NamedWriteableRegistry writeableRegistry,
         Client client,
         LongSupplier nowInMillis,
         Supplier<ClusterState> clusterStateSupplier,
         Function<Index, DateFieldMapper.DateFieldType> mappingSupplier
     ) {
         this.parserConfig = parserConfig;
-        this.writeableRegistry = writeableRegistry;
         this.client = client;
         this.nowInMillis = nowInMillis;
         this.clusterStateSupplier = clusterStateSupplier;
@@ -67,6 +63,6 @@ public class CoordinatorRewriteContextProvider {
             return null;
         }
 
-        return new CoordinatorRewriteContext(parserConfig, writeableRegistry, client, nowInMillis, timestampRange, dateFieldType);
+        return new CoordinatorRewriteContext(parserConfig, client, nowInMillis, timestampRange, dateFieldType);
     }
 }

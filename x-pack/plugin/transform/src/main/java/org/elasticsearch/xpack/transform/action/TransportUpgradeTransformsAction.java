@@ -158,6 +158,7 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
                 settings,
                 client,
                 transformConfigManager,
+                auditor,
                 config,
                 update,
                 configAndVersion.v2(),
@@ -170,7 +171,7 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
         }, failure -> {
             // ignore if transform got deleted while upgrade was running
             if (failure instanceof ResourceNotFoundException) {
-                listener.onResponse(new UpdateResult(null, UpdateResult.Status.DELETED));
+                listener.onResponse(new UpdateResult(null, null, UpdateResult.Status.DELETED));
             } else {
                 listener.onFailure(failure);
             }
@@ -211,7 +212,7 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
         TimeValue timeout,
         ActionListener<Map<UpdateResult.Status, Long>> listener
     ) {
-        transformConfigManager.getAllOutdatedTransformIds(ActionListener.wrap(totalAndIds -> {
+        transformConfigManager.getAllOutdatedTransformIds(timeout, ActionListener.wrap(totalAndIds -> {
 
             // exit quickly if there is nothing to do
             if (totalAndIds.v2().isEmpty()) {

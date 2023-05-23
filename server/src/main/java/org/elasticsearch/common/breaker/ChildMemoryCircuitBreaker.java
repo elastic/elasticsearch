@@ -66,12 +66,12 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
             + " would be ["
             + bytesNeeded
             + "/"
-            + new ByteSizeValue(bytesNeeded)
+            + ByteSizeValue.ofBytes(bytesNeeded)
             + "]"
             + ", which is larger than the limit of ["
             + memoryBytesLimit
             + "/"
-            + new ByteSizeValue(memoryBytesLimit)
+            + ByteSizeValue.ofBytes(memoryBytesLimit)
             + "]";
         logger.debug(() -> format("%s", message));
         throw new CircuitBreakingException(message, bytesNeeded, memoryBytesLimit, durability);
@@ -124,9 +124,9 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
             () -> format(
                 "[%s] Adding [%s][%s] to used bytes [new used: [%s], limit: [-1b]]",
                 this.name,
-                new ByteSizeValue(bytes),
+                ByteSizeValue.ofBytes(bytes),
                 label,
-                new ByteSizeValue(newUsed)
+                ByteSizeValue.ofBytes(newUsed)
             )
         );
         return newUsed;
@@ -145,13 +145,13 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
                 logger.trace(
                     "[{}] Adding [{}][{}] to used bytes [new used: [{}], limit: {} [{}], estimate: {} [{}]]",
                     this.name,
-                    new ByteSizeValue(bytes),
+                    ByteSizeValue.ofBytes(bytes),
                     label,
-                    new ByteSizeValue(newUsed),
+                    ByteSizeValue.ofBytes(newUsed),
                     memoryBytesLimit,
-                    new ByteSizeValue(memoryBytesLimit),
+                    ByteSizeValue.ofBytes(memoryBytesLimit),
                     newUsedWithOverhead,
-                    new ByteSizeValue(newUsedWithOverhead)
+                    ByteSizeValue.ofBytes(newUsedWithOverhead)
                 );
             }
             if (memoryBytesLimit > 0 && newUsedWithOverhead > memoryBytesLimit) {
@@ -159,10 +159,10 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
                     "[{}] New used memory {} [{}] for data of [{}] would be larger than configured breaker: {} [{}], breaking",
                     this.name,
                     newUsedWithOverhead,
-                    new ByteSizeValue(newUsedWithOverhead),
+                    ByteSizeValue.ofBytes(newUsedWithOverhead),
                     label,
                     memoryBytesLimit,
-                    new ByteSizeValue(memoryBytesLimit)
+                    ByteSizeValue.ofBytes(memoryBytesLimit)
                 );
                 circuitBreak(label, newUsedWithOverhead);
             }

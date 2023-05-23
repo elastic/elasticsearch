@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.IndexableField;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -19,8 +20,8 @@ public abstract class WholeNumberFieldMapperTests extends NumberFieldMapperTests
     protected void testDecimalCoerce() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "7.89")));
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        IndexableField pointField = fields[0];
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        IndexableField pointField = fields.get(0);
         assertEquals(7, pointField.numericValue().doubleValue(), 0d);
     }
 
@@ -75,7 +76,7 @@ public abstract class WholeNumberFieldMapperTests extends NumberFieldMapperTests
         }));
 
         Exception e = expectThrows(
-            MapperParsingException.class,
+            DocumentParsingException.class,
             () -> mapper.parse(source(b -> b.array("field", randomNumber(), randomNumber(), randomNumber())))
         );
         assertThat(e.getCause().getMessage(), containsString("Dimension field [field] cannot be a multi-valued field"));
@@ -101,7 +102,7 @@ public abstract class WholeNumberFieldMapperTests extends NumberFieldMapperTests
     }
 
     @Override
-    protected SyntheticSourceSupport syntheticSourceSupport() {
-        return new NumberSyntheticSourceSupport(Number::longValue);
+    protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
+        return new NumberSyntheticSourceSupport(Number::longValue, ignoreMalformed);
     }
 }

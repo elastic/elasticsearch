@@ -66,22 +66,22 @@ public class AnnotationPersister {
     }
 
     public Builder bulkPersisterBuilder(String jobId) {
-        return new Builder(jobId);
+        return new Builder(jobId, () -> true);
+    }
+
+    public Builder bulkPersisterBuilder(String jobId, Supplier<Boolean> shouldRetry) {
+        return new Builder(jobId, shouldRetry);
     }
 
     public class Builder {
 
         private final String jobId;
         private BulkRequest bulkRequest = new BulkRequest(AnnotationIndex.WRITE_ALIAS_NAME);
-        private Supplier<Boolean> shouldRetry = () -> true;
+        private final Supplier<Boolean> shouldRetry;
 
-        private Builder(String jobId) {
+        private Builder(String jobId, Supplier<Boolean> shouldRetry) {
             this.jobId = Objects.requireNonNull(jobId);
-        }
-
-        public Builder shouldRetry(Supplier<Boolean> shouldRetry) {
             this.shouldRetry = Objects.requireNonNull(shouldRetry);
-            return this;
         }
 
         public Builder persistAnnotation(Annotation annotation) {

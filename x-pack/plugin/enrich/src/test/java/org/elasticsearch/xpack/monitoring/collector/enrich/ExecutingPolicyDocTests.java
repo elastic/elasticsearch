@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.monitoring.MonitoringTemplateRegistry;
 import org.elasticsearch.xpack.monitoring.exporter.BaseMonitoringDocTestCase;
 
 import java.io.IOException;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 
@@ -74,61 +73,54 @@ public class ExecutingPolicyDocTests extends BaseMonitoringDocTestCase<Executing
         final ExecutingPolicyDoc document = new ExecutingPolicyDoc("_cluster", timestamp, intervalMillis, node, executingPolicy);
         final BytesReference xContent = XContentHelper.toXContent(document, XContentType.JSON, false);
         Optional<Map.Entry<String, String>> header = executingPolicy.getTaskInfo().headers().entrySet().stream().findAny();
-        assertThat(
-            xContent.utf8ToString(),
-            equalTo(
-                XContentHelper.stripWhitespace(
-                    """
-                        {
-                          "cluster_uuid": "_cluster",
-                          "timestamp": "%s",
-                          "interval_ms": %s,
-                          "type": "enrich_executing_policy_stats",
-                          "source_node": {
-                            "uuid": "_uuid",
-                            "host": "_host",
-                            "transport_address": "_addr",
-                            "ip": "_ip",
-                            "name": "_name",
-                            "timestamp": "%s"
-                          },
-                          "enrich_executing_policy_stats": {
-                            "name": "%s",
-                            "task": {
-                              "node": "%s",
-                              "id": %s,
-                              "type": "%s",
-                              "action": "%s",
-                              "description": "%s",
-                              "start_time_in_millis": %s,
-                              "running_time_in_nanos": %s,
-                              "cancellable": %s,
-                              %s
-                              "headers": %s
-                            }
-                          }
-                        }""".formatted(
-                        DATE_TIME_FORMATTER.formatMillis(timestamp),
-                        intervalMillis,
-                        DATE_TIME_FORMATTER.formatMillis(nodeTimestamp),
-                        executingPolicy.getName(),
-                        executingPolicy.getTaskInfo().taskId().getNodeId(),
-                        executingPolicy.getTaskInfo().taskId().getId(),
-                        executingPolicy.getTaskInfo().type(),
-                        executingPolicy.getTaskInfo().action(),
-                        executingPolicy.getTaskInfo().description(),
-                        executingPolicy.getTaskInfo().startTime(),
-                        executingPolicy.getTaskInfo().runningTimeNanos(),
-                        executingPolicy.getTaskInfo().cancellable(),
-                        executingPolicy.getTaskInfo().cancellable()
-                            ? "\"cancelled\": %s,".formatted(executingPolicy.getTaskInfo().cancelled())
-                            : "",
-                        header.map(entry -> String.format(Locale.ROOT, """
-                            {"%s":"%s"}""", entry.getKey(), entry.getValue())).orElse("{}")
-                    )
-                )
-            )
-        );
+        Object[] args = new Object[] {
+            DATE_TIME_FORMATTER.formatMillis(timestamp),
+            intervalMillis,
+            DATE_TIME_FORMATTER.formatMillis(nodeTimestamp),
+            executingPolicy.getName(),
+            executingPolicy.getTaskInfo().taskId().getNodeId(),
+            executingPolicy.getTaskInfo().taskId().getId(),
+            executingPolicy.getTaskInfo().type(),
+            executingPolicy.getTaskInfo().action(),
+            executingPolicy.getTaskInfo().description(),
+            executingPolicy.getTaskInfo().startTime(),
+            executingPolicy.getTaskInfo().runningTimeNanos(),
+            executingPolicy.getTaskInfo().cancellable(),
+            executingPolicy.getTaskInfo().cancellable()
+                ? Strings.format("\"cancelled\": %s,", executingPolicy.getTaskInfo().cancelled())
+                : "",
+            header.map(entry -> { return Strings.format("""
+                {"%s":"%s"}""", entry.getKey(), entry.getValue()); }).orElse("{}") };
+        assertThat(xContent.utf8ToString(), equalTo(XContentHelper.stripWhitespace(Strings.format("""
+            {
+              "cluster_uuid": "_cluster",
+              "timestamp": "%s",
+              "interval_ms": %s,
+              "type": "enrich_executing_policy_stats",
+              "source_node": {
+                "uuid": "_uuid",
+                "host": "_host",
+                "transport_address": "_addr",
+                "ip": "_ip",
+                "name": "_name",
+                "timestamp": "%s"
+              },
+              "enrich_executing_policy_stats": {
+                "name": "%s",
+                "task": {
+                  "node": "%s",
+                  "id": %s,
+                  "type": "%s",
+                  "action": "%s",
+                  "description": "%s",
+                  "start_time_in_millis": %s,
+                  "running_time_in_nanos": %s,
+                  "cancellable": %s,
+                  %s
+                  "headers": %s
+                }
+              }
+            }""", args))));
     }
 
     public void testEnrichCoordinatorStatsFieldsMapped() throws IOException {

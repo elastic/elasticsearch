@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.mapper.vectors;
 
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
@@ -18,7 +19,7 @@ public class SparseVectorFieldTypeTests extends FieldTypeTestCase {
     public void testDocValuesDisabled() {
         MappedFieldType fieldType = new SparseVectorFieldMapper.SparseVectorFieldType("field", Collections.emptyMap());
         assertFalse(fieldType.hasDocValues());
-        expectThrows(IllegalArgumentException.class, () -> fieldType.fielddataBuilder("index", null));
+        expectThrows(IllegalArgumentException.class, () -> fieldType.fielddataBuilder(FieldDataContext.noRuntimeFields("test")));
     }
 
     public void testIsNotAggregatable() {

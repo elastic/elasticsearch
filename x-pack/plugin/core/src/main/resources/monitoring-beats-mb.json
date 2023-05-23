@@ -735,13 +735,16 @@
                     "config": {
                       "properties": {
                         "running": {
-                          "type": "short"
+                          "type": "long"
                         },
                         "starts": {
-                          "type": "short"
+                          "type": "long"
                         },
                         "stops": {
-                          "type": "short"
+                          "type": "long"
+                        },
+                        "reloads": {
+                          "type": "long"
                         }
                       }
                     },
@@ -1649,6 +1652,26 @@
                             "id": {
                               "type": "alias",
                               "path": "beat.stats.cgroup.memory.id"
+                            },
+                            "mem": {
+                              "properties": {
+                                "usage": {
+                                  "properties": {
+                                    "bytes": {
+                                      "type": "alias",
+                                      "path": "beat.stats.cgroup.memory.mem.usage.bytes"
+                                    }
+                                  }
+                                },
+                                "limit": {
+                                  "properties": {
+                                    "bytes": {
+                                      "type": "alias",
+                                      "path": "beat.stats.cgroup.memory.mem.limit.bytes"
+                                    }
+                                  }
+                                }
+                              }
                             }
                           }
                         }
@@ -1787,6 +1810,10 @@
                               "path": "beat.stats.libbeat.config.stops"
                             }
                           }
+                        },
+                        "reloads": {
+                          "type": "alias",
+                          "path": "beat.stats.libbeat.config.reloads"
                         }
                       }
                     },
@@ -2238,6 +2265,7 @@
       }
     },
     "settings": {
+      "index.auto_expand_replicas": "0-1",
       "index.mapping.total_fields.limit": 2000,
       "index.lifecycle.name": "${xpack.stack.monitoring.policy.name}"
     }

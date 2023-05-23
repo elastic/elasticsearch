@@ -37,7 +37,8 @@ public class EqlRestValidationIT extends EqlRestValidationTestCase {
         assertErrorMessage(
             "inexistent1,inexistent2",
             reqParameter,
-            getInexistentIndexErrorMessage() + "[" + indexPattern("inexistent1") + "," + indexPattern("inexistent2") + "]\""
+            getInexistentIndexErrorMessage()
+                + "[null]\",\"resource.type\":\"index_expression\",\"resource.id\":[\"inexistent1\",\"inexistent2\"]}]"
         );
     }
 

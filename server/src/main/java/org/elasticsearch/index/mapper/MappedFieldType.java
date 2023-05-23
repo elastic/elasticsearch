@@ -34,6 +34,7 @@ import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.query.DistanceFeatureQueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -41,15 +42,15 @@ import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.fetch.subphase.FetchFieldsPhase;
-import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.time.ZoneId;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
@@ -82,15 +83,23 @@ public abstract class MappedFieldType {
     }
 
     /**
+     * Operation to specify what data structures are used to retrieve
+     * field data from and generate a representation of doc values.
+     */
+    public enum FielddataOperation {
+        SEARCH,
+        SCRIPT
+    }
+
+    /**
      * Return a fielddata builder for this field
      *
-     * @param fullyQualifiedIndexName the name of the index this field-data is build for
-     * @param searchLookup a {@link SearchLookup} supplier to allow for accessing other fields values in the context of runtime fields
+     * @param fieldDataContext the context for the fielddata
      * @throws IllegalArgumentException if the fielddata is not supported on this type.
      * An IllegalArgumentException is needed in order to return an http error 400
      * when this error occurs in a request. see: {@link org.elasticsearch.ExceptionsHelper#status}
      */
-    public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+    public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
         throw new IllegalArgumentException("Fielddata is not supported on field [" + name() + "] of type [" + typeName() + "]");
     }
 
@@ -167,16 +176,11 @@ public abstract class MappedFieldType {
         return null;
     }
 
-    /** Returns true if the field is aggregatable.
-     *
+    /**
+     * Returns true if the field is aggregatable.
      */
     public boolean isAggregatable() {
-        try {
-            fielddataBuilder("", () -> { throw new UnsupportedOperationException("SearchLookup not available"); });
-            return true;
-        } catch (IllegalArgumentException e) {
-            return false;
-        }
+        return hasDocValues();
     }
 
     /**
@@ -184,6 +188,15 @@ public abstract class MappedFieldType {
      */
     public boolean isDimension() {
         return false;
+    }
+
+    /**
+     * @return a list of dimension fields. Expected to be used by fields that have
+     * nested fields or that, in some way, identify a collection of fields by means
+     * of a top level field (like flattened fields).
+     */
+    public List<String> dimensions() {
+        return Collections.emptyList();
     }
 
     /**
@@ -246,11 +259,23 @@ public abstract class MappedFieldType {
         int prefixLength,
         int maxExpansions,
         boolean transpositions,
-        SearchExecutionContext context
+        SearchExecutionContext context,
+        @Nullable MultiTermQuery.RewriteMethod rewriteMethod
     ) {
         throw new IllegalArgumentException(
             "Can only use fuzzy queries on keyword and text fields - not on [" + name + "] which is of type [" + typeName() + "]"
         );
+    }
+
+    public Query fuzzyQuery(
+        Object value,
+        Fuzziness fuzziness,
+        int prefixLength,
+        int maxExpansions,
+        boolean transpositions,
+        SearchExecutionContext context
+    ) {
+        return fuzzyQuery(value, fuzziness, prefixLength, maxExpansions, transpositions, context, null);
     }
 
     // Case sensitive form of prefix query
@@ -576,25 +601,26 @@ public abstract class MappedFieldType {
      * If fields cannot look up matching terms quickly they should return null.
      * The returned TermEnum should implement next(), term() and doc_freq() methods
      * but postings etc are not required.
-     * @param caseInsensitive if matches should be case insensitive
-     * @param string the partially complete word the user has typed (can be empty)
-     * @param queryShardContext the shard context
+     * @param reader an index reader
+     * @param prefix the partially complete word the user has typed (can be empty)
+     * @param caseInsensitive if prefix matches should be case insensitive
      * @param searchAfter - usually null. If supplied the TermsEnum result must be positioned after the provided term (used for pagination)
-     * @return null or an enumeration of matching terms and their doc frequencies
+     * @return null or an enumeration of matching terms
      * @throws IOException Errors accessing data
      */
-    public TermsEnum getTerms(boolean caseInsensitive, String string, SearchExecutionContext queryShardContext, String searchAfter)
-        throws IOException {
+    public TermsEnum getTerms(IndexReader reader, String prefix, boolean caseInsensitive, String searchAfter) throws IOException {
         return null;
     }
 
     /**
      * Validate that this field can be the target of {@link IndexMetadata#INDEX_ROUTING_PATH}.
      */
-    public void validateMatchedRoutingPath() {
+    public void validateMatchedRoutingPath(String routingPath) {
         throw new IllegalArgumentException(
-            "All fields that match routing_path must be keywords with [time_series_dimension: true] "
-                + "and without the [script] parameter. ["
+            "All fields that match routing_path "
+                + "must be keywords with [time_series_dimension: true] "
+                + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
+                + "without the [script] parameter. ["
                 + name()
                 + "] was ["
                 + typeName()

@@ -18,6 +18,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.Strings;
+import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.test.rest.ObjectPath;
 
@@ -79,7 +81,7 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
             pauseFollow(allowedIndex);
             // Make sure that there are no other ccr relates operations running:
             assertBusy(() -> {
-                assertNoPersistentTasks();
+                assertNoPendingPersistentTasks();
                 assertThat(getCcrNodeTasks(), empty());
             });
 
@@ -88,7 +90,7 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
             pauseFollow(allowedIndex);
             // Make sure that there are no other ccr relates operations running:
             assertBusy(() -> {
-                assertNoPersistentTasks();
+                assertNoPendingPersistentTasks();
                 assertThat(getCcrNodeTasks(), empty());
             });
 
@@ -204,8 +206,7 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
         final String forgetFollower = "forget-follower";
         if ("leader".equals(targetCluster)) {
             logger.info("running against leader cluster");
-            final Settings indexSettings = Settings.builder().put("index.number_of_replicas", 0).put("index.number_of_shards", 1).build();
-            createIndex(adminClient(), forgetLeader, indexSettings);
+            createIndex(adminClient(), forgetLeader, indexSettings(1, 0).build());
         } else {
             logger.info("running against follower cluster");
             followIndex(client(), "leader_cluster", forgetLeader, forgetFollower);
@@ -217,13 +218,13 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
 
             try (RestClient leaderClient = buildLeaderClient(restAdminSettings())) {
                 final Request request = new Request("POST", "/" + forgetLeader + "/_ccr/forget_follower");
-                final String requestBody = """
+                final String requestBody = Strings.format("""
                     {
                       "follower_cluster": "follow-cluster",
                       "follower_index": "%s",
                       "follower_index_uuid": "%s",
                       "leader_remote_cluster": "leader_cluster"
-                    }""".formatted(forgetFollower, followerIndexUUID);
+                    }""", forgetFollower, followerIndexUUID);
                 request.setJsonEntity(requestBody);
                 final Response forgetFollowerResponse = leaderClient.performRequest(request);
                 assertOK(forgetFollowerResponse);
@@ -254,11 +255,7 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
         final String cleanFollower = "clean-follower";
         if ("leader".equals(targetCluster)) {
             logger.info("running against leader cluster");
-            final Settings indexSettings = Settings.builder()
-                .put("index.number_of_replicas", 0)
-                .put("index.number_of_shards", 1)
-                .put("index.soft_deletes.enabled", true)
-                .build();
+            final Settings indexSettings = indexSettings(1, 0).put("index.soft_deletes.enabled", true).build();
             createIndex(adminClient(), cleanLeader, indexSettings);
         } else {
             logger.info("running against follower cluster");
@@ -266,7 +263,7 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
             deleteIndex(client(), cleanFollower);
             // the shard follow task should have been cleaned up on behalf of the user, see ShardFollowTaskCleaner
             assertBusy(() -> {
-                assertNoPersistentTasks();
+                assertNoPendingPersistentTasks();
                 assertThat(getCcrNodeTasks(), empty());
             });
         }
@@ -281,7 +278,7 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
 
         // Setup
         {
-            createAutoFollowPattern(adminClient(), "test_pattern", "logs-eu*", "leader_cluster");
+            createAutoFollowPattern(adminClient(), "test_pattern", "logs-eu*", "leader_cluster", null);
         }
         // Create data stream and ensure that it is auto followed
         {
@@ -289,9 +286,9 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
                 for (var i = 0; i < numDocs; i++) {
                     var indexRequest = new Request("POST", "/" + dataStreamName + "/_doc");
                     indexRequest.addParameter("refresh", "true");
-                    indexRequest.setJsonEntity("""
+                    indexRequest.setJsonEntity(Strings.format("""
                         {"@timestamp": "%s","message":"abc"}
-                        """.formatted(dateFormat.format(new Date())));
+                        """, dateFormat.format(new Date())));
                     assertOK(leaderClient.performRequest(indexRequest));
                 }
                 verifyDataStream(leaderClient, dataStreamName, backingIndexName(dataStreamName, 1));
@@ -340,9 +337,15 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
         }
     }
 
-    private static void assertNoPersistentTasks() throws IOException {
+    private static void assertNoPendingPersistentTasks() throws IOException {
         Map<String, Object> clusterState = toMap(adminClient().performRequest(new Request("GET", "/_cluster/state")));
-        List<?> tasks = (List<?>) XContentMapValues.extractValue("metadata.persistent_tasks.tasks", clusterState);
+        List<?> tasks = ((List<?>) XContentMapValues.extractValue("metadata.persistent_tasks.tasks", clusterState)).stream()
+            .filter(
+                task -> (((task instanceof Map<?, ?> taskMap)
+                    && taskMap.containsKey("id")
+                    && taskMap.get("id").equals(HealthNode.TASK_NAME))) == false
+            )
+            .toList();
         assertThat(tasks, empty());
     }
 }

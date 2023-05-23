@@ -6,7 +6,6 @@ at index time. The `_source` field itself is not indexed (and thus is not
 searchable), but it is stored so that it can be returned when executing
 _fetch_ requests, like <<docs-get,get>> or <<search-search,search>>.
 
-ifeval::["{release-state}"=="unreleased"]
 If disk usage is important to you then have a look at
 <<synthetic-source,synthetic `_source`>> which shrinks disk usage at the cost of
 only supporting a subset of mappings and slower fetches or (not recommended)
@@ -14,8 +13,6 @@ only supporting a subset of mappings and slower fetches or (not recommended)
 usage but disables many features.
 
 include::synthetic-source.asciidoc[]
-endif::[]
-
 
 [[disable-source-field]]
 ==== Disabling the `_source` field

@@ -227,7 +227,28 @@ public class InternalStatsTests extends InternalAggregationTestCase<InternalStat
         internalStats.doXContentBody(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
 
-        String expected = """
+        Object[] args = new Object[] {
+            count,
+            min,
+            max,
+            internalStats.getAvg(),
+            sum,
+            format != DocValueFormat.RAW
+                ? Strings.format(
+                    """
+                        ,
+                        "min_as_string" : "%s",
+                        "max_as_string" : "%s",
+                        "avg_as_string" : "%s",
+                        "sum_as_string" : "%s"
+                        """,
+                    format.format(internalStats.getMin()),
+                    format.format(internalStats.getMax()),
+                    format.format(internalStats.getAvg()),
+                    format.format(internalStats.getSum())
+                )
+                : "" };
+        String expected = Strings.format("""
             {
               "count" : %s,
               "min" : %s,
@@ -235,27 +256,7 @@ public class InternalStatsTests extends InternalAggregationTestCase<InternalStat
               "avg" : %s,
               "sum" : %s
               %s
-            }""".formatted(
-            count,
-            min,
-            max,
-            internalStats.getAvg(),
-            sum,
-            format != DocValueFormat.RAW
-                ? """
-                    ,
-                    "min_as_string" : "%s",
-                    "max_as_string" : "%s",
-                    "avg_as_string" : "%s",
-                    "sum_as_string" : "%s"
-                    """.formatted(
-                    format.format(internalStats.getMin()),
-                    format.format(internalStats.getMax()),
-                    format.format(internalStats.getAvg()),
-                    format.format(internalStats.getSum())
-                )
-                : ""
-        );
+            }""", args);
         assertEquals(XContentHelper.stripWhitespace(expected), Strings.toString(builder));
 
         // count is zero

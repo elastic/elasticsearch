@@ -1,0 +1,5 @@
+pr: 93952
+summary: Improve module/plugin loading logging message.
+area: Infra/Plugins 
+type: enhancement
+issues: [93881]

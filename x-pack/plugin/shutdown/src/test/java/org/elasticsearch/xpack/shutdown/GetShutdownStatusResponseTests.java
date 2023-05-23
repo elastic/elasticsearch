@@ -15,7 +15,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashSet;
@@ -35,7 +34,7 @@ public class GetShutdownStatusResponseTests extends AbstractWireSerializingTestC
     }
 
     @Override
-    protected GetShutdownStatusAction.Response mutateInstance(GetShutdownStatusAction.Response instance) throws IOException {
+    protected GetShutdownStatusAction.Response mutateInstance(GetShutdownStatusAction.Response instance) {
         Set<SingleNodeShutdownStatus> oldNodes = new HashSet<>(instance.getShutdownStatuses());
         List<SingleNodeShutdownStatus> newNodes = randomList(
             1,
@@ -52,6 +51,9 @@ public class GetShutdownStatusResponseTests extends AbstractWireSerializingTestC
         final TimeValue allocationDelay = type == SingleNodeShutdownMetadata.Type.RESTART && randomBoolean()
             ? TimeValue.parseTimeValue(randomPositiveTimeValue(), GetShutdownStatusResponseTests.class.getSimpleName())
             : null;
+        final TimeValue gracefulShutdown = type == SingleNodeShutdownMetadata.Type.SIGTERM
+            ? TimeValue.parseTimeValue(randomPositiveTimeValue(), GetShutdownStatusResponseTests.class.getSimpleName())
+            : null;
         return SingleNodeShutdownMetadata.builder()
             .setNodeId(randomAlphaOfLength(5))
             .setType(type)
@@ -59,6 +61,7 @@ public class GetShutdownStatusResponseTests extends AbstractWireSerializingTestC
             .setStartedAtMillis(randomNonNegativeLong())
             .setTargetNodeName(targetNodeName)
             .setAllocationDelay(allocationDelay)
+            .setGracePeriod(gracefulShutdown)
             .build();
     }
 

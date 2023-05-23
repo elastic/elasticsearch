@@ -57,7 +57,8 @@ PUT _ingest/pipeline/attachment
   "processors" : [
     {
       "attachment" : {
-        "field" : "data"
+        "field" : "data",
+        "remove_binary": false
       }
     }
   ]
@@ -141,7 +142,8 @@ PUT _ingest/pipeline/attachment
     {
       "attachment" : {
         "field" : "data",
-        "properties": [ "content", "title" ]
+        "properties": [ "content", "title" ],
+        "remove_binary": false
       }
     }
   ]
@@ -167,7 +169,8 @@ PUT _ingest/pipeline/cbor-attachment
   "processors" : [
     {
       "attachment" : {
-        "field" : "data"
+        "field" : "data",
+        "remove_binary": false
       }
     }
   ]
@@ -222,7 +225,8 @@ PUT _ingest/pipeline/attachment
       "attachment" : {
         "field" : "data",
         "indexed_chars" : 11,
-        "indexed_chars_field" : "max_size"
+        "indexed_chars_field" : "max_size",
+        "remove_binary": false
       }
     }
   ]
@@ -269,7 +273,8 @@ PUT _ingest/pipeline/attachment
       "attachment" : {
         "field" : "data",
         "indexed_chars" : 11,
-        "indexed_chars_field" : "max_size"
+        "indexed_chars_field" : "max_size",
+        "remove_binary": false
       }
     }
   ]
@@ -352,7 +357,8 @@ PUT _ingest/pipeline/attachment
         "processor": {
           "attachment": {
             "target_field": "_ingest._value.attachment",
-            "field": "_ingest._value.data"
+            "field": "_ingest._value.data",
+            "remove_binary": false
           }
         }
       }

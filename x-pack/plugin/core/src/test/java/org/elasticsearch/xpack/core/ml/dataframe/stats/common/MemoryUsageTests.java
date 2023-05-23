@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.ml.dataframe.stats.common;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
@@ -20,7 +20,7 @@ import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class MemoryUsageTests extends AbstractSerializingTestCase<MemoryUsage> {
+public class MemoryUsageTests extends AbstractXContentSerializingTestCase<MemoryUsage> {
 
     private boolean lenient;
 
@@ -62,6 +62,11 @@ public class MemoryUsageTests extends AbstractSerializingTestCase<MemoryUsage> {
     @Override
     protected MemoryUsage createTestInstance() {
         return createRandom();
+    }
+
+    @Override
+    protected MemoryUsage mutateInstance(MemoryUsage instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     public void testZeroUsage() {

@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.core.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.xpack.core.watcher.support.WatcherUtils;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherXContentParser;
+import org.elasticsearch.xpack.watcher.notification.WebhookService;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -166,7 +167,7 @@ public class HttpRequest implements ToXContentObject {
             if (WatcherParams.hideSecrets(toXContentParams)) {
                 builder.field(Field.HEADERS.getPreferredName(), sanitizeHeaders(headers));
             } else {
-                builder.field(Field.HEADERS.getPreferredName(), headers);
+                builder.field(Field.HEADERS.getPreferredName(), sanitizeInternalHeaders(headers));
             }
         }
         if (auth != null) {
@@ -195,13 +196,36 @@ public class HttpRequest implements ToXContentObject {
         return builder.endObject();
     }
 
+    /**
+     * Sanitize both internal (see {@link #sanitizeInternalHeaders(Map)} and
+     * user-added sensitive headers that should not be shown.
+     */
     private Map<String, String> sanitizeHeaders(Map<String, String> headers) {
-        if (headers.containsKey("Authorization") == false) {
+        String authorizationHeader = headers.containsKey("Authorization") ? "Authorization" : null;
+        if (authorizationHeader == null) {
+            authorizationHeader = headers.containsKey("authorization") ? "authorization" : null;
+        }
+        if (authorizationHeader == null) {
             return headers;
         }
         Map<String, String> sanitizedHeaders = new HashMap<>(headers);
-        sanitizedHeaders.put("Authorization", WatcherXContentParser.REDACTED_PASSWORD);
-        return sanitizedHeaders;
+        sanitizedHeaders.put(authorizationHeader, WatcherXContentParser.REDACTED_PASSWORD);
+        return sanitizeInternalHeaders(sanitizedHeaders);
+    }
+
+    /**
+     * Sanitize headers that the user may not have added, but were automatically
+     * added by Elasticsearch.
+     */
+    private Map<String, String> sanitizeInternalHeaders(Map<String, String> headers) {
+        // Redact the additional webhook password, if present.
+        if (headers.containsKey(WebhookService.TOKEN_HEADER_NAME)) {
+            Map<String, String> sanitizedHeaders = new HashMap<>(headers);
+            sanitizedHeaders.put(WebhookService.TOKEN_HEADER_NAME, WatcherXContentParser.REDACTED_PASSWORD);
+            return sanitizedHeaders;
+        } else {
+            return headers;
+        }
     }
 
     @Override
@@ -262,6 +286,13 @@ public class HttpRequest implements ToXContentObject {
 
     public static Builder builder(String host, int port) {
         return new Builder(host, port);
+    }
+
+    /**
+     * Create a new builder modeled on this HttpRequest
+     */
+    public Builder copy() {
+        return new Builder(this);
     }
 
     static Builder builder() {
@@ -396,6 +427,21 @@ public class HttpRequest implements ToXContentObject {
         private Builder(String host, int port) {
             this.host = host;
             this.port = port;
+        }
+
+        private Builder(HttpRequest original) {
+            this.host = original.host;
+            this.port = original.port;
+            this.scheme = original.scheme;
+            this.method = original.method;
+            this.path = original.path;
+            this.params = new HashMap<>(original.params);
+            this.headers = new HashMap<>(original.headers);
+            this.auth = original.auth;
+            this.body = original.body;
+            this.connectionTimeout = original.connectionTimeout;
+            this.readTimeout = original.readTimeout;
+            this.proxy = original.proxy;
         }
 
         private Builder() {}

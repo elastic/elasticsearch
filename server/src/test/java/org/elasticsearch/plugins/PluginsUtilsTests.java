@@ -39,14 +39,14 @@ public class PluginsUtilsTests extends ESTestCase {
 
     PluginDescriptor newTestDescriptor(String name, List<String> deps) {
         String javaVersion = Runtime.version().toString();
-        return new PluginDescriptor(name, "desc", "1.0", Version.CURRENT, javaVersion, "MyPlugin", null, deps, false, false);
+        return new PluginDescriptor(name, "desc", "1.0", Version.CURRENT, javaVersion, "MyPlugin", null, deps, false, false, false, false);
     }
 
     public void testExistingPluginMissingDescriptor() throws Exception {
         Path pluginsDir = createTempDir();
         Files.createDirectory(pluginsDir.resolve("plugin-missing-descriptor"));
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> PluginsUtils.getPluginBundles(pluginsDir));
-        assertThat(e.getMessage(), containsString("Could not load plugin descriptor for plugin directory [plugin-missing-descriptor]"));
+        assertThat(e.getMessage(), containsString("Plugin [plugin-missing-descriptor] is missing a descriptor properties file"));
     }
 
     public void testSortBundlesCycleSelfReference() throws Exception {
@@ -368,36 +368,35 @@ public class PluginsUtilsTests extends ESTestCase {
         assertThat(e.getCause().getMessage(), containsString("DummyClass1"));
     }
 
-    public void testIncompatibleElasticsearchVersion() throws Exception {
-        PluginDescriptor info = new PluginDescriptor(
-            "my_plugin",
-            "desc",
-            "1.0",
-            Version.fromId(6000099),
-            "1.8",
-            "FakePlugin",
-            null,
-            Collections.emptyList(),
-            false,
-            false
+    public void testStableEarlierElasticsearchVersion() throws Exception {
+        PluginDescriptor info = getPluginDescriptorForVersion(Version.fromId(Version.CURRENT.id + 1), "1.8", true);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginsUtils.verifyCompatibility(info));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "was built for Elasticsearch version "
+                    + Version.fromId(Version.CURRENT.id + 1)
+                    + " but earlier version "
+                    + Version.CURRENT
+                    + " is running"
+            )
         );
+    }
+
+    public void testStableIncompatibleElasticsearchVersion() throws Exception {
+        PluginDescriptor info = getPluginDescriptorForVersion(Version.fromId(6000099), "1.8", true);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginsUtils.verifyCompatibility(info));
+        assertThat(e.getMessage(), containsString("was built for Elasticsearch major version 6"));
+    }
+
+    public void testIncompatibleElasticsearchVersion() throws Exception {
+        PluginDescriptor info = getPluginDescriptorForVersion(Version.fromId(6000099), "1.8", false);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginsUtils.verifyCompatibility(info));
         assertThat(e.getMessage(), containsString("was built for Elasticsearch version 6.0.0"));
     }
 
     public void testIncompatibleJavaVersion() throws Exception {
-        PluginDescriptor info = new PluginDescriptor(
-            "my_plugin",
-            "desc",
-            "1.0",
-            Version.CURRENT,
-            "1000",
-            "FakePlugin",
-            null,
-            Collections.emptyList(),
-            false,
-            false
-        );
+        PluginDescriptor info = getPluginDescriptorForVersion(Version.CURRENT, "1000", false);
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> PluginsUtils.verifyCompatibility(info));
         assertThat(e.getMessage(), containsString("my_plugin requires Java"));
     }
@@ -428,6 +427,24 @@ public class PluginsUtilsTests extends ESTestCase {
         }
 
         assertThat(PluginsUtils.findPluginDirs(plugins), containsInAnyOrder(fake));
+    }
+
+    private static PluginDescriptor getPluginDescriptorForVersion(Version id, String javaVersion, boolean isStable) {
+        PluginDescriptor info = new PluginDescriptor(
+            "my_plugin",
+            "desc",
+            "1.0",
+            id,
+            javaVersion,
+            "FakePlugin",
+            null,
+            Collections.emptyList(),
+            false,
+            false,
+            false,
+            isStable
+        );
+        return info;
     }
 
 }

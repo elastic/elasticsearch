@@ -9,7 +9,6 @@
           properties-file: '.ci/java-versions.properties'
           properties-content: |
             JAVA_HOME=$HOME/.java/$ES_BUILD_JAVA
-            RUNTIME_JAVA_HOME=$HOME/.java/$ES_RUNTIME_JAVA
       - shell: |
           #!/usr/local/bin/runbld --redirect-stderr
           set -euo pipefail
@@ -19,4 +18,4 @@
           export SNYK_TOKEN=$(vault read -field=token secret/elasticsearch-ci/snyk)
           unset VAULT_TOKEN
           set -x
-          $WORKSPACE/.ci/scripts/run-gradle.sh uploadSnykDependencyGraph
+          $WORKSPACE/.ci/scripts/run-gradle.sh uploadSnykDependencyGraph -PsnykTargetReference=%BRANCH%

@@ -9,17 +9,22 @@
 package org.elasticsearch.index;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Collection;
+import java.util.Iterator;
 import java.util.List;
 
 import static org.elasticsearch.core.Strings.format;
@@ -238,16 +243,53 @@ final class CompositeIndexEventListener implements IndexEventListener {
         }
     }
 
-    @Override
-    public void beforeIndexShardRecovery(final IndexShard indexShard, final IndexSettings indexSettings) {
-        for (IndexEventListener listener : listeners) {
+    private void iterateBeforeIndexShardRecovery(
+        final IndexShard indexShard,
+        final IndexSettings indexSettings,
+        final Iterator<IndexEventListener> iterator,
+        final ActionListener<Void> outerListener
+    ) {
+        while (iterator.hasNext()) {
+            final var nextListener = iterator.next();
+            final var future = new ListenableFuture<Void>();
             try {
-                listener.beforeIndexShardRecovery(indexShard, indexSettings);
+                nextListener.beforeIndexShardRecovery(indexShard, indexSettings, future);
+                if (future.isDone()) {
+                    // common case, not actually async, so just check for an exception and continue on the same thread
+                    future.result();
+                    continue;
+                }
             } catch (Exception e) {
-                logger.warn(() -> format("failed to invoke the listener before the shard recovery starts for %s", indexShard.shardId()), e);
-                throw e;
+                outerListener.onFailure(e);
+                return;
             }
+
+            // future was not completed straight away, but might be done by now, so continue on a fresh thread to avoid stack overflow
+            future.addListener(
+                outerListener.delegateFailure(
+                    (delegate, v) -> indexShard.getThreadPool()
+                        .executor(ThreadPool.Names.GENERIC)
+                        .execute(
+                            ActionRunnable.wrap(delegate, l -> iterateBeforeIndexShardRecovery(indexShard, indexSettings, iterator, l))
+                        )
+                )
+            );
+            return;
         }
+
+        outerListener.onResponse(null);
+    }
+
+    @Override
+    public void beforeIndexShardRecovery(
+        final IndexShard indexShard,
+        final IndexSettings indexSettings,
+        final ActionListener<Void> outerListener
+    ) {
+        iterateBeforeIndexShardRecovery(indexShard, indexSettings, listeners.iterator(), outerListener.delegateResponse((l, e) -> {
+            logger.warn(() -> format("failed to invoke the listener before the shard recovery starts for %s", indexShard.shardId()), e);
+            l.onFailure(e);
+        }));
     }
 
     @Override

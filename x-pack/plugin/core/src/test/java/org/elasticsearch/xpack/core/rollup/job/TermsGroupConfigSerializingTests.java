@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.rollup.job;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -22,7 +22,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class TermsGroupConfigSerializingTests extends AbstractSerializingTestCase<TermsGroupConfig> {
+public class TermsGroupConfigSerializingTests extends AbstractXContentSerializingTestCase<TermsGroupConfig> {
 
     @Override
     protected TermsGroupConfig doParseInstance(XContentParser parser) throws IOException {
@@ -37,6 +37,11 @@ public class TermsGroupConfigSerializingTests extends AbstractSerializingTestCas
     @Override
     protected TermsGroupConfig createTestInstance() {
         return randomTermsGroupConfig(random());
+    }
+
+    @Override
+    protected TermsGroupConfig mutateInstance(TermsGroupConfig instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     public void testValidateNoMapping() {

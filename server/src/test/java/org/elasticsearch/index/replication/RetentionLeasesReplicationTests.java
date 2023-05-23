@@ -44,13 +44,13 @@ public class RetentionLeasesReplicationTests extends ESIndexLevelReplicationTest
                 if (leases.isEmpty() == false && rarely()) {
                     RetentionLease leaseToRemove = randomFrom(leases);
                     leases.remove(leaseToRemove);
-                    group.removeRetentionLease(leaseToRemove.id(), ActionListener.wrap(latch::countDown));
+                    group.removeRetentionLease(leaseToRemove.id(), ActionListener.running(latch::countDown));
                 } else {
                     RetentionLease newLease = group.addRetentionLease(
                         Integer.toString(i),
                         randomNonNegativeLong(),
                         "test-" + i,
-                        ActionListener.wrap(latch::countDown)
+                        ActionListener.running(latch::countDown)
                     );
                     leases.add(newLease);
                 }

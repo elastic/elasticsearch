@@ -53,7 +53,7 @@ public class CreateSnapshotStepTests extends AbstractStepTestCase<CreateSnapshot
         StepKey nextKeyOnCompleteResponse = instance.getNextKeyOnComplete();
         StepKey nextKeyOnIncompleteResponse = instance.getNextKeyOnIncomplete();
         switch (between(0, 2)) {
-            case 0 -> key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+            case 0 -> key = new StepKey(key.phase(), key.action(), key.name() + randomAlphaOfLength(5));
             case 1 -> nextKeyOnCompleteResponse = randomStepKey();
             case 2 -> nextKeyOnIncompleteResponse = randomStepKey();
             default -> throw new AssertionError("Illegal randomisation branch");

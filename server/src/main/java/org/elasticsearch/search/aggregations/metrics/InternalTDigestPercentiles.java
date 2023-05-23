@@ -40,6 +40,16 @@ public class InternalTDigestPercentiles extends AbstractInternalTDigestPercentil
         return NAME;
     }
 
+    public static InternalTDigestPercentiles empty(
+        String name,
+        double[] keys,
+        boolean keyed,
+        DocValueFormat format,
+        Map<String, Object> metadata
+    ) {
+        return new InternalTDigestPercentiles(name, keys, null, keyed, format, metadata);
+    }
+
     @Override
     public Iterator<Percentile> iterator() {
         return new Iter(keys, state);
@@ -47,7 +57,7 @@ public class InternalTDigestPercentiles extends AbstractInternalTDigestPercentil
 
     @Override
     public double percentile(double percent) {
-        return state.quantile(percent / 100);
+        return this.state != null ? state.quantile(percent / 100) : Double.NaN;
     }
 
     @Override

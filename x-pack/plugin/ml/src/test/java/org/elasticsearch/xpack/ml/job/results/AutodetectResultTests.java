@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.ml.job.results;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.annotations.Annotation;
 import org.elasticsearch.xpack.core.ml.annotations.AnnotationTests;
@@ -29,7 +29,7 @@ import org.elasticsearch.xpack.core.ml.job.results.ModelPlot;
 import java.util.ArrayList;
 import java.util.List;
 
-public class AutodetectResultTests extends AbstractSerializingTestCase<AutodetectResult> {
+public class AutodetectResultTests extends AbstractXContentSerializingTestCase<AutodetectResult> {
 
     @Override
     protected AutodetectResult doParseInstance(XContentParser parser) {
@@ -148,6 +148,11 @@ public class AutodetectResultTests extends AbstractSerializingTestCase<Autodetec
             categorizerStats == null ? null : categorizerStats.build(),
             flushAcknowledgement
         );
+    }
+
+    @Override
+    protected AutodetectResult mutateInstance(AutodetectResult instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

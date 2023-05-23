@@ -14,6 +14,7 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -103,13 +104,13 @@ public class CombinedFieldsQueryBuilderTests extends AbstractQueryTestCase<Combi
         Object[] expectedValues = new Object[] { "2", "2", "2%", null };
         int i = 0;
         for (Object value : testValues) {
-            String json = """
+            String json = Strings.format("""
                 {
                   "combined_fields" : {
                     "query" : "quick brown fox",
                     "minimum_should_match" : %s
                   }
-                }""".formatted(value);
+                }""", value);
 
             CombinedFieldsQueryBuilder parsed = (CombinedFieldsQueryBuilder) parseQuery(json);
 

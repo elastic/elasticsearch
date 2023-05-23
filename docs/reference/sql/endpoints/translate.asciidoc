@@ -45,7 +45,8 @@ Which returns:
         "unmapped_type": "short"
       }
     }
-  ]
+  ],
+  "track_total_hits": -1
 }
 --------------------------------------------------
 

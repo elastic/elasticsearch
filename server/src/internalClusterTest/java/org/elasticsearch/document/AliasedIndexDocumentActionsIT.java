@@ -9,8 +9,7 @@
 package org.elasticsearch.document;
 
 import org.elasticsearch.action.admin.indices.alias.Alias;
-
-import static org.elasticsearch.client.internal.Requests.createIndexRequest;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 
 public class AliasedIndexDocumentActionsIT extends DocumentActionsIT {
 
@@ -23,9 +22,7 @@ public class AliasedIndexDocumentActionsIT extends DocumentActionsIT {
             // ignore
         }
         logger.info("--> creating index test");
-        client().admin()
-            .indices()
-            .create(createIndexRequest("test1").simpleMapping("name", "type=keyword,store=true").alias(new Alias("test")))
+        indicesAdmin().create(new CreateIndexRequest("test1").simpleMapping("name", "type=keyword,store=true").alias(new Alias("test")))
             .actionGet();
     }
 

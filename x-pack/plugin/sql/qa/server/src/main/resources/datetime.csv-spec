@@ -651,6 +651,166 @@ HAVING DATETIME_FORMAT(MAX(birth_date), 'dd')::integer > 20  ORDER BY 1 DESC;
 1961-02-26 00:00:00.000Z | 02
 ;
 
+selectDateFormat
+schema::df_date:s|df_datetime:s|df_time:s
+SELECT DATE_FORMAT('2020-04-05T11:22:33.123Z'::date, '%d/%m/%Y %H:%i:%s.%f') AS df_date,
+DATE_FORMAT('2020-04-05T11:22:33.123Z'::datetime, '%d/%m/%Y %H:%i:%s.%f') AS df_datetime,
+DATE_FORMAT('11:22:33.123456789Z'::time, '%H:%i:%s.%f') AS df_time;
+
+       df_date             |    df_datetime             |   df_time
+---------------------------+----------------------------+----------------
+05/04/2020 00:00:00.000000 | 05/04/2020 11:22:33.123000 | 11:22:33.123457
+;
+
+selectDateFormatWithLiterals
+schema::birth_date:ts|df_birth_date:s
+SELECT birth_date, DATE_FORMAT(birth_date, 'he was born on the %D of %M') AS df_birth_date FROM test_emp
+WHERE gender = 'M' AND emp_no BETWEEN 10020 AND 10030 ORDER BY emp_no;
+
+      birth_date         |         df_birth_date
+-------------------------+-----------------------------------
+1952-12-24 00:00:00Z     | he was born on the 24th of December
+1960-02-20 00:00:00Z     | he was born on the 20th of February
+1952-07-08 00:00:00Z     | he was born on the 8th of July
+1958-10-31 00:00:00Z     | he was born on the 31st of October
+1953-04-03 00:00:00Z     | he was born on the 3rd of April
+1963-11-26 00:00:00Z     | he was born on the 26th of November
+1956-12-13 00:00:00Z     | he was born on the 13th of December
+1958-07-14 00:00:00Z     | he was born on the 14th of July
+;
+
+selectDateFormatWithField
+schema::birth_date:ts|df_birth_date1:s|df_birth_date2:s
+SELECT birth_date, DATE_FORMAT(birth_date, '%m/%d/%Y') AS df_birth_date1, DATE_FORMAT(birth_date, concat('%',gender)) AS df_birth_date2
+FROM test_emp WHERE gender = 'M' AND emp_no BETWEEN 10045 AND 10055 ORDER BY emp_no;
+
+       birth_date        | df_birth_date1 | df_birth_date2
+-------------------------+----------------+----------------
+null                     | null           | null
+null                     | null           | null
+null                     | null           | null
+null                     | null           | null
+1958-05-21 00:00:00Z     | 05/21/1958     | May
+1953-07-28 00:00:00Z     | 07/28/1953     | July
+1961-02-26 00:00:00Z     | 02/26/1961     | February
+1957-04-04 00:00:00Z     | 04/04/1957     | April
+1956-06-06 00:00:00Z     | 06/06/1956     | June
+;
+
+selectDateFormatWithComplexExpressions
+schema::text:s|count:l
+SELECT CONCAT(CONCAT('This is ', CASE WHEN birth_date IS NULL THEN 'no' ELSE DATE_FORMAT(birth_date, 'the %D') END),' day of the month') AS text,
+count(*) AS count FROM test_emp GROUP BY 1 ORDER BY 2 DESC;
+
+             text                    | count
+-------------------------------------+---------------
+This is no day of the month          | 10
+This is the 19th day of the month    | 7
+This is the 23rd day of the month    | 6
+This is the 1st day of the month     | 5
+This is the 21st day of the month    | 5
+This is the 25th day of the month    | 5
+This is the 7th day of the month     | 5
+This is the 13th day of the month    | 4
+This is the 20th day of the month    | 4
+This is the 2nd day of the month     | 4
+This is the 3rd day of the month     | 4
+This is the 6th day of the month     | 4
+This is the 14th day of the month    | 3
+This is the 26th day of the month    | 3
+This is the 4th day of the month     | 3
+This is the 9th day of the month     | 3
+This is the 10th day of the month    | 2
+This is the 15th day of the month    | 2
+This is the 18th day of the month    | 2
+This is the 27th day of the month    | 2
+This is the 28th day of the month    | 2
+This is the 29th day of the month    | 2
+This is the 30th day of the month    | 2
+This is the 5th day of the month     | 2
+This is the 8th day of the month     | 2
+This is the 11th day of the month    | 1
+This is the 12th day of the month    | 1
+This is the 16th day of the month    | 1
+This is the 17th day of the month    | 1
+This is the 22nd day of the month    | 1
+This is the 24th day of the month    | 1
+This is the 31st day of the month    | 1
+;
+
+dateFormatWhere
+schema::birth_date:ts|df_birth_date:s
+SELECT birth_date, DATE_FORMAT(birth_date, '%m') AS df_birth_date FROM test_emp
+WHERE DATE_FORMAT(birth_date, '%m')::integer > 10 ORDER BY emp_no LIMIT 10;
+
+       birth_date        | df_birth_date
+-------------------------+---------------
+1959-12-03 00:00:00.000Z | 12
+1953-11-07 00:00:00.000Z | 11
+1952-12-24 00:00:00.000Z | 12
+1963-11-26 00:00:00.000Z | 11
+1956-12-13 00:00:00.000Z | 12
+1956-11-14 00:00:00.000Z | 11
+1962-12-29 00:00:00.000Z | 12
+1961-11-02 00:00:00.000Z | 11
+1952-11-13 00:00:00.000Z | 11
+1962-11-26 00:00:00.000Z | 11
+;
+
+dateFormatOrderBy
+schema::birth_date:ts|df_birth_date:s
+SELECT birth_date, DATE_FORMAT(birth_date, '%m/%d/%Y') AS df_birth_date FROM test_emp ORDER BY 2 DESC NULLS LAST LIMIT 10;
+
+       birth_date        | df_birth_date
+-------------------------+---------------
+1962-12-29 00:00:00.000Z | 12/29/1962
+1959-12-25 00:00:00.000Z | 12/25/1959
+1952-12-24 00:00:00.000Z | 12/24/1952
+1960-12-17 00:00:00.000Z | 12/17/1960
+1956-12-13 00:00:00.000Z | 12/13/1956
+1959-12-03 00:00:00.000Z | 12/03/1959
+1957-12-03 00:00:00.000Z | 12/03/1957
+1963-11-26 00:00:00.000Z | 11/26/1963
+1962-11-26 00:00:00.000Z | 11/26/1962
+1962-11-19 00:00:00.000Z | 11/19/1962
+;
+
+dateFormatGroupBy
+schema::count:l|df_birth_date:s
+SELECT count(*) AS count, DATE_FORMAT(birth_date, '%m') AS df_birth_date FROM test_emp GROUP BY df_birth_date ORDER BY 1 DESC, 2 DESC;
+
+ count | df_birth_date
+-------+---------------
+10     | 09
+10     | 05
+10     | null
+9      | 10
+9      | 07
+8      | 11
+8      | 04
+8      | 02
+7      | 12
+7      | 06
+6      | 08
+6      | 01
+2      | 03
+;
+
+dateFormatHaving
+schema::max:ts|df_birth_date:s
+SELECT MAX(birth_date) AS max, DATE_FORMAT(birth_date, '%m') AS df_birth_date FROM test_emp GROUP BY df_birth_date
+HAVING DATE_FORMAT(MAX(birth_date), '%d')::integer > 20  ORDER BY 1 DESC;
+
+          max            | df_birth_date
+-------------------------+---------------
+1963-11-26 00:00:00.000Z | 11
+1963-07-22 00:00:00.000Z | 07
+1963-03-21 00:00:00.000Z | 03
+1962-12-29 00:00:00.000Z | 12
+1961-05-30 00:00:00.000Z | 05
+1961-02-26 00:00:00.000Z | 02
+;
+
 selectToChar
 schema::df_date:s|df_datetime:s|df_time:s
 SELECT TO_CHAR('2020-04-05T11:22:33.123Z'::date, 'DD/MM/YYYY HH24:MI:SS.FF3') AS df_date,

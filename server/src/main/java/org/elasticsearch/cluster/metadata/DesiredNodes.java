@@ -8,7 +8,9 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.action.admin.cluster.desirednodes.TransportUpdateDesiredNodesAction;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.coordination.NodeJoinExecutor;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -97,8 +99,7 @@ import static org.elasticsearch.node.Node.NODE_EXTERNAL_ID_SETTING;
  *  </ul>
  *
  * <p>
- *  See {@code JoinTaskExecutor} and {@code TransportUpdateDesiredNodesAction} for more details about
- *  desired nodes status tracking.
+ *  See {@link NodeJoinExecutor} and {@link TransportUpdateDesiredNodesAction} for more details about desired nodes status tracking.
  * </p>
  *
  * <p>
@@ -247,6 +248,29 @@ public class DesiredNodes implements Writeable, ToXContentObject, Iterable<Desir
                 )
             );
         }
+    }
+
+    public boolean equalsWithProcessorsCloseTo(DesiredNodes that) {
+        return that != null
+            && version == that.version
+            && Objects.equals(historyID, that.historyID)
+            && equalsNodesWithProcessorsCloseTo(that);
+    }
+
+    public boolean equalsNodesWithProcessorsCloseTo(DesiredNodes that) {
+        if (that == null || nodes.size() != that.nodes.size()) {
+            return false;
+        }
+
+        for (Map.Entry<String, DesiredNodeWithStatus> desiredNodeEntry : nodes.entrySet()) {
+            final DesiredNodeWithStatus desiredNodeWithStatus = desiredNodeEntry.getValue();
+            final DesiredNodeWithStatus otherDesiredNodeWithStatus = that.nodes.get(desiredNodeEntry.getKey());
+            if (desiredNodeWithStatus.equalsWithProcessorsCloseTo(otherDesiredNodeWithStatus) == false) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     @Override

@@ -9,6 +9,7 @@
 package org.elasticsearch.action.support.single.instance;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.support.ActionFilters;
@@ -38,7 +39,6 @@ import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
-import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -184,29 +184,24 @@ public abstract class TransportInstanceSingleOperationAction<
 
             request.shardId = shardIt.shardId();
             DiscoveryNode node = clusterState.nodes().get(shard.currentNodeId());
-            transportService.sendRequest(node, shardActionName, request, transportOptions(), new TransportResponseHandler<Response>() {
-
-                @Override
-                public Response read(StreamInput in) throws IOException {
-                    return newResponse(in);
-                }
-
-                @Override
-                public void handleResponse(Response response) {
-                    listener.onResponse(response);
-                }
-
-                @Override
-                public void handleException(TransportException exp) {
-                    final Throwable cause = exp.unwrapCause();
-                    // if we got disconnected from the node, or the node / shard is not in the right state (being closed)
-                    if (cause instanceof ConnectTransportException || cause instanceof NodeClosedException || retryOnFailure(exp)) {
-                        retry((Exception) cause);
-                    } else {
-                        listener.onFailure(exp);
+            transportService.sendRequest(
+                node,
+                shardActionName,
+                request,
+                transportOptions(),
+                new ActionListenerResponseHandler<>(listener, TransportInstanceSingleOperationAction.this::newResponse) {
+                    @Override
+                    public void handleException(TransportException exp) {
+                        final Throwable cause = exp.unwrapCause();
+                        // if we got disconnected from the node, or the node / shard is not in the right state (being closed)
+                        if (cause instanceof ConnectTransportException || cause instanceof NodeClosedException || retryOnFailure(exp)) {
+                            retry((Exception) cause);
+                        } else {
+                            listener.onFailure(exp);
+                        }
                     }
                 }
-            });
+            );
         }
 
         void retry(@Nullable final Exception failure) {

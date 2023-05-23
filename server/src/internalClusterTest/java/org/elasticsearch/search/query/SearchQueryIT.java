@@ -1797,7 +1797,6 @@ public class SearchQueryIT extends ESIntegTestCase {
     }
 
     public void testSearchEmptyDoc() {
-        assertAcked(prepareCreate("test").setSettings("{\"index.analysis.analyzer.default.type\":\"keyword\"}", XContentType.JSON));
         client().prepareIndex("test").setId("1").setSource("{}", XContentType.JSON).get();
 
         refresh();
@@ -1925,11 +1924,7 @@ public class SearchQueryIT extends ESIntegTestCase {
 
         IndexRequestBuilder indexRequest = client().prepareIndex("test").setId("1").setRouting("custom").setSource("field", "value");
         indexRandom(true, false, indexRequest);
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setPersistentSettings(Settings.builder().put(IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING.getKey(), true))
-            .get();
+        updateClusterSettings(Settings.builder().put(IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING.getKey(), true));
         try {
             SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(termQuery("routing-alias", "custom"))
@@ -1945,11 +1940,7 @@ public class SearchQueryIT extends ESIntegTestCase {
             assertThat(field.getValue().toString(), equalTo("1"));
         } finally {
             // unset cluster setting
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder().putNull(IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING.getKey()))
-                .get();
+            updateClusterSettings(Settings.builder().putNull(IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING.getKey()));
         }
 
     }
@@ -2087,5 +2078,22 @@ public class SearchQueryIT extends ESIntegTestCase {
         BoolQueryBuilder query = boolQuery().filter(spanMultiTermQueryBuilder(fuzzyQuery("field", "foobarbiz").rewrite("constant_score")));
         SearchResponse response = client().prepareSearch("test").setQuery(query).get();
         assertHitCount(response, 1);
+    }
+
+    public void testFetchIdFieldQuery() {
+        createIndex("test");
+        int docCount = randomIntBetween(10, 50);
+        for (int i = 0; i < docCount; i++) {
+            client().prepareIndex("test").setSource("field", "foobarbaz").get();
+        }
+        ensureGreen();
+        refresh();
+
+        SearchResponse response = client().prepareSearch("test").addFetchField("_id").setSize(docCount).get();
+        SearchHit[] hits = response.getHits().getHits();
+        assertEquals(docCount, hits.length);
+        for (SearchHit hit : hits) {
+            assertNotNull(hit.getFields().get("_id").getValue());
+        }
     }
 }

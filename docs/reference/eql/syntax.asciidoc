@@ -793,6 +793,47 @@ sequence
 ----
 
 [discrete]
+[[eql-samples]]
+=== Samples
+
+You can use EQL samples to describe and match a chronologically unordered series
+of events. All events in a sample share the same value for one or more fields
+that are specified using the <<eql-by-keyword,`by` keyword>> (join keys). Each
+item in a sample is an event category and event condition, surrounded by square
+brackets (`[ ]`). Events are listed in the order of the filters they match.
+
+[source,eql]
+----
+sample by join_key
+  [ event_category_1 where condition_1 ]
+  [ event_category_2 where condition_2 ]
+  ...
+----
+
+*Example* + 
+The following EQL sample query returns up to 10 samples with unique values for
+`host`. Each sample consists of two events:
+
+. Start with an event with:
++
+--
+* An event category of `file`
+* A `file.extension` of `exe`
+--
+. Followed by an event with an event category of `process`
+
+[source,eql]
+----
+sample by host
+  [ file where file.extension == "exe" ]
+  [ process where true ]
+----
+
+Sample queries do not take into account the chronological ordering of events.
+The `with maxspan` and `with runs` statements as well as the `until` keyword are
+not supported. 
+
+[discrete]
 [[eql-functions]]
 === Functions
 

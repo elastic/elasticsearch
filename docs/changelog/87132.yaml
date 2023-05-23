@@ -1,5 +1,0 @@
-pr: 87132
-summary: Catch an exception when formatting a string fails
-area: Infra/Logging
-type: enhancement
-issues: []

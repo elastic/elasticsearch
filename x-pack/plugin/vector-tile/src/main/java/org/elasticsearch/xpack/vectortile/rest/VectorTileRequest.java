@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.vectortile.rest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.SimpleVectorTileFormatter;
 import org.elasticsearch.core.Booleans;
-import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -65,7 +64,7 @@ class VectorTileRequest {
         public static final List<FieldAndFormat> FETCH = emptyList();
         public static final Map<String, Object> RUNTIME_MAPPINGS = emptyMap();
         public static final QueryBuilder QUERY = null;
-        public static final List<MetricsAggregationBuilder<?, ?>> AGGS = emptyList();
+        public static final List<MetricsAggregationBuilder<?>> AGGS = emptyList();
         public static final GridAggregation GRID_AGG = GridAggregation.GEOTILE;
         public static final int GRID_PRECISION = 8;
         public static final GridType GRID_TYPE = GridType.GRID;
@@ -90,7 +89,7 @@ class VectorTileRequest {
         }, SearchSourceBuilder.FETCH_FIELDS_FIELD, ObjectParser.ValueType.OBJECT_ARRAY);
         PARSER.declareField(
             VectorTileRequest::setQueryBuilder,
-            (CheckedFunction<XContentParser, QueryBuilder, IOException>) AbstractQueryBuilder::parseInnerQueryBuilder,
+            (p, c) -> AbstractQueryBuilder.parseTopLevelQuery(p),
             SearchSourceBuilder.QUERY_FIELD,
             ObjectParser.ValueType.OBJECT
         );
@@ -208,7 +207,7 @@ class VectorTileRequest {
     private int size = Defaults.SIZE;
     private int extent = Defaults.EXTENT;
     private int buffer = Defaults.BUFFER;
-    private List<MetricsAggregationBuilder<?, ?>> aggs = Defaults.AGGS;
+    private List<MetricsAggregationBuilder<?>> aggs = Defaults.AGGS;
     private List<FieldAndFormat> fields = Defaults.FETCH;
     private List<SortBuilder<?>> sortBuilders;
     private boolean exact_bounds = Defaults.EXACT_BOUNDS;
@@ -353,15 +352,15 @@ class VectorTileRequest {
         this.size = size;
     }
 
-    public List<MetricsAggregationBuilder<?, ?>> getAggBuilder() {
+    public List<MetricsAggregationBuilder<?>> getAggBuilder() {
         return aggs;
     }
 
     private void setAggBuilder(AggregatorFactories.Builder aggBuilder) {
-        List<MetricsAggregationBuilder<?, ?>> aggs = new ArrayList<>(aggBuilder.count());
+        List<MetricsAggregationBuilder<?>> aggs = new ArrayList<>(aggBuilder.count());
         for (AggregationBuilder aggregation : aggBuilder.getAggregatorFactories()) {
-            if (aggregation instanceof MetricsAggregationBuilder<?, ?>) {
-                aggs.add((MetricsAggregationBuilder<?, ?>) aggregation);
+            if (aggregation instanceof MetricsAggregationBuilder<?>) {
+                aggs.add((MetricsAggregationBuilder<?>) aggregation);
             } else {
                 throw new IllegalArgumentException(
                     "Unsupported aggregation of type [" + aggregation.getType() + "]." + "Only metric aggregations are supported."

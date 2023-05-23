@@ -31,7 +31,7 @@ import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceCo
 
 public class QuestionAnsweringProcessor extends NlpTask.Processor {
 
-    QuestionAnsweringProcessor(NlpTokenizer tokenizer, QuestionAnsweringConfig config) {
+    QuestionAnsweringProcessor(NlpTokenizer tokenizer) {
         super(tokenizer);
     }
 

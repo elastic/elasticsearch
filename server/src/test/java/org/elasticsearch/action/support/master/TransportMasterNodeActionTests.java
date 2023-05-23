@@ -19,7 +19,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -37,6 +36,7 @@ import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -114,19 +114,17 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         );
         transportService.start();
         transportService.acceptIncomingRequests();
-        localNode = new DiscoveryNode(
+        localNode = TestDiscoveryNode.create(
             "local_node",
             buildNewFakeTransportAddress(),
             Collections.emptyMap(),
-            Collections.singleton(DiscoveryNodeRole.MASTER_ROLE),
-            Version.CURRENT
+            Collections.singleton(DiscoveryNodeRole.MASTER_ROLE)
         );
-        remoteNode = new DiscoveryNode(
+        remoteNode = TestDiscoveryNode.create(
             "remote_node",
             buildNewFakeTransportAddress(),
             Collections.emptyMap(),
-            Collections.singleton(DiscoveryNodeRole.MASTER_ROLE),
-            Version.CURRENT
+            Collections.singleton(DiscoveryNodeRole.MASTER_ROLE)
         );
         allNodes = new DiscoveryNode[] { localNode, remoteNode };
     }
@@ -244,12 +242,6 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         }
 
         @Override
-        protected void doExecute(Task task, final Request request, ActionListener<Response> listener) {
-            // remove unneeded threading by wrapping listener with SAME to prevent super.doExecute from wrapping it with LISTENER
-            super.doExecute(task, request, new ThreadedActionListener<>(logger, threadPool, ThreadPool.Names.SAME, listener, false));
-        }
-
-        @Override
         protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
             listener.onResponse(new Response()); // default implementation, overridden in specific tests
         }
@@ -266,7 +258,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         }
 
         @Override
-        protected Optional<String> reservedStateHandlerName() {
+        public Optional<String> reservedStateHandlerName() {
             return Optional.of("test_reserved_state_action");
         }
     }
@@ -306,12 +298,12 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         }
 
         @Override
-        protected Optional<String> reservedStateHandlerName() {
+        public Optional<String> reservedStateHandlerName() {
             return Optional.of(ReservedClusterSettingsAction.NAME);
         }
 
         @Override
-        protected Set<String> modifiedKeys(ClusterUpdateSettingsRequest request) {
+        public Set<String> modifiedKeys(ClusterUpdateSettingsRequest request) {
             Settings allSettings = Settings.builder().put(request.persistentSettings()).put(request.transientSettings()).build();
             return allSettings.keySet();
         }
@@ -536,7 +528,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
                 // simulate master restart followed by a state recovery - this will reset the cluster state version
                 final DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(clusterService.state().nodes());
                 nodesBuilder.remove(masterNode);
-                masterNode = new DiscoveryNode(masterNode.getId(), masterNode.getAddress(), masterNode.getVersion());
+                masterNode = TestDiscoveryNode.create(masterNode.getId(), masterNode.getAddress(), masterNode.getVersion());
                 nodesBuilder.add(masterNode);
                 nodesBuilder.masterNodeId(masterNode.getId());
                 final ClusterState.Builder builder = ClusterState.builder(clusterService.state()).nodes(nodesBuilder);
@@ -586,7 +578,10 @@ public class TransportMasterNodeActionTests extends ESTestCase {
             protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener)
                 throws Exception {
                 // The other node has become master, simulate failures of this node while publishing cluster state through ZenDiscovery
-                setState(clusterService, ClusterStateCreationUtils.state(localNode, remoteNode, allNodes));
+                setState(
+                    clusterService,
+                    ClusterState.builder(ClusterStateCreationUtils.state(localNode, remoteNode, allNodes)).incrementVersion().build()
+                );
                 Exception failure = randomBoolean()
                     ? new FailedToCommitClusterStateException("Fake error")
                     : new NotMasterException("Fake error");
@@ -771,14 +766,14 @@ public class TransportMasterNodeActionTests extends ESTestCase {
 
         Action noHandler = new Action("internal:testAction", transportService, clusterService, threadPool, ThreadPool.Names.SAME);
 
-        assertFalse(noHandler.supportsImmutableState());
+        assertFalse(noHandler.supportsReservedState());
 
         noHandler = new ReservedStateAction("internal:testOpAction", transportService, clusterService, threadPool);
 
-        assertTrue(noHandler.supportsImmutableState());
+        assertTrue(noHandler.supportsReservedState());
 
         // nothing should happen here, since the request doesn't touch any of the immutable state keys
-        noHandler.validateForImmutableState(new Request(), clusterState);
+        noHandler.validateForReservedState(new Request(), clusterState);
 
         ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest().persistentSettings(
             Settings.builder().put("a", "a value").build()
@@ -792,10 +787,10 @@ public class TransportMasterNodeActionTests extends ESTestCase {
             ThreadPool.Names.SAME
         );
 
-        assertTrue(action.supportsImmutableState());
+        assertTrue(action.supportsReservedState());
 
         assertTrue(
-            expectThrows(IllegalArgumentException.class, () -> action.validateForImmutableState(request, clusterState)).getMessage()
+            expectThrows(IllegalArgumentException.class, () -> action.validateForReservedState(request, clusterState)).getMessage()
                 .contains("with errors: [[a] set as read-only by [namespace_one], " + "[e] set as read-only by [namespace_two]")
         );
 
@@ -804,7 +799,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         ).transientSettings(Settings.builder().put("n", "n value").build());
 
         // this should just work, no conflicts
-        action.validateForImmutableState(okRequest, clusterState);
+        action.validateForReservedState(okRequest, clusterState);
     }
 
     private Runnable blockAllThreads(String executorName) throws Exception {

@@ -1,6 +1,0 @@
-pr: 88385
-summary: Prevent re-balancing using outdated node weights in some cases
-area: Allocation
-type: bug
-issues:
- - 88384

@@ -21,8 +21,10 @@ import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
@@ -146,7 +148,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
         assertThat(migratedColdAllocateAction.getRequire().size(), is(0));
     }
 
-    public void testMigrateIlmPolicyFOrPhaseWithDeactivatedMigrateAction() {
+    public void testMigrateIlmPolicyForPhaseWithDeactivatedMigrateAction() {
         ShrinkAction shrinkAction = new ShrinkAction(2, null);
         AllocateAction warmAllocateAction = new AllocateAction(null, null, Map.of("data", "warm"), null, Map.of("rack", "rack1"));
 
@@ -485,11 +487,10 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
     }
 
     private Settings.Builder getBaseIndexSettings() {
-        return Settings.builder()
-            .put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10))
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 5))
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT);
+        return indexSettings(Version.CURRENT, randomIntBetween(1, 10), randomIntBetween(0, 5)).put(
+            LifecycleSettings.LIFECYCLE_NAME,
+            lifecycleName
+        );
     }
 
     public void testAllocateActionDefinesRoutingRules() {
@@ -510,7 +511,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
     }
 
     public void testConvertAttributeValueToTierPreference() {
-        assertThat(convertAttributeValueToTierPreference("frozen"), is("data_frozen,data_cold,data_warm,data_hot"));
+        assertThat(convertAttributeValueToTierPreference("frozen"), is("data_frozen"));
         assertThat(convertAttributeValueToTierPreference("cold"), is("data_cold,data_warm,data_hot"));
         assertThat(convertAttributeValueToTierPreference("warm"), is("data_warm,data_hot"));
         assertThat(convertAttributeValueToTierPreference("hot"), is("data_hot"));
@@ -557,6 +558,26 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
             IndexMetadata migratedIndex = migratedState.metadata().index("indexWithWarmDataAttribute");
             assertThat(migratedIndex.getSettings().get(DATA_ROUTING_INCLUDE_SETTING), nullValue());
             assertThat(migratedIndex.getSettings().get(TIER_PREFERENCE), is("data_warm,data_hot"));
+        }
+
+        {
+            // test the migration of `include.data: frozen` configuration to the equivalent _tier_preference routing
+            IndexMetadata.Builder indexWithFrozenDataAttribute = IndexMetadata.builder("indexWithFrozenDataAttribute")
+                .settings(getBaseIndexSettings().put(DATA_ROUTING_INCLUDE_SETTING, "frozen"));
+            ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
+                .metadata(Metadata.builder().put(indexWithFrozenDataAttribute))
+                .build();
+
+            Metadata.Builder mb = Metadata.builder(state.metadata());
+
+            List<String> migratedIndices = migrateIndices(mb, state, "data");
+            assertThat(migratedIndices.size(), is(1));
+            assertThat(migratedIndices.get(0), is("indexWithFrozenDataAttribute"));
+
+            ClusterState migratedState = ClusterState.builder(ClusterName.DEFAULT).metadata(mb).build();
+            IndexMetadata migratedIndex = migratedState.metadata().index("indexWithFrozenDataAttribute");
+            assertThat(migratedIndex.getSettings().get(DATA_ROUTING_INCLUDE_SETTING), nullValue());
+            assertThat(migratedIndex.getSettings().get(TIER_PREFERENCE), is("data_frozen"));
         }
 
         {
@@ -1218,7 +1239,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
             List.of("test-*"),
             Settings.builder()
                 .put(LifecycleSettings.LIFECYCLE_NAME, "testLifecycle")
-                .put(LifecycleSettings.LIFECYCLE_PARSE_ORIGINATION_DATE, true)
+                .put(IndexSettings.LIFECYCLE_PARSE_ORIGINATION_DATE, true)
                 .build(),
             Map.of(),
             Map.of()
@@ -1329,7 +1350,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
             new Template(
                 Settings.builder()
                     .put(LifecycleSettings.LIFECYCLE_NAME, "testLifecycle")
-                    .put(LifecycleSettings.LIFECYCLE_PARSE_ORIGINATION_DATE, true)
+                    .put(IndexSettings.LIFECYCLE_PARSE_ORIGINATION_DATE, true)
                     .build(),
                 null,
                 null
@@ -1432,7 +1453,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
             new Template(
                 Settings.builder()
                     .put(LifecycleSettings.LIFECYCLE_NAME, "testLifecycle")
-                    .put(LifecycleSettings.LIFECYCLE_PARSE_ORIGINATION_DATE, true)
+                    .put(IndexSettings.LIFECYCLE_PARSE_ORIGINATION_DATE, true)
                     .build(),
                 null,
                 null
@@ -1499,7 +1520,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
             new Template(
                 Settings.builder()
                     .put(LifecycleSettings.LIFECYCLE_NAME, "testLifecycle")
-                    .put(LifecycleSettings.LIFECYCLE_PARSE_ORIGINATION_DATE, true)
+                    .put(IndexSettings.LIFECYCLE_PARSE_ORIGINATION_DATE, true)
                     .build(),
                 null,
                 null
@@ -1551,7 +1572,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
     }
 
     private String getWarmPhaseDef() {
-        return """
+        return Strings.format("""
             {
               "policy": "%s",
               "phase_definition": {
@@ -1573,11 +1594,11 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
               },
               "version": 1,
               "modified_date_in_millis": 1578521007076
-            }""".formatted(lifecycleName);
+            }""", lifecycleName);
     }
 
     private String getColdPhaseDefinitionWithTotalShardsPerNode() {
-        return """
+        return Strings.format("""
             {
               "policy": "%s",
               "phase_definition": {
@@ -1593,11 +1614,11 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
               },
               "version": 1,
               "modified_date_in_millis": 1578521007076
-            }""".formatted(lifecycleName);
+            }""", lifecycleName);
     }
 
     private String getColdPhaseDefinition() {
-        return """
+        return Strings.format("""
             {
               "policy": "%s",
               "phase_definition": {
@@ -1613,7 +1634,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
               },
               "version": 1,
               "modified_date_in_millis": 1578521007076
-            }""".formatted(lifecycleName);
+            }""", lifecycleName);
     }
 
     @SuppressWarnings("unchecked")

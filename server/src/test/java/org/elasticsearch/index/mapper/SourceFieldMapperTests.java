@@ -31,6 +31,11 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
     }
 
     @Override
+    protected boolean isConfigurable() {
+        return true;
+    }
+
+    @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
         checker.registerConflictCheck(
             "enabled",
@@ -172,13 +177,13 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
     public void testSourceObjectContainsExtraTokens() throws Exception {
         DocumentMapper documentMapper = createDocumentMapper(mapping(b -> {}));
 
-        MapperParsingException exception = expectThrows(
-            MapperParsingException.class,
+        Exception exception = expectThrows(
+            DocumentParsingException.class,
             // extra end object (invalid JSON))
             () -> documentMapper.parse(new SourceToParse("1", new BytesArray("{}}"), XContentType.JSON))
         );
-        assertNotNull(exception.getRootCause());
-        assertThat(exception.getRootCause().getMessage(), containsString("Unexpected close marker '}'"));
+        assertNotNull(exception.getCause());
+        assertThat(exception.getCause().getMessage(), containsString("Unexpected close marker '}'"));
     }
 
     public void testSyntheticDisabledNotSupported() {

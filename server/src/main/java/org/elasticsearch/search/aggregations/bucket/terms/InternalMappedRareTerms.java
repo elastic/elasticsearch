@@ -92,7 +92,7 @@ public abstract class InternalMappedRareTerms<A extends InternalRareTerms<A, B>,
         for (InternalAggregation aggregation : aggregations) {
             // Unmapped rare terms don't have a cuckoo filter so we'll skip all this work
             // and save some type casting headaches later.
-            if (aggregation.isMapped() == false) {
+            if (aggregation.canLeadReduction() == false) {
                 continue;
             }
 

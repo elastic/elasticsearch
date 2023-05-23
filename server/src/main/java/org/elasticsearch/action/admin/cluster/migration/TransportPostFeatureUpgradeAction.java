@@ -94,14 +94,13 @@ public class TransportPostFeatureUpgradeAction extends TransportMasterNodeAction
                 SYSTEM_INDEX_UPGRADE_TASK_NAME,
                 SYSTEM_INDEX_UPGRADE_TASK_NAME,
                 new SystemIndexMigrationTaskParams(),
-                ActionListener.wrap(
-                    startedTask -> { listener.onResponse(new PostFeatureUpgradeResponse(true, featuresToMigrate, null, null)); },
-                    ex -> {
-                        logger.error("failed to start system index upgrade task", ex);
+                ActionListener.wrap(startedTask -> {
+                    listener.onResponse(new PostFeatureUpgradeResponse(true, featuresToMigrate, null, null));
+                }, ex -> {
+                    logger.error("failed to start system index upgrade task", ex);
 
-                        listener.onResponse(new PostFeatureUpgradeResponse(false, null, null, new ElasticsearchException(ex)));
-                    }
-                )
+                    listener.onResponse(new PostFeatureUpgradeResponse(false, null, null, new ElasticsearchException(ex)));
+                })
             );
         } else {
             listener.onResponse(new PostFeatureUpgradeResponse(false, null, "No system indices require migration", null));

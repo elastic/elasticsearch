@@ -1,28 +1,25 @@
 ---
-"cluster health test drilling down into a component and a feature":
+"cluster health test drilling down into a feature":
   - skip:
-      version: "- 8.3.99"
-      reason: "health drilldown was only added in 8.3.0, and master_is_stable in 8.4.0"
+      version: "- 8.6.99"
+      reason: "the API path changed in 8.7"
 
   - do:
-      _internal.health:
-        component: cluster_coordination
+      health_report:
         feature: master_is_stable
 
   - is_true: cluster_name
-  - match:   { components.cluster_coordination.indicators.master_is_stable.status: "green" }
-  - match:   { components.cluster_coordination.indicators.master_is_stable.summary: "The cluster has a stable master node" }
-  - is_true: components.cluster_coordination.indicators.master_is_stable.details.current_master
-  - is_true: components.cluster_coordination.indicators.master_is_stable.details.recent_masters
+  - match:   { indicators.master_is_stable.status: "green" }
+  - match:   { indicators.master_is_stable.symptom: "The cluster has a stable master node" }
+  - is_true: indicators.master_is_stable.details.current_master
+  - is_true: indicators.master_is_stable.details.recent_masters
 
   - do:
-      _internal.health:
-        component: cluster_coordination
+      health_report:
         feature: master_is_stable
-        explain: false
+        verbose: false
 
   - is_true: cluster_name
-  - match:   { components.cluster_coordination.indicators.master_is_stable.status: "green" }
-  - match:   { components.cluster_coordination.indicators.master_is_stable.summary: "The cluster has a stable master node" }
-  - is_false: components.cluster_coordination.indicators.master_is_stable.details
-
+  - match:   { indicators.master_is_stable.status: "green" }
+  - match:   { indicators.master_is_stable.symptom: "The cluster has a stable master node" }
+  - is_false: indicators.master_is_stable.details

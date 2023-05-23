@@ -31,6 +31,11 @@ public class TransformFeatureSetUsageTests extends AbstractWireSerializingTestCa
     }
 
     @Override
+    protected TransformFeatureSetUsage mutateInstance(TransformFeatureSetUsage instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Reader<TransformFeatureSetUsage> instanceReader() {
         return TransformFeatureSetUsage::new;
     }

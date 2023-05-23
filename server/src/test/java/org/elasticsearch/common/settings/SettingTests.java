@@ -59,7 +59,7 @@ public class SettingTests extends ESTestCase {
     public void testByteSizeSetting() {
         final Setting<ByteSizeValue> byteSizeValueSetting = Setting.byteSizeSetting(
             "a.byte.size",
-            new ByteSizeValue(1024),
+            ByteSizeValue.ofBytes(1024),
             Property.Dynamic,
             Property.NodeScope
         );
@@ -73,7 +73,7 @@ public class SettingTests extends ESTestCase {
             "a.byte.size",
             new ByteSizeValue(100, ByteSizeUnit.MB),
             new ByteSizeValue(20_000_000, ByteSizeUnit.BYTES),
-            new ByteSizeValue(Integer.MAX_VALUE, ByteSizeUnit.BYTES)
+            ByteSizeValue.ofBytes(Integer.MAX_VALUE)
         );
         final long value = 20_000_000 - randomIntBetween(1, 1024);
         final Settings settings = Settings.builder().put("a.byte.size", value + "b").build();
@@ -87,7 +87,7 @@ public class SettingTests extends ESTestCase {
             "a.byte.size",
             new ByteSizeValue(100, ByteSizeUnit.MB),
             new ByteSizeValue(16, ByteSizeUnit.MB),
-            new ByteSizeValue(Integer.MAX_VALUE, ByteSizeUnit.BYTES)
+            ByteSizeValue.ofBytes(Integer.MAX_VALUE)
         );
         final long value = (1L << 31) - 1 + randomIntBetween(1, 1024);
         final Settings settings = Settings.builder().put("a.byte.size", value + "b").build();
@@ -119,13 +119,13 @@ public class SettingTests extends ESTestCase {
         final String expected = "failed to parse setting [a.byte.size] with value [12] as a size in bytes: unit is missing or unrecognized";
         assertThat(cause, hasToString(containsString(expected)));
         assertTrue(settingUpdater.apply(Settings.builder().put("a.byte.size", "12b").build(), Settings.EMPTY));
-        assertThat(value.get(), equalTo(new ByteSizeValue(12)));
+        assertThat(value.get(), equalTo(ByteSizeValue.ofBytes(12)));
     }
 
     public void testMemorySize() {
         Setting<ByteSizeValue> memorySizeValueSetting = Setting.memorySizeSetting(
             "a.byte.size",
-            new ByteSizeValue(1024),
+            ByteSizeValue.ofBytes(1024),
             Property.Dynamic,
             Property.NodeScope
         );
@@ -163,10 +163,10 @@ public class SettingTests extends ESTestCase {
         }
 
         assertTrue(settingUpdater.apply(Settings.builder().put("a.byte.size", "12b").build(), Settings.EMPTY));
-        assertEquals(new ByteSizeValue(12), value.get());
+        assertEquals(ByteSizeValue.ofBytes(12), value.get());
 
         assertTrue(settingUpdater.apply(Settings.builder().put("a.byte.size", "20%").build(), Settings.EMPTY));
-        assertEquals(new ByteSizeValue((long) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.2)), value.get());
+        assertEquals(ByteSizeValue.ofBytes((long) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.2)), value.get());
     }
 
     public void testSimpleUpdate() {
@@ -269,13 +269,9 @@ public class SettingTests extends ESTestCase {
     }
 
     public void testValidatorForFilteredStringSetting() {
-        final Setting<String> filteredStringSetting = new Setting<>(
-            "foo.bar",
-            "foobar",
-            Function.identity(),
-            value -> { throw new SettingsException("validate always fails"); },
-            Property.Filtered
-        );
+        final Setting<String> filteredStringSetting = new Setting<>("foo.bar", "foobar", Function.identity(), value -> {
+            throw new SettingsException("validate always fails");
+        }, Property.Filtered);
 
         final Settings settings = Settings.builder().put(filteredStringSetting.getKey(), filteredStringSetting.getKey() + " value").build();
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> filteredStringSetting.get(settings));
@@ -1227,16 +1223,14 @@ public class SettingTests extends ESTestCase {
             validator
         );
 
-        IllegalArgumentException illegal = expectThrows(
-            IllegalArgumentException.class,
-            () -> { updater.getValue(Settings.builder().put("prefix.foo.suffix", 5).put("abc", 2).build(), Settings.EMPTY); }
-        );
+        IllegalArgumentException illegal = expectThrows(IllegalArgumentException.class, () -> {
+            updater.getValue(Settings.builder().put("prefix.foo.suffix", 5).put("abc", 2).build(), Settings.EMPTY);
+        });
         assertEquals("foo and 2 can't go together", illegal.getMessage());
 
-        illegal = expectThrows(
-            IllegalArgumentException.class,
-            () -> { updater.getValue(Settings.builder().put("prefix.bar.suffix", 6).put("abc", 3).build(), Settings.EMPTY); }
-        );
+        illegal = expectThrows(IllegalArgumentException.class, () -> {
+            updater.getValue(Settings.builder().put("prefix.bar.suffix", 6).put("abc", 3).build(), Settings.EMPTY);
+        });
         assertEquals("no bar", illegal.getMessage());
 
         Settings s = updater.getValue(
@@ -1416,9 +1410,17 @@ public class SettingTests extends ESTestCase {
     }
 
     public void testDeprecationPropertyValidation() {
-        final IllegalArgumentException e = expectThrows(
+        expectThrows(
             IllegalArgumentException.class,
             () -> Setting.boolSetting("a.bool.setting", true, Property.Deprecated, Property.DeprecatedWarning)
+        );
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> Setting.boolSetting("a.bool.setting", true, Property.Deprecated, Property.IndexSettingDeprecatedInV7AndRemovedInV8)
+        );
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> Setting.boolSetting("a.bool.setting", true, Property.DeprecatedWarning, Property.IndexSettingDeprecatedInV7AndRemovedInV8)
         );
     }
 }

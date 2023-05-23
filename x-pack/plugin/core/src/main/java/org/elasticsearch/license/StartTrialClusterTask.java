@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.core.XPackPlugin;
 
 import java.time.Clock;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -57,21 +56,15 @@ public class StartTrialClusterTask implements ClusterStateTaskListener {
         this.clock = clock;
     }
 
-    @Override
-    public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-        assert false : "never called";
-    }
-
     private LicensesMetadata execute(
         LicensesMetadata currentLicensesMetadata,
         DiscoveryNodes discoveryNodes,
         ClusterStateTaskExecutor.TaskContext<StartTrialClusterTask> taskContext
     ) {
         assert taskContext.getTask() == this;
-        final var listener = ActionListener.runBefore(
-            this.listener,
-            () -> { logger.debug("started self generated trial license: {}", currentLicensesMetadata); }
-        );
+        final var listener = ActionListener.runBefore(this.listener, () -> {
+            logger.debug("started self generated trial license: {}", currentLicensesMetadata);
+        });
         if (request.isAcknowledged() == false) {
             taskContext.success(
                 () -> listener.onResponse(
@@ -81,7 +74,7 @@ public class StartTrialClusterTask implements ClusterStateTaskListener {
             return currentLicensesMetadata;
         } else if (currentLicensesMetadata == null || currentLicensesMetadata.isEligibleForTrial()) {
             long issueDate = clock.millis();
-            long expiryDate = issueDate + LicenseService.NON_BASIC_SELF_GENERATED_LICENSE_DURATION.getMillis();
+            long expiryDate = issueDate + LicenseSettings.NON_BASIC_SELF_GENERATED_LICENSE_DURATION.getMillis();
 
             License.Builder specBuilder = License.builder()
                 .uid(UUID.randomUUID().toString())
@@ -90,9 +83,9 @@ public class StartTrialClusterTask implements ClusterStateTaskListener {
                 .type(request.getType())
                 .expiryDate(expiryDate);
             if (License.LicenseType.isEnterprise(request.getType())) {
-                specBuilder.maxResourceUnits(LicenseService.SELF_GENERATED_LICENSE_MAX_RESOURCE_UNITS);
+                specBuilder.maxResourceUnits(LicenseSettings.SELF_GENERATED_LICENSE_MAX_RESOURCE_UNITS);
             } else {
-                specBuilder.maxNodes(LicenseService.SELF_GENERATED_LICENSE_MAX_NODES);
+                specBuilder.maxNodes(LicenseSettings.SELF_GENERATED_LICENSE_MAX_NODES);
             }
             License selfGeneratedLicense = SelfGeneratedLicense.create(specBuilder, discoveryNodes);
             LicensesMetadata newLicensesMetadata = new LicensesMetadata(selfGeneratedLicense, Version.CURRENT);
@@ -115,18 +108,21 @@ public class StartTrialClusterTask implements ClusterStateTaskListener {
     static class Executor implements ClusterStateTaskExecutor<StartTrialClusterTask> {
 
         @Override
-        public ClusterState execute(ClusterState currentState, List<TaskContext<StartTrialClusterTask>> taskContexts) throws Exception {
-            XPackPlugin.checkReadyForXPackCustomMetadata(currentState);
-            final LicensesMetadata originalLicensesMetadata = currentState.metadata().custom(LicensesMetadata.TYPE);
+        public ClusterState execute(BatchExecutionContext<StartTrialClusterTask> batchExecutionContext) throws Exception {
+            final var initialState = batchExecutionContext.initialState();
+            XPackPlugin.checkReadyForXPackCustomMetadata(initialState);
+            final LicensesMetadata originalLicensesMetadata = initialState.metadata().custom(LicensesMetadata.TYPE);
             var currentLicensesMetadata = originalLicensesMetadata;
-            for (final var taskContext : taskContexts) {
-                currentLicensesMetadata = taskContext.getTask().execute(currentLicensesMetadata, currentState.nodes(), taskContext);
+            for (final var taskContext : batchExecutionContext.taskContexts()) {
+                try (var ignored = taskContext.captureResponseHeaders()) {
+                    currentLicensesMetadata = taskContext.getTask().execute(currentLicensesMetadata, initialState.nodes(), taskContext);
+                }
             }
             if (currentLicensesMetadata == originalLicensesMetadata) {
-                return currentState;
+                return initialState;
             } else {
-                return ClusterState.builder(currentState)
-                    .metadata(Metadata.builder(currentState.metadata()).putCustom(LicensesMetadata.TYPE, currentLicensesMetadata))
+                return ClusterState.builder(initialState)
+                    .metadata(Metadata.builder(initialState.metadata()).putCustom(LicensesMetadata.TYPE, currentLicensesMetadata))
                     .build();
             }
         }

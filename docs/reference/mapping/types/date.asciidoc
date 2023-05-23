@@ -10,11 +10,10 @@ JSON doesn't have a date data type, so dates in Elasticsearch can either be:
 * a number representing _milliseconds-since-the-epoch_.
 * a number representing _seconds-since-the-epoch_ (<<date-epoch-seconds, configuration>>).
 
-NOTE: Values for _milliseconds-since-the-epoch_ must be non-negative. Use a
-formatted date to represent dates before 1970.
-
 Internally, dates are converted to UTC (if the time-zone is specified) and
 stored as a long number representing milliseconds-since-the-epoch.
+
+NOTE: Use the <<date_nanos,date_nanos>> field type if a nanosecond resolution is expected.
 
 Queries on dates are internally converted to range queries on this long
 representation, and the result of aggregations and stored fields is converted
@@ -230,3 +229,46 @@ Which will reply with a date like:
   }
 }
 ----
+
+[[date-synthetic-source]]
+==== Synthetic `_source`
+
+IMPORTANT: Synthetic `_source` is Generally Available only for TSDB indices
+(indices that have `index.mode` set to `time_series`). For other indices
+synthetic `_source` is in technical preview. Features in technical preview may
+be changed or removed in a future release. Elastic will apply best effort to fix
+any issues, but features in technical preview are not subject to the support SLA
+of official GA features.
+
+`date` fields support <<synthetic-source,synthetic `_source`>> in their
+default configuration. Synthetic `_source` cannot be used together with
+<<copy-to,`copy_to`>>, <<ignore-malformed,`ignore_malformed`>> set to true
+or with <<doc-values,`doc_values`>> disabled.
+
+Synthetic source always sorts `date` fields. For example:
+[source,console,id=synthetic-source-date-example]
+----
+PUT idx
+{
+  "mappings": {
+    "_source": { "mode": "synthetic" },
+    "properties": {
+      "date": { "type": "date" }
+    }
+  }
+}
+PUT idx/_doc/1
+{
+  "date": ["2015-01-01T12:10:30Z", "2014-01-01T12:10:30Z"]
+}
+----
+// TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
+
+Will become:
+[source,console-result]
+----
+{
+  "date": ["2014-01-01T12:10:30.000Z", "2015-01-01T12:10:30.000Z"]
+}
+----
+// TEST[s/^/{"_source":/ s/\n$/}/]

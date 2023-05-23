@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -22,6 +23,7 @@ import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.Scroll;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.SearchContext;
@@ -43,14 +45,12 @@ import java.util.Objects;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
- * A request to execute search against one or more indices (or all). Best created using
- * {@link org.elasticsearch.client.internal.Requests#searchRequest(String...)}.
+ * A request to execute search against one or more indices (or all).
  * <p>
  * Note, the search {@link #source(org.elasticsearch.search.builder.SearchSourceBuilder)}
  * is required. The search source is the different search options, including aggregations and such.
  * </p>
  *
- * @see org.elasticsearch.client.internal.Requests#searchRequest(String...)
  * @see org.elasticsearch.client.internal.Client#search(SearchRequest)
  * @see SearchResponse
  */
@@ -238,7 +238,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         preference = in.readOptionalString();
         scroll = in.readOptionalWriteable(Scroll::new);
         source = in.readOptionalWriteable(SearchSourceBuilder::new);
-        if (in.getVersion().before(Version.V_8_0_0)) {
+        if (in.getTransportVersion().before(TransportVersion.V_8_0_0)) {
             // types no longer relevant so ignore
             String[] types = in.readStringArray();
             if (types.length > 0) {
@@ -262,16 +262,16 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             finalReduce = true;
         }
         ccsMinimizeRoundtrips = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_7_12_0) && in.readBoolean()) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_12_0) && in.readBoolean()) {
             minCompatibleShardNode = Version.readVersion(in);
         } else {
             minCompatibleShardNode = null;
         }
-        if (in.getVersion().onOrAfter(Version.V_7_16_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_16_0)) {
             waitForCheckpoints = in.readMap(StreamInput::readString, StreamInput::readLongArray);
             waitForCheckpointsTimeout = in.readTimeValue();
         }
-        if (in.getVersion().onOrAfter(Version.V_8_4_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
             forceSyntheticSource = in.readBoolean();
         } else {
             forceSyntheticSource = false;
@@ -287,7 +287,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         out.writeOptionalString(preference);
         out.writeOptionalWriteable(scroll);
         out.writeOptionalWriteable(source);
-        if (out.getVersion().before(Version.V_8_0_0)) {
+        if (out.getTransportVersion().before(TransportVersion.V_8_0_0)) {
             // types not supported so send an empty array to previous versions
             out.writeStringArray(Strings.EMPTY_ARRAY);
         }
@@ -303,27 +303,27 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             out.writeBoolean(finalReduce);
         }
         out.writeBoolean(ccsMinimizeRoundtrips);
-        if (out.getVersion().onOrAfter(Version.V_7_12_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_12_0)) {
             out.writeBoolean(minCompatibleShardNode != null);
             if (minCompatibleShardNode != null) {
                 Version.writeVersion(minCompatibleShardNode, out);
             }
         }
-        Version waitForCheckpointsVersion = Version.V_7_16_0;
-        if (out.getVersion().onOrAfter(waitForCheckpointsVersion)) {
+        TransportVersion waitForCheckpointsVersion = TransportVersion.V_7_16_0;
+        if (out.getTransportVersion().onOrAfter(waitForCheckpointsVersion)) {
             out.writeMap(waitForCheckpoints, StreamOutput::writeString, StreamOutput::writeLongArray);
             out.writeTimeValue(waitForCheckpointsTimeout);
         } else if (waitForCheckpoints.isEmpty() == false) {
             throw new IllegalArgumentException(
-                "Remote node version ["
-                    + out.getVersion()
+                "Remote transport version ["
+                    + out.getTransportVersion()
                     + " incompatible with "
-                    + "wait_for_checkpoints. All nodes must be version ["
+                    + "wait_for_checkpoints. All nodes must use transport version ["
                     + waitForCheckpointsVersion
                     + "] or greater."
             );
         }
-        if (out.getVersion().onOrAfter(Version.V_8_4_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
             out.writeBoolean(forceSyntheticSource);
         } else {
             if (forceSyntheticSource) {
@@ -361,6 +361,57 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         if (source != null) {
             if (source.aggregations() != null) {
                 validationException = source.aggregations().validate(validationException);
+            }
+            if (source.rankBuilder() != null) {
+                int size = source.size() == -1 ? SearchService.DEFAULT_SIZE : source.size();
+                if (size == 0) {
+                    validationException = addValidationError("[rank] requires [size] greater than [0]", validationException);
+                }
+                if (size > source.rankBuilder().windowSize()) {
+                    validationException = addValidationError(
+                        "[rank] requires [window_size: "
+                            + source.rankBuilder().windowSize()
+                            + "]"
+                            + " be greater than or equal to [size: "
+                            + size
+                            + "]",
+                        validationException
+                    );
+                }
+                if (source.knnSearch().isEmpty() || source.query() == null && source.knnSearch().size() < 2) {
+                    validationException = addValidationError(
+                        "[rank] requires a minimum of [2] result sets which"
+                            + " either needs at minimum [a query and a knn search] or [multiple knn searches]",
+                        validationException
+                    );
+                }
+                if (scroll) {
+                    validationException = addValidationError("[rank] cannot be used in a scroll context", validationException);
+                }
+                if (source.rescores() != null && source.rescores().isEmpty() == false) {
+                    validationException = addValidationError("[rank] cannot be used with [rescore]", validationException);
+                }
+                if (source.sorts() != null && source.sorts().isEmpty() == false) {
+                    validationException = addValidationError("[rank] cannot be used with [sort]", validationException);
+                }
+                if (source.collapse() != null) {
+                    validationException = addValidationError("[rank] cannot be used with [collapse]", validationException);
+                }
+                if (source.suggest() != null && source.suggest().getSuggestions().isEmpty() == false) {
+                    validationException = addValidationError("[rank] cannot be used with [suggest]", validationException);
+                }
+                if (source.highlighter() != null) {
+                    validationException = addValidationError("[rank] cannot be used with [highlighter]", validationException);
+                }
+                if (source.pointInTimeBuilder() != null) {
+                    validationException = addValidationError("[rank] cannot be used with [point in time]", validationException);
+                }
+                if (source.profile()) {
+                    validationException = addValidationError("[rank] requires [profile] is [false]", validationException);
+                }
+                if (source.explain() != null && source.explain()) {
+                    validationException = addValidationError("[rank] requires [explain] is [false]", validationException);
+                }
             }
         }
         if (pointInTimeBuilder() != null) {
@@ -743,7 +794,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
      * @return true if the request contains kNN search
      */
     public boolean hasKnnSearch() {
-        return source != null && source.knnSearch() != null;
+        return source != null && source.knnSearch().isEmpty() == false;
     }
 
     public int resolveTrackTotalHitsUpTo() {
@@ -816,15 +867,21 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         StringBuilder sb = new StringBuilder();
         sb.append("indices[");
         Strings.arrayToDelimitedString(indices, ",", sb);
-        sb.append("], ");
-        sb.append("search_type[").append(searchType).append("], ");
+        sb.append("]");
+        sb.append(", search_type[").append(searchType).append("]");
         if (scroll != null) {
-            sb.append("scroll[").append(scroll.keepAlive()).append("], ");
+            sb.append(", scroll[").append(scroll.keepAlive()).append("]");
         }
         if (source != null) {
-            sb.append("source[").append(source.toString(FORMAT_PARAMS)).append("]");
+            sb.append(", source[").append(source.toString(FORMAT_PARAMS)).append("]");
         } else {
-            sb.append("source[]");
+            sb.append(", source[]");
+        }
+        if (routing != null) {
+            sb.append(", routing[").append(routing).append("]");
+        }
+        if (preference != null) {
+            sb.append(", preference[").append(preference).append("]");
         }
         return sb.toString();
     }

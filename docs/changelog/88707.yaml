@@ -1,5 +1,0 @@
-pr: 88707
-summary: Avoid capturing `SnapshotsInProgress$Entry` in queue
-area: Snapshot/Restore
-type: bug
-issues: []

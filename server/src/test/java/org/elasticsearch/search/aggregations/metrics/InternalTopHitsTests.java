@@ -21,18 +21,22 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
+import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.test.NotEqualMessageBuilder;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
@@ -154,7 +158,8 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
 
             Map<String, DocumentField> searchHitFields = new HashMap<>();
             scoreDocs[i] = docBuilder.apply(docId, score);
-            hits[i] = new SearchHit(docId, Integer.toString(i), searchHitFields, Collections.emptyMap());
+            hits[i] = new SearchHit(docId, Integer.toString(i));
+            hits[i].addDocumentFields(searchHitFields, Collections.emptyMap());
             hits[i].score(score);
         }
         int totalHits = between(actualSize, 500000);
@@ -273,6 +278,33 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
         assertEqualsWithErrorMessageFromXContent(expectedHits, actualHits);
     }
 
+    public void testGetProperty() {
+        // Create a SearchHit containing: { "foo": 1000.0 } and use it to initialize an InternalTopHits instance.
+        SearchHit hit = new SearchHit(0);
+        hit = hit.sourceRef(Source.fromMap(Map.of("foo", 1000.0), XContentType.YAML).internalSourceRef());
+        hit.sortValues(new Object[] { 10.0 }, new DocValueFormat[] { DocValueFormat.RAW });
+        hit.score(1.0f);
+        SearchHits hits = new SearchHits(new SearchHit[] { hit }, null, 0);
+        InternalTopHits internalTopHits = new InternalTopHits("test", 0, 0, null, hits, null);
+
+        assertEquals(internalTopHits, internalTopHits.getProperty(Collections.emptyList()));
+        assertEquals(1000.0, internalTopHits.getProperty(List.of("_source.foo")));
+        assertEquals(10.0, internalTopHits.getProperty(List.of("_sort")));
+        assertEquals(1.0f, internalTopHits.getProperty(List.of("_score")));
+
+        expectThrows(IllegalArgumentException.class, () -> internalTopHits.getProperty(List.of("nosuchfield")));
+        expectThrows(IllegalArgumentException.class, () -> internalTopHits.getProperty(List.of("too", "many", "fields")));
+
+        // Sort value retrieval requires a single value.
+        hit.sortValues(new Object[] { 10.0, 20.0 }, new DocValueFormat[] { DocValueFormat.RAW, DocValueFormat.RAW });
+        expectThrows(IllegalArgumentException.class, () -> internalTopHits.getProperty(List.of("_sort")));
+
+        // Two SearchHit instances are not allowed, only the first will be used without assertion.
+        hits = new SearchHits(new SearchHit[] { hit, hit }, null, 0);
+        InternalTopHits internalTopHits3 = new InternalTopHits("test", 0, 0, null, hits, null);
+        expectThrows(IllegalArgumentException.class, () -> internalTopHits3.getProperty(List.of("foo")));
+    }
+
     @Override
     protected boolean supportsSampling() {
         return true;
@@ -287,7 +319,7 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
      * Assert that two objects are equals, calling {@link ToXContent#toXContent(XContentBuilder, ToXContent.Params)} to print out their
      * differences if they aren't equal.
      */
-    private static <T extends ToXContent> void assertEqualsWithErrorMessageFromXContent(T expected, T actual) {
+    private static <T extends ChunkedToXContent> void assertEqualsWithErrorMessageFromXContent(T expected, T actual) {
         if (Objects.equals(expected, actual)) {
             return;
         }
@@ -299,10 +331,10 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
         }
         try (XContentBuilder actualJson = JsonXContent.contentBuilder(); XContentBuilder expectedJson = JsonXContent.contentBuilder()) {
             actualJson.startObject();
-            actual.toXContent(actualJson, ToXContent.EMPTY_PARAMS);
+            ChunkedToXContent.wrapAsToXContent(actual).toXContent(actualJson, ToXContent.EMPTY_PARAMS);
             actualJson.endObject();
             expectedJson.startObject();
-            expected.toXContent(expectedJson, ToXContent.EMPTY_PARAMS);
+            ChunkedToXContent.wrapAsToXContent(expected).toXContent(expectedJson, ToXContent.EMPTY_PARAMS);
             expectedJson.endObject();
             NotEqualMessageBuilder message = new NotEqualMessageBuilder();
             message.compareMaps(

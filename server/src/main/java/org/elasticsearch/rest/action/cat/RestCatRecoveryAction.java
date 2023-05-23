@@ -158,10 +158,10 @@ public class RestCatRecoveryAction extends AbstractCatAction {
                 t.addCell(state.getIndex().recoveredFileCount());
                 t.addCell(String.format(Locale.ROOT, "%1.1f%%", state.getIndex().recoveredFilesPercent()));
                 t.addCell(state.getIndex().totalFileCount());
-                t.addCell(new ByteSizeValue(state.getIndex().totalRecoverBytes()));
-                t.addCell(new ByteSizeValue(state.getIndex().recoveredBytes()));
+                t.addCell(ByteSizeValue.ofBytes(state.getIndex().totalRecoverBytes()));
+                t.addCell(ByteSizeValue.ofBytes(state.getIndex().recoveredBytes()));
                 t.addCell(String.format(Locale.ROOT, "%1.1f%%", state.getIndex().recoveredBytesPercent()));
-                t.addCell(new ByteSizeValue(state.getIndex().totalBytes()));
+                t.addCell(ByteSizeValue.ofBytes(state.getIndex().totalBytes()));
                 t.addCell(state.getTranslog().totalOperations());
                 t.addCell(state.getTranslog().recoveredOperations());
                 t.addCell(String.format(Locale.ROOT, "%1.1f%%", state.getTranslog().recoveredPercent()));

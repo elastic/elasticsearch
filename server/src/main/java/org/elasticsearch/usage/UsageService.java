@@ -22,9 +22,11 @@ import java.util.Objects;
 public class UsageService {
 
     private final Map<String, BaseRestHandler> handlers;
+    private final SearchUsageHolder searchUsageHolder;
 
     public UsageService() {
         this.handlers = new HashMap<>();
+        this.searchUsageHolder = new SearchUsageHolder();
     }
 
     /**
@@ -73,4 +75,10 @@ public class UsageService {
         return restUsageMap;
     }
 
+    /**
+     * Returns the search usage holder
+     */
+    public SearchUsageHolder getSearchUsageHolder() {
+        return searchUsageHolder;
+    }
 }

@@ -9,7 +9,7 @@
 package org.elasticsearch.action.admin.cluster.node.tasks;
 
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskResponse;
-import org.elasticsearch.action.support.ListenableActionFuture;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
@@ -59,7 +59,7 @@ public class TaskStorageRetryIT extends ESSingleNodeTestCase {
         });
         barrier.await();
         Task task;
-        ListenableActionFuture<TestTaskPlugin.NodesResponse> future = new ListenableActionFuture<>();
+        PlainActionFuture<TestTaskPlugin.NodesResponse> future = new PlainActionFuture<>();
         try {
             logger.info("start a task that will store its results");
             TestTaskPlugin.NodesRequest req = new TestTaskPlugin.NodesRequest("foo");

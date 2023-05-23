@@ -1,5 +1,0 @@
-pr: 88260
-summary: "[Stack Monitoring] Switch cgroup memory fields to keyword"
-area: Monitoring
-type: bug
-issues: []

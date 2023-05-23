@@ -15,7 +15,6 @@ import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
@@ -24,6 +23,7 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -31,22 +31,35 @@ import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.script.MockScriptEngine;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptEngine;
+import org.elasticsearch.script.ScriptModule;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.search.lookup.LeafDocLookup;
 
 import java.io.IOException;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
-import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
+import static java.util.Collections.emptyMap;
 import static java.util.Collections.singleton;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.nullValue;
 
 public class DateRangeAggregatorTests extends AggregatorTestCase {
 
@@ -55,6 +68,31 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
 
     private static final Instant T1 = ZonedDateTime.of(2015, 11, 13, 16, 14, 34, 0, ZoneOffset.UTC).toInstant();
     private static final Instant T2 = ZonedDateTime.of(2016, 11, 13, 16, 14, 34, 0, ZoneOffset.UTC).toInstant();
+
+    /**
+     * Dates used by scripting tests.
+     */
+    private static final List<List<Instant>> DATE_FIELD_VALUES = List.of(
+        List.of(
+            ZonedDateTime.of(2012, 1, 2, 0, 0, 0, 0, ZoneOffset.UTC).toInstant(),
+            ZonedDateTime.of(2012, 2, 3, 0, 0, 0, 0, ZoneOffset.UTC).toInstant()
+        ),
+        List.of(
+            ZonedDateTime.of(2012, 2, 2, 0, 0, 0, 0, ZoneOffset.UTC).toInstant(),
+            ZonedDateTime.of(2012, 3, 3, 0, 0, 0, 0, ZoneOffset.UTC).toInstant()
+        ),
+        List.of(
+            ZonedDateTime.of(2012, 2, 15, 0, 0, 0, 0, ZoneOffset.UTC).toInstant(),
+            ZonedDateTime.of(2012, 3, 16, 0, 0, 0, 0, ZoneOffset.UTC).toInstant()
+        ),
+        List.of(
+            ZonedDateTime.of(2012, 3, 2, 0, 0, 0, 0, ZoneOffset.UTC).toInstant(),
+            ZonedDateTime.of(2012, 4, 3, 0, 0, 0, 0, ZoneOffset.UTC).toInstant()
+        )
+    );
+
+    private static final String VALUE_SCRIPT_NAME = "value_script";
+    private static final String FIELD_SCRIPT_NAME = "field_script";
 
     public void testBooleanFieldDeprecated() throws IOException {
         final String fieldName = "bogusBoolean";
@@ -147,42 +185,41 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
     }
 
     public void testUnboundedRanges() throws IOException {
-        testCase(
-            new RangeAggregationBuilder("name").field(DATE_FIELD_NAME).addUnboundedTo(5).addUnboundedFrom(5),
-            new MatchAllDocsQuery(),
-            iw -> {
-                iw.addDocument(
-                    List.of(new NumericDocValuesField(DATE_FIELD_NAME, Long.MIN_VALUE), new LongPoint(DATE_FIELD_NAME, Long.MIN_VALUE))
-                );
-                iw.addDocument(List.of(new NumericDocValuesField(DATE_FIELD_NAME, 7), new LongPoint(DATE_FIELD_NAME, 7)));
-                iw.addDocument(List.of(new NumericDocValuesField(DATE_FIELD_NAME, 2), new LongPoint(DATE_FIELD_NAME, 2)));
-                iw.addDocument(List.of(new NumericDocValuesField(DATE_FIELD_NAME, 3), new LongPoint(DATE_FIELD_NAME, 3)));
-                iw.addDocument(
-                    List.of(new NumericDocValuesField(DATE_FIELD_NAME, Long.MAX_VALUE), new LongPoint(DATE_FIELD_NAME, Long.MAX_VALUE))
-                );
-            },
-            result -> {
-                InternalRange<?, ?> range = (InternalRange<?, ?>) result;
-                List<? extends InternalRange.Bucket> ranges = range.getBuckets();
-                assertThat(ranges, hasSize(2));
-                assertThat(ranges.get(0).getFrom(), equalTo(Double.NEGATIVE_INFINITY));
-                assertThat(ranges.get(0).getTo(), equalTo(5d));
-                assertThat(ranges.get(0).getDocCount(), equalTo(3L));
-                assertThat(ranges.get(1).getFrom(), equalTo(5d));
-                assertThat(ranges.get(1).getTo(), equalTo(Double.POSITIVE_INFINITY));
-                assertThat(ranges.get(1).getDocCount(), equalTo(2L));
-                assertTrue(AggregationInspectionHelper.hasValue(range));
-            },
-            new DateFieldMapper.DateFieldType(
-                DATE_FIELD_NAME,
-                randomBoolean(),
-                randomBoolean(),
-                true,
-                DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
-                Resolution.MILLISECONDS,
-                null,
-                null,
-                Collections.emptyMap()
+        testCase(iw -> {
+            iw.addDocument(
+                List.of(new NumericDocValuesField(DATE_FIELD_NAME, Long.MIN_VALUE), new LongPoint(DATE_FIELD_NAME, Long.MIN_VALUE))
+            );
+            iw.addDocument(List.of(new NumericDocValuesField(DATE_FIELD_NAME, 7), new LongPoint(DATE_FIELD_NAME, 7)));
+            iw.addDocument(List.of(new NumericDocValuesField(DATE_FIELD_NAME, 2), new LongPoint(DATE_FIELD_NAME, 2)));
+            iw.addDocument(List.of(new NumericDocValuesField(DATE_FIELD_NAME, 3), new LongPoint(DATE_FIELD_NAME, 3)));
+            iw.addDocument(
+                List.of(new NumericDocValuesField(DATE_FIELD_NAME, Long.MAX_VALUE), new LongPoint(DATE_FIELD_NAME, Long.MAX_VALUE))
+            );
+        }, result -> {
+            InternalRange<?, ?> range = (InternalRange<?, ?>) result;
+            List<? extends InternalRange.Bucket> ranges = range.getBuckets();
+            assertThat(ranges, hasSize(2));
+            assertThat(ranges.get(0).getFrom(), equalTo(Double.NEGATIVE_INFINITY));
+            assertThat(ranges.get(0).getTo(), equalTo(5d));
+            assertThat(ranges.get(0).getDocCount(), equalTo(3L));
+            assertThat(ranges.get(1).getFrom(), equalTo(5d));
+            assertThat(ranges.get(1).getTo(), equalTo(Double.POSITIVE_INFINITY));
+            assertThat(ranges.get(1).getDocCount(), equalTo(2L));
+            assertTrue(AggregationInspectionHelper.hasValue(range));
+        },
+            new AggTestConfig(
+                new RangeAggregationBuilder("name").field(DATE_FIELD_NAME).addUnboundedTo(5).addUnboundedFrom(5),
+                new DateFieldMapper.DateFieldType(
+                    DATE_FIELD_NAME,
+                    randomBoolean(),
+                    randomBoolean(),
+                    true,
+                    DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
+                    Resolution.MILLISECONDS,
+                    null,
+                    null,
+                    emptyMap()
+                )
             )
         );
     }
@@ -229,6 +266,31 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
         }, range -> fail("Should have thrown exception"), fieldType));
     }
 
+    public void testUnmappedWithoutMissing() throws IOException {
+        List<Consumer<DateRangeAggregationBuilder>> rangeTypes = List.of(
+            builder -> builder.addRange("2015-01-01", "2015-12-31"),
+            builder -> builder.addRange(
+                ZonedDateTime.of(2015, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC),
+                ZonedDateTime.of(2015, 12, 31, 0, 0, 0, 0, ZoneOffset.UTC)
+            )
+        );
+
+        for (Consumer<DateRangeAggregationBuilder> rangeType : rangeTypes) {
+            final DateRangeAggregationBuilder aggregationBuilder = new DateRangeAggregationBuilder("date_range").field("does_not_exist");
+            rangeType.accept(aggregationBuilder);
+
+            testCase(iw -> {
+                iw.addDocument(singleton(new NumericDocValuesField(NUMBER_FIELD_NAME, 7)));
+                iw.addDocument(singleton(new NumericDocValuesField(NUMBER_FIELD_NAME, 1)));
+            }, (InternalDateRange range) -> {
+                List<? extends InternalRange.Bucket> ranges = range.getBuckets();
+                assertEquals(1, ranges.size());
+                assertEquals(0, ranges.get(0).getDocCount());
+                assertFalse(AggregationInspectionHelper.hasValue(range));
+            }, new AggTestConfig(aggregationBuilder));
+        }
+    }
+
     public void testUnmappedWithMissingNumber() throws IOException {
         DateRangeAggregationBuilder aggregationBuilder = new DateRangeAggregationBuilder("date_range").field("does_not_exist")
             .addRange("2015-11-13", "2015-11-14")
@@ -273,13 +335,9 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> testCase(
-                aggregationBuilder,
-                new MatchAllDocsQuery(),
-                iw -> { iw.addDocument(singleton(new SortedSetDocValuesField("string", new BytesRef("foo")))); },
-                range -> fail("Should have thrown exception"),
-                fieldType
-            )
+            () -> testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+                iw.addDocument(singleton(new SortedSetDocValuesField("string", new BytesRef("foo"))));
+            }, range -> fail("Should have thrown exception"), fieldType)
         );
         assertEquals("Field [not_a_number] of type [keyword] is not supported for aggregation [date_range]", e.getMessage());
     }
@@ -308,6 +366,102 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
             iw.addDocument(singleton(new NumericDocValuesField(NUMBER_FIELD_NAME, 7)));
             iw.addDocument(singleton(new NumericDocValuesField(NUMBER_FIELD_NAME, 1)));
         }, range -> fail("Should have thrown exception"), fieldType));
+    }
+
+    public void testValueScriptSingleValuedField() throws IOException {
+        DateRangeAggregationBuilder aggregationBuilder = new DateRangeAggregationBuilder("date_range").field(DATE_FIELD_NAME)
+            .addUnboundedTo("2012-02-15")
+            .addRange("2012-02-15", "2012-03-15")
+            .addUnboundedFrom("2012-03-15")
+            .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, VALUE_SCRIPT_NAME, emptyMap()));
+
+        testCase(iw -> {
+            for (List<Instant> values : DATE_FIELD_VALUES) {
+                iw.addDocument(List.of(new SortedNumericDocValuesField(DATE_FIELD_NAME, values.get(0).toEpochMilli())));
+            }
+        }, (InternalDateRange range) -> {
+            List<? extends InternalRange.Bucket> ranges = range.getBuckets();
+            assertThat(ranges, hasSize(3));
+
+            {
+                Range.Bucket bucket = ranges.get(0);
+                assertThat(bucket.getKey(), equalTo("*-2012-02-15T00:00:00.000Z"));
+                assertThat(bucket.getFrom(), nullValue());
+                assertThat(bucket.getTo(), equalTo(ZonedDateTime.of(2012, 2, 15, 0, 0, 0, 0, ZoneOffset.UTC)));
+                assertThat(bucket.getFromAsString(), nullValue());
+                assertThat(bucket.getToAsString(), equalTo("2012-02-15T00:00:00.000Z"));
+                assertThat(bucket.getDocCount(), equalTo(1L));
+            }
+
+            {
+                Range.Bucket bucket = ranges.get(1);
+                assertThat(bucket.getKey(), equalTo("2012-02-15T00:00:00.000Z-2012-03-15T00:00:00.000Z"));
+                assertThat(bucket.getFrom(), equalTo(ZonedDateTime.of(2012, 2, 15, 0, 0, 0, 0, ZoneOffset.UTC)));
+                assertThat(bucket.getTo(), equalTo(ZonedDateTime.of(2012, 3, 15, 0, 0, 0, 0, ZoneOffset.UTC)));
+                assertThat(bucket.getFromAsString(), equalTo("2012-02-15T00:00:00.000Z"));
+                assertThat(bucket.getToAsString(), equalTo("2012-03-15T00:00:00.000Z"));
+                assertThat(bucket.getDocCount(), equalTo(1L));
+            }
+
+            {
+                Range.Bucket bucket = ranges.get(2);
+                assertThat(bucket.getKey(), equalTo("2012-03-15T00:00:00.000Z-*"));
+                assertThat(bucket.getFrom(), equalTo(ZonedDateTime.of(2012, 3, 15, 0, 0, 0, 0, ZoneOffset.UTC)));
+                assertThat(bucket.getTo(), nullValue());
+                assertThat(bucket.getFromAsString(), equalTo("2012-03-15T00:00:00.000Z"));
+                assertThat(bucket.getToAsString(), nullValue());
+                assertThat(bucket.getDocCount(), equalTo(2L));
+            }
+        }, new AggTestConfig(aggregationBuilder, new DateFieldMapper.DateFieldType(DATE_FIELD_NAME)));
+    }
+
+    public void testValueScriptMultiValuedField() throws IOException {
+        DateRangeAggregationBuilder aggregationBuilder = new DateRangeAggregationBuilder("date_range").field(DATE_FIELD_NAME)
+            .addUnboundedTo("2012-02-15")
+            .addRange("2012-02-15", "2012-03-15")
+            .addUnboundedFrom("2012-03-15")
+            .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, VALUE_SCRIPT_NAME, emptyMap()));
+
+        testCase(iw -> {
+            for (List<Instant> values : DATE_FIELD_VALUES) {
+                iw.addDocument(
+                    values.stream().map(value -> new SortedNumericDocValuesField(DATE_FIELD_NAME, value.toEpochMilli())).toList()
+                );
+            }
+        }, (InternalDateRange range) -> {
+            List<? extends InternalRange.Bucket> ranges = range.getBuckets();
+            assertThat(ranges, hasSize(3));
+
+            {
+                Range.Bucket bucket = ranges.get(0);
+                assertThat(bucket.getKey(), equalTo("*-2012-02-15T00:00:00.000Z"));
+                assertThat(bucket.getFrom(), nullValue());
+                assertThat(bucket.getTo(), equalTo(ZonedDateTime.of(2012, 2, 15, 0, 0, 0, 0, ZoneOffset.UTC)));
+                assertThat(bucket.getFromAsString(), nullValue());
+                assertThat(bucket.getToAsString(), equalTo("2012-02-15T00:00:00.000Z"));
+                assertThat(bucket.getDocCount(), equalTo(1L));
+            }
+
+            {
+                Range.Bucket bucket = ranges.get(1);
+                assertThat(bucket.getKey(), equalTo("2012-02-15T00:00:00.000Z-2012-03-15T00:00:00.000Z"));
+                assertThat(bucket.getFrom(), equalTo(ZonedDateTime.of(2012, 2, 15, 0, 0, 0, 0, ZoneOffset.UTC)));
+                assertThat(bucket.getTo(), equalTo(ZonedDateTime.of(2012, 3, 15, 0, 0, 0, 0, ZoneOffset.UTC)));
+                assertThat(bucket.getFromAsString(), equalTo("2012-02-15T00:00:00.000Z"));
+                assertThat(bucket.getToAsString(), equalTo("2012-03-15T00:00:00.000Z"));
+                assertThat(bucket.getDocCount(), equalTo(2L));
+            }
+
+            {
+                Range.Bucket bucket = ranges.get(2);
+                assertThat(bucket.getKey(), equalTo("2012-03-15T00:00:00.000Z-*"));
+                assertThat(bucket.getFrom(), equalTo(ZonedDateTime.of(2012, 3, 15, 0, 0, 0, 0, ZoneOffset.UTC)));
+                assertThat(bucket.getTo(), nullValue());
+                assertThat(bucket.getFromAsString(), equalTo("2012-03-15T00:00:00.000Z"));
+                assertThat(bucket.getToAsString(), nullValue());
+                assertThat(bucket.getDocCount(), equalTo(3L));
+            }
+        }, new AggTestConfig(aggregationBuilder, new DateFieldMapper.DateFieldType(DATE_FIELD_NAME)));
     }
 
     private void testBothResolutions(
@@ -344,7 +498,7 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
             resolution,
             null,
             null,
-            Collections.emptyMap()
+            emptyMap()
         );
         DateRangeAggregationBuilder aggregationBuilder = new DateRangeAggregationBuilder("test_range_agg");
         aggregationBuilder.field(DATE_FIELD_NAME);
@@ -365,14 +519,12 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
             buildIndex.accept(indexWriter);
             indexWriter.close();
 
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
-                IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
+            try (DirectoryReader indexReader = DirectoryReader.open(directory)) {
+                IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
                 InternalRange<? extends InternalRange.Bucket, ? extends InternalRange<?, ?>> agg = searchAndReduce(
                     indexSearcher,
-                    query,
-                    aggregationBuilder,
-                    fieldType
+                    new AggTestConfig(aggregationBuilder, fieldType).withQuery(query)
                 );
                 verify.accept(agg);
 
@@ -385,5 +537,30 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
         /*
          * No-op.
          */
+    }
+
+    @Override
+    protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
+        return List.of(CoreValuesSourceType.DATE);
+    }
+
+    @Override
+    protected AggregationBuilder createAggBuilderForTypeTest(MappedFieldType fieldType, String fieldName) {
+        return new DateRangeAggregationBuilder("_name").field(fieldName).addRange("2015-01-01", "2015-12-31");
+    }
+
+    @Override
+    protected ScriptService getMockScriptService() {
+        final Map<String, Function<Map<String, Object>, Object>> scripts = Map.of(VALUE_SCRIPT_NAME, vars -> {
+            Number value = (Number) vars.get("_value");
+            return Instant.ofEpochMilli(value.longValue()).atZone(ZoneOffset.UTC).plusMonths(1).toInstant().toEpochMilli();
+        }, FIELD_SCRIPT_NAME, vars -> {
+            String fieldName = (String) vars.get("field");
+            LeafDocLookup lookup = (LeafDocLookup) vars.get("doc");
+            return lookup.get(fieldName).stream().map(value -> ((ZonedDateTime) value).plusMonths(1).toInstant().toEpochMilli()).toList();
+        });
+        final MockScriptEngine engine = new MockScriptEngine(MockScriptEngine.NAME, scripts, emptyMap());
+        final Map<String, ScriptEngine> engines = Map.of(engine.getType(), engine);
+        return new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS, () -> 0);
     }
 }

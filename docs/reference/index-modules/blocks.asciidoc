@@ -35,9 +35,16 @@ the index itself - can increase the index size over time. When
 not permitted. However, deleting the index itself releases the read-only index
 block and makes resources available almost immediately.
 +
-IMPORTANT: {es} adds and removes the read-only index block automatically when
-the disk utilization falls below the high watermark, controlled by
-<<cluster-routing-flood-stage,cluster.routing.allocation.disk.watermark.flood_stage>>.
+IMPORTANT: {es} adds the read-only index block automatically when the disk
+utilization exceeds the flood stage watermark, controlled by the
+<<cluster-routing-flood-stage,cluster.routing.allocation.disk.watermark.flood_stage>>
+and <<cluster-routing-flood-stage,cluster.routing.allocation.disk.watermark.flood_stage.max_headroom>>
+settings, and removes the block automatically when the disk utilization falls
+under the high watermark, controlled by the
+<<cluster-routing-flood-stage,cluster.routing.allocation.disk.watermark.high>>
+and <<cluster-routing-flood-stage,cluster.routing.allocation.disk.watermark.high.max_headroom>>
+settings. Refer to <<fix-watermark-errors,Fix watermark errors>> to resolve 
+watermark issues.
 
 `index.blocks.read`::
 

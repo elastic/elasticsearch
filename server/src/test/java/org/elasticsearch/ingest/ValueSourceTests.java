@@ -12,7 +12,6 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -20,8 +19,8 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -34,7 +33,7 @@ public class ValueSourceTests extends ESTestCase {
         for (int i = 0; i < iterations; i++) {
             Map<String, Object> map = RandomDocumentPicks.randomSource(random());
             ValueSource valueSource = ValueSource.wrap(map, TestTemplateService.instance());
-            Object copy = valueSource.copyAndResolve(Collections.emptyMap());
+            Object copy = valueSource.copyAndResolve(Map.of());
             assertThat("iteration: " + i, copy, equalTo(map));
             assertThat("iteration: " + i, copy, not(sameInstance(map)));
         }
@@ -86,7 +85,7 @@ public class ValueSourceTests extends ESTestCase {
         String compiledValue = randomAlphaOfLength(10);
         when(scriptService.compile(any(), any())).thenReturn(new TestTemplateService.MockTemplateScript.Factory(compiledValue));
         ValueSource result = ValueSource.wrap(propertyValue, scriptService);
-        assertThat(result.copyAndResolve(Collections.emptyMap()), equalTo(compiledValue));
+        assertThat(result.copyAndResolve(Map.of()), equalTo(compiledValue));
         verify(scriptService, times(1)).compile(any(), any());
     }
 }

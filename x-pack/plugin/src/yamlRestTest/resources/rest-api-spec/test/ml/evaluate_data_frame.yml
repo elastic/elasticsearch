@@ -192,7 +192,9 @@ setup:
 
 ---
 "Test outlier_detection auc_roc":
-
+  - skip:
+      version: " - 8.8.99"
+      reason: t-digest forked in 8.9.0
   - do:
       ml.evaluate_data_frame:
         body:  >
@@ -213,7 +215,9 @@ setup:
 
 ---
 "Test outlier_detection auc_roc given actual_field is int":
-
+  - skip:
+      version: " - 8.8.99"
+      reason: t-digest forked in 8.9.0
   - do:
       ml.evaluate_data_frame:
         body:  >
@@ -234,7 +238,9 @@ setup:
 
 ---
 "Test outlier_detection auc_roc include curve":
-
+  - skip:
+      version: " - 8.8.99"
+      reason: t-digest forked in 8.9.0
   - do:
       ml.evaluate_data_frame:
         body:  >
@@ -709,7 +715,9 @@ setup:
 
 ---
 "Test classification auc_roc":
-
+  - skip:
+      version: " - 8.8.99"
+      reason: t-digest forked in 8.9.0
   - do:
       ml.evaluate_data_frame:
         body:  >

@@ -26,7 +26,7 @@ import java.util.Map;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.rest.action.info.RestClusterInfoAction.AVAILABLE_METRICS;
+import static org.elasticsearch.rest.action.info.RestClusterInfoAction.AVAILABLE_TARGETS;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasToString;
 import static org.mockito.Mockito.mock;
@@ -41,34 +41,34 @@ public class RestClusterInfoActionTests extends ESTestCase {
         action = new RestClusterInfoAction();
     }
 
-    public void testUnrecognizedMetric() {
-        var metric = randomAlphaOfLength(32);
-        var request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/_info/").withParams(Map.of("metric", metric)).build();
+    public void testUnrecognizediTarget() {
+        var target = randomAlphaOfLength(32);
+        var request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/_info/").withParams(Map.of("target", target)).build();
 
         var e = expectThrows(IllegalArgumentException.class, () -> action.prepareRequest(request, mock(NodeClient.class)));
-        assertThat(e, hasToString(containsString("request [/_info/] contains unrecognized metric: [" + metric + "]")));
+        assertThat(e, hasToString(containsString("request [/_info/] contains unrecognized target: [" + target + "]")));
     }
 
-    public void testShouldNotMixAllWithOtherMetrics() {
-        var wrongMetric = randomAlphaOfLength(32);
+    public void testShouldNotMixAllWithOtherTargets() {
+        var invalidTarget = randomAlphaOfLength(32);
         var request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/_info/")
-            .withParams(Map.of("metric", "_all," + wrongMetric))
+            .withParams(Map.of("target", "_all," + invalidTarget))
             .build();
 
         var e = expectThrows(IllegalArgumentException.class, () -> action.prepareRequest(request, mock(NodeClient.class)));
-        assertThat(e, hasToString(containsString("request [/_info/] contains _all and individual metrics [_all," + wrongMetric + "]")));
+        assertThat(e, hasToString(containsString("request [/_info/] contains _all and individual target [_all," + invalidTarget + "]")));
     }
 
-    public void testAllMetricsAlone() throws IOException {
-        var metric = "_all";
-        var request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/_info/").withParams(Map.of("metric", metric)).build();
+    public void testAllTargetAlone() throws IOException {
+        var target = "_all";
+        var request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/_info/").withParams(Map.of("target", target)).build();
 
         action.prepareRequest(request, mock(NodeClient.class));
     }
 
-    public void testMultiMetricRequest() throws IOException {
-        var metric = String.join(",", AVAILABLE_METRICS);
-        var request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/_info/").withParams(Map.of("metric", metric)).build();
+    public void testMultiTargetRequest() throws IOException {
+        var target = String.join(",", AVAILABLE_TARGETS);
+        var request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/_info/").withParams(Map.of("target", target)).build();
 
         action.prepareRequest(request, mock(NodeClient.class));
     }

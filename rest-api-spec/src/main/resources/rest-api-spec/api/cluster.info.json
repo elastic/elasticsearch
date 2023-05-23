@@ -2,7 +2,7 @@
   "cluster.info": {
       "documentation": {
           "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/cluster-info.html",
-          "description": "Returns statistical information about different metrics in the cluster."
+          "description": "Returns different information about the cluster."
       },
       "stability": "stable",
       "visibility": "public",
@@ -12,18 +12,18 @@
       "url": {
           "paths": [
               {
-                  "path": "/_info/{metric}",
+                  "path": "/_info/{target}",
                   "methods": [
                       "GET"
                   ],
                   "parts":{
-                      "metric":{
+                      "target":{
                           "type":"list",
                           "options":[
                               "_all",
                               "http"
                           ],
-                          "description":"Limit the information returned to the specified metrics"
+                          "description":"Limit the information returned to the specified target."
                       }
                   }
               }

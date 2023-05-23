@@ -4,12 +4,12 @@
 <titleabbrev>Cluster Info</titleabbrev>
 ++++
 
-Returns cluster statistics.
+Returns cluster information.
 
 [[cluster-info-api-request]]
 ==== {api-request-title}
 
-`GET /_info/<metric>` +
+`GET /_info/<target>` +
 
 [[cluster-info-api-prereqs]]
 ==== {api-prereq-title}
@@ -21,15 +21,15 @@ Returns cluster statistics.
 [[cluster-info-api-desc]]
 ==== {api-description-title}
 
-You can use the Cluster Info API to retrieve statistical information in a cluster.
+You can use the Cluster Info API to retrieve information of a cluster.
 
 
 [[cluster-info-api-path-params]]
 ==== {api-path-parms-title}
 
 
-`<metric>`::
-(Optional, string) Limits the information returned to the specific metrics.
+`<target>`::
+(Optional, string) Limits the information returned to the specific `target`.
 A comma-separated list of the following options:
 +
 --
@@ -50,7 +50,7 @@ Name of the cluster. Based on the <<cluster-name>> setting.
 [[cluster-info-api-response-body-http]]
 `http`::
 (object)
-Contains http statistics for the cluster.
+Contains http information for the cluster.
 +
 .Properties of `http`
 [%collapsible%open]

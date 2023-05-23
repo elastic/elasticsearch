@@ -43,7 +43,7 @@ public class RestClusterInfoAction extends BaseRestHandler {
         NodesInfoRequest.Metric.HTTP.metricName(),
         nodesStatsResponse -> nodesStatsResponse.getNodes().stream().map(NodeStats::getHttp).reduce(HttpStats.IDENTITY, HttpStats::merge)
     );
-    static final Set<String> AVAILABLE_METRICS = RESPONSE_MAPPER.keySet();
+    static final Set<String> AVAILABLE_TARGETS = RESPONSE_MAPPER.keySet();
 
     @Override
     public String getName() {
@@ -52,47 +52,47 @@ public class RestClusterInfoAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(RestRequest.Method.GET, "/_info/{metric}"));
+        return List.of(new Route(RestRequest.Method.GET, "/_info/{target}"));
     }
 
     @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         var nodesStatsRequest = new NodesStatsRequest().clear();
-        var metrics = Strings.tokenizeByCommaToSet(request.param("metric"));
+        var targets = Strings.tokenizeByCommaToSet(request.param("target"));
 
-        if (metrics.size() == 1 && metrics.contains("_all")) {
-            metrics.clear();
-            AVAILABLE_METRICS.forEach(m -> {
+        if (targets.size() == 1 && targets.contains("_all")) {
+            targets.clear();
+            AVAILABLE_TARGETS.forEach(m -> {
                 nodesStatsRequest.addMetric(m);
-                metrics.add(m);
+                targets.add(m);
             });
 
-        } else if (metrics.contains("_all")) {
+        } else if (targets.contains("_all")) {
             throw new IllegalArgumentException(
                 String.format(
                     Locale.ROOT,
-                    "request [%s] contains _all and individual metrics [%s]",
+                    "request [%s] contains _all and individual target [%s]",
                     request.path(),
-                    request.param("metric")
+                    request.param("target")
                 )
             );
 
         } else {
-            var invalidMetricParams = metrics.stream()
-                .filter(Predicate.not(AVAILABLE_METRICS::contains))
+            var invalidTargetParams = targets.stream()
+                .filter(Predicate.not(AVAILABLE_TARGETS::contains))
                 .collect(Collectors.toCollection(TreeSet::new));
 
-            if (invalidMetricParams.isEmpty() == false) {
-                throw new IllegalArgumentException(unrecognized(request, invalidMetricParams, AVAILABLE_METRICS, "metric"));
+            if (invalidTargetParams.isEmpty() == false) {
+                throw new IllegalArgumentException(unrecognized(request, invalidTargetParams, AVAILABLE_TARGETS, "target"));
             }
 
-            metrics.forEach(nodesStatsRequest::addMetric);
+            targets.forEach(nodesStatsRequest::addMetric);
         }
 
         return channel -> client.admin().cluster().nodesStats(nodesStatsRequest, new RestResponseListener<>(channel) {
             @Override
             public RestResponse buildResponse(NodesStatsResponse response) throws Exception {
-                var chunkedResponses = metrics.stream().map(RESPONSE_MAPPER::get).map(mapper -> mapper.apply(response)).iterator();
+                var chunkedResponses = targets.stream().map(RESPONSE_MAPPER::get).map(mapper -> mapper.apply(response)).iterator();
 
                 return new RestResponse(
                     RestStatus.OK,

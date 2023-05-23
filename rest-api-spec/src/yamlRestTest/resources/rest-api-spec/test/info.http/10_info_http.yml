@@ -6,7 +6,7 @@
 
   - do:
       cluster.info:
-          metric: [ http ]
+          target: [ http ]
 
   - is_true: cluster_name
   - gte: { http.current_open: 0 }

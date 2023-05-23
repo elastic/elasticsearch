@@ -35,12 +35,12 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.FielddataOperation;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
-import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MappingParserContext;
@@ -93,6 +93,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
     private final MappingLookup mappingLookup;
     private final SimilarityService similarityService;
     private final BitsetFilterCache bitsetFilterCache;
+    private final NamedWriteableRegistry writeableRegistry;
     private final BiFunction<MappedFieldType, FieldDataContext, IndexFieldData<?>> indexFieldDataLookup;
     private SearchLookup lookup = null;
 
@@ -213,7 +214,8 @@ public class SearchExecutionContext extends QueryRewriteContext {
         Map<String, MappedFieldType> runtimeMappings,
         Predicate<String> allowedFields
     ) {
-        super(parserConfig, namedWriteableRegistry, client, nowInMillis);
+        super(parserConfig, client, nowInMillis);
+        this.writeableRegistry = namedWriteableRegistry;
         this.shardId = shardId;
         this.shardRequestIndex = shardRequestIndex;
         this.similarityService = similarityService;
@@ -253,6 +255,10 @@ public class SearchExecutionContext extends QueryRewriteContext {
      */
     public Similarity getDefaultSimilarity() {
         return similarityService != null ? similarityService.getDefaultSimilarity() : null;
+    }
+
+    public NamedWriteableRegistry getWriteableRegistry() {
+        return writeableRegistry;
     }
 
     public List<String> defaultFields() {
@@ -306,7 +312,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
     /**
      * Parse a document with current mapping.
      */
-    public ParsedDocument parseDocument(SourceToParse source) throws MapperParsingException {
+    public ParsedDocument parseDocument(SourceToParse source) throws DocumentParsingException {
         return mapperService.documentParser().parseDocument(source, mappingLookup);
     }
 
@@ -492,9 +498,9 @@ public class SearchExecutionContext extends QueryRewriteContext {
      */
     public SearchLookup lookup() {
         if (this.lookup == null) {
-            SourceProvider sourceProvider = isSourceSynthetic()
-                ? (ctx, doc) -> { throw new IllegalArgumentException("Cannot access source from scripts in synthetic mode"); }
-                : SourceProvider.fromStoredFields();
+            SourceProvider sourceProvider = isSourceSynthetic() ? (ctx, doc) -> {
+                throw new IllegalArgumentException("Cannot access source from scripts in synthetic mode");
+            } : SourceProvider.fromStoredFields();
             setLookupProviders(sourceProvider, LeafFieldLookupProvider.fromStoredFields());
         }
         return this.lookup;
@@ -650,10 +656,12 @@ public class SearchExecutionContext extends QueryRewriteContext {
         return shardRequestIndex;
     }
 
-    @Override
-    public final long nowInMillis() {
+    /**
+     * Returns the time in milliseconds that is shared across all resources involved. Even across shards and nodes.
+     */
+    public long nowInMillis() {
         failIfFrozen();
-        return super.nowInMillis();
+        return nowInMillis.getAsLong();
     }
 
     public Client getClient() {

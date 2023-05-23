@@ -260,7 +260,7 @@ public class IpFieldMapperTests extends MapperTestCase {
         }));
 
         Exception e = expectThrows(
-            MapperParsingException.class,
+            DocumentParsingException.class,
             () -> mapper.parse(source(b -> b.array("field", "192.168.1.1", "192.168.1.1")))
         );
         assertThat(e.getCause().getMessage(), containsString("Dimension field [field] cannot be a multi-valued field"));
@@ -318,7 +318,7 @@ public class IpFieldMapperTests extends MapperTestCase {
         public SyntheticSourceExample example(int maxValues) {
             if (randomBoolean()) {
                 Tuple<Object, Object> v = generateValue();
-                if (v.v2()instanceof InetAddress a) {
+                if (v.v2() instanceof InetAddress a) {
                     return new SyntheticSourceExample(v.v1(), NetworkAddress.format(a), this::mapping);
                 }
                 return new SyntheticSourceExample(v.v1(), v.v2(), this::mapping);

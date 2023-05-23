@@ -160,11 +160,9 @@ public class SearchableSnapshotAllocatorTests extends ESAllocationTestCase {
             }
         };
 
-        final SearchableSnapshotAllocator allocator = new SearchableSnapshotAllocator(
-            client,
-            (reason, priority, listener) -> { throw new AssertionError("Expecting no reroutes"); },
-            testFrozenCacheSizeService()
-        );
+        final SearchableSnapshotAllocator allocator = new SearchableSnapshotAllocator(client, (reason, priority, listener) -> {
+            throw new AssertionError("Expecting no reroutes");
+        }, testFrozenCacheSizeService());
         allocateAllUnassigned(allocation, allocator);
         assertTrue(allocation.routingNodesChanged());
         assertThat(allocation.routingNodes().assignedShards(shardId), empty());
@@ -199,11 +197,9 @@ public class SearchableSnapshotAllocatorTests extends ESAllocationTestCase {
             }
         };
 
-        final SearchableSnapshotAllocator allocator = new SearchableSnapshotAllocator(
-            client,
-            (reason, priority, listener) -> { throw new AssertionError("Expecting no reroutes"); },
-            testFrozenCacheSizeService()
-        );
+        final SearchableSnapshotAllocator allocator = new SearchableSnapshotAllocator(client, (reason, priority, listener) -> {
+            throw new AssertionError("Expecting no reroutes");
+        }, testFrozenCacheSizeService());
         allocateAllUnassigned(allocation, allocator);
         assertThat(allocation.routingNodes().assignedShards(shardId), empty());
         assertTrue(allocation.routingTable().index(shardId.getIndex()).allPrimaryShardsUnassigned());
@@ -237,7 +233,7 @@ public class SearchableSnapshotAllocatorTests extends ESAllocationTestCase {
         for (DiscoveryNode node : nodes) {
             nodesBuilder.add(node);
         }
-        return ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+        return ClusterState.builder(ClusterName.DEFAULT)
             .metadata(metadata)
             .routingTable(routingTableBuilder.build())
             .nodes(nodesBuilder)

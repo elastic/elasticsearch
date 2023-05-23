@@ -31,6 +31,7 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.dfs.AggregatedDfs;
@@ -43,6 +44,8 @@ import org.elasticsearch.search.profile.SearchProfileQueryPhaseResult;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.profile.SearchProfileResultsBuilder;
 import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.search.rank.RankCoordinatorContext;
+import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.Suggest.Suggestion;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
@@ -62,10 +65,13 @@ import java.util.function.Supplier;
 public final class SearchPhaseController {
     private static final ScoreDoc[] EMPTY_DOCS = new ScoreDoc[0];
 
-    private final BiFunction<Supplier<Boolean>, SearchRequest, AggregationReduceContext.Builder> requestToAggReduceContextBuilder;
+    private final BiFunction<
+        Supplier<Boolean>,
+        AggregatorFactories.Builder,
+        AggregationReduceContext.Builder> requestToAggReduceContextBuilder;
 
     public SearchPhaseController(
-        BiFunction<Supplier<Boolean>, SearchRequest, AggregationReduceContext.Builder> requestToAggReduceContextBuilder
+        BiFunction<Supplier<Boolean>, AggregatorFactories.Builder, AggregationReduceContext.Builder> requestToAggReduceContextBuilder
     ) {
         this.requestToAggReduceContextBuilder = requestToAggReduceContextBuilder;
     }
@@ -425,7 +431,10 @@ public final class SearchPhaseController {
                     : "not enough hits fetched. index [" + index + "] length: " + fetchResult.hits().getHits().length;
                 SearchHit searchHit = fetchResult.hits().getHits()[index];
                 searchHit.shard(fetchResult.getSearchShardTarget());
-                if (sortedTopDocs.isSortedByField) {
+                if (reducedQueryPhase.rankCoordinatorContext != null) {
+                    assert shardDoc instanceof RankDoc;
+                    searchHit.setRank(((RankDoc) shardDoc).rank);
+                } else if (sortedTopDocs.isSortedByField) {
                     FieldDoc fieldDoc = (FieldDoc) shardDoc;
                     searchHit.sortValues(fieldDoc.fields, reducedQueryPhase.sortValueFormats);
                     if (sortScoreIndex != -1) {
@@ -476,7 +485,17 @@ public final class SearchPhaseController {
                 topDocs.add(td.topDocs);
             }
         }
-        return reducedQueryPhase(queryResults, Collections.emptyList(), topDocs, topDocsStats, 0, true, aggReduceContextBuilder, true);
+        return reducedQueryPhase(
+            queryResults,
+            Collections.emptyList(),
+            topDocs,
+            topDocsStats,
+            0,
+            true,
+            aggReduceContextBuilder,
+            null,
+            true
+        );
     }
 
     /**
@@ -496,6 +515,7 @@ public final class SearchPhaseController {
         int numReducePhases,
         boolean isScrollRequest,
         AggregationReduceContext.Builder aggReduceContextBuilder,
+        RankCoordinatorContext rankCoordinatorContext,
         boolean performFinalReduce
     ) {
         assert numReducePhases >= 0 : "num reduce phases must be >= 0 but was: " + numReducePhases;
@@ -512,6 +532,7 @@ public final class SearchPhaseController {
                 null,
                 null,
                 SortedTopDocs.EMPTY,
+                null,
                 null,
                 numReducePhases,
                 0,
@@ -578,7 +599,12 @@ public final class SearchPhaseController {
         final SearchProfileResultsBuilder profileBuilder = profileShardResults.isEmpty()
             ? null
             : new SearchProfileResultsBuilder(profileShardResults);
-        final SortedTopDocs sortedTopDocs = sortDocs(isScrollRequest, bufferedTopDocs, from, size, reducedCompletionSuggestions);
+        final SortedTopDocs sortedTopDocs = rankCoordinatorContext == null
+            ? sortDocs(isScrollRequest, bufferedTopDocs, from, size, reducedCompletionSuggestions)
+            : rankCoordinatorContext.rank(queryResults.stream().map(SearchPhaseResult::queryResult).toList(), topDocsStats);
+        if (rankCoordinatorContext != null) {
+            size = sortedTopDocs.scoreDocs.length;
+        }
         final TotalHits totalHits = topDocsStats.getTotalHits();
         return new ReducedQueryPhase(
             totalHits,
@@ -591,6 +617,7 @@ public final class SearchPhaseController {
             profileBuilder,
             sortedTopDocs,
             sortValueFormats,
+            rankCoordinatorContext,
             numReducePhases,
             size,
             from,
@@ -677,6 +704,8 @@ public final class SearchPhaseController {
         SortedTopDocs sortedTopDocs,
         // sort value formats used to sort / format the result
         DocValueFormat[] sortValueFormats,
+        // the rank context if ranking is used
+        RankCoordinatorContext rankCoordinatorContext,
         // the number of reduces phases
         int numReducePhases,
         // the size of the top hits to return
@@ -722,8 +751,8 @@ public final class SearchPhaseController {
         }
     }
 
-    AggregationReduceContext.Builder getReduceContext(Supplier<Boolean> isCanceled, SearchRequest request) {
-        return requestToAggReduceContextBuilder.apply(isCanceled, request);
+    AggregationReduceContext.Builder getReduceContext(Supplier<Boolean> isCanceled, AggregatorFactories.Builder aggs) {
+        return requestToAggReduceContextBuilder.apply(isCanceled, aggs);
     }
 
     /**
@@ -750,16 +779,16 @@ public final class SearchPhaseController {
         );
     }
 
-    static final class TopDocsStats {
+    public static final class TopDocsStats {
         final int trackTotalHitsUpTo;
         long totalHits;
         private TotalHits.Relation totalHitsRelation;
-        long fetchHits;
+        public long fetchHits;
         private float maxScore = Float.NEGATIVE_INFINITY;
-        boolean timedOut;
-        Boolean terminatedEarly;
+        public boolean timedOut;
+        public Boolean terminatedEarly;
 
-        TopDocsStats(int trackTotalHitsUpTo) {
+        public TopDocsStats(int trackTotalHitsUpTo) {
             this.trackTotalHitsUpTo = trackTotalHitsUpTo;
             this.totalHits = 0;
             this.totalHitsRelation = Relation.EQUAL_TO;
@@ -814,7 +843,7 @@ public final class SearchPhaseController {
         }
     }
 
-    record SortedTopDocs(
+    public record SortedTopDocs(
         // the searches merged top docs
         ScoreDoc[] scoreDocs,
         // <code>true</code> iff the result score docs is sorted by a field (not score), this implies that <code>sortField</code> is set.
@@ -825,6 +854,6 @@ public final class SearchPhaseController {
         Object[] collapseValues,
         int numberOfCompletionsSuggestions
     ) {
-        static final SortedTopDocs EMPTY = new SortedTopDocs(EMPTY_DOCS, false, null, null, null, 0);
+        public static final SortedTopDocs EMPTY = new SortedTopDocs(EMPTY_DOCS, false, null, null, null, 0);
     }
 }

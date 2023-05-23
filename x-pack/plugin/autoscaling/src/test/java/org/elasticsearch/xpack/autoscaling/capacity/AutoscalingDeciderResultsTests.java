@@ -143,12 +143,9 @@ public class AutoscalingDeciderResultsTests extends AutoscalingTestCase {
         SortedMap<String, AutoscalingDeciderResult> results = Arrays.stream(capacities)
             .map(AutoscalingDeciderResultsTests::randomAutoscalingDeciderResultWithCapacity)
             .collect(
-                Collectors.toMap(
-                    k -> randomAlphaOfLength(10) + "-" + uniqueGenerator.incrementAndGet(),
-                    Function.identity(),
-                    (a, b) -> { throw new UnsupportedOperationException(); },
-                    TreeMap::new
-                )
+                Collectors.toMap(k -> randomAlphaOfLength(10) + "-" + uniqueGenerator.incrementAndGet(), Function.identity(), (a, b) -> {
+                    throw new UnsupportedOperationException();
+                }, TreeMap::new)
             );
         assertThat(
             new AutoscalingDeciderResults(randomAutoscalingCapacity(), randomNodes(), results).requiredCapacity(),

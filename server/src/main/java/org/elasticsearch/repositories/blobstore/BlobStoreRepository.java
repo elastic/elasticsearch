@@ -313,13 +313,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     public static final Setting<ByteSizeValue> MAX_SNAPSHOT_BYTES_PER_SEC = Setting.byteSizeSetting(
         "max_snapshot_bytes_per_sec",
-        (settings) -> {
-            if (RecoverySettings.hasNodeBandwidthRecoverySettings(settings)) {
-                return "0";
-            } else {
-                return "40mb";
-            }
-        },
+        ByteSizeValue.ofMb(40), // default is overridden to 0 (unlimited) if node bandwidth recovery settings are set
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -1620,19 +1614,18 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     /**
      * Configures RateLimiter based on repository and global settings
      *
-     * @param rateLimiter        the existing rate limiter to configure (or null if no throttling was previously needed)
-     * @param repositorySettings repository settings
-     * @param setting            setting to use to configure rate limiter
-     * @param warnIfOverRecovery log a warning if rate limit setting is over the effective recovery rate limit
+     * @param rateLimiter              the existing rate limiter to configure (or null if no throttling was previously needed)
+     * @param maxConfiguredBytesPerSec the configured max bytes per sec from the settings
+     * @param settingKey               setting used to configure the rate limiter
+     * @param warnIfOverRecovery       log a warning if rate limit setting is over the effective recovery rate limit
      * @return the newly configured rate limiter or null if no throttling is needed
      */
     private RateLimiter getRateLimiter(
         RateLimiter rateLimiter,
-        Settings repositorySettings,
-        Setting<ByteSizeValue> setting,
+        ByteSizeValue maxConfiguredBytesPerSec,
+        String settingKey,
         boolean warnIfOverRecovery
     ) {
-        ByteSizeValue maxConfiguredBytesPerSec = setting.get(repositorySettings);
         if (maxConfiguredBytesPerSec.getBytes() <= 0) {
             return null;
         } else {
@@ -1643,7 +1636,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         "repository [{}] has a rate limit [{}={}] per second which is above the effective recovery rate limit "
                             + "[{}={}] per second, thus the repository rate limit will be superseded by the recovery rate limit",
                         metadata.name(),
-                        setting.getKey(),
+                        settingKey,
                         maxConfiguredBytesPerSec,
                         INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(),
                         effectiveRecoverySpeed
@@ -1660,17 +1653,30 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
     }
 
-    private RateLimiter getSnapshotRateLimiter() {
+    // package private for testing
+    RateLimiter getSnapshotRateLimiter() {
+        Settings repositorySettings = metadata.settings();
+        ByteSizeValue maxConfiguredBytesPerSec = MAX_SNAPSHOT_BYTES_PER_SEC.get(repositorySettings);
+        if (MAX_SNAPSHOT_BYTES_PER_SEC.exists(repositorySettings) == false && recoverySettings.nodeBandwidthSettingsExist()) {
+            assert maxConfiguredBytesPerSec.getMb() == 40;
+            maxConfiguredBytesPerSec = ByteSizeValue.ZERO;
+        }
         return getRateLimiter(
             snapshotRateLimiter,
-            metadata.settings(),
-            MAX_SNAPSHOT_BYTES_PER_SEC,
+            maxConfiguredBytesPerSec,
+            MAX_SNAPSHOT_BYTES_PER_SEC.getKey(),
             recoverySettings.nodeBandwidthSettingsExist()
         );
     }
 
-    private RateLimiter getRestoreRateLimiter() {
-        return getRateLimiter(restoreRateLimiter, metadata.settings(), MAX_RESTORE_BYTES_PER_SEC, true);
+    // package private for testing
+    RateLimiter getRestoreRateLimiter() {
+        return getRateLimiter(
+            restoreRateLimiter,
+            MAX_RESTORE_BYTES_PER_SEC.get(metadata.settings()),
+            MAX_RESTORE_BYTES_PER_SEC.getKey(),
+            true
+        );
     }
 
     @Override

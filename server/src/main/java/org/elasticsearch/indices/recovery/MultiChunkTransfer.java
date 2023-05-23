@@ -185,7 +185,7 @@ public abstract class MultiChunkTransfer<Source, Request extends MultiChunkTrans
 
     protected abstract void handleError(Source resource, Exception e) throws Exception;
 
-    private record FileChunkResponseItem<Source> (long requestSeqId, Source source, Exception failure) {}
+    private record FileChunkResponseItem<Source>(long requestSeqId, Source source, Exception failure) {}
 
     public interface ChunkRequest {
         /**

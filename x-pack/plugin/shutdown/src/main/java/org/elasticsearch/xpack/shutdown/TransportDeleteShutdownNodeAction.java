@@ -57,7 +57,7 @@ public class TransportDeleteShutdownNodeAction extends AcknowledgedTransportMast
     private static void ackAndReroute(Request request, ActionListener<AcknowledgedResponse> listener, RerouteService rerouteService) {
         rerouteService.reroute("node registered for removal from cluster", Priority.URGENT, new ActionListener<>() {
             @Override
-            public void onResponse(ClusterState clusterState) {}
+            public void onResponse(Void ignored) {}
 
             @Override
             public void onFailure(Exception e) {

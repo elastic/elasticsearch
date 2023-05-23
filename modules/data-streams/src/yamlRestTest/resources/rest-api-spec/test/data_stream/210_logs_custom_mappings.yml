@@ -1,0 +1,37 @@
+---
+"Basic logs@custom component template functionality test":
+  - do:
+      cluster.put_component_template:
+        name: logs@custom
+        body:
+          template:
+            settings:
+              index:
+                query:
+                  default_field: [ "custom-message" ]
+            mappings:
+              properties:
+                numeric_field:
+                  type: integer
+
+  - do:
+      indices.create_data_stream:
+        name: logs-generic-default
+  - is_true: acknowledged
+
+  - do:
+      indices.get_data_stream:
+        name: logs-generic-default
+  - set: { data_streams.0.indices.0.index_name: idx0name }
+
+  - do:
+      indices.get_settings:
+        index: $idx0name
+  # verify that the custom settings.index.query.default_field overrides the default query field - "message"
+  - match: { .$idx0name.settings.index.query.default_field: ["custom-message"] }
+
+  - do:
+      indices.get_mapping:
+        index: $idx0name
+  # verify that the new field from the custom component template is applied
+  - match: { .$idx0name.mappings.properties.numeric_field.type: "integer" }

@@ -23,6 +23,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.StepListener;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
@@ -52,7 +53,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.lucene.Lucene.indexWriterConfigWithNoMerging;
@@ -99,10 +100,10 @@ public final class StoreRecovery {
     }
 
     void recoverFromLocalShards(
-        Consumer<MappingMetadata> mappingUpdateConsumer,
+        BiConsumer<MappingMetadata, ActionListener<Void>> mappingUpdateConsumer,
         final IndexShard indexShard,
         final List<LocalShardSnapshot> shards,
-        ActionListener<Boolean> listener
+        ActionListener<Boolean> outerListener
     ) {
         if (canRecover(indexShard)) {
             RecoverySource.Type recoveryType = indexShard.recoveryState().getRecoverySource().getType();
@@ -115,52 +116,59 @@ public final class StoreRecovery {
                 throw new IllegalArgumentException("can't add shards from more than one index");
             }
             IndexMetadata sourceMetadata = shards.get(0).getIndexMetadata();
-            if (sourceMetadata.mapping() != null) {
-                mappingUpdateConsumer.accept(sourceMetadata.mapping());
+            final var mappingStep = new SubscribableListener<Void>();
+            if (sourceMetadata.mapping() == null) {
+                mappingStep.onResponse(null);
+            } else {
+                mappingUpdateConsumer.accept(sourceMetadata.mapping(), mappingStep);
             }
-            indexShard.mapperService().merge(sourceMetadata, MapperService.MergeReason.MAPPING_RECOVERY);
-            // now that the mapping is merged we can validate the index sort configuration.
-            Sort indexSort = indexShard.getIndexSort();
-            final boolean hasNested = indexShard.mapperService().hasNested();
-            final boolean isSplit = sourceMetadata.getNumberOfShards() < indexShard.indexSettings().getNumberOfShards();
+            mappingStep.addListener(outerListener.delegateFailure((listener, ignored) -> {
+                indexShard.mapperService().merge(sourceMetadata, MapperService.MergeReason.MAPPING_RECOVERY);
+                // now that the mapping is merged we can validate the index sort configuration.
+                Sort indexSort = indexShard.getIndexSort();
+                final boolean hasNested = indexShard.mapperService().hasNested();
+                final boolean isSplit = sourceMetadata.getNumberOfShards() < indexShard.indexSettings().getNumberOfShards();
 
-            final var recoveryListener = recoveryListener(indexShard, listener);
-            logger.debug("starting recovery from local shards {}", shards);
-            try {
-                final Directory directory = indexShard.store().directory(); // don't close this directory!!
-                final Directory[] sources = shards.stream().map(LocalShardSnapshot::getSnapshotDirectory).toArray(Directory[]::new);
-                final long maxSeqNo = shards.stream().mapToLong(LocalShardSnapshot::maxSeqNo).max().getAsLong();
-                final long maxUnsafeAutoIdTimestamp = shards.stream()
-                    .mapToLong(LocalShardSnapshot::maxUnsafeAutoIdTimestamp)
-                    .max()
-                    .getAsLong();
-                addIndices(
-                    indexShard.recoveryState().getIndex(),
-                    directory,
-                    indexSort,
-                    sources,
-                    maxSeqNo,
-                    maxUnsafeAutoIdTimestamp,
-                    indexShard.indexSettings().getIndexMetadata(),
-                    indexShard.shardId().id(),
-                    isSplit,
-                    hasNested
-                );
-                internalRecoverFromStore(indexShard, recoveryListener.delegateFailure((delegate, v) -> {
-                    ActionListener.completeWith(delegate, () -> {
-                        // just trigger a merge to do housekeeping on the
-                        // copied segments - we will also see them in stats etc.
-                        indexShard.getEngine().forceMerge(false, -1, false, UUIDs.randomBase64UUID());
-                        return true;
-                    });
-                }));
-            } catch (IOException e) {
-                recoveryListener.onFailure(new IndexShardRecoveryException(indexShard.shardId(), "failed to recover from local shards", e));
-            } catch (Exception e) {
-                recoveryListener.onFailure(e);
-            }
+                final var recoveryListener = recoveryListener(indexShard, listener);
+                logger.debug("starting recovery from local shards {}", shards);
+                try {
+                    final Directory directory = indexShard.store().directory(); // don't close this directory!!
+                    final Directory[] sources = shards.stream().map(LocalShardSnapshot::getSnapshotDirectory).toArray(Directory[]::new);
+                    final long maxSeqNo = shards.stream().mapToLong(LocalShardSnapshot::maxSeqNo).max().getAsLong();
+                    final long maxUnsafeAutoIdTimestamp = shards.stream()
+                        .mapToLong(LocalShardSnapshot::maxUnsafeAutoIdTimestamp)
+                        .max()
+                        .getAsLong();
+                    addIndices(
+                        indexShard.recoveryState().getIndex(),
+                        directory,
+                        indexSort,
+                        sources,
+                        maxSeqNo,
+                        maxUnsafeAutoIdTimestamp,
+                        indexShard.indexSettings().getIndexMetadata(),
+                        indexShard.shardId().id(),
+                        isSplit,
+                        hasNested
+                    );
+                    internalRecoverFromStore(indexShard, recoveryListener.delegateFailure((delegate, v) -> {
+                        ActionListener.completeWith(delegate, () -> {
+                            // just trigger a merge to do housekeeping on the
+                            // copied segments - we will also see them in stats etc.
+                            indexShard.getEngine().forceMerge(false, -1, false, UUIDs.randomBase64UUID());
+                            return true;
+                        });
+                    }));
+                } catch (IOException e) {
+                    recoveryListener.onFailure(
+                        new IndexShardRecoveryException(indexShard.shardId(), "failed to recover from local shards", e)
+                    );
+                } catch (Exception e) {
+                    recoveryListener.onFailure(e);
+                }
+            }));
         } else {
-            listener.onResponse(false);
+            outerListener.onResponse(false);
         }
     }
 
@@ -202,7 +210,7 @@ public final class StoreRecovery {
              * document-level semantics.
              */
             writer.setLiveCommitData(() -> {
-                final Map<String, String> liveCommitData = Maps.newMapWithExpectedSize(3);
+                final Map<String, String> liveCommitData = Maps.newMapWithExpectedSize(4);
                 liveCommitData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(maxSeqNo));
                 liveCommitData.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, Long.toString(maxSeqNo));
                 liveCommitData.put(Engine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID, Long.toString(maxUnsafeAutoIdTimestamp));

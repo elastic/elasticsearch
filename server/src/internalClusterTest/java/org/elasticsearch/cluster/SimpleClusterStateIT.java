@@ -27,7 +27,6 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -60,6 +59,7 @@ import java.util.function.Supplier;
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertIndexTemplateExists;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -140,9 +140,7 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
     }
 
     public void testIndexTemplates() throws Exception {
-        client().admin()
-            .indices()
-            .preparePutTemplate("foo_template")
+        indicesAdmin().preparePutTemplate("foo_template")
             .setPatterns(Collections.singletonList("te*"))
             .setOrder(0)
             .setMapping(
@@ -164,9 +162,7 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
             )
             .get();
 
-        client().admin()
-            .indices()
-            .preparePutTemplate("fuu_template")
+        indicesAdmin().preparePutTemplate("fuu_template")
             .setPatterns(Collections.singletonList("test*"))
             .setOrder(1)
             .setMapping(
@@ -212,9 +208,7 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
      * that the cluster state returns coherent data for both routing table and metadata.
      */
     private void testFilteringByIndexWorks(String[] indices, String[] expected) {
-        ClusterStateResponse clusterState = client().admin()
-            .cluster()
-            .prepareState()
+        ClusterStateResponse clusterState = clusterAdmin().prepareState()
             .clear()
             .setMetadata(true)
             .setRoutingTable(true)
@@ -255,14 +249,9 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
         int numberOfShards = scaledRandomIntBetween(1, cluster().numDataNodes());
         // if the create index is ack'ed, then all nodes have successfully processed the cluster state
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("test")
+            indicesAdmin().prepareCreate("test")
                 .setSettings(
-                    Settings.builder()
-                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)
-                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                        .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), Long.MAX_VALUE)
+                    indexSettings(numberOfShards, 0).put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), Long.MAX_VALUE)
                 )
                 .setMapping(mapping)
                 .setTimeout("60s")
@@ -284,13 +273,7 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
     }
 
     public void testIndicesOptions() throws Exception {
-        ClusterStateResponse clusterStateResponse = client().admin()
-            .cluster()
-            .prepareState()
-            .clear()
-            .setMetadata(true)
-            .setIndices("f*")
-            .get();
+        ClusterStateResponse clusterStateResponse = clusterAdmin().prepareState().clear().setMetadata(true).setIndices("f*").get();
         assertThat(clusterStateResponse.getState().metadata().indices().size(), is(2));
         ensureGreen("fuu");
 
@@ -302,9 +285,7 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
 
         // expand_wildcards_closed should toggle return only closed index fuu
         IndicesOptions expandCloseOptions = IndicesOptions.fromOptions(false, true, false, true);
-        clusterStateResponse = client().admin()
-            .cluster()
-            .prepareState()
+        clusterStateResponse = clusterAdmin().prepareState()
             .clear()
             .setMetadata(true)
             .setIndices("f*")
@@ -315,9 +296,7 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
 
         // ignore_unavailable set to true should not raise exception on fzzbzz
         IndicesOptions ignoreUnavailabe = IndicesOptions.fromOptions(true, true, true, false);
-        clusterStateResponse = client().admin()
-            .cluster()
-            .prepareState()
+        clusterStateResponse = clusterAdmin().prepareState()
             .clear()
             .setMetadata(true)
             .setIndices("fzzbzz")
@@ -328,9 +307,7 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
         // empty wildcard expansion result should work when allowNoIndices is
         // turned on
         IndicesOptions allowNoIndices = IndicesOptions.fromOptions(false, true, true, false);
-        clusterStateResponse = client().admin()
-            .cluster()
-            .prepareState()
+        clusterStateResponse = clusterAdmin().prepareState()
             .clear()
             .setMetadata(true)
             .setIndices("a*")
@@ -354,14 +331,7 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
         // ignore_unavailable set to false throws exception when allowNoIndices is turned off
         IndicesOptions allowNoIndices = IndicesOptions.fromOptions(false, true, true, false);
         try {
-            client().admin()
-                .cluster()
-                .prepareState()
-                .clear()
-                .setMetadata(true)
-                .setIndices("fzzbzz")
-                .setIndicesOptions(allowNoIndices)
-                .get();
+            clusterAdmin().prepareState().clear().setMetadata(true).setIndices("fzzbzz").setIndicesOptions(allowNoIndices).get();
             fail("Expected IndexNotFoundException");
         } catch (IndexNotFoundException e) {
             assertThat(e.getMessage(), is("no such index [fzzbzz]"));
@@ -486,4 +456,18 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
             return Collections.emptyList();
         }
     }
+
+    public void testNodeLeftGeneration() throws IOException {
+        final var clusterService = internalCluster().getInstance(ClusterService.class);
+        final var initialGeneration = clusterService.state().nodes().getNodeLeftGeneration();
+        assertThat(clusterService.state().toString(), containsString("node-left generation: " + initialGeneration));
+
+        final var newNode = internalCluster().startNode();
+        assertEquals(initialGeneration, clusterService.state().nodes().getNodeLeftGeneration());
+        internalCluster().stopNode(newNode);
+        assertEquals(initialGeneration + 1, clusterService.state().nodes().getNodeLeftGeneration());
+
+        assertThat(clusterService.state().toString(), containsString("node-left generation: " + (initialGeneration + 1)));
+    }
+
 }

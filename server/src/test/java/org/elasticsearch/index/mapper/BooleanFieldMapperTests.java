@@ -106,12 +106,15 @@ public class BooleanFieldMapperTests extends MapperTestCase {
         DocumentMapper defaultMapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         // omit "false"/"true" here as they should still be parsed correctly
         for (String value : new String[] { "off", "no", "0", "on", "yes", "1" }) {
-            MapperParsingException ex = expectThrows(
-                MapperParsingException.class,
+            DocumentParsingException ex = expectThrows(
+                DocumentParsingException.class,
                 () -> defaultMapper.parse(source(b -> b.field("field", value)))
             );
             assertEquals(
-                "failed to parse field [field] of type [boolean] in document with id '1'. " + "Preview of field's value: '" + value + "'",
+                "[1:10] failed to parse field [field] of type [boolean] in document with id '1'. "
+                    + "Preview of field's value: '"
+                    + value
+                    + "'",
                 ex.getMessage()
             );
         }
@@ -119,7 +122,7 @@ public class BooleanFieldMapperTests extends MapperTestCase {
 
     public void testParsesBooleansNestedStrict() throws IOException {
         DocumentMapper defaultMapper = createDocumentMapper(fieldMapping(this::minimalMapping));
-        MapperParsingException ex = expectThrows(MapperParsingException.class, () -> defaultMapper.parse(source(b -> {
+        DocumentParsingException ex = expectThrows(DocumentParsingException.class, () -> defaultMapper.parse(source(b -> {
             b.startObject("field");
             {
                 b.field("inner_field", "no");
@@ -127,7 +130,8 @@ public class BooleanFieldMapperTests extends MapperTestCase {
             b.endObject();
         })));
         assertEquals(
-            "failed to parse field [field] of type [boolean] in document with id '1'. " + "Preview of field's value: '{inner_field=no}'",
+            "[1:29] failed to parse field [field] of type [boolean] in document with id '1'. "
+                + "Preview of field's value: '{inner_field=no}'",
             ex.getMessage()
         );
     }

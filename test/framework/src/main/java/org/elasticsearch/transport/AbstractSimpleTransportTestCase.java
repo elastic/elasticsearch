@@ -22,6 +22,7 @@ import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -122,7 +123,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     protected ClusterSettings clusterSettingsA;
 
     protected static final Version version1 = Version.fromId(version0.id + 1);
-    protected static final TransportVersion transportVersion1 = TransportVersion.fromId(transportVersion0.id + 1);
+    protected static final TransportVersion transportVersion1 = TransportVersion.fromId(transportVersion0.id() + 1);
     protected volatile DiscoveryNode nodeB;
     protected volatile MockTransportService serviceB;
 
@@ -2172,7 +2173,9 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             "internal:action1",
             randomFrom(ThreadPool.Names.SAME, ThreadPool.Names.GENERIC),
             TestRequest::new,
-            (request, message, task) -> { throw new AssertionError("boom"); }
+            (request, message, task) -> {
+                throw new AssertionError("boom");
+            }
         );
         expectThrows(
             IllegalArgumentException.class,
@@ -2180,7 +2183,9 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 "internal:action1",
                 randomFrom(ThreadPool.Names.SAME, ThreadPool.Names.GENERIC),
                 TestRequest::new,
-                (request, message, task) -> { throw new AssertionError("boom"); }
+                (request, message, task) -> {
+                    throw new AssertionError("boom");
+                }
             )
         );
 
@@ -2188,13 +2193,15 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             "internal:action1",
             randomFrom(ThreadPool.Names.SAME, ThreadPool.Names.GENERIC),
             TestRequest::new,
-            (request, message, task) -> { throw new AssertionError("boom"); }
+            (request, message, task) -> {
+                throw new AssertionError("boom");
+            }
         );
     }
 
     public void testHandshakeWithIncompatVersion() {
         assumeTrue("only tcp transport has a handshake method", serviceA.getOriginalTransport() instanceof TcpTransport);
-        TransportVersion transportVersion = TransportVersion.fromId(TransportVersion.MINIMUM_COMPATIBLE.id - 1);
+        TransportVersion transportVersion = TransportVersion.fromId(TransportVersion.MINIMUM_COMPATIBLE.id() - 1);
         try (
             MockTransportService service = buildService(
                 "TS_C",
@@ -2299,7 +2306,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         try (ServerSocket socket = new MockServerSocket()) {
             socket.bind(getLocalEphemeral(), 1);
             socket.setReuseAddress(true);
-            DiscoveryNode dummy = new DiscoveryNode(
+            DiscoveryNode dummy = TestDiscoveryNode.create(
                 "TEST",
                 new TransportAddress(socket.getInetAddress(), socket.getLocalPort()),
                 emptyMap(),
@@ -2328,7 +2335,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         try (ServerSocket socket = new MockServerSocket()) {
             socket.bind(getLocalEphemeral(), 1);
             socket.setReuseAddress(true);
-            DiscoveryNode dummy = new DiscoveryNode(
+            DiscoveryNode dummy = TestDiscoveryNode.create(
                 "TEST",
                 new TransportAddress(socket.getInetAddress(), socket.getLocalPort()),
                 emptyMap(),

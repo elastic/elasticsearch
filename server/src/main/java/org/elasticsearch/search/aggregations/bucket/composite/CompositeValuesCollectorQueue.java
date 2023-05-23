@@ -81,7 +81,7 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
 
         // If the leading source is a GlobalOrdinalValuesSource we can apply an optimization which requires
         // tracking the highest competitive value.
-        if (arrays[0]instanceof GlobalOrdinalValuesSource globalOrdinalValuesSource) {
+        if (arrays[0] instanceof GlobalOrdinalValuesSource globalOrdinalValuesSource) {
             if (shouldApplyGlobalOrdinalDynamicPruningForLeadingSource(sources, size, indexReader)) {
                 competitiveBoundsChangedListener = topSlot -> globalOrdinalValuesSource.updateHighestCompetitiveValue(topSlot);
             } else {
@@ -103,7 +103,7 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
         if (sources.length == 0) {
             return false;
         }
-        if (sources[0]instanceof GlobalOrdinalValuesSource firstSource) {
+        if (sources[0] instanceof GlobalOrdinalValuesSource firstSource) {
             if (firstSource.mayDynamicallyPrune(indexReader) == false) {
                 return false;
             }

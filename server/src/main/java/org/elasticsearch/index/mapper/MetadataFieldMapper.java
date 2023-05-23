@@ -195,7 +195,8 @@ public abstract class MetadataFieldMapper extends FieldMapper {
 
     @Override
     protected void parseCreateField(DocumentParserContext context) throws IOException {
-        throw new MapperParsingException(
+        throw new DocumentParsingException(
+            context.parser().getTokenLocation(),
             "Field [" + name() + "] is a metadata field and cannot be added inside a document. Use the index API request parameters."
         );
     }

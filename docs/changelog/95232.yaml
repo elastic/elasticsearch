@@ -1,0 +1,5 @@
+pr: 95232
+summary: Simulate ingest pipeline API verbose bug
+area: Ingest Node
+type: bug
+issues: []

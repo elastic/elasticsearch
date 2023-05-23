@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
@@ -53,13 +54,16 @@ public class TestDocumentParserContext extends DocumentParserContext {
                 s -> null,
                 s -> null,
                 Version.CURRENT,
+                () -> TransportVersion.CURRENT,
                 () -> null,
                 null,
                 (type, name) -> Lucene.STANDARD_ANALYZER,
                 MapperTestCase.createIndexSettings(Version.CURRENT, Settings.EMPTY),
                 null
             ),
-            source
+            source,
+            mappingLookup.getMapping().getRoot(),
+            ObjectMapper.Dynamic.getRootDynamic(mappingLookup)
         );
         this.parser = parser;
     }

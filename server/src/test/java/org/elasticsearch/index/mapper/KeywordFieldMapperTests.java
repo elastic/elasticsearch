@@ -384,7 +384,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         });
         DocumentMapper mapper = randomBoolean() ? createDocumentMapper(mapping) : createTimeSeriesModeDocumentMapper(mapping);
 
-        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.array("field", "1234", "45678"))));
+        Exception e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> b.array("field", "1234", "45678"))));
         assertThat(e.getCause().getMessage(), containsString("Dimension field [field] cannot be a multi-valued field"));
     }
 
@@ -395,7 +395,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         }));
 
         Exception e = expectThrows(
-            MapperParsingException.class,
+            DocumentParsingException.class,
             () -> mapper.parse(source(b -> b.field("field", randomAlphaOfLengthBetween(1025, 2048))))
         );
         assertThat(e.getCause().getMessage(), containsString("Dimension fields must be less than [1024] bytes but was"));
@@ -450,19 +450,19 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     public void testParsesKeywordNestedEmptyObjectStrict() throws IOException {
         DocumentMapper defaultMapper = createDocumentMapper(fieldMapping(this::minimalMapping));
 
-        MapperParsingException ex = expectThrows(
-            MapperParsingException.class,
+        DocumentParsingException ex = expectThrows(
+            DocumentParsingException.class,
             () -> defaultMapper.parse(source(b -> b.startObject("field").endObject()))
         );
         assertEquals(
-            "failed to parse field [field] of type [keyword] in document with id '1'. " + "Preview of field's value: '{}'",
+            "[1:11] failed to parse field [field] of type [keyword] in document with id '1'. " + "Preview of field's value: '{}'",
             ex.getMessage()
         );
     }
 
     public void testParsesKeywordNestedListStrict() throws IOException {
         DocumentMapper defaultMapper = createDocumentMapper(fieldMapping(this::minimalMapping));
-        MapperParsingException ex = expectThrows(MapperParsingException.class, () -> defaultMapper.parse(source(b -> {
+        DocumentParsingException ex = expectThrows(DocumentParsingException.class, () -> defaultMapper.parse(source(b -> {
             b.startArray("field");
             {
                 b.startObject();
@@ -474,7 +474,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
             b.endArray();
         })));
         assertEquals(
-            "failed to parse field [field] of type [keyword] in document with id '1'. "
+            "[1:67] failed to parse field [field] of type [keyword] in document with id '1'. "
                 + "Preview of field's value: '{array_name=[inner_field_first, inner_field_second]}'",
             ex.getMessage()
         );
@@ -483,11 +483,12 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     public void testParsesKeywordNullStrict() throws IOException {
         DocumentMapper defaultMapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         Exception e = expectThrows(
-            MapperParsingException.class,
+            DocumentParsingException.class,
             () -> defaultMapper.parse(source(b -> b.startObject("field").nullField("field_name").endObject()))
         );
         assertEquals(
-            "failed to parse field [field] of type [keyword] in document with id '1'. " + "Preview of field's value: '{field_name=null}'",
+            "[1:28] failed to parse field [field] of type [keyword] in document with id '1'. "
+                + "Preview of field's value: '{field_name=null}'",
             e.getMessage()
         );
     }
@@ -592,9 +593,10 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     @Override
     protected String minimalIsInvalidRoutingPathErrorMessage(Mapper mapper) {
         return "All fields that match routing_path must be keywords with [time_series_dimension: true] "
-            + "and without the [script] parameter. ["
+            + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
+            + "without the [script] parameter. ["
             + mapper.name()
-            + "] was not [time_series_dimension: true].";
+            + "] was not a dimension.";
     }
 
     public void testDimensionInRoutingPath() throws IOException {
@@ -617,15 +619,15 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         for (int i = 0; i < 32768; i++) {
             stringBuilder.append("a");
         }
-        MapperParsingException e = expectThrows(
-            MapperParsingException.class,
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
             () -> mapper.parse(source(b -> b.field("field", stringBuilder.toString())))
         );
         assertThat(e.getCause().getMessage(), containsString("UTF8 encoding is longer than the max length"));
     }
 
     /**
-     * Test that we don't error on exceeding field size if field is neither indexed nor has doc values
+     * Test that we don't error on exceeding field size if field is neither indexed nor has doc values nor stored
      */
     public void testKeywordFieldUtf8LongerThan32766SourceOnly() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {

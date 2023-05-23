@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.security;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.transport.RemoteClusterPortSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackField;
@@ -32,6 +33,7 @@ public class SecurityFeatureSetUsage extends XPackFeatureSet.Usage {
     private static final String OPERATOR_PRIVILEGES_XFIELD = XPackField.OPERATOR_PRIVILEGES;
     private static final String DOMAINS_XFIELD = "domains";
     private static final String USER_PROFILE_XFIELD = "user_profile";
+    private static final String REMOTE_CLUSTER_SERVER_XFIELD = "remote_cluster_server";
 
     private Map<String, Object> realmsUsage;
     private Map<String, Object> rolesStoreUsage;
@@ -46,6 +48,7 @@ public class SecurityFeatureSetUsage extends XPackFeatureSet.Usage {
     private Map<String, Object> operatorPrivilegesUsage;
     private Map<String, Object> domainsUsage;
     private Map<String, Object> userProfileUsage;
+    private Map<String, Object> remoteClusterServerUsage;
 
     public SecurityFeatureSetUsage(StreamInput in) throws IOException {
         super(in);
@@ -72,6 +75,9 @@ public class SecurityFeatureSetUsage extends XPackFeatureSet.Usage {
         if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_5_0)) {
             userProfileUsage = in.readMap();
         }
+        if (in.getTransportVersion().onOrAfter(RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS)) {
+            remoteClusterServerUsage = in.readMap();
+        }
     }
 
     public SecurityFeatureSetUsage(
@@ -88,7 +94,8 @@ public class SecurityFeatureSetUsage extends XPackFeatureSet.Usage {
         Map<String, Object> fips140Usage,
         Map<String, Object> operatorPrivilegesUsage,
         Map<String, Object> domainsUsage,
-        Map<String, Object> userProfileUsage
+        Map<String, Object> userProfileUsage,
+        Map<String, Object> remoteClusterServerUsage
     ) {
         super(XPackField.SECURITY, true, enabled);
         this.realmsUsage = realmsUsage;
@@ -104,6 +111,7 @@ public class SecurityFeatureSetUsage extends XPackFeatureSet.Usage {
         this.operatorPrivilegesUsage = operatorPrivilegesUsage;
         this.domainsUsage = domainsUsage;
         this.userProfileUsage = userProfileUsage;
+        this.remoteClusterServerUsage = remoteClusterServerUsage;
     }
 
     @Override
@@ -137,6 +145,9 @@ public class SecurityFeatureSetUsage extends XPackFeatureSet.Usage {
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_5_0)) {
             out.writeGenericMap(userProfileUsage);
         }
+        if (out.getTransportVersion().onOrAfter(RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS)) {
+            out.writeGenericMap(remoteClusterServerUsage);
+        }
     }
 
     @Override
@@ -159,6 +170,9 @@ public class SecurityFeatureSetUsage extends XPackFeatureSet.Usage {
             }
             if (userProfileUsage != null && false == userProfileUsage.isEmpty()) {
                 builder.field(USER_PROFILE_XFIELD, userProfileUsage);
+            }
+            if (remoteClusterServerUsage != null && false == remoteClusterServerUsage.isEmpty()) {
+                builder.field(REMOTE_CLUSTER_SERVER_XFIELD, remoteClusterServerUsage);
             }
         } else if (sslUsage.isEmpty() == false) {
             // A trial (or basic) license can have SSL without security.

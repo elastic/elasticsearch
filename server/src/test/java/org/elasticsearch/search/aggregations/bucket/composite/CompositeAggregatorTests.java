@@ -19,7 +19,6 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.NoMergePolicy;
@@ -163,7 +162,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
     }
 
     @Override
-    protected IndexReader wrapDirectoryReader(DirectoryReader reader) throws IOException {
+    protected DirectoryReader wrapDirectoryReader(DirectoryReader reader) throws IOException {
         if (false == objectMappers().isEmpty()) {
             return wrapInMockESDirectoryReader(reader);
         }
@@ -188,7 +187,9 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             Arrays.asList(new MatchAllDocsQuery(), new FieldExistsQuery("keyword")),
             dataset,
             () -> new CompositeAggregationBuilder("name", Arrays.asList(new TermsValuesSourceBuilder("unmapped").field("unmapped"))),
-            (InternalComposite result) -> { assertEquals(0, result.getBuckets().size()); }
+            (InternalComposite result) -> {
+                assertEquals(0, result.getBuckets().size());
+            }
         );
 
         // Only aggregate on unmapped field, missing bucket => one null bucket with all values
@@ -215,7 +216,9 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 "name",
                 Arrays.asList(new TermsValuesSourceBuilder("unmapped").field("unmapped").missingBucket(true))
             ).aggregateAfter(Collections.singletonMap("unmapped", null)),
-            (InternalComposite result) -> { assertEquals(0, result.getBuckets().size()); }
+            (InternalComposite result) -> {
+                assertEquals(0, result.getBuckets().size());
+            }
         );
 
         // Mapped field first, then unmapped, no missing bucket => no results
@@ -229,7 +232,9 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                     new TermsValuesSourceBuilder("unmapped").field("unmapped")
                 )
             ),
-            (InternalComposite result) -> { assertEquals(0, result.getBuckets().size()); }
+            (InternalComposite result) -> {
+                assertEquals(0, result.getBuckets().size());
+            }
         );
 
         // Mapped + unmapped, include missing => 3 buckets
@@ -283,7 +288,9 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                     new TermsValuesSourceBuilder("unmapped").field("unmapped").missingBucket(true).missingOrder(MissingOrder.FIRST)
                 )
             ).aggregateAfter(Collections.singletonMap("unmapped", "cat")),
-            (InternalComposite result) -> { assertEquals(0, result.getBuckets().size()); }
+            (InternalComposite result) -> {
+                assertEquals(0, result.getBuckets().size());
+            }
         );
 
         // Unmapped field, number after key, unmapped sorts after, include unmapped => 1 bucket
@@ -314,7 +321,9 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                     new TermsValuesSourceBuilder("unmapped").field("unmapped").missingBucket(true).missingOrder(MissingOrder.FIRST)
                 )
             ).aggregateAfter(Collections.singletonMap("unmapped", 42)),
-            (InternalComposite result) -> { assertEquals(0, result.getBuckets().size()); }
+            (InternalComposite result) -> {
+                assertEquals(0, result.getBuckets().size());
+            }
         );
 
     }
@@ -337,7 +346,9 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             dataset,
             () -> new CompositeAggregationBuilder("name", Arrays.asList(new TermsValuesSourceBuilder("unmapped").field("unmapped")))
                 .aggregateAfter(Collections.singletonMap("unmapped", 42)),
-            (InternalComposite result) -> { assertEquals(0, result.getBuckets().size()); }
+            (InternalComposite result) -> {
+                assertEquals(0, result.getBuckets().size());
+            }
         );
     }
 
@@ -593,7 +604,9 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             Arrays.asList(new MatchAllDocsQuery(), new FieldExistsQuery("long")),
             dataset,
             () -> new CompositeAggregationBuilder("name", Arrays.asList(new TermsValuesSourceBuilder("unmapped").field("unmapped"))),
-            (InternalComposite result) -> { assertEquals(0, result.getBuckets().size()); }
+            (InternalComposite result) -> {
+                assertEquals(0, result.getBuckets().size());
+            }
         );
 
         testSearchCase(
@@ -618,7 +631,9 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 "name",
                 Arrays.asList(new TermsValuesSourceBuilder("unmapped").field("unmapped").missingBucket(true))
             ).aggregateAfter(Collections.singletonMap("unmapped", null)),
-            (InternalComposite result) -> { assertEquals(0, result.getBuckets().size()); }
+            (InternalComposite result) -> {
+                assertEquals(0, result.getBuckets().size());
+            }
         );
 
         testSearchCase(
@@ -631,7 +646,9 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                     new TermsValuesSourceBuilder("unmapped").field("unmapped")
                 )
             ),
-            (InternalComposite result) -> { assertEquals(0, result.getBuckets().size()); }
+            (InternalComposite result) -> {
+                assertEquals(0, result.getBuckets().size());
+            }
         );
 
         testSearchCase(
@@ -1607,7 +1624,9 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                         .order(SortOrder.ASC)
                 )
             ).aggregateAfter(createAfterKey("keyword", null)),
-            (InternalComposite result) -> { assertEquals(0, result.getBuckets().size()); }
+            (InternalComposite result) -> {
+                assertEquals(0, result.getBuckets().size());
+            }
         );
 
         testSearchCase(
@@ -1691,7 +1710,9 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                         .order(SortOrder.ASC)
                 )
             ).aggregateAfter(createAfterKey("hist", null)),
-            (InternalComposite result) -> { assertEquals(0, result.getBuckets().size()); }
+            (InternalComposite result) -> {
+                assertEquals(0, result.getBuckets().size());
+            }
         );
 
         testSearchCase(
@@ -3081,8 +3102,8 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 addToDocument(0, document, createDocument("term-field", "a", "long", 100L));
                 indexWriter.addDocument(document);
             }
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
-                IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
+            try (DirectoryReader indexReader = DirectoryReader.open(directory)) {
+                IndexSearcher indexSearcher = newIndexSearcher(indexReader);
                 try (
                     AggregationContext context = createAggregationContext(
                         indexSearcher,
@@ -3658,8 +3679,8 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
 
                 }
             }
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
-                IndexSearcher indexSearcher = new IndexSearcher(indexReader);
+            try (DirectoryReader indexReader = DirectoryReader.open(directory)) {
+                IndexSearcher indexSearcher = newIndexSearcher(indexReader);
                 for (int i = 0; i < create.size(); i++) {
                     verify.get(i)
                         .accept(searchAndReduce(indexSearcher, new AggTestConfig(create.get(i).get(), FIELD_TYPES).withQuery(query)));

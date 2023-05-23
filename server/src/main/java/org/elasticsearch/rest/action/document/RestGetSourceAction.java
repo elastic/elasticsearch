@@ -21,6 +21,8 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestResponseListener;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -36,6 +38,7 @@ import static org.elasticsearch.rest.RestStatus.OK;
 /**
  * The REST handler for get source and head source APIs.
  */
+@ServerlessScope(Scope.PUBLIC)
 public class RestGetSourceAction extends BaseRestHandler {
     private final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestGetSourceAction.class);
     static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in get_source and exist_source "

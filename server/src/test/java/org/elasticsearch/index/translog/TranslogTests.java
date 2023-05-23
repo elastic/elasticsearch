@@ -1250,7 +1250,7 @@ public class TranslogTests extends ESTestCase {
                 maxOp = next;
             }
             assertNotNull(maxOp);
-            assertEquals(maxOp.source().utf8ToString(), Integer.toString(count));
+            assertEquals(((Translog.Index) maxOp).source().utf8ToString(), Integer.toString(count));
         }
     }
 
@@ -1293,7 +1293,7 @@ public class TranslogTests extends ESTestCase {
             for (int op = 0; op < translogOperations; op++) {
                 if (op <= lastSynced) {
                     final Translog.Operation read = snapshot.next();
-                    assertEquals(Integer.toString(op), read.source().utf8ToString());
+                    assertEquals(Integer.toString(op), ((Translog.Index) read).source().utf8ToString());
                 } else {
                     Translog.Operation next = snapshot.next();
                     assertNull(next);
@@ -1586,6 +1586,40 @@ public class TranslogTests extends ESTestCase {
         }
     }
 
+    public void testTranslogWriterLastModifiedTime() throws IOException {
+        Path tempDir = createTempDir();
+        try (Translog translog = create(tempDir)) {
+            long mtime = translog.getCurrent().getLastModifiedTime();
+            TranslogWriter.LastModifiedTimeCache mtimeCache = translog.getCurrent().lastModifiedTimeCache;
+            // no ops
+            long lastMtime = translog.getCurrent().getLastModifiedTime();
+            TranslogWriter.LastModifiedTimeCache lastMtimeCache = translog.getCurrent().lastModifiedTimeCache;
+            assertThat(lastMtime, equalTo(mtime));
+            assertEquals(lastMtimeCache, mtimeCache);
+
+            mtime = lastMtime;
+            mtimeCache = lastMtimeCache;
+            // add ops
+            int count = randomIntBetween(1, 100);
+            for (int i = 0; i < count; i++) {
+                translog.add(indexOp(randomAlphaOfLength(128), i, primaryTerm.get()));
+            }
+            lastMtime = translog.getCurrent().getLastModifiedTime();
+            lastMtimeCache = translog.getCurrent().lastModifiedTimeCache;
+            assertThat(lastMtime, greaterThanOrEqualTo(mtime));
+            assertThat(lastMtimeCache.totalOffset(), greaterThan(mtimeCache.totalOffset()));
+
+            mtime = lastMtime;
+            mtimeCache = lastMtimeCache;
+            // sync ops
+            translog.sync();
+            lastMtime = translog.getCurrent().getLastModifiedTime();
+            lastMtimeCache = translog.getCurrent().lastModifiedTimeCache;
+            assertThat(lastMtime, greaterThanOrEqualTo(mtime));
+            assertThat(lastMtimeCache.syncedOffset(), greaterThan(mtimeCache.syncedOffset()));
+        }
+    }
+
     public void testTranslogOperationListener() throws IOException {
         Path tempDir = createTempDir();
         final Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT).build();
@@ -1718,7 +1752,7 @@ public class TranslogTests extends ESTestCase {
                     );
                     Translog.Operation next = snapshot.next();
                     assertNotNull("operation " + i + " must be non-null", next);
-                    assertEquals(i, Integer.parseInt(next.source().utf8ToString()));
+                    assertEquals(i, Integer.parseInt(((Translog.Index) next).source().utf8ToString()));
                 }
             }
         }
@@ -1773,7 +1807,7 @@ public class TranslogTests extends ESTestCase {
                 for (int i = 0; i < upTo; i++) {
                     Translog.Operation next = snapshot.next();
                     assertNotNull("operation " + i + " must be non-null synced: " + sync, next);
-                    assertEquals("payload mismatch, synced: " + sync, i, Integer.parseInt(next.source().utf8ToString()));
+                    assertEquals("payload mismatch, synced: " + sync, i, Integer.parseInt(((Translog.Index) next).source().utf8ToString()));
                 }
             }
         }
@@ -1800,7 +1834,11 @@ public class TranslogTests extends ESTestCase {
                     for (int i = 0; i < upTo; i++) {
                         Translog.Operation next = snapshot.next();
                         assertNotNull("operation " + i + " must be non-null synced: " + sync, next);
-                        assertEquals("payload mismatch, synced: " + sync, i, Integer.parseInt(next.source().utf8ToString()));
+                        assertEquals(
+                            "payload mismatch, synced: " + sync,
+                            i,
+                            Integer.parseInt(((Translog.Index) next).source().utf8ToString())
+                        );
                     }
                 }
             }
@@ -1860,7 +1898,7 @@ public class TranslogTests extends ESTestCase {
                 for (int i = 0; i < upTo; i++) {
                     Translog.Operation next = snapshot.next();
                     assertNotNull("operation " + i + " must be non-null synced: " + sync, next);
-                    assertEquals("payload mismatch, synced: " + sync, i, Integer.parseInt(next.source().utf8ToString()));
+                    assertEquals("payload mismatch, synced: " + sync, i, Integer.parseInt(((Translog.Index) next).source().utf8ToString()));
                 }
             }
         }
@@ -1888,7 +1926,11 @@ public class TranslogTests extends ESTestCase {
                     for (int i = 0; i < upTo; i++) {
                         Translog.Operation next = snapshot.next();
                         assertNotNull("operation " + i + " must be non-null synced: " + sync, next);
-                        assertEquals("payload mismatch, synced: " + sync, i, Integer.parseInt(next.source().utf8ToString()));
+                        assertEquals(
+                            "payload mismatch, synced: " + sync,
+                            i,
+                            Integer.parseInt(((Translog.Index) next).source().utf8ToString())
+                        );
                     }
                 }
             }
@@ -1972,7 +2014,7 @@ public class TranslogTests extends ESTestCase {
                 for (int i = 0; i < upTo; i++) {
                     Translog.Operation next = snapshot.next();
                     assertNotNull("operation " + i + " must be non-null synced: " + sync, next);
-                    assertEquals("payload mismatch, synced: " + sync, i, Integer.parseInt(next.source().utf8ToString()));
+                    assertEquals("payload mismatch, synced: " + sync, i, Integer.parseInt(((Translog.Index) next).source().utf8ToString()));
                 }
             }
         }
@@ -2258,7 +2300,7 @@ public class TranslogTests extends ESTestCase {
             for (int i = firstUncommitted; i < translogOperations; i++) {
                 Translog.Operation next = snapshot.next();
                 assertNotNull("" + i, next);
-                assertEquals(Integer.parseInt(next.source().utf8ToString()), i);
+                assertEquals(Integer.parseInt(((Translog.Index) next).source().utf8ToString()), i);
             }
             assertNull(snapshot.next());
         }
@@ -2470,7 +2512,7 @@ public class TranslogTests extends ESTestCase {
                     );
                     Translog.Operation next = snapshot.next();
                     assertNotNull("operation " + i + " must be non-null", next);
-                    assertEquals(i, Integer.parseInt(next.source().utf8ToString()));
+                    assertEquals(i, Integer.parseInt(((Translog.Index) next).source().utf8ToString()));
                 }
             }
         }
@@ -2999,7 +3041,7 @@ public class TranslogTests extends ESTestCase {
 
             Translog.Operation op = snapshot.next();
             assertNotNull("operation 1 must be non-null", op);
-            assertEquals("payload mismatch for operation 1", 1, Integer.parseInt(op.source().utf8ToString()));
+            assertEquals("payload mismatch for operation 1", 1, Integer.parseInt(((Translog.Index) op).source().utf8ToString()));
 
             tlog.add(indexOp("" + 1, 1, primaryTerm.get(), "2"));
         }
@@ -3009,11 +3051,11 @@ public class TranslogTests extends ESTestCase {
 
             Translog.Operation secondOp = snapshot.next();
             assertNotNull("operation 2 must be non-null", secondOp);
-            assertEquals("payload mismatch for operation 2", Integer.parseInt(secondOp.source().utf8ToString()), 2);
+            assertEquals("payload mismatch for operation 2", Integer.parseInt(((Translog.Index) secondOp).source().utf8ToString()), 2);
 
             Translog.Operation firstOp = snapshot.next();
             assertNotNull("operation 1 must be non-null", firstOp);
-            assertEquals("payload mismatch for operation 1", Integer.parseInt(firstOp.source().utf8ToString()), 1);
+            assertEquals("payload mismatch for operation 1", Integer.parseInt(((Translog.Index) firstOp).source().utf8ToString()), 1);
         }
     }
 
@@ -3069,7 +3111,7 @@ public class TranslogTests extends ESTestCase {
                 for (int i = 0; i < 1; i++) {
                     Translog.Operation next = snapshot.next();
                     assertNotNull("operation " + i + " must be non-null", next);
-                    assertEquals("payload missmatch", i, Integer.parseInt(next.source().utf8ToString()));
+                    assertEquals("payload missmatch", i, Integer.parseInt(((Translog.Index) next).source().utf8ToString()));
                 }
             }
             tlog.add(indexOp("" + 1, 1, primaryTerm.get(), "1"));
@@ -3210,7 +3252,7 @@ public class TranslogTests extends ESTestCase {
                 assertEquals(syncedDocs.size(), snapshot.totalOperations());
                 for (int i = 0; i < syncedDocs.size(); i++) {
                     Translog.Operation next = snapshot.next();
-                    assertEquals(syncedDocs.get(i), next.source().utf8ToString());
+                    assertEquals(syncedDocs.get(i), ((Translog.Index) next).source().utf8ToString());
                     assertNotNull("operation " + i + " must be non-null", next);
                 }
             }
@@ -3359,7 +3401,7 @@ public class TranslogTests extends ESTestCase {
         );
         BytesStreamOutput out = new BytesStreamOutput();
         out.setTransportVersion(wireVersion);
-        Translog.Operation.writeOperation(out, index);
+        index.writeTo(out);
         StreamInput in = out.bytes().streamInput();
         in.setTransportVersion(wireVersion);
         Translog.Index serializedIndex = (Translog.Index) Translog.Operation.readOperation(in);
@@ -3382,7 +3424,7 @@ public class TranslogTests extends ESTestCase {
 
         out = new BytesStreamOutput();
         out.setTransportVersion(wireVersion);
-        Translog.Operation.writeOperation(out, delete);
+        delete.writeTo(out);
         in = out.bytes().streamInput();
         in.setTransportVersion(wireVersion);
         Translog.Delete serializedDelete = (Translog.Delete) Translog.Operation.readOperation(in);

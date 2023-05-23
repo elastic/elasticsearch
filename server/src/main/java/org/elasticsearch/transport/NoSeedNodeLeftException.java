@@ -22,14 +22,6 @@ public class NoSeedNodeLeftException extends ElasticsearchException {
         super(message);
     }
 
-    NoSeedNodeLeftException(RemoteConnectionStrategy.ConnectionStrategy connectionStrategy, String clusterName) {
-        super(
-            connectionStrategy == RemoteConnectionStrategy.ConnectionStrategy.SNIFF
-                ? "no seed node left for cluster: [" + clusterName + "]"
-                : "Unable to open any proxy connections to cluster [" + clusterName + "]"
-        );
-    }
-
     public NoSeedNodeLeftException(StreamInput in) throws IOException {
         super(in);
     }

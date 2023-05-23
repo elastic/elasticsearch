@@ -1230,14 +1230,14 @@ public class QueryTranslatorTests extends ESTestCase {
             final int fieldCount = 5;
             final String sql = ("SELECT " +
             // 0-3: these all should fold into the same aggregation
-            "   PERCENTILE(int, 50, 'tdigest', 79.8 + 20.2), "
+                "   PERCENTILE(int, 50, 'tdigest', 79.8 + 20.2), "
                 + "   PERCENTILE(int, 40 + 10, 'tdigest', null), "
                 + "   PERCENTILE(int, 50, 'tdigest'), "
                 + "   PERCENTILE(int, 50), "
                 +
             // 4: this has a different method parameter
             // just to make sure we don't fold everything to default
-            "   PERCENTILE(int, 50, 'tdigest', 22) "
+                "   PERCENTILE(int, 50, 'tdigest', 22) "
                 + "FROM test").replaceAll("PERCENTILE", fnName);
 
             List<AbstractPercentilesAggregationBuilder> aggs = percentilesAggsByField(optimizeAndPlan(sql), fieldCount);
@@ -1264,13 +1264,13 @@ public class QueryTranslatorTests extends ESTestCase {
             final int fieldCount = 5;
             final String sql = ("SELECT " +
             // 0-1: fold into the same aggregation
-            "   PERCENTILE(int, 50, 'tdigest'), " + "   PERCENTILE(int, 60, 'tdigest'), " +
+                "   PERCENTILE(int, 50, 'tdigest'), " + "   PERCENTILE(int, 60, 'tdigest'), " +
 
             // 2-3: fold into one aggregation
-            "   PERCENTILE(int, 50, 'hdr'), " + "   PERCENTILE(int, 60, 'hdr', 3), " +
+                "   PERCENTILE(int, 50, 'hdr'), " + "   PERCENTILE(int, 60, 'hdr', 3), " +
 
             // 4: folds into a separate aggregation
-            "   PERCENTILE(int, 60, 'hdr', 4)" + "FROM test").replaceAll("PERCENTILE", fnName);
+                "   PERCENTILE(int, 60, 'hdr', 4)" + "FROM test").replaceAll("PERCENTILE", fnName);
 
             List<AbstractPercentilesAggregationBuilder> aggs = percentilesAggsByField(optimizeAndPlan(sql), fieldCount);
 

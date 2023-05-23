@@ -41,7 +41,7 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -258,11 +258,6 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
 
         public static PersistentTaskState fromXContent(XContentParser parser) throws IOException {
             return STATE_PARSER.parse(parser, null);
-        }
-
-        @Override
-        public boolean isFragment() {
-            return false;
         }
 
         @Override
@@ -563,7 +558,12 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
         }
 
         @Override
-        protected void taskOperation(Task actionTask, TestTasksRequest request, TestTask task, ActionListener<TestTaskResponse> listener) {
+        protected void taskOperation(
+            CancellableTask actionTask,
+            TestTasksRequest request,
+            TestTask task,
+            ActionListener<TestTaskResponse> listener
+        ) {
             task.setOperation(request.operation);
             listener.onResponse(new TestTaskResponse());
         }

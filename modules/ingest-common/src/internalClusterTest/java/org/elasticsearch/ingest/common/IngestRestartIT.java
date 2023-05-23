@@ -98,9 +98,9 @@ public class IngestRestartIT extends ESIntegTestCase {
         NodesStatsResponse r = client().admin().cluster().prepareNodesStats(internalCluster().getNodeNames()).setIngest(true).get();
         int nodeCount = r.getNodes().size();
         for (int k = 0; k < nodeCount; k++) {
-            List<IngestStats.ProcessorStat> stats = r.getNodes().get(k).getIngestStats().getProcessorStats().get(pipelineId);
+            List<IngestStats.ProcessorStat> stats = r.getNodes().get(k).getIngestStats().processorStats().get(pipelineId);
             for (IngestStats.ProcessorStat st : stats) {
-                assertThat(st.getStats().getIngestCurrent(), greaterThanOrEqualTo(0L));
+                assertThat(st.stats().ingestCurrent(), greaterThanOrEqualTo(0L));
             }
         }
     }

@@ -405,10 +405,10 @@ public class TransportSearchIT extends ESIntegTestCase {
     public void testSearchIdle() throws Exception {
         int numOfReplicas = randomIntBetween(0, 1);
         internalCluster().ensureAtLeastNumDataNodes(numOfReplicas + 1);
-        final Settings.Builder settings = Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 5))
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numOfReplicas)
-            .put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), TimeValue.timeValueMillis(randomIntBetween(50, 500)));
+        final Settings.Builder settings = indexSettings(randomIntBetween(1, 5), numOfReplicas).put(
+            IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(),
+            TimeValue.timeValueMillis(randomIntBetween(50, 500))
+        );
         assertAcked(prepareCreate("test").setSettings(settings).setMapping("""
             {"properties":{"created_date":{"type": "date", "format": "yyyy-MM-dd"}}}"""));
         ensureGreen("test");
@@ -558,7 +558,7 @@ public class TransportSearchIT extends ESIntegTestCase {
     }
 
     private long requestBreakerUsed() {
-        NodesStatsResponse stats = client().admin().cluster().prepareNodesStats().setBreaker(true).get();
+        NodesStatsResponse stats = clusterAdmin().prepareNodesStats().setBreaker(true).get();
         long estimated = 0;
         for (NodeStats nodeStats : stats.getNodes()) {
             estimated += nodeStats.getBreaker().getStats(CircuitBreaker.REQUEST).getEstimated();
@@ -670,6 +670,9 @@ public class TransportSearchIT extends ESIntegTestCase {
         public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
             return new InternalAggregation[] { buildEmptyAggregation() };
         }
+
+        @Override
+        public void releaseAggregations() {}
 
         @Override
         public InternalAggregation buildEmptyAggregation() {

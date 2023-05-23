@@ -1,0 +1,5 @@
+pr: 95621
+summary: Check if an analytics event data stream exists before installing pipeline
+area: Application
+type: bug
+issues: []

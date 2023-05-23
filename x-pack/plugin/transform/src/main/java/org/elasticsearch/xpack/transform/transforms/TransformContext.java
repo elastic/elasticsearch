@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.transform.transforms;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.xpack.core.transform.transforms.AuthorizationState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
 import org.elasticsearch.xpack.transform.Transform;
 
@@ -41,6 +42,7 @@ public class TransformContext {
     private volatile Instant changesLastDetectedAt;
     private volatile Instant lastSearchTime;
     private volatile boolean shouldStopAtCheckpoint = false;
+    private volatile AuthorizationState authState;
     private volatile int pageSize = 0;
 
     // the checkpoint of this transform, storing the checkpoint until data indexing from source to dest is _complete_
@@ -167,6 +169,14 @@ public class TransformContext {
 
     public void setShouldStopAtCheckpoint(boolean shouldStopAtCheckpoint) {
         this.shouldStopAtCheckpoint = shouldStopAtCheckpoint;
+    }
+
+    public AuthorizationState getAuthState() {
+        return authState;
+    }
+
+    public void setAuthState(AuthorizationState authState) {
+        this.authState = authState;
     }
 
     int getPageSize() {

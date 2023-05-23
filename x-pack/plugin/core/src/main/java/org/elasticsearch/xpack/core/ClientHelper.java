@@ -94,7 +94,7 @@ public final class ClientHelper {
         return maybeRewriteAuthenticationHeadersForVersion(
             filterSecurityHeaders(threadContext.getHeaders()),
             key -> new AuthenticationContextSerializer(key).readFromContext(threadContext),
-            clusterState.nodes().getMinNodeVersion().transportVersion // TODO revisit this once node's version is refactored
+            clusterState.getMinTransportVersion()
         );
     }
 
@@ -110,7 +110,7 @@ public final class ClientHelper {
         return maybeRewriteAuthenticationHeadersForVersion(
             filterSecurityHeaders(headers),
             authenticationReader,
-            clusterState.nodes().getMinNodeVersion().transportVersion // TODO revisit this once node's version is refactored
+            clusterState.getMinTransportVersion()
         );
     }
 
@@ -186,10 +186,12 @@ public final class ClientHelper {
     public static final String TRANSFORM_ORIGIN = "transform";
     public static final String ASYNC_SEARCH_ORIGIN = "async_search";
     public static final String IDP_ORIGIN = "idp";
+    public static final String PROFILING_ORIGIN = "profiling";
     public static final String STACK_ORIGIN = "stack";
     public static final String SEARCHABLE_SNAPSHOTS_ORIGIN = "searchable_snapshots";
     public static final String LOGSTASH_MANAGEMENT_ORIGIN = "logstash_management";
     public static final String FLEET_ORIGIN = "fleet";
+    public static final String ENT_SEARCH_ORIGIN = "enterprise_search";
 
     private ClientHelper() {}
 

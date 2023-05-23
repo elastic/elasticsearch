@@ -406,50 +406,50 @@ public class DistanceFunctionBenchmark {
             case "float" -> {
                 switch (function) {
                     case "dot" -> benchmarkFunction = switch (type) {
-                            case "knn" -> new DotKnnFloatBenchmarkFunction(dims);
-                            case "binary" -> new DotBinaryFloatBenchmarkFunction(dims);
-                            default -> throw new UnsupportedOperationException("unexpected type [" + type + "]");
-                        };
+                        case "knn" -> new DotKnnFloatBenchmarkFunction(dims);
+                        case "binary" -> new DotBinaryFloatBenchmarkFunction(dims);
+                        default -> throw new UnsupportedOperationException("unexpected type [" + type + "]");
+                    };
                     case "cosine" -> benchmarkFunction = switch (type) {
-                            case "knn" -> new CosineKnnFloatBenchmarkFunction(dims);
-                            case "binary" -> new CosineBinaryFloatBenchmarkFunction(dims);
-                            default -> throw new UnsupportedOperationException("unexpected type [" + type + "]");
-                        };
+                        case "knn" -> new CosineKnnFloatBenchmarkFunction(dims);
+                        case "binary" -> new CosineBinaryFloatBenchmarkFunction(dims);
+                        default -> throw new UnsupportedOperationException("unexpected type [" + type + "]");
+                    };
                     case "l1" -> benchmarkFunction = switch (type) {
-                            case "knn" -> new L1KnnFloatBenchmarkFunction(dims);
-                            case "binary" -> new L1BinaryFloatBenchmarkFunction(dims);
-                            default -> throw new UnsupportedOperationException("unexpected type [" + type + "]");
-                        };
+                        case "knn" -> new L1KnnFloatBenchmarkFunction(dims);
+                        case "binary" -> new L1BinaryFloatBenchmarkFunction(dims);
+                        default -> throw new UnsupportedOperationException("unexpected type [" + type + "]");
+                    };
                     case "l2" -> benchmarkFunction = switch (type) {
-                            case "knn" -> new L2KnnFloatBenchmarkFunction(dims);
-                            case "binary" -> new L2BinaryFloatBenchmarkFunction(dims);
-                            default -> throw new UnsupportedOperationException("unexpected type [" + type + "]");
-                        };
+                        case "knn" -> new L2KnnFloatBenchmarkFunction(dims);
+                        case "binary" -> new L2BinaryFloatBenchmarkFunction(dims);
+                        default -> throw new UnsupportedOperationException("unexpected type [" + type + "]");
+                    };
                     default -> throw new UnsupportedOperationException("unexpected function [" + function + "]");
                 }
             }
             case "byte" -> {
                 switch (function) {
                     case "dot" -> benchmarkFunction = switch (type) {
-                            case "knn" -> new DotKnnByteBenchmarkFunction(dims);
-                            case "binary" -> new DotBinaryByteBenchmarkFunction(dims);
-                            default -> throw new UnsupportedOperationException("unexpected type [" + type + "]");
-                        };
+                        case "knn" -> new DotKnnByteBenchmarkFunction(dims);
+                        case "binary" -> new DotBinaryByteBenchmarkFunction(dims);
+                        default -> throw new UnsupportedOperationException("unexpected type [" + type + "]");
+                    };
                     case "cosine" -> benchmarkFunction = switch (type) {
-                            case "knn" -> new CosineKnnByteBenchmarkFunction(dims);
-                            case "binary" -> new CosineBinaryByteBenchmarkFunction(dims);
-                            default -> throw new UnsupportedOperationException("unexpected type [" + type + "]");
-                        };
+                        case "knn" -> new CosineKnnByteBenchmarkFunction(dims);
+                        case "binary" -> new CosineBinaryByteBenchmarkFunction(dims);
+                        default -> throw new UnsupportedOperationException("unexpected type [" + type + "]");
+                    };
                     case "l1" -> benchmarkFunction = switch (type) {
-                            case "knn" -> new L1KnnByteBenchmarkFunction(dims);
-                            case "binary" -> new L1BinaryByteBenchmarkFunction(dims);
-                            default -> throw new UnsupportedOperationException("unexpected type [" + type + "]");
-                        };
+                        case "knn" -> new L1KnnByteBenchmarkFunction(dims);
+                        case "binary" -> new L1BinaryByteBenchmarkFunction(dims);
+                        default -> throw new UnsupportedOperationException("unexpected type [" + type + "]");
+                    };
                     case "l2" -> benchmarkFunction = switch (type) {
-                            case "knn" -> new L2KnnByteBenchmarkFunction(dims);
-                            case "binary" -> new L2BinaryByteBenchmarkFunction(dims);
-                            default -> throw new UnsupportedOperationException("unexpected type [" + type + "]");
-                        };
+                        case "knn" -> new L2KnnByteBenchmarkFunction(dims);
+                        case "binary" -> new L2BinaryByteBenchmarkFunction(dims);
+                        default -> throw new UnsupportedOperationException("unexpected type [" + type + "]");
+                    };
                     default -> throw new UnsupportedOperationException("unexpected function [" + function + "]");
                 }
             }

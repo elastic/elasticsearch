@@ -443,7 +443,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
         logger.info("--> creating indices");
         createIndex("test1", "test2", "test3");
 
-        assertAcked(client().admin().indices().preparePutMapping("test1", "test2", "test3").setSource("name", "type=text"));
+        assertAcked(indicesAdmin().preparePutMapping("test1", "test2", "test3").setSource("name", "type=text"));
 
         ensureGreen();
 
@@ -824,9 +824,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
         createIndex("foobarbaz");
         createIndex("bazbar");
 
-        assertAcked(
-            client().admin().indices().preparePutMapping("foobar", "test", "test123", "foobarbaz", "bazbar").setSource("field", "type=text")
-        );
+        assertAcked(indicesAdmin().preparePutMapping("foobar", "test", "test123", "foobarbaz", "bazbar").setSource("field", "type=text"));
         ensureGreen();
 
         logger.info("--> creating aliases [alias1, alias2]");
@@ -1117,15 +1115,15 @@ public class IndexAliasesIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test"));
         assertAliasesVersionIncreases(
             "test",
-            () -> client().admin().indices().prepareAliases().addAlias("test", "a", QueryBuilders.termQuery("field1", "term")).get()
+            () -> indicesAdmin().prepareAliases().addAlias("test", "a", QueryBuilders.termQuery("field1", "term")).get()
         );
         assertAliasesVersionIncreases(
             "test",
-            () -> client().admin().indices().prepareAliases().addAlias("test", "a", QueryBuilders.rangeQuery("field2").from(0).to(1)).get()
+            () -> indicesAdmin().prepareAliases().addAlias("test", "a", QueryBuilders.rangeQuery("field2").from(0).to(1)).get()
         );
         assertAliasesVersionIncreases(
             "test",
-            () -> client().admin().indices().prepareAliases().addAlias("test", "a", QueryBuilders.matchAllQuery()).get()
+            () -> indicesAdmin().prepareAliases().addAlias("test", "a", QueryBuilders.matchAllQuery()).get()
         );
     }
 
@@ -1229,30 +1227,30 @@ public class IndexAliasesIT extends ESIntegTestCase {
 
         IllegalArgumentException iae = expectThrows(
             IllegalArgumentException.class,
-            () -> client().admin().indices().prepareAliases().removeIndex("foo").execute().actionGet()
+            () -> indicesAdmin().prepareAliases().removeIndex("foo").execute().actionGet()
         );
         assertEquals(
             "The provided expression [foo] matches an alias, specify the corresponding concrete indices instead.",
             iae.getMessage()
         );
 
-        assertAcked(client().admin().indices().prepareAliases().removeIndex("foo*"));
+        assertAcked(indicesAdmin().prepareAliases().removeIndex("foo*"));
         assertFalse(indexExists("foo_foo"));
         assertFalse(admin().indices().prepareGetAliases("foo").get().getAliases().isEmpty());
         assertTrue(indexExists("bar_bar"));
         assertFalse(admin().indices().prepareGetAliases("foo").setIndices("bar_bar").get().getAliases().isEmpty());
 
-        assertAcked(client().admin().indices().prepareAliases().removeIndex("bar_bar"));
+        assertAcked(indicesAdmin().prepareAliases().removeIndex("bar_bar"));
         assertTrue(admin().indices().prepareGetAliases("foo").get().getAliases().isEmpty());
         assertFalse(indexExists("bar_bar"));
     }
 
     public void testRemoveIndexAndReplaceWithAlias() throws InterruptedException, ExecutionException {
-        assertAcked(client().admin().indices().prepareCreate("test"));
+        assertAcked(indicesAdmin().prepareCreate("test"));
         indexRandom(true, client().prepareIndex("test_2").setId("test").setSource("test", "test"));
         assertAliasesVersionIncreases(
             "test_2",
-            () -> assertAcked(client().admin().indices().prepareAliases().addAlias("test_2", "test").removeIndex("test"))
+            () -> assertAcked(indicesAdmin().prepareAliases().addAlias("test_2", "test").removeIndex("test"))
         );
         assertHitCount(client().prepareSearch("test").get(), 1);
     }
@@ -1374,7 +1372,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
         final String indexName = "index-name";
         final IllegalArgumentException iae = expectThrows(
             IllegalArgumentException.class,
-            () -> client().admin().indices().prepareCreate(indexName).addAlias(new Alias(indexName)).execute().actionGet()
+            () -> indicesAdmin().prepareCreate(indexName).addAlias(new Alias(indexName)).execute().actionGet()
         );
         assertEquals("alias name [" + indexName + "] self-conflicts with index name", iae.getMessage());
     }

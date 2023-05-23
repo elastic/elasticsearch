@@ -14,34 +14,28 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.apikey.BaseUpdateApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyResponse;
+import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
-import org.elasticsearch.xpack.security.authc.support.ApiKeyUserRoleDescriptorResolver;
-import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 
-import java.util.Set;
+import java.util.Map;
 
 public abstract class TransportBaseUpdateApiKeyAction<Request extends BaseUpdateApiKeyRequest, Response extends ActionResponse> extends
     HandledTransportAction<Request, Response> {
 
     private final SecurityContext securityContext;
-    private final ApiKeyUserRoleDescriptorResolver resolver;
 
     protected TransportBaseUpdateApiKeyAction(
         final String actionName,
         final TransportService transportService,
         final ActionFilters actionFilters,
         final Writeable.Reader<Request> requestReader,
-        final SecurityContext context,
-        final CompositeRolesStore rolesStore,
-        final NamedXContentRegistry xContentRegistry
+        final SecurityContext context
     ) {
         super(actionName, transportService, actionFilters, requestReader);
         this.securityContext = context;
-        this.resolver = new ApiKeyUserRoleDescriptorResolver(rolesStore, xContentRegistry);
     }
 
     @Override
@@ -57,20 +51,41 @@ public abstract class TransportBaseUpdateApiKeyAction<Request extends BaseUpdate
             return;
         }
 
-        resolver.resolveUserRoleDescriptors(
-            authentication,
-            ActionListener.wrap(
-                roleDescriptors -> doExecuteUpdate(task, request, authentication, roleDescriptors, listener),
-                listener::onFailure
-            )
-        );
+        doExecuteUpdate(task, request, authentication, listener);
     }
 
-    abstract void doExecuteUpdate(
-        Task task,
-        Request request,
-        Authentication authentication,
-        Set<RoleDescriptor> roleDescriptors,
-        ActionListener<Response> listener
-    );
+    abstract void doExecuteUpdate(Task task, Request request, Authentication authentication, ActionListener<Response> listener);
+
+    protected UpdateApiKeyResponse toSingleResponse(final String apiKeyId, final BulkUpdateApiKeyResponse response) throws Exception {
+        if (response.getTotalResultCount() != 1) {
+            throw new IllegalStateException(
+                "single result required for single API key update but result count was [" + response.getTotalResultCount() + "]"
+            );
+        }
+        if (response.getErrorDetails().isEmpty() == false) {
+            final Map.Entry<String, Exception> errorEntry = response.getErrorDetails().entrySet().iterator().next();
+            if (errorEntry.getKey().equals(apiKeyId) == false) {
+                throwIllegalStateExceptionOnIdMismatch(apiKeyId, errorEntry.getKey());
+            }
+            throw errorEntry.getValue();
+        } else if (response.getUpdated().isEmpty() == false) {
+            final String updatedId = response.getUpdated().get(0);
+            if (updatedId.equals(apiKeyId) == false) {
+                throwIllegalStateExceptionOnIdMismatch(apiKeyId, updatedId);
+            }
+            return new UpdateApiKeyResponse(true);
+        } else {
+            final String noopId = response.getNoops().get(0);
+            if (noopId.equals(apiKeyId) == false) {
+                throwIllegalStateExceptionOnIdMismatch(apiKeyId, noopId);
+            }
+            return new UpdateApiKeyResponse(false);
+        }
+    }
+
+    private void throwIllegalStateExceptionOnIdMismatch(final String requestId, final String responseId) {
+        final String message = "response ID [" + responseId + "] does not match request ID [" + requestId + "] for single API key update";
+        assert false : message;
+        throw new IllegalStateException(message);
+    }
 }

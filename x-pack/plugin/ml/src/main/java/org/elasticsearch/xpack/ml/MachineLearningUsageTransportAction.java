@@ -475,11 +475,11 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
 
         for (GetTrainedModelsStatsAction.Response.TrainedModelStats modelStats : statsResponse.getResources().results()) {
             pipelineCount += modelStats.getPipelineCount();
-            modelStats.getIngestStats().getProcessorStats().values().stream().flatMap(List::stream).forEach(processorStat -> {
-                if (processorStat.getName().equals(InferenceProcessor.TYPE)) {
-                    docCountStats.add(processorStat.getStats().getIngestCount());
-                    timeStats.add(processorStat.getStats().getIngestTimeInMillis());
-                    failureStats.add(processorStat.getStats().getIngestFailedCount());
+            modelStats.getIngestStats().processorStats().values().stream().flatMap(List::stream).forEach(processorStat -> {
+                if (processorStat.name().equals(InferenceProcessor.TYPE)) {
+                    docCountStats.add(processorStat.stats().ingestCount());
+                    timeStats.add(processorStat.stats().ingestTimeInMillis());
+                    failureStats.add(processorStat.stats().ingestFailedCount());
                 }
             });
         }

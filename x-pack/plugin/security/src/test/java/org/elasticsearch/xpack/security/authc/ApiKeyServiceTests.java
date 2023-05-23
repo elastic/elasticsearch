@@ -102,6 +102,7 @@ import org.elasticsearch.xpack.core.security.authc.RealmDomain;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.RoleRestriction;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
@@ -155,6 +156,7 @@ import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VE
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_ID_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_METADATA_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_TYPE_KEY;
+import static org.elasticsearch.xpack.core.security.authz.RoleDescriptor.RoleRestriction.WORKFLOWS_RESTRICTION_VERSION;
 import static org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR;
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7;
 import static org.elasticsearch.xpack.security.Security.SECURITY_CRYPTO_THREAD_POOL_NAME;
@@ -2291,6 +2293,63 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertThat(auth3.getMetadata(), hasEntry(API_KEY_TYPE_KEY, apiKeyDoc3.type.value()));
     }
 
+    public void testCreateOrUpdateApiKeyWithWorkflowsRestrictionForUnsupportedVersion() {
+        final Authentication authentication = AuthenticationTestHelper.builder().build();
+        final ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.getClusterSettings()).thenReturn(
+            new ClusterSettings(Settings.EMPTY, Set.of(ApiKeyService.DELETE_RETENTION_PERIOD))
+        );
+        final ClusterState clusterState = mock(ClusterState.class);
+        when(clusterService.state()).thenReturn(clusterState);
+        final TransportVersion minTransportVersion = TransportVersionUtils.randomVersionBetween(
+            random(),
+            TransportVersion.MINIMUM_COMPATIBLE,
+            TransportVersionUtils.getPreviousVersion(WORKFLOWS_RESTRICTION_VERSION)
+        );
+        when(clusterState.getMinTransportVersion()).thenReturn(minTransportVersion);
+
+        final ApiKeyService service = new ApiKeyService(
+            Settings.EMPTY,
+            clock,
+            client,
+            securityIndex,
+            clusterService,
+            cacheInvalidatorRegistry,
+            threadPool
+        );
+
+        final List<RoleDescriptor> roleDescriptorsWithWorkflowsRestriction = randomList(
+            1,
+            3,
+            () -> randomRoleDescriptorWithWorkflowsRestriction()
+        );
+
+        final AbstractCreateApiKeyRequest createRequest = mock(AbstractCreateApiKeyRequest.class);
+        when(createRequest.getType()).thenReturn(ApiKey.Type.REST);
+        when(createRequest.getRoleDescriptors()).thenReturn(roleDescriptorsWithWorkflowsRestriction);
+
+        final PlainActionFuture<CreateApiKeyResponse> createFuture = new PlainActionFuture<>();
+        service.createApiKey(authentication, createRequest, Set.of(), createFuture);
+        final IllegalArgumentException e1 = expectThrows(IllegalArgumentException.class, createFuture::actionGet);
+        assertThat(
+            e1.getMessage(),
+            containsString("all nodes must have transport version [8090099] or higher to support workflows restriction for API keys")
+        );
+
+        final BulkUpdateApiKeyRequest updateRequest = new BulkUpdateApiKeyRequest(
+            randomList(1, 3, () -> randomAlphaOfLengthBetween(3, 5)),
+            roleDescriptorsWithWorkflowsRestriction,
+            Map.of()
+        );
+        final PlainActionFuture<BulkUpdateApiKeyResponse> updateFuture = new PlainActionFuture<>();
+        service.updateApiKeys(authentication, updateRequest, Set.of(), updateFuture);
+        final IllegalArgumentException e2 = expectThrows(IllegalArgumentException.class, createFuture::actionGet);
+        assertThat(
+            e2.getMessage(),
+            containsString("all nodes must have transport version [8090099] or higher to support workflows restriction for API keys")
+        );
+    }
+
     private static RoleDescriptor randomRoleDescriptorWithRemoteIndexPrivileges() {
         return new RoleDescriptor(
             randomAlphaOfLengthBetween(3, 90),
@@ -2303,7 +2362,23 @@ public class ApiKeyServiceTests extends ESTestCase {
             Map.of(),
             RoleDescriptorTests.randomRemoteIndicesPrivileges(1, 3),
             // TODO: Change this to use actual workflow names instead of random ones.
-            new RoleDescriptor.RoleRestriction(randomArray(3, String[]::new, () -> randomAlphaOfLength(6)))
+            new RoleRestriction(randomArray(3, String[]::new, () -> randomAlphaOfLength(6)))
+        );
+    }
+
+    private static RoleDescriptor randomRoleDescriptorWithWorkflowsRestriction() {
+        return new RoleDescriptor(
+            randomAlphaOfLengthBetween(3, 90),
+            randomSubsetOf(ClusterPrivilegeResolver.names()).toArray(String[]::new),
+            RoleDescriptorTests.randomIndicesPrivileges(0, 3),
+            RoleDescriptorTests.randomApplicationPrivileges(),
+            RoleDescriptorTests.randomClusterPrivileges(),
+            generateRandomStringArray(5, randomIntBetween(2, 8), false, true),
+            RoleDescriptorTests.randomRoleDescriptorMetadata(randomBoolean()),
+            Map.of(),
+            null,
+            // TODO: Change this to use actual workflow names instead of random ones.
+            new RoleRestriction(randomArray(1, 3, String[]::new, () -> randomAlphaOfLengthBetween(3, 6)))
         );
     }
 

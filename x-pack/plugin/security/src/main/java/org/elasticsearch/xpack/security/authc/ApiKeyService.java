@@ -144,6 +144,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
+import static org.elasticsearch.xpack.core.security.authz.RoleDescriptor.RoleRestriction.WORKFLOWS_RESTRICTION_VERSION;
 import static org.elasticsearch.xpack.security.Security.SECURITY_CRYPTO_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 
@@ -299,6 +300,7 @@ public class ApiKeyService {
         ActionListener<CreateApiKeyResponse> listener
     ) {
         assert request.getType() != ApiKey.Type.CROSS_CLUSTER || userRoleDescriptors.isEmpty();
+        assert false == hasWorkflowsRestriction(userRoleDescriptors) : "workflows restriction are not supported by user role descriptors";
         ensureEnabled();
         if (authentication == null) {
             listener.onFailure(new IllegalArgumentException("authentication must be provided"));
@@ -327,7 +329,17 @@ public class ApiKeyService {
                 );
                 return;
             }
-
+            if (transportVersion.before(WORKFLOWS_RESTRICTION_VERSION) && hasWorkflowsRestriction(request.getRoleDescriptors())) {
+                // Creating API keys with workflows restriction is not allowed in a mixed cluster.
+                listener.onFailure(
+                    new IllegalArgumentException(
+                        "all nodes must have transport version ["
+                            + WORKFLOWS_RESTRICTION_VERSION
+                            + "] or higher to support workflows restriction for API keys"
+                    )
+                );
+                return;
+            }
             final Set<RoleDescriptor> filteredUserRoleDescriptors = maybeRemoveRemoteIndicesPrivileges(
                 userRoleDescriptors,
                 transportVersion,
@@ -344,6 +356,10 @@ public class ApiKeyService {
 
     private static boolean hasRemoteIndices(Collection<RoleDescriptor> roleDescriptors) {
         return roleDescriptors != null && roleDescriptors.stream().anyMatch(RoleDescriptor::hasRemoteIndicesPrivileges);
+    }
+
+    private static boolean hasWorkflowsRestriction(Collection<RoleDescriptor> roleDescriptors) {
+        return roleDescriptors != null && roleDescriptors.stream().anyMatch(RoleDescriptor::hasWorkflowsRestriction);
     }
 
     private void createApiKeyAndIndexIt(
@@ -415,6 +431,7 @@ public class ApiKeyService {
         final ActionListener<BulkUpdateApiKeyResponse> listener
     ) {
         ensureEnabled();
+        assert false == hasWorkflowsRestriction(userRoleDescriptors) : "workflows restriction are not supported by user role descriptors";
 
         if (authentication == null) {
             listener.onFailure(new IllegalArgumentException("authentication must be provided"));
@@ -435,6 +452,17 @@ public class ApiKeyService {
                     "all nodes must have transport version ["
                         + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS
                         + "] or higher to support remote indices privileges for API keys"
+                )
+            );
+            return;
+        }
+        if (transportVersion.before(WORKFLOWS_RESTRICTION_VERSION) && hasWorkflowsRestriction(request.getRoleDescriptors())) {
+            // Updating API keys with workflows restriction is not allowed in a mixed cluster.
+            listener.onFailure(
+                new IllegalArgumentException(
+                    "all nodes must have transport version ["
+                        + WORKFLOWS_RESTRICTION_VERSION
+                        + "] or higher to support workflows restriction for API keys"
                 )
             );
             return;

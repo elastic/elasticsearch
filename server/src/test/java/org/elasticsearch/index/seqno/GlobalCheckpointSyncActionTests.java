@@ -19,6 +19,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
@@ -108,7 +109,8 @@ public class GlobalCheckpointSyncActionTests extends ESTestCase {
             indicesService,
             threadPool,
             shardStateAction,
-            new ActionFilters(Collections.emptySet())
+            new ActionFilters(Collections.emptySet()),
+            EmptySystemIndices.INSTANCE
         );
         final GlobalCheckpointSyncAction.Request primaryRequest = new GlobalCheckpointSyncAction.Request(indexShard.shardId());
         if (randomBoolean()) {

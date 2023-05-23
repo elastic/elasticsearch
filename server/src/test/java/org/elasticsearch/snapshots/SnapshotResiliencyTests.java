@@ -1829,7 +1829,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         indicesService,
                         threadPool,
                         shardStateAction,
-                        actionFilters
+                        actionFilters,
+                        EmptySystemIndices.INSTANCE
                     )
                 );
                 final MetadataMappingService metadataMappingService = new MetadataMappingService(clusterService, indicesService);

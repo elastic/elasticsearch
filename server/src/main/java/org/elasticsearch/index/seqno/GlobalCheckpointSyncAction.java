@@ -19,14 +19,24 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.function.Function;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 /**
  * Background global checkpoint sync action initiated when a shard goes inactive. This is needed because while we send the global checkpoint
@@ -41,6 +51,10 @@ public class GlobalCheckpointSyncAction extends TransportReplicationAction<
     public static String ACTION_NAME = "indices:admin/seq_no/global_checkpoint_sync";
     public static ActionType<ReplicationResponse> TYPE = new ActionType<>(ACTION_NAME, ReplicationResponse::new);
 
+    private final Map<IndexShard, PendingSyncs<PrimaryResult<Request, ReplicationResponse>>> primarySyncs = new ConcurrentHashMap<>();
+    private final Map<IndexShard, PendingSyncs<ReplicaResult>> replicaSyncs = new ConcurrentHashMap<>();
+    private final Function<IndexShard, String> executorProvider;
+
     @Inject
     public GlobalCheckpointSyncAction(
         final Settings settings,
@@ -49,7 +63,8 @@ public class GlobalCheckpointSyncAction extends TransportReplicationAction<
         final IndicesService indicesService,
         final ThreadPool threadPool,
         final ShardStateAction shardStateAction,
-        final ActionFilters actionFilters
+        final ActionFilters actionFilters,
+        final SystemIndices systemIndices
     ) {
         super(
             settings,
@@ -62,8 +77,9 @@ public class GlobalCheckpointSyncAction extends TransportReplicationAction<
             actionFilters,
             Request::new,
             Request::new,
-            ThreadPool.Names.MANAGEMENT
+            ThreadPool.Names.SAME
         );
+        executorProvider = (shard) -> ExecutorSelector.getWriteExecutorForShard(systemIndices.getExecutorSelector(), shard);
     }
 
     @Override
@@ -77,24 +93,78 @@ public class GlobalCheckpointSyncAction extends TransportReplicationAction<
         IndexShard indexShard,
         ActionListener<PrimaryResult<Request, ReplicationResponse>> listener
     ) {
-        ActionListener.completeWith(listener, () -> {
-            maybeSyncTranslog(indexShard);
-            return new PrimaryResult<>(request, new ReplicationResponse());
-        });
+        scheduleSync(primarySyncs, request, indexShard, () -> new PrimaryResult<>(request, new ReplicationResponse()), listener);
     }
 
     @Override
-    protected void shardOperationOnReplica(Request shardRequest, IndexShard replica, ActionListener<ReplicaResult> listener) {
-        ActionListener.completeWith(listener, () -> {
-            maybeSyncTranslog(replica);
-            return new ReplicaResult();
+    protected void shardOperationOnReplica(Request request, IndexShard replica, ActionListener<ReplicaResult> listener) {
+        scheduleSync(replicaSyncs, request, replica, ReplicaResult::new, listener);
+    }
+
+    private <R> void scheduleSync(
+        Map<IndexShard, PendingSyncs<R>> pendingSyncs,
+        Request request,
+        IndexShard shard,
+        Supplier<R> resultSupplier,
+        ActionListener<R> listener
+    ) {
+        String executor = executorProvider.apply(shard);
+
+        PendingSyncs<R> pending = pendingSyncs.compute(shard, (ignored, existing) -> {
+            if (existing == null) {
+                return new PendingSyncs<>(request);
+            } else {
+                existing.toComplete.add(new Tuple<>(resultSupplier, listener));
+                return existing;
+            }
         });
+
+        if (pending.syncRequest == request) {
+            threadPool.executor(executor).execute(new AbstractRunnable() {
+
+                @Override
+                public boolean isForceExecution() {
+                    return true;
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    listener.onFailure(e);
+                }
+
+                @Override
+                protected void doRun() {
+                    PendingSyncs<R> removed = pendingSyncs.remove(shard);
+                    assert removed == pending;
+
+                    ConcurrentLinkedQueue<Tuple<Supplier<R>, ActionListener<R>>> toComplete = removed.toComplete;
+                    try {
+                        maybeSyncTranslog(shard);
+                        for (Tuple<Supplier<R>, ActionListener<R>> tuple : toComplete) {
+                            ActionListener.completeWith(tuple.v2(), () -> tuple.v1().get());
+                        }
+                    } catch (Exception e) {
+                        ActionListener.onFailure(toComplete.stream().map(Tuple::v2).collect(Collectors.toList()), e);
+                    }
+                }
+            });
+        }
     }
 
     private static void maybeSyncTranslog(final IndexShard indexShard) throws IOException {
         if (indexShard.getTranslogDurability() == Translog.Durability.REQUEST
             && indexShard.getLastSyncedGlobalCheckpoint() < indexShard.getLastKnownGlobalCheckpoint()) {
             indexShard.sync();
+        }
+    }
+
+    private static class PendingSyncs<R> {
+
+        private final ConcurrentLinkedQueue<Tuple<Supplier<R>, ActionListener<R>>> toComplete = new ConcurrentLinkedQueue<>();
+        private final Request syncRequest;
+
+        private PendingSyncs(Request syncRequest) {
+            this.syncRequest = syncRequest;
         }
     }
 

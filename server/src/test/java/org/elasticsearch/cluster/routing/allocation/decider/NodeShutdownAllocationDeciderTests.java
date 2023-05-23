@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
@@ -210,6 +211,11 @@ public class NodeShutdownAllocationDeciderTests extends ESAllocationTestCase {
             .setReason(this.getTestName())
             .setStartedAtMillis(1L)
             .setTargetNodeName(targetNodeName)
+            .setGracePeriod(
+                shutdownType == SingleNodeShutdownMetadata.Type.SIGTERM
+                    ? TimeValue.parseTimeValue(randomTimeValue(), this.getTestName())
+                    : null
+            )
             .build();
         NodesShutdownMetadata nodesShutdownMetadata = new NodesShutdownMetadata(new HashMap<>()).putSingleNodeMetadata(
             nodeShutdownMetadata

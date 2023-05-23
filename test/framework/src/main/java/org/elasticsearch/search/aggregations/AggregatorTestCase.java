@@ -262,12 +262,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
      */
     @Deprecated
     protected <A extends Aggregator> A createAggregator(AggregationBuilder builder, AggregationContext context) throws IOException {
-        QueryRewriteContext rewriteContext = new QueryRewriteContext(
-            parserConfig(),
-            new NamedWriteableRegistry(List.of()),
-            null,
-            context::nowInMillis
-        );
+        QueryRewriteContext rewriteContext = new QueryRewriteContext(parserConfig(), null, context::nowInMillis);
         @SuppressWarnings("unchecked")
         A aggregator = (A) Rewriteable.rewrite(builder, rewriteContext, true).build(context, null).create(null, CardinalityUpperBound.ONE);
         return aggregator;

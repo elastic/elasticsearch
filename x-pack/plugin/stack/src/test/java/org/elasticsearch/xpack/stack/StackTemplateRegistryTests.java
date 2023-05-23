@@ -198,7 +198,7 @@ public class StackTemplateRegistryTests extends ESTestCase {
         registry.clusterChanged(event);
     }
 
-    public void testThatRequiredPipelinesAreAdded() throws Exception {
+    public void testThatIndependentPipelinesAreAdded() throws Exception {
         DiscoveryNode node = TestDiscoveryNode.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
@@ -225,7 +225,19 @@ public class StackTemplateRegistryTests extends ESTestCase {
 
         ClusterChangedEvent event = createInitialClusterChangedEvent(nodes);
         registry.clusterChanged(event);
-        assertBusy(() -> assertThat(calledTimes.get(), equalTo(registry.getIngestPipelines().size())));
+        assertBusy(
+            () -> assertThat(
+                calledTimes.get(),
+                equalTo(
+                    Long.valueOf(
+                        registry.getIngestPipelines()
+                            .stream()
+                            .filter(ingestPipelineConfig -> ingestPipelineConfig.getPipelineDependencies().isEmpty())
+                            .count()
+                    ).intValue()
+                )
+            )
+        );
     }
 
     public void testPolicyAlreadyExistsButDiffers() throws IOException {

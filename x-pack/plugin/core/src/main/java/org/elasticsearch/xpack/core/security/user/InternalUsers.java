@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.security.user;
 
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
@@ -119,11 +118,11 @@ public class InternalUsers {
                     // There are no active plans to manage the security index or async search index with DLM, so excluding them here
                     .indices("/@&~(\\.security.*)&~(\\.async-search.*)/")
                     .privileges(
+                        "delete_index",
                         RolloverAction.NAME,
-                        DeleteIndexAction.NAME,
-                        ForceMergeAction.NAME,
+                        ForceMergeAction.NAME + "*",
                         // indices stats is used by rollover, so we need to grant it here
-                        IndicesStatsAction.NAME
+                        IndicesStatsAction.NAME + "*"
                     )
                     .allowRestrictedIndices(true)
                     .build() },

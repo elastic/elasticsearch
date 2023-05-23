@@ -51,9 +51,12 @@ import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.backingIndexEqualTo;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.DEFAULT_TIMESTAMP_FIELD;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -84,7 +87,7 @@ public class DataLifecycleServiceRuntimeSecurityIT extends SecurityIntegTestCase
         prepareDataStreamAndIndex(dataStreamName, new DataLifecycle());
 
         assertBusy(() -> {
-            assertNoErrors();
+            assertNoAuthzErrors();
             List<Index> backingIndices = getDataStreamBackingIndices(dataStreamName);
             assertThat(backingIndices.size(), equalTo(2));
             String backingIndex = backingIndices.get(0).getName();
@@ -93,11 +96,11 @@ public class DataLifecycleServiceRuntimeSecurityIT extends SecurityIntegTestCase
             assertThat(writeIndex, backingIndexEqualTo(dataStreamName, 2));
         });
 
-        // Index another docs to force another rollover and trigger an attempted force-merge. The force-merge may be a noop under
+        // Index another doc to force another rollover and trigger an attempted force-merge. The force-merge may be a noop under
         // the hood but for authz purposes this doesn't matter, it only matters that the force-merge API was called
-        indexDocs(dataStreamName, 1);
+        indexDoc(dataStreamName);
         assertBusy(() -> {
-            assertNoErrors();
+            assertNoAuthzErrors();
             List<Index> backingIndices = getDataStreamBackingIndices(dataStreamName);
             assertThat(backingIndices.size(), equalTo(3));
         });
@@ -108,7 +111,7 @@ public class DataLifecycleServiceRuntimeSecurityIT extends SecurityIntegTestCase
         prepareDataStreamAndIndex(dataStreamName, new DataLifecycle(TimeValue.timeValueMillis(0)));
 
         assertBusy(() -> {
-            assertNoErrors();
+            assertNoAuthzErrors();
             List<Index> backingIndices = getDataStreamBackingIndices(dataStreamName);
             assertThat(backingIndices.size(), equalTo(1));
             // we expect the data stream to have only one backing index, the write one, with generation 2
@@ -124,26 +127,21 @@ public class DataLifecycleServiceRuntimeSecurityIT extends SecurityIntegTestCase
         prepareDataStreamAndIndex(dataStreamName, new DataLifecycle(TimeValue.timeValueMillis(0)));
 
         assertBusy(() -> {
-            Iterable<DataLifecycleService> lifecycleServices = internalCluster().getInstances(DataLifecycleService.class);
-            Map<String, String> indicesAndErrors = new HashMap<>();
-            for (DataLifecycleService lifecycleService : lifecycleServices) {
-                DataLifecycleErrorStore errorStore = lifecycleService.getErrorStore();
-                List<String> allIndices = errorStore.getAllIndices();
-                for (var index : allIndices) {
-                    indicesAndErrors.put(index, errorStore.getError(index));
-                }
-            }
+            Map<String, String> indicesAndErrors = collectErrorsFromStoreAsMap();
             assertThat(indicesAndErrors, is(not(anEmptyMap())));
-            assertThat(indicesAndErrors.values().iterator().next(), containsString("unauthorized for user [_dlm]"));
+            assertThat(
+                indicesAndErrors.values(),
+                hasItem(allOf(containsString("security_exception"), containsString("unauthorized for user [_dlm]")))
+            );
         });
     }
 
     public void testRolloverAndRetentionWithSystemDataStreamAuthorized() throws Exception {
         String dataStreamName = SystemDataStreamTestPlugin.SYSTEM_DATA_STREAM_NAME;
-        indexDocs(dataStreamName, 1);
+        indexDoc(dataStreamName);
 
         assertBusy(() -> {
-            assertNoErrors();
+            assertNoAuthzErrors();
             List<Index> backingIndices = getDataStreamBackingIndices(dataStreamName);
             assertThat(backingIndices.size(), equalTo(1));
             // we expect the data stream to have only one backing index, the write one, with generation 2
@@ -153,12 +151,25 @@ public class DataLifecycleServiceRuntimeSecurityIT extends SecurityIntegTestCase
         });
     }
 
+    private Map<String, String> collectErrorsFromStoreAsMap() {
+        Iterable<DataLifecycleService> lifecycleServices = internalCluster().getInstances(DataLifecycleService.class);
+        Map<String, String> indicesAndErrors = new HashMap<>();
+        for (DataLifecycleService lifecycleService : lifecycleServices) {
+            DataLifecycleErrorStore errorStore = lifecycleService.getErrorStore();
+            List<String> allIndices = errorStore.getAllIndices();
+            for (var index : allIndices) {
+                indicesAndErrors.put(index, errorStore.getError(index));
+            }
+        }
+        return indicesAndErrors;
+    }
+
     private void prepareDataStreamAndIndex(String dataStreamName, DataLifecycle lifecycle) throws IOException, InterruptedException,
         ExecutionException {
         putComposableIndexTemplate("id1", null, List.of(dataStreamName + "*"), null, null, lifecycle);
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
         client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
-        indexDocs(dataStreamName, 1);
+        indexDoc(dataStreamName);
     }
 
     private List<Index> getDataStreamBackingIndices(String dataStreamName) {
@@ -170,22 +181,18 @@ public class DataLifecycleServiceRuntimeSecurityIT extends SecurityIntegTestCase
         return getDataStreamResponse.getDataStreams().get(0).getDataStream().getIndices();
     }
 
-    private void assertNoErrors() {
-        Iterable<DataLifecycleService> lifecycleServices = internalCluster().getInstances(DataLifecycleService.class);
-        for (DataLifecycleService lifecycleService : lifecycleServices) {
-            DataLifecycleErrorStore errorStore = lifecycleService.getErrorStore();
-            List<String> allIndices = errorStore.getAllIndices();
-            if (false == allIndices.isEmpty()) {
-                Map<String, String> indicesAndErrors = new HashMap<>();
-                for (var index : allIndices) {
-                    indicesAndErrors.put(index, errorStore.getError(index));
-                }
-                fail("Expected no errors but found: [" + indicesAndErrors + "]");
-            }
+    private void assertNoAuthzErrors() {
+        var indicesAndErrors = collectErrorsFromStoreAsMap();
+        for (var entry : indicesAndErrors.entrySet()) {
+            assertThat(
+                "unexpected authz error for index [" + entry.getKey() + "] with error message [" + entry.getValue() + "]",
+                entry.getValue(),
+                not(anyOf(containsString("security_exception"), containsString("unauthorized for user [_dlm]")))
+            );
         }
     }
 
-    static void putComposableIndexTemplate(
+    private static void putComposableIndexTemplate(
         String id,
         @Nullable String mappings,
         List<String> patterns,
@@ -209,17 +216,15 @@ public class DataLifecycleServiceRuntimeSecurityIT extends SecurityIntegTestCase
         client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet();
     }
 
-    static void indexDocs(String dataStream, int numDocs) {
+    private static void indexDoc(String dataStream) {
         BulkRequest bulkRequest = new BulkRequest();
-        for (int i = 0; i < numDocs; i++) {
-            String value = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(System.currentTimeMillis());
-            bulkRequest.add(
-                new IndexRequest(dataStream).opType(DocWriteRequest.OpType.CREATE)
-                    .source(String.format(Locale.ROOT, "{\"%s\":\"%s\"}", DEFAULT_TIMESTAMP_FIELD, value), XContentType.JSON)
-            );
-        }
+        String value = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(System.currentTimeMillis());
+        bulkRequest.add(
+            new IndexRequest(dataStream).opType(DocWriteRequest.OpType.CREATE)
+                .source(String.format(Locale.ROOT, "{\"%s\":\"%s\"}", DEFAULT_TIMESTAMP_FIELD, value), XContentType.JSON)
+        );
         BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
-        assertThat(bulkResponse.getItems().length, equalTo(numDocs));
+        assertThat(bulkResponse.getItems().length, equalTo(1));
         String backingIndexPrefix = DataStream.BACKING_INDEX_PREFIX + dataStream;
         for (BulkItemResponse itemResponse : bulkResponse) {
             assertThat(itemResponse.getFailureMessage(), nullValue());

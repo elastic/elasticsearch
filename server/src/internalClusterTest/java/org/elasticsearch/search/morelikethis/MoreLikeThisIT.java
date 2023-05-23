@@ -200,9 +200,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
             )
         );
         logger.info("Creating aliases alias release");
-        client().admin()
-            .indices()
-            .prepareAliases()
+        indicesAdmin().prepareAliases()
             .addAlias("test", "release", termQuery("text", "release"))
             .addAlias("test", "beta", termQuery("text", "beta"))
             .get();

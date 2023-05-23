@@ -191,24 +191,24 @@ public class PipelineProcessorTests extends ESTestCase {
         IngestStats.Stats pipeline3Stats = pipeline3.getMetrics().createStats();
 
         // current
-        assertThat(pipeline1Stats.getIngestCurrent(), equalTo(0L));
-        assertThat(pipeline2Stats.getIngestCurrent(), equalTo(0L));
-        assertThat(pipeline3Stats.getIngestCurrent(), equalTo(0L));
+        assertThat(pipeline1Stats.ingestCurrent(), equalTo(0L));
+        assertThat(pipeline2Stats.ingestCurrent(), equalTo(0L));
+        assertThat(pipeline3Stats.ingestCurrent(), equalTo(0L));
 
         // count
-        assertThat(pipeline1Stats.getIngestCount(), equalTo(1L));
-        assertThat(pipeline2Stats.getIngestCount(), equalTo(1L));
-        assertThat(pipeline3Stats.getIngestCount(), equalTo(1L));
+        assertThat(pipeline1Stats.ingestCount(), equalTo(1L));
+        assertThat(pipeline2Stats.ingestCount(), equalTo(1L));
+        assertThat(pipeline3Stats.ingestCount(), equalTo(1L));
 
         // time
-        assertThat(pipeline1Stats.getIngestTimeInMillis(), equalTo(0L));
-        assertThat(pipeline2Stats.getIngestTimeInMillis(), equalTo(3L));
-        assertThat(pipeline3Stats.getIngestTimeInMillis(), equalTo(2L));
+        assertThat(pipeline1Stats.ingestTimeInMillis(), equalTo(0L));
+        assertThat(pipeline2Stats.ingestTimeInMillis(), equalTo(3L));
+        assertThat(pipeline3Stats.ingestTimeInMillis(), equalTo(2L));
 
         // failure
-        assertThat(pipeline1Stats.getIngestFailedCount(), equalTo(0L));
-        assertThat(pipeline2Stats.getIngestFailedCount(), equalTo(0L));
-        assertThat(pipeline3Stats.getIngestFailedCount(), equalTo(1L));
+        assertThat(pipeline1Stats.ingestFailedCount(), equalTo(0L));
+        assertThat(pipeline2Stats.ingestFailedCount(), equalTo(0L));
+        assertThat(pipeline3Stats.ingestFailedCount(), equalTo(1L));
     }
 
     public void testIngestPipelineMetadata() {

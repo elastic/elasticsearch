@@ -115,10 +115,14 @@ public class LeaderCheckerTests extends ESTestCase {
                 super.onSendRequest(requestId, action, request, node);
 
                 final boolean mustSucceed = leaderCheckRetryCount - 1 <= consecutiveFailedRequestsCount;
-                final long responseDelay = randomLongBetween(0, leaderCheckTimeoutMillis + (mustSucceed ? -1 : 60000));
+                final long responseDelay = randomValueOtherThan(
+                    leaderCheckTimeoutMillis,
+                    () -> randomLongBetween(0, leaderCheckTimeoutMillis + (mustSucceed ? -1 : 60000))
+                );
                 final boolean successResponse = allResponsesFail.get() == false && (mustSucceed || randomBoolean());
 
-                if (responseDelay >= leaderCheckTimeoutMillis) {
+                assert responseDelay != leaderCheckTimeoutMillis;
+                if (responseDelay > leaderCheckTimeoutMillis) {
                     timeoutCount.incrementAndGet();
                     consecutiveFailedRequestsCount += 1;
                 } else if (successResponse == false) {

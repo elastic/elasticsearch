@@ -23,6 +23,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -34,6 +35,18 @@ public record IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Ma
         Writeable,
         ChunkedToXContent {
 
+    public static final IngestStats IDENTITY = new IngestStats(Stats.IDENTITY, List.of(), Map.of());
+    private static final Comparator<PipelineStat> PIPELINE_STAT_COMPARATOR = (p1, p2) -> {
+        final Stats p2Stats = p2.stats;
+        final Stats p1Stats = p1.stats;
+        final int ingestTimeCompare = Long.compare(p2Stats.ingestTimeInMillis, p1Stats.ingestTimeInMillis);
+        if (ingestTimeCompare == 0) {
+            return Long.compare(p2Stats.ingestCount, p1Stats.ingestCount);
+        } else {
+            return ingestTimeCompare;
+        }
+    };
+
     /**
      * @param totalStats - The total stats for Ingest. This is logically the sum of all pipeline stats,
      *                   and pipeline stats are logically the sum of the processor stats.
@@ -41,16 +54,7 @@ public record IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Ma
      * @param processorStats - The per-processor stats for a given pipeline. A map keyed by the pipeline identifier.
      */
     public IngestStats {
-        pipelineStats = pipelineStats.stream().sorted((p1, p2) -> {
-            final IngestStats.Stats p2Stats = p2.stats;
-            final IngestStats.Stats p1Stats = p1.stats;
-            final int ingestTimeCompare = Long.compare(p2Stats.ingestTimeInMillis, p1Stats.ingestTimeInMillis);
-            if (ingestTimeCompare == 0) {
-                return Long.compare(p2Stats.ingestCount, p1Stats.ingestCount);
-            } else {
-                return ingestTimeCompare;
-            }
-        }).toList();
+        pipelineStats = pipelineStats.stream().sorted(PIPELINE_STAT_COMPARATOR).toList();
     }
 
     /**
@@ -153,10 +157,16 @@ public record IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Ma
         );
     }
 
+    public static IngestStats merge(IngestStats first, IngestStats second) {
+        return null;
+    }
+
     public record Stats(long ingestCount, long ingestTimeInMillis, long ingestCurrent, long ingestFailedCount)
         implements
             Writeable,
             ToXContentFragment {
+
+        public static final Stats IDENTITY = new Stats(0, 0, 0, 0);
 
         /**
          * Read from a stream.
@@ -180,6 +190,15 @@ public record IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Ma
             builder.field("current", ingestCurrent);
             builder.field("failed", ingestFailedCount);
             return builder;
+        }
+
+        public static Stats merge(Stats first, Stats second) {
+            return new Stats(
+                first.ingestCount + second.ingestCount,
+                first.ingestTimeInMillis + second.ingestTimeInMillis,
+                first.ingestCurrent + second.ingestCurrent,
+                first.ingestFailedCount + second.ingestFailedCount
+            );
         }
     }
 

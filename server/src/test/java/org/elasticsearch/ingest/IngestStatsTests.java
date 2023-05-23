@@ -28,6 +28,20 @@ public class IngestStatsTests extends ESTestCase {
         assertIngestStats(ingestStats, serializedStats);
     }
 
+    public void testStatsMerge() {
+        var first = randomStats();
+        var second = randomStats();
+        assertEquals(
+            new IngestStats.Stats(
+                first.ingestCount() + second.ingestCount(),
+                first.ingestTimeInMillis() + second.ingestTimeInMillis(),
+                first.ingestCurrent() + second.ingestCurrent(),
+                first.ingestFailedCount() + second.ingestFailedCount()
+            ),
+            IngestStats.Stats.merge(first, second)
+        );
+    }
+
     private static List<IngestStats.PipelineStat> createPipelineStats() {
         IngestStats.PipelineStat pipeline1Stats = new IngestStats.PipelineStat("pipeline1", new IngestStats.Stats(3, 3, 3, 3));
         IngestStats.PipelineStat pipeline2Stats = new IngestStats.PipelineStat("pipeline2", new IngestStats.Stats(47, 97, 197, 297));
@@ -97,5 +111,9 @@ public class IngestStatsTests extends ESTestCase {
             .findFirst()
             .map(IngestStats.PipelineStat::stats)
             .orElse(null);
+    }
+
+    private static IngestStats.Stats randomStats() {
+        return new IngestStats.Stats(randomLong(), randomLong(), randomLong(), randomLong());
     }
 }

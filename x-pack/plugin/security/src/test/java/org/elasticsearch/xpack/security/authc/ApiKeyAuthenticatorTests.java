@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.security.authc;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -29,6 +30,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class ApiKeyAuthenticatorTests extends ESTestCase {
@@ -50,12 +52,7 @@ public class ApiKeyAuthenticatorTests extends ESTestCase {
         final AuditableRequest auditableRequest = mock(AuditableRequest.class);
         when(context.getRequest()).thenReturn(auditableRequest);
 
-        doAnswer(invocation -> {
-            final Exception e = invocation.getArgument(0);
-            return new ElasticsearchSecurityException("exception processing request", e);
-        }).when(auditableRequest).exceptionProcessingRequest(any(Exception.class), same(apiKeyCredentials));
-
-        final Exception terminationError = randomFrom(mock(Exception.class), null);
+        final Exception terminationError = randomFrom(new ElasticsearchException("termination error"), null);
         doAnswer(invocation -> {
             final ActionListener<AuthenticationResult<User>> listener = invocation.getArgument(2);
             listener.onResponse(AuthenticationResult.terminate("terminated by ApiKeyService", terminationError));
@@ -65,14 +62,13 @@ public class ApiKeyAuthenticatorTests extends ESTestCase {
         final PlainActionFuture<AuthenticationResult<Authentication>> future = new PlainActionFuture<>();
         apiKeyAuthenticator.authenticate(context, future);
 
-        final ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, future::actionGet);
-        assertThat(e.getMessage(), containsString("exception processing request"));
+        final Exception e = expectThrows(Exception.class, future::actionGet);
+        verify(auditableRequest).exceptionProcessingRequest(any(Exception.class), same(apiKeyCredentials));
         if (terminationError == null) {
-            final Throwable cause = e.getCause();
-            assertThat(cause, instanceOf(ElasticsearchSecurityException.class));
-            assertThat(cause.getMessage(), containsString("terminated by ApiKeyService"));
+            assertThat(e, instanceOf(ElasticsearchSecurityException.class));
+            assertThat(e.getMessage(), containsString("terminated by ApiKeyService"));
         } else {
-            assertThat(e.getCause(), sameInstance(terminationError));
+            assertThat(e, sameInstance(terminationError));
         }
     }
 

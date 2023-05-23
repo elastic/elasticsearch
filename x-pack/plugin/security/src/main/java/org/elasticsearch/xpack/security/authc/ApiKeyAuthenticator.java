@@ -60,7 +60,8 @@ class ApiKeyAuthenticator implements Authenticator {
                     ? authResult.getException()
                     : Exceptions.authenticationError(authResult.getMessage());
                 logger.debug(() -> "API key service terminated authentication for request [" + context.getRequest() + "]", e);
-                listener.onFailure(context.getRequest().exceptionProcessingRequest(e, authenticationToken));
+                context.getRequest().exceptionProcessingRequest(e, authenticationToken);
+                listener.onFailure(e);
             } else {
                 if (authResult.getMessage() != null) {
                     if (authResult.getException() != null) {

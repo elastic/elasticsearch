@@ -80,13 +80,8 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
         RoutingNode routingNode = RoutingNodesHelper.routingNode(node.getId(), node, shard);
         allocation.debugDecision(true);
 
-        Decision decision = decider.canAllocate(shard, routingNode, allocation);
-        assertThat(decision.type(), equalTo(Decision.Type.YES));
-        assertThat(decision.getExplanation(), equalTo(NodeReplacementAllocationDecider.YES__NO_REPLACEMENTS.getExplanation()));
-
-        decision = decider.canRemain(null, shard, routingNode, allocation);
-        assertThat(decision.type(), equalTo(Decision.Type.YES));
-        assertThat(decision.getExplanation(), equalTo(NodeReplacementAllocationDecider.YES__NO_REPLACEMENTS.getExplanation()));
+        assertThat(decider.canAllocate(shard, routingNode, allocation), equalTo(NodeReplacementAllocationDecider.YES__NO_REPLACEMENTS));
+        assertThat(decider.canRemain(null, shard, routingNode, allocation), equalTo(NodeReplacementAllocationDecider.YES__NO_REPLACEMENTS));
     }
 
     public void testCanForceAllocate() {
@@ -105,31 +100,26 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
         assignedShard = assignedShard.initialize(NODE_A.getId(), null, 1);
         assignedShard = assignedShard.moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
 
-        Decision decision = decider.canForceAllocateDuringReplace(assignedShard, routingNode, allocation);
-        assertThat(decision.type(), equalTo(Decision.Type.NO));
-        assertThat(
-            decision.getExplanation(),
-            equalTo("shard is not on the source of a node replacement relocated to the replacement target")
+        assertThatDecision(
+            decider.canForceAllocateDuringReplace(assignedShard, routingNode, allocation),
+            Decision.Type.NO,
+            "shard is not on the source of a node replacement relocated to the replacement target"
         );
 
         routingNode = RoutingNodesHelper.routingNode(NODE_B.getId(), NODE_B, assignedShard);
 
-        decision = decider.canForceAllocateDuringReplace(assignedShard, routingNode, allocation);
-        assertThat(decision.type(), equalTo(Decision.Type.YES));
-        assertThat(
-            decision.getExplanation(),
-            equalTo(
-                "node [" + NODE_A.getId() + "] is being replaced by node [" + NODE_B.getId() + "], and can be force vacated to the target"
-            )
+        assertThatDecision(
+            decider.canForceAllocateDuringReplace(assignedShard, routingNode, allocation),
+            Decision.Type.YES,
+            "node [" + NODE_A.getId() + "] is being replaced by node [" + NODE_B.getId() + "], and can be force vacated to the target"
         );
 
         routingNode = RoutingNodesHelper.routingNode(NODE_C.getId(), NODE_C, assignedShard);
 
-        decision = decider.canForceAllocateDuringReplace(assignedShard, routingNode, allocation);
-        assertThat(decision.type(), equalTo(Decision.Type.NO));
-        assertThat(
-            decision.getExplanation(),
-            equalTo("shard is not on the source of a node replacement relocated to the replacement target")
+        assertThatDecision(
+            decider.canForceAllocateDuringReplace(assignedShard, routingNode, allocation),
+            Decision.Type.NO,
+            "shard is not on the source of a node replacement relocated to the replacement target"
         );
     }
 
@@ -139,24 +129,25 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
         RoutingNode routingNode = RoutingNodesHelper.routingNode(NODE_A.getId(), NODE_A, shard);
         allocation.debugDecision(true);
 
-        Decision decision = decider.canRemain(indexMetadata, shard, routingNode, allocation);
-        assertThat(decision.type(), equalTo(Decision.Type.NO));
-        assertThat(
-            decision.getExplanation(),
-            equalTo("node [" + NODE_A.getId() + "] is being replaced by node [" + NODE_B.getId() + "], so no data may remain on it")
+        assertThatDecision(
+            decider.canRemain(indexMetadata, shard, routingNode, allocation),
+            Decision.Type.NO,
+            "node [" + NODE_A.getId() + "] is being replaced by node [" + NODE_B.getId() + "], so no data may remain on it"
         );
 
         routingNode = RoutingNodesHelper.routingNode(NODE_B.getId(), NODE_B, shard);
 
-        decision = decider.canRemain(indexMetadata, shard, routingNode, allocation);
-        assertThat(decision.type(), equalTo(Decision.Type.YES));
-        assertEquals(NodeReplacementAllocationDecider.YES__NO_APPLICABLE_REPLACEMENTS, decision);
+        assertThat(
+            decider.canRemain(indexMetadata, shard, routingNode, allocation),
+            equalTo(NodeReplacementAllocationDecider.YES__NO_APPLICABLE_REPLACEMENTS)
+        );
 
         routingNode = RoutingNodesHelper.routingNode(NODE_C.getId(), NODE_C, shard);
 
-        decision = decider.canRemain(indexMetadata, shard, routingNode, allocation);
-        assertThat(decision.type(), equalTo(Decision.Type.YES));
-        assertEquals(NodeReplacementAllocationDecider.YES__NO_APPLICABLE_REPLACEMENTS, decision);
+        assertThat(
+            decider.canRemain(indexMetadata, shard, routingNode, allocation),
+            equalTo(NodeReplacementAllocationDecider.YES__NO_APPLICABLE_REPLACEMENTS)
+        );
     }
 
     public void testCanAllocateToNeitherSourceNorTarget() {
@@ -170,34 +161,31 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
             testShard = shard.initialize(NODE_C.getId(), null, 1);
             testShard = testShard.moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
         }
-        Decision decision = decider.canAllocate(testShard, routingNode, allocation);
-        assertThat(decision.type(), equalTo(Decision.Type.NO));
-        assertThat(
-            decision.getExplanation(),
-            equalTo("node [" + NODE_A.getId() + "] is being replaced by [" + NODE_B.getName() + "], so no data may be allocated to it")
+        assertThatDecision(
+            decider.canAllocate(testShard, routingNode, allocation),
+            Decision.Type.NO,
+            "node [" + NODE_A.getId() + "] is being replaced by [" + NODE_B.getName() + "], so no data may be allocated to it"
         );
 
         routingNode = RoutingNodesHelper.routingNode(NODE_B.getId(), NODE_B, testShard);
 
-        decision = decider.canAllocate(testShard, routingNode, allocation);
-        assertThat(decision.type(), equalTo(Decision.Type.NO));
-        assertThat(
-            decision.getExplanation(),
-            equalTo(
-                "node ["
-                    + NODE_B.getId()
-                    + "] is replacing the vacating node ["
-                    + NODE_A.getId()
-                    + "], only data currently allocated "
-                    + "to the source node may be allocated to it until the replacement is complete"
-            )
+        assertThatDecision(
+            decider.canAllocate(testShard, routingNode, allocation),
+            Decision.Type.NO,
+            "node ["
+                + NODE_B.getId()
+                + "] is replacing the vacating node ["
+                + NODE_A.getId()
+                + "], only data currently allocated "
+                + "to the source node may be allocated to it until the replacement is complete"
         );
 
         routingNode = RoutingNodesHelper.routingNode(NODE_C.getId(), NODE_C, testShard);
 
-        decision = decider.canAllocate(testShard, routingNode, allocation);
-        assertThat(decision.getExplanation(), decision.type(), equalTo(Decision.Type.YES));
-        assertEquals(NodeReplacementAllocationDecider.YES__NO_APPLICABLE_REPLACEMENTS, decision);
+        assertThat(
+            decider.canAllocate(testShard, routingNode, allocation),
+            equalTo(NodeReplacementAllocationDecider.YES__NO_APPLICABLE_REPLACEMENTS)
+        );
     }
 
     public void testShouldNotContractAutoExpandReplicasDuringNodeReplacement() {

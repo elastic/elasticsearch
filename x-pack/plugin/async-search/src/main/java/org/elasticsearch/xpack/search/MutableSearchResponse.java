@@ -43,7 +43,7 @@ class MutableSearchResponse {
     private static final TotalHits EMPTY_TOTAL_HITS = new TotalHits(0L, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO);
     private final int totalShards;
     private final int skippedShards;
-    private final SearchClustersInfo clustersInfo;
+    private Clusters clusters;
     private final AtomicArray<ShardSearchFailure> queryFailures;
     private final ThreadContext threadContext;
 
@@ -57,6 +57,7 @@ class MutableSearchResponse {
      */
     private Supplier<InternalAggregations> reducedAggsSource = () -> null;
     private int reducePhase;
+    private boolean localClusterSearchCompleted;
     /**
      * The response produced by the search API. Once we receive it we stop
      * building our own {@linkplain SearchResponse}s when get async search
@@ -80,7 +81,7 @@ class MutableSearchResponse {
         this.totalShards = totalShards;
         this.skippedShards = skippedShards;
 
-        this.clustersInfo = new SearchClustersInfo(clusters);
+        this.clusters = clusters;
         this.queryFailures = totalShards == -1 ? null : new AtomicArray<>(totalShards - skippedShards);
         this.isPartial = true;
         this.threadContext = threadContext;
@@ -90,13 +91,16 @@ class MutableSearchResponse {
     /**
      * Updates the response with the result of a partial reduction.
      * @param reducedAggs is a strategy for producing the reduced aggs
+     * @param isFinalLocalReduce true if the local cluster search has finished (during CCS, this can be true, but the overall
+     *                           search is still running on remote clusters)
      */
     @SuppressWarnings("HiddenField")
     synchronized void updatePartialResponse(
         int successfulShards,
         TotalHits totalHits,
         Supplier<InternalAggregations> reducedAggs,
-        int reducePhase
+        int reducePhase,
+        boolean isFinalLocalReduce
     ) {
         failIfFrozen();
         if (reducePhase < this.reducePhase) {
@@ -109,6 +113,23 @@ class MutableSearchResponse {
         this.totalHits = totalHits;
         this.reducedAggsSource = reducedAggs;
         this.reducePhase = reducePhase;
+        if (isFinalLocalReduce) {
+            if (localClusterSearchCompleted == false
+                && clusters.getTotal() > 0
+                && clusters.getTotal() > (clusters.getSuccessful() + clusters.getSkipped())) {
+                // update the clusters object successful count if local cluster search is done AND the clusters state is set up for it
+                Clusters newClusters = new Clusters(
+                    clusters.getTotal(),
+                    clusters.getSuccessful() + 1,
+                    clusters.getSkipped(),
+                    clusters.getRemoteClusters(),
+                    clusters.isCcsMinimizeRoundtrips()
+                );
+                this.clusters = newClusters;
+                logger.debug("Updating Clusters info to indicate that the local cluster search has completed: {}", newClusters);
+            }
+            this.localClusterSearchCompleted = true;
+        }
     }
 
     /**
@@ -118,33 +139,9 @@ class MutableSearchResponse {
     synchronized void updateFinalResponse(SearchResponse response, boolean ccsMinimizeRoundtrips) {
         failIfFrozen();
 
-        if (ccsMinimizeRoundtrips) {
-            assert response.getTotalShards() >= totalShards
-                : Strings.format(
-                    "received number of shards (%d) is less than the value notified via onListShards (%d)",
-                    response.getTotalShards(),
-                    totalShards
-                );
-            assert response.getSkippedShards() >= skippedShards
-                : Strings.format(
-                    "received number of skipped shards (%d) is less than the value notified via onListShards (%d)",
-                    response.getSkippedShards(),
-                    skippedShards
-                );
-        } else {
-            assert response.getTotalShards() == totalShards
-                : Strings.format(
-                    "received number of shards (%d) differs from the one notified via onListShards (%d)",
-                    response.getTotalShards(),
-                    totalShards
-                );
-            assert response.getSkippedShards() == skippedShards
-                : Strings.format(
-                    "received number of skipped shards (%d) differs from the one notified via onListShards (%d)",
-                    response.getSkippedShards(),
-                    skippedShards
-                );
-        }
+        assert shardsInResponseMatchExpected(response, ccsMinimizeRoundtrips)
+            : getShardsInResponseMismatchInfo(response, ccsMinimizeRoundtrips);
+
         this.responseHeaders = threadContext.getResponseHeaders();
         this.finalResponse = response;
         this.isPartial = false;
@@ -177,18 +174,6 @@ class MutableSearchResponse {
     }
 
     private SearchResponse buildResponse(long taskStartTimeNanos, InternalAggregations reducedAggs) {
-        if (clustersInfo.getClusters() != null && clustersInfo.isLocalClusterStatusUpdated() == false) {
-            synchronized (this) {
-                if (clustersInfo.isLocalClusterStatusUpdated() == false && localClusterSearchIsFinished()) {
-                    Clusters clusters = clustersInfo.getClusters();
-                    Clusters newClusters = new Clusters(clusters.getTotal(), clusters.getSuccessful() + 1, clusters.getSkipped());
-                    clustersInfo.setClusters(newClusters);
-                    clustersInfo.setLocalClusterStatusUpdated(true);  // avoid double counting the local cluster
-                    logger.debug("Updating ClustersInfo to indicate that the local cluster search has completed: {}", newClusters);
-                }
-            }
-        }
-
         InternalSearchResponse internal = new InternalSearchResponse(
             new SearchHits(SearchHits.EMPTY, totalHits, Float.NaN),
             reducedAggs,
@@ -207,28 +192,8 @@ class MutableSearchResponse {
             skippedShards,
             tookInMillis,
             buildQueryFailures(),
-            clustersInfo.getClusters()
+            clusters
         );
-    }
-
-    /**
-     * Useful for long running CCS async searches when using minimize-roundtrips
-     * @return true if the local cluster is being searched, all of the shards for the local search are completed
-     *              and the Clusters object is in a state where it should be updated to indicate that the local
-     *              cluster search has completed.
-     */
-    private boolean localClusterSearchIsFinished() {
-        if (clustersInfo.hasLocalShards() != Boolean.TRUE) {
-            return false;
-        }
-        int failedShards = buildQueryFailures().length;
-        Clusters clusters = clustersInfo.getClusters();
-        if (clusters == null  // should never be null for CCS minimizeRoundtrips scenario
-            // ensure that incrementing the 'successful' count will not cause successful+skipped to be larger than total
-            || (clusters.getSuccessful() + clusters.getSkipped()) >= clusters.getTotal()) {
-            return false;
-        }
-        return totalShards == (successfulShards + skippedShards + failedShards);
     }
 
     /**
@@ -245,7 +210,7 @@ class MutableSearchResponse {
         if (finalResponse != null) {
             // We have a final response, use it.
             searchResponse = finalResponse;
-        } else if (clustersInfo.getClusters() == null) {
+        } else if (clusters == null) {
             // An error occurred before we got the shard list
             searchResponse = null;
         } else {
@@ -361,59 +326,47 @@ class MutableSearchResponse {
         return failures.toArray(ShardSearchFailure[]::new);
     }
 
-    /**
-     * Wrapper class for the SearchResponse.Clusters class, which tracks total, successful and skipped clusters.
-     * For async searches of remote clusters, we need additional context not present in the Clusters object -
-     * such as whether the search includes searching the local shards (or is remote only) and whether
-     * the local cluster shards search has been completed.
-     * This information is used to update the underlying Clusters object that gets passed to the
-     * SearchResponse to be converted to XContent output for end users.
-     */
-    static class SearchClustersInfo {
-        private final Boolean hasLocalShards;
-        private Clusters clusters;
-        // when the local cluster finishes only allow the clusters.successful counter to be incremented once
-        private boolean localClusterStatusUpdated;
-
-        SearchClustersInfo(Clusters clusters) {
-            this.clusters = clusters;
-            this.localClusterStatusUpdated = false;
-            this.hasLocalShards = determineLocalShards(clusters);
+    private boolean shardsInResponseMatchExpected(SearchResponse response, boolean ccsMinimizeRoundtrips) {
+        if (ccsMinimizeRoundtrips) {
+            return response.getTotalShards() >= totalShards && response.getSkippedShards() >= skippedShards;
+        } else {
+            return response.getTotalShards() == totalShards && response.getSkippedShards() == skippedShards;
         }
+    }
 
-        // since Clusters does not currently track this information, this is a best guess
-        private static Boolean determineLocalShards(Clusters clusters) {
-            if (clusters == null) {
-                return null;  // unknown
+    private String getShardsInResponseMismatchInfo(SearchResponse response, boolean ccsMinimizeRoundtrips) {
+        if (ccsMinimizeRoundtrips) {
+            if (response.getTotalShards() < totalShards) {
+                return Strings.format(
+                    "received number of shards (%d) is less than the value notified via onListShards (%d)",
+                    response.getTotalShards(),
+                    totalShards
+                );
             }
-            if (clusters.getRemoteClusters() < 0) {
-                // default setting for the non-CCS non-minimize_roundtrips scenario, so should have local shards
-                return true;
+            if (response.getSkippedShards() < skippedShards) {
+                return Strings.format(
+                    "received number of skipped shards (%d) is less than the value notified via onListShards (%d)",
+                    response.getSkippedShards(),
+                    skippedShards
+                );
             }
-            return clusters.getTotal() > clusters.getRemoteClusters();
-        }
-
-        public Clusters getClusters() {
-            return clusters;
-        }
-
-        public void setClusters(Clusters clusters) {
-            this.clusters = clusters;
-        }
-
-        public boolean isLocalClusterStatusUpdated() {
-            return localClusterStatusUpdated;
-        }
-
-        public void setLocalClusterStatusUpdated(boolean localClusterStatusUpdated) {
-            this.localClusterStatusUpdated = localClusterStatusUpdated;
-        }
-
-        /**
-         * @return null if not known (Clusters object doesn't record this info in all circumstances)
-         */
-        public Boolean hasLocalShards() {
-            return hasLocalShards;
+            throw new IllegalStateException("assert method hit unexpected case for ccsMinimizeRoundtrips=true");
+        } else {
+            if (response.getTotalShards() != totalShards) {
+                return Strings.format(
+                    "received number of shards (%d) differs from the one notified via onListShards (%d)",
+                    response.getTotalShards(),
+                    totalShards
+                );
+            }
+            if (response.getSkippedShards() != skippedShards) {
+                return Strings.format(
+                    "received number of skipped shards (%d) differs from the one notified via onListShards (%d)",
+                    response.getSkippedShards(),
+                    skippedShards
+                );
+            }
+            throw new IllegalStateException("assert method hit unexpected case for ccsMinimizeRoundtrips=false");
         }
     }
 }

@@ -63,7 +63,6 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilder;
@@ -501,7 +500,6 @@ public class TransportSearchActionTests extends ESTestCase {
         boolean local = randomBoolean();
         OriginalIndices localIndices = local ? new OriginalIndices(new String[] { "index" }, SearchRequest.DEFAULT_INDICES_OPTIONS) : null;
         TransportSearchAction.SearchTimeProvider timeProvider = new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0);
-        Function<Boolean, AggregationReduceContext> reduceContext = finalReduce -> null;
         try (
             MockTransportService service = MockTransportService.createNewService(
                 settings,
@@ -588,7 +586,6 @@ public class TransportSearchActionTests extends ESTestCase {
                     ActionListener.wrap(response::set, e -> fail("no failures expected")),
                     latch
                 );
-                SearchTask task = new SearchTask(0, "n/a", "n/a", () -> "test", null, Collections.emptyMap());
                 TransportSearchAction.ccsRemoteReduce(
                     new TaskId("n", 1),
                     searchRequest,

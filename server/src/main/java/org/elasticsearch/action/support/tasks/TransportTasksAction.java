@@ -88,9 +88,13 @@ public abstract class TransportTasksAction<
         new AsyncAction(task, request, listener).start();
     }
 
-    private void nodeOperation(CancellableTask task, NodeTaskRequest nodeTaskRequest, ActionListener<NodeTasksResponse> listener) {
+    private void nodeOperation(CancellableTask nodeTask, NodeTaskRequest nodeTaskRequest, ActionListener<NodeTasksResponse> listener) {
         TasksRequest request = nodeTaskRequest.tasksRequest;
-        processTasks(request, ActionListener.wrap(tasks -> nodeOperation(task, listener, request, tasks), listener::onFailure));
+        processTasks(
+            nodeTask,
+            request,
+            ActionListener.wrap(tasks -> nodeOperation(nodeTask, listener, request, tasks), listener::onFailure)
+        );
     }
 
     private void nodeOperation(
@@ -156,7 +160,7 @@ public abstract class TransportTasksAction<
         }
     }
 
-    protected void processTasks(TasksRequest request, ActionListener<List<OperationTask>> nodeOperation) {
+    protected void processTasks(CancellableTask nodeTask, TasksRequest request, ActionListener<List<OperationTask>> nodeOperation) {
         nodeOperation.onResponse(processTasks(request));
     }
 

@@ -1,0 +1,59 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+
+package org.elasticsearch.action.support.tasks;
+
+import org.apache.http.client.methods.HttpGet;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.client.Cancellable;
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
+import org.elasticsearch.http.HttpSmokeTestCase;
+
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.TimeUnit;
+
+import static org.elasticsearch.action.support.ActionTestUtils.wrapAsRestResponseListener;
+import static org.elasticsearch.test.TaskAssertions.assertAllCancellableTasksAreCancelled;
+import static org.elasticsearch.test.TaskAssertions.awaitTaskWithPrefix;
+
+public class RestListTasksCancellationIT extends HttpSmokeTestCase {
+
+    public void testListTasksCancellation() throws Exception {
+        final Request clusterStateRequest = new Request(HttpGet.METHOD_NAME, "/_cluster/state");
+        clusterStateRequest.addParameter("wait_for_metadata_version", Long.toString(Long.MAX_VALUE));
+        clusterStateRequest.addParameter("wait_for_timeout", "1h");
+
+        final PlainActionFuture<Response> clusterStateFuture = new PlainActionFuture<>();
+        final Cancellable clusterStateCancellable = getRestClient().performRequestAsync(
+            clusterStateRequest,
+            wrapAsRestResponseListener(clusterStateFuture)
+        );
+
+        awaitTaskWithPrefix(ClusterStateAction.NAME);
+
+        final Request tasksRequest = new Request(HttpGet.METHOD_NAME, "/_tasks");
+        tasksRequest.addParameter("actions", ClusterStateAction.NAME);
+        tasksRequest.addParameter("wait_for_completion", Boolean.toString(true));
+
+        final PlainActionFuture<Response> tasksFuture = new PlainActionFuture<>();
+        final Cancellable tasksCancellable = getRestClient().performRequestAsync(tasksRequest, wrapAsRestResponseListener(tasksFuture));
+
+        awaitTaskWithPrefix(ListTasksAction.NAME);
+
+        tasksCancellable.cancel();
+
+        assertAllCancellableTasksAreCancelled(ListTasksAction.NAME);
+        expectThrows(CancellationException.class, () -> tasksFuture.actionGet(10, TimeUnit.SECONDS));
+
+        clusterStateCancellable.cancel();
+    }
+
+}

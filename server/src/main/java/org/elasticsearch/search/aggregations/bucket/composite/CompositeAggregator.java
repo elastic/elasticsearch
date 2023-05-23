@@ -582,6 +582,7 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
         }
         deferredCollectors.postCollection();
     }
+
     private static class DeferredScorable extends Scorable {
 
         public int doc;
@@ -608,6 +609,7 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
             return doc;
         }
     }
+
     /**
      * Replay the top buckets from the matching documents.
      */

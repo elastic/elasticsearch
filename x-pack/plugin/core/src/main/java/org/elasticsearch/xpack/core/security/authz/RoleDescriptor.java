@@ -201,11 +201,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         } else {
             this.remoteIndicesPrivileges = RemoteIndicesPrivileges.NONE;
         }
-        if (in.getTransportVersion().onOrAfter(WORKFLOWS_RESTRICTION_VERSION)) {
-            this.restriction = new RoleRestriction(in);
-        } else {
-            this.restriction = RoleRestriction.NONE;
-        }
+        this.restriction = RoleRestriction.readFrom(in);
     }
 
     public String getName() {
@@ -418,9 +414,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         if (out.getTransportVersion().onOrAfter(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS)) {
             out.writeArray(remoteIndicesPrivileges);
         }
-        if (out.getTransportVersion().onOrAfter(WORKFLOWS_RESTRICTION_VERSION)) {
-            restriction.writeTo(out);
-        }
+        restriction.writeTo(out);
     }
 
     public static RoleDescriptor parse(String name, BytesReference source, boolean allow2xFormat, XContentType xContentType)
@@ -1598,7 +1592,17 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeStringArray(workflowsRestriction);
+            if (out.getTransportVersion().onOrAfter(WORKFLOWS_RESTRICTION_VERSION)) {
+                out.writeStringArray(workflowsRestriction);
+            }
+        }
+
+        public static RoleRestriction readFrom(StreamInput in) throws IOException {
+            if (in.getTransportVersion().onOrAfter(WORKFLOWS_RESTRICTION_VERSION)) {
+                return new RoleRestriction(in);
+            } else {
+                return RoleRestriction.NONE;
+            }
         }
 
         @Override

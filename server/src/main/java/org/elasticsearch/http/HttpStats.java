@@ -20,27 +20,18 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
+import java.util.stream.Stream;
 
-public class HttpStats implements Writeable, ChunkedToXContent {
+public record HttpStats(long serverOpen, long totalOpen, List<ClientStats> clientStats) implements Writeable, ChunkedToXContent {
 
-    private final long serverOpen;
-    private final long totalOpen;
-    private final List<ClientStats> clientStats;
-
-    public HttpStats(List<ClientStats> clientStats, long serverOpen, long totalOpened) {
-        this.clientStats = clientStats;
-        this.serverOpen = serverOpen;
-        this.totalOpen = totalOpened;
-    }
+    public static final HttpStats IDENTITY = new HttpStats(0, 0, List.of());
 
     public HttpStats(long serverOpen, long totalOpened) {
-        this(List.of(), serverOpen, totalOpened);
+        this(serverOpen, totalOpened, List.of());
     }
 
     public HttpStats(StreamInput in) throws IOException {
-        serverOpen = in.readVLong();
-        totalOpen = in.readVLong();
-        clientStats = in.readList(ClientStats::new);
+        this(in.readVLong(), in.readVLong(), in.readList(ClientStats::new));
     }
 
     @Override
@@ -60,6 +51,14 @@ public class HttpStats implements Writeable, ChunkedToXContent {
 
     public List<ClientStats> getClientStats() {
         return this.clientStats;
+    }
+
+    public static HttpStats merge(HttpStats first, HttpStats second) {
+        return new HttpStats(
+            first.serverOpen + second.serverOpen,
+            first.totalOpen + second.totalOpen,
+            Stream.concat(first.clientStats.stream(), second.clientStats.stream()).toList()
+        );
     }
 
     static final class Fields {
@@ -95,63 +94,38 @@ public class HttpStats implements Writeable, ChunkedToXContent {
         );
     }
 
-    public static class ClientStats implements Writeable, ToXContentFragment {
+    public record ClientStats(
+        int id,
+        String agent,
+        String localAddress,
+        String remoteAddress,
+        String lastUri,
+        String forwardedFor,
+        String opaqueId,
+        long openedTimeMillis,
+        long closedTimeMillis,
+        long lastRequestTimeMillis,
+        long requestCount,
+        long requestSizeBytes
+    ) implements Writeable, ToXContentFragment {
+
         public static final long NOT_CLOSED = -1L;
 
-        final int id;
-        final String agent;
-        final String localAddress;
-        final String remoteAddress;
-        final String lastUri;
-        final String forwardedFor;
-        final String opaqueId;
-        final long openedTimeMillis;
-        final long closedTimeMillis;
-        final long lastRequestTimeMillis;
-        final long requestCount;
-        final long requestSizeBytes;
-
-        public ClientStats(
-            int id,
-            String agent,
-            String localAddress,
-            String remoteAddress,
-            String lastUri,
-            String forwardedFor,
-            String opaqueId,
-            long openedTimeMillis,
-            long closedTimeMillis,
-            long lastRequestTimeMillis,
-            long requestCount,
-            long requestSizeBytes
-        ) {
-            this.id = id;
-            this.agent = agent;
-            this.localAddress = localAddress;
-            this.remoteAddress = remoteAddress;
-            this.lastUri = lastUri;
-            this.forwardedFor = forwardedFor;
-            this.opaqueId = opaqueId;
-            this.openedTimeMillis = openedTimeMillis;
-            this.closedTimeMillis = closedTimeMillis;
-            this.lastRequestTimeMillis = lastRequestTimeMillis;
-            this.requestCount = requestCount;
-            this.requestSizeBytes = requestSizeBytes;
-        }
-
         ClientStats(StreamInput in) throws IOException {
-            this.id = in.readInt();
-            this.agent = in.readOptionalString();
-            this.localAddress = in.readOptionalString();
-            this.remoteAddress = in.readOptionalString();
-            this.lastUri = in.readOptionalString();
-            this.forwardedFor = in.readOptionalString();
-            this.opaqueId = in.readOptionalString();
-            this.openedTimeMillis = in.readLong();
-            this.closedTimeMillis = in.readLong();
-            this.lastRequestTimeMillis = in.readLong();
-            this.requestCount = in.readLong();
-            this.requestSizeBytes = in.readLong();
+            this(
+                in.readInt(),
+                in.readOptionalString(),
+                in.readOptionalString(),
+                in.readOptionalString(),
+                in.readOptionalString(),
+                in.readOptionalString(),
+                in.readOptionalString(),
+                in.readLong(),
+                in.readLong(),
+                in.readLong(),
+                in.readLong(),
+                in.readLong()
+            );
         }
 
         @Override

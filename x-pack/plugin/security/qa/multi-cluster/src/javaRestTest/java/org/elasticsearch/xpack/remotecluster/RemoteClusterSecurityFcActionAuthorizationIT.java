@@ -11,6 +11,9 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.remote.RemoteClusterNodesAction;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.internal.Client;
@@ -35,7 +38,12 @@ import org.elasticsearch.xpack.ccr.action.repositories.GetCcrRestoreFileChunkAct
 import org.elasticsearch.xpack.ccr.action.repositories.GetCcrRestoreFileChunkRequest;
 import org.elasticsearch.xpack.ccr.action.repositories.PutCcrRestoreSessionAction;
 import org.elasticsearch.xpack.ccr.action.repositories.PutCcrRestoreSessionRequest;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.user.CrossClusterAccessUser;
+import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.CrossClusterAccessHeaders;
 import org.junit.ClassRule;
 
@@ -47,6 +55,8 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.xpack.remotecluster.AbstractRemoteClusterSecurityTestCase.PASS;
 import static org.elasticsearch.xpack.remotecluster.AbstractRemoteClusterSecurityTestCase.USER;
 import static org.elasticsearch.xpack.remotecluster.AbstractRemoteClusterSecurityTestCase.createCrossClusterAccessApiKey;
+import static org.elasticsearch.xpack.remotecluster.AbstractRemoteClusterSecurityTestCase.performRequestWithAdminUser;
+import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -280,7 +290,134 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
         }
     }
 
+    public void testUpdateCrossClusterApiKey() throws IOException {
+        final Map<String, Object> crossClusterApiKeyMap = createCrossClusterAccessApiKey(adminClient(), """
+            {
+              "search": [
+                {
+                   "names": ["other-index"]
+                }
+              ]
+            }""");
+        final String apiKeyId = (String) crossClusterApiKeyMap.get("id");
+
+        // Create indices on the leader cluster
+        final Request bulkRequest = new Request("POST", "/_bulk?refresh=true");
+        bulkRequest.setJsonEntity(Strings.format("""
+            { "index": { "_index": "index" } }
+            { "name": "doc-1" }
+            """));
+        assertOK(adminClient().performRequest(bulkRequest));
+
+        // End user subjectInfo
+        final CrossClusterAccessSubjectInfo crossClusterAccessSubjectInfo = new CrossClusterAccessSubjectInfo(
+            Authentication.newRealmAuthentication(
+                new User("foo", "role"),
+                new Authentication.RealmRef(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8), "node")
+            ),
+            new RoleDescriptorsIntersection(
+                new RoleDescriptor(
+                    "cross_cluster",
+                    null,
+                    new RoleDescriptor.IndicesPrivileges[] {
+                        RoleDescriptor.IndicesPrivileges.builder().indices("index").privileges("read", "read_cross_cluster").build() },
+                    null
+                )
+            )
+        );
+        // Field cap request to test
+        final FieldCapabilitiesRequest request = new FieldCapabilitiesRequest().indices("index").fields("name");
+
+        // Perform cross-cluster requests
+        try (
+            MockTransportService service = startTransport(
+                "node",
+                threadPool,
+                (String) crossClusterApiKeyMap.get("encoded"),
+                Map.of(FieldCapabilitiesAction.NAME, crossClusterAccessSubjectInfo)
+            )
+        ) {
+            final RemoteClusterService remoteClusterService = service.getRemoteClusterService();
+            final List<RemoteConnectionInfo> remoteConnectionInfos = remoteClusterService.getRemoteConnectionInfos().toList();
+            assertThat(remoteConnectionInfos, hasSize(1));
+            assertThat(remoteConnectionInfos.get(0).isConnected(), is(true));
+            final Client remoteClusterClient = remoteClusterService.getRemoteClusterClient(threadPool, "my_remote_cluster");
+
+            // 1. Not accessible because API key does not grant the access
+            final ElasticsearchSecurityException e1 = expectThrows(
+                ElasticsearchSecurityException.class,
+                () -> remoteClusterClient.execute(FieldCapabilitiesAction.INSTANCE, request).actionGet()
+            );
+            assertThat(
+                e1.getMessage(),
+                containsString(
+                    "action [indices:data/read/field_caps] towards remote cluster is unauthorized "
+                        + "for user [foo] with assigned roles [role] authenticated by API key id ["
+                        + apiKeyId
+                        + "] of user [test_user] on indices [index], this action is granted by the index privileges "
+                        + "[view_index_metadata,manage,read,all]"
+                )
+            );
+
+            // 2. Update the API key to grant access
+            final Request updateApiKeyRequest = new Request("PUT", "/_security/cross_cluster/api_key/" + apiKeyId);
+            updateApiKeyRequest.setJsonEntity("""
+                {
+                  "access": {
+                    "search": [
+                      {
+                        "names": ["index"]
+                      }
+                    ]
+                  }
+                }""");
+            assertOK(performRequestWithAdminUser(adminClient(), updateApiKeyRequest));
+            final FieldCapabilitiesResponse fieldCapabilitiesResponse = remoteClusterClient.execute(
+                FieldCapabilitiesAction.INSTANCE,
+                request
+            ).actionGet();
+            assertThat(fieldCapabilitiesResponse.getIndices(), arrayContaining("index"));
+
+            // 3. Update the API key again to remove access
+            updateApiKeyRequest.setJsonEntity("""
+                {
+                  "access": {
+                    "replication": [
+                      {
+                        "names": ["index"]
+                      }
+                    ]
+                  },
+                  "metadata": { "tag": 42 }
+                }""");
+            assertOK(performRequestWithAdminUser(adminClient(), updateApiKeyRequest));
+            final ElasticsearchSecurityException e2 = expectThrows(
+                ElasticsearchSecurityException.class,
+                () -> remoteClusterClient.execute(FieldCapabilitiesAction.INSTANCE, request).actionGet()
+            );
+            assertThat(
+                e2.getMessage(),
+                containsString(
+                    "action [indices:data/read/field_caps] towards remote cluster is unauthorized "
+                        + "for user [foo] with assigned roles [role] authenticated by API key id ["
+                        + apiKeyId
+                        + "] of user [test_user] on indices [index], this action is granted by the index privileges "
+                        + "[view_index_metadata,manage,read,all]"
+                )
+            );
+        }
+    }
+
     private static MockTransportService startTransport(final String nodeName, final ThreadPool threadPool, String encodedApiKey) {
+        return startTransport(nodeName, threadPool, encodedApiKey, Map.of());
+    }
+
+    private static MockTransportService startTransport(
+        final String nodeName,
+        final ThreadPool threadPool,
+        String encodedApiKey,
+        Map<String, CrossClusterAccessSubjectInfo> subjectInfoLookup
+    ) {
         final String remoteClusterServerEndpoint = testCluster.getRemoteClusterServerEndpoint(0);
 
         final Settings.Builder builder = Settings.builder()
@@ -312,7 +449,7 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
                 try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
                     new CrossClusterAccessHeaders(
                         "ApiKey " + encodedApiKey,
-                        CrossClusterAccessUser.subjectInfo(TransportVersion.CURRENT, nodeName)
+                        subjectInfoLookup.getOrDefault(action, CrossClusterAccessUser.subjectInfo(TransportVersion.CURRENT, nodeName))
                     ).writeToContext(threadContext);
                     connection.sendRequest(requestId, action, request, options);
                 }

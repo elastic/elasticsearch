@@ -73,7 +73,7 @@ cosign verify --key cosign.pub {docker-repo}:{version} <2>
 
 The command prints out the check results and the signature payload in json format:
 
-[source,console-result]
+[source,console]
 --------------------------------------------
 
 Verification for {docker-repo}:{version} --

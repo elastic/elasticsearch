@@ -78,7 +78,7 @@ The command prints the check results and the signature payload in JSON format:
 
 [source,console]
 --------------------------------------------
-Verification for {docker-repo}:{version} --
+Verification for docker.elastic.co/elasticsearch/elasticsearch:{version} --
 The following checks were performed on each of these signatures:
   - The cosign claims were validated
   - Existence of the claims in the transparency log was verified offline

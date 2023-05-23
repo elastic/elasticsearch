@@ -8,8 +8,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.index.query.SearchExecutionContext;
-
 import java.util.Collections;
 
 // this sucks how much must be overridden just do get a dummy field mapper...
@@ -48,7 +46,7 @@ public class MockFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+        public ValueFetcher valueFetcher(ValueFetchContext context, String format) {
             throw new UnsupportedOperationException();
         }
     }

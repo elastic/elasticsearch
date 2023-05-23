@@ -54,6 +54,7 @@ import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
+import org.elasticsearch.index.mapper.ValueFetchContext;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardException;
@@ -247,7 +248,7 @@ public class PercolatorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+        public ValueFetcher valueFetcher(ValueFetchContext context, String format) {
             return SourceValueFetcher.identity(name(), context, format);
         }
 

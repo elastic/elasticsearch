@@ -22,6 +22,7 @@ import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
+import org.elasticsearch.index.mapper.ValueFetchContext;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -138,7 +139,7 @@ public class IndexSortSettingsTests extends ESTestCase {
             }
 
             @Override
-            public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+            public ValueFetcher valueFetcher(ValueFetchContext context, String format) {
                 throw new UnsupportedOperationException();
             }
 

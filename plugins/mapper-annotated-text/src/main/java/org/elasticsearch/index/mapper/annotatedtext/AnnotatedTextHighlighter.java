@@ -31,10 +31,10 @@ public class AnnotatedTextHighlighter extends UnifiedHighlighter {
     // Convert the marked-up values held on-disk to plain-text versions for highlighting
     @Override
     protected List<Object> loadFieldValues(
-            CustomUnifiedHighlighter highlighter,
-            ValueFetchContext searchContext,
-            MappedFieldType fieldType,
-            HitContext hitContext
+        CustomUnifiedHighlighter highlighter,
+        ValueFetchContext searchContext,
+        MappedFieldType fieldType,
+        HitContext hitContext
     ) throws IOException {
         List<Object> fieldValues = super.loadFieldValues(highlighter, searchContext, fieldType, hitContext);
 

@@ -44,6 +44,7 @@ import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.mapper.StoredValueFetcher;
+import org.elasticsearch.index.mapper.ValueFetchContext;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -237,7 +238,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+        public ValueFetcher valueFetcher(ValueFetchContext context, String format) {
             if (isStored()) {
                 Function<List<Geometry>, List<Object>> formatter = getFormatter(format != null ? format : GeometryFormatterFactory.GEOJSON);
                 return new StoredValueFetcher(context.lookup(), name()) {

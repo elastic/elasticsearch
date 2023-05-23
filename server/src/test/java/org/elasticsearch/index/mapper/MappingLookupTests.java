@@ -17,7 +17,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.TimeSeriesParams.MetricType;
-import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -236,7 +235,7 @@ public class MappingLookupTests extends ESTestCase {
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+        public ValueFetcher valueFetcher(ValueFetchContext context, String format) {
             throw new UnsupportedOperationException();
         }
 

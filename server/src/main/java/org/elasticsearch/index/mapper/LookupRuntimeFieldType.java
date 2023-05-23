@@ -218,7 +218,12 @@ public final class LookupRuntimeFieldType extends MappedFieldType {
             final MappedFieldType inputFieldType = context.getFieldType(inputField);
             // do not allow unmapped field
             if (inputFieldType == null) {
-                throw new QueryShardException(context.getFullyQualifiedIndex(), "No field mapping can be found for the field with name [{}]", null, inputField);
+                throw new QueryShardException(
+                    context.getFullyQualifiedIndex(),
+                    "No field mapping can be found for the field with name [{}]",
+                    null,
+                    inputField
+                );
             }
             this.inputFieldValueFetcher = inputFieldType.valueFetcher(context, null);
         }

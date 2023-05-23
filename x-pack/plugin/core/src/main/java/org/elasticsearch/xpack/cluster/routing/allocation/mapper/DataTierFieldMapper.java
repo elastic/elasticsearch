@@ -18,6 +18,7 @@ import org.elasticsearch.index.mapper.ConstantFieldType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
+import org.elasticsearch.index.mapper.ValueFetchContext;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
@@ -72,7 +73,7 @@ public class DataTierFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+        public ValueFetcher valueFetcher(ValueFetchContext context, String format) {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
@@ -85,7 +86,7 @@ public class DataTierFieldMapper extends MetadataFieldMapper {
          * Retrieve the first tier preference from the index setting. If the setting is not
          * present, then return null.
          */
-        private String getTierPreference(SearchExecutionContext context) {
+        private String getTierPreference(ValueFetchContext context) {
             Settings settings = context.getIndexSettings().getSettings();
             String value = DataTier.TIER_PREFERENCE_SETTING.get(settings);
 

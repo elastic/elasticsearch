@@ -33,9 +33,9 @@ public final class HighlightUtils {
      * Load field values for highlighting.
      */
     public static List<Object> loadFieldValues(
-            MappedFieldType fieldType,
-            ValueFetchContext searchContext,
-            FetchSubPhase.HitContext hitContext
+        MappedFieldType fieldType,
+        ValueFetchContext searchContext,
+        FetchSubPhase.HitContext hitContext
     ) throws IOException {
         if (fieldType.isStored()) {
             List<Object> values = hitContext.loadedFields().get(fieldType.name());

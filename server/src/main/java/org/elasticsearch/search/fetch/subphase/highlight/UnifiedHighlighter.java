@@ -64,12 +64,7 @@ public class UnifiedHighlighter implements Highlighter {
         FetchSubPhase.HitContext hitContext = fieldContext.hitContext;
 
         CheckedSupplier<String, IOException> loadFieldValues = () -> {
-            List<Object> fieldValues = loadFieldValues(
-                highlighter,
-                fieldContext.context.getValueFetchContext(),
-                fieldType,
-                hitContext
-            );
+            List<Object> fieldValues = loadFieldValues(highlighter, fieldContext.context.getValueFetchContext(), fieldType, hitContext);
             if (fieldValues.size() == 0) {
                 return null;
             }

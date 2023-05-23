@@ -69,12 +69,7 @@ public class RestClusterInfoAction extends BaseRestHandler {
 
         } else if (targets.contains("_all")) {
             throw new IllegalArgumentException(
-                String.format(
-                    Locale.ROOT,
-                    "request [%s] contains _all and individual target [%s]",
-                    request.path(),
-                    request.param("target")
-                )
+                String.format(Locale.ROOT, "request [%s] contains _all and individual target [%s]", request.path(), request.param("target"))
             );
 
         } else {

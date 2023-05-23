@@ -38,7 +38,6 @@ import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
-import org.junit.After;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -72,12 +71,6 @@ public class DataLifecycleServiceRuntimeSecurityIT extends SecurityIntegTestCase
         settings.put(DataLifecycleService.DLM_POLL_INTERVAL, "1s");
         settings.put(DataLifecycle.CLUSTER_DLM_DEFAULT_ROLLOVER_SETTING.getKey(), "min_docs=1,max_docs=1");
         return settings.build();
-    }
-
-    @After
-    public void cleanup() {
-        // we change SETTING_CLUSTER_MAX_SHARDS_PER_NODE in a test so let's make sure we clean it up even when the test fails
-        updateClusterSettings(Settings.builder().putNull("*"));
     }
 
     public void testRolloverLifecycleAndForceMergeAuthorized() throws Exception {

@@ -5,7 +5,8 @@
       reason: "/_info/http only available from v8.9"
 
   - do:
-      info.http: {}
+      cluster.info:
+          target: [ http ]
 
   - is_true: cluster_name
   - gte: { http.current_open: 0 }

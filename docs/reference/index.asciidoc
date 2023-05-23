@@ -76,3 +76,5 @@ include::migration/index.asciidoc[]
 include::release-notes.asciidoc[]
 
 include::dependencies-versions.asciidoc[]
+
+include::redirects.asciidoc[]

@@ -17,9 +17,11 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.AbstractSearchTestCase;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
+import org.elasticsearch.search.builder.SearchQueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
@@ -221,6 +223,22 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             assertNotNull(validationErrors);
             assertEquals(1, validationErrors.validationErrors().size());
             assertEquals("[size] cannot be [0] in a scroll context", validationErrors.validationErrors().get(0));
+        }
+        {
+            // cannot have both query and queries
+            SearchRequest searchRequest = createSearchRequest().source(new SearchSourceBuilder());
+            searchRequest.source().query(new TermQueryBuilder("one", "two"));
+            searchRequest.source()
+                .queries(
+                    List.of(
+                        new SearchQueryBuilder(new TermQueryBuilder("three", "four")),
+                        new SearchQueryBuilder(new TermQueryBuilder("five", "six"))
+                    )
+                );
+            ActionRequestValidationException validationErrors = searchRequest.validate();
+            assertNotNull(validationErrors);
+            assertEquals(1, validationErrors.validationErrors().size());
+            assertEquals("cannot have both [query] and [queries]", validationErrors.validationErrors().get(0));
         }
         {
             // Rescore is not allowed on scroll requests

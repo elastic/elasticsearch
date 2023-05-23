@@ -195,12 +195,11 @@ POST _scripts/last-value-reduce
          "reduce_script":{
             "id":"last-value-reduce"
          }
-    
---
 --------------------------------------------------
 // NOTCONSOLE
 <1> The parameter `field_with_last_value` can be set any field that you want the 
 latest value for.
+--
 
 
 [[painless-time-features]]

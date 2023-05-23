@@ -242,6 +242,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
     void innerPutRole(final PutRoleRequest request, final RoleDescriptor role, final ActionListener<Boolean> listener) {
         final String roleName = role.getName();
         assert NativeRealmValidationUtil.validateRoleName(roleName, false) == null : "Role name was invalid or reserved: " + roleName;
+        assert false == role.hasWorkflowsRestriction() : "workflows restriction are not supported for native roles";
 
         securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
             final XContentBuilder xContentBuilder;
@@ -456,7 +457,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
         try {
             // we pass true as last parameter because we do not want to reject permissions if the field permissions
             // are given in 2.x syntax
-            RoleDescriptor roleDescriptor = RoleDescriptor.parse(name, sourceBytes, true, XContentType.JSON);
+            RoleDescriptor roleDescriptor = RoleDescriptor.parse(name, sourceBytes, true, XContentType.JSON, false);
             final boolean dlsEnabled = Arrays.stream(roleDescriptor.getIndicesPrivileges())
                 .anyMatch(IndicesPrivileges::isUsingDocumentLevelSecurity);
             final boolean flsEnabled = Arrays.stream(roleDescriptor.getIndicesPrivileges())

@@ -419,6 +419,16 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
 
     public static RoleDescriptor parse(String name, BytesReference source, boolean allow2xFormat, XContentType xContentType)
         throws IOException {
+        return parse(name, source, allow2xFormat, xContentType, true);
+    }
+
+    public static RoleDescriptor parse(
+        String name,
+        BytesReference source,
+        boolean allow2xFormat,
+        XContentType xContentType,
+        boolean allowWorkflowsRestriction
+    ) throws IOException {
         assert name != null;
         // EMPTY is safe here because we never use namedObject
         try (
@@ -426,16 +436,26 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
             XContentParser parser = xContentType.xContent()
                 .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)
         ) {
-            return parse(name, parser, allow2xFormat);
+            return parse(name, parser, allow2xFormat, allowWorkflowsRestriction);
         }
     }
 
     public static RoleDescriptor parse(String name, XContentParser parser, boolean allow2xFormat) throws IOException {
-        return parse(name, parser, allow2xFormat, TcpTransport.isUntrustedRemoteClusterEnabled());
+        return parse(name, parser, allow2xFormat, TcpTransport.isUntrustedRemoteClusterEnabled(), true);
     }
 
-    static RoleDescriptor parse(String name, XContentParser parser, boolean allow2xFormat, boolean untrustedRemoteClusterEnabled)
+    public static RoleDescriptor parse(String name, XContentParser parser, boolean allow2xFormat, boolean allowWorkflowsRestriction)
         throws IOException {
+        return parse(name, parser, allow2xFormat, TcpTransport.isUntrustedRemoteClusterEnabled(), allowWorkflowsRestriction);
+    }
+
+    static RoleDescriptor parse(
+        String name,
+        XContentParser parser,
+        boolean allow2xFormat,
+        boolean untrustedRemoteClusterEnabled,
+        boolean allowWorkflowsRestriction
+    ) throws IOException {
         // validate name
         Validation.Error validationError = Validation.Roles.validateRoleName(name, true);
         if (validationError != null) {
@@ -496,17 +516,18 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                     } else if (untrustedRemoteClusterEnabled
                         && Fields.REMOTE_INDICES.match(currentFieldName, parser.getDeprecationHandler())) {
                             remoteIndicesPrivileges = parseRemoteIndices(name, parser);
-                        } else if (Fields.RESTRICTION.match(currentFieldName, parser.getDeprecationHandler())) {
-                            restriction = RoleRestriction.parse(name, parser);
-                        } else if (Fields.TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
-                            // don't need it
-                        } else {
-                            throw new ElasticsearchParseException(
-                                "failed to parse role [{}]. unexpected field [{}]",
-                                name,
-                                currentFieldName
-                            );
-                        }
+                        } else if (allowWorkflowsRestriction
+                            && Fields.RESTRICTION.match(currentFieldName, parser.getDeprecationHandler())) {
+                                restriction = RoleRestriction.parse(name, parser);
+                            } else if (Fields.TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
+                                // don't need it
+                            } else {
+                                throw new ElasticsearchParseException(
+                                    "failed to parse role [{}]. unexpected field [{}]",
+                                    name,
+                                    currentFieldName
+                                );
+                            }
         }
         return new RoleDescriptor(
             name,

@@ -759,6 +759,7 @@ public class RoleDescriptorTests extends ESTestCase {
                 "test",
                 XContentHelper.createParser(XContentParserConfiguration.EMPTY, new BytesArray(json), XContentType.JSON),
                 false,
+                false,
                 false
             )
         );

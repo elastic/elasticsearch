@@ -37,7 +37,7 @@ public class BoolQueryTests extends ESTestCase {
     }
 
     private static BoolQuery copy(BoolQuery query) {
-        return new BoolQuery(query.source(), query.isAnd(), left(query), right(query));
+        return new BoolQuery(query.source(), query.isAnd(), query.queries());
     }
 
     private static BoolQuery mutate(BoolQuery query) {

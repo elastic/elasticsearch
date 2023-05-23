@@ -102,8 +102,8 @@ import org.elasticsearch.xpack.core.security.authc.RealmDomain;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
-import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.RoleRestriction;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests;
+import org.elasticsearch.xpack.core.security.authz.RoleRestrictionTests;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
@@ -2361,8 +2361,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             RoleDescriptorTests.randomRoleDescriptorMetadata(randomBoolean()),
             Map.of(),
             RoleDescriptorTests.randomRemoteIndicesPrivileges(1, 3),
-            // TODO: Change this to use actual workflow names instead of random ones.
-            new RoleRestriction(randomArray(3, String[]::new, () -> randomAlphaOfLength(6)))
+            RoleRestrictionTests.randomWorkflowsRestriction(1, 3)
         );
     }
 
@@ -2377,8 +2376,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             RoleDescriptorTests.randomRoleDescriptorMetadata(randomBoolean()),
             Map.of(),
             null,
-            // TODO: Change this to use actual workflow names instead of random ones.
-            new RoleRestriction(randomArray(1, 3, String[]::new, () -> randomAlphaOfLengthBetween(3, 6)))
+            RoleRestrictionTests.randomWorkflowsRestriction(1, 3)
         );
     }
 

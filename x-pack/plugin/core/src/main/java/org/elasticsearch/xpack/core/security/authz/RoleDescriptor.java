@@ -1631,7 +1631,8 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         }
 
         static RoleRestriction parse(String roleName, XContentParser parser) throws IOException {
-            XContentParser.Token token = parser.currentToken();
+            // advance to the START_OBJECT token if needed
+            XContentParser.Token token = parser.currentToken() == null ? parser.nextToken() : parser.currentToken();
             if (token != XContentParser.Token.START_OBJECT) {
                 throw new ElasticsearchParseException(
                     "failed to parse restriction for role [{}]. "

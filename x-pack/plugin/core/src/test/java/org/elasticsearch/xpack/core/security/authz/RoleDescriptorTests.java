@@ -999,7 +999,7 @@ public class RoleDescriptorTests extends ESTestCase {
                 ? new RoleDescriptor.RemoteIndicesPrivileges[0]
                 : new RoleDescriptor.RemoteIndicesPrivileges[] {
                     RoleDescriptor.RemoteIndicesPrivileges.builder("rmt").indices("idx").privileges("foo").build() },
-            booleans.get(7) ? null : new RoleDescriptor.RoleRestriction(new String[] { "foo" })
+            booleans.get(7) ? null : RoleRestrictionTests.randomWorkflowsRestriction(1, 2)
         );
 
         if (booleans.stream().anyMatch(e -> e.equals(false))) {
@@ -1067,9 +1067,7 @@ public class RoleDescriptorTests extends ESTestCase {
             randomRoleDescriptorMetadata(allowReservedMetadata),
             Map.of(),
             remoteIndexPrivileges,
-            allowWorkflows // TODO: Use real workflow names once we have defined them.
-                ? new RoleDescriptor.RoleRestriction(randomSet(0, 3, () -> randomAlphaOfLength(5)).toArray(String[]::new))
-                : null
+            allowWorkflows ? RoleRestrictionTests.randomWorkflowsRestriction(0, 3) : null
         );
     }
 

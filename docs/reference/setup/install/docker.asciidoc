@@ -61,7 +61,7 @@ ifeval::["{release-state}"!="unreleased"]
 Install the appropriate https://docs.sigstore.dev/cosign/installation/[Cosign application]
 for your operating system.
 
-The container image signature for Elasticsearch v{version} can be verified as follows:
+The container image signature for {es} v{version} can be verified as follows:
 
 ["source","sh",subs="attributes"]
 --------------------------------------------

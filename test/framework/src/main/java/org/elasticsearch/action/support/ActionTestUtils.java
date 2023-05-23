@@ -16,12 +16,12 @@ import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.transport.Transport;
 
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
-
-import static org.mockito.Mockito.mock;
 
 public class ActionTestUtils {
 
@@ -31,7 +31,15 @@ public class ActionTestUtils {
         TransportAction<Request, Response> action,
         Request request
     ) {
-        return PlainActionFuture.get(future -> action.execute(mock(CancellableTask.class), request, future), 10, TimeUnit.SECONDS);
+        return PlainActionFuture.get(
+            future -> action.execute(
+                new CancellableTask(1L, "direct", action.actionName, "", TaskId.EMPTY_TASK_ID, Map.of()),
+                request,
+                future
+            ),
+            10,
+            TimeUnit.SECONDS
+        );
     }
 
     public static <Request extends ActionRequest, Response extends ActionResponse> Response executeBlockingWithTask(

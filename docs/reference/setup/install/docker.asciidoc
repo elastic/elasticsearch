@@ -71,7 +71,7 @@ cosign verify --key cosign.pub {docker-repo}:{version} <2>
 <1> Download the Elastic public key to verify container signature
 <2> Verify the container against the Elastic public key
 
-The command prints out the check results and the signature payload in json format:
+The command prints the check results and the signature payload in JSON format:
 
 [source,console]
 --------------------------------------------

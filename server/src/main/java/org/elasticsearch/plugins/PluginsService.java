@@ -33,7 +33,6 @@ import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.plugins.spi.SPIClassIterator;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.lang.ModuleLayer.Controller;
 import java.lang.module.Configuration;
 import java.lang.module.ModuleFinder;
@@ -99,6 +98,17 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
     private static final Logger logger = LogManager.getLogger(PluginsService.class);
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(PluginsService.class);
 
+    private static final Map<String, List<ModuleQualifiedExportsService>> exportsServices;
+
+    static {
+        Map<String, List<ModuleQualifiedExportsService>> qualifiedExports = new HashMap<>();
+        var loader = ServiceLoader.load(ModuleQualifiedExportsService.class, PluginsService.class.getClassLoader());
+        for (var exportsService : loader) {
+            addExportsService(qualifiedExports, exportsService, exportsService.getClass().getModule().getName());
+        }
+        exportsServices = Map.copyOf(qualifiedExports);
+    }
+
     private final Settings settings;
     private final Path configPath;
 
@@ -123,8 +133,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         this.settings = settings;
         this.configPath = configPath;
 
-        Map<String, List<ModuleQualifiedExportsService>> qualifiedExports = new HashMap<>();
-        loadExportsServices(qualifiedExports, PluginsService.class.getClassLoader());
+        Map<String, List<ModuleQualifiedExportsService>> qualifiedExports = new HashMap<>(exportsServices);
         addServerExportsService(qualifiedExports);
 
         Set<PluginBundle> seenBundles = new LinkedHashSet<>();
@@ -202,12 +211,21 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         }
     }
 
+    private static final Set<String> officialPlugins;
+
+    static {
+        try (var stream = PluginsService.class.getResourceAsStream("/plugins.txt")) {
+            officialPlugins = Streams.readAllLines(stream).stream().map(String::trim).collect(Collectors.toUnmodifiableSet());
+        } catch (final IOException e) {
+            throw new AssertionError(e);
+        }
+    }
+
     private static List<PluginRuntimeInfo> getRuntimeInfos(
         PluginIntrospector inspector,
         List<PluginDescriptor> pluginDescriptors,
         Map<String, LoadedPlugin> plugins
     ) {
-        var officialPlugins = getOfficialPlugins();
         List<PluginRuntimeInfo> runtimeInfos = new ArrayList<>();
         for (PluginDescriptor descriptor : pluginDescriptors) {
             LoadedPlugin plugin = plugins.get(descriptor.getName());
@@ -221,14 +239,6 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             runtimeInfos.add(new PluginRuntimeInfo(descriptor, isOfficial, apiInfo));
         }
         return runtimeInfos;
-    }
-
-    private static Set<String> getOfficialPlugins() {
-        try (var stream = PluginsService.class.getResourceAsStream("/plugins.txt")) {
-            return Streams.readAllLines(stream).stream().map(String::trim).collect(Sets.toUnmodifiableSortedSet());
-        } catch (final IOException e) {
-            throw new UncheckedIOException(e);
-        }
     }
 
     /**
@@ -786,13 +796,6 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
      */
     private static void exposeQualifiedExportsAndOpens(Module target, Map<String, List<ModuleQualifiedExportsService>> qualifiedExports) {
         qualifiedExports.getOrDefault(target.getName(), List.of()).forEach(exportService -> exportService.addExportsAndOpens(target));
-    }
-
-    private static void loadExportsServices(Map<String, List<ModuleQualifiedExportsService>> qualifiedExports, ClassLoader classLoader) {
-        var loader = ServiceLoader.load(ModuleQualifiedExportsService.class, classLoader);
-        for (var exportsService : loader) {
-            addExportsService(qualifiedExports, exportsService, exportsService.getClass().getModule().getName());
-        }
     }
 
     private static void addExportsService(

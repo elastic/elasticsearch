@@ -11,7 +11,8 @@
         },
         "mapping": {
           "ignore_malformed": true
-        }
+        },
+        "default_pipeline": "logs-default-pipeline"
       }
     }
   },

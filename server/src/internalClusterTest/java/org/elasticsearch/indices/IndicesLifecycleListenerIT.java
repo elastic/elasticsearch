@@ -154,9 +154,7 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
 
         // create an index that should fail
         try {
-            client().admin()
-                .indices()
-                .prepareCreate("failed")
+            indicesAdmin().prepareCreate("failed")
                 .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put("index.fail", true))
                 .get();
             fail("should have thrown an exception");

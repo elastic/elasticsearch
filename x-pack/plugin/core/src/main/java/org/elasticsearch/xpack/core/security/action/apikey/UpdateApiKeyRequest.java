@@ -47,4 +47,9 @@ public final class UpdateApiKeyRequest extends BaseUpdateApiKeyRequest {
     public String getId() {
         return id;
     }
+
+    @Override
+    public ApiKey.Type getType() {
+        return ApiKey.Type.REST;
+    }
 }

@@ -82,6 +82,11 @@ public class ProfilingAggregator extends Aggregator {
     }
 
     @Override
+    public void releaseAggregations() {
+        delegate.releaseAggregations();
+    }
+
+    @Override
     public InternalAggregation buildEmptyAggregation() {
         return delegate.buildEmptyAggregation();
     }

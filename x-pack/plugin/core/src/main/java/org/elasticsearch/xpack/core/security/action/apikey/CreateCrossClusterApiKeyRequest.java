@@ -95,4 +95,8 @@ public final class CreateCrossClusterApiKeyRequest extends AbstractCreateApiKeyR
     public int hashCode() {
         return Objects.hash(id, name, expiration, metadata, roleDescriptors, refreshPolicy);
     }
+
+    public static CreateCrossClusterApiKeyRequest withNameAndAccess(String name, String access) throws IOException {
+        return new CreateCrossClusterApiKeyRequest(name, CrossClusterApiKeyRoleDescriptorBuilder.parse(access), null, null);
+    }
 }

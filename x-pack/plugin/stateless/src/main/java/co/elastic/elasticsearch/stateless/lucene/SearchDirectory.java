@@ -63,7 +63,7 @@ public class SearchDirectory extends BaseDirectory {
     private static final String EMPTY_SEGMENTS_FILE_NAME;
 
     static {
-        var emptySegmentInfos = new SegmentInfos(Version.CURRENT.luceneVersion.major);
+        var emptySegmentInfos = new SegmentInfos(Version.CURRENT.luceneVersion().major);
         emptySegmentInfos.setUserData(
             Map.of(
                 Engine.HISTORY_UUID_KEY,

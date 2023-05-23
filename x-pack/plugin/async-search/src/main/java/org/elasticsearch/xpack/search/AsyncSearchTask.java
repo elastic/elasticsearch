@@ -433,14 +433,18 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
                  */
                 reducedAggs = () -> InternalAggregations.topLevelReduce(singletonList(aggregations), aggReduceContextSupplier.get());
             }
-            searchResponse.get().updatePartialResponse(shards.size(), totalHits, reducedAggs, reducePhase);
+            searchResponse.get().updatePartialResponse(shards.size(), totalHits, reducedAggs, reducePhase, false);
         }
 
+        /**
+         * Called when the final reduce of <b>local</b> shards is done.
+         * During a CCS search, there may still be shard searches in progress on remote clusters when this is called.
+         */
         @Override
         public void onFinalReduce(List<SearchShard> shards, TotalHits totalHits, InternalAggregations aggregations, int reducePhase) {
             // best effort to cancel expired tasks
             checkCancellation();
-            searchResponse.get().updatePartialResponse(shards.size(), totalHits, () -> aggregations, reducePhase);
+            searchResponse.get().updatePartialResponse(shards.size(), totalHits, () -> aggregations, reducePhase, true);
         }
 
         @Override

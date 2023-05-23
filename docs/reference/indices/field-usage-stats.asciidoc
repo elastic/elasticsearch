@@ -112,8 +112,7 @@ e.g. via the <<analysis-delimited-payload-tokenfilter, delimited payload token f
 (integer)
 Denotes the usage of _stored fields_. These are enabled via the <<mapping-store,`store`>> mapping option,
 and accessed by specifying the <<stored-fields, `stored_fields`>> query option.
-Note that the <<mapping-source-field,`_source`>> field is stored by default, and its usage is counted here.
-// TODO: Is the _source counted as a stored field? If so note that here. Maybe ask Jack how to test this by indexing an article and to see if the _source counts? Or just adapt an existing unit test?
+Note that the <<mapping-source-field,`_source`>> and <<mapping-id-field, `_id`>> fields are stored by default and their usage is counted here.
 
 `doc_values`::
 (integer)
@@ -246,5 +245,4 @@ The API returns the following response:
 // TESTRESPONSE[s/: (\-)?[0-9]+/: $body.$_path/]
 // TESTRESPONSE[s/: "[^"]*"/: $body.$_path/]
 <1> Reports the sums of the usage-counts for all fields in the index (on the listed shard).
-// TODO: What is the behaviour with multiple shards?
 <2> The field name for which the following usage-counts are reported (on the listed shard).

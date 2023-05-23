@@ -69,8 +69,8 @@ percentiles: `[ 1, 5, 25, 50, 75, 95, 99 ]`. The response will look like this:
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 // TESTRESPONSE[s/"1.0": 10.0/"1.0": 9.9/]
 // TESTRESPONSE[s/"5.0": 30.0/"5.0": 29.500000000000004/]
-// TESTRESPONSE[s/"25.0": 170.0/"25.0": 169.0625/]
-// TESTRESPONSE[s/"50.0": 445.0/"50.0": 444.0/]
+// TESTRESPONSE[s/"25.0": 170.0/"25.0": 167.96875/]
+// TESTRESPONSE[s/"50.0": 445.0/"50.0": 445.6/]
 // TESTRESPONSE[s/"75.0": 720.0/"75.0": 720.15625/]
 // TESTRESPONSE[s/"95.0": 940.0/"95.0": 940.5/]
 // TESTRESPONSE[s/"99.0": 980.0/"99.0": 980.1000000000001/]
@@ -169,8 +169,8 @@ Response:
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 // TESTRESPONSE[s/"value": 10.0/"value": 9.9/]
 // TESTRESPONSE[s/"value": 30.0/"value": 29.500000000000004/]
-// TESTRESPONSE[s/"value": 170.0/"value": 169.0625/]
-// TESTRESPONSE[s/"value": 445.0/"value": 444.0/]
+// TESTRESPONSE[s/"value": 170.0/"value": 167.96875/]
+// TESTRESPONSE[s/"value": 445.0/"value": 445.6/]
 // TESTRESPONSE[s/"value": 720.0/"value": 720.15625/]
 // TESTRESPONSE[s/"value": 940.0/"value": 940.5/]
 // TESTRESPONSE[s/"value": 980.0/"value": 980.1000000000001/]
@@ -219,8 +219,8 @@ GET latency/_search
       "values": {
         "1.0": 0.99,
         "5.0": 2.95,
-        "25.0": 16.90625,
-        "50.0": 44.4,
+        "25.0": 16.796875,
+        "50.0": 44.56,
         "75.0": 72.015625,
         "95.0": 94.05,
         "99.0": 98.01

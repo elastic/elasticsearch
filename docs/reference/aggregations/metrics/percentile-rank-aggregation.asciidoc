@@ -61,8 +61,8 @@ The response will look like this:
 }
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
-// TESTRESPONSE[s/"500.0": 55.0/"500.0": 55.00000000000001/]
-// TESTRESPONSE[s/"600.0": 64.0/"600.0": 64.05172413793103/]
+// TESTRESPONSE[s/"500.0": 55.0/"500.0": 55.05172413793103/]
+// TESTRESPONSE[s/"600.0": 64.0/"600.0": 64.02941176470588/]
 
 From this information you can determine you are hitting the 99% load time target but not quite
 hitting the 95% load time target
@@ -113,8 +113,8 @@ Response:
 }
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
-// TESTRESPONSE[s/"value": 55.0/"value": 55.00000000000001/]
-// TESTRESPONSE[s/"value": 64.0/"value": 64.05172413793103/]
+// TESTRESPONSE[s/"value": 55.0/"value": 55.05172413793103/]
+// TESTRESPONSE[s/"value": 64.0/"value": 64.02941176470588/]
 
 
 ==== Script

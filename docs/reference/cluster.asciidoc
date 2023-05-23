@@ -104,7 +104,7 @@ include::cluster/nodes-reload-secure-settings.asciidoc[]
 
 include::cluster/nodes-stats.asciidoc[]
 
-include::cluster/info-http.asciidoc[]
+include::cluster/cluster-info.asciidoc[]
 
 include::cluster/pending.asciidoc[]
 

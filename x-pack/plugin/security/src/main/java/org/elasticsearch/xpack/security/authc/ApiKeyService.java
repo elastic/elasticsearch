@@ -299,10 +299,10 @@ public class ApiKeyService {
         Set<RoleDescriptor> userRoleDescriptors,
         ActionListener<CreateApiKeyResponse> listener
     ) {
+        ensureEnabled();
         assert request.getType() != ApiKey.Type.CROSS_CLUSTER || userRoleDescriptors.isEmpty()
             : "owner user role descriptor must be empty for cross-cluster API keys";
         assert false == hasWorkflowsRestriction(userRoleDescriptors) : "workflows restriction are not supported by user role descriptors";
-        ensureEnabled();
         if (authentication == null) {
             listener.onFailure(new IllegalArgumentException("authentication must be provided"));
         } else {

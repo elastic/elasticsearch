@@ -4,9 +4,11 @@
 // 2.0.
 package org.elasticsearch.compute.aggregation;
 
+import java.lang.Object;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.AggregatorStateVector;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
@@ -25,13 +27,17 @@ public final class MaxDoubleAggregatorFunction implements AggregatorFunction {
 
   private final int channel;
 
-  public MaxDoubleAggregatorFunction(int channel, DoubleState state) {
+  private final Object[] parameters;
+
+  public MaxDoubleAggregatorFunction(int channel, DoubleState state, Object[] parameters) {
     this.channel = channel;
     this.state = state;
+    this.parameters = parameters;
   }
 
-  public static MaxDoubleAggregatorFunction create(int channel) {
-    return new MaxDoubleAggregatorFunction(channel, new DoubleState(MaxDoubleAggregator.init()));
+  public static MaxDoubleAggregatorFunction create(BigArrays bigArrays, int channel,
+      Object[] parameters) {
+    return new MaxDoubleAggregatorFunction(channel, new DoubleState(MaxDoubleAggregator.init()), parameters);
   }
 
   @Override
@@ -77,11 +83,14 @@ public final class MaxDoubleAggregatorFunction implements AggregatorFunction {
       throw new RuntimeException("expected AggregatorStateBlock, got:" + block);
     }
     @SuppressWarnings("unchecked") AggregatorStateVector<DoubleState> blobVector = (AggregatorStateVector<DoubleState>) vector;
-    DoubleState tmpState = new DoubleState();
+    // TODO exchange big arrays directly without funny serialization - no more copying
+    BigArrays bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
+    DoubleState tmpState = new DoubleState(MaxDoubleAggregator.init());
     for (int i = 0; i < block.getPositionCount(); i++) {
       blobVector.get(i, tmpState);
       state.doubleValue(MaxDoubleAggregator.combine(state.doubleValue(), tmpState.doubleValue()));
     }
+    tmpState.close();
   }
 
   @Override
@@ -104,5 +113,10 @@ public final class MaxDoubleAggregatorFunction implements AggregatorFunction {
     sb.append("channel=").append(channel);
     sb.append("]");
     return sb.toString();
+  }
+
+  @Override
+  public void close() {
+    state.close();
   }
 }

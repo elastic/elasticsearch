@@ -4,6 +4,7 @@
 // 2.0.
 package org.elasticsearch.compute.aggregation;
 
+import java.lang.Object;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
@@ -25,14 +26,18 @@ public final class CountDistinctLongGroupingAggregatorFunction implements Groupi
 
   private final int channel;
 
-  public CountDistinctLongGroupingAggregatorFunction(int channel, HllStates.GroupingState state) {
+  private final Object[] parameters;
+
+  public CountDistinctLongGroupingAggregatorFunction(int channel, HllStates.GroupingState state,
+      Object[] parameters) {
     this.channel = channel;
     this.state = state;
+    this.parameters = parameters;
   }
 
-  public static CountDistinctLongGroupingAggregatorFunction create(BigArrays bigArrays,
-      int channel) {
-    return new CountDistinctLongGroupingAggregatorFunction(channel, CountDistinctLongAggregator.initGrouping(bigArrays));
+  public static CountDistinctLongGroupingAggregatorFunction create(BigArrays bigArrays, int channel,
+      Object[] parameters) {
+    return new CountDistinctLongGroupingAggregatorFunction(channel, CountDistinctLongAggregator.initGrouping(bigArrays, parameters), parameters);
   }
 
   @Override
@@ -127,12 +132,13 @@ public final class CountDistinctLongGroupingAggregatorFunction implements Groupi
     @SuppressWarnings("unchecked") AggregatorStateVector<HllStates.GroupingState> blobVector = (AggregatorStateVector<HllStates.GroupingState>) vector;
     // TODO exchange big arrays directly without funny serialization - no more copying
     BigArrays bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
-    HllStates.GroupingState inState = CountDistinctLongAggregator.initGrouping(bigArrays);
+    HllStates.GroupingState inState = CountDistinctLongAggregator.initGrouping(bigArrays, parameters);
     blobVector.get(0, inState);
     for (int position = 0; position < groupIdVector.getPositionCount(); position++) {
       int groupId = Math.toIntExact(groupIdVector.getLong(position));
       CountDistinctLongAggregator.combineStates(state, groupId, inState, position);
     }
+    inState.close();
   }
 
   @Override

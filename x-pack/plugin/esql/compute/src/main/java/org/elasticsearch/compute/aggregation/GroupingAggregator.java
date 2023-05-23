@@ -21,6 +21,9 @@ import java.util.function.Supplier;
 
 @Experimental
 public class GroupingAggregator implements Releasable {
+
+    public static final Object[] EMPTY_PARAMS = new Object[] {};
+
     private final GroupingAggregatorFunction aggregatorFunction;
 
     private final AggregatorMode mode;
@@ -31,6 +34,7 @@ public class GroupingAggregator implements Releasable {
         BigArrays bigArrays,
         AggregationName aggName,
         AggregationType aggType,
+        Object[] parameters,
         AggregatorMode mode,
         int inputChannel
     ) implements Supplier<GroupingAggregator>, Describable {
@@ -38,15 +42,25 @@ public class GroupingAggregator implements Releasable {
         public GroupingAggregatorFactory(
             BigArrays bigArrays,
             GroupingAggregatorFunction.Factory aggFunctionFactory,
+            Object[] parameters,
             AggregatorMode mode,
             int inputChannel
         ) {
-            this(bigArrays, aggFunctionFactory.name(), aggFunctionFactory.type(), mode, inputChannel);
+            this(bigArrays, aggFunctionFactory.name(), aggFunctionFactory.type(), parameters, mode, inputChannel);
+        }
+
+        public GroupingAggregatorFactory(
+            BigArrays bigArrays,
+            GroupingAggregatorFunction.Factory aggFunctionFactory,
+            AggregatorMode mode,
+            int inputChannel
+        ) {
+            this(bigArrays, aggFunctionFactory, EMPTY_PARAMS, mode, inputChannel);
         }
 
         @Override
         public GroupingAggregator get() {
-            return new GroupingAggregator(bigArrays, GroupingAggregatorFunction.of(aggName, aggType), mode, inputChannel);
+            return new GroupingAggregator(bigArrays, GroupingAggregatorFunction.of(aggName, aggType), parameters, mode, inputChannel);
         }
 
         @Override
@@ -58,10 +72,11 @@ public class GroupingAggregator implements Releasable {
     public GroupingAggregator(
         BigArrays bigArrays,
         GroupingAggregatorFunction.Factory aggCreationFunc,
+        Object[] parameters,
         AggregatorMode mode,
         int inputChannel
     ) {
-        this.aggregatorFunction = aggCreationFunc.build(bigArrays, mode, inputChannel);
+        this.aggregatorFunction = aggCreationFunc.build(bigArrays, mode, inputChannel, parameters);
         this.mode = mode;
         this.intermediateChannel = mode.isInputPartial() ? inputChannel : -1;
     }

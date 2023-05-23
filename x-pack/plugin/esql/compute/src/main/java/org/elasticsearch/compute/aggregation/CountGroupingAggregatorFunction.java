@@ -23,7 +23,7 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
     private final LongArrayState state;
     private final int channel;
 
-    static CountGroupingAggregatorFunction create(BigArrays bigArrays, int inputChannel) {
+    static CountGroupingAggregatorFunction create(BigArrays bigArrays, int inputChannel, Object[] parameters) {
         return new CountGroupingAggregatorFunction(inputChannel, new LongArrayState(bigArrays, 0));
     }
 

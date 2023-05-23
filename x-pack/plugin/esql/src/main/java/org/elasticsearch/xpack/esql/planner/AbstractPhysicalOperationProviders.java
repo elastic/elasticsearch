@@ -66,8 +66,10 @@ abstract class AbstractPhysicalOperationProviders implements PhysicalOperationPr
                     }
                     aggregatorFactories.add(
                         new Aggregator.AggregatorFactory(
+                            context.bigArrays(),
                             AggregateMapper.mapToName(aggregateFunction),
                             AggregateMapper.mapToType(aggregateFunction),
+                            aggregateFunction.parameters().stream().map(expression -> expression.fold()).toArray(),
                             aggMode,
                             source.layout.getChannel(sourceAttr.id())
                         )
@@ -150,6 +152,7 @@ abstract class AbstractPhysicalOperationProviders implements PhysicalOperationPr
                                 context.bigArrays(),
                                 AggregateMapper.mapToName(aggregateFunction),
                                 AggregateMapper.mapToType(aggregateFunction),
+                                aggregateFunction.parameters().stream().map(expression -> expression.fold()).toArray(),
                                 aggMode,
                                 source.layout.getChannel(sourceAttr.id())
                             )

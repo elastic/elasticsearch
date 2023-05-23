@@ -4,9 +4,11 @@
 // 2.0.
 package org.elasticsearch.compute.aggregation;
 
+import java.lang.Object;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.AggregatorStateVector;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.ElementType;
@@ -25,13 +27,18 @@ public final class CountDistinctLongAggregatorFunction implements AggregatorFunc
 
   private final int channel;
 
-  public CountDistinctLongAggregatorFunction(int channel, HllStates.SingleState state) {
+  private final Object[] parameters;
+
+  public CountDistinctLongAggregatorFunction(int channel, HllStates.SingleState state,
+      Object[] parameters) {
     this.channel = channel;
     this.state = state;
+    this.parameters = parameters;
   }
 
-  public static CountDistinctLongAggregatorFunction create(int channel) {
-    return new CountDistinctLongAggregatorFunction(channel, CountDistinctLongAggregator.initSingle());
+  public static CountDistinctLongAggregatorFunction create(BigArrays bigArrays, int channel,
+      Object[] parameters) {
+    return new CountDistinctLongAggregatorFunction(channel, CountDistinctLongAggregator.initSingle(bigArrays, parameters), parameters);
   }
 
   @Override
@@ -77,11 +84,14 @@ public final class CountDistinctLongAggregatorFunction implements AggregatorFunc
       throw new RuntimeException("expected AggregatorStateBlock, got:" + block);
     }
     @SuppressWarnings("unchecked") AggregatorStateVector<HllStates.SingleState> blobVector = (AggregatorStateVector<HllStates.SingleState>) vector;
-    HllStates.SingleState tmpState = new HllStates.SingleState();
+    // TODO exchange big arrays directly without funny serialization - no more copying
+    BigArrays bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
+    HllStates.SingleState tmpState = CountDistinctLongAggregator.initSingle(bigArrays, parameters);
     for (int i = 0; i < block.getPositionCount(); i++) {
       blobVector.get(i, tmpState);
       CountDistinctLongAggregator.combineStates(state, tmpState);
     }
+    tmpState.close();
   }
 
   @Override
@@ -104,5 +114,10 @@ public final class CountDistinctLongAggregatorFunction implements AggregatorFunc
     sb.append("channel=").append(channel);
     sb.append("]");
     return sb.toString();
+  }
+
+  @Override
+  public void close() {
+    state.close();
   }
 }

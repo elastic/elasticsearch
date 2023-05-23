@@ -110,7 +110,7 @@ public class AggregatorBenchmark {
     private static Operator operator(String grouping, AggregationName aggName, AggregationType aggType) {
         if (grouping.equals("none")) {
             AggregatorFunction.Factory factory = AggregatorFunction.of(aggName, aggType);
-            return new AggregationOperator(List.of(new Aggregator(factory, AggregatorMode.SINGLE, 0)));
+            return new AggregationOperator(List.of(new Aggregator(BIG_ARRAYS, factory, Aggregator.EMPTY_PARAMS, AggregatorMode.SINGLE, 0)));
         }
         List<HashAggregationOperator.GroupSpec> groups = switch (grouping) {
             case LONGS -> List.of(new HashAggregationOperator.GroupSpec(0, ElementType.LONG));

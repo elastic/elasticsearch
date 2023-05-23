@@ -230,7 +230,7 @@ public final class PlanNamedTypes {
             // AggregateFunctions
             of(AggregateFunction.class, Avg.class, PlanNamedTypes::writeAggFunction, PlanNamedTypes::readAggFunction),
             of(AggregateFunction.class, Count.class, PlanNamedTypes::writeAggFunction, PlanNamedTypes::readAggFunction),
-            of(AggregateFunction.class, CountDistinct.class, PlanNamedTypes::writeAggFunction, PlanNamedTypes::readAggFunction),
+            of(AggregateFunction.class, CountDistinct.class, PlanNamedTypes::writeCountDistinct, PlanNamedTypes::readCountDistinct),
             of(AggregateFunction.class, Min.class, PlanNamedTypes::writeAggFunction, PlanNamedTypes::readAggFunction),
             of(AggregateFunction.class, Max.class, PlanNamedTypes::writeAggFunction, PlanNamedTypes::readAggFunction),
             of(AggregateFunction.class, Median.class, PlanNamedTypes::writeAggFunction, PlanNamedTypes::readAggFunction),
@@ -731,6 +731,17 @@ public final class PlanNamedTypes {
         out.writeCollection(fields.subList(1, fields.size()), writerFromPlanWriter(PlanStreamOutput::writeExpression));
     }
 
+    static CountDistinct readCountDistinct(PlanStreamInput in) throws IOException {
+        return new CountDistinct(Source.EMPTY, in.readExpression(), in.readOptionalNamed(Expression.class));
+    }
+
+    static void writeCountDistinct(PlanStreamOutput out, CountDistinct countDistinct) throws IOException {
+        List<Expression> fields = countDistinct.children();
+        assert fields.size() == 1 || fields.size() == 2;
+        out.writeExpression(fields.get(0));
+        out.writeOptionalWriteable(fields.size() == 2 ? o -> out.writeExpression(fields.get(1)) : null);
+    }
+
     static DateFormat readDateFormat(PlanStreamInput in) throws IOException {
         return new DateFormat(Source.EMPTY, in.readExpression(), in.readOptionalNamed(Expression.class));
     }
@@ -841,7 +852,6 @@ public final class PlanNamedTypes {
     static final Map<String, BiFunction<Source, Expression, AggregateFunction>> AGG_CTRS = Map.ofEntries(
         entry(name(Avg.class), Avg::new),
         entry(name(Count.class), Count::new),
-        entry(name(CountDistinct.class), CountDistinct::new),
         entry(name(Sum.class), Sum::new),
         entry(name(Min.class), Min::new),
         entry(name(Max.class), Max::new),

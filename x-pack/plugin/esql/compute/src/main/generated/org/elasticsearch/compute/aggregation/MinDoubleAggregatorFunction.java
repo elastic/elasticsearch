@@ -4,9 +4,11 @@
 // 2.0.
 package org.elasticsearch.compute.aggregation;
 
+import java.lang.Object;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.AggregatorStateVector;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
@@ -25,13 +27,17 @@ public final class MinDoubleAggregatorFunction implements AggregatorFunction {
 
   private final int channel;
 
-  public MinDoubleAggregatorFunction(int channel, DoubleState state) {
+  private final Object[] parameters;
+
+  public MinDoubleAggregatorFunction(int channel, DoubleState state, Object[] parameters) {
     this.channel = channel;
     this.state = state;
+    this.parameters = parameters;
   }
 
-  public static MinDoubleAggregatorFunction create(int channel) {
-    return new MinDoubleAggregatorFunction(channel, new DoubleState(MinDoubleAggregator.init()));
+  public static MinDoubleAggregatorFunction create(BigArrays bigArrays, int channel,
+      Object[] parameters) {
+    return new MinDoubleAggregatorFunction(channel, new DoubleState(MinDoubleAggregator.init()), parameters);
   }
 
   @Override
@@ -77,11 +83,14 @@ public final class MinDoubleAggregatorFunction implements AggregatorFunction {
       throw new RuntimeException("expected AggregatorStateBlock, got:" + block);
     }
     @SuppressWarnings("unchecked") AggregatorStateVector<DoubleState> blobVector = (AggregatorStateVector<DoubleState>) vector;
-    DoubleState tmpState = new DoubleState();
+    // TODO exchange big arrays directly without funny serialization - no more copying
+    BigArrays bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
+    DoubleState tmpState = new DoubleState(MinDoubleAggregator.init());
     for (int i = 0; i < block.getPositionCount(); i++) {
       blobVector.get(i, tmpState);
       state.doubleValue(MinDoubleAggregator.combine(state.doubleValue(), tmpState.doubleValue()));
     }
+    tmpState.close();
   }
 
   @Override
@@ -104,5 +113,10 @@ public final class MinDoubleAggregatorFunction implements AggregatorFunction {
     sb.append("channel=").append(channel);
     sb.append("]");
     return sb.toString();
+  }
+
+  @Override
+  public void close() {
+    state.close();
   }
 }

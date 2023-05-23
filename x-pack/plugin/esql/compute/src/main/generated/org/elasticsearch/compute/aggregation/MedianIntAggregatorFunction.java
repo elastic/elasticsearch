@@ -4,9 +4,11 @@
 // 2.0.
 package org.elasticsearch.compute.aggregation;
 
+import java.lang.Object;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.AggregatorStateVector;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.ElementType;
@@ -24,13 +26,18 @@ public final class MedianIntAggregatorFunction implements AggregatorFunction {
 
   private final int channel;
 
-  public MedianIntAggregatorFunction(int channel, QuantileStates.SingleState state) {
+  private final Object[] parameters;
+
+  public MedianIntAggregatorFunction(int channel, QuantileStates.SingleState state,
+      Object[] parameters) {
     this.channel = channel;
     this.state = state;
+    this.parameters = parameters;
   }
 
-  public static MedianIntAggregatorFunction create(int channel) {
-    return new MedianIntAggregatorFunction(channel, MedianIntAggregator.initSingle());
+  public static MedianIntAggregatorFunction create(BigArrays bigArrays, int channel,
+      Object[] parameters) {
+    return new MedianIntAggregatorFunction(channel, MedianIntAggregator.initSingle(), parameters);
   }
 
   @Override
@@ -76,11 +83,14 @@ public final class MedianIntAggregatorFunction implements AggregatorFunction {
       throw new RuntimeException("expected AggregatorStateBlock, got:" + block);
     }
     @SuppressWarnings("unchecked") AggregatorStateVector<QuantileStates.SingleState> blobVector = (AggregatorStateVector<QuantileStates.SingleState>) vector;
-    QuantileStates.SingleState tmpState = new QuantileStates.SingleState();
+    // TODO exchange big arrays directly without funny serialization - no more copying
+    BigArrays bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
+    QuantileStates.SingleState tmpState = MedianIntAggregator.initSingle();
     for (int i = 0; i < block.getPositionCount(); i++) {
       blobVector.get(i, tmpState);
       MedianIntAggregator.combineStates(state, tmpState);
     }
+    tmpState.close();
   }
 
   @Override
@@ -103,5 +113,10 @@ public final class MedianIntAggregatorFunction implements AggregatorFunction {
     sb.append("channel=").append(channel);
     sb.append("]");
     return sb.toString();
+  }
+
+  @Override
+  public void close() {
+    state.close();
   }
 }

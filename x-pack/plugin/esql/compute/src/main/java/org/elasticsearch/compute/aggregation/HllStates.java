@@ -29,8 +29,7 @@ import java.util.Objects;
 final class HllStates {
 
     // Default value for precision_threshold is 3000
-    // TODO: Make this a parameter, similar to the cardinality aggregation
-    private static final int PRECISION = HyperLogLogPlusPlus.precisionFromThreshold(3000);
+    private static final int DEFAULT_PRECISION = HyperLogLogPlusPlus.precisionFromThreshold(3000);
 
     private HllStates() {}
 
@@ -73,13 +72,13 @@ final class HllStates {
         final HyperLogLogPlusPlus hll;
         private final MurmurHash3.Hash128 hash = new MurmurHash3.Hash128();
 
-        SingleState() {
-            this(BigArrays.NON_RECYCLING_INSTANCE);
-        }
-
-        SingleState(BigArrays bigArrays) {
+        SingleState(BigArrays bigArrays, Object[] parameters) {
             this.serializer = new SingleStateSerializer();
-            this.hll = new HyperLogLogPlusPlus(PRECISION, bigArrays, 1);
+            int precision = DEFAULT_PRECISION;
+            if (parameters != null && parameters.length > 0 && parameters[0] instanceof Number i) {
+                precision = HyperLogLogPlusPlus.precisionFromThreshold(i.longValue());
+            }
+            this.hll = new HyperLogLogPlusPlus(precision, bigArrays, 1);
         }
 
         void collect(long v) {
@@ -149,13 +148,15 @@ final class HllStates {
         public void deserialize(SingleState state, byte[] ba, int offset) {
             Objects.requireNonNull(state);
             ByteArrayStreamInput in = new ByteArrayStreamInput();
+            AbstractHyperLogLogPlusPlus hll = null;
             try {
                 in.reset(ba, offset, ba.length - offset);
-                AbstractHyperLogLogPlusPlus hll = HyperLogLogPlusPlus.readFrom(in, BigArrays.NON_RECYCLING_INSTANCE);
+                hll = HyperLogLogPlusPlus.readFrom(in, BigArrays.NON_RECYCLING_INSTANCE);
                 state.merge(SingleState.SINGLE_BUCKET_ORD, hll, SingleState.SINGLE_BUCKET_ORD);
-                hll.close();
             } catch (IOException e) {
                 throw new RuntimeException(e);
+            } finally {
+                Releasables.close(hll);
             }
         }
     }
@@ -167,9 +168,13 @@ final class HllStates {
 
         final HyperLogLogPlusPlus hll;
 
-        GroupingState(BigArrays bigArrays) {
+        GroupingState(BigArrays bigArrays, Object[] parameters) {
             this.serializer = new GroupingStateSerializer();
-            this.hll = new HyperLogLogPlusPlus(PRECISION, bigArrays, 1);
+            int precision = DEFAULT_PRECISION;
+            if (parameters != null && parameters.length > 0 && parameters[0] instanceof Number i) {
+                precision = HyperLogLogPlusPlus.precisionFromThreshold(i.longValue());
+            }
+            this.hll = new HyperLogLogPlusPlus(precision, bigArrays, 1);
         }
 
         void collect(int groupId, long v) {
@@ -262,18 +267,20 @@ final class HllStates {
             int positionCount = (int) intHandle.get(ba, offset);
             offset += Integer.BYTES;
             ByteArrayStreamInput in = new ByteArrayStreamInput();
+            AbstractHyperLogLogPlusPlus hll = null;
             try {
                 for (int i = 0; i < positionCount; i++) {
                     int len = (int) intHandle.get(ba, offset);
                     offset += Integer.BYTES;
                     in.reset(ba, offset, len);
                     offset += len;
-                    AbstractHyperLogLogPlusPlus hll = HyperLogLogPlusPlus.readFrom(in, BigArrays.NON_RECYCLING_INSTANCE);
+                    hll = HyperLogLogPlusPlus.readFrom(in, BigArrays.NON_RECYCLING_INSTANCE);
                     state.merge(i, hll, 0);
-                    hll.close();
                 }
             } catch (IOException e) {
                 throw new RuntimeException(e);
+            } finally {
+                Releasables.close(hll);
             }
         }
     }

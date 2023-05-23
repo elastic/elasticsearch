@@ -4,9 +4,11 @@
 // 2.0.
 package org.elasticsearch.compute.aggregation;
 
+import java.lang.Object;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.AggregatorStateVector;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
@@ -25,14 +27,18 @@ public final class CountDistinctBooleanAggregatorFunction implements AggregatorF
 
   private final int channel;
 
+  private final Object[] parameters;
+
   public CountDistinctBooleanAggregatorFunction(int channel,
-      CountDistinctBooleanAggregator.SingleState state) {
+      CountDistinctBooleanAggregator.SingleState state, Object[] parameters) {
     this.channel = channel;
     this.state = state;
+    this.parameters = parameters;
   }
 
-  public static CountDistinctBooleanAggregatorFunction create(int channel) {
-    return new CountDistinctBooleanAggregatorFunction(channel, CountDistinctBooleanAggregator.initSingle());
+  public static CountDistinctBooleanAggregatorFunction create(BigArrays bigArrays, int channel,
+      Object[] parameters) {
+    return new CountDistinctBooleanAggregatorFunction(channel, CountDistinctBooleanAggregator.initSingle(), parameters);
   }
 
   @Override
@@ -78,11 +84,14 @@ public final class CountDistinctBooleanAggregatorFunction implements AggregatorF
       throw new RuntimeException("expected AggregatorStateBlock, got:" + block);
     }
     @SuppressWarnings("unchecked") AggregatorStateVector<CountDistinctBooleanAggregator.SingleState> blobVector = (AggregatorStateVector<CountDistinctBooleanAggregator.SingleState>) vector;
-    CountDistinctBooleanAggregator.SingleState tmpState = new CountDistinctBooleanAggregator.SingleState();
+    // TODO exchange big arrays directly without funny serialization - no more copying
+    BigArrays bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
+    CountDistinctBooleanAggregator.SingleState tmpState = CountDistinctBooleanAggregator.initSingle();
     for (int i = 0; i < block.getPositionCount(); i++) {
       blobVector.get(i, tmpState);
       CountDistinctBooleanAggregator.combineStates(state, tmpState);
     }
+    tmpState.close();
   }
 
   @Override
@@ -105,5 +114,10 @@ public final class CountDistinctBooleanAggregatorFunction implements AggregatorF
     sb.append("channel=").append(channel);
     sb.append("]");
     return sb.toString();
+  }
+
+  @Override
+  public void close() {
+    state.close();
   }
 }

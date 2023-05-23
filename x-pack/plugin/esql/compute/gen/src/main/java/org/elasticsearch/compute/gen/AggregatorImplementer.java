@@ -18,17 +18,22 @@ import com.squareup.javapoet.TypeSpec;
 import org.elasticsearch.compute.ann.Aggregator;
 
 import java.util.Locale;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.Modifier;
 import javax.lang.model.element.TypeElement;
+import javax.lang.model.element.VariableElement;
 import javax.lang.model.util.Elements;
 
 import static org.elasticsearch.compute.gen.Methods.findMethod;
+import static org.elasticsearch.compute.gen.Methods.findMethodArguments;
 import static org.elasticsearch.compute.gen.Methods.findRequiredMethod;
 import static org.elasticsearch.compute.gen.Types.AGGREGATOR_FUNCTION;
 import static org.elasticsearch.compute.gen.Types.AGGREGATOR_STATE_VECTOR;
 import static org.elasticsearch.compute.gen.Types.AGGREGATOR_STATE_VECTOR_BUILDER;
+import static org.elasticsearch.compute.gen.Types.BIG_ARRAYS;
 import static org.elasticsearch.compute.gen.Types.BLOCK;
 import static org.elasticsearch.compute.gen.Types.BOOLEAN_BLOCK;
 import static org.elasticsearch.compute.gen.Types.BOOLEAN_VECTOR;
@@ -156,6 +161,7 @@ public class AggregatorImplementer {
         builder.addSuperinterface(AGGREGATOR_FUNCTION);
         builder.addField(stateType, "state", Modifier.PRIVATE, Modifier.FINAL);
         builder.addField(TypeName.INT, "channel", Modifier.PRIVATE, Modifier.FINAL);
+        builder.addField(Object[].class, "parameters", Modifier.PRIVATE, Modifier.FINAL);
 
         builder.addMethod(create());
         builder.addMethod(ctor());
@@ -166,22 +172,33 @@ public class AggregatorImplementer {
         builder.addMethod(evaluateIntermediate());
         builder.addMethod(evaluateFinal());
         builder.addMethod(toStringMethod());
+        builder.addMethod(close());
         return builder.build();
     }
 
     private MethodSpec create() {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("create");
-        builder.addModifiers(Modifier.PUBLIC, Modifier.STATIC).returns(implementation).addParameter(TypeName.INT, "channel");
-        builder.addStatement("return new $T(channel, $L)", implementation, callInit());
+        builder.addModifiers(Modifier.PUBLIC, Modifier.STATIC).returns(implementation);
+        builder.addParameter(BIG_ARRAYS, "bigArrays").addParameter(TypeName.INT, "channel").addParameter(Object[].class, "parameters");
+        builder.addStatement("return new $T(channel, $L, parameters)", implementation, callInit());
         return builder.build();
     }
 
     private CodeBlock callInit() {
+        VariableElement[] initArgs = findMethodArguments(
+            init,
+            t -> BIG_ARRAYS.equals(TypeName.get(t.asType())) || TypeName.get(Object[].class).equals(TypeName.get(t.asType()))
+        );
+        assert initArgs.length <= 2 : "Method " + init + " cannot have more than 2 arguments";
+        String args = Stream.of(initArgs)
+            .map(t -> BIG_ARRAYS.equals(TypeName.get(t.asType())) ? "bigArrays" : "parameters")
+            .collect(Collectors.joining(", "));
+
         CodeBlock.Builder builder = CodeBlock.builder();
         if (init.getReturnType().toString().equals(stateType.toString())) {
-            builder.add("$T.$L()", declarationType, init.getSimpleName());
+            builder.add("$T.$L($L)", declarationType, init.getSimpleName(), args);
         } else {
-            builder.add("new $T($T.$L())", stateType, declarationType, init.getSimpleName());
+            builder.add("new $T($T.$L($L))", stateType, declarationType, init.getSimpleName(), args);
         }
         return builder.build();
     }
@@ -190,8 +207,10 @@ public class AggregatorImplementer {
         MethodSpec.Builder builder = MethodSpec.constructorBuilder().addModifiers(Modifier.PUBLIC);
         builder.addParameter(TypeName.INT, "channel");
         builder.addParameter(stateType, "state");
+        builder.addParameter(Object[].class, "parameters");
         builder.addStatement("this.channel = channel");
         builder.addStatement("this.state = state");
+        builder.addStatement("this.parameters = parameters");
         return builder.build();
     }
 
@@ -287,13 +306,16 @@ public class AggregatorImplementer {
             builder.endControlFlow();
         }
         builder.addStatement("@SuppressWarnings($S) $T blobVector = ($T) vector", "unchecked", stateBlockType(), stateBlockType());
-        builder.addStatement("$T tmpState = new $T()", stateType, stateType);
+        builder.addComment("TODO exchange big arrays directly without funny serialization - no more copying");
+        builder.addStatement("$T bigArrays = $T.NON_RECYCLING_INSTANCE", BIG_ARRAYS, BIG_ARRAYS);
+        builder.addStatement("$T tmpState = $L", stateType, callInit());
         builder.beginControlFlow("for (int i = 0; i < block.getPositionCount(); i++)");
         {
             builder.addStatement("blobVector.get(i, tmpState)");
             combineStates(builder);
             builder.endControlFlow();
         }
+        builder.addStatement("tmpState.close()");
         return builder.build();
     }
 
@@ -375,6 +397,13 @@ public class AggregatorImplementer {
         builder.addStatement("sb.append($S).append(channel)", "channel=");
         builder.addStatement("sb.append($S)", "]");
         builder.addStatement("return sb.toString()");
+        return builder.build();
+    }
+
+    private MethodSpec close() {
+        MethodSpec.Builder builder = MethodSpec.methodBuilder("close");
+        builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
+        builder.addStatement("state.close()");
         return builder.build();
     }
 

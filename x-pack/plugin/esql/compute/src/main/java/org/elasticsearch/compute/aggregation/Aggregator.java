@@ -7,33 +7,57 @@
 
 package org.elasticsearch.compute.aggregation;
 
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.core.Releasable;
 
 import java.util.function.Supplier;
 
 @Experimental
-public class Aggregator {
+public class Aggregator implements Releasable {
+
+    public static final Object[] EMPTY_PARAMS = new Object[] {};
+
     private final AggregatorFunction aggregatorFunction;
 
     private final AggregatorMode mode;
 
     private final int intermediateChannel;
 
-    public record AggregatorFactory(AggregationName aggName, AggregationType aggType, AggregatorMode mode, int inputChannel)
-        implements
-            Supplier<Aggregator>,
-            Describable {
+    public record AggregatorFactory(
+        BigArrays bigArrays,
+        AggregationName aggName,
+        AggregationType aggType,
+        Object[] parameters,
+        AggregatorMode mode,
+        int inputChannel
+    ) implements Supplier<Aggregator>, Describable {
 
-        public AggregatorFactory(AggregatorFunction.Factory aggFunctionFactory, AggregatorMode mode, int inputChannel) {
-            this(aggFunctionFactory.name(), aggFunctionFactory.type(), mode, inputChannel);
+        public AggregatorFactory(
+            BigArrays bigArrays,
+            AggregatorFunction.Factory aggFunctionFactory,
+            Object[] parameters,
+            AggregatorMode mode,
+            int inputChannel
+        ) {
+            this(bigArrays, aggFunctionFactory.name(), aggFunctionFactory.type(), parameters, mode, inputChannel);
+        }
+
+        public AggregatorFactory(
+            BigArrays bigArrays,
+            AggregatorFunction.Factory aggFunctionFactory,
+            AggregatorMode mode,
+            int inputChannel
+        ) {
+            this(bigArrays, aggFunctionFactory, EMPTY_PARAMS, mode, inputChannel);
         }
 
         @Override
         public Aggregator get() {
-            return new Aggregator(AggregatorFunction.of(aggName, aggType), mode, inputChannel);
+            return new Aggregator(bigArrays, AggregatorFunction.of(aggName, aggType), parameters, mode, inputChannel);
         }
 
         @Override
@@ -42,10 +66,10 @@ public class Aggregator {
         }
     }
 
-    public Aggregator(AggregatorFunction.Factory factory, AggregatorMode mode, int inputChannel) {
+    public Aggregator(BigArrays bigArrays, AggregatorFunction.Factory factory, Object[] parameters, AggregatorMode mode, int inputChannel) {
         assert mode.isInputPartial() || inputChannel >= 0;
         // input channel is used both to signal the creation of the page (when the input is not partial)
-        this.aggregatorFunction = factory.build(mode.isInputPartial() ? -1 : inputChannel);
+        this.aggregatorFunction = factory.build(bigArrays, mode.isInputPartial() ? -1 : inputChannel, parameters);
         // and to indicate the page during the intermediate phase
         this.intermediateChannel = mode.isInputPartial() ? inputChannel : -1;
         this.mode = mode;
@@ -75,5 +99,10 @@ public class Aggregator {
         sb.append("mode=").append(mode);
         sb.append("]");
         return sb.toString();
+    }
+
+    @Override
+    public void close() {
+        aggregatorFunction.close();
     }
 }

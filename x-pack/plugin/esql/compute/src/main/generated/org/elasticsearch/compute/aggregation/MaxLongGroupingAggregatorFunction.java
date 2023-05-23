@@ -4,6 +4,7 @@
 // 2.0.
 package org.elasticsearch.compute.aggregation;
 
+import java.lang.Object;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
@@ -25,13 +26,17 @@ public final class MaxLongGroupingAggregatorFunction implements GroupingAggregat
 
   private final int channel;
 
-  public MaxLongGroupingAggregatorFunction(int channel, LongArrayState state) {
+  private final Object[] parameters;
+
+  public MaxLongGroupingAggregatorFunction(int channel, LongArrayState state, Object[] parameters) {
     this.channel = channel;
     this.state = state;
+    this.parameters = parameters;
   }
 
-  public static MaxLongGroupingAggregatorFunction create(BigArrays bigArrays, int channel) {
-    return new MaxLongGroupingAggregatorFunction(channel, new LongArrayState(bigArrays, MaxLongAggregator.init()));
+  public static MaxLongGroupingAggregatorFunction create(BigArrays bigArrays, int channel,
+      Object[] parameters) {
+    return new MaxLongGroupingAggregatorFunction(channel, new LongArrayState(bigArrays, MaxLongAggregator.init()), parameters);
   }
 
   @Override
@@ -132,6 +137,7 @@ public final class MaxLongGroupingAggregatorFunction implements GroupingAggregat
       int groupId = Math.toIntExact(groupIdVector.getLong(position));
       state.set(MaxLongAggregator.combine(state.getOrDefault(groupId), inState.get(position)), groupId);
     }
+    inState.close();
   }
 
   @Override

@@ -25,13 +25,20 @@ public final class CountDistinctBytesRefGroupingAggregatorFunction implements Gr
 
     private final int channel;
 
-    public CountDistinctBytesRefGroupingAggregatorFunction(int channel, HllStates.GroupingState state) {
+    private final Object[] parameters;
+
+    public CountDistinctBytesRefGroupingAggregatorFunction(int channel, HllStates.GroupingState state, Object[] parameters) {
         this.channel = channel;
         this.state = state;
+        this.parameters = parameters;
     }
 
-    public static CountDistinctBytesRefGroupingAggregatorFunction create(BigArrays bigArrays, int channel) {
-        return new CountDistinctBytesRefGroupingAggregatorFunction(channel, CountDistinctBytesRefAggregator.initGrouping(bigArrays));
+    public static CountDistinctBytesRefGroupingAggregatorFunction create(BigArrays bigArrays, int channel, Object[] parameters) {
+        return new CountDistinctBytesRefGroupingAggregatorFunction(
+            channel,
+            CountDistinctBytesRefAggregator.initGrouping(bigArrays, parameters),
+            parameters
+        );
     }
 
     @Override
@@ -106,7 +113,7 @@ public final class CountDistinctBytesRefGroupingAggregatorFunction implements Gr
         AggregatorStateVector<HllStates.GroupingState> blobVector = (AggregatorStateVector<HllStates.GroupingState>) vector;
         // TODO exchange big arrays directly without funny serialization - no more copying
         BigArrays bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
-        HllStates.GroupingState inState = CountDistinctBytesRefAggregator.initGrouping(bigArrays);
+        HllStates.GroupingState inState = CountDistinctBytesRefAggregator.initGrouping(bigArrays, parameters);
         blobVector.get(0, inState);
         for (int position = 0; position < groupIdVector.getPositionCount(); position++) {
             int groupId = Math.toIntExact(groupIdVector.getLong(position));

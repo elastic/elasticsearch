@@ -24,9 +24,9 @@ import java.util.Objects;
 
 public class SynonymRule implements Writeable, ToXContentObject {
 
-    public static final ParseField SYNONYM_FIELD = new ParseField("synonym");
+    public static final ParseField SYNONYMS_FIELD = new ParseField("synonyms");
     public static final ParseField ID_FIELD = new ParseField("id");
-    public static final String SYNONYM_SET_FIELD = "synonym_set";
+    public static final String SYNONYMS_SET_FIELD = "synonyms_set";
     private static final ConstructingObjectParser<SynonymRule, Void> PARSER = new ConstructingObjectParser<>("synonym_rule", args -> {
         @SuppressWarnings("unchecked")
         final String id = (String) args[0];
@@ -36,7 +36,7 @@ public class SynonymRule implements Writeable, ToXContentObject {
 
     static {
         PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), ID_FIELD);
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), SYNONYM_FIELD);
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), SYNONYMS_FIELD);
     }
 
     private final String synonym;
@@ -67,7 +67,7 @@ public class SynonymRule implements Writeable, ToXContentObject {
             if (id != null) {
                 builder.field(ID_FIELD.getPreferredName(), id);
             }
-            builder.field(SYNONYM_FIELD.getPreferredName(), synonym);
+            builder.field(SYNONYMS_FIELD.getPreferredName(), synonym);
         }
         builder.endObject();
 
@@ -77,8 +77,8 @@ public class SynonymRule implements Writeable, ToXContentObject {
     public XContentBuilder toXContentForIndex(XContentBuilder builder, String synonymSetName) throws IOException {
         builder.startObject();
         {
-            builder.field(SYNONYM_SET_FIELD, synonymSetName);
-            builder.field(SYNONYM_FIELD.getPreferredName(), synonym);
+            builder.field(SYNONYMS_SET_FIELD, synonymSetName);
+            builder.field(SYNONYMS_FIELD.getPreferredName(), synonym);
         }
 
         return builder;

@@ -24,15 +24,15 @@ import java.util.Objects;
 
 public class SynonymSet implements Writeable, ToXContentObject {
 
-    public static final ParseField SYNONYMS_FIELD = new ParseField("synonyms");
-    private static final ConstructingObjectParser<SynonymSet, Void> PARSER = new ConstructingObjectParser<>("synonyms", args -> {
+    public static final ParseField SYNONYMS_SET_FIELD = new ParseField("synonyms_set");
+    private static final ConstructingObjectParser<SynonymSet, Void> PARSER = new ConstructingObjectParser<>("synonyms_set", args -> {
         @SuppressWarnings("unchecked")
         final List<SynonymRule> synonyms = (List<SynonymRule>) args[0];
         return new SynonymSet(synonyms.toArray(new SynonymRule[0]));
     });
 
     static {
-        PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> SynonymRule.fromXContent(p), SYNONYMS_FIELD);
+        PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> SynonymRule.fromXContent(p), SYNONYMS_SET_FIELD);
     }
 
     private final SynonymRule[] synonyms;
@@ -58,7 +58,7 @@ public class SynonymSet implements Writeable, ToXContentObject {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         {
-            builder.array(SYNONYMS_FIELD.getPreferredName(), (Object[]) synonyms);
+            builder.array(SYNONYMS_SET_FIELD.getPreferredName(), (Object[]) synonyms);
         }
         builder.endObject();
 

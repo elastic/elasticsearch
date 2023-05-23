@@ -18,12 +18,12 @@
     "url": {
       "paths": [
         {
-          "path": "/_synonyms/{synonym_set}",
+          "path": "/_synonyms/{synonyms_set}",
           "methods": [
             "PUT"
           ],
           "parts": {
-            "synonym_set": {
+            "synonyms_set": {
               "type": "string",
               "description": "The name of the synonym set to be created or updated"
             }

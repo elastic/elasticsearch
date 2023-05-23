@@ -16,7 +16,7 @@ import org.elasticsearch.xpack.security.SecurityOnTrialLicenseRestTestCase;
 
 import java.io.IOException;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.containsString;
 
 public class RoleWithWorkflowsRestrictionRestIT extends SecurityOnTrialLicenseRestTestCase {
 

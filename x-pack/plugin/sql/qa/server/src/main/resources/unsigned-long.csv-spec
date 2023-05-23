@@ -348,7 +348,7 @@ SELECT languages, PERCENTILE(salary_ul, 95) AS "95th" FROM test_emp_copy GROUP B
 
    languages:bt|      95th:d
 ---------------+-----------------
-null           |74482.4
+null           |74720.036
 1              |71122.8
 2              |70271.4
 3              |71926.0 

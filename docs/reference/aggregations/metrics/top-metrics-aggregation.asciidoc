@@ -157,7 +157,7 @@ PUT /my-index
   "mappings": {
     "properties": {
       "nr":    { "type": "integer" },  
-      "state":  { "type": "keyword"  }
+      "state":  { "type": "keyword"  } <1>
     }
   }
 }
@@ -169,15 +169,15 @@ POST /my-index/_bulk?refresh
 {"index": {}}
 {"nr": 3, "state": "N/A"}
 {"index": {}}
-{"nr": 4}
-POST /my-index/_search
+{"nr": 4} <2>
+POST /my-index/_search?filter_path=aggregations
 {
   "aggs": {
     "my_top_metrics": {
       "top_metrics": {
         "metrics": {
           "field": "state",
-          "missing": "N/A"},
+          "missing": "N/A"}, <3>
         "sort": {"nr": "desc"}
       }
     }
@@ -185,11 +185,11 @@ POST /my-index/_search
 }
 ----
 
-// <1> If you want to use an aggregation on textual content, it must be a `keyword`
-// type field or you must enable fielddata on that field.
-// <2> This document has a missing `state` field value.
-// <3> The `missing` parameter defines that if `state` field has a missing value, 
-// it should be treated as if it had the `N/A` value. 
+<1> If you want to use an aggregation on textual content, it must be a `keyword`
+type field or you must enable fielddata on that field.
+<2> This document has a missing `state` field value.
+<3> The `missing` parameter defines that if `state` field has a missing value, 
+it should be treated as if it had the `N/A` value. 
 
 The request results in the following response:
 

@@ -41,8 +41,8 @@ public class DataLifecycleTests extends AbstractXContentSerializingTestCase<Data
     @Override
     protected DataLifecycle createTestInstance() {
         return switch (randomInt(2)) {
-            case 0 -> new DataLifecycle();
-            case 1 -> new DataLifecycle.Builder().dataRetention(new DataLifecycle.Retention(null)).build();
+            case 0 -> DataLifecycle.IMPLICIT_INFINITE_RETENTION;
+            case 1 -> DataLifecycle.EXPLICIT_INFINITE_RETENTION;
             default -> new DataLifecycle(randomMillisUpToYear9999());
         };
     }

@@ -1512,10 +1512,10 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         state = addComponentTemplate(service, state, ctNullRetention, lifecycleNullRetention);
 
         String ctEmptyLifecycle = "ct_empty_lifecycle";
-        state = addComponentTemplate(service, state, ctEmptyLifecycle, DataLifecycle.EMPTY);
+        state = addComponentTemplate(service, state, ctEmptyLifecycle, DataLifecycle.IMPLICIT_INFINITE_RETENTION);
 
         String ctNullLifecycle = "ct_null_lifecycle";
-        state = addComponentTemplate(service, state, ctNullLifecycle, DataLifecycle.NULL);
+        state = addComponentTemplate(service, state, ctNullLifecycle, DataLifecycle.NO_LIFECYCLE);
 
         String ctNoLifecycle = "ct_no_lifecycle";
         state = addComponentTemplate(service, state, ctNoLifecycle, null);
@@ -1524,7 +1524,13 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         // Component B: "lifecycle": {}
         // Composable Z: -
         // Result: "lifecycle": {}
-        assertLifecycleResolution(service, state, List.of(ctNoLifecycle, ctEmptyLifecycle), null, DataLifecycle.EMPTY);
+        assertLifecycleResolution(
+            service,
+            state,
+            List.of(ctNoLifecycle, ctEmptyLifecycle),
+            null,
+            DataLifecycle.IMPLICIT_INFINITE_RETENTION
+        );
 
         // Component A: "lifecycle": {}
         // Component B: "lifecycle": {"retention": "30d"}
@@ -1560,7 +1566,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         // Component B: "lifecycle": {"retention": "45d"}
         // Composable Z: "lifecycle": null
         // Result: null aka unmanaged
-        assertLifecycleResolution(service, state, List.of(ct30d, ct45d), DataLifecycle.NULL, null);
+        assertLifecycleResolution(service, state, List.of(ct30d, ct45d), DataLifecycle.NO_LIFECYCLE, null);
 
         // Component A: "lifecycle": {"retention": "30d"}
         // Component B: "lifecycle": null

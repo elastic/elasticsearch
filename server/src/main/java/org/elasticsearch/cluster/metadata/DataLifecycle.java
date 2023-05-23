@@ -45,10 +45,13 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
 
     private static final FeatureFlag DLM_FEATURE_FLAG = new FeatureFlag("dlm");
 
-    public static final DataLifecycle EMPTY = new DataLifecycle();
-    // This represents when the data lifecycle was explicitly set to be null.
-    // This value takes effect only if it is defined in the index template during the resolution of the lifecycle templates
-    public static final DataLifecycle NULL = new DataLifecycle(null, true);
+    // This represents a lifecycle with infinite retention that will overwrite other retention periods during composition
+    public static final DataLifecycle EXPLICIT_INFINITE_RETENTION = new DataLifecycle(Retention.NULL, false);
+    // This represents a lifecycle with infinite retention that will inherit other retention periods during composition
+    public static final DataLifecycle IMPLICIT_INFINITE_RETENTION = new DataLifecycle(null, false);
+    // This represents when the data lifecycle was explicitly set to be null, meaning the user wants to remove the
+    // lifecycle.
+    public static final DataLifecycle NO_LIFECYCLE = new DataLifecycle(null, true);
     public static final String DLM_ORIGIN = "data_lifecycle";
 
     public static final ParseField DATA_RETENTION_FIELD = new ParseField("data_retention");

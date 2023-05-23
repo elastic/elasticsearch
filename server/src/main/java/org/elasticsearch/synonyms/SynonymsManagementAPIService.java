@@ -39,8 +39,8 @@ public class SynonymsManagementAPIService {
     public static final String SYNONYMS_INDEX = ".synonyms";
 
     public static final String SYNONYMS_FEATURE_NAME = "synonyms";
-    public static final String SYNONYM_SET_FIELD = "synonym_set";
-    public static final String SYNONYM_FIELD = "synonym";
+    public static final String SYNONYMS_SET_FIELD = "synonyms_set";
+    public static final String SYNONYMS_FIELD = "synonyms";
 
     private final Client client;
 
@@ -73,12 +73,12 @@ public class SynonymsManagementAPIService {
                     builder.field("dynamic", "strict");
                     builder.startObject("properties");
                     {
-                        builder.startObject("synonym");
+                        builder.startObject("synonyms");
                         {
                             builder.field("type", "text");
                         }
                         builder.endObject();
-                        builder.startObject(SYNONYM_SET_FIELD);
+                        builder.startObject(SYNONYMS_SET_FIELD);
                         {
                             builder.field("type", "keyword");
                         }
@@ -101,7 +101,7 @@ public class SynonymsManagementAPIService {
 
         // Delete synonym set if it existed previously
         DeleteByQueryRequest dbqRequest = new DeleteByQueryRequest(SYNONYMS_INDEX).setQuery(
-            QueryBuilders.termQuery(SYNONYM_SET_FIELD, resourceName)
+            QueryBuilders.termQuery(SYNONYMS_SET_FIELD, resourceName)
         ).setIndicesOptions(IndicesOptions.fromOptions(true, true, false, false));
 
         client.execute(
@@ -118,8 +118,8 @@ public class SynonymsManagementAPIService {
                         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
                             builder.startObject();
                             {
-                                builder.field(SYNONYM_FIELD, synonymRule.synonym());
-                                builder.field(SYNONYM_SET_FIELD, resourceName);
+                                builder.field(SYNONYMS_FIELD, synonymRule.synonym());
+                                builder.field(SYNONYMS_SET_FIELD, resourceName);
                             }
                             builder.endObject();
 

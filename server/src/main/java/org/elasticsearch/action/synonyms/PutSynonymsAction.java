@@ -77,7 +77,7 @@ public class PutSynonymsAction extends ActionType<PutSynonymsAction.Response> {
             synonymSet.writeTo(out);
         }
 
-        public String name() {
+        public String synonymsSetId() {
             return synonymSetId;
         }
 

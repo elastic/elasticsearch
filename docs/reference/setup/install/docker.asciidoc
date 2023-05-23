@@ -43,6 +43,7 @@ docker pull {docker-repo}:{version}
 
 endif::[]
 
+[[docker-verify-signature]]
 ==== Optional: Verify the {es} Docker image signature
 
 Although it's optional, we highly recommend verifying the signatures included with your downloaded Docker images to ensure that the images are valid.
@@ -77,14 +78,11 @@ The command prints the check results and the signature payload in JSON format:
 
 [source,console]
 --------------------------------------------
-
 Verification for {docker-repo}:{version} --
 The following checks were performed on each of these signatures:
   - The cosign claims were validated
   - Existence of the claims in the transparency log was verified offline
   - The signatures were verified against the specified public key
-
-{"critical":{"identity":{"docker-reference":"..."},"image":{"docker-manifest-digest":"..."},"type":"cosign container image signature"},"optional":"..."}
 --------------------------------------------
 
 endif::[]

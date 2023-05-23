@@ -1,0 +1,84 @@
+---
+setup:
+  - skip:
+      version: " - 8.8.99"
+      reason: "/_info/ingest only available from v8.9"
+
+---
+teardown:
+  - do:
+      ingest.delete_pipeline:
+        id: "dummy_pipeline"
+        ignore: 404
+
+  - do:
+      indices.delete:
+        index: "dummy_index"
+        ignore_unavailable: true
+
+---
+"Cluster ingest info with no pipelines":
+  - do:
+      cluster.info:
+        target: [ ingest ]
+
+  - is_true: cluster_name
+  - match: { ingest.total: { count: 0, time_in_millis: 0, current: 0, failed: 0 } }
+  - match: { ingest.pipelines: {} }
+
+---
+"Cluster ingest information":
+  - do:
+      ingest.put_pipeline:
+        id: "dummy_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "set" : {
+                  "field": "pipeline",
+                  "value": "pipeline"
+                }
+              }
+            ]
+          }
+
+  - do:
+      bulk:
+        refresh: true
+        index: dummy_index
+        body:
+          - '{"create": {"pipeline" : "dummy_pipeline"}}'
+          - '{"some-field": "some-value"}'
+          - '{"create": {"pipeline" : "dummy_pipeline"}}'
+          - '{"some-field": "another-value"}'
+
+  - do:
+      cluster.info:
+        target: [ ingest ]
+
+  - is_true: cluster_name
+
+  # Summary ingest section
+  - is_true: ingest.total
+  - gte: { ingest.total.count: 2 }
+  - gte: { ingest.total.time_in_millis: 0 }
+  - match: { ingest.total.current: 0 }
+  - match: { ingest.total.failed: 0 }
+
+  # Pipelines section
+  - is_true: ingest.pipelines.dummy_pipeline
+  - gte: { ingest.pipelines.dummy_pipeline.count: 2 }
+  - gte: { ingest.pipelines.dummy_pipeline.time_in_millis: 0 }
+  - match: { ingest.pipelines.dummy_pipeline.current: 0 }
+  - match: { ingest.pipelines.dummy_pipeline.failed: 0 }
+
+  # Processors section
+  - is_true: ingest.pipelines.dummy_pipeline.processors.0.set
+  - match: { ingest.pipelines.dummy_pipeline.processors.0.set.type: "set" }
+  - is_true: ingest.pipelines.dummy_pipeline.processors.0.set.stats
+  - gte: { ingest.pipelines.dummy_pipeline.processors.0.set.stats.count: 2 }
+  - gte: { ingest.pipelines.dummy_pipeline.processors.0.set.stats.time_in_millis: 0 }
+  - match: { ingest.pipelines.dummy_pipeline.processors.0.set.stats.current: 0 }
+  - match: { ingest.pipelines.dummy_pipeline.processors.0.set.stats.failed: 0 }

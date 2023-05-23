@@ -38,6 +38,7 @@ import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
+import org.junit.After;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -58,7 +59,7 @@ import static org.hamcrest.Matchers.startsWith;
  * This test suite ensures that DLM runtime tasks work correctly with security enabled, i.e., that the internal user for DLM has all
  * requisite privileges to orchestrate DLM
  */
-public class DataLifecycleRuntimeSecurityIT extends SecurityIntegTestCase {
+public class DataLifecycleServiceRuntimeSecurityIT extends SecurityIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -73,7 +74,13 @@ public class DataLifecycleRuntimeSecurityIT extends SecurityIntegTestCase {
         return settings.build();
     }
 
-    public void testRolloverLifecycleAuthorized() throws Exception {
+    @After
+    public void cleanup() {
+        // we change SETTING_CLUSTER_MAX_SHARDS_PER_NODE in a test so let's make sure we clean it up even when the test fails
+        updateClusterSettings(Settings.builder().putNull("*"));
+    }
+
+    public void testRolloverLifecycleAndForceMergeAuthorized() throws Exception {
         String dataStreamName = "metrics-foo";
         // empty lifecycle contains the default rollover
         prepareDataStreamAndIndex(dataStreamName, new DataLifecycle());
@@ -87,6 +94,15 @@ public class DataLifecycleRuntimeSecurityIT extends SecurityIntegTestCase {
             assertThat(writeIndex, backingIndexEqualTo(dataStreamName, 2));
             assertNoErrors();
         });
+
+        // Index another docs to force another rollover and trigger an attempted force-merge. The force-merge may be a noop under
+        // the hood but for authz purposes this doesn't matter, it only matters that the force-merge API was called
+        indexDocs(dataStreamName, 1);
+        assertBusy(() -> {
+            List<Index> backingIndices = getDataStreamBackingIndices(dataStreamName);
+            assertThat(backingIndices.size(), equalTo(3));
+            assertNoErrors();
+        });
     }
 
     public void testRolloverAndRetentionAuthorized() throws Exception {
@@ -94,13 +110,13 @@ public class DataLifecycleRuntimeSecurityIT extends SecurityIntegTestCase {
         prepareDataStreamAndIndex(dataStreamName, new DataLifecycle(TimeValue.timeValueMillis(0)));
 
         assertBusy(() -> {
-            assertNoErrors();
             List<Index> backingIndices = getDataStreamBackingIndices(dataStreamName);
             assertThat(backingIndices.size(), equalTo(1));
             // we expect the data stream to have only one backing index, the write one, with generation 2
             // as generation 1 would've been deleted by DLM given the lifecycle configuration
             String writeIndex = backingIndices.get(0).getName();
             assertThat(writeIndex, backingIndexEqualTo(dataStreamName, 2));
+            assertNoErrors();
         });
     }
 
@@ -109,17 +125,15 @@ public class DataLifecycleRuntimeSecurityIT extends SecurityIntegTestCase {
         indexDocs(dataStreamName, 1);
 
         assertBusy(() -> {
-            assertNoErrors();
             List<Index> backingIndices = getDataStreamBackingIndices(dataStreamName);
             assertThat(backingIndices.size(), equalTo(1));
             // we expect the data stream to have only one backing index, the write one, with generation 2
             // as generation 1 would've been deleted by DLM given the lifecycle configuration
             String writeIndex = backingIndices.get(0).getName();
             assertThat(writeIndex, backingIndexEqualTo(dataStreamName, 2));
+            assertNoErrors();
         });
     }
-
-    // TODO cover force-merge once https://github.com/elastic/elasticsearch/pull/96226 is merged
 
     private void prepareDataStreamAndIndex(String dataStreamName, DataLifecycle lifecycle) throws IOException, InterruptedException,
         ExecutionException {

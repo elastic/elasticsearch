@@ -31,8 +31,11 @@ public final class ValueSources {
 
         for (SearchContext searchContext : searchContexts) {
             SearchExecutionContext ctx = searchContext.getSearchExecutionContext();
-            // TODO: should the missing fields be skipped if there's no mapping?
             var fieldType = ctx.getFieldType(fieldName);
+            if (fieldType == null && searchContexts.size() > 1) {
+                sources.add(new ValueSourceInfo(new NullValueSourceType(), new NullValueSource(), elementType, ctx.getIndexReader()));
+                continue; // the field does not exist in this context
+            }
             IndexFieldData<?> fieldData;
             try {
                 fieldData = ctx.getForField(fieldType, MappedFieldType.FielddataOperation.SEARCH);

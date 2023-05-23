@@ -48,7 +48,7 @@ public class EsQueryExec extends LeafExec {
             FieldSortBuilder builder = new FieldSortBuilder(field.name());
             builder.order(Sort.Direction.from(direction).asOrder());
             builder.missing(Sort.Missing.from(nulls).searchOrder());
-
+            builder.unmappedType(field.dataType().esType());
             return builder;
         }
     }

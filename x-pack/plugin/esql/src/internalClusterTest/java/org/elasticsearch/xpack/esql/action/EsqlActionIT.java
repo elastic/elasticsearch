@@ -27,6 +27,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.esql.analysis.VerificationException;
 import org.junit.Assert;
 import org.junit.Before;
 
@@ -819,6 +820,40 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         assertEquals(1, results.values().size());
         assertEquals(5L, results.values().get(0).get(0));
         assertEquals(40000L, results.values().get(0).get(1));
+    }
+
+    public void testOverlappingIndexPatterns() throws Exception {
+        String[] indexNames = { "test_overlapping_index_patterns_1", "test_overlapping_index_patterns_2" };
+
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("test_overlapping_index_patterns_1")
+                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5)))
+                .setMapping("field", "type=long")
+                .get()
+        );
+        ensureYellow("test_overlapping_index_patterns_1");
+        client().prepareBulk()
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .add(new IndexRequest("test_overlapping_index_patterns_1").id("1").source("field", 10))
+            .get();
+
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("test_overlapping_index_patterns_2")
+                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5)))
+                .setMapping("field", "type=keyword")
+                .get()
+        );
+        ensureYellow("test_overlapping_index_patterns_2");
+        client().prepareBulk()
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .add(new IndexRequest("test_overlapping_index_patterns_2").id("1").source("field", "foo"))
+            .get();
+
+        expectThrows(VerificationException.class, () -> run("from test_overlapping_index_patterns_* | sort field"));
     }
 
     public void testEmptyIndex() {

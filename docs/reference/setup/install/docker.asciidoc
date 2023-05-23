@@ -76,7 +76,7 @@ cosign verify --key cosign.pub {docker-repo}:{version} <2>
 
 The command prints the check results and the signature payload in JSON format:
 
-[source,console]
+[source,sh]
 --------------------------------------------
 Verification for docker.elastic.co/elasticsearch/elasticsearch:{version} --
 The following checks were performed on each of these signatures:

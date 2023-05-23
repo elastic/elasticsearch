@@ -16,11 +16,11 @@ import org.apache.lucene.search.Query;
  * as part of a series of multiple queries for features like ranking.
  * It's expected to typically be used as part of a {@link java.util.List}.
  */
-public class SearchQuery {
+public class SearchQueryWrapper {
 
     private final Query query;
 
-    public SearchQuery(Query query) {
+    public SearchQueryWrapper(Query query) {
         this.query = query;
     }
 

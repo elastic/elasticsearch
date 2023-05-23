@@ -14,7 +14,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.builder.SearchQueryBuilder;
+import org.elasticsearch.search.builder.SearchQueryWrapperBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.dfs.DfsKnnResults;
@@ -106,8 +106,8 @@ final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction
     private ShardSearchRequest rewriteShardSearchRequest(ShardSearchRequest request) {
         if (request.source() != null && request.source().queries().isEmpty() == false) {
             BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
-            for (SearchQueryBuilder searchQueryBuilder : request.source().queries()) {
-                boolQueryBuilder.should(searchQueryBuilder.getQueryBuilder());
+            for (SearchQueryWrapperBuilder searchQueryWrapperBuilder : request.source().queries()) {
+                boolQueryBuilder.should(searchQueryWrapperBuilder.getQueryBuilder());
             }
 
             SearchSourceBuilder searchSourceBuilder = request.source().shallowCopy();

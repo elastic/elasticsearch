@@ -44,7 +44,7 @@ import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchSortValuesAndFormats;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
-import org.elasticsearch.search.builder.SearchQueryBuilder;
+import org.elasticsearch.search.builder.SearchQueryWrapperBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.sort.FieldSortBuilder;
@@ -280,7 +280,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0) && in.getTransportVersion().before(TransportVersion.V_8_500_004)) {
             List<QueryBuilder> rankQueryBuilders = in.readNamedWriteableList(QueryBuilder.class);
             for (QueryBuilder queryBuilder : rankQueryBuilders) {
-                source.queries().add(new SearchQueryBuilder(queryBuilder));
+                source.queries().add(new SearchQueryWrapperBuilder(queryBuilder));
             }
         }
         if (in.getTransportVersion().before(TransportVersion.V_8_0_0)) {
@@ -357,8 +357,8 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
                 List<QueryBuilder> rankQueryBuilders = new ArrayList<>();
                 if (source != null) {
-                    for (SearchQueryBuilder searchQueryBuilder : source.queries()) {
-                        rankQueryBuilders.add(searchQueryBuilder.getQueryBuilder());
+                    for (SearchQueryWrapperBuilder searchQueryWrapperBuilder : source.queries()) {
+                        rankQueryBuilders.add(searchQueryWrapperBuilder.getQueryBuilder());
                     }
                 }
                 out.writeNamedWriteableList(rankQueryBuilders);

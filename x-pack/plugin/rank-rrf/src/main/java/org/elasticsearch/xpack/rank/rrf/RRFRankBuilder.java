@@ -11,7 +11,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.license.LicenseUtils;
-import org.elasticsearch.search.query.SearchQuery;
+import org.elasticsearch.search.query.SearchQueryWrapper;
 import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.rank.RankCoordinatorContext;
 import org.elasticsearch.search.rank.RankShardContext;
@@ -94,7 +94,7 @@ public class RRFRankBuilder extends RankBuilder {
     }
 
     @Override
-    public RankShardContext buildRankShardContext(List<SearchQuery> searchQueries, int from) {
+    public RankShardContext buildRankShardContext(List<SearchQueryWrapper> searchQueries, int from) {
         return new RRFRankShardContext(searchQueries, from, windowSize(), rankConstant);
     }
 

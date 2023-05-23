@@ -11,7 +11,7 @@ package org.elasticsearch.search.rank;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.search.query.SearchQuery;
+import org.elasticsearch.search.query.SearchQueryWrapper;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -72,7 +72,7 @@ public class TestRankBuilder extends RankBuilder {
     }
 
     @Override
-    public RankShardContext buildRankShardContext(List<SearchQuery> searchQueries, int from) {
+    public RankShardContext buildRankShardContext(List<SearchQueryWrapper> searchQueries, int from) {
         throw new UnsupportedOperationException();
     }
 

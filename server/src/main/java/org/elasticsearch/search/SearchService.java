@@ -75,7 +75,7 @@ import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.AggregationContext.ProductionAggregationContext;
-import org.elasticsearch.search.builder.SearchQueryBuilder;
+import org.elasticsearch.search.builder.SearchQueryWrapperBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseContext;
 import org.elasticsearch.search.dfs.DfsPhase;
@@ -103,7 +103,7 @@ import org.elasticsearch.search.query.QueryPhase;
 import org.elasticsearch.search.query.QuerySearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.ScrollQuerySearchResult;
-import org.elasticsearch.search.query.SearchQuery;
+import org.elasticsearch.search.query.SearchQueryWrapper;
 import org.elasticsearch.search.rescore.RescorerBuilder;
 import org.elasticsearch.search.searchafter.SearchAfterBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
@@ -1370,9 +1370,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
 
         if (source.rankBuilder() != null) {
-            List<SearchQuery> searchQueries = new ArrayList<>();
-            for (SearchQueryBuilder searchQueryBuilder : source.queries()) {
-                searchQueries.add(searchQueryBuilder.toSearchQuery(context.getSearchExecutionContext()));
+            List<SearchQueryWrapper> searchQueries = new ArrayList<>();
+            for (SearchQueryWrapperBuilder searchQueryWrapperBuilder : source.queries()) {
+                searchQueries.add(searchQueryWrapperBuilder.toSearchQuery(context.getSearchExecutionContext()));
             }
             context.rankShardContext(source.rankBuilder().buildRankShardContext(searchQueries, context.from()));
         }

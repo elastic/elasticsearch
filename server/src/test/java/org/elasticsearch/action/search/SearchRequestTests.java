@@ -21,7 +21,7 @@ import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.AbstractSearchTestCase;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
-import org.elasticsearch.search.builder.SearchQueryBuilder;
+import org.elasticsearch.search.builder.SearchQueryWrapperBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
@@ -231,8 +231,8 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             searchRequest.source()
                 .queries(
                     List.of(
-                        new SearchQueryBuilder(new TermQueryBuilder("three", "four")),
-                        new SearchQueryBuilder(new TermQueryBuilder("five", "six"))
+                        new SearchQueryWrapperBuilder(new TermQueryBuilder("three", "four")),
+                        new SearchQueryWrapperBuilder(new TermQueryBuilder("five", "six"))
                     )
                 );
             ActionRequestValidationException validationErrors = searchRequest.validate();

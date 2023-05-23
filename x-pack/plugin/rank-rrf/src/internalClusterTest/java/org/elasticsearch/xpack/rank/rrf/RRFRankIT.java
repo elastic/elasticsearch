@@ -15,7 +15,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
-import org.elasticsearch.search.builder.SearchQueryBuilder;
+import org.elasticsearch.search.builder.SearchQueryWrapperBuilder;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -553,7 +553,7 @@ public class RRFRankIT extends ESIntegTestCase {
                 .setTrackTotalHits(false)
                 .setQueries(
                     List.of(
-                        new SearchQueryBuilder(
+                        new SearchQueryWrapperBuilder(
                             QueryBuilders.boolQuery()
                                 .should(QueryBuilders.termQuery("text0", "500").boost(10.0f))
                                 .should(QueryBuilders.termQuery("text0", "499").boost(9.0f))
@@ -566,7 +566,7 @@ public class RRFRankIT extends ESIntegTestCase {
                                 .should(QueryBuilders.termQuery("text0", "491").boost(2.0f))
                                 .should(QueryBuilders.termQuery("text0", "490").boost(1.0f))
                         ),
-                        new SearchQueryBuilder(
+                        new SearchQueryWrapperBuilder(
                             QueryBuilders.boolQuery()
                                 .should(QueryBuilders.termQuery("text1", "508").boost(9.0f))
                                 .should(QueryBuilders.termQuery("text1", "304").boost(8.0f))

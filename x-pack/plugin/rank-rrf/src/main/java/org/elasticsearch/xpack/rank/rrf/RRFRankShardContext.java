@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.rank.rrf;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.search.query.SearchQuery;
+import org.elasticsearch.search.query.SearchQueryWrapper;
 import org.elasticsearch.search.rank.RankShardContext;
 
 import java.util.Arrays;
@@ -24,7 +24,7 @@ public class RRFRankShardContext extends RankShardContext {
 
     protected final int rankConstant;
 
-    public RRFRankShardContext(List<SearchQuery> searchQueries, int from, int windowSize, int rankConstant) {
+    public RRFRankShardContext(List<SearchQueryWrapper> searchQueries, int from, int windowSize, int rankConstant) {
         super(searchQueries, from, windowSize);
         this.rankConstant = rankConstant;
     }

@@ -43,7 +43,7 @@ import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QuerySearchResult;
-import org.elasticsearch.search.query.SearchQuery;
+import org.elasticsearch.search.query.SearchQueryWrapper;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
@@ -61,9 +61,9 @@ public class RankSearchContext extends SearchContext {
     private final int windowSize;
     private final QuerySearchResult querySearchResult;
 
-    public RankSearchContext(SearchContext parent, SearchQuery searchQuery, int windowSize) {
+    public RankSearchContext(SearchContext parent, SearchQueryWrapper searchQueryWrapper, int windowSize) {
         this.parent = parent;
-        this.rankQuery = parent.buildFilteredQuery(searchQuery.getQuery());
+        this.rankQuery = parent.buildFilteredQuery(searchQueryWrapper.getQuery());
         this.windowSize = windowSize;
         this.querySearchResult = new QuerySearchResult(parent.readerContext().id(), parent.shardTarget(), parent.request());
     }

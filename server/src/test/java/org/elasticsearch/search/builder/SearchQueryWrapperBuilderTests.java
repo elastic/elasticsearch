@@ -1,8 +1,9 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
- * 2.0; you may not use this file except in compliance with the Elastic License
- * 2.0.
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.builder;
@@ -20,7 +21,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.List;
 
-public class SearchQueryBuilderTests extends AbstractXContentSerializingTestCase<SearchQueryBuilder> {
+public class SearchQueryWrapperBuilderTests extends AbstractXContentSerializingTestCase<SearchQueryWrapperBuilder> {
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
@@ -39,29 +40,29 @@ public class SearchQueryBuilderTests extends AbstractXContentSerializingTestCase
     }
 
     @Override
-    protected SearchQueryBuilder createTestInstance() {
-        return new SearchQueryBuilder(
+    protected SearchQueryWrapperBuilder createTestInstance() {
+        return new SearchQueryWrapperBuilder(
             new TermQueryBuilder(randomAlphaOfLength(randomIntBetween(1, 30)), randomAlphaOfLength(randomIntBetween(1, 30)))
         );
     }
 
     @Override
-    protected SearchQueryBuilder mutateInstance(SearchQueryBuilder instance) throws IOException {
+    protected SearchQueryWrapperBuilder mutateInstance(SearchQueryWrapperBuilder instance) throws IOException {
         TermQueryBuilder tqb = (TermQueryBuilder) instance.getQueryBuilder();
         if (randomBoolean()) {
-            return new SearchQueryBuilder(new TermQueryBuilder(tqb.fieldName() + "z", tqb.value()));
+            return new SearchQueryWrapperBuilder(new TermQueryBuilder(tqb.fieldName() + "z", tqb.value()));
         } else {
-            return new SearchQueryBuilder(new TermQueryBuilder(tqb.fieldName(), tqb.value() + "z"));
+            return new SearchQueryWrapperBuilder(new TermQueryBuilder(tqb.fieldName(), tqb.value() + "z"));
         }
     }
 
     @Override
-    protected Writeable.Reader<SearchQueryBuilder> instanceReader() {
-        return SearchQueryBuilder::new;
+    protected Writeable.Reader<SearchQueryWrapperBuilder> instanceReader() {
+        return SearchQueryWrapperBuilder::new;
     }
 
     @Override
-    protected SearchQueryBuilder doParseInstance(XContentParser parser) throws IOException {
-        return SearchQueryBuilder.parseXContent(parser, new SearchUsage());
+    protected SearchQueryWrapperBuilder doParseInstance(XContentParser parser) throws IOException {
+        return SearchQueryWrapperBuilder.parseXContent(parser, new SearchUsage());
     }
 }

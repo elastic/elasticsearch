@@ -16,7 +16,7 @@ import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.builder.SearchQueryBuilder;
+import org.elasticsearch.search.builder.SearchQueryWrapperBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
@@ -132,8 +132,8 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
     private ShardSearchRequest rewriteShardSearchRequest(ShardSearchRequest request) {
         if (request.source() != null && request.source().queries().isEmpty() == false) {
             BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
-            for (SearchQueryBuilder searchQueryBuilder : request.source().queries()) {
-                boolQueryBuilder.should(searchQueryBuilder.getQueryBuilder());
+            for (SearchQueryWrapperBuilder searchQueryWrapperBuilder : request.source().queries()) {
+                boolQueryBuilder.should(searchQueryWrapperBuilder.getQueryBuilder());
             }
 
             SearchSourceBuilder searchSourceBuilder = request.source().shallowCopy();

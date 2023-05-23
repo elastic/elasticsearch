@@ -11,7 +11,7 @@ import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.builder.SearchQueryBuilder;
+import org.elasticsearch.search.builder.SearchQueryWrapperBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.dfs.DfsKnnResults;
@@ -147,26 +147,26 @@ final class DfsQueryPhase extends SearchPhase {
         }
 
         BoolQueryBuilder boolQueryBuilder;
-        List<SearchQueryBuilder> searchQueryBuilders;
+        List<SearchQueryWrapperBuilder> searchQueryWrapperBuilders;
 
         if (hasQueries) {
             boolQueryBuilder = (BoolQueryBuilder) source.query();
-            searchQueryBuilders = source.queries();
+            searchQueryWrapperBuilders = source.queries();
         } else {
             boolQueryBuilder = new BoolQueryBuilder();
-            searchQueryBuilders = new ArrayList<>();
+            searchQueryWrapperBuilders = new ArrayList<>();
 
             if (source.query() != null) {
                 boolQueryBuilder.should(source.query());
 
                 if (usesRank) {
-                    searchQueryBuilders.add(new SearchQueryBuilder(source.query()));
+                    searchQueryWrapperBuilders.add(new SearchQueryWrapperBuilder(source.query()));
                 }
             }
 
             source = source.shallowCopy();
             source.query(boolQueryBuilder);
-            source.queries(searchQueryBuilders);
+            source.queries(searchQueryWrapperBuilders);
             request.source(source);
         }
 
@@ -181,7 +181,7 @@ final class DfsQueryPhase extends SearchPhase {
             KnnScoreDocQueryBuilder knnQuery = new KnnScoreDocQueryBuilder(scoreDocs.toArray(new ScoreDoc[0]));
 
             if (usesRank) {
-                searchQueryBuilders.add(new SearchQueryBuilder(knnQuery));
+                searchQueryWrapperBuilders.add(new SearchQueryWrapperBuilder(knnQuery));
             }
 
             boolQueryBuilder.should(knnQuery);

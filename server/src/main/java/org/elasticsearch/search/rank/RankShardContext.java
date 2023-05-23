@@ -9,7 +9,7 @@
 package org.elasticsearch.search.rank;
 
 import org.apache.lucene.search.TopDocs;
-import org.elasticsearch.search.query.SearchQuery;
+import org.elasticsearch.search.query.SearchQueryWrapper;
 
 import java.util.List;
 
@@ -20,17 +20,17 @@ import java.util.List;
  */
 public abstract class RankShardContext {
 
-    protected final List<SearchQuery> searchQueries;
+    protected final List<SearchQueryWrapper> searchQueries;
     protected final int from;
     protected final int windowSize;
 
-    public RankShardContext(List<SearchQuery> searchQueries, int from, int windowSize) {
+    public RankShardContext(List<SearchQueryWrapper> searchQueries, int from, int windowSize) {
         this.searchQueries = searchQueries;
         this.from = from;
         this.windowSize = windowSize;
     }
 
-    public List<SearchQuery> searchQueries() {
+    public List<SearchQueryWrapper> searchQueries() {
         return searchQueries;
     }
 

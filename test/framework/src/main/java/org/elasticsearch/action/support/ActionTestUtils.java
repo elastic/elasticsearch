@@ -33,7 +33,7 @@ public class ActionTestUtils {
     ) {
         return PlainActionFuture.get(
             future -> action.execute(
-                new CancellableTask(1L, "direct", action.actionName, "", TaskId.EMPTY_TASK_ID, Map.of()),
+                request.createTask(1L, "direct", action.actionName, TaskId.EMPTY_TASK_ID, Map.of()),
                 request,
                 future
             ),

@@ -85,7 +85,6 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             threadPool,
             clusterService,
             new DesiredBalanceComputer(clusterSettings, threadPool, delegateAllocator),
-            new DesiredBalanceReconciler(clusterSettings, threadPool),
             reconciler
         );
     }
@@ -95,14 +94,13 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         ThreadPool threadPool,
         ClusterService clusterService,
         DesiredBalanceComputer desiredBalanceComputer,
-        DesiredBalanceReconciler desiredBalanceReconciler,
         DesiredBalanceReconcilerAction reconciler
     ) {
         this.delegateAllocator = delegateAllocator;
         this.threadPool = threadPool;
         this.reconciler = reconciler;
         this.desiredBalanceComputer = desiredBalanceComputer;
-        this.desiredBalanceReconciler = desiredBalanceReconciler;
+        this.desiredBalanceReconciler = new DesiredBalanceReconciler(clusterService.getClusterSettings(), threadPool);
         this.desiredBalanceComputation = new ContinuousComputation<>(threadPool) {
 
             @Override

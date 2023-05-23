@@ -60,6 +60,7 @@ import static org.elasticsearch.cluster.ClusterModule.SHARDS_ALLOCATOR_TYPE_SETT
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public abstract class ESAllocationTestCase extends ESTestCase {
 
@@ -154,11 +155,14 @@ public abstract class ESAllocationTestCase extends ESTestCase {
 
     private static DesiredBalanceShardsAllocator createDesiredBalanceShardsAllocator(Settings settings) {
         var queue = new DeterministicTaskQueue();
+        var clusterSettings = createBuiltInClusterSettings(settings);
+        var clusterService = mock(ClusterService.class);
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         return new DesiredBalanceShardsAllocator(
-            createBuiltInClusterSettings(settings),
+            clusterSettings,
             new BalancedShardsAllocator(settings),
             queue.getThreadPool(),
-            mock(ClusterService.class),
+            clusterService,
             null
         ) {
             private RoutingAllocation lastAllocation;

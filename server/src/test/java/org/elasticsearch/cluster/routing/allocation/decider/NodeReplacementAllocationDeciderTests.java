@@ -226,7 +226,8 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
             decider.shouldAutoExpandToNode(indexMetadata, NODE_B, allocation),
             Decision.Type.NO,
             String.format(
-                "node [%s] is a node replacement target for node [%s], shards cannot auto expand to be on it until the replacement is complete",
+                "node [%s] is a node replacement target for node [%s], "
+                    + "shards cannot auto expand to be on it until the replacement is complete",
                 NODE_B.getId(),
                 NODE_A.getId()
             )

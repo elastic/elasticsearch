@@ -10,6 +10,7 @@ package org.elasticsearch.cluster.routing.allocation.decider;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
@@ -21,9 +22,11 @@ import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodesHelper;
+import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -31,6 +34,7 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
@@ -39,6 +43,10 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
+import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
 import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -220,22 +228,141 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
         assertEquals(NodeReplacementAllocationDecider.YES__NO_APPLICABLE_REPLACEMENTS, decision);
     }
 
-    private ClusterState prepareState(ClusterState initialState, String sourceNodeId, String targetNodeName) {
-        final SingleNodeShutdownMetadata nodeShutdownMetadata = SingleNodeShutdownMetadata.builder()
-            .setNodeId(sourceNodeId)
-            .setTargetNodeName(targetNodeName)
-            .setType(SingleNodeShutdownMetadata.Type.REPLACE)
-            .setReason(this.getTestName())
-            .setStartedAtMillis(1L)
+    public void testShouldNotContractAutoExpandReplicasDuringNodeReplacement() {
+
+        var indexMetadata = IndexMetadata.builder(idxName)
+            .settings(indexSettings(Version.CURRENT, 1, 0).put(SETTING_AUTO_EXPAND_REPLICAS, "0-1"))
             .build();
-        NodesShutdownMetadata nodesShutdownMetadata = new NodesShutdownMetadata(new HashMap<>()).putSingleNodeMetadata(
-            nodeShutdownMetadata
-        );
-        return ClusterState.builder(initialState)
-            .nodes(DiscoveryNodes.builder().add(NODE_A).add(NODE_B).add(NODE_C).build())
-            .metadata(
-                Metadata.builder().put(IndexMetadata.builder(indexMetadata)).putCustom(NodesShutdownMetadata.TYPE, nodesShutdownMetadata)
+        var shardId = new ShardId(indexMetadata.getIndex(), 0);
+
+        var state = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(NODE_A).add(NODE_C).build())
+            .metadata(Metadata.builder().put(IndexMetadata.builder(indexMetadata)))
+            .routingTable(
+                RoutingTable.builder()
+                    .add(
+                        IndexRoutingTable.builder(indexMetadata.getIndex())
+                            .addShard(newShardRouting(shardId, NODE_A.getId(), true, STARTED))
+                            .addShard(newShardRouting(shardId, NODE_C.getId(), false, STARTED))
+                            .build()
+                    )
+                    .build()
             )
             .build();
+
+        var allocation = new RoutingAllocation(allocationDeciders, state, null, null, 0);
+
+        // index is already allocated on both nodes
+        assertThat(
+            decider.shouldAutoExpandToNode(indexMetadata, NODE_A, allocation),
+            equalTo(NodeReplacementAllocationDecider.YES__NO_REPLACEMENTS)
+        );
+        assertThat(
+            decider.shouldAutoExpandToNode(indexMetadata, NODE_C, allocation),
+            equalTo(NodeReplacementAllocationDecider.YES__NO_REPLACEMENTS)
+        );
+
+        // when replacing NODE_A with NODE_B
+        state = ClusterState.builder(state)
+            .nodes(DiscoveryNodes.builder().add(NODE_A).add(NODE_B).add(NODE_C).build())
+            .metadata(
+                Metadata.builder(state.metadata())
+                    .putCustom(NodesShutdownMetadata.TYPE, createNodeShutdownReplacementMetadata(NODE_A.getId(), NODE_B.getName()))
+                    .build()
+            )
+            .build();
+        allocation = new RoutingAllocation(allocationDeciders, state, null, null, 0);
+
+        // index should not contract
+        assertThatDecision(
+            decider.canAllocate(
+                allocation.routingNodes().node(NODE_A.getId()).getByShardId(shardId),
+                allocation.routingNodes().node(NODE_B.getId()),
+                allocation
+            ),
+            Decision.Type.YES,
+            Strings.format("node [%s] is replacing node [%s], and may receive shards from it", NODE_B.getId(), NODE_A.getId())
+        );
+        assertThatAutoExpandReplicasDidNotContract(indexMetadata, allocation);
+
+        // when index is relocating
+        state = ClusterState.builder(state)
+            .routingTable(
+                RoutingTable.builder()
+                    .add(
+                        IndexRoutingTable.builder(indexMetadata.getIndex())
+                            .addShard(newShardRouting(shardId, NODE_A.getId(), NODE_B.getId(), true, RELOCATING))
+                            .addShard(newShardRouting(shardId, NODE_C.getId(), false, STARTED))
+                            .build()
+                    )
+                    .build()
+            )
+            .build();
+        allocation = new RoutingAllocation(allocationDeciders, state, null, null, 0);
+        assertThatAutoExpandReplicasDidNotContract(indexMetadata, allocation);
+
+        // when index is relocated
+        state = ClusterState.builder(state)
+            .routingTable(
+                RoutingTable.builder()
+                    .add(
+                        IndexRoutingTable.builder(indexMetadata.getIndex())
+                            .addShard(newShardRouting(shardId, NODE_B.getId(), true, STARTED))
+                            .addShard(newShardRouting(shardId, NODE_C.getId(), false, STARTED))
+                            .build()
+                    )
+                    .build()
+            )
+            .build();
+        allocation = new RoutingAllocation(allocationDeciders, state, null, null, 0);
+        assertThatAutoExpandReplicasDidNotContract(indexMetadata, allocation);
+    }
+
+    private void assertThatAutoExpandReplicasDidNotContract(IndexMetadata indexMetadata, RoutingAllocation allocation) {
+        assertThat(indexMetadata.getAutoExpandReplicas().getDesiredNumberOfReplicas(indexMetadata, allocation), equalTo(1));
+        assertThatDecision(
+            decider.shouldAutoExpandToNode(indexMetadata, NODE_A, allocation),
+            Decision.Type.NO,
+            "node [node-a] is being replaced by [node-b], shards cannot auto expand to be on it"
+        );
+        assertThatDecision(
+            decider.shouldAutoExpandToNode(indexMetadata, NODE_B, allocation),
+            Decision.Type.YES,
+            "node [node-b] is a node replacement target for node [node-a], "
+                + "shards can auto expand to it as they were already present of the source node"
+        );
+        assertThatDecision(
+            decider.shouldAutoExpandToNode(indexMetadata, NODE_C, allocation),
+            Decision.Type.YES,
+            "none of the ongoing node replacements relate to the allocation of this shard"
+        );
+    }
+
+    private NodesShutdownMetadata createNodeShutdownReplacementMetadata(String sourceNodeId, String targetNodeName) {
+        return new NodesShutdownMetadata(new HashMap<>()).putSingleNodeMetadata(
+            SingleNodeShutdownMetadata.builder()
+                .setNodeId(sourceNodeId)
+                .setTargetNodeName(targetNodeName)
+                .setType(SingleNodeShutdownMetadata.Type.REPLACE)
+                .setReason(this.getTestName())
+                .setStartedAtMillis(1L)
+                .build()
+        );
+    }
+
+    private ClusterState prepareState(ClusterState clusterState, String sourceNodeId, String targetNodeName) {
+        return ClusterState.builder(clusterState)
+            .nodes(DiscoveryNodes.builder().add(NODE_A).add(NODE_B).add(NODE_C).build())
+            .metadata(
+                Metadata.builder()
+                    .put(IndexMetadata.builder(indexMetadata))
+                    .putCustom(NodesShutdownMetadata.TYPE, createNodeShutdownReplacementMetadata(sourceNodeId, targetNodeName))
+            )
+            .build();
+    }
+
+    private static void assertThatDecision(Decision decision, Decision.Type type, String explanation) {
+        assertThat(decision.type(), equalTo(type));
+        assertThat(decision.getExplanation(), equalTo(explanation));
     }
 }

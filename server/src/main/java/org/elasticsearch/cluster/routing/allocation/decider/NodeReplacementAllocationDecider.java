@@ -40,8 +40,8 @@ public class NodeReplacementAllocationDecider extends AllocationDecider {
                 Decision.Type.YES,
                 NAME,
                 "node [%s] is replacing node [%s], and may receive shards from it",
-                shardRouting.currentNodeId(),
-                node.nodeId()
+                node.nodeId(),
+                shardRouting.currentNodeId()
             );
         } else if (isReplacementSource(allocation, shardRouting.currentNodeId())) {
             if (allocation.isReconciling()) {
@@ -112,14 +112,29 @@ public class NodeReplacementAllocationDecider extends AllocationDecider {
             return YES__NO_REPLACEMENTS;
         } else if (isReplacementTargetName(allocation, node.getName())) {
             final SingleNodeShutdownMetadata shutdown = allocation.replacementTargetShutdowns().get(node.getName());
-            return Decision.single(
-                Decision.Type.NO,
-                NAME,
-                "node [%s] is a node replacement target for node [%s], "
-                    + "shards cannot auto expand to be on it until the replacement is complete",
-                node.getId(),
-                shutdown == null ? null : shutdown.getNodeId()
-            );
+            final String sourceNodeId = shutdown == null ? null : shutdown.getNodeId();
+            final boolean hasShardsAllocatedOnSourceOrTarget = hasShardOnNode(indexMetadata, node.getId(), allocation)
+                || (sourceNodeId != null && hasShardOnNode(indexMetadata, sourceNodeId, allocation));
+
+            if (hasShardsAllocatedOnSourceOrTarget) {
+                return Decision.single(
+                    Decision.Type.YES,
+                    NAME,
+                    "node [%s] is a node replacement target for node [%s], "
+                        + "shards can auto expand to it as they were already present of the source node",
+                    node.getId(),
+                    sourceNodeId
+                );
+            } else {
+                return Decision.single(
+                    Decision.Type.NO,
+                    NAME,
+                    "node [%s] is a node replacement target for node [%s], "
+                        + "shards cannot auto expand to be on it until the replacement is complete",
+                    node.getId(),
+                    sourceNodeId
+                );
+            }
         } else if (isReplacementSource(allocation, node.getId())) {
             return Decision.single(
                 Decision.Type.NO,
@@ -131,6 +146,10 @@ public class NodeReplacementAllocationDecider extends AllocationDecider {
         } else {
             return YES__NO_APPLICABLE_REPLACEMENTS;
         }
+    }
+
+    private static boolean hasShardOnNode(IndexMetadata indexMetadata, String nodeId, RoutingAllocation allocation) {
+        return allocation.routingNodes().node(nodeId).numberOfOwningShardsForIndex(indexMetadata.getIndex()) >= 1;
     }
 
     @Override

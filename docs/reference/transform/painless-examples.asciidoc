@@ -172,7 +172,7 @@ POST _scripts/last-value-reduce
 // NOTCONSOLE
 --
 
-2. Use the stored script in a scripted metric aggregation.
+2. Use the stored scripts in a scripted metric aggregation.
 +
 --
 [source,js]

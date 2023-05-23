@@ -21,6 +21,7 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.LeafFieldComparator;
+import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Sort;
@@ -563,28 +564,50 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
                 entry.aggCtx.getLeafReaderContext(),
                 getSecondPassCollector(subCollector)
             );
-            DocIdSetIterator scorerIt = null;
+            DeferredScorable scorable = null;
             if (needsScores) {
                 Scorer scorer = weight.scorer(entry.aggCtx.getLeafReaderContext());
                 if (scorer != null) {
-                    scorerIt = scorer.iterator();
-                    subCollector.setScorer(scorer);
+                    scorable = new DeferredScorable(scorer);
+                    subCollector.setScorer(scorable);
                 }
             }
             int docID;
             while ((docID = docIdSetIterator.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
-                if (needsScores) {
-                    assert scorerIt != null && scorerIt.docID() < docID;
-                    scorerIt.advance(docID);
-                    // aggregations should only be replayed on matching documents
-                    assert scorerIt.docID() == docID;
+                if (scorable != null) {
+                    scorable.doc = docID;
                 }
                 collector.collect(docID);
             }
         }
         deferredCollectors.postCollection();
     }
+    private static class DeferredScorable extends Scorable {
 
+        public int doc;
+        private final DocIdSetIterator iterator;
+        private final Scorer scorer;
+
+        DeferredScorable(Scorer scorer) {
+            this.scorer = scorer;
+            this.iterator = scorer.iterator();
+        }
+
+        @Override
+        public float score() throws IOException {
+            if (iterator.docID() < doc) {
+                // TODO: check if doc is a root document
+                final int d = iterator.advance(doc);
+                assert d == doc;
+            }
+            return scorer.score();
+        }
+
+        @Override
+        public int docID() {
+            return doc;
+        }
+    }
     /**
      * Replay the top buckets from the matching documents.
      */

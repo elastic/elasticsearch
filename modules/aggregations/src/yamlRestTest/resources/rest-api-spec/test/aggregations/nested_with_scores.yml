@@ -1,0 +1,162 @@
+---
+setup:
+  - do:
+        indices.create:
+          index: test
+          body:
+              mappings:
+                properties:
+                  "@timestamp":
+                    type: date
+                  lines:
+                    type: nested
+                    properties:
+                      "@timestamp":
+                        type: date
+                      value:
+                        type: integer
+                      name:
+                        type: keyword
+
+  - do:
+      index:
+        index: test
+        id:    "1"
+        body: {
+          "@timestamp": "2022-09-01",
+          "lines": [
+            {
+              "@timestamp": "2022-09-01",
+              "name": "foo",
+              "value": "1.2"
+            },
+            {
+              "@timestamp": "2022-09-01",
+              "name": "foo",
+              "value": "1.2"
+            },
+            {
+              "@timestamp": "2022-09-01",
+              "name": "bar",
+              "value": "2.3"
+            }
+          ]
+        }
+
+  - do:
+      indices.refresh:
+        index: [test]
+
+---
+"Nested, Composite, Top Hits":
+  - skip:
+      version: " - 8.5.99"
+      reason:  fixed in 8.6
+  - do:
+      catch: /Incompatible use of non-scorable and score-required aggregations/
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          size: 0
+          track_total_hits: -1
+          aggregations:
+            data:
+              nested:
+                path: "lines"
+              aggregations:
+                my_buckets:
+                  composite:
+                    size: 20
+                    sources:
+                      -
+                        prod_name:
+                          terms:
+                            field: "lines.name"
+                  aggregations:
+                    th:
+                      top_hits:
+                        size: 1
+---
+"Nested, Composite, Scripted Metric":
+  - skip:
+      version: " - 8.5.99"
+      reason:  fixed in 8.6
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          size: 0
+          track_total_hits: -1
+          aggregations:
+            data:
+              nested:
+                path: "lines"
+              aggregations:
+                my_buckets:
+                  composite:
+                    size: 20
+                    sources:
+                      -
+                        prod_name:
+                          terms:
+                            field: "lines.name"
+                  aggregations:
+                    catalog_price:
+                      scripted_metric:
+                        init_script:
+                          source: "state.transactions = []"
+                        map_script:
+                          source: "state.transactions.add(doc['lines.value'].value)"
+                        combine_script:
+                          source: "double sum = 0; for (t in state.transactions) { sum += t } return sum"
+                        reduce_script:
+                          source: "double sum = 0; for (a in states) { if (a != null) { sum += a } } return sum"
+
+  - match: {aggregations.data.doc_count: 3}
+  - length: { aggregations.data.my_buckets.buckets: 2 }
+  - match: { aggregations.data.my_buckets.buckets.0.key.prod_name: "bar" }
+  - match: { aggregations.data.my_buckets.buckets.0.doc_count: 1}
+  - match: { aggregations.data.my_buckets.buckets.0.catalog_price.value: 2.0}
+  - match: { aggregations.data.my_buckets.buckets.1.key.prod_name: "foo" }
+  - match: { aggregations.data.my_buckets.buckets.1.doc_count: 2}
+  - match: { aggregations.data.my_buckets.buckets.1.catalog_price.value: 2.0}
+---
+"Nested, Terms, Scripted Metric":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          size: 0
+          track_total_hits: -1
+          aggregations:
+            data:
+              nested:
+                path: "lines"
+              aggregations:
+                my_buckets:
+                  terms:
+                    size: 20
+                    field: "lines.name"
+                  aggregations:
+                    catalog_price:
+                      scripted_metric:
+                        init_script:
+                          source: "state.transactions = []"
+                        map_script:
+                          source: "state.transactions.add(doc['lines.value'].value)"
+                        combine_script:
+                          source: "double sum = 0; for (t in state.transactions) { sum += t } return sum"
+                        reduce_script:
+                          source: "double sum = 0; for (a in states) { if (a != null) { sum += a } } return sum"
+
+  - match: {aggregations.data.doc_count: 3}
+  - length: { aggregations.data.my_buckets.buckets: 2 }
+  - match: { aggregations.data.my_buckets.buckets.0.key: "foo" }
+  - match: { aggregations.data.my_buckets.buckets.0.doc_count: 2}
+  - match: { aggregations.data.my_buckets.buckets.0.catalog_price.value: 2.0}
+  - match: { aggregations.data.my_buckets.buckets.1.key: "bar" }
+  - match: { aggregations.data.my_buckets.buckets.1.doc_count: 1}
+  - match: { aggregations.data.my_buckets.buckets.1.catalog_price.value: 2.0}

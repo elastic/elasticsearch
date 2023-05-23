@@ -92,7 +92,10 @@ public abstract class TransportTasksAction<
                 return;
             }
             // ref releases all happen-before here so no need to be synchronized
-            resultListener.onResponse(newResponse(request, taskResponses, taskOperationFailures, failedNodeExceptions));
+            ActionListener.completeWith(
+                resultListener,
+                () -> newResponse(request, taskResponses, taskOperationFailures, failedNodeExceptions)
+            );
         });
 
         // collects node listeners & completes them if cancelled

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.security.apikey;
 
+import org.apache.http.client.methods.HttpGet;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -43,6 +44,7 @@ import static org.elasticsearch.test.SecuritySettingsSourceField.ES_TEST_ROOT_RO
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField.RUN_AS_USER_HEADER;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyString;
@@ -1138,6 +1140,109 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         final ResponseException e10 = expectThrows(ResponseException.class, () -> client().performRequest(updateDerivedRequest));
         assertThat(e10.getResponse().getStatusLine().getStatusCode(), equalTo(400));
         assertThat(e10.getMessage(), containsString("authentication via API key not supported: only the owner user can update an API key"));
+    }
+
+    public void testWorkflowsRestrictionSupportForApiKeys() throws IOException {
+        final Request createApiKeyRequest = new Request("POST", "_security/api_key");
+        createApiKeyRequest.setJsonEntity("""
+            {
+                "name": "key1",
+                "role_descriptors":{
+                    "r1": {
+                        "restriction": {
+                            "workflows": ["search_application"]
+                        }
+                    }
+                }
+            }""");
+        Response response = performRequestWithManageOwnApiKeyUser(createApiKeyRequest);
+        assertOK(response);
+        String apiKeyId = ObjectPath.createFromResponse(response).evaluate("id");
+        assertThat(apiKeyId, notNullValue());
+        fetchAndAssertApiKeyContainsWorkflows(apiKeyId, "r1", "search_application");
+
+        final Request grantApiKeyRequest = new Request("POST", "_security/api_key/grant");
+        grantApiKeyRequest.setJsonEntity(Strings.format("""
+            {
+               "grant_type":"password",
+               "username":"%s",
+               "password":"end-user-password",
+               "api_key":{
+                  "name":"key2",
+                  "role_descriptors":{
+                     "r1":{
+                        "restriction": {
+                            "workflows": ["search_application"]
+                        }
+                     }
+                  }
+               }
+            }""", MANAGE_OWN_API_KEY_USER));
+        response = adminClient().performRequest(grantApiKeyRequest);
+        assertOK(response);
+        String grantedApiKeyId = ObjectPath.createFromResponse(response).evaluate("id");
+        fetchAndAssertApiKeyContainsWorkflows(grantedApiKeyId, "r1", "search_application");
+
+        final Request updateApiKeyRequest = new Request("PUT", "_security/api_key/" + apiKeyId);
+        updateApiKeyRequest.setJsonEntity("""
+            {
+              "role_descriptors": {
+                "r1": {
+                  "restriction": {
+                   "workflows": ["search_application", "search_analytics"]
+                  }
+                }
+              }
+            }""");
+        response = performRequestWithManageOwnApiKeyUser(updateApiKeyRequest);
+        assertThat(ObjectPath.createFromResponse(response).evaluate("updated"), equalTo(true));
+        fetchAndAssertApiKeyContainsWorkflows(apiKeyId, "r1", "search_application", "search_analytics");
+
+        final Request bulkUpdateApiKeyRequest = new Request("POST", "_security/api_key/_bulk_update");
+        bulkUpdateApiKeyRequest.setJsonEntity(Strings.format("""
+            {
+              "ids": ["%s"],
+              "role_descriptors": {
+                "r1": {
+                  "restriction": {
+                     "workflows": ["search_application"]
+                  }
+                }
+              }
+            }""", apiKeyId));
+        response = performRequestWithManageOwnApiKeyUser(bulkUpdateApiKeyRequest);
+        assertThat(ObjectPath.createFromResponse(response).evaluate("updated"), contains(apiKeyId));
+        fetchAndAssertApiKeyContainsWorkflows(apiKeyId, "r1", "search_application");
+    }
+
+    private Response performRequestWithManageOwnApiKeyUser(Request request) throws IOException {
+        request.setOptions(
+            RequestOptions.DEFAULT.toBuilder()
+                .addHeader("Authorization", headerFromRandomAuthMethod(MANAGE_OWN_API_KEY_USER, END_USER_PASSWORD))
+        );
+        return client().performRequest(request);
+    }
+
+    @SuppressWarnings("unchecked")
+    private void fetchAndAssertApiKeyContainsWorkflows(String apiKeyId, String roleName, String... expectedWorkflows) throws IOException {
+        Request getApiKeyRequest = new Request(HttpGet.METHOD_NAME, "_security/api_key?id=" + apiKeyId);
+        Response getApiKeyResponse = adminClient().performRequest(getApiKeyRequest);
+        assertOK(getApiKeyResponse);
+
+        List<Map<String, ?>> apiKeys = (List<Map<String, ?>>) responseAsMap(getApiKeyResponse).get("api_keys");
+        assertThat(apiKeys.size(), equalTo(1));
+
+        Map<String, ?> roleDescriptors = (Map<String, ?>) apiKeys.get(0).get("role_descriptors");
+        assertThat(roleDescriptors, notNullValue());
+
+        Map<String, ?> roleDescriptor = (Map<String, ?>) roleDescriptors.get(roleName);
+        assertThat(roleDescriptor, notNullValue());
+
+        Map<String, ?> restriction = (Map<String, ?>) roleDescriptor.get("restriction");
+        assertThat(restriction, notNullValue());
+
+        List<String> actualWorkflows = (List<String>) restriction.get("workflows");
+        assertThat(actualWorkflows, containsInAnyOrder(expectedWorkflows));
     }
 
     private void assertBadCreateCrossClusterApiKeyRequest(String body, String expectedErrorMessage) throws IOException {

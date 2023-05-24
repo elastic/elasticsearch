@@ -345,16 +345,14 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
                         if (DocWriteRequest.OpType.CREATE.equals(opType)) {  // we want to create the transform but it already exists
                             listener.onFailure(
                                 new ResourceAlreadyExistsException(
-                                    TransformMessages.getMessage(TransformMessages.REST_PUT_TRANSFORM_EXISTS, transformConfig.getId()),
-                                    e
+                                    TransformMessages.getMessage(TransformMessages.REST_PUT_TRANSFORM_EXISTS, transformConfig.getId())
                                 )
                             );
                         } else {  // we want to update the transform but it got updated in the meantime, report version conflict
                             listener.onFailure(
                                 new ElasticsearchStatusException(
                                     TransformMessages.getMessage(TransformMessages.REST_UPDATE_TRANSFORM_CONFLICT, transformConfig.getId()),
-                                    RestStatus.CONFLICT,
-                                    e
+                                    RestStatus.CONFLICT
                                 )
                             );
                         }

@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -79,6 +80,11 @@ public class NodesShutdownMetadataTests extends ChunkedToXContentDiffableSeriali
                         .setReason("shutdown for a unit test")
                         .setType(type)
                         .setStartedAtMillis(randomNonNegativeLong())
+                        .setGracePeriod(
+                            type == SingleNodeShutdownMetadata.Type.SIGTERM
+                                ? TimeValue.parseTimeValue(randomTimeValue(), this.getTestName())
+                                : null
+                        )
                         .build()
                 )
             );
@@ -106,11 +112,14 @@ public class NodesShutdownMetadataTests extends ChunkedToXContentDiffableSeriali
             .setType(SingleNodeShutdownMetadata.Type.SIGTERM)
             .setReason("myReason")
             .setStartedAtMillis(0L)
+            .setGracePeriod(new TimeValue(1_000))
             .build();
         BytesStreamOutput out = new BytesStreamOutput();
         out.setTransportVersion(TransportVersion.V_8_7_1);
         metadata.writeTo(out);
-        assertThat(new SingleNodeShutdownMetadata(out.bytes().streamInput()).getType(), equalTo(SingleNodeShutdownMetadata.Type.REMOVE));
+        StreamInput in = out.bytes().streamInput();
+        in.setTransportVersion(TransportVersion.V_8_7_1);
+        assertThat(new SingleNodeShutdownMetadata(in).getType(), equalTo(SingleNodeShutdownMetadata.Type.REMOVE));
 
         out = new BytesStreamOutput();
         metadata.writeTo(out);
@@ -150,6 +159,8 @@ public class NodesShutdownMetadataTests extends ChunkedToXContentDiffableSeriali
             builder.setAllocationDelay(TimeValue.parseTimeValue(randomTimeValue(), this.getTestName()));
         } else if (type.equals(SingleNodeShutdownMetadata.Type.REPLACE)) {
             builder.setTargetNodeName(randomAlphaOfLengthBetween(5, 10));
+        } else if (type.equals(SingleNodeShutdownMetadata.Type.SIGTERM)) {
+            builder.setGracePeriod(TimeValue.parseTimeValue(randomTimeValue(), this.getTestName()));
         }
         return builder.setNodeSeen(randomBoolean()).build();
     }

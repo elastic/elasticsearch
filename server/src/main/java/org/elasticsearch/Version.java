@@ -310,7 +310,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     public final byte minor;
     public final byte revision;
     public final byte build;
-    public final org.apache.lucene.util.Version luceneVersion;
+    private final org.apache.lucene.util.Version luceneVersion;
     private final String toString;
     private final int previousMajorId;
 
@@ -349,6 +349,10 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         return builder.value(toString());
+    }
+
+    public org.apache.lucene.util.Version luceneVersion() {
+        return luceneVersion;
     }
 
     /*

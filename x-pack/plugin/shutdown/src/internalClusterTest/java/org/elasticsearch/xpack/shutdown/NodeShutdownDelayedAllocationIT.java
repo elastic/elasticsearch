@@ -53,6 +53,7 @@ public class NodeShutdownDelayedAllocationIT extends ESIntegTestCase {
             SingleNodeShutdownMetadata.Type.RESTART,
             this.getTestName(),
             null, // Make sure it works with the default - we'll check this override in other tests
+            null,
             null
         );
         AcknowledgedResponse putShutdownResponse = client().execute(PutShutdownNodeAction.INSTANCE, putShutdownRequest).get();
@@ -90,6 +91,7 @@ public class NodeShutdownDelayedAllocationIT extends ESIntegTestCase {
             SingleNodeShutdownMetadata.Type.RESTART,
             this.getTestName(),
             TimeValue.timeValueMillis(randomIntBetween(10, 1000)),
+            null,
             null
         );
         AcknowledgedResponse putShutdownResponse = client().execute(PutShutdownNodeAction.INSTANCE, putShutdownRequest).get();
@@ -120,6 +122,7 @@ public class NodeShutdownDelayedAllocationIT extends ESIntegTestCase {
             SingleNodeShutdownMetadata.Type.RESTART,
             this.getTestName(),
             TimeValue.timeValueMillis(0), // No delay for reallocating these shards, IF this timeout is used.
+            null,
             null
         );
         AcknowledgedResponse putShutdownResponse = client().execute(PutShutdownNodeAction.INSTANCE, putShutdownRequest).get();
@@ -148,6 +151,7 @@ public class NodeShutdownDelayedAllocationIT extends ESIntegTestCase {
             SingleNodeShutdownMetadata.Type.RESTART,
             this.getTestName(),
             TimeValue.timeValueMillis(1),
+            null,
             null
         );
         AcknowledgedResponse putShutdownResponse = client().execute(PutShutdownNodeAction.INSTANCE, putShutdownRequest).get();
@@ -193,6 +197,7 @@ public class NodeShutdownDelayedAllocationIT extends ESIntegTestCase {
                 SingleNodeShutdownMetadata.Type.RESTART,
                 this.getTestName(),
                 TimeValue.timeValueHours(3),
+                null,
                 null
             );
             AcknowledgedResponse putShutdownResponse = client().execute(PutShutdownNodeAction.INSTANCE, putShutdownRequest).get();

@@ -208,14 +208,14 @@ twoFunctionsEqualsBooleanLiterals-caseSensitive
 process where endsWith(process_path, "x") == true and endsWith(process_path, "yx") != true
 ;
 {"bool":{"must":[{"wildcard":{"process_path":{"wildcard":"*x","boost":1.0}}},
-{"bool":{"must_not":[{"wildcard":{"process_path":{"wildcard":"*yx","boost":1.0}}}],"boost":1.0}}],"boost":1.0}}
+{"bool":{"must_not":[{"wildcard":{"process_path":{"wildcard":"*yx","boost":1.0}}}],"boost":1.0}}
 ;
 
 twoFunctionsEqualsBooleanLiterals-insensitive
 process where endsWith~(process_path, "x") == true and endsWith~(process_path, "yx") != true
 ;
 {"bool":{"must":[{"wildcard":{"process_path":{"wildcard":"*x","case_insensitive":true,"boost":1.0}}},
-{"bool":{"must_not":[{"wildcard":{"process_path":{"wildcard":"*yx","case_insensitive":true,"boost":1.0}}}],"boost":1.0}}],"boost":1.0}}
+{"bool":{"must_not":[{"wildcard":{"process_path":{"wildcard":"*yx","case_insensitive":true,"boost":1.0}}}],"boost":1.0}}
 ;
 
 endsWithKeywordFieldFunction-caseSensitive

@@ -13,7 +13,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.CancellableTask;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
@@ -36,7 +35,8 @@ class InferencePyTorchAction extends AbstractPyTorchAction<InferenceResults> {
 
     private final InferenceConfig config;
     private final NlpInferenceInput input;
-    private final Task parentActionTask;
+    @Nullable
+    private final CancellableTask parentActionTask;
 
     InferencePyTorchAction(
         String deploymentId,
@@ -46,7 +46,7 @@ class InferencePyTorchAction extends AbstractPyTorchAction<InferenceResults> {
         InferenceConfig config,
         NlpInferenceInput input,
         ThreadPool threadPool,
-        @Nullable Task parentActionTask,
+        @Nullable CancellableTask parentActionTask,
         ActionListener<InferenceResults> listener
     ) {
         super(deploymentId, requestId, timeout, processContext, threadPool, listener);
@@ -56,9 +56,9 @@ class InferencePyTorchAction extends AbstractPyTorchAction<InferenceResults> {
     }
 
     private boolean isCancelled() {
-        if (parentActionTask instanceof CancellableTask cancellableTask) {
+        if (parentActionTask != null) {
             try {
-                cancellableTask.ensureNotCancelled();
+                parentActionTask.ensureNotCancelled();
             } catch (TaskCancelledException ex) {
                 logger.warn(() -> format("[%s] %s", getDeploymentId(), ex.getMessage()));
                 return true;

@@ -256,5 +256,5 @@ GET /_info/http
 GET /_info/ingest
 
 # returns the http and ingest info of the cluster
-GET /_info/ingest,ingest
+GET /_info/http,ingest
 ----

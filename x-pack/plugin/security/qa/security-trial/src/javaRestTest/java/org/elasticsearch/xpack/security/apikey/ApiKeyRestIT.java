@@ -1213,6 +1213,19 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         response = performRequestWithManageOwnApiKeyUser(bulkUpdateApiKeyRequest);
         assertThat(ObjectPath.createFromResponse(response).evaluate("updated"), contains(apiKeyId));
         fetchAndAssertApiKeyContainsWorkflows(apiKeyId, "r1", "search_application");
+
+        final Request removeRestrictionRequest = new Request("PUT", "_security/api_key/" + apiKeyId);
+        removeRestrictionRequest.setJsonEntity("""
+            {
+              "role_descriptors": {
+                "r1": {
+
+                }
+              }
+            }""");
+        response = performRequestWithManageOwnApiKeyUser(removeRestrictionRequest);
+        assertThat(ObjectPath.createFromResponse(response).evaluate("updated"), equalTo(true));
+        fetchAndAssertApiKeyDoesNotContainWorkflows(apiKeyId, "r1");
     }
 
     private Response performRequestWithManageOwnApiKeyUser(Request request) throws IOException {
@@ -1225,9 +1238,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
 
     @SuppressWarnings("unchecked")
     private void fetchAndAssertApiKeyContainsWorkflows(String apiKeyId, String roleName, String... expectedWorkflows) throws IOException {
-        Request getApiKeyRequest = new Request(HttpGet.METHOD_NAME, "_security/api_key?id=" + apiKeyId);
-        Response getApiKeyResponse = adminClient().performRequest(getApiKeyRequest);
-        assertOK(getApiKeyResponse);
+        Response getApiKeyResponse = fetchApiKey(apiKeyId);
 
         List<Map<String, ?>> apiKeys = (List<Map<String, ?>>) responseAsMap(getApiKeyResponse).get("api_keys");
         assertThat(apiKeys.size(), equalTo(1));
@@ -1243,6 +1254,30 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
 
         List<String> actualWorkflows = (List<String>) restriction.get("workflows");
         assertThat(actualWorkflows, containsInAnyOrder(expectedWorkflows));
+    }
+
+    @SuppressWarnings("unchecked")
+    private void fetchAndAssertApiKeyDoesNotContainWorkflows(String apiKeyId, String roleName) throws IOException {
+        Response getApiKeyResponse = fetchApiKey(apiKeyId);
+
+        List<Map<String, ?>> apiKeys = (List<Map<String, ?>>) responseAsMap(getApiKeyResponse).get("api_keys");
+        assertThat(apiKeys.size(), equalTo(1));
+
+        Map<String, ?> roleDescriptors = (Map<String, ?>) apiKeys.get(0).get("role_descriptors");
+        assertThat(roleDescriptors, notNullValue());
+
+        Map<String, ?> roleDescriptor = (Map<String, ?>) roleDescriptors.get(roleName);
+        assertThat(roleDescriptor, notNullValue());
+
+        Map<String, ?> restriction = (Map<String, ?>) roleDescriptor.get("restriction");
+        assertThat(restriction, nullValue());
+    }
+
+    private Response fetchApiKey(String apiKeyId) throws IOException {
+        Request getApiKeyRequest = new Request(HttpGet.METHOD_NAME, "_security/api_key?id=" + apiKeyId);
+        Response getApiKeyResponse = adminClient().performRequest(getApiKeyRequest);
+        assertOK(getApiKeyResponse);
+        return getApiKeyResponse;
     }
 
     private void assertBadCreateCrossClusterApiKeyRequest(String body, String expectedErrorMessage) throws IOException {

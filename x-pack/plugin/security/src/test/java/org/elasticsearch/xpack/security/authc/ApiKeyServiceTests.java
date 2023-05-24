@@ -159,7 +159,7 @@ import static org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClu
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_ID_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_METADATA_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_TYPE_KEY;
-import static org.elasticsearch.xpack.core.security.authz.RoleDescriptor.RoleRestriction.WORKFLOWS_RESTRICTION_VERSION;
+import static org.elasticsearch.xpack.core.security.authz.RoleDescriptor.Restriction.WORKFLOWS_RESTRICTION_VERSION;
 import static org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR;
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7;
 import static org.elasticsearch.xpack.security.Security.SECURITY_CRYPTO_THREAD_POOL_NAME;
@@ -993,12 +993,12 @@ public class ApiKeyServiceTests extends ESTestCase {
 
         RoleDescriptor roleWithRestriction = roleDescriptorsByName.get("role_with_restriction");
         assertThat(roleWithRestriction.hasRestriction(), equalTo(true));
-        assertThat(roleWithRestriction.getRestriction().hasWorkflowsRestriction(), equalTo(true));
+        assertThat(roleWithRestriction.getRestriction().hasWorkflows(), equalTo(true));
         assertThat(roleWithRestriction.getRestriction().getWorkflows(), arrayContainingInAnyOrder("search_application"));
 
         RoleDescriptor roleWithoutRestriction = roleDescriptorsByName.get("role_without_restriction");
         assertThat(roleWithoutRestriction.hasRestriction(), equalTo(false));
-        assertThat(roleWithoutRestriction.getRestriction().hasWorkflowsRestriction(), equalTo(false));
+        assertThat(roleWithoutRestriction.getRestriction().hasWorkflows(), equalTo(false));
         assertThat(roleWithoutRestriction.getRestriction().getWorkflows().length, equalTo(0));
     }
 
@@ -2410,7 +2410,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         final IllegalArgumentException e1 = expectThrows(IllegalArgumentException.class, createFuture::actionGet);
         assertThat(
             e1.getMessage(),
-            containsString("all nodes must have transport version [8090099] or higher to support workflows restriction for API keys")
+            containsString("all nodes must have transport version [8500005] or higher to support workflows restriction for API keys")
         );
 
         final BulkUpdateApiKeyRequest updateRequest = new BulkUpdateApiKeyRequest(
@@ -2423,7 +2423,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         final IllegalArgumentException e2 = expectThrows(IllegalArgumentException.class, createFuture::actionGet);
         assertThat(
             e2.getMessage(),
-            containsString("all nodes must have transport version [8090099] or higher to support workflows restriction for API keys")
+            containsString("all nodes must have transport version [8500005] or higher to support workflows restriction for API keys")
         );
     }
 

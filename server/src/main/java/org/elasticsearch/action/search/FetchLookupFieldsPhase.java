@@ -79,7 +79,7 @@ final class FetchLookupFieldsPhase extends SearchPhase {
         for (Cluster cluster : clusters) {
             // Do not prepend the clusterAlias to the targetIndex if the search request is already on the remote cluster.
             final String clusterAlias = context.getRequest().getLocalClusterAlias() == null ? cluster.clusterAlias : null;
-            assert Strings.isEmpty(clusterAlias) || TransportSearchAction.shouldMinimizeRoundtrips(context.getRequest()) == false
+            assert Strings.isEmpty(clusterAlias) || TransportSearchAction.minimizeRoundTripsProhibited(context.getRequest())
                 : "lookup across clusters only if [ccs_minimize_roundtrips] is disabled";
             for (LookupField lookupField : cluster.lookupFields) {
                 final SearchRequest searchRequest = lookupField.toSearchRequest(clusterAlias);

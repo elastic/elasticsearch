@@ -525,6 +525,10 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
     }
 
     public void testMalformedRequestDispatchedNoAuthn() throws Exception {
+        assumeTrue(
+            "This test doesn't work correctly under turkish-like locale, because it uses String#toUpper() for asserted error messages",
+            isTurkishLocale() == false
+        );
         final AtomicReference<Throwable> dispatchThrowableReference = new AtomicReference<>();
         final AtomicInteger authnInvocationCount = new AtomicInteger();
         final AtomicInteger badDispatchInvocationCount = new AtomicInteger();
@@ -574,8 +578,8 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
                 EmbeddedChannel ch = new EmbeddedChannel(handler);
                 ByteBuf buf = ch.alloc().buffer();
                 ByteBufUtil.copy(AsciiString.of("This is not a valid HTTP line"), buf);
-                ByteBufUtil.writeShortBE(buf, HttpConstants.LF);
-                ByteBufUtil.writeShortBE(buf, HttpConstants.LF);
+                buf.writeByte(HttpConstants.LF);
+                buf.writeByte(HttpConstants.LF);
                 var writeFuture = testThreadPool.generic().submit(() -> {
                     ch.writeInbound(buf);
                     ch.flushInbound();
@@ -590,8 +594,8 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
                 EmbeddedChannel ch = new EmbeddedChannel(handler);
                 ByteBuf buf = ch.alloc().buffer();
                 ByteBufUtil.copy(AsciiString.of("GET /this/is/a/valid/but/too/long/initial/line HTTP/1.1"), buf);
-                ByteBufUtil.writeShortBE(buf, HttpConstants.LF);
-                ByteBufUtil.writeShortBE(buf, HttpConstants.LF);
+                buf.writeByte(HttpConstants.LF);
+                buf.writeByte(HttpConstants.LF);
                 var writeFuture = testThreadPool.generic().submit(() -> {
                     ch.writeInbound(buf);
                     ch.flushInbound();
@@ -606,10 +610,10 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
                 EmbeddedChannel ch = new EmbeddedChannel(handler);
                 ByteBuf buf = ch.alloc().buffer();
                 ByteBufUtil.copy(AsciiString.of("GET /url HTTP/1.1"), buf);
-                ByteBufUtil.writeShortBE(buf, HttpConstants.LF);
+                buf.writeByte(HttpConstants.LF);
                 ByteBufUtil.copy(AsciiString.of("Host"), buf);
-                ByteBufUtil.writeShortBE(buf, HttpConstants.LF);
-                ByteBufUtil.writeShortBE(buf, HttpConstants.LF);
+                buf.writeByte(HttpConstants.LF);
+                buf.writeByte(HttpConstants.LF);
                 var writeFuture = testThreadPool.generic().submit(() -> {
                     ch.writeInbound(buf);
                     ch.flushInbound();
@@ -624,10 +628,10 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
                 EmbeddedChannel ch = new EmbeddedChannel(handler);
                 ByteBuf buf = ch.alloc().buffer();
                 ByteBufUtil.copy(AsciiString.of("GET /url HTTP/1.1"), buf);
-                ByteBufUtil.writeShortBE(buf, HttpConstants.LF);
+                buf.writeByte(HttpConstants.LF);
                 ByteBufUtil.copy(AsciiString.of("Host: this.looks.like.a.good.url.but.is.longer.than.permitted"), buf);
-                ByteBufUtil.writeShortBE(buf, HttpConstants.LF);
-                ByteBufUtil.writeShortBE(buf, HttpConstants.LF);
+                buf.writeByte(HttpConstants.LF);
+                buf.writeByte(HttpConstants.LF);
                 var writeFuture = testThreadPool.generic().submit(() -> {
                     ch.writeInbound(buf);
                     ch.flushInbound();
@@ -642,10 +646,11 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
                 EmbeddedChannel ch = new EmbeddedChannel(handler);
                 ByteBuf buf = ch.alloc().buffer();
                 ByteBufUtil.copy(AsciiString.of("GET /url HTTP/1.1"), buf);
-                ByteBufUtil.writeShortBE(buf, HttpConstants.LF);
-                ByteBufUtil.copy(AsciiString.of("Host: invalid host value"), buf);
-                ByteBufUtil.writeShortBE(buf, HttpConstants.LF);
-                ByteBufUtil.writeShortBE(buf, HttpConstants.LF);
+                buf.writeByte(HttpConstants.LF);
+                ByteBufUtil.copy(AsciiString.of("Host: invalid header value"), buf);
+                buf.writeByte(0x01);
+                buf.writeByte(HttpConstants.LF);
+                buf.writeByte(HttpConstants.LF);
                 var writeFuture = testThreadPool.generic().submit(() -> {
                     ch.writeInbound(buf);
                     ch.flushInbound();
@@ -660,9 +665,9 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
                 EmbeddedChannel ch = new EmbeddedChannel(handler);
                 ByteBuf buf = ch.alloc().buffer();
                 ByteBufUtil.copy(AsciiString.of("GET /url HTTP/1.1"), buf);
-                ByteBufUtil.writeShortBE(buf, HttpConstants.LF);
+                buf.writeByte(HttpConstants.LF);
                 ByteBufUtil.copy(AsciiString.of("Host: localhost"), buf);
-                ByteBufUtil.writeShortBE(buf, HttpConstants.LF);
+                buf.writeByte(HttpConstants.LF);
                 testThreadPool.generic().submit(() -> {
                     ch.writeInbound(buf);
                     ch.flushInbound();

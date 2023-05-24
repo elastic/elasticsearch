@@ -32,12 +32,10 @@ public class StackFrameTests extends ESTestCase {
                         "name", "helloWorld",
                         "offset", 31733
                     ),
-                "line", Map.of("number", 22),
-                "source", Map.of("type", 3))
+                "line", Map.of("number", 22))
                 )
         );
         // end::noformat
-        assertEquals(List.of(3), frame.sourceType);
         assertEquals(List.of("Main.java"), frame.fileName);
         assertEquals(List.of("helloWorld"), frame.functionName);
         assertEquals(List.of(31733), frame.functionOffset);
@@ -54,7 +52,6 @@ public class StackFrameTests extends ESTestCase {
             )
         );
         // end::noformat
-        assertEquals(Collections.emptyList(), frame.sourceType);
         assertEquals(List.of("Main.java"), frame.fileName);
         assertEquals(List.of("helloWorld"), frame.functionName);
         assertEquals(Collections.emptyList(), frame.functionOffset);
@@ -69,21 +66,20 @@ public class StackFrameTests extends ESTestCase {
             .array("function_name", "helloWorld")
             .array("function_offset", 31733)
             .array("line_number", 22)
-            .array("source_type", 3)
             .endObject();
 
         XContentBuilder actualRequest = XContentFactory.contentBuilder(contentType);
-        StackFrame stackTrace = new StackFrame("Main.java", "helloWorld", 31733, 22, 3);
+        StackFrame stackTrace = new StackFrame("Main.java", "helloWorld", 31733, 22);
         stackTrace.toXContent(actualRequest, ToXContent.EMPTY_PARAMS);
 
         assertToXContentEquivalent(BytesReference.bytes(expectedRequest), BytesReference.bytes(actualRequest), contentType);
     }
 
     public void testEquality() {
-        StackFrame frame = new StackFrame("Main.java", "helloWorld", 31733, 22, 3);
+        StackFrame frame = new StackFrame("Main.java", "helloWorld", 31733, 22);
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(
             frame,
-            (o -> new StackFrame(o.fileName, o.functionName, o.functionOffset, o.lineNumber, o.sourceType))
+            (o -> new StackFrame(o.fileName, o.functionName, o.functionOffset, o.lineNumber))
         );
 
     }

@@ -120,6 +120,7 @@ import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.UpdateCrossClusterApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.enrollment.KibanaEnrollmentAction;
 import org.elasticsearch.xpack.core.security.action.enrollment.NodeEnrollmentAction;
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectAuthenticateAction;
@@ -204,6 +205,7 @@ import org.elasticsearch.xpack.security.action.apikey.TransportGrantApiKeyAction
 import org.elasticsearch.xpack.security.action.apikey.TransportInvalidateApiKeyAction;
 import org.elasticsearch.xpack.security.action.apikey.TransportQueryApiKeyAction;
 import org.elasticsearch.xpack.security.action.apikey.TransportUpdateApiKeyAction;
+import org.elasticsearch.xpack.security.action.apikey.TransportUpdateCrossClusterApiKeyAction;
 import org.elasticsearch.xpack.security.action.enrollment.TransportKibanaEnrollmentAction;
 import org.elasticsearch.xpack.security.action.enrollment.TransportNodeEnrollmentAction;
 import org.elasticsearch.xpack.security.action.filter.SecurityActionFilter;
@@ -309,6 +311,7 @@ import org.elasticsearch.xpack.security.rest.action.apikey.RestGrantApiKeyAction
 import org.elasticsearch.xpack.security.rest.action.apikey.RestInvalidateApiKeyAction;
 import org.elasticsearch.xpack.security.rest.action.apikey.RestQueryApiKeyAction;
 import org.elasticsearch.xpack.security.rest.action.apikey.RestUpdateApiKeyAction;
+import org.elasticsearch.xpack.security.rest.action.apikey.RestUpdateCrossClusterApiKeyAction;
 import org.elasticsearch.xpack.security.rest.action.enrollment.RestKibanaEnrollAction;
 import org.elasticsearch.xpack.security.rest.action.enrollment.RestNodeEnrollmentAction;
 import org.elasticsearch.xpack.security.rest.action.oauth2.RestGetTokenAction;
@@ -1322,6 +1325,9 @@ public class Security extends Plugin
             new ActionHandler<>(QueryApiKeyAction.INSTANCE, TransportQueryApiKeyAction.class),
             new ActionHandler<>(UpdateApiKeyAction.INSTANCE, TransportUpdateApiKeyAction.class),
             new ActionHandler<>(BulkUpdateApiKeyAction.INSTANCE, TransportBulkUpdateApiKeyAction.class),
+            TcpTransport.isUntrustedRemoteClusterEnabled()
+                ? new ActionHandler<>(UpdateCrossClusterApiKeyAction.INSTANCE, TransportUpdateCrossClusterApiKeyAction.class)
+                : null,
             new ActionHandler<>(DelegatePkiAuthenticationAction.INSTANCE, TransportDelegatePkiAuthenticationAction.class),
             new ActionHandler<>(CreateServiceAccountTokenAction.INSTANCE, TransportCreateServiceAccountTokenAction.class),
             new ActionHandler<>(DeleteServiceAccountTokenAction.INSTANCE, TransportDeleteServiceAccountTokenAction.class),
@@ -1402,6 +1408,7 @@ public class Security extends Plugin
             TcpTransport.isUntrustedRemoteClusterEnabled() ? new RestCreateCrossClusterApiKeyAction(settings, getLicenseState()) : null,
             new RestUpdateApiKeyAction(settings, getLicenseState()),
             new RestBulkUpdateApiKeyAction(settings, getLicenseState()),
+            TcpTransport.isUntrustedRemoteClusterEnabled() ? new RestUpdateCrossClusterApiKeyAction(settings, getLicenseState()) : null,
             new RestGrantApiKeyAction(settings, getLicenseState()),
             new RestInvalidateApiKeyAction(settings, getLicenseState()),
             new RestGetApiKeyAction(settings, getLicenseState()),
@@ -1666,10 +1673,16 @@ public class Security extends Plugin
                 RemoteHostHeader.process(channel, threadContext);
                 // step 2: Run authentication on the now properly prepared thread-context.
                 // This inspects and modifies the thread context.
-                authenticationService.authenticate(
-                    httpPreRequest,
-                    ActionListener.wrap(ignored -> listener.onResponse(null), listener::onFailure)
-                );
+                if (httpPreRequest.method() != RestRequest.Method.OPTIONS) {
+                    authenticationService.authenticate(
+                        httpPreRequest,
+                        ActionListener.wrap(ignored -> listener.onResponse(null), listener::onFailure)
+                    );
+                } else {
+                    // allow for unauthenticated OPTIONS request
+                    // this includes CORS preflight, and regular OPTIONS that return permitted methods for a given path
+                    listener.onResponse(null);
+                }
             };
             return getHttpServerTransportWithHeadersValidator(
                 settings,

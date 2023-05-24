@@ -78,7 +78,7 @@ public class SynonymsManagementAPIService {
                     {
                         builder.startObject("synonyms");
                         {
-                            builder.field("type", "text");
+                            builder.field("type", "match_only_text");
                         }
                         builder.endObject();
                         builder.startObject(SYNONYMS_SET_FIELD);

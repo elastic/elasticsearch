@@ -35,7 +35,9 @@ import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
 public class SynonymsManagementAPIService {
-    public static final String SYNONYMS_INDEX = ".synonyms";
+    public static final String SYNONYMS_INDEX_NAME_PATTERN = ".synonyms-*";
+    public static final String SYNONYMS_INDEX_CONCRETE_NAME = ".synonyms-1";
+    public static final String SYNONYMS_ALIAS_NAME = ".synonyms";
 
     public static final String SYNONYMS_FEATURE_NAME = "synonyms";
     public static final String SYNONYMS_SET_FIELD = "synonyms_set";
@@ -45,9 +47,10 @@ public class SynonymsManagementAPIService {
 
     public static final String SYNONYMS_ORIGIN = "synonyms";
     public static final SystemIndexDescriptor SYNONYMS_DESCRIPTOR = SystemIndexDescriptor.builder()
-        .setIndexPattern(SYNONYMS_INDEX + "*")
+        .setIndexPattern(SYNONYMS_INDEX_NAME_PATTERN)
         .setDescription("Synonyms index for synonyms managed through APIs")
-        .setPrimaryIndex(SYNONYMS_INDEX)
+        .setPrimaryIndex(SYNONYMS_INDEX_CONCRETE_NAME)
+        .setAliasName(SYNONYMS_ALIAS_NAME)
         .setMappings(mappings())
         .setSettings(settings())
         .setVersionMetaKey("version")
@@ -91,7 +94,7 @@ public class SynonymsManagementAPIService {
             builder.endObject();
             return builder;
         } catch (IOException e) {
-            throw new UncheckedIOException("Failed to build mappings for " + SYNONYMS_INDEX, e);
+            throw new UncheckedIOException("Failed to build mappings for " + SYNONYMS_INDEX_CONCRETE_NAME, e);
         }
     }
 
@@ -100,7 +103,7 @@ public class SynonymsManagementAPIService {
         // TODO Add synonym rules validation
 
         // Delete synonyms set if it existed previously. Avoid catching an index not found error by ignoring unavailable indices
-        DeleteByQueryRequest dbqRequest = new DeleteByQueryRequest(SYNONYMS_INDEX).setQuery(
+        DeleteByQueryRequest dbqRequest = new DeleteByQueryRequest(SYNONYMS_ALIAS_NAME).setQuery(
             QueryBuilders.termQuery(SYNONYMS_SET_FIELD, resourceName)
         ).setIndicesOptions(IndicesOptions.fromOptions(true, true, false, false));
 
@@ -123,7 +126,7 @@ public class SynonymsManagementAPIService {
                             }
                             builder.endObject();
 
-                            final IndexRequest indexRequest = new IndexRequest(SYNONYMS_INDEX).opType(DocWriteRequest.OpType.INDEX)
+                            final IndexRequest indexRequest = new IndexRequest(SYNONYMS_ALIAS_NAME).opType(DocWriteRequest.OpType.INDEX)
                                 .source(builder);
                             final String synonymRuleId = synonymRule.id();
                             if (synonymRuleId != null) {

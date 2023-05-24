@@ -772,37 +772,37 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
         final int ccsKeys = randomIntBetween(0, 2);
         for (int i = 0; i < ccsKeys; i++) {
             final Request request = new Request("POST", "/_security/cross_cluster/api_key");
-            request.setJsonEntity("""
+            request.setJsonEntity(Strings.format("""
                 {
-                  "name": "my-cross-cluster-key-%s",
+                  "name": "my-ccs-key-%s",
                   "access": {
                     "search": [ {
                       "names": [ "logs*" ]
                     } ]
                   }
-                }""");
+                }""", i));
             assertOK(adminClient().performRequest(request));
         }
         final int ccrKeys = randomIntBetween(0, 2);
         for (int i = 0; i < ccrKeys; i++) {
             final Request request = new Request("POST", "/_security/cross_cluster/api_key");
-            request.setJsonEntity("""
+            request.setJsonEntity(Strings.format("""
                 {
-                  "name": "my-cross-cluster-key-%s",
+                  "name": "my-ccr-key-%s",
                   "access": {
                     "replication": [ {
                       "names": [ "archive*" ]
                     } ]
                   }
-                }""");
+                }""", i));
             assertOK(adminClient().performRequest(request));
         }
         final int ccsCcrKeys = randomIntBetween(0, 2);
         for (int i = 0; i < ccsCcrKeys; i++) {
             final Request request = new Request("POST", "/_security/cross_cluster/api_key");
-            request.setJsonEntity("""
+            request.setJsonEntity(Strings.format("""
                 {
-                  "name": "my-cross-cluster-key-%s",
+                  "name": "my-ccs-ccr-key-%s",
                   "access": {
                     "search": [ {
                       "names": [ "logs*" ]
@@ -811,7 +811,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                       "names": [ "archive*" ]
                     } ]
                   }
-                }""");
+                }""", i));
             assertOK(adminClient().performRequest(request));
         }
 

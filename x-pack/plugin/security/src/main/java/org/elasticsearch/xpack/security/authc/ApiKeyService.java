@@ -1222,6 +1222,10 @@ public class ApiKeyService {
     }
 
     public void crossClusterApiKeyUsageStats(ActionListener<Map<String, Object>> listener) {
+        if (false == isEnabled()) {
+            listener.onResponse(Map.of());
+            return;
+        }
         final SecurityIndexManager frozenSecurityIndex = securityIndex.freeze();
         if (frozenSecurityIndex.indexExists() == false) {
             logger.debug("security index does not exist");

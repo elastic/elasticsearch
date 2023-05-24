@@ -44,6 +44,7 @@ import java.util.Map;
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.nullValue;
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.notNullValue;
@@ -199,22 +200,22 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
             return null;
         }).when(profileService).usageStats(anyActionListener());
 
-        final int totalCcKeys = randomIntBetween(100, 200);
         final int ccsKeys = randomIntBetween(0, 50);
         final int ccrKeys = randomIntBetween(0, 50);
+        final int ccsCcrKeys = randomIntBetween(0, 50);
         final Map<String, Object> crossClusterApiKeyUsage = Map.of(
             "total",
-            totalCcKeys,
+            ccsKeys + ccrKeys + ccsCcrKeys,
             "ccs",
             ccsKeys,
             "ccr",
             ccrKeys,
             "ccs_ccr",
-            totalCcKeys - ccsKeys - ccrKeys
+            ccsCcrKeys
         );
         doAnswer(invocation -> {
             final ActionListener<Map<String, Object>> listener = invocation.getArgument(0);
-            listener.onResponse(crossClusterApiKeyUsage);
+            listener.onResponse(apiKeyServiceEnabled ? crossClusterApiKeyUsage : Map.of());
             return null;
         }).when(apiKeyService).crossClusterApiKeyUsageStats(anyActionListener());
 
@@ -303,10 +304,14 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
                     assertThat(source.getValue("ssl.remote_cluster_client.enabled"), is(remoteClusterClientSslEnabled));
                     assertThat(source.getValue("remote_cluster_server.available"), is(remoteClusterServerAvailable));
                     assertThat(source.getValue("remote_cluster_server.enabled"), is(remoteClusterServerEnabled));
-                    assertThat(source.getValue("remote_cluster_server.api_keys.total"), equalTo(totalCcKeys));
-                    assertThat(source.getValue("remote_cluster_server.api_keys.ccs"), equalTo(ccsKeys));
-                    assertThat(source.getValue("remote_cluster_server.api_keys.ccr"), equalTo(ccrKeys));
-                    assertThat(source.getValue("remote_cluster_server.api_keys.ccs_ccr"), equalTo(crossClusterApiKeyUsage.get("ccs_ccr")));
+                    if (apiKeyServiceEnabled) {
+                        assertThat(source.getValue("remote_cluster_server.api_keys.total"), equalTo(crossClusterApiKeyUsage.get("total")));
+                        assertThat(source.getValue("remote_cluster_server.api_keys.ccs"), equalTo(ccsKeys));
+                        assertThat(source.getValue("remote_cluster_server.api_keys.ccr"), equalTo(ccrKeys));
+                        assertThat(source.getValue("remote_cluster_server.api_keys.ccs_ccr"), equalTo(ccsCcrKeys));
+                    } else {
+                        assertThat(source.getValue("remote_cluster_server.api_keys"), anEmptyMap());
+                    }
                 }
             } else {
                 assertThat(source.getValue("ssl"), is(nullValue()));

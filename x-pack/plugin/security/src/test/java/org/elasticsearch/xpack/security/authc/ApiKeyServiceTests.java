@@ -826,6 +826,14 @@ public class ApiKeyServiceTests extends ESTestCase {
         }
     }
 
+    public void testCrossClusterApiKeyUsageStatsAreZerosWhenServiceNotEnabled() {
+        final Settings settings = Settings.builder().put(XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.getKey(), false).build();
+        final ApiKeyService service = createApiKeyService(settings);
+        final PlainActionFuture<Map<String, Object>> future = new PlainActionFuture<>();
+        service.crossClusterApiKeyUsageStats(future);
+        assertThat(future.actionGet(), anEmptyMap());
+    }
+
     public void testCrossClusterApiKeyUsageStatsAreZerosWhenIndexDoesNotExist() {
         securityIndex = SecurityMocks.mockSecurityIndexManager(".security", false, false);
         final ApiKeyService apiKeyService = createApiKeyService();

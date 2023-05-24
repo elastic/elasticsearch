@@ -281,22 +281,21 @@ public abstract class DocumentParserContext {
         if (mapper instanceof ObjectMapper) {
             MappingLookup.checkObjectDepthLimit(indexSettings().getMappingDepthLimit(), mapper.name());
         }
-        if (mappingLookup.getMapper(mapper.name()) != null
-            || mappingLookup.objectMappers().containsKey(mapper.name())
-            || dynamicMappers.containsKey(mapper.name())) {
-            return true;
-        }
         // eagerly check field name limit here to avoid OOM errors
         // only check fields that are not already mapped or tracked in order to avoid hitting field limit too early via double-counting
         // note that existing fields can also receive dynamic mapping updates (e.g. constant_keyword to fix the value)
-        int additionalFieldsToAdd = getDynamicMappersSize() + mapper.mapperSize();
-        if (indexSettings().isIgnoreDynamicFieldsBeyondLimit()) {
-            if (mappingLookup.exceedsLimit(indexSettings().getMappingTotalFieldsLimit(), additionalFieldsToAdd)) {
-                addIgnoredField(mapper.name());
-                return false;
+        if (mappingLookup.getMapper(mapper.name()) == null
+            && mappingLookup.objectMappers().containsKey(mapper.name()) == false
+            && dynamicMappers.containsKey(mapper.name()) == false) {
+            int additionalFieldsToAdd = getNewDynamicMappersSize() + mapper.mapperSize();
+            if (indexSettings().isIgnoreDynamicFieldsBeyondLimit()) {
+                if (mappingLookup.exceedsLimit(indexSettings().getMappingTotalFieldsLimit(), additionalFieldsToAdd)) {
+                    addIgnoredField(mapper.name());
+                    return false;
+                }
+            } else {
+                mappingLookup.checkFieldLimit(indexSettings().getMappingTotalFieldsLimit(), additionalFieldsToAdd);
             }
-        } else {
-            mappingLookup.checkFieldLimit(indexSettings().getMappingTotalFieldsLimit(), additionalFieldsToAdd);
         }
         if (mapper instanceof ObjectMapper objectMapper) {
             dynamicObjectMappers.put(objectMapper.name(), objectMapper);
@@ -319,8 +318,13 @@ public abstract class DocumentParserContext {
         return true;
     }
 
-    private int getDynamicMappersSize() {
-        return dynamicMappers.values().stream().mapToInt(Mapper::mapperSize).sum();
+    private int getNewDynamicMappersSize() {
+        return dynamicMappers.values()
+            .stream()
+            .filter(m -> mappingLookup.getMapper(m.name()) == null)
+            .filter(m -> mappingLookup.objectMappers().get(m.name()) == null)
+            .mapToInt(Mapper::mapperSize)
+            .sum();
     }
 
     /**
@@ -351,16 +355,15 @@ public abstract class DocumentParserContext {
      * as runtime or indexed, but never both.
      */
     final boolean addDynamicRuntimeField(RuntimeField runtimeField) {
-        if (dynamicRuntimeFields.containsKey(runtimeField.name())) {
-            return true;
-        }
-        if (indexSettings().isIgnoreDynamicFieldsBeyondLimit()) {
-            if (mappingLookup.exceedsLimit(indexSettings().getMappingTotalFieldsLimit(), dynamicRuntimeFields.size() + 1)) {
-                addIgnoredField(runtimeField.name());
-                return false;
+        if (dynamicRuntimeFields.containsKey(runtimeField.name()) == false) {
+            if (indexSettings().isIgnoreDynamicFieldsBeyondLimit()) {
+                if (mappingLookup.exceedsLimit(indexSettings().getMappingTotalFieldsLimit(), dynamicRuntimeFields.size() + 1)) {
+                    addIgnoredField(runtimeField.name());
+                    return false;
+                }
+            } else {
+                mappingLookup.checkFieldLimit(indexSettings().getMappingTotalFieldsLimit(), dynamicRuntimeFields.size() + 1);
             }
-        } else {
-            mappingLookup.checkFieldLimit(indexSettings().getMappingTotalFieldsLimit(), dynamicRuntimeFields.size() + 1);
         }
         dynamicRuntimeFields.put(runtimeField.name(), runtimeField);
         return true;

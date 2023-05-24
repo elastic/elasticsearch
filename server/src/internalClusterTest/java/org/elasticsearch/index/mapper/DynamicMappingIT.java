@@ -310,7 +310,6 @@ public class DynamicMappingIT extends ESIntegTestCase {
         assertThat(fields.get("_ignored").getValues(), equalTo(List.of("a.d")));
     }
 
-
     public void testIgnoreDynamicBeyondLimitRuntimeFields() throws Exception {
         var fields = indexIgnoreDynamicBeyond(1, orderedMap("field1", 1, "field2", List.of(1, 2)), Map.of("dynamic", "runtime"))
             .getFields();

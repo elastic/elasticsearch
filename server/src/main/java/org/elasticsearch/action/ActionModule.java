@@ -420,6 +420,7 @@ import org.elasticsearch.rest.action.document.RestMultiGetAction;
 import org.elasticsearch.rest.action.document.RestMultiTermVectorsAction;
 import org.elasticsearch.rest.action.document.RestTermVectorsAction;
 import org.elasticsearch.rest.action.document.RestUpdateAction;
+import org.elasticsearch.rest.action.info.RestClusterInfoAction;
 import org.elasticsearch.rest.action.ingest.RestDeletePipelineAction;
 import org.elasticsearch.rest.action.ingest.RestGetPipelineAction;
 import org.elasticsearch.rest.action.ingest.RestPutPipelineAction;
@@ -436,6 +437,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.usage.UsageService;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -558,6 +560,9 @@ public class ActionModule extends AbstractModule {
      * finishes and returns.
      */
     public void copyRequestHeadersToThreadContext(HttpPreRequest request, ThreadContext threadContext) {
+        // the request's thread-context must always be populated (by calling this method) before undergoing any request related processing
+        // we use this opportunity to first record the request processing start time
+        threadContext.putTransient(Task.TRACE_START_TIME, Instant.ofEpochMilli(threadPool.absoluteTimeInMillis()));
         for (final RestHeaderDefinition restHeader : headersToCopy) {
             final String name = restHeader.getName();
             final List<String> headerValues = request.getHeaders().get(name);
@@ -931,6 +936,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestShardsAction());
         registerHandler.accept(new RestMasterAction());
         registerHandler.accept(new RestNodesAction());
+        registerHandler.accept(new RestClusterInfoAction());
         registerHandler.accept(new RestTasksAction(nodesInCluster));
         registerHandler.accept(new RestIndicesAction());
         registerHandler.accept(new RestSegmentsAction());

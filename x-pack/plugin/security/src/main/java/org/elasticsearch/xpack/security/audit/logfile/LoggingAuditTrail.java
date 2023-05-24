@@ -45,17 +45,22 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.Grant;
 import org.elasticsearch.xpack.core.security.action.apikey.AbstractCreateApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.BaseSingleUpdateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.BaseUpdateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.UpdateCrossClusterApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.UpdateCrossClusterApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.privilege.PutPrivilegesAction;
@@ -300,7 +305,9 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         UpdateProfileDataAction.NAME,
         SetProfileEnabledAction.NAME,
         UpdateApiKeyAction.NAME,
-        BulkUpdateApiKeyAction.NAME
+        BulkUpdateApiKeyAction.NAME,
+        CreateCrossClusterApiKeyAction.NAME,
+        UpdateCrossClusterApiKeyAction.NAME
     );
     private static final String FILTER_POLICY_PREFIX = setting("audit.logfile.events.ignore_filters.");
     // because of the default wildcard value (*) for the field filter, a policy with
@@ -776,6 +783,12 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 } else if (msg instanceof final BulkUpdateApiKeyRequest bulkUpdateApiKeyRequest) {
                     assert BulkUpdateApiKeyAction.NAME.equals(action);
                     securityChangeLogEntryBuilder(requestId).withRequestBody(bulkUpdateApiKeyRequest).build();
+                } else if (msg instanceof final CreateCrossClusterApiKeyRequest createCrossClusterApiKeyRequest) {
+                    assert CreateCrossClusterApiKeyAction.NAME.equals(action);
+                    securityChangeLogEntryBuilder(requestId).withRequestBody(createCrossClusterApiKeyRequest).build();
+                } else if (msg instanceof final UpdateCrossClusterApiKeyRequest updateCrossClusterApiKeyRequest) {
+                    assert UpdateCrossClusterApiKeyAction.NAME.equals(action);
+                    securityChangeLogEntryBuilder(requestId).withRequestBody(updateCrossClusterApiKeyRequest).build();
                 } else {
                     throw new IllegalStateException(
                         "Unknown message class type ["
@@ -1242,11 +1255,11 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             return this;
         }
 
-        LogEntryBuilder withRequestBody(final UpdateApiKeyRequest updateApiKeyRequest) throws IOException {
+        LogEntryBuilder withRequestBody(final BaseSingleUpdateApiKeyRequest baseSingleUpdateApiKeyRequest) throws IOException {
             logEntry.with(EVENT_ACTION_FIELD_NAME, "change_apikey");
             XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
             builder.startObject();
-            withRequestBody(builder, updateApiKeyRequest);
+            withRequestBody(builder, baseSingleUpdateApiKeyRequest);
             builder.endObject();
             logEntry.with(CHANGE_CONFIG_FIELD_NAME, Strings.toString(builder));
             return this;
@@ -1267,6 +1280,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             builder.startObject("apikey")
                 .field("id", abstractCreateApiKeyRequest.getId())
                 .field("name", abstractCreateApiKeyRequest.getName())
+                .field("type", abstractCreateApiKeyRequest.getType().value())
                 .field("expiration", expiration != null ? expiration.toString() : null)
                 .startArray("role_descriptors");
             for (RoleDescriptor roleDescriptor : abstractCreateApiKeyRequest.getRoleDescriptors()) {
@@ -1279,9 +1293,10 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             builder.endObject(); // apikey
         }
 
-        private void withRequestBody(final XContentBuilder builder, final UpdateApiKeyRequest updateApiKeyRequest) throws IOException {
-            builder.startObject("apikey").field("id", updateApiKeyRequest.getId());
-            withBaseUpdateApiKeyFields(builder, updateApiKeyRequest);
+        private void withRequestBody(final XContentBuilder builder, final BaseSingleUpdateApiKeyRequest baseSingleUpdateApiKeyRequest)
+            throws IOException {
+            builder.startObject("apikey").field("id", baseSingleUpdateApiKeyRequest.getId());
+            withBaseUpdateApiKeyFields(builder, baseSingleUpdateApiKeyRequest);
             builder.endObject();
         }
 
@@ -1294,6 +1309,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
 
         private void withBaseUpdateApiKeyFields(final XContentBuilder builder, final BaseUpdateApiKeyRequest baseUpdateApiKeyRequest)
             throws IOException {
+            builder.field("type", baseUpdateApiKeyRequest.getType().value());
             if (baseUpdateApiKeyRequest.getRoleDescriptors() != null) {
                 builder.startArray("role_descriptors");
                 for (RoleDescriptor roleDescriptor : baseUpdateApiKeyRequest.getRoleDescriptors()) {

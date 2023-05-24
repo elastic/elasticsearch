@@ -878,7 +878,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     public void testShowFunctions() {
         EsqlQueryResponse results = run("show functions");
         assertThat(results.columns(), equalTo(List.of(new ColumnInfo("name", "keyword"), new ColumnInfo("synopsis", "keyword"))));
-        assertThat(results.values().size(), equalTo(31));
+        assertThat(results.values().size(), equalTo(32));
     }
 
     public void testInWithNullValue() {

@@ -14,14 +14,13 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.rollup.action.StartRollupJobAction;
 import org.elasticsearch.xpack.rollup.job.RollupJobTask;
 
 import java.util.List;
-import java.util.function.Consumer;
 
 public class TransportStartRollupAction extends TransportTasksAction<
     RollupJobTask,
@@ -44,13 +43,13 @@ public class TransportStartRollupAction extends TransportTasksAction<
     }
 
     @Override
-    protected void processTasks(StartRollupJobAction.Request request, Consumer<RollupJobTask> operation) {
-        TransportTaskHelper.doProcessTasks(request.getId(), operation, taskManager);
+    protected List<RollupJobTask> processTasks(StartRollupJobAction.Request request) {
+        return TransportTaskHelper.doProcessTasks(request.getId(), taskManager);
     }
 
     @Override
     protected void taskOperation(
-        Task actionTask,
+        CancellableTask actionTask,
         StartRollupJobAction.Request request,
         RollupJobTask jobTask,
         ActionListener<StartRollupJobAction.Response> listener

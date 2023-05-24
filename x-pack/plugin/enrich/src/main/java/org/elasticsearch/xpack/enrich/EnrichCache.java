@@ -130,10 +130,12 @@ public final class EnrichCache {
 
         final String enrichIndex;
         final SearchRequest searchRequest;
+        private final int hashCode;
 
         private CacheKey(String enrichIndex, SearchRequest searchRequest) {
             this.enrichIndex = enrichIndex;
             this.searchRequest = searchRequest;
+            this.hashCode = computeHashCode();
         }
 
         @Override
@@ -146,6 +148,10 @@ public final class EnrichCache {
 
         @Override
         public int hashCode() {
+            return hashCode;
+        }
+
+        private int computeHashCode() {
             return Objects.hash(enrichIndex, searchRequest);
         }
     }

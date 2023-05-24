@@ -30,7 +30,6 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.logging.LogManager;
@@ -110,10 +109,6 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
     protected void asyncShardOperation(GetRequest request, ShardId shardId, ActionListener<GetResponse> listener) throws IOException {
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         IndexShard indexShard = indexService.getShard(shardId.id());
-        if (indexShard.routingEntry() == null) {
-            listener.onFailure(new ShardNotFoundException(shardId));
-            return;
-        }
         if (indexShard.routingEntry().isPromotableToPrimary() == false) {
             handleGetOnUnpromotableShard(request, indexShard, listener);
             return;
@@ -227,14 +222,13 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
     }
 
     private DiscoveryNode getCurrentNodeOfPrimary(ShardId shardId) {
-        var shardRoutingTable = clusterService.state().routingTable().shardRoutingTable(shardId);
+        var clusterState = clusterService.state();
+        var shardRoutingTable = clusterState.routingTable().shardRoutingTable(shardId);
         if (shardRoutingTable.primaryShard() == null || shardRoutingTable.primaryShard().active() == false) {
             throw new NoShardAvailableActionException(shardId, "primary shard is not active");
         }
-        DiscoveryNode node = clusterService.state().nodes().get(shardRoutingTable.primaryShard().currentNodeId());
-        if (node == null) {
-            throw new NoShardAvailableActionException(shardId);
-        }
+        DiscoveryNode node = clusterState.nodes().get(shardRoutingTable.primaryShard().currentNodeId());
+        assert node != null;
         return node;
     }
 

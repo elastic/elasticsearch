@@ -22,10 +22,8 @@
 package org.elasticsearch.tdigest;
 
 import java.util.AbstractCollection;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
-import java.util.List;
 
 /**
  * A tree of t-digest centroids.
@@ -34,19 +32,12 @@ final class AVLGroupTree extends AbstractCollection<Centroid> {
     /* For insertions into the tree */
     private double centroid;
     private int count;
-    private List<Double> data;
-
     private double[] centroids;
     private int[] counts;
-    private List<Double>[] datas;
     private int[] aggregatedCounts;
     private final IntAVLTree tree;
 
     AVLGroupTree() {
-        this(false);
-    }
-
-    AVLGroupTree(final boolean record) {
         tree = new IntAVLTree() {
 
             @Override
@@ -55,9 +46,6 @@ final class AVLGroupTree extends AbstractCollection<Centroid> {
                 centroids = Arrays.copyOf(centroids, newCapacity);
                 counts = Arrays.copyOf(counts, newCapacity);
                 aggregatedCounts = Arrays.copyOf(aggregatedCounts, newCapacity);
-                if (datas != null) {
-                    datas = Arrays.copyOf(datas, newCapacity);
-                }
             }
 
             @Override
@@ -70,16 +58,6 @@ final class AVLGroupTree extends AbstractCollection<Centroid> {
             protected void copy(int node) {
                 centroids[node] = centroid;
                 counts[node] = count;
-                if (datas != null) {
-                    if (data == null) {
-                        if (count != 1) {
-                            throw new IllegalStateException();
-                        }
-                        data = new ArrayList<>();
-                        data.add(centroid);
-                    }
-                    datas[node] = data;
-                }
             }
 
             @Override
@@ -102,11 +80,6 @@ final class AVLGroupTree extends AbstractCollection<Centroid> {
         centroids = new double[tree.capacity()];
         counts = new int[tree.capacity()];
         aggregatedCounts = new int[tree.capacity()];
-        if (record) {
-            @SuppressWarnings("unchecked")
-            final List<Double>[] datas = (List<Double>[]) new List<?>[tree.capacity()];
-            this.datas = datas;
-        }
     }
 
     /**
@@ -145,25 +118,17 @@ final class AVLGroupTree extends AbstractCollection<Centroid> {
     }
 
     /**
-     * Return the data for the provided node.
-     */
-    public List<Double> data(int node) {
-        return datas == null ? null : datas[node];
-    }
-
-    /**
      * Add the provided centroid to the tree.
      */
-    public void add(double centroid, int count, List<Double> data) {
+    public void add(double centroid, int count) {
         this.centroid = centroid;
         this.count = count;
-        this.data = data;
         tree.add();
     }
 
     @Override
     public boolean add(Centroid centroid) {
-        add(centroid.mean(), centroid.count(), centroid.data());
+        add(centroid.mean(), centroid.count());
         return true;
     }
 
@@ -171,19 +136,15 @@ final class AVLGroupTree extends AbstractCollection<Centroid> {
      * Update values associated with a node, readjusting the tree if necessary.
      */
     @SuppressWarnings("WeakerAccess")
-    public void update(int node, double centroid, int count, List<Double> data, boolean forceInPlace) {
+    public void update(int node, double centroid, int count, boolean forceInPlace) {
         if (centroid == centroids[node] || forceInPlace) {
             // we prefer to update in place so repeated values don't shuffle around and for merging
             centroids[node] = centroid;
             counts[node] = count;
-            if (datas != null) {
-                datas[node] = data;
-            }
         } else {
             // have to do full scale update
             this.centroid = centroid;
             this.count = count;
-            this.data = data;
             tree.update(node);
         }
     }
@@ -281,12 +242,6 @@ final class AVLGroupTree extends AbstractCollection<Centroid> {
             @Override
             public Centroid next() {
                 final Centroid next = new Centroid(mean(nextNode), count(nextNode));
-                final List<Double> data = data(nextNode);
-                if (data != null) {
-                    for (Double x : data) {
-                        next.insertData(x);
-                    }
-                }
                 nextNode = tree.next(nextNode);
                 return next;
             }

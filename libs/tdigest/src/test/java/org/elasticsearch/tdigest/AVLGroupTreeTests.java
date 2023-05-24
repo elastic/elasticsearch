@@ -26,7 +26,7 @@ import org.elasticsearch.test.ESTestCase;
 public class AVLGroupTreeTests extends ESTestCase {
 
     public void testSimpleAdds() {
-        AVLGroupTree x = new AVLGroupTree(false);
+        AVLGroupTree x = new AVLGroupTree();
         assertEquals(IntAVLTree.NIL, x.floor(34));
         assertEquals(IntAVLTree.NIL, x.first());
         assertEquals(IntAVLTree.NIL, x.last());
@@ -45,7 +45,7 @@ public class AVLGroupTreeTests extends ESTestCase {
     }
 
     public void testBalancing() {
-        AVLGroupTree x = new AVLGroupTree(false);
+        AVLGroupTree x = new AVLGroupTree();
         for (int i = 0; i < 101; i++) {
             x.add(new Centroid(i));
         }
@@ -59,7 +59,7 @@ public class AVLGroupTreeTests extends ESTestCase {
 
     public void testFloor() {
         // mostly tested in other tests
-        AVLGroupTree x = new AVLGroupTree(false);
+        AVLGroupTree x = new AVLGroupTree();
         for (int i = 0; i < 101; i++) {
             x.add(new Centroid(i / 2));
         }
@@ -72,9 +72,9 @@ public class AVLGroupTreeTests extends ESTestCase {
     }
 
     public void testHeadSum() {
-        AVLGroupTree x = new AVLGroupTree(false);
+        AVLGroupTree x = new AVLGroupTree();
         for (int i = 0; i < 1000; ++i) {
-            x.add(randomDouble(), randomIntBetween(1, 10), null);
+            x.add(randomDouble(), randomIntBetween(1, 10));
         }
         long sum = 0;
         long last = -1;
@@ -87,11 +87,11 @@ public class AVLGroupTreeTests extends ESTestCase {
     }
 
     public void testFloorSum() {
-        AVLGroupTree x = new AVLGroupTree(false);
+        AVLGroupTree x = new AVLGroupTree();
         int total = 0;
         for (int i = 0; i < 1000; ++i) {
             int count = randomIntBetween(1, 10);
-            x.add(randomDouble(), count, null);
+            x.add(randomDouble(), count);
             total += count;
         }
         assertEquals(IntAVLTree.NIL, x.floorSum(-1));

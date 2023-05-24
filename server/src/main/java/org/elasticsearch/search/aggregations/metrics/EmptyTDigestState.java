@@ -8,7 +8,6 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.tdigest.Centroid;
 import org.elasticsearch.tdigest.TDigest;
 
 import java.util.List;
@@ -16,11 +15,6 @@ import java.util.List;
 public final class EmptyTDigestState extends TDigestState {
     public EmptyTDigestState() {
         super(1.0D);
-    }
-
-    @Override
-    public TDigest recordAllData() {
-        throw new UnsupportedOperationException("Immutable Empty TDigest");
     }
 
     @Override
@@ -37,22 +31,7 @@ public final class EmptyTDigestState extends TDigestState {
     public void compress() {}
 
     @Override
-    public void add(double x) {
-        throw new UnsupportedOperationException("Immutable Empty TDigest");
-    }
-
-    @Override
     public void add(TDigest other) {
         throw new UnsupportedOperationException("Immutable Empty TDigest");
-    }
-
-    @Override
-    protected Centroid createCentroid(double mean, int id) {
-        throw new UnsupportedOperationException("Immutable Empty TDigest");
-    }
-
-    @Override
-    public boolean isRecording() {
-        return false;
     }
 }

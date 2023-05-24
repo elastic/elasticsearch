@@ -97,6 +97,8 @@ Snapshot/Restore::
 * Stop sorting indices in get-snapshots API {es-pull}94890[#94890]
 
 Transform::
+* Call listener in order to prevent the request from hanging {es-pull}96221[#96221]
+* Do not fail upon `ResourceAlreadyExistsException` during destination index creation {es-pull}96274[#96274] (issue: {es-issue}95310[#95310])
 * Fix privileges check failures by adding `allow_restricted_indices` flag {es-pull}95187[#95187]
 * Secondary credentials used with transforms should only require source and destination index privileges, not transform privileges {es-pull}94420[#94420]
 * Use monotonic time in `TransformScheduler` {es-pull}95456[#95456] (issue: {es-issue}95445[#95445])

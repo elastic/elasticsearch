@@ -28,13 +28,13 @@ public class InternalMedianAbsoluteDeviation extends InternalNumericMetricsAggre
         if (valuesSketch.size() == 0) {
             return Double.NaN;
         } else {
-
             final double approximateMedian = valuesSketch.quantile(0.5);
             final TDigestState approximatedDeviationsSketch = new TDigestState(valuesSketch.compression());
             valuesSketch.centroids().forEach(centroid -> {
                 final double deviation = Math.abs(approximateMedian - centroid.mean());
                 approximatedDeviationsSketch.add(deviation, centroid.count());
             });
+
             return approximatedDeviationsSketch.quantile(0.5);
         }
     }
@@ -45,6 +45,7 @@ public class InternalMedianAbsoluteDeviation extends InternalNumericMetricsAggre
     InternalMedianAbsoluteDeviation(String name, Map<String, Object> metadata, DocValueFormat format, TDigestState valuesSketch) {
         super(name, Objects.requireNonNull(format), metadata);
         this.valuesSketch = Objects.requireNonNull(valuesSketch);
+        this.valuesSketch.compress();
         this.medianAbsoluteDeviation = computeMedianAbsoluteDeviation(this.valuesSketch);
     }
 
@@ -52,6 +53,7 @@ public class InternalMedianAbsoluteDeviation extends InternalNumericMetricsAggre
         super(in);
         valuesSketch = TDigestState.read(in);
         medianAbsoluteDeviation = in.readDouble();
+        valuesSketch.compress();
     }
 
     @Override
@@ -72,6 +74,7 @@ public class InternalMedianAbsoluteDeviation extends InternalNumericMetricsAggre
             final InternalMedianAbsoluteDeviation madAggregation = (InternalMedianAbsoluteDeviation) aggregation;
             valueMerged.add(madAggregation.valuesSketch);
         }
+
         return new InternalMedianAbsoluteDeviation(name, metadata, format, valueMerged);
     }
 

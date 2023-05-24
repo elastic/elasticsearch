@@ -22,13 +22,13 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
-public class SynonymSet implements Writeable, ToXContentObject {
+public class SynonymsSet implements Writeable, ToXContentObject {
 
     public static final ParseField SYNONYMS_SET_FIELD = new ParseField("synonyms_set");
-    private static final ConstructingObjectParser<SynonymSet, Void> PARSER = new ConstructingObjectParser<>("synonyms_set", args -> {
+    private static final ConstructingObjectParser<SynonymsSet, Void> PARSER = new ConstructingObjectParser<>("synonyms_set", args -> {
         @SuppressWarnings("unchecked")
         final List<SynonymRule> synonyms = (List<SynonymRule>) args[0];
-        return new SynonymSet(synonyms.toArray(new SynonymRule[0]));
+        return new SynonymsSet(synonyms.toArray(new SynonymRule[synonyms.size()]));
     });
 
     static {
@@ -37,12 +37,12 @@ public class SynonymSet implements Writeable, ToXContentObject {
 
     private final SynonymRule[] synonyms;
 
-    public SynonymSet(SynonymRule[] synonyms) {
+    public SynonymsSet(SynonymRule[] synonyms) {
         Objects.requireNonNull(synonyms, "synonyms cannot be null");
         this.synonyms = synonyms;
     }
 
-    public SynonymSet(StreamInput in) throws IOException {
+    public SynonymsSet(StreamInput in) throws IOException {
         this.synonyms = in.readArray(SynonymRule::new, SynonymRule[]::new);
     }
 
@@ -50,7 +50,7 @@ public class SynonymSet implements Writeable, ToXContentObject {
         return synonyms;
     }
 
-    public static SynonymSet fromXContent(XContentParser parser) {
+    public static SynonymsSet fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
@@ -74,7 +74,7 @@ public class SynonymSet implements Writeable, ToXContentObject {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        SynonymSet that = (SynonymSet) o;
+        SynonymsSet that = (SynonymsSet) o;
         return Arrays.equals(synonyms, that.synonyms);
     }
 

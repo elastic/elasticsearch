@@ -15,10 +15,10 @@ import java.util.Map;
 /**
  * internal user that manages the synonyms index.
  */
-public class SynonymsProfileUser extends User {
+public class SynonymsInternalUser extends User {
 
     public static final String NAME = UsernamesField.SYNONYMS_USER_NAME;
-    public static final SynonymsProfileUser INSTANCE = new SynonymsProfileUser();
+    public static final SynonymsInternalUser INSTANCE = new SynonymsInternalUser();
     public static final RoleDescriptor ROLE_DESCRIPTOR = new RoleDescriptor(
         UsernamesField.SYNONYMS_ROLE_NAME,
         null,
@@ -31,7 +31,7 @@ public class SynonymsProfileUser extends User {
         Map.of()
     );
 
-    private SynonymsProfileUser() {
+    private SynonymsInternalUser() {
         super(NAME, Strings.EMPTY_ARRAY);
         // the following traits, and especially the run-as one, go with all the internal users
         // TODO abstract in a base `InternalUser` class

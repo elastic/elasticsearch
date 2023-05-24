@@ -20,7 +20,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.synonyms.SynonymSet;
+import org.elasticsearch.synonyms.SynonymsSet;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -40,30 +40,32 @@ public class PutSynonymsAction extends ActionType<PutSynonymsAction.Response> {
     }
 
     public static class Request extends ActionRequest {
-        private final String synonymSetId;
-        private final SynonymSet synonymSet;
+        private final String synonymssetId;
+        private final SynonymsSet synonymsset;
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            this.synonymSetId = in.readString();
-            this.synonymSet = new SynonymSet(in);
+            this.synonymssetId = in.readString();
+            this.synonymsset = new SynonymsSet(in);
         }
 
-        public Request(String synonymSetId, BytesReference content, XContentType contentType) throws IOException {
-            this.synonymSetId = synonymSetId;
-            this.synonymSet = SynonymSet.fromXContent(XContentHelper.createParser(XContentParserConfiguration.EMPTY, content, contentType));
+        public Request(String synonymssetId, BytesReference content, XContentType contentType) throws IOException {
+            this.synonymssetId = synonymssetId;
+            this.synonymsset = SynonymsSet.fromXContent(
+                XContentHelper.createParser(XContentParserConfiguration.EMPTY, content, contentType)
+            );
         }
 
-        Request(String synonymSetId, SynonymSet synonymSet) {
-            this.synonymSetId = synonymSetId;
-            this.synonymSet = synonymSet;
+        Request(String synonymssetId, SynonymsSet synonymsset) {
+            this.synonymssetId = synonymssetId;
+            this.synonymsset = synonymsset;
         }
 
         @Override
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = null;
-            if (Strings.isEmpty(synonymSetId)) {
-                validationException = ValidateActions.addValidationError("synonym set must be specified", validationException);
+            if (Strings.isEmpty(synonymssetId)) {
+                validationException = ValidateActions.addValidationError("synonyms set must be specified", validationException);
             }
 
             // TODO Synonym validation - use current synonyms parser?
@@ -73,16 +75,16 @@ public class PutSynonymsAction extends ActionType<PutSynonymsAction.Response> {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeString(synonymSetId);
-            synonymSet.writeTo(out);
+            out.writeString(synonymssetId);
+            synonymsset.writeTo(out);
         }
 
         public String synonymsSetId() {
-            return synonymSetId;
+            return synonymssetId;
         }
 
-        public SynonymSet synonymSet() {
-            return synonymSet;
+        public SynonymsSet synonymsset() {
+            return synonymsset;
         }
 
         @Override
@@ -90,12 +92,12 @@ public class PutSynonymsAction extends ActionType<PutSynonymsAction.Response> {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Objects.equals(synonymSetId, request.synonymSetId) && Objects.equals(synonymSet, request.synonymSet);
+            return Objects.equals(synonymssetId, request.synonymssetId) && Objects.equals(synonymsset, request.synonymsset);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(synonymSetId, synonymSet);
+            return Objects.hash(synonymssetId, synonymsset);
         }
     }
 

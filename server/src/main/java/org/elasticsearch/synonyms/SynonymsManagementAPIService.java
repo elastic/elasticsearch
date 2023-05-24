@@ -32,7 +32,6 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
-import static org.elasticsearch.synonyms.SynonymsAPI.SYNONYMS_ORIGIN;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
 public class SynonymsManagementAPIService {
@@ -44,8 +43,9 @@ public class SynonymsManagementAPIService {
 
     private final Client client;
 
+    public static final String SYNONYMS_ORIGIN = "synonyms";
     public static final SystemIndexDescriptor SYNONYMS_DESCRIPTOR = SystemIndexDescriptor.builder()
-        .setIndexPattern(SYNONYMS_INDEX + "*")
+        .setIndexPattern(SYNONYMS_INDEX)
         .setDescription("Synonyms index for synonyms managed through APIs")
         .setPrimaryIndex(SYNONYMS_INDEX)
         .setMappings(mappings())
@@ -95,11 +95,11 @@ public class SynonymsManagementAPIService {
         }
     }
 
-    public void putSynonymSet(String resourceName, SynonymSet synonymSet, ActionListener<PutSynonymsAction.Response> listener) {
+    public void putSynonymsset(String resourceName, SynonymsSet synonymsset, ActionListener<PutSynonymsAction.Response> listener) {
 
         // TODO Add synonym rules validation
 
-        // Delete synonym set if it existed previously
+        // Delete synonyms set if it existed previously. Avoid catching an index not found error by ignoring unavailable indices
         DeleteByQueryRequest dbqRequest = new DeleteByQueryRequest(SYNONYMS_INDEX).setQuery(
             QueryBuilders.termQuery(SYNONYMS_SET_FIELD, resourceName)
         ).setIndicesOptions(IndicesOptions.fromOptions(true, true, false, false));
@@ -113,7 +113,7 @@ public class SynonymsManagementAPIService {
                 // Insert as bulk requests
                 BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
                 try {
-                    for (SynonymRule synonymRule : synonymSet.synonyms()) {
+                    for (SynonymRule synonymRule : synonymsset.synonyms()) {
 
                         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
                             builder.startObject();

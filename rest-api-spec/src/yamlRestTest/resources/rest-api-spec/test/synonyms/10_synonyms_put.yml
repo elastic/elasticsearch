@@ -1,5 +1,5 @@
 ---
-"Create synonym set":
+"Create synonyms set":
   - skip:
       version: " - 8.8.99"
       reason: Introduced in 8.9.0
@@ -15,7 +15,7 @@
   - match: { result: "created" }
 
 ---
-"Update synonym set":
+"Update synonyms set":
   - skip:
       version: " - 8.8.99"
       reason: Introduced in 8.9.0

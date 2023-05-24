@@ -2,7 +2,7 @@
   "synonyms.put": {
     "documentation": {
       "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/put-synonyms.html",
-      "description": "Creates or updates a synonym set"
+      "description": "Creates or updates a synonyms set"
     },
     "stability": "experimental",
     "visibility": "feature_flag",
@@ -25,14 +25,14 @@
           "parts": {
             "synonyms_set": {
               "type": "string",
-              "description": "The name of the synonym set to be created or updated"
+              "description": "The name of the synonyms set to be created or updated"
             }
           }
         }
       ]
     },
     "body": {
-      "description": "Synonym set rules",
+      "description": "Synonyms set rules",
       "required": true
     }
   }

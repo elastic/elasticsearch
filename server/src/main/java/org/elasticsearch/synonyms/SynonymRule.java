@@ -47,7 +47,6 @@ public class SynonymRule implements Writeable, ToXContentObject {
         if (Strings.isEmpty(synonym)) {
             throw new IllegalStateException("synonym cannot be null");
         }
-        ;
         this.synonym = synonym;
     }
 
@@ -70,16 +69,6 @@ public class SynonymRule implements Writeable, ToXContentObject {
             builder.field(SYNONYMS_FIELD.getPreferredName(), synonym);
         }
         builder.endObject();
-
-        return builder;
-    }
-
-    public XContentBuilder toXContentForIndex(XContentBuilder builder, String synonymSetName) throws IOException {
-        builder.startObject();
-        {
-            builder.field(SYNONYMS_SET_FIELD, synonymSetName);
-            builder.field(SYNONYMS_FIELD.getPreferredName(), synonym);
-        }
 
         return builder;
     }

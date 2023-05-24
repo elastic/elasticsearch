@@ -52,7 +52,12 @@ public class InternalUsers {
             CrossClusterAccessUser::is
         );
         defineUser(StorageInternalUser.NAME, StorageInternalUser.INSTANCE, StorageInternalUser.ROLE_DESCRIPTOR, StorageInternalUser::is);
-        defineUser(SynonymsProfileUser.NAME, SynonymsProfileUser.INSTANCE, SynonymsProfileUser.ROLE_DESCRIPTOR, SynonymsProfileUser::is);
+        defineUser(
+            SynonymsInternalUser.NAME,
+            SynonymsInternalUser.INSTANCE,
+            SynonymsInternalUser.ROLE_DESCRIPTOR,
+            SynonymsInternalUser::is
+        );
     }
 
     private static void defineUser(String name, User user, @Nullable RoleDescriptor roleDescriptor, Predicate<User> predicate) {

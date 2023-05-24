@@ -32,13 +32,13 @@ public class RestPutSynonymsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(PUT, "/_synonyms/{name}"));
+        return List.of(new Route(PUT, "/_synonyms/{synonymsSet}"));
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         PutSynonymsAction.Request request = new PutSynonymsAction.Request(
-            restRequest.param("name"),
+            restRequest.param("synonymsSet"),
             restRequest.content(),
             restRequest.getXContentType()
         );

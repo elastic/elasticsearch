@@ -10,7 +10,7 @@ package org.elasticsearch.action.synonyms;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.synonyms.SynonymRule;
-import org.elasticsearch.synonyms.SynonymSet;
+import org.elasticsearch.synonyms.SynonymsSet;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
@@ -19,8 +19,8 @@ import java.util.stream.Collectors;
 
 public class PutSynonymsActionRequestSerializingTests extends AbstractWireSerializingTestCase<PutSynonymsAction.Request> {
 
-    private static SynonymSet randomSynonymSet() {
-        return new SynonymSet(randomArray(10, SynonymRule[]::new, PutSynonymsActionRequestSerializingTests::randomSynonymRule));
+    private static SynonymsSet randomSynonymsset() {
+        return new SynonymsSet(randomArray(10, SynonymRule[]::new, PutSynonymsActionRequestSerializingTests::randomSynonymRule));
     }
 
     private static SynonymRule randomSynonymRule() {
@@ -37,7 +37,7 @@ public class PutSynonymsActionRequestSerializingTests extends AbstractWireSerial
 
     @Override
     protected PutSynonymsAction.Request createTestInstance() {
-        return new PutSynonymsAction.Request(randomIdentifier(), randomSynonymSet());
+        return new PutSynonymsAction.Request(randomIdentifier(), randomSynonymsset());
     }
 
     @Override

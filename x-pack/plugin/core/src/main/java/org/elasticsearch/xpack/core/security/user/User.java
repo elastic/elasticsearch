@@ -156,7 +156,7 @@ public class User implements ToXContentObject {
             || AsyncSearchUser.is(user)
             || CrossClusterAccessUser.is(user)
             || StorageInternalUser.is(user)
-            || SynonymsProfileUser.is(user);
+            || SynonymsInternalUser.is(user);
     }
 
     /** Write the given {@link User} */

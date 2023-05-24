@@ -49,6 +49,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS;
+import static org.elasticsearch.xpack.core.security.authz.RoleDescriptor.Restriction.WORKFLOWS_RESTRICTION_VERSION;
 
 /**
  * A holder for a Role that contains user-readable information about the Role
@@ -200,7 +201,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         } else {
             this.remoteIndicesPrivileges = RemoteIndicesPrivileges.NONE;
         }
-        if (in.getTransportVersion().onOrAfter(Restriction.WORKFLOWS_RESTRICTION_VERSION)) {
+        if (in.getTransportVersion().onOrAfter(WORKFLOWS_RESTRICTION_VERSION)) {
             this.restriction = new Restriction(in);
         } else {
             this.restriction = Restriction.NONE;
@@ -417,7 +418,9 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         if (out.getTransportVersion().onOrAfter(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS)) {
             out.writeArray(remoteIndicesPrivileges);
         }
-        restriction.writeTo(out);
+        if (out.getTransportVersion().onOrAfter(WORKFLOWS_RESTRICTION_VERSION)) {
+            restriction.writeTo(out);
+        }
     }
 
     public static RoleDescriptor parse(String name, BytesReference source, boolean allow2xFormat, XContentType xContentType)
@@ -1594,9 +1597,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getTransportVersion().onOrAfter(WORKFLOWS_RESTRICTION_VERSION)) {
-                out.writeStringArray(workflows);
-            }
+            out.writeStringArray(workflows);
         }
 
         @Override
@@ -1613,7 +1614,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         }
 
         public boolean isEmpty() {
-            return workflows.length == 0;
+            return workflows == null || workflows.length == 0;
         }
 
         @Override

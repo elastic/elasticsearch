@@ -330,17 +330,15 @@ public class ApiKeyService {
                 );
                 return;
             }
-            if (transportVersion.before(WORKFLOWS_RESTRICTION_VERSION) && hasWorkflowsRestriction(request.getRoleDescriptors())) {
-                // Creating API keys with workflows restriction is not allowed in a mixed cluster.
-                listener.onFailure(
-                    new IllegalArgumentException(
-                        "all nodes must have transport version ["
-                            + WORKFLOWS_RESTRICTION_VERSION
-                            + "] or higher to support workflows restriction for API keys"
-                    )
-                );
+            final Exception workflowsValidationException = validateWorkflowsRestrictionConstrains(
+                transportVersion,
+                request.getRoleDescriptors()
+            );
+            if (workflowsValidationException != null) {
+                listener.onFailure(workflowsValidationException);
                 return;
             }
+
             final Set<RoleDescriptor> filteredUserRoleDescriptors = maybeRemoveRemoteIndicesPrivileges(
                 userRoleDescriptors,
                 transportVersion,
@@ -360,7 +358,40 @@ public class ApiKeyService {
     }
 
     private static boolean hasWorkflowsRestriction(Collection<RoleDescriptor> roleDescriptors) {
-        return roleDescriptors != null && roleDescriptors.stream().anyMatch(RoleDescriptor::hasWorkflowsRestriction);
+        return getNumberOfRolesWithWorkflowsRestriction(roleDescriptors) > 0;
+    }
+
+    private static Exception validateWorkflowsRestrictionConstrains(
+        TransportVersion transportVersion,
+        Collection<RoleDescriptor> roleDescriptors
+    ) {
+        final long numberOfRolesWithWorkflowsRestriction = getNumberOfRolesWithWorkflowsRestriction(roleDescriptors);
+        if (numberOfRolesWithWorkflowsRestriction > 0) {
+            // Creating/updating API keys with workflows restriction is not allowed in a mixed cluster.
+            if (transportVersion.before(WORKFLOWS_RESTRICTION_VERSION)) {
+                return new IllegalArgumentException(
+                    "all nodes must have transport version ["
+                        + WORKFLOWS_RESTRICTION_VERSION
+                        + "] or higher to support workflows restriction for API keys"
+                );
+            }
+            // It's only allowed to create/update API keys with a single role descriptor that is restricted to workflows.
+            if (numberOfRolesWithWorkflowsRestriction != 1) {
+                return new IllegalArgumentException("more than one role descriptor with workflows restriction is not supported");
+            }
+            // Combining roles with and without workflows restriction is not allowed either.
+            if (numberOfRolesWithWorkflowsRestriction != roleDescriptors.size()) {
+                return new IllegalArgumentException("combining role descriptors with and without workflows restriction is not supported");
+            }
+        }
+        return null;
+    }
+
+    private static long getNumberOfRolesWithWorkflowsRestriction(Collection<RoleDescriptor> roleDescriptors) {
+        if (roleDescriptors == null || roleDescriptors.isEmpty()) {
+            return 0l;
+        }
+        return roleDescriptors.stream().filter(RoleDescriptor::hasWorkflowsRestriction).count();
     }
 
     private void createApiKeyAndIndexIt(
@@ -458,15 +489,12 @@ public class ApiKeyService {
             );
             return;
         }
-        if (transportVersion.before(WORKFLOWS_RESTRICTION_VERSION) && hasWorkflowsRestriction(request.getRoleDescriptors())) {
-            // Updating API keys with workflows restriction is not allowed in a mixed cluster.
-            listener.onFailure(
-                new IllegalArgumentException(
-                    "all nodes must have transport version ["
-                        + WORKFLOWS_RESTRICTION_VERSION
-                        + "] or higher to support workflows restriction for API keys"
-                )
-            );
+        final Exception workflowsValidationException = validateWorkflowsRestrictionConstrains(
+            transportVersion,
+            request.getRoleDescriptors()
+        );
+        if (workflowsValidationException != null) {
+            listener.onFailure(workflowsValidationException);
             return;
         }
 

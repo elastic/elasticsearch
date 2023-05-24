@@ -10,15 +10,17 @@ package org.elasticsearch.xpack.searchbusinessrules;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 
+import java.util.Arrays;
 import java.util.List;
-
-import static java.util.Collections.singletonList;
 
 public class SearchBusinessRules extends Plugin implements SearchPlugin {
 
     @Override
     public List<QuerySpec<?>> getQueries() {
-        return singletonList(new QuerySpec<>(PinnedQueryBuilder.NAME, PinnedQueryBuilder::new, PinnedQueryBuilder::fromXContent));
+        return Arrays.asList(
+            new QuerySpec<>(RuleQueryBuilder.NAME, RuleQueryBuilder::new, RuleQueryBuilder::fromXContent),
+            new QuerySpec<>(PinnedQueryBuilder.NAME, PinnedQueryBuilder::new, PinnedQueryBuilder::fromXContent)
+        );
     }
 
 }

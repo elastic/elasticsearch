@@ -7,8 +7,6 @@
 
 package org.elasticsearch.blobcache.common;
 
-import org.elasticsearch.core.Nullable;
-
 public final class ByteRange implements Comparable<ByteRange> {
 
     public static final ByteRange EMPTY = new ByteRange(0L, 0L);
@@ -26,24 +24,6 @@ public final class ByteRange implements Comparable<ByteRange> {
         this.end = end;
         assert start >= 0L : "Start must be >= 0 but saw [" + start + "]";
         assert end >= start : "End must be greater or equal to start but saw [" + start + "][" + start + "]";
-    }
-
-    /**
-     * Computes the smallest range that contains both this instance as well as the given {@code other} range.
-     *
-     * @param other other range or {@code null} in which case this instance is returned
-     */
-    public ByteRange minEnvelope(@Nullable ByteRange other) {
-        if (other == null) {
-            return this;
-        }
-        if (other.isSubRangeOf(this)) {
-            return this;
-        }
-        if (this.isSubRangeOf(other)) {
-            return other;
-        }
-        return of(Math.min(start, other.start), Math.max(end, other.end));
     }
 
     public long start() {

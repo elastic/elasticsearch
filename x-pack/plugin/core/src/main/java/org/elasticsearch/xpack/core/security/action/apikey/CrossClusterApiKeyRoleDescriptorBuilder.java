@@ -11,8 +11,11 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 
@@ -83,6 +86,13 @@ public class CrossClusterApiKeyRoleDescriptorBuilder {
             ROLE_DESCRIPTOR_NAME,
             clusterPrivileges,
             CollectionUtils.concatLists(search, replication).toArray(RoleDescriptor.IndicesPrivileges[]::new),
+            null
+        );
+    }
+
+    public static CrossClusterApiKeyRoleDescriptorBuilder parse(String access) throws IOException {
+        return CrossClusterApiKeyRoleDescriptorBuilder.PARSER.parse(
+            JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, access),
             null
         );
     }

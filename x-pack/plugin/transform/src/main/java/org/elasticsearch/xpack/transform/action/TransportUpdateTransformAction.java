@@ -25,6 +25,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -229,7 +230,12 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
     }
 
     @Override
-    protected void taskOperation(Task actionTask, Request request, TransformTask transformTask, ActionListener<Response> listener) {
+    protected void taskOperation(
+        CancellableTask actionTask,
+        Request request,
+        TransformTask transformTask,
+        ActionListener<Response> listener
+    ) {
         transformTask.applyNewSettings(request.getConfig().getSettings());
         transformTask.applyNewAuthState(request.getAuthState());
         listener.onResponse(new Response(request.getConfig()));

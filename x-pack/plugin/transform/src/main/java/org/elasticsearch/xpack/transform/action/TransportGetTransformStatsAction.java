@@ -27,6 +27,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -108,7 +109,7 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
     }
 
     @Override
-    protected void taskOperation(Task actionTask, Request request, TransformTask task, ActionListener<Response> listener) {
+    protected void taskOperation(CancellableTask actionTask, Request request, TransformTask task, ActionListener<Response> listener) {
         // Little extra insurance, make sure we only return transforms that aren't cancelled
         ClusterState state = clusterService.state();
         String nodeId = state.nodes().getLocalNode().getId();

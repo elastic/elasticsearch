@@ -213,8 +213,9 @@ public class MockLogAppender extends AbstractAppender {
     private static String getLoggerName(String name) {
         if (name.startsWith("org.elasticsearch.")) {
             name = name.substring("org.elasticsearch.".length());
+            return COMMON_PREFIX + name;
         }
-        return COMMON_PREFIX + name;
+        return name;
     }
 
     /**

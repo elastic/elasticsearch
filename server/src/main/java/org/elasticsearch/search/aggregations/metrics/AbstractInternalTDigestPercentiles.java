@@ -45,10 +45,6 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
         this.keys = keys;
         this.state = state;
         this.keyed = keyed;
-
-        if (state != null) {
-            state.compress();
-        }
     }
 
     /**
@@ -60,7 +56,6 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
         if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
             if (in.readBoolean()) {
                 state = TDigestState.read(in);
-                state.compress();
             } else {
                 state = null;
             }

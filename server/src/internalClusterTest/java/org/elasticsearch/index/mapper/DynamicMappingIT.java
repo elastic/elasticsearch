@@ -268,12 +268,27 @@ public class DynamicMappingIT extends ESIntegTestCase {
         assertThat(fields.get("_ignored").getValues(), equalTo(List.of("field2")));
     }
 
+    public void testIgnoreDynamicArrayField() throws Exception {
+        var fields = indexIgnoreDynamicBeyond(1, orderedMap("field1", 1, "field2", List.of(1, 2))).getFields();
+        assertThat(fields.keySet(), equalTo(Set.of("field1", "_ignored")));
+        assertThat(fields.get("field1").getValues(), equalTo(List.of(1L)));
+        assertThat(fields.get("_ignored").getValues(), equalTo(List.of("field2")));
+    }
+
     public void testIgnoreDynamicBeyondLimitObjectField() throws Exception {
         var fields = indexIgnoreDynamicBeyond(3, orderedMap("a.b", 1, "a.c", 2, "a.d", 3)).getFields();
         assertThat(fields.keySet(), equalTo(Set.of("a.b", "a.c", "_ignored")));
         assertThat(fields.get("a.b").getValues(), equalTo(List.of(1L)));
         assertThat(fields.get("a.c").getValues(), equalTo(List.of(2L)));
         assertThat(fields.get("_ignored").getValues(), equalTo(List.of("a.d")));
+    }
+
+    public void testIgnoreDynamicBeyondLimitObjectField2() throws Exception {
+        var fields = indexIgnoreDynamicBeyond(3, orderedMap("a.b", 1, "a.c", 2, "b.a", 3)).getFields();
+        assertThat(fields.keySet(), equalTo(Set.of("a.b", "a.c", "_ignored")));
+        assertThat(fields.get("a.b").getValues(), equalTo(List.of(1L)));
+        assertThat(fields.get("a.c").getValues(), equalTo(List.of(2L)));
+        assertThat(fields.get("_ignored").getValues(), equalTo(List.of("b")));
     }
 
     public void testIgnoreDynamicBeyondLimitDottedObjectMultiField() throws Exception {
@@ -295,6 +310,15 @@ public class DynamicMappingIT extends ESIntegTestCase {
         assertThat(fields.get("_ignored").getValues(), equalTo(List.of("a.d")));
     }
 
+
+    public void testIgnoreDynamicBeyondLimitRuntimeFields() throws Exception {
+        var fields = indexIgnoreDynamicBeyond(1, orderedMap("field1", 1, "field2", List.of(1, 2)), Map.of("dynamic", "runtime"))
+            .getFields();
+        assertThat(fields.keySet(), equalTo(Set.of("field1", "_ignored")));
+        assertThat(fields.get("field1").getValues(), equalTo(List.of(1L)));
+        assertThat(fields.get("_ignored").getValues(), equalTo(List.of("field2")));
+    }
+
     private LinkedHashMap<String, Object> orderedMap(Object... entries) {
         var map = new LinkedHashMap<String, Object>();
         for (int i = 0; i < entries.length; i += 2) {
@@ -304,6 +328,10 @@ public class DynamicMappingIT extends ESIntegTestCase {
     }
 
     private SearchHit indexIgnoreDynamicBeyond(int fieldLimit, Map<String, Object> source) throws Exception {
+        return indexIgnoreDynamicBeyond(fieldLimit, source, Map.of());
+    }
+
+    private SearchHit indexIgnoreDynamicBeyond(int fieldLimit, Map<String, Object> source, Map<String, Object> mapping) throws Exception {
         client().admin()
             .indices()
             .prepareCreate("index")
@@ -313,6 +341,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
                     .put(INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING.getKey(), true)
                     .build()
             )
+            .setMapping(mapping)
             .get();
         ensureGreen("index");
         client().prepareIndex("index").setId("1").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).setSource(source).get();

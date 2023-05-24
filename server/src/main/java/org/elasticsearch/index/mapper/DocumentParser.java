@@ -449,7 +449,11 @@ public final class DocumentParser {
                 dynamicObjectMapper = new NoOpObjectMapper(currentFieldName, context.path().pathAsText(currentFieldName));
             } else {
                 dynamicObjectMapper = DynamicFieldsBuilder.createDynamicObjectMapper(context, currentFieldName);
-                context.addDynamicMapper(dynamicObjectMapper);
+                if (context.addDynamicMapper(dynamicObjectMapper) == false) {
+                    failIfMatchesRoutingPath(context, currentFieldName);
+                    context.parser().skipChildren();
+                    return;
+                }
             }
             if (context.parent().subobjects() == false) {
                 if (dynamicObjectMapper instanceof NestedObjectMapper) {
@@ -517,7 +521,10 @@ public final class DocumentParser {
                     parseNonDynamicArray(context, lastFieldName, lastFieldName);
                 } else {
                     if (parsesArrayValue(objectMapperFromTemplate)) {
-                        context.addDynamicMapper(objectMapperFromTemplate);
+                        if (context.addDynamicMapper(objectMapperFromTemplate) == false) {
+                            context.parser().skipChildren();
+                            return;
+                        }
                         context.path().add(lastFieldName);
                         parseObjectOrField(context, objectMapperFromTemplate);
                         context.path().remove();
@@ -607,14 +614,8 @@ public final class DocumentParser {
             failIfMatchesRoutingPath(context, currentFieldName);
             return;
         }
-        try {
-            context.dynamic().getDynamicFieldsBuilder().createDynamicFieldFromValue(context, currentFieldName);
-        } catch (IllegalArgumentException e) {
-            if (context.indexSettings().isIgnoreDynamicFieldsBeyondLimit()) {
-                context.addIgnoredField(context.path().pathAsText(currentFieldName));
-            } else {
-                throw e;
-            }
+        if (context.dynamic().getDynamicFieldsBuilder().createDynamicFieldFromValue(context, currentFieldName) == false) {
+            failIfMatchesRoutingPath(context, currentFieldName);
         }
     }
 

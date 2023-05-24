@@ -60,8 +60,10 @@ public class KvIndexResolver {
                 long creationDate;
                 if (indexMetadata.getSettings().hasValue(IndexSettings.LIFECYCLE_ORIGINATION_DATE)) {
                     creationDate = IndexSettings.LIFECYCLE_ORIGINATION_DATE_SETTING.get(indexMetadata.getSettings());
+                    log.trace("Using lifecycle origination date [{}] for index [{}]", creationDate, i.getName());
                 } else {
                     creationDate = indexMetadata.getCreationDate();
+                    log.trace("Using index creation date [{}] for index [{}]", creationDate, i.getName());
                 }
                 indicesWithTime.add(Tuple.tuple(i, Instant.ofEpochMilli(creationDate)));
             }

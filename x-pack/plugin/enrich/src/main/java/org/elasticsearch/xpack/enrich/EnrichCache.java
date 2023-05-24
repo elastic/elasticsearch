@@ -135,6 +135,11 @@ public final class EnrichCache {
         private CacheKey(String enrichIndex, SearchRequest searchRequest) {
             this.enrichIndex = enrichIndex;
             this.searchRequest = searchRequest;
+
+            // note that we're precomputing the hashCode so that this class has better performance when used as a key for a map,
+            // which indeed is the whole point of this class. the astute reader might question whether it's safe to do this given that
+            // SearchRequest is mutable -- that's a great point, but it's no less safe than using a mutable class as a hash key to begin
+            // with.
             this.hashCode = computeHashCode();
         }
 

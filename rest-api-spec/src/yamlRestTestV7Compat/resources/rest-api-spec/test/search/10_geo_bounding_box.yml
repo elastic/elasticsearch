@@ -38,13 +38,31 @@ setup:
 
 
 ---
-"geo bounding box query":
+"geo bounding box query not compatible":
+  - do:
+      catch: /failed to parse \[geo_bounding_box\] query. unexpected field \[type\]/
+      search:
+        index: locations
+        body:
+          query:
+            geo_bounding_box:
+              type : indexed
+              location:
+                top_left:
+                  lat: 10
+                  lon: -10
+                bottom_right:
+                  lat: -10
+                  lon: 10
+
+---
+"geo bounding box query compatible":
   - do:
       headers:
         Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
         Accept: "application/vnd.elasticsearch+json;compatible-with=7"
       warnings:
-        - "Deprecated parameter [type] used, please remove it"
+        - "Deprecated parameter [type] used, it should no longer be specified."
       search:
         index: locations
         body:

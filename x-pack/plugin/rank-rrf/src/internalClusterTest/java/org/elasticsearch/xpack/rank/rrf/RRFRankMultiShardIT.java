@@ -40,7 +40,7 @@ public class RRFRankMultiShardIT extends ESIntegTestCase {
 
     @Override
     protected int minimumNumberOfShards() {
-        return 1;
+        return 2;
     }
 
     @Override
@@ -617,7 +617,6 @@ public class RRFRankMultiShardIT extends ESIntegTestCase {
 
     public void testMultiBM25WithAggregation() {
         for (SearchType searchType : SearchType.CURRENTLY_SUPPORTED) {
-            searchType = SearchType.DFS_QUERY_THEN_FETCH;
             SearchResponse response = client().prepareSearch("nrd_index")
                 .setSearchType(searchType)
                 .setRankBuilder(new RRFRankBuilder(8, 1))

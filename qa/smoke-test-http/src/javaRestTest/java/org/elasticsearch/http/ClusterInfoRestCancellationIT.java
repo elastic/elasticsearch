@@ -21,8 +21,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.http.netty4.Netty4HttpServerTransport;
 import org.elasticsearch.http.netty4.internal.HttpValidator;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -35,11 +33,10 @@ import org.elasticsearch.transport.netty4.SharedGroupFactory;
 import org.elasticsearch.transport.netty4.TLSConfig;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Map;
 import java.util.concurrent.CancellationException;
-import java.util.concurrent.Semaphore;
+import java.util.concurrent.CyclicBarrier;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 import java.util.stream.StreamSupport;
@@ -48,45 +45,39 @@ import static org.elasticsearch.action.support.ActionTestUtils.wrapAsRestRespons
 import static org.elasticsearch.test.TaskAssertions.assertAllCancellableTasksAreCancelled;
 import static org.elasticsearch.test.TaskAssertions.assertAllTasksHaveFinished;
 import static org.elasticsearch.test.TaskAssertions.awaitTaskWithPrefix;
-import static org.hamcrest.core.IsEqual.equalTo;
 
 public class ClusterInfoRestCancellationIT extends HttpSmokeTestCase {
+
     public void testClusterInfoRequestCancellation() throws Exception {
-        var releaseables = new ArrayList<Releasable>();
-        try {
-            var transports = StreamSupport.stream(internalCluster().getInstances(HttpServerTransport.class).spliterator(), false)
-                .map(FakeHttpTransport.class::cast)
-                .toList();
-            transports.forEach(t -> {
-                try {
-                    t.statsBlocking.acquire();
-                } catch (InterruptedException e) {
-                    throw new AssertionError(e);
-                }
-            });
+        // we create a barrier with one extra party, so we can lock in each node within this method.
+        final var cyclicBarrier = new CyclicBarrier(internalCluster().size() + 1);
+        var future = new PlainActionFuture<Response>();
+        var transports = StreamSupport.stream(internalCluster().getInstances(HttpServerTransport.class).spliterator(), false)
+            .map(FakeHttpTransport.class::cast)
+            .peek(t -> t.cyclicBarrier = cyclicBarrier)
+            .toList();
 
-            transports.forEach(t -> releaseables.add(t.statsBlocking::release));
+        logger.info("--> Sending request");
+        var cancellable = getRestClient().performRequestAsync(
+            new Request(HttpGet.METHOD_NAME, "/_info/_all"),
+            wrapAsRestResponseListener(future)
+        );
 
-            logger.info("--> Sending request");
-            var request = new Request(HttpGet.METHOD_NAME, "/_info/_all");
-            var future = new PlainActionFuture<Response>();
-            var cancellable = getRestClient().performRequestAsync(request, wrapAsRestResponseListener(future));
+        assertFalse(future.isDone());
+        awaitTaskWithPrefix(NodesStatsAction.NAME);
 
-            assertThat(future.isDone(), equalTo(false));
-            awaitTaskWithPrefix(NodesStatsAction.NAME);
+        logger.info("--> Checking that all the HttpTransport are waiting...");
+        assertEquals(cyclicBarrier.getNumberWaiting(), transports.size());
 
-            logger.info("--> Waiting for at least one task to hit a block");
-            assertBusy(() -> assertTrue(transports.stream().map(t -> t.statsBlocking).anyMatch(Semaphore::hasQueuedThreads)));
+        logger.info("--> Cancelling request");
+        cancellable.cancel();
 
-            logger.info("--> Cancelling request");
-            cancellable.cancel();
-            expectThrows(CancellationException.class, future::actionGet);
+        assertTrue(future.isDone());
+        expectThrows(CancellationException.class, future::actionGet);
+        assertAllCancellableTasksAreCancelled(NodesStatsAction.NAME);
 
-            assertAllCancellableTasksAreCancelled(NodesStatsAction.NAME);
-
-        } finally {
-            Releasables.close(releaseables);
-        }
+        logger.info("--> Releasing all the node requests :)");
+        safeAwait(cyclicBarrier);
 
         assertAllTasksHaveFinished(NodesStatsAction.NAME);
     }
@@ -135,7 +126,7 @@ public class ClusterInfoRestCancellationIT extends HttpSmokeTestCase {
                     tracer,
                     TLSConfig.noTLS(),
                     null,
-                    randomFrom((httpPreRequest, channel, listener) -> listener.onResponse(null), null)
+                    null
                 )
             );
         }
@@ -144,7 +135,7 @@ public class ClusterInfoRestCancellationIT extends HttpSmokeTestCase {
     public static class FakeHttpTransport extends Netty4HttpServerTransport {
 
         public static final String NAME = "fake-transport";
-        final Semaphore statsBlocking = new Semaphore(1);
+        private CyclicBarrier cyclicBarrier;
 
         public FakeHttpTransport(
             Settings settings,
@@ -176,12 +167,7 @@ public class ClusterInfoRestCancellationIT extends HttpSmokeTestCase {
 
         @Override
         public HttpStats stats() {
-            try {
-                statsBlocking.acquire();
-            } catch (InterruptedException e) {
-                throw new AssertionError(e);
-            }
-            statsBlocking.release();
+            safeAwait(cyclicBarrier);
             return super.stats();
         }
     }

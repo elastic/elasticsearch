@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.core.security.user.KibanaSystemUser;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
-import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.util.Arrays;
@@ -113,10 +112,10 @@ public class AuthenticationSerializationTests extends ESTestCase {
     public void testSystemUserReadAndWrite() throws Exception {
         BytesStreamOutput output = new BytesStreamOutput();
 
-        AuthenticationSerializationHelper.writeUserTo(SystemUser.INSTANCE, output);
+        AuthenticationSerializationHelper.writeUserTo(InternalUsers.SYSTEM_USER, output);
         User readFrom = AuthenticationSerializationHelper.readUserFrom(output.bytes().streamInput());
 
-        assertThat(readFrom, is(sameInstance(SystemUser.INSTANCE)));
+        assertThat(readFrom, is(sameInstance(InternalUsers.SYSTEM_USER)));
     }
 
     public void testXPackUserReadAndWrite() throws Exception {

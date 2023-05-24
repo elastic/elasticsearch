@@ -53,7 +53,7 @@ import static org.mockito.Mockito.mock;
 public class InternalUsersTests extends ESTestCase {
 
     public void testSystemUser() {
-        assertThat(InternalUsers.getUser("_system"), is(SystemUser.INSTANCE));
+        assertThat(InternalUsers.getUser("_system"), is(InternalUsers.SYSTEM_USER));
     }
 
     public void testXPackUser() {
@@ -186,7 +186,7 @@ public class InternalUsersTests extends ESTestCase {
     }
 
     public void testCrossClusterAccessUser() {
-        assertThat(InternalUsers.getUser("_cross_cluster_access"), is(CrossClusterAccessUser.INSTANCE));
+        assertThat(InternalUsers.getUser("_cross_cluster_access"), is(InternalUsers.CROSS_CLUSTER_ACCESS_USER));
     }
 
     public void testStorageUser() {

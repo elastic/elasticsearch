@@ -22,7 +22,10 @@ public class SystemUser extends InternalUser {
     @Deprecated
     public static final String ROLE_NAME = UsernamesField.SYSTEM_ROLE;
 
-    public static final SystemUser INSTANCE = new SystemUser();
+    /**
+     * Package protected to enforce a singleton (private constructor) - use {@link InternalUsers#SYSTEM_USER} instead
+     */
+    static final SystemUser INSTANCE = new SystemUser();
 
     private static final Predicate<String> PREDICATE = SystemPrivilege.INSTANCE.predicate();
 
@@ -41,7 +44,7 @@ public class SystemUser extends InternalUser {
 
     @Deprecated
     public static boolean is(User user) {
-        return INSTANCE.equals(user);
+        return InternalUsers.SYSTEM_USER.equals(user);
     }
 
     public static boolean isAuthorized(String action) {

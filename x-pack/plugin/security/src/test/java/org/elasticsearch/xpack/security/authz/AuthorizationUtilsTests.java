@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.user.InternalUsers;
-import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.junit.Before;
 
@@ -51,7 +50,7 @@ public class AuthorizationUtilsTests extends ESTestCase {
     public void testSystemUserSwitchWithSystemUser() {
         threadContext.putTransient(
             AuthenticationField.AUTHENTICATION_KEY,
-            AuthenticationTestHelper.builder().internal(SystemUser.INSTANCE).build()
+            AuthenticationTestHelper.builder().internal(InternalUsers.SYSTEM_USER).build()
         );
         assertThat(AuthorizationUtils.shouldReplaceUserWithSystem(threadContext, "internal:something"), is(false));
     }

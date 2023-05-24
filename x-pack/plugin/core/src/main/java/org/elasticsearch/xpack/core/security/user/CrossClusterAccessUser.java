@@ -38,7 +38,10 @@ public class CrossClusterAccessUser extends InternalUser {
         null
     );
 
-    public static final InternalUser INSTANCE = new CrossClusterAccessUser();
+    /**
+     * Package protected to enforce a singleton (private constructor) - use {@link InternalUsers#CROSS_CLUSTER_ACCESS_USER} instead
+     */
+    static final InternalUser INSTANCE = new CrossClusterAccessUser();
 
     private CrossClusterAccessUser() {
         super(
@@ -60,7 +63,7 @@ public class CrossClusterAccessUser extends InternalUser {
     public static CrossClusterAccessSubjectInfo subjectInfo(TransportVersion transportVersion, String nodeName) {
         try {
             return new CrossClusterAccessSubjectInfo(
-                Authentication.newInternalAuthentication(INSTANCE, transportVersion, nodeName),
+                Authentication.newInternalAuthentication(InternalUsers.CROSS_CLUSTER_ACCESS_USER, transportVersion, nodeName),
                 RoleDescriptorsIntersection.EMPTY
             );
         } catch (IOException e) {

@@ -91,7 +91,6 @@ import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 import org.elasticsearch.xpack.core.security.test.TestRestrictedIndices;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
-import org.elasticsearch.xpack.core.security.user.CrossClusterAccessUser;
 import org.elasticsearch.xpack.core.security.user.InternalUser;
 import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
@@ -1784,7 +1783,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         IllegalArgumentException iae = expectThrows(
             IllegalArgumentException.class,
             () -> compositeRolesStore.getRole(
-                new Subject(SystemUser.INSTANCE, new RealmRef("__attach", "__attach", randomAlphaOfLengthBetween(3, 8))),
+                new Subject(InternalUsers.SYSTEM_USER, new RealmRef("__attach", "__attach", randomAlphaOfLengthBetween(3, 8))),
                 null
             )
         );
@@ -1823,7 +1822,10 @@ public class CompositeRolesStoreTests extends ESTestCase {
         IllegalArgumentException iae = expectThrows(
             IllegalArgumentException.class,
             () -> compositeRolesStore.getRole(
-                new Subject(CrossClusterAccessUser.INSTANCE, new RealmRef("__attach", "__attach", randomAlphaOfLengthBetween(3, 8))),
+                new Subject(
+                    InternalUsers.CROSS_CLUSTER_ACCESS_USER,
+                    new RealmRef("__attach", "__attach", randomAlphaOfLengthBetween(3, 8))
+                ),
                 null
             )
         );
@@ -2497,21 +2499,21 @@ public class CompositeRolesStoreTests extends ESTestCase {
         );
 
         final Subject subject = mock(Subject.class);
-        when(subject.getUser()).thenReturn(SystemUser.INSTANCE);
+        when(subject.getUser()).thenReturn(InternalUsers.SYSTEM_USER);
         final IllegalArgumentException e1 = expectThrows(
             IllegalArgumentException.class,
             () -> compositeRolesStore.getRoleDescriptorsList(subject, new PlainActionFuture<>())
         );
         assertThat(e1.getMessage(), equalTo("should never try to get the roles for internal user [" + SystemUser.NAME + "]"));
 
-        when(subject.getUser()).thenReturn(CrossClusterAccessUser.INSTANCE);
+        when(subject.getUser()).thenReturn(InternalUsers.CROSS_CLUSTER_ACCESS_USER);
         final IllegalArgumentException e2 = expectThrows(
             IllegalArgumentException.class,
             () -> compositeRolesStore.getRoleDescriptorsList(subject, new PlainActionFuture<>())
         );
         assertThat(
             e2.getMessage(),
-            equalTo("should never try to get the roles for internal user [" + CrossClusterAccessUser.INSTANCE.principal() + "]")
+            equalTo("should never try to get the roles for internal user [" + InternalUsers.CROSS_CLUSTER_ACCESS_USER.principal() + "]")
         );
 
         for (var internalUser : AuthenticationTestHelper.internalUsersWithLocalRoleDescriptor()) {

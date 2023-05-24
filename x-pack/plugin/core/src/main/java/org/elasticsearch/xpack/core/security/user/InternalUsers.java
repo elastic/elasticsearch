@@ -122,15 +122,22 @@ public class InternalUsers {
         )
     );
 
-    private static final Map<String, InternalUser> INTERNAL_USERS = Stream.of(
-        SystemUser.INSTANCE,
-        XPACK_USER,
-        XPACK_SECURITY_USER,
-        SECURITY_PROFILE_USER,
-        ASYNC_SEARCH_USER,
-        CrossClusterAccessUser.INSTANCE,
-        STORAGE_USER
-    ).collect(Collectors.toUnmodifiableMap(InternalUser::principal, Function.identity()));
+    public static final SystemUser SYSTEM_USER = SystemUser.INSTANCE;
+    public static final InternalUser CROSS_CLUSTER_ACCESS_USER = CrossClusterAccessUser.INSTANCE;
+
+    private static final Map<String, InternalUser> INTERNAL_USERS;
+
+    static {
+        INTERNAL_USERS = Stream.of(
+            SYSTEM_USER,
+            XPACK_USER,
+            XPACK_SECURITY_USER,
+            SECURITY_PROFILE_USER,
+            ASYNC_SEARCH_USER,
+            CROSS_CLUSTER_ACCESS_USER,
+            STORAGE_USER
+        ).collect(Collectors.toUnmodifiableMap(InternalUser::principal, Function.identity()));
+    }
 
     public static Collection<InternalUser> get() {
         return Collections.unmodifiableCollection(INTERNAL_USERS.values());

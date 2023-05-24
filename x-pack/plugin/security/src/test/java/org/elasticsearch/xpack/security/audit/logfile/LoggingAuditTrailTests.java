@@ -112,11 +112,7 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivileg
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
 import org.elasticsearch.xpack.core.security.support.ValidationTests;
-import org.elasticsearch.xpack.core.security.user.AnonymousUser;
-import org.elasticsearch.xpack.core.security.user.CrossClusterAccessUser;
-import org.elasticsearch.xpack.core.security.user.InternalUser;
-import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.core.security.user.UsernamesField;
+import org.elasticsearch.xpack.core.security.user.*;
 import org.elasticsearch.xpack.security.audit.AuditLevel;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
@@ -2678,7 +2674,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         final String requestId = randomRequestId();
         final Authentication remoteAuthentication = randomFrom(
             AuthenticationTestHelper.builder().realm(false),
-            AuthenticationTestHelper.builder().internal(CrossClusterAccessUser.INSTANCE),
+            AuthenticationTestHelper.builder().internal(InternalUsers.CROSS_CLUSTER_ACCESS_USER),
             AuthenticationTestHelper.builder().serviceAccount(),
             AuthenticationTestHelper.builder().apiKey().metadata(Map.of(AuthenticationField.API_KEY_NAME_KEY, randomAlphaOfLength(42)))
         ).build(false);

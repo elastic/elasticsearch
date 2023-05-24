@@ -461,7 +461,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
 
         // A failure would throw an exception
-        final Authentication authentication = createAuthentication(SystemUser.INSTANCE);
+        final Authentication authentication = createAuthentication(InternalUsers.SYSTEM_USER);
         final String[] actions = {
             "indices:monitor/whatever",
             "internal:whatever",
@@ -530,7 +530,7 @@ public class AuthorizationServiceTests extends ESTestCase {
     }
 
     public void testSystemUserActionMatchingCustomRoleNameDenied() {
-        final Authentication authentication = createAuthentication(SystemUser.INSTANCE);
+        final Authentication authentication = createAuthentication(InternalUsers.SYSTEM_USER);
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
 
         RoleDescriptor role = new RoleDescriptor(
@@ -593,12 +593,12 @@ public class AuthorizationServiceTests extends ESTestCase {
 
     public void testIndicesActionsForSystemUserWhichAreNotAuthorized() {
         final TransportRequest request = mock(TransportRequest.class);
-        final Authentication authentication = createAuthentication(SystemUser.INSTANCE);
+        final Authentication authentication = createAuthentication(InternalUsers.SYSTEM_USER);
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
         assertThrowsAuthorizationException(
             () -> authorize(authentication, "indices:", request),
             "indices:",
-            SystemUser.INSTANCE.principal()
+            InternalUsers.SYSTEM_USER.principal()
         );
         verify(auditTrail).accessDenied(
             eq(requestId),
@@ -612,12 +612,12 @@ public class AuthorizationServiceTests extends ESTestCase {
 
     public void testClusterAdminActionsForSystemUserWhichAreNotAuthorized() {
         final TransportRequest request = mock(TransportRequest.class);
-        final Authentication authentication = createAuthentication(SystemUser.INSTANCE);
+        final Authentication authentication = createAuthentication(InternalUsers.SYSTEM_USER);
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
         assertThrowsAuthorizationException(
             () -> authorize(authentication, "cluster:admin/whatever", request),
             "cluster:admin/whatever",
-            SystemUser.INSTANCE.principal()
+            InternalUsers.SYSTEM_USER.principal()
         );
         verify(auditTrail).accessDenied(
             eq(requestId),
@@ -631,12 +631,12 @@ public class AuthorizationServiceTests extends ESTestCase {
 
     public void testClusterAdminSnapshotStatusActionForSystemUserWhichIsNotAuthorized() {
         final TransportRequest request = mock(TransportRequest.class);
-        final Authentication authentication = createAuthentication(SystemUser.INSTANCE);
+        final Authentication authentication = createAuthentication(InternalUsers.SYSTEM_USER);
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
         assertThrowsAuthorizationException(
             () -> authorize(authentication, "cluster:admin/snapshot/status", request),
             "cluster:admin/snapshot/status",
-            SystemUser.INSTANCE.principal()
+            InternalUsers.SYSTEM_USER.principal()
         );
         verify(auditTrail).accessDenied(
             eq(requestId),

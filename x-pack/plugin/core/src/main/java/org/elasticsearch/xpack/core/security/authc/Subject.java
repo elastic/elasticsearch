@@ -298,7 +298,7 @@ public class Subject {
         if (innerUser instanceof InternalUser internalUser) {
             assert crossClusterAccessRoleDescriptorsBytes.isEmpty()
                 : "role descriptors bytes list for internal cross cluster access user must be empty";
-            final RoleDescriptor internalRoleDescriptor = internalUser.getRemoteAccessRole()
+            final RoleDescriptor internalRoleDescriptor = internalUser.getRemoteAccessRoleDescriptor()
                 .orElseThrow(
                     () -> new ElasticsearchSecurityException(
                         "The internal user [" + internalUser + "] is not permitted to perform cross cluster actions"

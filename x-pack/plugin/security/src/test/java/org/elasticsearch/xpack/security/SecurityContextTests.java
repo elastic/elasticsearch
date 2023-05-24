@@ -26,10 +26,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.ParentActionAuthorization;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
-import org.elasticsearch.xpack.core.security.user.AnonymousUser;
-import org.elasticsearch.xpack.core.security.user.InternalUser;
-import org.elasticsearch.xpack.core.security.user.SystemUser;
-import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.core.security.user.*;
 import org.junit.Before;
 import org.mockito.Mockito;
 
@@ -95,7 +92,7 @@ public class SecurityContextTests extends ESTestCase {
 
         IllegalStateException e = expectThrows(
             IllegalStateException.class,
-            () -> securityContext.setInternalUser(randomFrom(internalUser, SystemUser.INSTANCE), TransportVersion.CURRENT)
+            () -> securityContext.setInternalUser(randomFrom(internalUser, InternalUsers.SYSTEM_USER), TransportVersion.CURRENT)
         );
         assertEquals("authentication ([_xpack_security_authentication]) is already present in the context", e.getMessage());
     }

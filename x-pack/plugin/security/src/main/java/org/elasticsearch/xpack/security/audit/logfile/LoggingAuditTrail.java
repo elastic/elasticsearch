@@ -99,6 +99,7 @@ import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.Authoriza
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
 import org.elasticsearch.xpack.core.security.support.Automatons;
+import org.elasticsearch.xpack.core.security.user.InternalUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.audit.AuditLevel;
@@ -690,7 +691,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         AuthorizationInfo authorizationInfo
     ) {
         final User user = authentication.getEffectiveSubject().getUser();
-        final boolean isSystem = User.isInternal(user);
+        final boolean isSystem = user instanceof InternalUser;
         if ((isSystem && events.contains(SYSTEM_ACCESS_GRANTED)) || ((isSystem == false) && events.contains(ACCESS_GRANTED))) {
             final Optional<String[]> indices = Optional.ofNullable(indices(msg));
             if (eventFilterPolicyRegistry.ignorePredicate()
@@ -818,7 +819,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         assert eventType == ACCESS_DENIED || eventType == AuditLevel.ACCESS_GRANTED || eventType == SYSTEM_ACCESS_GRANTED;
         final String[] indices = index == null ? null : new String[] { index };
         final User user = authentication.getEffectiveSubject().getUser();
-        if (User.isInternal(user) && eventType == ACCESS_GRANTED) {
+        if (user instanceof InternalUser && eventType == ACCESS_GRANTED) {
             eventType = SYSTEM_ACCESS_GRANTED;
         }
         if (events.contains(eventType)) {

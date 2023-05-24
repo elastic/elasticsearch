@@ -636,8 +636,8 @@ public class FileRolesStoreTests extends ESTestCase {
         List<String> events = CapturingLogger.output(logger.getName(), Level.ERROR);
         events.clear();
         Set<String> roleNames = FileRolesStore.parseFileForRoleNames(path, logger);
-        assertThat(roleNames.size(), is(6));
-        assertThat(roleNames, containsInAnyOrder("valid_role", "role1", "role2", "role3", "role4", "role5"));
+        assertThat(roleNames.size(), is(7));
+        assertThat(roleNames, containsInAnyOrder("valid_role", "role1", "role2", "role3", "role4", "role5", "role6"));
 
         assertThat(events, hasSize(1));
         assertThat(

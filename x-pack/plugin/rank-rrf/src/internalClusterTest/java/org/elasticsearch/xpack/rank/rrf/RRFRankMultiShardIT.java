@@ -31,7 +31,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 
 @ESIntegTestCase.ClusterScope(maxNumDataNodes = 3)
 @ESIntegTestCase.SuiteScopeTestCase
-public class RRFRankIT extends ESIntegTestCase {
+public class RRFRankMultiShardIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -612,6 +612,93 @@ public class RRFRankIT extends ESIntegTestCase {
             assertEquals(5, hit.getRank());
             assertEquals("term 496", hit.field("text0").getValue());
             assertEquals("term 504", hit.field("text1").getValue());
+        }
+    }
+
+    public void testMultiBM25WithAggregation() {
+        for (SearchType searchType : SearchType.CURRENTLY_SUPPORTED) {
+            searchType = SearchType.DFS_QUERY_THEN_FETCH;
+            SearchResponse response = client().prepareSearch("nrd_index")
+                .setSearchType(searchType)
+                .setRankBuilder(new RRFRankBuilder(8, 1))
+                .setTrackTotalHits(false)
+                .setQueries(
+                    List.of(
+                        new SearchQueryWrapperBuilder(
+                            QueryBuilders.boolQuery()
+                                .should(QueryBuilders.termQuery("text0", "500").boost(10.0f))
+                                .should(QueryBuilders.termQuery("text0", "499").boost(9.0f))
+                                .should(QueryBuilders.termQuery("text0", "498").boost(8.0f))
+                                .should(QueryBuilders.termQuery("text0", "497").boost(7.0f))
+                                .should(QueryBuilders.termQuery("text0", "496").boost(6.0f))
+                                .should(QueryBuilders.termQuery("text0", "495").boost(5.0f))
+                                .should(QueryBuilders.termQuery("text0", "494").boost(4.0f))
+                                .should(QueryBuilders.termQuery("text0", "492").boost(3.0f))
+                                .should(QueryBuilders.termQuery("text0", "491").boost(2.0f))
+                                .should(QueryBuilders.termQuery("text0", "490").boost(1.0f))
+                        ),
+                        new SearchQueryWrapperBuilder(
+                            QueryBuilders.boolQuery()
+                                .should(QueryBuilders.termQuery("text1", "508").boost(9.0f))
+                                .should(QueryBuilders.termQuery("text1", "304").boost(8.0f))
+                                .should(QueryBuilders.termQuery("text1", "501").boost(7.0f))
+                                .should(QueryBuilders.termQuery("text1", "504").boost(6.0f))
+                                .should(QueryBuilders.termQuery("text1", "502").boost(5.0f))
+                                .should(QueryBuilders.termQuery("text1", "499").boost(4.0f))
+                                .should(QueryBuilders.termQuery("text1", "801").boost(3.0f))
+                                .should(QueryBuilders.termQuery("text1", "201").boost(2.0f))
+                                .should(QueryBuilders.termQuery("text1", "492").boost(1.0f))
+                        )
+                    )
+                )
+                .addFetchField("text0")
+                .addFetchField("text1")
+                .setSize(5)
+                .addAggregation(AggregationBuilders.terms("sums").field("int"))
+                .get();
+
+            assertNull(response.getHits().getTotalHits());
+            assertEquals(5, response.getHits().getHits().length);
+
+            SearchHit hit = response.getHits().getAt(0);
+            assertEquals(1, hit.getRank());
+            assertEquals("term 492", hit.field("text0").getValue());
+            assertEquals("term 508", hit.field("text1").getValue());
+
+            hit = response.getHits().getAt(1);
+            assertEquals(2, hit.getRank());
+            assertEquals("term 499", hit.field("text0").getValue());
+            assertEquals("term 501", hit.field("text1").getValue());
+
+            hit = response.getHits().getAt(2);
+            assertEquals(3, hit.getRank());
+            assertEquals("term 500", hit.field("text0").getValue());
+            assertEquals("term 500", hit.field("text1").getValue());
+
+            hit = response.getHits().getAt(3);
+            assertEquals(4, hit.getRank());
+            assertEquals("term 498", hit.field("text0").getValue());
+            assertEquals("term 502", hit.field("text1").getValue());
+
+            hit = response.getHits().getAt(4);
+            assertEquals(5, hit.getRank());
+            assertEquals("term 496", hit.field("text0").getValue());
+            assertEquals("term 504", hit.field("text1").getValue());
+
+            LongTerms aggregation = response.getAggregations().get("sums");
+            assertEquals(3, aggregation.getBuckets().size());
+
+            for (LongTerms.Bucket bucket : aggregation.getBuckets()) {
+                if (0L == (long) bucket.getKey()) {
+                    assertEquals(5, bucket.getDocCount());
+                } else if (1L == (long) bucket.getKey()) {
+                    assertEquals(6, bucket.getDocCount());
+                } else if (2L == (long) bucket.getKey()) {
+                    assertEquals(4, bucket.getDocCount());
+                } else {
+                    throw new IllegalArgumentException("unexpected bucket key [" + bucket.getKey() + "]");
+                }
+            }
         }
     }
 }

@@ -81,7 +81,7 @@ public class SearchAsyncActionTests extends ESTestCase {
         int numSkipped = 0;
         for (SearchShardIterator iter : shardsIter) {
             if (iter.shardId().id() % 2 == 0) {
-                iter.resetAndSkip();
+                iter.skip(true);
                 numSkipped++;
             }
         }
@@ -633,7 +633,8 @@ public class SearchAsyncActionTests extends ESTestCase {
                 originalIndices
             );
             // Skip all the shards
-            searchShardIterator.resetAndSkip();
+            searchShardIterator.skip(true);
+            searchShardIterator.reset();
             searchShardIterators.add(searchShardIterator);
         }
         GroupShardsIterator<SearchShardIterator> shardsIter = new GroupShardsIterator<>(searchShardIterators);

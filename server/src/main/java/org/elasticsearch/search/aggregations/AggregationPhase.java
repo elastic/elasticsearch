@@ -103,6 +103,8 @@ public class AggregationPhase {
             } catch (IOException e) {
                 throw new AggregationExecutionException("Failed to build aggregation [" + aggregator.name() + "]", e);
             }
+            // release the aggregator to claim the used bytes as we don't need it anymore
+            aggregator.releaseAggregations();
         }
         context.queryResult().aggregations(InternalAggregations.from(aggregations));
 

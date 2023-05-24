@@ -13,7 +13,9 @@ import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.LinearRing;
 import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.StandardValidator;
 import org.elasticsearch.geometry.utils.WellKnownText;
@@ -228,6 +230,31 @@ public class GeoHexTilerTests extends GeoGridTilerTestCase<GeoHexGridTiler> {
         int numBuckets = cellValues.docValueCount();
         int expected = expectedBuckets(value, precision, boundingBox);
         assertThat("[" + precision + "] bucket count", numBuckets, equalTo(expected));
+    }
+
+    public void testIssue96057() throws Exception {
+        int precision = 3;
+        Geometry geometry = new Polygon(
+            new LinearRing(
+                new double[] { 47.0, 47.0, -98.41711495022405, -98.41711495022405, 47.0 },
+                new double[] { -43.27504297314639, 23.280704041384652, 23.280704041384652, -43.27504297314639, -43.27504297314639 }
+            )
+        );
+        GeoBoundingBox geoBoundingBox = new GeoBoundingBox(
+            new GeoPoint(-44.363846082646845, 55.61563600452277),
+            new GeoPoint(-75.8747796394427, 42.12290817616412)
+        );
+        GeoShapeValues.GeoShapeValue value = geoShapeValue(geometry);
+        GeoShapeCellValues cellValues = new GeoShapeCellValues(
+            makeGeoShapeValues(value),
+            getGridTiler(geoBoundingBox, precision),
+            NOOP_BREAKER
+        );
+
+        assertTrue(cellValues.advanceExact(0));
+        int numBuckets = cellValues.docValueCount();
+        int expected = expectedBuckets(value, precision, geoBoundingBox);
+        assertThat(numBuckets, equalTo(expected));
     }
 
     private void assertCorner(long[] h3bins, Point point, int precision, String msg) throws IOException {

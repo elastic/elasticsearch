@@ -64,6 +64,7 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
             .setNodeSeen(nodeSeen)
             .setAllocationDelay(request.getAllocationDelay())
             .setTargetNodeName(request.getTargetNodeName())
+            .setGracePeriod(request.getGracePeriod())
             .build();
 
         // log the update

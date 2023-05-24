@@ -32,6 +32,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.function.Function;
@@ -111,12 +112,10 @@ public class GlobalCheckpointSyncAction extends TransportReplicationAction<
         String executor = executorProvider.apply(shard);
 
         PendingSyncs<R> pending = pendingSyncs.compute(shard, (ignored, existing) -> {
-            if (existing == null) {
-                return new PendingSyncs<>(request);
-            } else {
-                existing.toComplete.add(new Tuple<>(resultSupplier, listener));
-                return existing;
-            }
+            final PendingSyncs<R> toReturn;
+            toReturn = Objects.requireNonNullElseGet(existing, () -> new PendingSyncs<>(request));
+            toReturn.toComplete.add(new Tuple<>(resultSupplier, listener));
+            return toReturn;
         });
 
         if (pending.syncRequest == request) {

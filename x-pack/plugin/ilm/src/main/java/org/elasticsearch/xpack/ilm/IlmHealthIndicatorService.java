@@ -210,12 +210,16 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
                 .stream()
                 .map(IndexIlmState::indexName)
                 .limit(Math.min(maxAffectedResourcesCount, action.getValue().size()))
-                .collect(Collectors.toSet());
+                .sorted()
+                .distinct()
+                .toList();
             var affectedPolicies = action.getValue()
                 .stream()
                 .map(IndexIlmState::policyName)
                 .limit(Math.min(maxAffectedResourcesCount, action.getValue().size()))
-                .collect(Collectors.toSet());
+                .sorted()
+                .distinct()
+                .toList();
             return new Diagnosis(
                 STAGNATING_ACTION_DEFINITIONS.get(action.getKey()),
                 List.of(

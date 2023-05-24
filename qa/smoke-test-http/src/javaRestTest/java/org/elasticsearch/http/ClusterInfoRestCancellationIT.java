@@ -67,7 +67,7 @@ public class ClusterInfoRestCancellationIT extends HttpSmokeTestCase {
         awaitTaskWithPrefix(NodesStatsAction.NAME);
 
         logger.info("--> Checking that all the HttpTransport are waiting...");
-        assertEquals(cyclicBarrier.getNumberWaiting(), transports.size());
+        safeAwait(cyclicBarrier);
 
         logger.info("--> Cancelling request");
         cancellable.cancel();
@@ -167,6 +167,7 @@ public class ClusterInfoRestCancellationIT extends HttpSmokeTestCase {
 
         @Override
         public HttpStats stats() {
+            safeAwait(cyclicBarrier);
             safeAwait(cyclicBarrier);
             return super.stats();
         }

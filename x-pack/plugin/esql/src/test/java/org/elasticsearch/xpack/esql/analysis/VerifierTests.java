@@ -115,6 +115,13 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testMixedNonConvertibleTypesInIn() {
+        assertEquals(
+            "1:19: 2nd argument of [emp_no in (1, \"two\")] must be [integer], found value [\"two\"] type [keyword]",
+            error("from test | where emp_no in (1, \"two\")")
+        );
+    }
+
     private String error(String query) {
         return error(query, defaultAnalyzer);
     }

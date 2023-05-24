@@ -47,6 +47,17 @@ avg(salary):double | always_false:boolean
  48353.72222222222 | false
 ;
 
+in
+from employees | project emp_no, is_rehired, still_hired | where is_rehired in (still_hired, true) | where is_rehired != still_hired;
+
+emp_no:integer |is_rehired:boolean |still_hired:boolean
+10021          |true               |false
+10029          |true               |false
+10033          |true               |false
+10075          |true               |false
+10088          |true               |false
+;
+
 trueTrue
 row lhs=true, rhs=true | eval aa=lhs AND rhs, oo=lhs OR rhs | project aa, oo;
 
@@ -129,4 +140,15 @@ row v=null | eval v=NOT v | project v;
 
 v:boolean
 null
+;
+
+convertToString
+from employees | eval rehired = to_string(is_rehired) | project emp_no, rehired, is_rehired | limit 5;
+
+emp_no:integer |rehired:string              |is_rehired:boolean
+10001          |[false, true]               |[false, true]              
+10002          |[false, false]              |[false, false]             
+10003          |null                        |null                       
+10004          |true                        |true                       
+10005          |[false, false, false, true] |[false, false, false, true]
 ;

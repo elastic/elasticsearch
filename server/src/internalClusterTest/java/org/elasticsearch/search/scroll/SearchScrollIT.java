@@ -638,9 +638,7 @@ public class SearchScrollIT extends ESIntegTestCase {
     public void testScrollRewrittenToMatchNoDocs() {
         final int numShards = randomIntBetween(3, 5);
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("test")
+            indicesAdmin().prepareCreate("test")
                 .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards))
                 .setMapping("""
                     {"properties":{"created_date":{"type": "date", "format": "yyyy-MM-dd"}}}
@@ -673,6 +671,7 @@ public class SearchScrollIT extends ESIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/95759")
     public void testRestartDataNodesDuringScrollSearch() throws Exception {
         final String dataNode = internalCluster().startDataOnlyNode();
         createIndex("demo", indexSettings(1, 0).put("index.routing.allocation.include._name", dataNode).build());

@@ -17,6 +17,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -35,7 +36,7 @@ import java.util.TreeMap;
  * loader for different field types.
  */
 @Experimental
-public class ValuesSourceReaderOperator implements Operator {
+public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
     /**
      * Creates a new extractor that uses ValuesSources load data
      * @param sources the value source, type and index readers to use for extraction
@@ -64,12 +65,7 @@ public class ValuesSourceReaderOperator implements Operator {
     private int lastShard = -1;
     private int lastSegment = -1;
 
-    private Page lastPage;
-
     private final Map<String, Integer> readersBuilt = new TreeMap<>();
-    private int pagesProcessed;
-
-    boolean finished;
 
     /**
      * Creates a new extractor
@@ -84,42 +80,14 @@ public class ValuesSourceReaderOperator implements Operator {
     }
 
     @Override
-    public Page getOutput() {
-        Page l = lastPage;
-        lastPage = null;
-        return l;
-    }
-
-    @Override
-    public boolean isFinished() {
-        return finished && lastPage == null;
-    }
-
-    @Override
-    public void finish() {
-        finished = true;
-    }
-
-    @Override
-    public boolean needsInput() {
-        return lastPage == null;
-    }
-
-    @Override
-    public void addInput(Page page) {
-        if (page.getPositionCount() == 0) {
-            return;
-        }
-
+    protected Page process(Page page) {
         DocVector docVector = page.<DocBlock>getBlock(docChannel).asVector();
 
         try {
             if (docVector.singleSegmentNonDecreasing()) {
-                lastPage = page.appendBlock(loadFromSingleLeaf(docVector));
-            } else {
-                lastPage = page.appendBlock(loadFromManyLeaves(docVector));
+                return page.appendBlock(loadFromSingleLeaf(docVector));
             }
-            pagesProcessed++;
+            return page.appendBlock(loadFromManyLeaves(docVector));
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -162,21 +130,16 @@ public class ValuesSourceReaderOperator implements Operator {
     }
 
     @Override
-    public void close() {
-
-    }
-
-    @Override
     public String toString() {
         return "ValuesSourceReaderOperator[field = " + field + "]";
     }
 
     @Override
-    public Status status() {
+    protected Status status(int pagesProcessed) {
         return new Status(new TreeMap<>(readersBuilt), pagesProcessed);
     }
 
-    public static class Status implements Operator.Status {
+    public static class Status extends AbstractPageMappingOperator.Status {
         public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
             Operator.Status.class,
             "values_source_reader",
@@ -184,22 +147,21 @@ public class ValuesSourceReaderOperator implements Operator {
         );
 
         private final Map<String, Integer> readersBuilt;
-        private final int pagesProcessed;
 
         Status(Map<String, Integer> readersBuilt, int pagesProcessed) {
+            super(pagesProcessed);
             this.readersBuilt = readersBuilt;
-            this.pagesProcessed = pagesProcessed;
         }
 
         Status(StreamInput in) throws IOException {
+            super(in);
             readersBuilt = in.readOrderedMap(StreamInput::readString, StreamInput::readVInt);
-            pagesProcessed = in.readVInt();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
             out.writeMap(readersBuilt, StreamOutput::writeString, StreamOutput::writeVInt);
-            out.writeVInt(pagesProcessed);
         }
 
         @Override
@@ -211,10 +173,6 @@ public class ValuesSourceReaderOperator implements Operator {
             return readersBuilt;
         }
 
-        public int pagesProcessed() {
-            return pagesProcessed;
-        }
-
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
@@ -223,7 +181,7 @@ public class ValuesSourceReaderOperator implements Operator {
                 builder.field(e.getKey(), e.getValue());
             }
             builder.endObject();
-            builder.field("pages_processed", pagesProcessed);
+            builder.field("pages_processed", pagesProcessed());
             return builder.endObject();
         }
 
@@ -232,12 +190,12 @@ public class ValuesSourceReaderOperator implements Operator {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Status status = (Status) o;
-            return pagesProcessed == status.pagesProcessed && readersBuilt.equals(status.readersBuilt);
+            return pagesProcessed() == status.pagesProcessed() && readersBuilt.equals(status.readersBuilt);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(readersBuilt, pagesProcessed);
+            return Objects.hash(readersBuilt, pagesProcessed());
         }
 
         @Override

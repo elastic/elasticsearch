@@ -1143,6 +1143,21 @@ public class AnalyzerTests extends ESTestCase {
         }
     }
 
+    public void testUnsupportedTypesWithToString() {
+        // DATE_PERIOD and TIME_DURATION types have been added, but not really patched through the engine; i.e. supported.
+        verifyUnsupported(
+            "row period = 1 year | eval to_string(period)",
+            "line 1:28: argument of [to_string(period)] must be [boolean, datetime, ip, numerical or string], "
+                + "found value [period] type [date_period]"
+        );
+        verifyUnsupported(
+            "row duration = 1 hour | eval to_string(duration)",
+            "line 1:30: argument of [to_string(duration)] must be [boolean, datetime, ip, numerical or string], "
+                + "found value [duration] type [time_duration]"
+        );
+        verifyUnsupported("from test | eval to_string(point)", "line 1:28: Cannot use field [point] with unsupported type [geo_point]");
+    }
+
     private void verifyUnsupported(String query, String errorMessage) {
         verifyUnsupported(query, errorMessage, "mapping-multi-field-variation.json");
     }

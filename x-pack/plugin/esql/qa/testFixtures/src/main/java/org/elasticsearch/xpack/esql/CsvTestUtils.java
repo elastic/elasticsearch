@@ -27,6 +27,7 @@ import org.supercsv.prefs.CsvPreference;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.StringReader;
+import java.math.BigDecimal;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -295,6 +296,9 @@ public final class CsvTestUtils {
             s -> (double) HalfFloatPoint.sortableShortToHalfFloat(HalfFloatPoint.halfFloatToSortableShort(Float.parseFloat(s))),
             Double.class
         ),
+        // we currently only support a hard-coded scaling factor, since we're not querying the mapping of a field when reading CSV values
+        // for it, so the scaling_factor isn't available
+        SCALED_FLOAT(s -> s == null ? null : scaledFloat(s, "100"), Double.class),
         KEYWORD(Object::toString, BytesRef.class),
         IP(StringUtils::parseIP, BytesRef.class),
         NULL(s -> null, Void.class),
@@ -310,7 +314,6 @@ public final class CsvTestUtils {
             // widen smaller types
             LOOKUP.put("SHORT", INTEGER);
             LOOKUP.put("BYTE", INTEGER);
-            LOOKUP.put("SCALED_FLOAT", DOUBLE);
 
             // add also the types with short names
             LOOKUP.put("I", INTEGER);
@@ -420,5 +423,12 @@ public final class CsvTestUtils {
             buffer.append(" ".repeat(Math.max(0, MAX_WIDTH - buffer.length())));
         }
         return buffer;
+    }
+
+    private static double scaledFloat(String value, String factor) {
+        double scalingFactor = Double.parseDouble(factor);
+        // this extra division introduces extra imprecision in the following multiplication, but this is how ScaledFloatFieldMapper works.
+        double scalingFactorInverse = 1d / scalingFactor;
+        return new BigDecimal(value).multiply(BigDecimal.valueOf(scalingFactor)).longValue() * scalingFactorInverse;
     }
 }

@@ -55,12 +55,23 @@ public class Types {
     static final ClassName LONG_ARRAY_VECTOR = ClassName.get(DATA_PACKAGE, "LongArrayVector");
     static final ClassName DOUBLE_ARRAY_VECTOR = ClassName.get(DATA_PACKAGE, "DoubleArrayVector");
 
+    static final ClassName BOOLEAN_CONSTANT_VECTOR = ClassName.get(DATA_PACKAGE, "ConstantBooleanVector");
+    static final ClassName BYTES_REF_CONSTANT_VECTOR = ClassName.get(DATA_PACKAGE, "ConstantBytesRefVector");
+    static final ClassName INT_CONSTANT_VECTOR = ClassName.get(DATA_PACKAGE, "ConstantIntVector");
+    static final ClassName LONG_CONSTANT_VECTOR = ClassName.get(DATA_PACKAGE, "ConstantLongVector");
+    static final ClassName DOUBLE_CONSTANT_VECTOR = ClassName.get(DATA_PACKAGE, "ConstantDoubleVector");
+
     static final ClassName AGGREGATOR_FUNCTION = ClassName.get(AGGREGATION_PACKAGE, "AggregatorFunction");
     static final ClassName GROUPING_AGGREGATOR_FUNCTION = ClassName.get(AGGREGATION_PACKAGE, "GroupingAggregatorFunction");
     static final ClassName EXPRESSION_EVALUATOR = ClassName.get(OPERATOR_PACKAGE, "EvalOperator", "ExpressionEvaluator");
     static final ClassName ABSTRACT_MULTIVALUE_FUNCTION_EVALUATOR = ClassName.get(
         "org.elasticsearch.xpack.esql.expression.function.scalar.multivalue",
         "AbstractMultivalueFunction",
+        "AbstractEvaluator"
+    );
+    static final ClassName ABSTRACT_CONVERT_FUNCTION_EVALUATOR = ClassName.get(
+        "org.elasticsearch.xpack.esql.expression.function.scalar.convert",
+        "AbstractConvertFunction",
         "AbstractEvaluator"
     );
 
@@ -121,6 +132,25 @@ public class Types {
         }
         if (elementType.equals(TypeName.DOUBLE)) {
             return DOUBLE_ARRAY_VECTOR;
+        }
+        throw new IllegalArgumentException("unknown vector type for [" + elementType + "]");
+    }
+
+    static ClassName constantVectorType(TypeName elementType) {
+        if (elementType.equals(TypeName.BOOLEAN)) {
+            return BOOLEAN_CONSTANT_VECTOR;
+        }
+        if (elementType.equals(BYTES_REF)) {
+            return BYTES_REF_CONSTANT_VECTOR;
+        }
+        if (elementType.equals(TypeName.INT)) {
+            return INT_CONSTANT_VECTOR;
+        }
+        if (elementType.equals(TypeName.LONG)) {
+            return LONG_CONSTANT_VECTOR;
+        }
+        if (elementType.equals(TypeName.DOUBLE)) {
+            return DOUBLE_CONSTANT_VECTOR;
         }
         throw new IllegalArgumentException("unknown vector type for [" + elementType + "]");
     }

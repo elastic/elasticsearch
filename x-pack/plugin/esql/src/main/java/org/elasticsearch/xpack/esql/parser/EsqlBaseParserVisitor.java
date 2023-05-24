@@ -70,6 +70,13 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitRegexExpression(EsqlBaseParser.RegexExpressionContext ctx);
   /**
+   * Visit a parse tree produced by the {@code logicalIn}
+   * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitLogicalIn(EsqlBaseParser.LogicalInContext ctx);
+  /**
    * Visit a parse tree produced by the {@code logicalBinary}
    * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
    * @param ctx the parse tree
@@ -329,6 +336,12 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitGrokCommand(EsqlBaseParser.GrokCommandContext ctx);
   /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#mvExpandCommand}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitMvExpandCommand(EsqlBaseParser.MvExpandCommandContext ctx);
+  /**
    * Visit a parse tree produced by {@link EsqlBaseParser#commandOptions}.
    * @param ctx the parse tree
    * @return the visitor result
@@ -402,4 +415,10 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitShowFunctions(EsqlBaseParser.ShowFunctionsContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#enrichCommand}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitEnrichCommand(EsqlBaseParser.EnrichCommandContext ctx);
 }

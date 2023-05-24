@@ -15,6 +15,7 @@ import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.Tuple;
 
 import java.util.List;
+import java.util.OptionalInt;
 import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -37,7 +38,12 @@ public class MaxIntGroupingAggregatorFunctionTests extends GroupingAggregatorFun
 
     @Override
     public void assertSimpleGroup(List<Page> input, Block result, int position, long group) {
-        int max = input.stream().flatMapToInt(p -> allInts(p, group)).max().getAsInt();
-        assertThat(((IntBlock) result).getInt(position), equalTo(max));
+        OptionalInt max = input.stream().flatMapToInt(p -> allInts(p, group)).max();
+        if (max.isEmpty()) {
+            assertThat(result.isNull(position), equalTo(true));
+            return;
+        }
+        assertThat(result.isNull(position), equalTo(false));
+        assertThat(((IntBlock) result).getInt(position), equalTo(max.getAsInt()));
     }
 }

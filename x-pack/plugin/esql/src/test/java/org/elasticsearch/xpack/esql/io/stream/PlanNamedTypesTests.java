@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.GrokExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
+import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.OrderExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
@@ -105,6 +106,7 @@ public class PlanNamedTypesTests extends ESTestCase {
         FilterExec.class,
         GrokExec.class,
         LimitExec.class,
+        MvExpandExec.class,
         OrderExec.class,
         ProjectExec.class,
         RowExec.class,

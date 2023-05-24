@@ -18,8 +18,8 @@ import org.elasticsearch.compute.data.LongBlock;
 @GroupingAggregator
 class CountDistinctDoubleAggregator {
 
-    public static HllStates.SingleState initSingle() {
-        return new HllStates.SingleState();
+    public static HllStates.SingleState initSingle(BigArrays bigArrays, Object[] parameters) {
+        return new HllStates.SingleState(bigArrays, parameters);
     }
 
     public static void combine(HllStates.SingleState current, double v) {
@@ -35,8 +35,8 @@ class CountDistinctDoubleAggregator {
         return LongBlock.newConstantBlockWith(result, 1);
     }
 
-    public static HllStates.GroupingState initGrouping(BigArrays bigArrays) {
-        return new HllStates.GroupingState(bigArrays);
+    public static HllStates.GroupingState initGrouping(BigArrays bigArrays, Object[] parameters) {
+        return new HllStates.GroupingState(bigArrays, parameters);
     }
 
     public static void combine(HllStates.GroupingState current, int groupId, double v) {

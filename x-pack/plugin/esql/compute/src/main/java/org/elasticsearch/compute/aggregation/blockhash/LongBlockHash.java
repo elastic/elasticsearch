@@ -76,7 +76,7 @@ final class LongBlockHash extends BlockHash {
         return builder.build();
     }
 
-    protected int add(LongBlock.Builder builder, long[] seen, int nextSeen, long value) {
+    private int add(LongBlock.Builder builder, long[] seen, int nextSeen, long value) {
         for (int j = 0; j < nextSeen; j++) {
             if (seen[j] == value) {
                 return nextSeen;

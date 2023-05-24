@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.equalTo;
 
 public class AvgDoubleGroupingAggregatorFunctionTests extends GroupingAggregatorFunctionTestCase {
     @Override
@@ -43,6 +44,12 @@ public class AvgDoubleGroupingAggregatorFunctionTests extends GroupingAggregator
         CompensatedSum sum = new CompensatedSum();
         input.stream().flatMapToDouble(p -> allDoubles(p, group)).forEach(sum::add);
         long count = input.stream().flatMapToDouble(p -> allDoubles(p, group)).count();
+        if (count == 0) {
+            // If all values are null we'll have a count of 0. So we'll be null.
+            assertThat(result.isNull(position), equalTo(true));
+            return;
+        }
+        assertThat(result.isNull(position), equalTo(false));
         assertThat(((DoubleBlock) result).getDouble(position), closeTo(sum.value() / count, 0.001));
     }
 }

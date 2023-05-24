@@ -11,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.BytesRefArray;
 
 import java.util.BitSet;
+import java.util.stream.IntStream;
 
 /**
  * Block implementation that stores an array of BytesRef.
@@ -43,6 +44,19 @@ public final class BytesRefArrayBlock extends AbstractArrayBlock implements Byte
     @Override
     public ElementType elementType() {
         return ElementType.BYTES_REF;
+    }
+
+    @Override
+    public BytesRefBlock expand() {
+        if (firstValueIndexes == null) {
+            return this;
+        }
+        int end = firstValueIndexes[getPositionCount()];
+        if (nullsMask == null) {
+            return new BytesRefArrayVector(values, end).asBlock();
+        }
+        int[] firstValues = IntStream.range(0, end + 1).toArray();
+        return new BytesRefArrayBlock(values, end, firstValues, shiftNullsToExpandedPositions(), MvOrdering.UNORDERED);
     }
 
     @Override

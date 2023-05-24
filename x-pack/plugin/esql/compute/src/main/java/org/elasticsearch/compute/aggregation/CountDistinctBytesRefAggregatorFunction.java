@@ -7,6 +7,7 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.AggregatorStateVector;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -24,13 +25,20 @@ public final class CountDistinctBytesRefAggregatorFunction implements Aggregator
 
     private final int channel;
 
-    public CountDistinctBytesRefAggregatorFunction(int channel, HllStates.SingleState state) {
+    private final Object[] parameters;
+
+    public CountDistinctBytesRefAggregatorFunction(int channel, HllStates.SingleState state, Object[] parameters) {
         this.channel = channel;
         this.state = state;
+        this.parameters = parameters;
     }
 
-    public static CountDistinctBytesRefAggregatorFunction create(int channel) {
-        return new CountDistinctBytesRefAggregatorFunction(channel, CountDistinctBytesRefAggregator.initSingle());
+    public static CountDistinctBytesRefAggregatorFunction create(BigArrays bigArrays, int channel, Object[] parameters) {
+        return new CountDistinctBytesRefAggregatorFunction(
+            channel,
+            CountDistinctBytesRefAggregator.initSingle(bigArrays, parameters),
+            parameters
+        );
     }
 
     @Override
@@ -76,7 +84,9 @@ public final class CountDistinctBytesRefAggregatorFunction implements Aggregator
         }
         @SuppressWarnings("unchecked")
         AggregatorStateVector<HllStates.SingleState> blobVector = (AggregatorStateVector<HllStates.SingleState>) vector;
-        HllStates.SingleState tmpState = new HllStates.SingleState();
+        // TODO exchange big arrays directly without funny serialization - no more copying
+        BigArrays bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
+        HllStates.SingleState tmpState = CountDistinctDoubleAggregator.initSingle(bigArrays, parameters);
         for (int i = 0; i < block.getPositionCount(); i++) {
             blobVector.get(i, tmpState);
             CountDistinctBytesRefAggregator.combineStates(state, tmpState);
@@ -103,5 +113,10 @@ public final class CountDistinctBytesRefAggregatorFunction implements Aggregator
         sb.append("channel=").append(channel);
         sb.append("]");
         return sb.toString();
+    }
+
+    @Override
+    public void close() {
+        state.close();
     }
 }

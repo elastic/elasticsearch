@@ -9,6 +9,7 @@ package org.elasticsearch.compute.data;
 
 import java.util.Arrays;
 import java.util.BitSet;
+import java.util.stream.IntStream;
 
 /**
  * Block implementation that stores an array of long.
@@ -41,6 +42,19 @@ public final class LongArrayBlock extends AbstractArrayBlock implements LongBloc
     @Override
     public ElementType elementType() {
         return ElementType.LONG;
+    }
+
+    @Override
+    public LongBlock expand() {
+        if (firstValueIndexes == null) {
+            return this;
+        }
+        int end = firstValueIndexes[getPositionCount()];
+        if (nullsMask == null) {
+            return new LongArrayVector(values, end).asBlock();
+        }
+        int[] firstValues = IntStream.range(0, end + 1).toArray();
+        return new LongArrayBlock(values, end, firstValues, shiftNullsToExpandedPositions(), MvOrdering.UNORDERED);
     }
 
     @Override

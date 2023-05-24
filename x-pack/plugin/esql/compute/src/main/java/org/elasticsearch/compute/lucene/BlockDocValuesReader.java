@@ -127,6 +127,9 @@ public abstract class BlockDocValuesReader {
             }
             return new BooleanValuesReader(longValues);
         }
+        if (valuesSourceType instanceof NullValueSourceType) {
+            return new NullValuesReader();
+        }
         throw new IllegalArgumentException("Field type [" + valuesSourceType.typeName() + "] is not supported");
     }
 
@@ -654,6 +657,36 @@ public abstract class BlockDocValuesReader {
         @Override
         public int docID() {
             // There is a .docID on the numericDocValues but it is often not implemented.
+            return docID;
+        }
+
+        @Override
+        public String toString() {
+            return getClass().getSimpleName();
+        }
+    }
+
+    private static class NullValuesReader extends BlockDocValuesReader {
+        private int docID = -1;
+
+        @Override
+        public Block.Builder builder(int positionCount) {
+            return ElementType.NULL.newBlockBuilder(positionCount);
+        }
+
+        @Override
+        public Block readValues(IntVector docs) throws IOException {
+            return Block.constantNullBlock(docs.getPositionCount());
+        }
+
+        @Override
+        public void readValuesFromSingleDoc(int docId, Block.Builder builder) {
+            this.docID = docId;
+            builder.appendNull();
+        }
+
+        @Override
+        public int docID() {
             return docID;
         }
 

@@ -232,3 +232,17 @@ row false;
 false:boolean
 false
 ;
+
+in
+row a=1, b=2 | where a in (0, b-1);
+
+a:integer|b:integer
+1        |2
+;
+
+inWithLiteralValue
+row a=1, b=2 | where 2 in (a, b);
+
+a:integer|b:integer
+1        |2
+;

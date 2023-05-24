@@ -15,6 +15,7 @@ import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.Tuple;
 
 import java.util.List;
+import java.util.OptionalDouble;
 import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -39,7 +40,12 @@ public class MinDoubleGroupingAggregatorFunctionTests extends GroupingAggregator
 
     @Override
     protected void assertSimpleGroup(List<Page> input, Block result, int position, long group) {
-        double min = input.stream().flatMapToDouble(p -> allDoubles(p, group)).min().getAsDouble();
-        assertThat(((DoubleBlock) result).getDouble(position), equalTo(min));
+        OptionalDouble min = input.stream().flatMapToDouble(p -> allDoubles(p, group)).min();
+        if (min.isEmpty()) {
+            assertThat(result.isNull(position), equalTo(true));
+            return;
+        }
+        assertThat(result.isNull(position), equalTo(false));
+        assertThat(((DoubleBlock) result).getDouble(position), equalTo(min.getAsDouble()));
     }
 }

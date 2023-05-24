@@ -209,45 +209,46 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
 
     private void loadSimpleAndAssert(List<Page> input) {
         List<Page> results = new ArrayList<>();
+        List<Operator> operators = List.of(
+            factory(
+                CoreValuesSourceType.NUMERIC,
+                ElementType.INT,
+                new NumberFieldMapper.NumberFieldType("key", NumberFieldMapper.NumberType.INTEGER)
+            ).get(),
+            factory(
+                CoreValuesSourceType.NUMERIC,
+                ElementType.LONG,
+                new NumberFieldMapper.NumberFieldType("long", NumberFieldMapper.NumberType.LONG)
+            ).get(),
+            factory(CoreValuesSourceType.KEYWORD, ElementType.BYTES_REF, new KeywordFieldMapper.KeywordFieldType("kwd")).get(),
+            factory(CoreValuesSourceType.KEYWORD, ElementType.BYTES_REF, new KeywordFieldMapper.KeywordFieldType("mv_kwd")).get(),
+            factory(CoreValuesSourceType.BOOLEAN, ElementType.BOOLEAN, new BooleanFieldMapper.BooleanFieldType("bool")).get(),
+            factory(CoreValuesSourceType.BOOLEAN, ElementType.BOOLEAN, new BooleanFieldMapper.BooleanFieldType("mv_bool")).get(),
+            factory(
+                CoreValuesSourceType.NUMERIC,
+                ElementType.INT,
+                new NumberFieldMapper.NumberFieldType("mv_key", NumberFieldMapper.NumberType.INTEGER)
+            ).get(),
+            factory(
+                CoreValuesSourceType.NUMERIC,
+                ElementType.LONG,
+                new NumberFieldMapper.NumberFieldType("mv_long", NumberFieldMapper.NumberType.LONG)
+            ).get(),
+            factory(
+                CoreValuesSourceType.NUMERIC,
+                ElementType.DOUBLE,
+                new NumberFieldMapper.NumberFieldType("double", NumberFieldMapper.NumberType.DOUBLE)
+            ).get(),
+            factory(
+                CoreValuesSourceType.NUMERIC,
+                ElementType.DOUBLE,
+                new NumberFieldMapper.NumberFieldType("mv_double", NumberFieldMapper.NumberType.DOUBLE)
+            ).get()
+        );
         try (
             Driver d = new Driver(
                 new CannedSourceOperator(input.iterator()),
-                List.of(
-                    factory(
-                        CoreValuesSourceType.NUMERIC,
-                        ElementType.INT,
-                        new NumberFieldMapper.NumberFieldType("key", NumberFieldMapper.NumberType.INTEGER)
-                    ).get(),
-                    factory(
-                        CoreValuesSourceType.NUMERIC,
-                        ElementType.LONG,
-                        new NumberFieldMapper.NumberFieldType("long", NumberFieldMapper.NumberType.LONG)
-                    ).get(),
-                    factory(CoreValuesSourceType.KEYWORD, ElementType.BYTES_REF, new KeywordFieldMapper.KeywordFieldType("kwd")).get(),
-                    factory(CoreValuesSourceType.KEYWORD, ElementType.BYTES_REF, new KeywordFieldMapper.KeywordFieldType("mv_kwd")).get(),
-                    factory(CoreValuesSourceType.BOOLEAN, ElementType.BOOLEAN, new BooleanFieldMapper.BooleanFieldType("bool")).get(),
-                    factory(CoreValuesSourceType.BOOLEAN, ElementType.BOOLEAN, new BooleanFieldMapper.BooleanFieldType("mv_bool")).get(),
-                    factory(
-                        CoreValuesSourceType.NUMERIC,
-                        ElementType.INT,
-                        new NumberFieldMapper.NumberFieldType("mv_key", NumberFieldMapper.NumberType.INTEGER)
-                    ).get(),
-                    factory(
-                        CoreValuesSourceType.NUMERIC,
-                        ElementType.LONG,
-                        new NumberFieldMapper.NumberFieldType("mv_long", NumberFieldMapper.NumberType.LONG)
-                    ).get(),
-                    factory(
-                        CoreValuesSourceType.NUMERIC,
-                        ElementType.DOUBLE,
-                        new NumberFieldMapper.NumberFieldType("double", NumberFieldMapper.NumberType.DOUBLE)
-                    ).get(),
-                    factory(
-                        CoreValuesSourceType.NUMERIC,
-                        ElementType.DOUBLE,
-                        new NumberFieldMapper.NumberFieldType("mv_double", NumberFieldMapper.NumberType.DOUBLE)
-                    ).get()
-                ),
+                operators,
                 new PageConsumerOperator(page -> results.add(page)),
                 () -> {}
             )
@@ -303,6 +304,9 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                     assertThat(mvDoubles.getDouble(offset + v), equalTo(key / 123_456d + v));
                 }
             }
+        }
+        for (Operator op : operators) {
+            assertThat(((ValuesSourceReaderOperator) op).status().pagesProcessed(), equalTo(input.size()));
         }
     }
 

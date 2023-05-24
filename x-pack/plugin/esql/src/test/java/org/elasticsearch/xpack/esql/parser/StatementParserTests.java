@@ -10,12 +10,15 @@ package org.elasticsearch.xpack.esql.parser;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
+import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
+import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.ql.expression.Alias;
+import org.elasticsearch.xpack.ql.expression.EmptyAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
@@ -592,6 +595,25 @@ public class StatementParserTests extends ESTestCase {
 
         expectError("from a | where foo like 12", "mismatched input '12'");
         expectError("from a | where foo rlike 12", "mismatched input '12'");
+    }
+
+    public void testEnrich() {
+        assertEquals(
+            new Enrich(EMPTY, PROCESSING_CMD_INPUT, "countries", new EmptyAttribute(EMPTY)),
+            processingCommand("enrich countries")
+        );
+
+        assertEquals(
+            new Enrich(EMPTY, PROCESSING_CMD_INPUT, "countries", new UnresolvedAttribute(EMPTY, "country_code")),
+            processingCommand("enrich countries ON country_code")
+        );
+    }
+
+    public void testMvExpand() {
+        LogicalPlan cmd = processingCommand("mv_expand a");
+        assertEquals(MvExpand.class, cmd.getClass());
+        MvExpand expand = (MvExpand) cmd;
+        assertThat(expand.target(), equalTo(attribute("a")));
     }
 
     private void assertIdentifierAsIndexPattern(String identifier, String statement) {

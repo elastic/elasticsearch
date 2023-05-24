@@ -1,0 +1,369 @@
+---
+disjoint_mappings:
+  - do:
+      indices.create:
+        index: test1
+        body:
+          mappings:
+            properties:
+              message1:
+                type: keyword
+
+  - do:
+      indices.create:
+        index: test2
+        body:
+          mappings:
+            properties:
+              message2:
+                type: long
+
+
+  - do:
+      bulk:
+        index: test1
+        refresh: true
+        body:
+          - { "index": {} }
+          - { "message1": "foo1"}
+          - { "index": {} }
+          - { "message1": "foo2" }
+
+  - do:
+      bulk:
+        index: test2
+        refresh: true
+        body:
+          - { "index": {} }
+          - { "message2": 1 }
+          - { "index": {} }
+          - { "message2": 2 }
+
+  - do:
+      esql.query:
+        body:
+          query: 'from test1,test2 | project message1, message2 | sort message1'
+  - match: { columns.0.name: message1 }
+  - match: { columns.0.type: keyword }
+  - match: { columns.1.name: message2 }
+  - match: { columns.1.type: long }
+  - length: { values: 4 }
+  - match: { values.0.0: foo1 }
+  - match: { values.0.1: null }
+  - match: { values.1.0: foo2 }
+  - match: { values.1.1: null }
+  - match: { values.2.0: null }
+  - match: { values.3.0: null }
+
+  - do:
+      esql.query:
+        body:
+          query: 'from test1,test2 | project message1, message2 | sort message1 | limit 2'
+  - match: { columns.0.name: message1 }
+  - match: { columns.0.type: keyword }
+  - match: { columns.1.name: message2 }
+  - match: { columns.1.type: long }
+  - length: { values: 2 }
+  - match: { values.0.0: foo1 }
+  - match: { values.0.1: null }
+  - match: { values.1.0: foo2 }
+  - match: { values.1.1: null }
+
+  - do:
+      esql.query:
+        body:
+          query: 'from test1,test2 | project message1, message2 | sort message1 desc nulls last | limit 1'
+  - match: { columns.0.name: message1 }
+  - match: { columns.0.type: keyword }
+  - match: { columns.1.name: message2 }
+  - match: { columns.1.type: long }
+  - length: { values: 1 }
+  - match: { values.0.0: foo2 }
+  - match: { values.0.1: null }
+
+  - do:
+      esql.query:
+        body:
+          query: 'from test1,test2 | project message1, message2 | sort message1, message2'
+  - match: { columns.0.name: message1 }
+  - match: { columns.0.type: keyword }
+  - match: { columns.1.name: message2 }
+  - match: { columns.1.type: long }
+  - length: { values: 4 }
+  - match: { values.0.0: foo1 }
+  - match: { values.0.1: null }
+  - match: { values.1.0: foo2 }
+  - match: { values.1.1: null }
+  - match: { values.2.0: null }
+  - match: { values.2.1: 1 }
+  - match: { values.3.0: null }
+  - match: { values.3.1: 2 }
+
+  - do:
+      esql.query:
+        body:
+          query: 'from test1,test2 | project message1, message2 | sort message1, message2 | limit 3'
+  - match: { columns.0.name: message1 }
+  - match: { columns.0.type: keyword }
+  - match: { columns.1.name: message2 }
+  - match: { columns.1.type: long }
+  - length: { values: 3 }
+  - match: { values.0.0: foo1 }
+  - match: { values.0.1: null }
+  - match: { values.1.0: foo2 }
+  - match: { values.1.1: null }
+  - match: { values.2.0: null }
+  - match: { values.2.1: 1 }
+
+
+  - do:
+      esql.query:
+        body:
+          query: 'from test1,test2 | project message1, message2 | sort message1 desc nulls first, message2 | limit 3'
+  - match: { columns.0.name: message1 }
+  - match: { columns.0.type: keyword }
+  - match: { columns.1.name: message2 }
+  - match: { columns.1.type: long }
+  - length: { values: 3 }
+  - match: { values.0.0: null }
+  - match: { values.0.1: 1 }
+  - match: { values.1.0: null }
+  - match: { values.1.1: 2 }
+  - match: { values.2.0: foo2 }
+  - match: { values.2.1: null }
+
+  - do:
+      esql.query:
+        body:
+          query: 'from test1,test2 | project message1, message2 | sort message1, message2 | limit 2'
+  - match: { columns.0.name: message1 }
+  - match: { columns.0.type: keyword }
+  - match: { columns.1.name: message2 }
+  - match: { columns.1.type: long }
+  - length: { values: 2 }
+  - match: { values.0.0: foo1 }
+  - match: { values.0.1: null }
+  - match: { values.1.0: foo2 }
+  - match: { values.1.1: null }
+
+  - do:
+      esql.query:
+        body:
+          query: 'from test1,test2 | project message1, message2 | sort message1 nulls first, message2'
+  - match: { columns.0.name: message1 }
+  - match: { columns.0.type: keyword }
+  - match: { columns.1.name: message2 }
+  - match: { columns.1.type: long }
+  - length: { values: 4 }
+  - match: { values.0.0: null }
+  - match: { values.0.1: 1 }
+  - match: { values.1.0: null }
+  - match: { values.1.1: 2 }
+  - match: { values.2.0: foo1 }
+  - match: { values.2.1: null }
+  - match: { values.3.0: foo2 }
+  - match: { values.3.1: null }
+
+  - do:
+      esql.query:
+        body:
+          query: 'from test1,test2 | project message1, message2 | sort message1 nulls first, message2 nulls first'
+  - match: { columns.0.name: message1 }
+  - match: { columns.0.type: keyword }
+  - match: { columns.1.name: message2 }
+  - match: { columns.1.type: long }
+  - length: { values: 4 }
+  - match: { values.0.0: null }
+  - match: { values.0.1: 1 }
+  - match: { values.1.0: null }
+  - match: { values.1.1: 2 }
+  - match: { values.2.0: foo1 }
+  - match: { values.2.1: null }
+  - match: { values.3.0: foo2 }
+  - match: { values.3.1: null }
+
+  - do:
+      esql.query:
+        body:
+          query: 'from test1,test2 | project message1, message2 | sort message1 desc nulls first, message2 desc nulls first'
+  - match: { columns.0.name: message1 }
+  - match: { columns.0.type: keyword }
+  - match: { columns.1.name: message2 }
+  - match: { columns.1.type: long }
+  - length: { values: 4 }
+  - match: { values.0.0: null }
+  - match: { values.0.1: 2 }
+  - match: { values.1.0: null }
+  - match: { values.1.1: 1 }
+  - match: { values.2.0: foo2 }
+  - match: { values.2.1: null }
+  - match: { values.3.0: foo1 }
+  - match: { values.3.1: null }
+
+  - do:
+      esql.query:
+        body:
+          query: 'from test1,test2 | where message1 == "foo1" | project message1, message2 | sort message1, message2'
+  - match: { columns.0.name: message1 }
+  - match: { columns.0.type: keyword }
+  - match: { columns.1.name: message2 }
+  - match: { columns.1.type: long }
+  - length: { values: 1 }
+  - match: { values.0.0: foo1 }
+  - match: { values.0.1: null }
+
+  - do:
+      esql.query:
+        body:
+          query: 'from test1,test2 | where message1 == "foo1" or message2 == 2 | project message1, message2 | sort message1, message2'
+  - match: { columns.0.name: message1 }
+  - match: { columns.0.type: keyword }
+  - match: { columns.1.name: message2 }
+  - match: { columns.1.type: long }
+  - length: { values: 2 }
+  - match: { values.0.0: foo1 }
+  - match: { values.0.1: null }
+  - match: { values.1.0: null }
+  - match: { values.1.1: 2 }
+
+  - do:
+      esql.query:
+        body:
+          query: 'from test1,test2 | stats x = max(message2)'
+  - match: { columns.0.name: x }
+  - match: { columns.0.type: long }
+  - length: { values: 1 }
+  - match: { values.0.0: 2 }
+
+  - do:
+      esql.query:
+        body:
+          query: 'from test1,test2 | sort message1, message2 | eval x = message1, y = message2 + 1 | project message1, message2, x, y'
+  - match: { columns.0.name: message1 }
+  - match: { columns.0.type: keyword }
+  - match: { columns.1.name: message2 }
+  - match: { columns.1.type: long }
+  - match: { columns.2.name: x }
+  - match: { columns.2.type: keyword }
+  - match: { columns.3.name: y }
+  - match: { columns.3.type: long }
+  - length: { values: 4 }
+  - match: { values.0.0: foo1 }
+  - match: { values.0.1: null }
+  - match: { values.0.2: foo1 }
+  - match: { values.0.3: null }
+  - match: { values.1.0: foo2 }
+  - match: { values.1.1: null }
+  - match: { values.1.2: foo2 }
+  - match: { values.1.3: null }
+  - match: { values.2.0: null }
+  - match: { values.2.1: 1 }
+  - match: { values.2.2: null }
+  - match: { values.2.3: 2 }
+  - match: { values.3.0: null }
+  - match: { values.3.1: 2 }
+  - match: { values.3.2: null }
+  - match: { values.3.3: 3 }
+
+---
+same_name_different_type:
+  - do:
+      indices.create:
+        index: test1
+        body:
+          mappings:
+            properties:
+              message:
+                type: keyword
+
+  - do:
+      indices.create:
+        index: test2
+        body:
+          mappings:
+            properties:
+              message:
+                type: long
+
+
+  - do:
+      bulk:
+        index: test1
+        refresh: true
+        body:
+          - { "index": {} }
+          - { "message": "foo1"}
+          - { "index": {} }
+          - { "message": "foo2" }
+
+  - do:
+      bulk:
+        index: test2
+        refresh: true
+        body:
+          - { "index": {} }
+          - { "message": 1 }
+          - { "index": {} }
+          - { "message": 2 }
+
+  - do:
+      esql.query:
+        body:
+          query: 'from test1,test2  '
+  - match: { columns.0.name: message }
+  - match: { columns.0.type: unsupported }
+  - length: { values: 4 }
+
+---
+same_name_different_type_same_family:
+  - do:
+      indices.create:
+        index: test1
+        body:
+          mappings:
+            properties:
+              message:
+                type: keyword
+
+  - do:
+      indices.create:
+        index: test2
+        body:
+          mappings:
+            properties:
+              message:
+                type: wildcard
+
+
+  - do:
+      bulk:
+        index: test1
+        refresh: true
+        body:
+          - { "index": {} }
+          - { "message": "foo1"}
+          - { "index": {} }
+          - { "message": "foo2" }
+
+  - do:
+      bulk:
+        index: test2
+        refresh: true
+        body:
+          - { "index": {} }
+          - { "message": "foo3" }
+          - { "index": {} }
+          - { "message": "foo4" }
+
+  - do:
+      esql.query:
+        body:
+          query: 'from test1,test2 | sort message | project message'
+  - match: { columns.0.name: message }
+  - match: { columns.0.type: keyword }
+  - length: { values: 4 }
+  - match: { values.0.0: foo1 }
+  - match: { values.1.0: foo2 }
+  - match: { values.2.0: foo3 }
+  - match: { values.3.0: foo4 }
+

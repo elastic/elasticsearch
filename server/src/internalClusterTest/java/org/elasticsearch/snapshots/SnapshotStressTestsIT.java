@@ -1295,9 +1295,7 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
                 shardCount = between(1, 5);
                 docPermits = new Semaphore(between(1000, 3000));
                 logger.info("--> create index [{}] with max [{}] docs", indexName, docPermits.availablePermits());
-                client().admin()
-                    .indices()
-                    .prepareCreate(indexName)
+                indicesAdmin().prepareCreate(indexName)
                     .setSettings(
                         Settings.builder()
                             .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), shardCount)

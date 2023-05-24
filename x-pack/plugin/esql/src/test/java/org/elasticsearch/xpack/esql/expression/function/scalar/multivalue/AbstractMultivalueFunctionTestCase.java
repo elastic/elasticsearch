@@ -70,8 +70,6 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
         return build(source, args.get(0));
     }
 
-    // TODO once we have explicit array types we should assert that non-arrays are noops
-
     @Override
     protected final Expression constantFoldable(List<Object> data) {
         return build(Source.EMPTY, new Literal(Source.EMPTY, data.get(0), DataTypes.fromJava(((List<?>) data.get(0)).get(0))));

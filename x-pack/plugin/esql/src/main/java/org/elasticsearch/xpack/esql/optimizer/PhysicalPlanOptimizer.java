@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.optimizer;
 import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.lucene.LuceneOperator;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec.Mode;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
@@ -523,6 +524,8 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
                 return canPushToSource(bl.left()) && canPushToSource(bl.right());
             } else if (exp instanceof RegexMatch<?> rm) {
                 return rm.field() instanceof FieldAttribute;
+            } else if (exp instanceof In in) {
+                return in.value() instanceof FieldAttribute && Expressions.foldable(in.list());
             } else if (exp instanceof Not not) {
                 return canPushToSource(not.field());
             }

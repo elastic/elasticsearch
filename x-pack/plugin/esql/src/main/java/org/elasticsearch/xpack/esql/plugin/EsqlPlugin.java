@@ -22,7 +22,9 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
+import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
 import org.elasticsearch.compute.operator.DriverStatus;
+import org.elasticsearch.compute.operator.MvExpandOperator;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceOperator;
@@ -124,9 +126,11 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
         return Stream.concat(
             List.of(
                 DriverStatus.ENTRY,
-                LuceneSourceOperator.Status.ENTRY,
-                ExchangeSourceOperator.Status.ENTRY,
+                AbstractPageMappingOperator.Status.ENTRY,
                 ExchangeSinkOperator.Status.ENTRY,
+                ExchangeSourceOperator.Status.ENTRY,
+                LuceneSourceOperator.Status.ENTRY,
+                MvExpandOperator.Status.ENTRY,
                 ValuesSourceReaderOperator.Status.ENTRY
             ).stream(),
             Block.getNamedWriteables().stream()

@@ -29,7 +29,7 @@ l:long
 ;
 
 countDistinctOfDouble
-from employees | stats h = count_distinct(height);
+from employees | stats h = count_distinct(height, 100);
 
 h:long
 54
@@ -91,7 +91,7 @@ h:long
 ;
 
 countDistinctWithGroup
-from employees | stats m = count_distinct(height) by languages | sort languages;
+from employees | stats m = count_distinct(height, 9876) by languages | sort languages;
 
 m:long  | languages:i
 13   | 1

@@ -42,6 +42,13 @@ import static org.hamcrest.Matchers.hasSize;
 public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperatorTestCase {
     protected abstract GroupingAggregatorFunction.Factory aggregatorFunction();
 
+    /**
+     * Override this method to build the array with the aggregation parameters
+     */
+    protected Object[] aggregatorParameters() {
+        return GroupingAggregator.EMPTY_PARAMS;
+    }
+
     protected abstract String expectedDescriptionOfAggregator();
 
     protected abstract void assertSimpleGroup(List<Page> input, Block result, int position, long group);
@@ -50,7 +57,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
     protected Operator.OperatorFactory simpleWithMode(BigArrays bigArrays, AggregatorMode mode) {
         return new HashAggregationOperator.HashAggregationOperatorFactory(
             List.of(new HashAggregationOperator.GroupSpec(0, ElementType.LONG)),
-            List.of(new GroupingAggregator.GroupingAggregatorFactory(bigArrays, aggregatorFunction(), mode, 1)),
+            List.of(new GroupingAggregator.GroupingAggregatorFactory(bigArrays, aggregatorFunction(), aggregatorParameters(), mode, 1)),
             bigArrays
         );
     }

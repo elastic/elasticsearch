@@ -7,12 +7,13 @@
 
 package org.elasticsearch.compute.aggregation;
 
+import org.elasticsearch.common.TriFunction;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
-
-import java.util.function.IntFunction;
+import org.elasticsearch.core.Releasable;
 
 import static org.elasticsearch.compute.aggregation.AggregationName.avg;
 import static org.elasticsearch.compute.aggregation.AggregationName.count;
@@ -30,7 +31,7 @@ import static org.elasticsearch.compute.aggregation.AggregationType.ints;
 import static org.elasticsearch.compute.aggregation.AggregationType.longs;
 
 @Experimental
-public interface AggregatorFunction {
+public interface AggregatorFunction extends Releasable {
 
     void addRawInput(Page page);
 
@@ -40,9 +41,11 @@ public interface AggregatorFunction {
 
     Block evaluateFinal();
 
-    record Factory(AggregationName name, AggregationType type, IntFunction<AggregatorFunction> build) implements Describable {
-        public AggregatorFunction build(int inputChannel) {
-            return build.apply(inputChannel);
+    record Factory(AggregationName name, AggregationType type, TriFunction<BigArrays, Integer, Object[], AggregatorFunction> create)
+        implements
+            Describable {
+        public AggregatorFunction build(BigArrays bigArrays, int inputChannel, Object[] parameters) {
+            return create.apply(bigArrays, inputChannel, parameters);
         }
 
         @Override

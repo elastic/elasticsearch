@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pow;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer.FoldNull;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
@@ -89,6 +90,8 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
@@ -1001,6 +1004,39 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var not = as(filter.condition(), Not.class);
         assertEquals(IsNull.class, not.field().getClass());
         assertTrue(filter.child() instanceof EsRelation);
+    }
+
+    public void testFoldNullInToLocalRelation() {
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | where null in (first_name, ".*")
+            """);
+        assertThat(plan, instanceOf(LocalRelation.class));
+    }
+
+    public void testFoldNullListInToLocalRelation() {
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | where first_name in (null, null)
+            """);
+        assertThat(plan, instanceOf(LocalRelation.class));
+    }
+
+    public void testStripNullFromInList() {
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | where first_name in (last_name, null)
+            """);
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        assertThat(filter.condition(), instanceOf(In.class));
+        In in = (In) filter.condition();
+        assertThat(in.list(), hasSize(1));
+        assertThat(in.list().get(0), instanceOf(FieldAttribute.class));
+        FieldAttribute fa = (FieldAttribute) in.list().get(0);
+        assertThat(fa.field().getName(), is("last_name"));
+        as(filter.child(), EsRelation.class);
+
     }
 
     private LogicalPlan optimizedPlan(String query) {

@@ -27,6 +27,11 @@ public class CountDistinctLongGroupingAggregatorFunctionTests extends GroupingAg
     }
 
     @Override
+    protected Object[] aggregatorParameters() {
+        return new Object[] { 40000 };
+    }
+
+    @Override
     protected String expectedDescriptionOfAggregator() {
         return "count_distinct of longs";
     }

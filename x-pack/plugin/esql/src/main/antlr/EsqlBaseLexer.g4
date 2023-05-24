@@ -1,20 +1,22 @@
 lexer grammar EsqlBaseLexer;
 
 DISSECT : 'dissect' -> pushMode(EXPRESSION);
+DROP : 'drop' -> pushMode(SOURCE_IDENTIFIERS);
+ENRICH : 'enrich' -> pushMode(SOURCE_IDENTIFIERS);
 EVAL : 'eval' -> pushMode(EXPRESSION);
 EXPLAIN : 'explain' -> pushMode(EXPLAIN_MODE);
 FROM : 'from' -> pushMode(SOURCE_IDENTIFIERS);
-INLINESTATS : 'inlinestats' -> pushMode(EXPRESSION);
 GROK : 'grok' -> pushMode(EXPRESSION);
+INLINESTATS : 'inlinestats' -> pushMode(EXPRESSION);
+LIMIT : 'limit' -> pushMode(EXPRESSION);
+MV_EXPAND : 'mv_expand' -> pushMode(SOURCE_IDENTIFIERS);
+PROJECT : 'project' -> pushMode(SOURCE_IDENTIFIERS);
+RENAME : 'rename' -> pushMode(SOURCE_IDENTIFIERS);
 ROW : 'row' -> pushMode(EXPRESSION);
+SHOW : 'show' -> pushMode(EXPRESSION);
+SORT : 'sort' -> pushMode(EXPRESSION);
 STATS : 'stats' -> pushMode(EXPRESSION);
 WHERE : 'where' -> pushMode(EXPRESSION);
-SORT : 'sort' -> pushMode(EXPRESSION);
-LIMIT : 'limit' -> pushMode(EXPRESSION);
-DROP : 'drop' -> pushMode(SOURCE_IDENTIFIERS);
-RENAME : 'rename' -> pushMode(SOURCE_IDENTIFIERS);
-PROJECT : 'project' -> pushMode(SOURCE_IDENTIFIERS);
-SHOW : 'show' -> pushMode(EXPRESSION);
 UNKNOWN_CMD : ~[ \r\n\t[\]/]+ -> pushMode(EXPRESSION);
 
 LINE_COMMENT
@@ -89,6 +91,7 @@ FALSE : 'false';
 FIRST : 'first';
 LAST : 'last';
 LP : '(';
+IN: 'in';
 LIKE: 'like';
 NOT : 'not';
 NULL : 'null';
@@ -153,6 +156,7 @@ SRC_PIPE : '|' -> type(PIPE), popMode;
 SRC_CLOSING_BRACKET : ']' -> popMode, popMode, type(CLOSING_BRACKET);
 SRC_COMMA : ',' -> type(COMMA);
 SRC_ASSIGN : '=' -> type(ASSIGN);
+ON : 'on';
 
 SRC_UNQUOTED_IDENTIFIER
     : SRC_UNQUOTED_IDENTIFIER_PART+

@@ -11,6 +11,7 @@ import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.TerminalNode;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -284,6 +285,14 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         Expression right = expression(ctx.right);
 
         return type == EsqlBaseParser.AND ? new And(source, left, right) : new Or(source, left, right);
+    }
+
+    @Override
+    public Expression visitLogicalIn(EsqlBaseParser.LogicalInContext ctx) {
+        List<Expression> expressions = ctx.valueExpression().stream().map(this::expression).toList();
+        Source source = source(ctx);
+        Expression in = new In(source, expressions.get(0), expressions.subList(1, expressions.size()));
+        return ctx.NOT() == null ? in : new Not(source, in);
     }
 
     @Override

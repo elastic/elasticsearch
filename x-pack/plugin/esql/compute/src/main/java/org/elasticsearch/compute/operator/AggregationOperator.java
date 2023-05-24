@@ -13,6 +13,7 @@ import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.core.Releasables;
 
 import java.util.List;
 import java.util.Objects;
@@ -113,7 +114,9 @@ public class AggregationOperator implements Operator {
     }
 
     @Override
-    public void close() {}
+    public void close() {
+        Releasables.close(aggregators);
+    }
 
     private static void checkState(boolean condition, String msg) {
         if (condition == false) {

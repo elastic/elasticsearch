@@ -4,9 +4,11 @@
 // 2.0.
 package org.elasticsearch.compute.aggregation;
 
+import java.lang.Object;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.AggregatorStateVector;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
@@ -25,13 +27,18 @@ public final class AvgDoubleAggregatorFunction implements AggregatorFunction {
 
   private final int channel;
 
-  public AvgDoubleAggregatorFunction(int channel, AvgDoubleAggregator.AvgState state) {
+  private final Object[] parameters;
+
+  public AvgDoubleAggregatorFunction(int channel, AvgDoubleAggregator.AvgState state,
+      Object[] parameters) {
     this.channel = channel;
     this.state = state;
+    this.parameters = parameters;
   }
 
-  public static AvgDoubleAggregatorFunction create(int channel) {
-    return new AvgDoubleAggregatorFunction(channel, AvgDoubleAggregator.initSingle());
+  public static AvgDoubleAggregatorFunction create(BigArrays bigArrays, int channel,
+      Object[] parameters) {
+    return new AvgDoubleAggregatorFunction(channel, AvgDoubleAggregator.initSingle(), parameters);
   }
 
   @Override
@@ -79,11 +86,14 @@ public final class AvgDoubleAggregatorFunction implements AggregatorFunction {
       throw new RuntimeException("expected AggregatorStateBlock, got:" + block);
     }
     @SuppressWarnings("unchecked") AggregatorStateVector<AvgDoubleAggregator.AvgState> blobVector = (AggregatorStateVector<AvgDoubleAggregator.AvgState>) vector;
-    AvgDoubleAggregator.AvgState tmpState = new AvgDoubleAggregator.AvgState();
+    // TODO exchange big arrays directly without funny serialization - no more copying
+    BigArrays bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
+    AvgDoubleAggregator.AvgState tmpState = AvgDoubleAggregator.initSingle();
     for (int i = 0; i < block.getPositionCount(); i++) {
       blobVector.get(i, tmpState);
       AvgDoubleAggregator.combineStates(state, tmpState);
     }
+    tmpState.close();
   }
 
   @Override
@@ -106,5 +116,10 @@ public final class AvgDoubleAggregatorFunction implements AggregatorFunction {
     sb.append("channel=").append(channel);
     sb.append("]");
     return sb.toString();
+  }
+
+  @Override
+  public void close() {
+    state.close();
   }
 }

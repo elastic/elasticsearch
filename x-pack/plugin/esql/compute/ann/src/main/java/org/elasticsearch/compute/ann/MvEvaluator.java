@@ -42,7 +42,7 @@ public @interface MvEvaluator {
     String extraName() default "";
 
     /**
-     * Method name called to convert state into
+     * Method called to convert state into result.
      */
     String finish() default "";
 }

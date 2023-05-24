@@ -11,6 +11,7 @@ import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
+import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowFunctions;
@@ -23,6 +24,7 @@ import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.GrokExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.OrderExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
@@ -90,6 +92,10 @@ public class Mapper {
 
         if (p instanceof LocalRelation local) {
             return new LocalSourceExec(local.source(), local.output(), local.supplier());
+        }
+
+        if (p instanceof MvExpand mvExpand) {
+            return new MvExpandExec(mvExpand.source(), map(mvExpand.child()), mvExpand.target());
         }
 
         if (p instanceof ShowFunctions showFunctions) {

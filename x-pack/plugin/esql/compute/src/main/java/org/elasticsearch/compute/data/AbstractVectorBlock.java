@@ -54,4 +54,9 @@ abstract class AbstractVectorBlock extends AbstractBlock {
     public final MvOrdering mvOrdering() {
         return MvOrdering.UNORDERED;
     }
+
+    @Override
+    public final Block expand() {
+        return this;
+    }
 }

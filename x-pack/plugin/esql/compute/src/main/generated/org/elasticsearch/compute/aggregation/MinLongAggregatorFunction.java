@@ -4,9 +4,11 @@
 // 2.0.
 package org.elasticsearch.compute.aggregation;
 
+import java.lang.Object;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.AggregatorStateVector;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.ElementType;
@@ -25,13 +27,17 @@ public final class MinLongAggregatorFunction implements AggregatorFunction {
 
   private final int channel;
 
-  public MinLongAggregatorFunction(int channel, LongState state) {
+  private final Object[] parameters;
+
+  public MinLongAggregatorFunction(int channel, LongState state, Object[] parameters) {
     this.channel = channel;
     this.state = state;
+    this.parameters = parameters;
   }
 
-  public static MinLongAggregatorFunction create(int channel) {
-    return new MinLongAggregatorFunction(channel, new LongState(MinLongAggregator.init()));
+  public static MinLongAggregatorFunction create(BigArrays bigArrays, int channel,
+      Object[] parameters) {
+    return new MinLongAggregatorFunction(channel, new LongState(MinLongAggregator.init()), parameters);
   }
 
   @Override
@@ -77,11 +83,14 @@ public final class MinLongAggregatorFunction implements AggregatorFunction {
       throw new RuntimeException("expected AggregatorStateBlock, got:" + block);
     }
     @SuppressWarnings("unchecked") AggregatorStateVector<LongState> blobVector = (AggregatorStateVector<LongState>) vector;
-    LongState tmpState = new LongState();
+    // TODO exchange big arrays directly without funny serialization - no more copying
+    BigArrays bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
+    LongState tmpState = new LongState(MinLongAggregator.init());
     for (int i = 0; i < block.getPositionCount(); i++) {
       blobVector.get(i, tmpState);
       state.longValue(MinLongAggregator.combine(state.longValue(), tmpState.longValue()));
     }
+    tmpState.close();
   }
 
   @Override
@@ -104,5 +113,10 @@ public final class MinLongAggregatorFunction implements AggregatorFunction {
     sb.append("channel=").append(channel);
     sb.append("]");
     return sb.toString();
+  }
+
+  @Override
+  public void close() {
+    state.close();
   }
 }

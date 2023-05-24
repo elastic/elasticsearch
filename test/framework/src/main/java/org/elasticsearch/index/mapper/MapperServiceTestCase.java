@@ -490,6 +490,11 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             }
 
             @Override
+            public void removeReleasable(Aggregator aggregator) {
+                // TODO we'll have to handle this in the tests eventually
+            }
+
+            @Override
             public int maxBuckets() {
                 return Integer.MAX_VALUE;
             }

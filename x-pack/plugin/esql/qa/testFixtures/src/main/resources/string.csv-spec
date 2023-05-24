@@ -197,6 +197,15 @@ emp_no:integer | name:keyword
 10010          | null
 ;
 
+// Note: no matches in MV returned
+in
+from employees | where job_positions in ("Internship", first_name) | project emp_no, job_positions;
+
+emp_no:integer |job_positions:keyword
+10048          |Internship
+10077          |Internship
+;
+
 split
 // tag::split[]
 ROW words="foo;bar;baz;qux;quux;corge"
@@ -204,8 +213,8 @@ ROW words="foo;bar;baz;qux;quux;corge"
 // end::split[]
 ;
 
-words:keyword | word:keyword
 // tag::split-result[]
+             words:keyword | word:keyword
 foo;bar;baz;qux;quux;corge | [foo,bar,baz,qux,quux,corge]
 // end::split-result[]
 ;
@@ -221,6 +230,19 @@ ROW a=["foo", "zoo", "bar"]
             a:keyword | count_a:integer
 ["foo", "zoo", "bar"] | 3
 // end::mv_count-result[]
+;
+
+mvJoin
+// tag::mv_join[]
+ROW a=["foo", "zoo", "bar"]
+| EVAL j = MV_JOIN(a, ", ")
+// end::mv_join[]
+;
+
+// tag::mv_join-result[]
+            a:keyword | j:keyword
+["foo", "zoo", "bar"] | "foo, zoo, bar"
+// end::mv_join-result[]
 ;
 
 mvMax
@@ -258,4 +280,15 @@ min(salary):integer | max(salary):integer | job_positions:keyword
 29175               | 58121               | Business Analyst
 25945               | 74999               | Data Scientist
 25324               | 58715               | Head Human Resources
+;
+
+convertToString
+from employees | eval positions = to_string(job_positions) | project emp_no, positions, job_positions | limit 5;
+
+emp_no:integer |positions:keyword                                                     |job_positions:keyword
+10001          |[Accountant, Senior Python Developer]                                 |[Accountant, Senior Python Developer]                                 
+10002          |Senior Team Lead                                                      |Senior Team Lead                                                      
+10003          |null                                                                  |null                                                                  
+10004          |[Head Human Resources, Reporting Analyst, Support Engineer, Tech Lead]|[Head Human Resources, Reporting Analyst, Support Engineer, Tech Lead]
+10005          |null                                                                  |null                                                                  
 ;

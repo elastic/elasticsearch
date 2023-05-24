@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.aggregation.AvgLongAggregatorFunction;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
@@ -99,14 +100,16 @@ public class BlockSerializationTests extends SerializationTestCase {
     // TODO: more types, grouping, etc...
     public void testAggregatorStateBlock() throws IOException {
         Page page = new Page(new LongArrayVector(new long[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 }, 10).asBlock());
-        var function = AvgLongAggregatorFunction.AVG_LONGS.build(0);
+        var bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
+        var params = new Object[] {};
+        var function = AvgLongAggregatorFunction.AVG_LONGS.build(bigArrays, 0, params);
         function.addRawInput(page);
         Block origBlock = function.evaluateIntermediate();
 
         Block deserBlock = serializeDeserializeBlock(origBlock);
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(origBlock, unused -> deserBlock);
 
-        var finalAggregator = AvgLongAggregatorFunction.AVG_LONGS.build(-1);
+        var finalAggregator = AvgLongAggregatorFunction.AVG_LONGS.build(bigArrays, -1, params);
         finalAggregator.addIntermediateInput(deserBlock);
         DoubleBlock finalBlock = (DoubleBlock) finalAggregator.evaluateFinal();
         assertThat(finalBlock.getDouble(0), is(5.5));

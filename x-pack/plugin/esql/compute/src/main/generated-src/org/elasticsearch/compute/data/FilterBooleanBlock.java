@@ -41,6 +41,31 @@ final class FilterBooleanBlock extends AbstractFilterBlock implements BooleanBlo
     }
 
     @Override
+    public BooleanBlock expand() {
+        if (false == block.mayHaveMultivaluedFields()) {
+            return this;
+        }
+        /*
+         * Build a copy of the target block, selecting only the positions
+         * we've been assigned and expanding all multivalued fields
+         * into single valued fields.
+         */
+        BooleanBlock.Builder builder = BooleanBlock.newBlockBuilder(positions.length);
+        for (int p : positions) {
+            if (block.isNull(p)) {
+                builder.appendNull();
+                continue;
+            }
+            int start = block.getFirstValueIndex(p);
+            int end = start + block.getValueCount(p);
+            for (int i = start; i < end; i++) {
+                builder.appendBoolean(block.getBoolean(i));
+            }
+        }
+        return builder.build();
+    }
+
+    @Override
     public boolean equals(Object obj) {
         if (obj instanceof BooleanBlock that) {
             return BooleanBlock.equals(this, that);

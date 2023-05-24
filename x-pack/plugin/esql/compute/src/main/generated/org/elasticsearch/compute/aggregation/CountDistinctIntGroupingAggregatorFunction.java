@@ -4,6 +4,7 @@
 // 2.0.
 package org.elasticsearch.compute.aggregation;
 
+import java.lang.Object;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
@@ -26,14 +27,18 @@ public final class CountDistinctIntGroupingAggregatorFunction implements Groupin
 
   private final int channel;
 
-  public CountDistinctIntGroupingAggregatorFunction(int channel, HllStates.GroupingState state) {
+  private final Object[] parameters;
+
+  public CountDistinctIntGroupingAggregatorFunction(int channel, HllStates.GroupingState state,
+      Object[] parameters) {
     this.channel = channel;
     this.state = state;
+    this.parameters = parameters;
   }
 
-  public static CountDistinctIntGroupingAggregatorFunction create(BigArrays bigArrays,
-      int channel) {
-    return new CountDistinctIntGroupingAggregatorFunction(channel, CountDistinctIntAggregator.initGrouping(bigArrays));
+  public static CountDistinctIntGroupingAggregatorFunction create(BigArrays bigArrays, int channel,
+      Object[] parameters) {
+    return new CountDistinctIntGroupingAggregatorFunction(channel, CountDistinctIntAggregator.initGrouping(bigArrays, parameters), parameters);
   }
 
   @Override
@@ -128,12 +133,13 @@ public final class CountDistinctIntGroupingAggregatorFunction implements Groupin
     @SuppressWarnings("unchecked") AggregatorStateVector<HllStates.GroupingState> blobVector = (AggregatorStateVector<HllStates.GroupingState>) vector;
     // TODO exchange big arrays directly without funny serialization - no more copying
     BigArrays bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
-    HllStates.GroupingState inState = CountDistinctIntAggregator.initGrouping(bigArrays);
+    HllStates.GroupingState inState = CountDistinctIntAggregator.initGrouping(bigArrays, parameters);
     blobVector.get(0, inState);
     for (int position = 0; position < groupIdVector.getPositionCount(); position++) {
       int groupId = Math.toIntExact(groupIdVector.getLong(position));
       CountDistinctIntAggregator.combineStates(state, groupId, inState, position);
     }
+    inState.close();
   }
 
   @Override

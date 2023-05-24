@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.aggregation;
 
+import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.ann.Experimental;
@@ -16,8 +17,6 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasable;
-
-import java.util.function.BiFunction;
 
 import static org.elasticsearch.compute.aggregation.AggregationName.avg;
 import static org.elasticsearch.compute.aggregation.AggregationName.count;
@@ -62,14 +61,14 @@ public interface GroupingAggregatorFunction extends Releasable {
      */
     Block evaluateFinal(IntVector selected);
 
-    record Factory(AggregationName name, AggregationType type, BiFunction<BigArrays, Integer, GroupingAggregatorFunction> create)
+    record Factory(AggregationName name, AggregationType type, TriFunction<BigArrays, Integer, Object[], GroupingAggregatorFunction> create)
         implements
             Describable {
-        public GroupingAggregatorFunction build(BigArrays bigArrays, AggregatorMode mode, int inputChannel) {
+        public GroupingAggregatorFunction build(BigArrays bigArrays, AggregatorMode mode, int inputChannel, Object[] parameters) {
             if (mode.isInputPartial()) {
-                return create.apply(bigArrays, -1);
+                return create.apply(bigArrays, -1, parameters);
             } else {
-                return create.apply(bigArrays, inputChannel);
+                return create.apply(bigArrays, inputChannel, parameters);
             }
         }
 

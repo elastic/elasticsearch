@@ -15,6 +15,7 @@ import java.util.function.Predicate;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.Modifier;
 import javax.lang.model.element.TypeElement;
+import javax.lang.model.element.VariableElement;
 import javax.lang.model.util.ElementFilter;
 
 import static org.elasticsearch.compute.gen.Types.BOOLEAN_BLOCK;
@@ -59,6 +60,16 @@ public class Methods {
             }
         }
         return null;
+    }
+
+    /**
+     * Returns the arguments of a method after applying a filter.
+     */
+    static VariableElement[] findMethodArguments(ExecutableElement method, Predicate<VariableElement> filter) {
+        if (method.getParameters().isEmpty()) {
+            return new VariableElement[0];
+        }
+        return method.getParameters().stream().filter(e -> filter.test(e)).toArray(VariableElement[]::new);
     }
 
     /**

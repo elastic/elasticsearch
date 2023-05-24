@@ -8,9 +8,10 @@ include::{esql-specs}/string.csv-spec[tag=split]
 ----
 
 Which splits `"foo;bar;baz;qux;quux;corge"` on `;` and returns an array:
-[source,esql]
-----
+
+[%header,format=dsv,separator=|]
+|===
 include::{esql-specs}/string.csv-spec[tag=split-result]
-----
+|===
 
 WARNING: Only single byte delimiters are currently supported.

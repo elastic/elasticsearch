@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import java.util.List;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSum.sum;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isRepresentable;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
 

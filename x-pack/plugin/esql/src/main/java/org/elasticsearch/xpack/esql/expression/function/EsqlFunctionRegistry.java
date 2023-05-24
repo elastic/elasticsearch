@@ -17,10 +17,12 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.IsNull;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateFormat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.AutoBucket;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.IsFinite;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.IsInfinite;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.IsNaN;
@@ -28,7 +30,9 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pow;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAvg;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCount;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvJoin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMax;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMedian;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
@@ -66,6 +70,7 @@ public class EsqlFunctionRegistry extends FunctionRegistry {
             // math
             new FunctionDefinition[] {
                 def(Abs.class, Abs::new, "abs"),
+                def(AutoBucket.class, AutoBucket::new, "auto_bucket"),
                 def(IsFinite.class, IsFinite::new, "is_finite"),
                 def(IsInfinite.class, IsInfinite::new, "is_infinite"),
                 def(IsNaN.class, IsNaN::new, "is_nan"),
@@ -86,11 +91,15 @@ public class EsqlFunctionRegistry extends FunctionRegistry {
             new FunctionDefinition[] { def(Case.class, Case::new, "case"), def(IsNull.class, IsNull::new, "is_null"), },
             // IP
             new FunctionDefinition[] { def(CIDRMatch.class, CIDRMatch::new, "cidr_match") },
+            // conversion functions
+            new FunctionDefinition[] { def(ToString.class, ToString::new, "to_string") },
             // multivalue functions
             new FunctionDefinition[] {
                 def(MvAvg.class, MvAvg::new, "mv_avg"),
                 def(MvCount.class, MvCount::new, "mv_count"),
+                def(MvJoin.class, MvJoin::new, "mv_join"),
                 def(MvMax.class, MvMax::new, "mv_max"),
+                def(MvMedian.class, MvMedian::new, "mv_median"),
                 def(MvMin.class, MvMin::new, "mv_min"),
                 def(MvSum.class, MvSum::new, "mv_sum"),
                 def(Split.class, Split::new, "split") } };

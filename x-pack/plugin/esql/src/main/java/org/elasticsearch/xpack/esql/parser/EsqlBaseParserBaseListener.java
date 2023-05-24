@@ -125,6 +125,18 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterLogicalIn(EsqlBaseParser.LogicalInContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitLogicalIn(EsqlBaseParser.LogicalInContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterLogicalBinary(EsqlBaseParser.LogicalBinaryContext ctx) { }
   /**
    * {@inheritDoc}
@@ -605,6 +617,18 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterMvExpandCommand(EsqlBaseParser.MvExpandCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitMvExpandCommand(EsqlBaseParser.MvExpandCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterCommandOptions(EsqlBaseParser.CommandOptionsContext ctx) { }
   /**
    * {@inheritDoc}
@@ -744,6 +768,18 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    * <p>The default implementation does nothing.</p>
    */
   @Override public void exitShowFunctions(EsqlBaseParser.ShowFunctionsContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterEnrichCommand(EsqlBaseParser.EnrichCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitEnrichCommand(EsqlBaseParser.EnrichCommandContext ctx) { }
 
   /**
    * {@inheritDoc}

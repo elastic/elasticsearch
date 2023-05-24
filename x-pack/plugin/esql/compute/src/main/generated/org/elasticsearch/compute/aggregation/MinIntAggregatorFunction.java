@@ -4,9 +4,11 @@
 // 2.0.
 package org.elasticsearch.compute.aggregation;
 
+import java.lang.Object;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.AggregatorStateVector;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.ElementType;
@@ -24,13 +26,17 @@ public final class MinIntAggregatorFunction implements AggregatorFunction {
 
   private final int channel;
 
-  public MinIntAggregatorFunction(int channel, IntState state) {
+  private final Object[] parameters;
+
+  public MinIntAggregatorFunction(int channel, IntState state, Object[] parameters) {
     this.channel = channel;
     this.state = state;
+    this.parameters = parameters;
   }
 
-  public static MinIntAggregatorFunction create(int channel) {
-    return new MinIntAggregatorFunction(channel, new IntState(MinIntAggregator.init()));
+  public static MinIntAggregatorFunction create(BigArrays bigArrays, int channel,
+      Object[] parameters) {
+    return new MinIntAggregatorFunction(channel, new IntState(MinIntAggregator.init()), parameters);
   }
 
   @Override
@@ -76,11 +82,14 @@ public final class MinIntAggregatorFunction implements AggregatorFunction {
       throw new RuntimeException("expected AggregatorStateBlock, got:" + block);
     }
     @SuppressWarnings("unchecked") AggregatorStateVector<IntState> blobVector = (AggregatorStateVector<IntState>) vector;
-    IntState tmpState = new IntState();
+    // TODO exchange big arrays directly without funny serialization - no more copying
+    BigArrays bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
+    IntState tmpState = new IntState(MinIntAggregator.init());
     for (int i = 0; i < block.getPositionCount(); i++) {
       blobVector.get(i, tmpState);
       state.intValue(MinIntAggregator.combine(state.intValue(), tmpState.intValue()));
     }
+    tmpState.close();
   }
 
   @Override
@@ -103,5 +112,10 @@ public final class MinIntAggregatorFunction implements AggregatorFunction {
     sb.append("channel=").append(channel);
     sb.append("]");
     return sb.toString();
+  }
+
+  @Override
+  public void close() {
+    state.close();
   }
 }

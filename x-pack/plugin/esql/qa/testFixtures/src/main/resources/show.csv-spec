@@ -10,12 +10,13 @@ show functions;
 
   name:keyword           |           synopsis:keyword
 abs                      |abs(arg1)
+auto_bucket              |auto_bucket(arg1, arg2, arg3, arg4)
 avg                      |avg(arg1)
 case                     |case(arg1...)
 cidr_match               |cidr_match(arg1, arg2...)
 concat                   |concat(arg1, arg2...)
 count                    |count(arg1)
-count_distinct           |count_distinct(arg1)
+count_distinct           |count_distinct(arg1, arg2)
 date_format              |date_format(arg1, arg2)
 date_trunc               |date_trunc(arg1, arg2)
 is_finite                |is_finite(arg1)
@@ -29,7 +30,9 @@ median_absolute_deviation|median_absolute_deviation(arg1)
 min                      |min(arg1)
 mv_avg                   |mv_avg(arg1)
 mv_count                 |mv_count(arg1)
+mv_join                  |mv_join(arg1, arg2)
 mv_max                   |mv_max(arg1)
+mv_median                |mv_median(arg1)
 mv_min                   |mv_min(arg1)
 mv_sum                   |mv_sum(arg1)
 pow                      |pow(arg1, arg2)
@@ -38,6 +41,7 @@ split                    |split(arg1, arg2)
 starts_with              |starts_with(arg1, arg2)
 substring                |substring(arg1, arg2, arg3)
 sum                      |sum(arg1)
+to_string                |to_string(arg1)
 ;
 
 showFunctionsFiltered

@@ -108,6 +108,12 @@ public interface Block extends NamedWriteable {
     MvOrdering mvOrdering();
 
     /**
+     * Expand multivalued fields into one row per value. Returns the
+     * block if there aren't any multivalued fields to expand.
+     */
+    Block expand();
+
+    /**
      * {@return a constant null block with the given number of positions}.
      */
     static Block constantNullBlock(int positions) {

@@ -128,6 +128,8 @@ public class TopNOperator implements Operator {
                 result.numberOfValues = new int[size];
             } else {
                 result = spare;
+                // idToType has to be set because different pages could have different block types due to different mappings
+                result.idToType = idToType;
                 Arrays.fill(result.nullValues, false);
             }
 
@@ -263,7 +265,11 @@ public class TopNOperator implements Operator {
 
     private final PriorityQueue<Row> inputQueue;
 
-    private RowFactory rowFactory;  // TODO build in ctor
+    private RowFactory rowFactory;
+
+    // these will be inferred at runtime: one input page might not contain all the information needed
+    // eg. it could be missing some fields in the mapping, so it could have NULL blocks as placeholders
+    private ElementType[] outputTypes;
 
     private Iterator<Page> output;
 
@@ -344,9 +350,18 @@ public class TopNOperator implements Operator {
 
     @Override
     public void addInput(Page page) {
-        if (rowFactory == null) {
-            rowFactory = new RowFactory(page);
+        // rebuild for every page, since blocks can originate from different indices, with different mapping
+        rowFactory = new RowFactory(page);
+        if (outputTypes == null) {
+            outputTypes = Arrays.copyOf(rowFactory.idToType, rowFactory.idToType.length);
+        } else {
+            for (int i = 0; i < rowFactory.idToType.length; i++) {
+                if (outputTypes[i] == ElementType.NULL) { // the type could just be missing in the previous mappings
+                    outputTypes[i] = rowFactory.idToType[i];
+                }
+            }
         }
+
         Row removed = null;
         for (int i = 0; i < page.getPositionCount(); i++) {
             Row x = rowFactory.row(page, i, removed);
@@ -380,7 +395,7 @@ public class TopNOperator implements Operator {
                 size = Math.min(LuceneSourceOperator.PAGE_SIZE, list.size() - i);
                 builders = new Block.Builder[rowFactory.size];
                 for (int b = 0; b < builders.length; b++) {
-                    builders[b] = rowFactory.idToType[b].newBlockBuilder(size);
+                    builders[b] = outputTypes[b].newBlockBuilder(size);
                 }
                 p = 0;
             }
@@ -391,7 +406,7 @@ public class TopNOperator implements Operator {
                     builders[b].appendNull();
                     continue;
                 }
-                switch (rowFactory.idToType[b]) {
+                switch (outputTypes[b]) {
                     case BOOLEAN -> {
                         if (row.numberOfValues[b] > 1) {
                             ((BooleanBlock.Builder) builders[b]).beginPositionEntry();
@@ -454,6 +469,7 @@ public class TopNOperator implements Operator {
                         int doc = row.docs[dp];
                         ((DocBlock.Builder) builders[b]).appendShard(shard).appendSegment(segment).appendDoc(doc);
                     }
+                    case NULL -> builders[b].appendNull();
                     default -> throw new IllegalStateException("unsupported type [" + rowFactory.idToType[b] + "]");
                 }
             }

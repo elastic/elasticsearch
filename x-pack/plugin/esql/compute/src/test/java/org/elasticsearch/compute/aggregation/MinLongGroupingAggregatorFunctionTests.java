@@ -15,6 +15,7 @@ import org.elasticsearch.compute.operator.TupleBlockSourceOperator;
 import org.elasticsearch.core.Tuple;
 
 import java.util.List;
+import java.util.OptionalLong;
 import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -37,7 +38,12 @@ public class MinLongGroupingAggregatorFunctionTests extends GroupingAggregatorFu
 
     @Override
     protected void assertSimpleGroup(List<Page> input, Block result, int position, long group) {
-        long min = input.stream().flatMapToLong(p -> allLongs(p, group)).min().getAsLong();
-        assertThat(((LongBlock) result).getLong(position), equalTo(min));
+        OptionalLong min = input.stream().flatMapToLong(p -> allLongs(p, group)).min();
+        if (min.isEmpty()) {
+            assertThat(result.isNull(position), equalTo(true));
+            return;
+        }
+        assertThat(result.isNull(position), equalTo(false));
+        assertThat(((LongBlock) result).getLong(position), equalTo(min.getAsLong()));
     }
 }

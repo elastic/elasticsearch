@@ -1,0 +1,30 @@
+[[esql-mv_join]]
+=== `MV_JOIN`
+Converts a multivalued string field into a single valued field containing the
+concatenation of all values separated by a delimiter:
+
+[source,esql]
+----
+include::{esql-specs}/string.csv-spec[tag=mv_join]
+----
+
+Returns:
+
+[%header,format=dsv,separator=|]
+|===
+include::{esql-specs}/string.csv-spec[tag=mv_join-result]
+|===
+
+If you want to join non-string fields call <<esql-to_string>> on them first:
+[source,esql]
+----
+include::{esql-specs}/ints.csv-spec[tag=mv_join]
+----
+
+Returns:
+
+[%header,format=dsv,separator=|]
+|===
+include::{esql-specs}/ints.csv-spec[tag=mv_join-result]
+|===
+

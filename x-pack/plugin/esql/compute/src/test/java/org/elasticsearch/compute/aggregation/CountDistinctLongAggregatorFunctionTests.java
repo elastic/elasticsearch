@@ -42,6 +42,11 @@ public class CountDistinctLongAggregatorFunctionTests extends AggregatorFunction
     }
 
     @Override
+    protected Object[] aggregatorParameters() {
+        return new Object[] { 40000 };
+    }
+
+    @Override
     protected void assertSimpleOutput(List<Block> input, Block result) {
         long expected = input.stream().flatMapToLong(b -> allLongs(b)).distinct().count();
         long count = ((LongBlock) result).getLong(0);

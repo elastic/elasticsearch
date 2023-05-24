@@ -108,6 +108,18 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitRegexExpression(EsqlBaseParser.RegexExpressionContext ctx);
   /**
+   * Enter a parse tree produced by the {@code logicalIn}
+   * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
+   * @param ctx the parse tree
+   */
+  void enterLogicalIn(EsqlBaseParser.LogicalInContext ctx);
+  /**
+   * Exit a parse tree produced by the {@code logicalIn}
+   * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
+   * @param ctx the parse tree
+   */
+  void exitLogicalIn(EsqlBaseParser.LogicalInContext ctx);
+  /**
    * Enter a parse tree produced by the {@code logicalBinary}
    * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
    * @param ctx the parse tree
@@ -546,6 +558,16 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitGrokCommand(EsqlBaseParser.GrokCommandContext ctx);
   /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#mvExpandCommand}.
+   * @param ctx the parse tree
+   */
+  void enterMvExpandCommand(EsqlBaseParser.MvExpandCommandContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#mvExpandCommand}.
+   * @param ctx the parse tree
+   */
+  void exitMvExpandCommand(EsqlBaseParser.MvExpandCommandContext ctx);
+  /**
    * Enter a parse tree produced by {@link EsqlBaseParser#commandOptions}.
    * @param ctx the parse tree
    */
@@ -669,4 +691,14 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    * @param ctx the parse tree
    */
   void exitShowFunctions(EsqlBaseParser.ShowFunctionsContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#enrichCommand}.
+   * @param ctx the parse tree
+   */
+  void enterEnrichCommand(EsqlBaseParser.EnrichCommandContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#enrichCommand}.
+   * @param ctx the parse tree
+   */
+  void exitEnrichCommand(EsqlBaseParser.EnrichCommandContext ctx);
 }

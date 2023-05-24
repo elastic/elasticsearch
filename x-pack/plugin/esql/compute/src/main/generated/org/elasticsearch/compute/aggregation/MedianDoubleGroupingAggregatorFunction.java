@@ -4,6 +4,7 @@
 // 2.0.
 package org.elasticsearch.compute.aggregation;
 
+import java.lang.Object;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
@@ -27,13 +28,18 @@ public final class MedianDoubleGroupingAggregatorFunction implements GroupingAgg
 
   private final int channel;
 
-  public MedianDoubleGroupingAggregatorFunction(int channel, QuantileStates.GroupingState state) {
+  private final Object[] parameters;
+
+  public MedianDoubleGroupingAggregatorFunction(int channel, QuantileStates.GroupingState state,
+      Object[] parameters) {
     this.channel = channel;
     this.state = state;
+    this.parameters = parameters;
   }
 
-  public static MedianDoubleGroupingAggregatorFunction create(BigArrays bigArrays, int channel) {
-    return new MedianDoubleGroupingAggregatorFunction(channel, MedianDoubleAggregator.initGrouping(bigArrays));
+  public static MedianDoubleGroupingAggregatorFunction create(BigArrays bigArrays, int channel,
+      Object[] parameters) {
+    return new MedianDoubleGroupingAggregatorFunction(channel, MedianDoubleAggregator.initGrouping(bigArrays), parameters);
   }
 
   @Override
@@ -134,6 +140,7 @@ public final class MedianDoubleGroupingAggregatorFunction implements GroupingAgg
       int groupId = Math.toIntExact(groupIdVector.getLong(position));
       MedianDoubleAggregator.combineStates(state, groupId, inState, position);
     }
+    inState.close();
   }
 
   @Override

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.aggregation;
 
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.AggregatorStateVector;
 import org.elasticsearch.compute.data.Block;
@@ -20,7 +21,7 @@ public class CountAggregatorFunction implements AggregatorFunction {
     private final LongState state;
     private final int channel;
 
-    public static CountAggregatorFunction create(int inputChannel) {
+    public static CountAggregatorFunction create(BigArrays bigArrays, int inputChannel, Object[] parameters) {
         return new CountAggregatorFunction(inputChannel, new LongState());
     }
 
@@ -76,5 +77,10 @@ public class CountAggregatorFunction implements AggregatorFunction {
         sb.append("channel=").append(channel);
         sb.append("]");
         return sb.toString();
+    }
+
+    @Override
+    public void close() {
+        state.close();
     }
 }

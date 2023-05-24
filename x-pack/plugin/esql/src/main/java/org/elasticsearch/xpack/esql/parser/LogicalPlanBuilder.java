@@ -13,10 +13,12 @@ import org.elasticsearch.dissect.DissectException;
 import org.elasticsearch.dissect.DissectParser;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
+import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
+import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.ProjectReorder;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
@@ -24,6 +26,7 @@ import org.elasticsearch.xpack.esql.plan.logical.show.ShowFunctions;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.expression.EmptyAttribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.Literal;
@@ -133,6 +136,13 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 throw new ParsingException(src, "Invalid pattern for dissect: [{}]", pattern);
             }
         };
+    }
+
+    @Override
+    public PlanFactory visitMvExpandCommand(EsqlBaseParser.MvExpandCommandContext ctx) {
+        String identifier = visitSourceIdentifier(ctx.sourceIdentifier());
+        return child -> new MvExpand(source(ctx), child, new UnresolvedAttribute(source(ctx), identifier));
+
     }
 
     @Override
@@ -267,6 +277,18 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public LogicalPlan visitShowFunctions(EsqlBaseParser.ShowFunctionsContext ctx) {
         return new ShowFunctions(source(ctx));
+    }
+
+    @Override
+    public PlanFactory visitEnrichCommand(EsqlBaseParser.EnrichCommandContext ctx) {
+        return p -> {
+            final String policyName = visitSourceIdentifier(ctx.policyName);
+            var source = source(ctx);
+            NamedExpression matchField = ctx.ON() != null
+                ? new UnresolvedAttribute(source(ctx.matchField), visitSourceIdentifier(ctx.matchField))
+                : new EmptyAttribute(source);
+            return new Enrich(source, p, policyName, matchField);
+        };
     }
 
     interface PlanFactory extends Function<LogicalPlan, LogicalPlan> {}

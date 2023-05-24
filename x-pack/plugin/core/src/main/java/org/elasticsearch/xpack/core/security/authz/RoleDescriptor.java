@@ -1573,7 +1573,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         private final String[] workflows;
 
         public Restriction(String[] workflows) {
-            this.workflows = workflows;
+            this.workflows = Objects.requireNonNull(workflows, "workflows must not be null");
         }
 
         public Restriction(StreamInput in) throws IOException {
@@ -1581,7 +1581,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         }
 
         public boolean hasWorkflows() {
-            return workflows != null && workflows.length > 0;
+            return workflows.length > 0;
         }
 
         public String[] getWorkflows() {
@@ -1614,7 +1614,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         }
 
         public boolean isEmpty() {
-            return workflows == null || workflows.length == 0;
+            return workflows.length == 0;
         }
 
         @Override

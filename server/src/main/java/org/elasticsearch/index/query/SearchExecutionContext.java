@@ -85,6 +85,7 @@ import java.util.function.Predicate;
  * This context is used in several components of search execution, including
  * building queries and fetching hits.
  */
+/// MP: TODO: used to be called QueryPhaseContext
 public class SearchExecutionContext extends QueryRewriteContext {
 
     private final ScriptService scriptService;

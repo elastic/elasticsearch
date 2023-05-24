@@ -145,6 +145,7 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
     // tries to pre-filter shards based on information that's available to the coordinator
     // without having to reach out to the actual shards
     private void runCoordinatorRewritePhase() {
+        logger.warn("CCC CanMatchPreFilterSearchPhase runCoordinatorRewritePhase");
         // TODO: the index filter (i.e, `_index:patten`) should be prefiltered on the coordinator
         assert assertSearchCoordinationThread();
         final List<SearchShardIterator> matchedShardLevelRequests = new ArrayList<>();
@@ -250,6 +251,7 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
 
         @Override
         protected void doRun() {
+            logger.warn("CCC CanMatchPreFilterSearchPhase.Round doRun");
             assert assertSearchCoordinationThread();
             final Map<SendingTarget, List<SearchShardIterator>> requests = groupByNode(shards);
 
@@ -266,9 +268,11 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
                 }
 
                 try {
+                    logger.warn("CCC CanMatchPreFilterSearchPhase.Round sendCanMatch");
                     searchTransportService.sendCanMatch(getConnection(entry.getKey()), canMatchNodeRequest, task, new ActionListener<>() {
                         @Override
                         public void onResponse(CanMatchNodeResponse canMatchNodeResponse) {
+                            logger.warn("CCC CanMatchPreFilterSearchPhase.Round onResponse");
                             assert canMatchNodeResponse.getResponses().size() == canMatchNodeRequest.getShardLevelRequests().size();
                             for (int i = 0; i < canMatchNodeResponse.getResponses().size(); i++) {
                                 CanMatchNodeResponse.ResponseOrFailure response = canMatchNodeResponse.getResponses().get(i);
@@ -286,6 +290,7 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
 
                         @Override
                         public void onFailure(Exception e) {
+                            logger.warn("CCC CanMatchPreFilterSearchPhase.Round onFailure");
                             for (CanMatchNodeRequest.Shard shard : shardLevelRequests) {
                                 onOperationFailed(shard.getShardRequestIndex(), e);
                             }
@@ -371,6 +376,7 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
     }
 
     private void finishPhase() {
+        logger.warn("CCC CanMatchPreFilterSearchPhase finishPhase");
         listener.onResponse(getIterator(results, shardsIts));
     }
 
@@ -432,6 +438,7 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
     }
 
     public void onPhaseFailure(String msg, Exception cause) {
+        logger.warn("CCC CanMatchPreFilterSearchPhase onPhaseFailure");
         listener.onFailure(new SearchPhaseExecutionException(getName(), msg, cause, ShardSearchFailure.EMPTY_ARRAY));
     }
 

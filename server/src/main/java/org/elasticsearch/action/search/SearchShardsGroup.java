@@ -8,6 +8,8 @@
 
 package org.elasticsearch.action.search;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -25,6 +27,7 @@ import java.util.Objects;
  * whether this group might match the query or not.
  */
 public class SearchShardsGroup implements Writeable {
+    private static final Logger logger = LogManager.getLogger(SearchShardsGroup.class);
     private final ShardId shardId;
     private final List<String> allocatedNodes;
     private final boolean skipped;
@@ -35,6 +38,7 @@ public class SearchShardsGroup implements Writeable {
         this.allocatedNodes = allocatedNodes;
         this.skipped = skipped;
         this.preFiltered = true;
+        logger.warn("CCC SearchShardsGroup ctor (regular): skipped: {}, shardId: {}, allocatedNodes: {}", skipped, shardId, allocatedNodes);
     }
 
     /**

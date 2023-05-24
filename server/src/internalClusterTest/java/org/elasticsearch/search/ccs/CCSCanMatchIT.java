@@ -136,6 +136,7 @@ public class CCSCanMatchIT extends AbstractMultiClustersTestCase {
         return numDocs;
     }
 
+    /// MP: TODO why are we testing only on time range? Can CCS can_match query on different fields/types besides time ranges?
     public void testCanMatchOnTimeRange() throws Exception {
         long timestamp = randomLongBetween(10_000_000, 50_000_000);
         int oldLocalNumShards = randomIntBetween(1, 5);

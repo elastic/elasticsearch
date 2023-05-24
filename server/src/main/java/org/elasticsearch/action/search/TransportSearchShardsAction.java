@@ -73,6 +73,7 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
 
     @Override
     protected void doExecute(Task task, SearchShardsRequest searchShardsRequest, ActionListener<SearchShardsResponse> listener) {
+        logger.warn("CCC TransportSearchShardsAction doExecute (enter)");
         final long relativeStartNanos = System.nanoTime();
         SearchRequest original = new SearchRequest(searchShardsRequest.indices()).indicesOptions(searchShardsRequest.indicesOptions())
             .routing(searchShardsRequest.routing())
@@ -117,9 +118,13 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
                         concreteIndexNames
                     )
                 );
+                logger.warn("CCC TransportSearchShardsAction doExecute. GroupShardsIterator size: {}", shardIts.size());
                 if (SearchService.canRewriteToMatchNone(searchRequest.source()) == false) {
+                    logger.warn("CCC TransportSearchShardsAction doExecute. canRewriteToMatchNone=true");
                     listener.onResponse(new SearchShardsResponse(toGroups(shardIts), clusterState.nodes().getAllNodes(), aliasFilters));
                 } else {
+                    logger.warn("CCC TransportSearchShardsAction doExecute. canRewriteToMatchNone=false. " +
+                        "Creating CanMatchPreFilterSearchPhase");
                     var canMatchPhase = new CanMatchPreFilterSearchPhase(logger, searchTransportService, (clusterAlias, node) -> {
                         assert Objects.equals(clusterAlias, searchShardsRequest.clusterAlias());
                         return transportService.getConnection(clusterState.nodes().get(node));
@@ -133,7 +138,10 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
                         (SearchTask) task,
                         false,
                         searchService.getCoordinatorRewriteContextProvider(timeProvider::absoluteStartMillis),
-                        listener.map(its -> new SearchShardsResponse(toGroups(its), clusterState.nodes().getAllNodes(), aliasFilters))
+                        listener.map(its -> {
+                            logger.warn("CCC TransportSearchShardsAction canMatch listener callback - creating SearchShardsResponse");
+                            return new SearchShardsResponse(toGroups(its), clusterState.nodes().getAllNodes(), aliasFilters);
+                        })
                     );
                     canMatchPhase.start();
                 }

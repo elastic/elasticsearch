@@ -8,6 +8,8 @@
 
 package org.elasticsearch.action.search;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
@@ -28,6 +30,7 @@ import java.util.Objects;
  * A request to find the list of target shards that might match the query for the given target indices.
  */
 public final class SearchShardsRequest extends ActionRequest implements IndicesRequest.Replaceable {
+    private static final Logger logger = LogManager.getLogger(SearchShardsRequest.class);
     private String[] indices;
     private final IndicesOptions indicesOptions;
     @Nullable
@@ -58,6 +61,8 @@ public final class SearchShardsRequest extends ActionRequest implements IndicesR
         this.preference = preference;
         this.allowPartialSearchResults = allowPartialSearchResults;
         this.clusterAlias = clusterAlias;
+        logger.warn("CCC SearchShardsRequest (regular) indices:{}, routing:{}, clusterAlias:{}",
+            Arrays.toString(indices), routing, clusterAlias);
     }
 
     public SearchShardsRequest(StreamInput in) throws IOException {
@@ -69,6 +74,8 @@ public final class SearchShardsRequest extends ActionRequest implements IndicesR
         this.preference = in.readOptionalString();
         this.allowPartialSearchResults = in.readBoolean();
         this.clusterAlias = in.readOptionalString();
+        logger.warn("CCC SearchShardsRequest (StreamInput) indices:{}, routing:{}, clusterAlias:{}",
+            Arrays.toString(indices), routing, clusterAlias);
     }
 
     @Override
@@ -106,6 +113,7 @@ public final class SearchShardsRequest extends ActionRequest implements IndicesR
 
     @Override
     public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+        logger.warn("CCC SearchShardsRequest createTask");
         return new SearchTask(id, type, action, this::description, parentTaskId, headers);
     }
 

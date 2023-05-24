@@ -8,6 +8,8 @@
 
 package org.elasticsearch.action.search;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
@@ -31,6 +33,7 @@ import java.util.Objects;
  * A response of {@link SearchShardsRequest} which contains the target shards grouped by {@link org.elasticsearch.index.shard.ShardId}
  */
 public final class SearchShardsResponse extends ActionResponse {
+    private static final Logger logger = LogManager.getLogger(SearchShardsResponse.class);
     private final Collection<SearchShardsGroup> groups;
     private final Collection<DiscoveryNode> nodes;
     private final Map<String, AliasFilter> aliasFilters;
@@ -43,6 +46,7 @@ public final class SearchShardsResponse extends ActionResponse {
         this.groups = groups;
         this.nodes = nodes;
         this.aliasFilters = aliasFilters;
+        logger.warn("CCC SearchShardsResponse ctor1 (regular). Keys of aliasFilters: {}", aliasFilters.keySet());
     }
 
     public SearchShardsResponse(StreamInput in) throws IOException {

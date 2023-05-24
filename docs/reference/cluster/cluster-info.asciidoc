@@ -148,17 +148,15 @@ Contains information about ingest operations for the cluster.
 =======
 `count`::
 (integer)
-Total number of documents ingested during the lifetime of the cluster.
+Total number of documents ingested across the cluster.
 
 `time`::
 (<<time-units,time value>>)
-Total time spent preprocessing ingest documents during the lifetime of this
-cluster.
+Total time spent preprocessing ingest documents across the cluster.
 
 `time_in_millis`::
 (integer)
-Total time, in milliseconds, spent preprocessing ingest documents during the
-lifetime of this cluster.
+Total time, in milliseconds, spent preprocessing ingest documents across the cluster.
 
 `current`::
 (integer)
@@ -166,7 +164,7 @@ Total number of documents currently being ingested.
 
 `failed`::
 (integer)
-Total number of failed ingest operations during the lifetime of this cluster.
+Total number of failed ingest operations across the cluster.
 =======
 
 `pipelines`::

@@ -57,7 +57,6 @@ class MutableSearchResponse {
      */
     private Supplier<InternalAggregations> reducedAggsSource = () -> null;
     private int reducePhase;
-    private boolean localClusterSearchCompleted;
     /**
      * The response produced by the search API. Once we receive it we stop
      * building our own {@linkplain SearchResponse}s when get async search
@@ -91,8 +90,8 @@ class MutableSearchResponse {
     /**
      * Updates the response with the result of a partial reduction.
      * @param reducedAggs is a strategy for producing the reduced aggs
-     * @param isFinalLocalReduce true if the local cluster search has finished (during CCS, this can be true, but the overall
-     *                           search is still running on remote clusters)
+     * @param isFinalLocalReduce true if the local cluster search has finished (during CCS with minimize_roundtrips, this can be true
+     *                           even while the overall search is still running on remote clusters)
      */
     @SuppressWarnings("HiddenField")
     synchronized void updatePartialResponse(
@@ -113,22 +112,19 @@ class MutableSearchResponse {
         this.totalHits = totalHits;
         this.reducedAggsSource = reducedAggs;
         this.reducePhase = reducePhase;
-        if (isFinalLocalReduce) {
-            if (localClusterSearchCompleted == false
-                && clusters.getTotal() > 0
-                && clusters.getTotal() > (clusters.getSuccessful() + clusters.getSkipped())) {
-                // update the clusters object successful count if local cluster search is done AND the clusters state is set up for it
-                Clusters newClusters = new Clusters(
-                    clusters.getTotal(),
-                    clusters.getSuccessful() + 1,
-                    clusters.getSkipped(),
-                    clusters.getRemoteClusters(),
-                    clusters.isCcsMinimizeRoundtrips()
-                );
-                this.clusters = newClusters;
-                logger.debug("Updating Clusters info to indicate that the local cluster search has completed: {}", newClusters);
-            }
-            this.localClusterSearchCompleted = true;
+        if (isFinalLocalReduce && clusters.getTotal() > (clusters.getSuccessful() + clusters.getSkipped())) {
+            // currently only the ccsMinimizeRoundTrip=true creates Clusters in their initial state (where successful=0)
+            // ccsMinimizeRoundtrips=false creates Clusters in its final state even at the beginning (successful+skipped=total)
+            // so update the clusters object 'successful' count if local cluster search is done AND the Clusters state is set up for it
+            Clusters newClusters = new Clusters(
+                clusters.getTotal(),
+                clusters.getSuccessful() + 1,
+                clusters.getSkipped(),
+                clusters.getRemoteClusters(),
+                clusters.isCcsMinimizeRoundtrips()
+            );
+            this.clusters = newClusters;
+            logger.debug("Updating Clusters info to indicate that the local cluster search has completed: {}", newClusters);
         }
     }
 

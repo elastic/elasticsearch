@@ -143,7 +143,8 @@ public class SearchResponseTests extends ESTestCase {
                 // remoteClusters can be same as total cluster count or one less (when doing local search)
                 remoteClusters--;
             }
-            boolean ccsMinimizeRoundtrips = randomBoolean();
+            // Clusters has an assert that if ccsMinimizeRoundtrips = true, then remoteClusters must be > 0
+            boolean ccsMinimizeRoundtrips = (remoteClusters > 0 ? randomBoolean() : false);
             return new SearchResponse.Clusters(totalClusters, successfulClusters, skippedClusters, remoteClusters, ccsMinimizeRoundtrips);
         }
     }

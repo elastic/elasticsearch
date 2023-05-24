@@ -358,7 +358,7 @@ public class ApiKeyService {
     }
 
     private static boolean hasWorkflowsRestriction(Collection<RoleDescriptor> roleDescriptors) {
-        return getNumberOfRolesWithWorkflowsRestriction(roleDescriptors) > 0;
+        return getNumberOfRolesWithWorkflowsRestriction(roleDescriptors) > 0L;
     }
 
     private static Exception validateWorkflowsRestrictionConstrains(
@@ -366,7 +366,7 @@ public class ApiKeyService {
         Collection<RoleDescriptor> roleDescriptors
     ) {
         final long numberOfRolesWithWorkflowsRestriction = getNumberOfRolesWithWorkflowsRestriction(roleDescriptors);
-        if (numberOfRolesWithWorkflowsRestriction > 0) {
+        if (numberOfRolesWithWorkflowsRestriction > 0L) {
             // Creating/updating API keys with workflows restriction is not allowed in a mixed cluster.
             if (transportVersion.before(WORKFLOWS_RESTRICTION_VERSION)) {
                 return new IllegalArgumentException(
@@ -376,7 +376,7 @@ public class ApiKeyService {
                 );
             }
             // It's only allowed to create/update API keys with a single role descriptor that is restricted to workflows.
-            if (numberOfRolesWithWorkflowsRestriction != 1) {
+            if (numberOfRolesWithWorkflowsRestriction != 1L) {
                 return new IllegalArgumentException("more than one role descriptor with workflows restriction is not supported");
             }
             // Combining roles with and without workflows restriction is not allowed either.
@@ -389,7 +389,7 @@ public class ApiKeyService {
 
     private static long getNumberOfRolesWithWorkflowsRestriction(Collection<RoleDescriptor> roleDescriptors) {
         if (roleDescriptors == null || roleDescriptors.isEmpty()) {
-            return 0l;
+            return 0L;
         }
         return roleDescriptors.stream().filter(RoleDescriptor::hasWorkflowsRestriction).count();
     }

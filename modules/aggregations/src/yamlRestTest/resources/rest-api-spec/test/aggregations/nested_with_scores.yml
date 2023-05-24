@@ -8,6 +8,8 @@ setup:
                 properties:
                   "@timestamp":
                     type: date
+                  text:
+                      type: text
                   lines:
                     type: nested
                     properties:
@@ -24,6 +26,7 @@ setup:
         id:    "1"
         body: {
           "@timestamp": "2022-09-01",
+          "text": "I met a traveller from an antique land",
           "lines": [
             {
               "@timestamp": "2022-09-01",
@@ -53,13 +56,15 @@ setup:
       version: " - 8.5.99"
       reason:  fixed in 8.6
   - do:
-      catch: /Incompatible use of non-scorable and score-required aggregations/
       search:
         rest_total_hits_as_int: true
         index: test
         body:
           size: 0
           track_total_hits: -1
+          query:
+            match:
+              text: traveller
           aggregations:
             data:
               nested:

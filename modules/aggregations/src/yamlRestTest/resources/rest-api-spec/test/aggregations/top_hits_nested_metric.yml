@@ -10,6 +10,8 @@ setup:
             properties:
               users:
                 type: nested
+              text:
+                type: text
 
   - do:
       index:
@@ -19,6 +21,7 @@ setup:
         body: |
           {
             "group" : "fans",
+            "text": "one",
             "users" : [
               {
                 "first" : "John",
@@ -39,6 +42,7 @@ setup:
         body: |
           {
             "group" : "fans",
+            "text" : "two",
             "users" : [
               {
                 "first" : "Mark",
@@ -77,6 +81,28 @@ setup:
   - match: { aggregations.to-users.users.hits.hits.2._index: my-index }
   - match: { aggregations.to-users.users.hits.hits.2._nested.field: users }
   - match: { aggregations.to-users.users.hits.hits.2._nested.offset: 1 }
+
+---
+"top_hits with nested sorted by score":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: my-index
+        body:
+          query:
+            match:
+              text: "one"
+          aggs:
+            to-users:
+              nested:
+                path: users
+              aggs:
+                users:
+                  top_hits:
+                    size: 3
+  - match: { hits.total: 1 }
+  - length: { aggregations.to-users.users.hits.hits: 3 }
+
 
 ---
 "top_hits aggregation with nested documents and disabled _source":

@@ -37,6 +37,8 @@ import org.elasticsearch.common.Rounding;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexSortConfig;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.lucene.queries.SearchAfterSortedDocQuery;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
@@ -585,9 +587,10 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
 
     private static class DeferredScorable extends Scorable {
 
-        public int doc;
+        private static final Logger LOGGER = LogManager.getLogger(DeferredScorable.class);
         private final DocIdSetIterator iterator;
         private final Scorer scorer;
+        public int doc;
 
         DeferredScorable(Scorer scorer) {
             this.scorer = scorer;
@@ -599,6 +602,8 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
             if (iterator.docID() < doc) {
                 // TODO: check if doc is a root document
                 final int d = iterator.advance(doc);
+                // I think we should always throw here if d != doc; this would indicate that we're collecting a child document
+                // but getting the score for a parent document
                 assert d == doc;
             }
             return scorer.score();

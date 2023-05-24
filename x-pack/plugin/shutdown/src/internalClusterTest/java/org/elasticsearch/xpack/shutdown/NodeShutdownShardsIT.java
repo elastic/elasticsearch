@@ -11,7 +11,6 @@ import org.elasticsearch.Build;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
-import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
@@ -31,6 +30,7 @@ import org.elasticsearch.test.InternalTestCluster;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Status.COMPLETE;
@@ -349,36 +349,14 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         );
 
         final String nodeB = internalCluster().startNode();
-        assertBusy(() -> {
-            assertThat(
-                client().admin()
-                    .indices()
-                    .prepareGetSettings("myindex")
-                    .setNames("index.number_of_replicas")
-                    .get()
-                    .getSetting("myindex", "index.number_of_replicas"),
-                equalTo("1")
-            );
-        });
         ensureGreen("myindex");
+        var assertion = new BackgroundAssertion(() -> assertIndexSetting("myindex", "index.number_of_replicas", "1"));
 
         putNodeShutdown(primaryNodeId, SingleNodeShutdownMetadata.Type.RESTART, null);
 
         // RESTART did not reroute, neither should it when we no longer contract replicas, but we provoke it here in the test to ensure
         // that auto-expansion has run.
         updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude.name", "non-existent"), "myindex");
-
-        assertBusy(() -> {
-            assertThat(
-                client().admin()
-                    .indices()
-                    .prepareGetSettings("myindex")
-                    .setNames("index.number_of_replicas")
-                    .get()
-                    .getSetting("myindex", "index.number_of_replicas"),
-                equalTo("1")
-            );
-        });
 
         indexRandomData("myindex");
 
@@ -391,6 +369,33 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         });
 
         ensureGreen("myindex");
+        assertion.verify();
+    }
+
+    public void testAutoExpandDuringReplace() throws Exception {
+
+        var node1 = internalCluster().startNode();
+        var node2 = internalCluster().startNode();
+
+        createIndex("index", indexSettings(1, 0).put("index.auto_expand_replicas", "0-1").build());
+        ensureGreen("index");
+
+        var assertion = new BackgroundAssertion(() -> assertIndexSetting("index", "index.number_of_replicas", "1"));
+
+        var nodeNameToReplace = randomFrom(node1, node2);
+        var nodeIdToReplace = getNodeId(nodeNameToReplace);
+        var replacementNodeName = "node_t2";
+
+        putNodeShutdown(nodeIdToReplace, SingleNodeShutdownMetadata.Type.REPLACE, replacementNodeName);
+
+        var nodeName3 = internalCluster().startNode();
+        assertThat(nodeName3, equalTo(replacementNodeName));
+
+        ensureGreen("index");
+        assertNodeShutdownStatus(nodeIdToReplace, COMPLETE);
+
+        internalCluster().stopNode(nodeNameToReplace);
+        assertion.verify();
     }
 
     public void testNodeShutdownWithUnassignedShards() throws Exception {
@@ -504,7 +509,29 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
     }
 
     private void assertIndexSetting(String index, String setting, String expectedValue) {
-        var response = client().admin().indices().getSettings(new GetSettingsRequest().indices(index)).actionGet();
+        var response = client().admin().indices().prepareGetSettings(index).get();
         assertThat(response.getSetting(index, setting), equalTo(expectedValue));
+    }
+
+    private static class BackgroundAssertion extends Thread {
+
+        private final Runnable assertion;
+        private final AtomicBoolean stopped = new AtomicBoolean(false);
+
+        BackgroundAssertion(Runnable assertion) {
+            this.assertion = assertion;
+            start();
+        }
+
+        @Override
+        public void run() {
+            while (stopped.get() == false) {
+                assertion.run();
+            }
+        }
+
+        public void verify() {
+            stopped.set(true);
+        }
     }
 }

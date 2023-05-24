@@ -24,6 +24,7 @@ import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
 import org.elasticsearch.compute.operator.DriverStatus;
+import org.elasticsearch.compute.operator.MvExpandOperator;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceOperator;
@@ -117,9 +118,10 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
             List.of(
                 DriverStatus.ENTRY,
                 AbstractPageMappingOperator.Status.ENTRY,
-                LuceneSourceOperator.Status.ENTRY,
-                ExchangeSourceOperator.Status.ENTRY,
                 ExchangeSinkOperator.Status.ENTRY,
+                ExchangeSourceOperator.Status.ENTRY,
+                LuceneSourceOperator.Status.ENTRY,
+                MvExpandOperator.Status.ENTRY,
                 ValuesSourceReaderOperator.Status.ENTRY
             ).stream(),
             Block.getNamedWriteables().stream()

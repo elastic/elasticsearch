@@ -21,6 +21,7 @@ import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.FilterOperator.FilterOperatorFactory;
 import org.elasticsearch.compute.operator.LocalSourceOperator;
 import org.elasticsearch.compute.operator.LocalSourceOperator.LocalSourceFactory;
+import org.elasticsearch.compute.operator.MvExpandOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.Operator.OperatorFactory;
 import org.elasticsearch.compute.operator.OutputOperator.OutputOperatorFactory;
@@ -50,6 +51,7 @@ import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.GrokExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
@@ -158,6 +160,8 @@ public class LocalExecutionPlanner {
             return planFilter(filter, context);
         } else if (node instanceof LimitExec limit) {
             return planLimit(limit, context);
+        } else if (node instanceof MvExpandExec mvExpand) {
+            return planMvExpand(mvExpand, context);
         }
         // source nodes
         else if (node instanceof EsQueryExec esQuery) {
@@ -475,6 +479,11 @@ public class LocalExecutionPlanner {
     private PhysicalOperation planLimit(LimitExec limit, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(limit.child(), context);
         return source.with(new LimitOperatorFactory((Integer) limit.limit().fold()), source.layout);
+    }
+
+    private PhysicalOperation planMvExpand(MvExpandExec mvExpandExec, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(mvExpandExec.child(), context);
+        return source.with(new MvExpandOperator.Factory(source.layout.getChannel(mvExpandExec.target().id())), source.layout);
     }
 
     /**

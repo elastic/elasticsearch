@@ -558,6 +558,16 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitGrokCommand(EsqlBaseParser.GrokCommandContext ctx);
   /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#mvExpandCommand}.
+   * @param ctx the parse tree
+   */
+  void enterMvExpandCommand(EsqlBaseParser.MvExpandCommandContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#mvExpandCommand}.
+   * @param ctx the parse tree
+   */
+  void exitMvExpandCommand(EsqlBaseParser.MvExpandCommandContext ctx);
+  /**
    * Enter a parse tree produced by {@link EsqlBaseParser#commandOptions}.
    * @param ctx the parse tree
    */

@@ -61,6 +61,7 @@ import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.GrokExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
+import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.OrderExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
@@ -169,6 +170,7 @@ public final class PlanNamedTypes {
             of(PhysicalPlan.class, FilterExec.class, PlanNamedTypes::writeFilterExec, PlanNamedTypes::readFilterExec),
             of(PhysicalPlan.class, GrokExec.class, PlanNamedTypes::writeGrokExec, PlanNamedTypes::readGrokExec),
             of(PhysicalPlan.class, LimitExec.class, PlanNamedTypes::writeLimitExec, PlanNamedTypes::readLimitExec),
+            of(PhysicalPlan.class, MvExpandExec.class, PlanNamedTypes::writeMvExpandExec, PlanNamedTypes::readMvExpandExec),
             of(PhysicalPlan.class, OrderExec.class, PlanNamedTypes::writeOrderExec, PlanNamedTypes::readOrderExec),
             of(PhysicalPlan.class, ProjectExec.class, PlanNamedTypes::writeProjectExec, PlanNamedTypes::readProjectExec),
             of(PhysicalPlan.class, RowExec.class, PlanNamedTypes::writeRowExec, PlanNamedTypes::readRowExec),
@@ -389,6 +391,15 @@ public final class PlanNamedTypes {
     static void writeLimitExec(PlanStreamOutput out, LimitExec limitExec) throws IOException {
         out.writePhysicalPlanNode(limitExec.child());
         out.writeExpression(limitExec.limit());
+    }
+
+    static MvExpandExec readMvExpandExec(PlanStreamInput in) throws IOException {
+        return new MvExpandExec(Source.EMPTY, in.readPhysicalPlanNode(), in.readNamedExpression());
+    }
+
+    static void writeMvExpandExec(PlanStreamOutput out, MvExpandExec mvExpandExec) throws IOException {
+        out.writePhysicalPlanNode(mvExpandExec.child());
+        out.writeNamedExpression(mvExpandExec.target());
     }
 
     static OrderExec readOrderExec(PlanStreamInput in) throws IOException {

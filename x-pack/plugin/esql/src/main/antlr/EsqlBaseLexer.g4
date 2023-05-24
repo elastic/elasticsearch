@@ -9,6 +9,7 @@ FROM : 'from' -> pushMode(SOURCE_IDENTIFIERS);
 GROK : 'grok' -> pushMode(EXPRESSION);
 INLINESTATS : 'inlinestats' -> pushMode(EXPRESSION);
 LIMIT : 'limit' -> pushMode(EXPRESSION);
+MV_EXPAND : 'mv_expand' -> pushMode(SOURCE_IDENTIFIERS);
 PROJECT : 'project' -> pushMode(SOURCE_IDENTIFIERS);
 RENAME : 'rename' -> pushMode(SOURCE_IDENTIFIERS);
 ROW : 'row' -> pushMode(EXPRESSION);

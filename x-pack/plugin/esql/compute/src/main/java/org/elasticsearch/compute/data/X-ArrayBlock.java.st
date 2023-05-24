@@ -15,6 +15,7 @@ $else$
 import java.util.Arrays;
 $endif$
 import java.util.BitSet;
+import java.util.stream.IntStream;
 
 /**
  * Block implementation that stores an array of $type$.
@@ -61,6 +62,19 @@ $endif$
     @Override
     public ElementType elementType() {
         return ElementType.$TYPE$;
+    }
+
+    @Override
+    public $Type$Block expand() {
+        if (firstValueIndexes == null) {
+            return this;
+        }
+        int end = firstValueIndexes[getPositionCount()];
+        if (nullsMask == null) {
+            return new $Type$ArrayVector(values, end).asBlock();
+        }
+        int[] firstValues = IntStream.range(0, end + 1).toArray();
+        return new $Type$ArrayBlock(values, end, firstValues, shiftNullsToExpandedPositions(), MvOrdering.UNORDERED);
     }
 
     @Override

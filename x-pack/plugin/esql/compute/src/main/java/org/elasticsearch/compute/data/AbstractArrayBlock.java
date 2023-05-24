@@ -44,4 +44,13 @@ abstract class AbstractArrayBlock extends AbstractBlock {
     public final MvOrdering mvOrdering() {
         return mvOrdering;
     }
+
+    protected BitSet shiftNullsToExpandedPositions() {
+        BitSet expanded = new BitSet(getTotalValueCount());
+        int next = -1;
+        while ((next = nullsMask.nextSetBit(next + 1)) != -1) {
+            expanded.set(getFirstValueIndex(next));
+        }
+        return expanded;
+    }
 }

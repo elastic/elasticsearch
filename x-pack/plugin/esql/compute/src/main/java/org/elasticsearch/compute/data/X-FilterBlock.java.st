@@ -50,6 +50,39 @@ $endif$
     }
 
     @Override
+    public $Type$Block expand() {
+        if (false == block.mayHaveMultivaluedFields()) {
+            return this;
+        }
+        /*
+         * Build a copy of the target block, selecting only the positions
+         * we've been assigned and expanding all multivalued fields
+         * into single valued fields.
+         */
+        $Type$Block.Builder builder = $Type$Block.newBlockBuilder(positions.length);
+$if(BytesRef)$
+        BytesRef scratch = new BytesRef();
+$endif$
+        for (int p : positions) {
+            if (block.isNull(p)) {
+                builder.appendNull();
+                continue;
+            }
+            int start = block.getFirstValueIndex(p);
+            int end = start + block.getValueCount(p);
+            for (int i = start; i < end; i++) {
+$if(BytesRef)$
+                BytesRef v = block.getBytesRef(i, scratch);
+                builder.appendBytesRef(v);
+$else$
+                builder.append$Type$(block.get$Type$(i));
+$endif$
+            }
+        }
+        return builder.build();
+    }
+
+    @Override
     public boolean equals(Object obj) {
         if (obj instanceof $Type$Block that) {
             return $Type$Block.equals(this, that);

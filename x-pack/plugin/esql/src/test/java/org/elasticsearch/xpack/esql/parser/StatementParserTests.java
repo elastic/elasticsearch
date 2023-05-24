@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
+import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.EmptyAttribute;
@@ -606,6 +607,13 @@ public class StatementParserTests extends ESTestCase {
             new Enrich(EMPTY, PROCESSING_CMD_INPUT, "countries", new UnresolvedAttribute(EMPTY, "country_code")),
             processingCommand("enrich countries ON country_code")
         );
+    }
+
+    public void testMvExpand() {
+        LogicalPlan cmd = processingCommand("mv_expand a");
+        assertEquals(MvExpand.class, cmd.getClass());
+        MvExpand expand = (MvExpand) cmd;
+        assertThat(expand.target(), equalTo(attribute("a")));
     }
 
     private void assertIdentifierAsIndexPattern(String identifier, String statement) {

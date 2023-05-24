@@ -336,6 +336,12 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitGrokCommand(EsqlBaseParser.GrokCommandContext ctx);
   /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#mvExpandCommand}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitMvExpandCommand(EsqlBaseParser.MvExpandCommandContext ctx);
+  /**
    * Visit a parse tree produced by {@link EsqlBaseParser#commandOptions}.
    * @param ctx the parse tree
    * @return the visitor result

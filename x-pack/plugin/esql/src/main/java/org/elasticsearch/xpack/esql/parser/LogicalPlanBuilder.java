@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
+import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.ProjectReorder;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
@@ -135,6 +136,13 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 throw new ParsingException(src, "Invalid pattern for dissect: [{}]", pattern);
             }
         };
+    }
+
+    @Override
+    public PlanFactory visitMvExpandCommand(EsqlBaseParser.MvExpandCommandContext ctx) {
+        String identifier = visitSourceIdentifier(ctx.sourceIdentifier());
+        return child -> new MvExpand(source(ctx), child, new UnresolvedAttribute(source(ctx), identifier));
+
     }
 
     @Override

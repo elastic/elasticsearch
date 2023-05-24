@@ -19,6 +19,7 @@ ESQL supports these processing commands:
 * <<esql-eval>>
 * <<esql-grok>>
 * <<esql-limit>>
+* <<esql-mv_expand>>
 * <<esql-project>>
 * <<esql-rename>>
 * <<esql-sort>>
@@ -31,14 +32,14 @@ ESQL supports these processing commands:
 
 `DISSECT` enables you to extract structured data out of a string. `DISSECT`
 matches the string against a delimiter-based pattern, and extracts the specified
-keys as columns. 
+keys as columns.
 
 Refer to the <<dissect-processor,dissect processor documentation>> for the
 syntax of dissect patterns.
 
 [source,esql]
 ----
-ROW a = "1953-01-23T12:15:00Z - some text - 127.0.0.1" 
+ROW a = "1953-01-23T12:15:00Z - some text - 127.0.0.1"
 | DISSECT a "%{Y}-%{M}-%{D}T%{h}:%{m}:%{s}Z - %{msg} - %{ip}"
 ----
 
@@ -84,7 +85,7 @@ FROM employees
 ----
 
 [discrete]
-==== Functions 
+==== Functions
 `EVAL` supports various functions for calculating values. Refer to
 <<esql-functions,Functions>> for more information.
 
@@ -93,14 +94,14 @@ FROM employees
 
 `GROK` enables you to extract structured data out of a string. `GROK` matches
 the string against patterns, based on regular expressions, and extracts the
-specified patterns as columns. 
+specified patterns as columns.
 
 Refer to the <<grok-processor,grok processor documentation>> for the syntax for
 of grok patterns.
 
 [source,esql]
 ----
-ROW a = "12 15.5 15.6 true" 
+ROW a = "12 15.5 15.6 true"
 | GROK a "%{NUMBER:b:int} %{NUMBER:c:float} %{NUMBER:d:double} %{WORD:e:boolean}"
 ----
 
@@ -114,6 +115,21 @@ The `LIMIT` processing command enables you to limit the number of rows:
 FROM employees
 | LIMIT 5
 ----
+
+[[esql-mv_expand]]
+=== `MV_EXPAND`
+
+The `MV_EXPAND` processing command expands multivalued fields into one row per value, duplicating other fields:
+
+[source,esql]
+----
+include::{esql-specs}/mv_expand.csv-spec[tag=simple]
+----
+
+[%header,format=dsv,separator=|]
+|===
+include::{esql-specs}/mv_expand.csv-spec[tag=simple-result]
+|===
 
 [[esql-project]]
 === `PROJECT`
@@ -203,7 +219,7 @@ FROM employees
 ----
 
 [discrete]
-==== `null` values 
+==== `null` values
 By default, `null` values are treated as being larger than any other value. With
 an ascending sort order, `null` values are sorted last, and with a descending
 sort order, `null` values are sorted first. You can change that by providing
@@ -219,7 +235,7 @@ FROM employees
 [[esql-stats-by]]
 === `STATS ... BY`
 Use `STATS ... BY` to group rows according to a common value and calculate one
-or more aggregated values over the grouped rows. 
+or more aggregated values over the grouped rows.
 
 [source,esql]
 ----
@@ -295,7 +311,7 @@ FROM employees
 Refer to <<esql-operators>> for an overview of the supported operators.
 
 [discrete]
-==== Functions 
+==== Functions
 `WHERE` supports various functions for calculating values. Refer to
 <<esql-functions,Functions>> for more information.
 

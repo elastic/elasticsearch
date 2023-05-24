@@ -9,6 +9,7 @@ package org.elasticsearch.compute.data;
 
 import java.util.Arrays;
 import java.util.BitSet;
+import java.util.stream.IntStream;
 
 /**
  * Block implementation that stores an array of double.
@@ -41,6 +42,19 @@ public final class DoubleArrayBlock extends AbstractArrayBlock implements Double
     @Override
     public ElementType elementType() {
         return ElementType.DOUBLE;
+    }
+
+    @Override
+    public DoubleBlock expand() {
+        if (firstValueIndexes == null) {
+            return this;
+        }
+        int end = firstValueIndexes[getPositionCount()];
+        if (nullsMask == null) {
+            return new DoubleArrayVector(values, end).asBlock();
+        }
+        int[] firstValues = IntStream.range(0, end + 1).toArray();
+        return new DoubleArrayBlock(values, end, firstValues, shiftNullsToExpandedPositions(), MvOrdering.UNORDERED);
     }
 
     @Override

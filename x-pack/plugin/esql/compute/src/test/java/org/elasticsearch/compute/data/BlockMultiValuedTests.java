@@ -62,6 +62,12 @@ public class BlockMultiValuedTests extends ESTestCase {
         assertThat(b.block().mayHaveMultivaluedFields(), equalTo(b.values().stream().anyMatch(l -> l != null && l.size() > 1)));
     }
 
+    public void testExpand() {
+        int positionCount = randomIntBetween(1, 16 * 1024);
+        var b = BasicBlockTests.randomBlock(elementType, positionCount, nullAllowed, 0, 10);
+        assertExpanded(b.block());
+    }
+
     public void testFilteredNoop() {
         assertFiltered(true, false);
     }
@@ -78,18 +84,26 @@ public class BlockMultiValuedTests extends ESTestCase {
         assertFiltered(false, true);
     }
 
+    public void testFilteredNoopThenExpanded() {
+        assertFilteredThenExpanded(true, false);
+    }
+
+    public void testFilteredReorderedThenExpanded() {
+        assertFilteredThenExpanded(true, true);
+    }
+
+    public void testFilteredSubsetThenExpanded() {
+        assertFilteredThenExpanded(false, false);
+    }
+
+    public void testFilteredJumbledSubsetThenExpanded() {
+        assertFilteredThenExpanded(false, true);
+    }
+
     private void assertFiltered(boolean all, boolean shuffled) {
         int positionCount = randomIntBetween(1, 16 * 1024);
         var b = BasicBlockTests.randomBlock(elementType, positionCount, nullAllowed, 0, 10);
-
-        int[] positions = IntStream.range(0, positionCount).toArray();
-        if (shuffled) {
-            Randomness.shuffle(Arrays.asList(positions));
-        }
-        if (all == false) {
-            int[] pos = positions;
-            positions = IntStream.range(0, between(1, positionCount)).map(i -> pos[i]).toArray();
-        }
+        int[] positions = randomFilterPositions(b.block(), all, shuffled);
         Block filtered = b.block().filter(positions);
 
         assertThat(filtered.getPositionCount(), equalTo(positions.length));
@@ -113,5 +127,44 @@ public class BlockMultiValuedTests extends ESTestCase {
         }
 
         assertThat(b.block().mayHaveMultivaluedFields(), equalTo(b.values().stream().anyMatch(l -> l != null && l.size() > 1)));
+    }
+
+    private int[] randomFilterPositions(Block orig, boolean all, boolean shuffled) {
+        int[] positions = IntStream.range(0, orig.getPositionCount()).toArray();
+        if (shuffled) {
+            Randomness.shuffle(Arrays.asList(positions));
+        }
+        if (all) {
+            return positions;
+        }
+        return IntStream.range(0, between(1, orig.getPositionCount())).map(i -> positions[i]).toArray();
+    }
+
+    private void assertExpanded(Block orig) {
+        Block expanded = orig.expand();
+        assertThat(expanded.getPositionCount(), equalTo(orig.getTotalValueCount() + orig.nullValuesCount()));
+        assertThat(expanded.getTotalValueCount(), equalTo(orig.getTotalValueCount()));
+
+        int np = 0;
+        for (int op = 0; op < orig.getPositionCount(); op++) {
+            if (orig.isNull(op)) {
+                assertThat(expanded.isNull(np), equalTo(true));
+                assertThat(expanded.getValueCount(np++), equalTo(0));
+                continue;
+            }
+            List<Object> oValues = BasicBlockTests.valuesAtPositions(orig, op, op + 1).get(0);
+            for (Object ov : oValues) {
+                assertThat(expanded.isNull(np), equalTo(false));
+                assertThat(expanded.getValueCount(np), equalTo(1));
+                assertThat(BasicBlockTests.valuesAtPositions(expanded, np, ++np).get(0), equalTo(List.of(ov)));
+            }
+        }
+    }
+
+    private void assertFilteredThenExpanded(boolean all, boolean shuffled) {
+        int positionCount = randomIntBetween(1, 16 * 1024);
+        var b = BasicBlockTests.randomBlock(elementType, positionCount, nullAllowed, 0, 10);
+        int[] positions = randomFilterPositions(b.block(), all, shuffled);
+        assertExpanded(b.block().filter(positions));
     }
 }

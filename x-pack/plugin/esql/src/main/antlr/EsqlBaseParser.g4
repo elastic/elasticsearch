@@ -39,6 +39,7 @@ processingCommand
     | dissectCommand
     | grokCommand
     | enrichCommand
+    | mvExpandCommand
     ;
 
 whereCommand
@@ -172,6 +173,10 @@ dissectCommand
 
 grokCommand
     : GROK primaryExpression string
+    ;
+
+mvExpandCommand
+    : MV_EXPAND sourceIdentifier
     ;
 
 commandOptions

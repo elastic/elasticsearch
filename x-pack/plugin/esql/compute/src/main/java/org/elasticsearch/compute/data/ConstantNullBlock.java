@@ -89,6 +89,11 @@ public final class ConstantNullBlock extends AbstractBlock {
     }
 
     @Override
+    public Block expand() {
+        return this;
+    }
+
+    @Override
     public boolean equals(Object obj) {
         if (obj instanceof ConstantNullBlock that) {
             return this.getPositionCount() == that.getPositionCount();

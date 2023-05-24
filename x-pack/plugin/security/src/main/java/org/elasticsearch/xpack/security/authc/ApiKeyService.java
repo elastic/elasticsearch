@@ -304,7 +304,6 @@ public class ApiKeyService {
     ) {
         assert request.getType() != ApiKey.Type.CROSS_CLUSTER || userRoleDescriptors.isEmpty()
             : "owner user role descriptor must be empty for cross-cluster API keys";
-        assert false == hasWorkflowsRestriction(userRoleDescriptors) : "workflows restriction are not supported by user role descriptors";
         ensureEnabled();
         if (authentication == null) {
             listener.onFailure(new IllegalArgumentException("authentication must be provided"));
@@ -335,7 +334,8 @@ public class ApiKeyService {
             }
             final Exception workflowsValidationException = validateWorkflowsRestrictionConstrains(
                 transportVersion,
-                request.getRoleDescriptors()
+                request.getRoleDescriptors(),
+                userRoleDescriptors
             );
             if (workflowsValidationException != null) {
                 listener.onFailure(workflowsValidationException);
@@ -366,9 +366,13 @@ public class ApiKeyService {
 
     private static Exception validateWorkflowsRestrictionConstrains(
         TransportVersion transportVersion,
-        Collection<RoleDescriptor> roleDescriptors
+        List<RoleDescriptor> requestRoleDescriptors,
+        Set<RoleDescriptor> userRoleDescriptors
     ) {
-        final long numberOfRolesWithWorkflowsRestriction = getNumberOfRolesWithWorkflowsRestriction(roleDescriptors);
+        if (hasWorkflowsRestriction(userRoleDescriptors)) {
+            return new IllegalArgumentException("owner user role descriptors must not include workflows restriction");
+        }
+        final long numberOfRolesWithWorkflowsRestriction = getNumberOfRolesWithWorkflowsRestriction(requestRoleDescriptors);
         if (numberOfRolesWithWorkflowsRestriction > 0L) {
             // Creating/updating API keys with workflows restriction is not allowed in a mixed cluster.
             if (transportVersion.before(WORKFLOWS_RESTRICTION_VERSION)) {
@@ -383,7 +387,7 @@ public class ApiKeyService {
                 return new IllegalArgumentException("more than one role descriptor with workflows restriction is not supported");
             }
             // Combining roles with and without workflows restriction is not allowed either.
-            if (numberOfRolesWithWorkflowsRestriction != roleDescriptors.size()) {
+            if (numberOfRolesWithWorkflowsRestriction != requestRoleDescriptors.size()) {
                 return new IllegalArgumentException("combining role descriptors with and without workflows restriction is not supported");
             }
         }
@@ -467,7 +471,6 @@ public class ApiKeyService {
     ) {
         assert request.getType() != ApiKey.Type.CROSS_CLUSTER || userRoleDescriptors.isEmpty()
             : "owner user role descriptor must be empty for cross-cluster API keys";
-        assert false == hasWorkflowsRestriction(userRoleDescriptors) : "workflows restriction are not supported by user role descriptors";
         ensureEnabled();
         if (authentication == null) {
             listener.onFailure(new IllegalArgumentException("authentication must be provided"));
@@ -494,7 +497,8 @@ public class ApiKeyService {
         }
         final Exception workflowsValidationException = validateWorkflowsRestrictionConstrains(
             transportVersion,
-            request.getRoleDescriptors()
+            request.getRoleDescriptors(),
+            userRoleDescriptors
         );
         if (workflowsValidationException != null) {
             listener.onFailure(workflowsValidationException);

@@ -129,6 +129,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collection;
@@ -159,7 +160,7 @@ import static org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClu
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_ID_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_METADATA_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_TYPE_KEY;
-import static org.elasticsearch.xpack.core.security.authz.RoleDescriptor.RoleRestriction.WORKFLOWS_RESTRICTION_VERSION;
+import static org.elasticsearch.xpack.core.security.authz.RoleDescriptor.Restriction.WORKFLOWS_RESTRICTION_VERSION;
 import static org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR;
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7;
 import static org.elasticsearch.xpack.security.Security.SECURITY_CRYPTO_THREAD_POOL_NAME;
@@ -709,6 +710,157 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertThat(ex.getMessage(), containsString("authentication via API key not supported: only the owner user can update an API key"));
     }
 
+    public void testCrossClusterApiKeyUsageStats() {
+        final Instant now = Instant.now();
+        when(clock.instant()).thenReturn(now);
+        when(client.threadPool()).thenReturn(threadPool);
+        SearchRequestBuilder searchRequestBuilder = Mockito.spy(new SearchRequestBuilder(client, SearchAction.INSTANCE));
+        when(client.prepareSearch(eq(SECURITY_MAIN_ALIAS))).thenReturn(searchRequestBuilder);
+
+        final List<SearchHit> searchHits = new ArrayList<>();
+        final int ccsKeys = randomIntBetween(0, 2);
+        for (int i = 0; i < ccsKeys; i++) {
+            searchHits.add(searchHitForCrossClusterApiKey(0));
+        }
+        final int ccrKeys = randomIntBetween(0, 2);
+        for (int i = 0; i < ccrKeys; i++) {
+            searchHits.add(searchHitForCrossClusterApiKey(1));
+        }
+        final int ccsCcrKeys = randomIntBetween(0, 2);
+        for (int i = 0; i < ccsCcrKeys; i++) {
+            searchHits.add(searchHitForCrossClusterApiKey(2));
+        }
+
+        final AtomicReference<SearchRequest> searchRequest = new AtomicReference<>();
+        doAnswer(invocationOnMock -> {
+            searchRequest.set(invocationOnMock.getArgument(0));
+            final var searchResponse = new SearchResponse(
+                new InternalSearchResponse(
+                    new SearchHits(
+                        searchHits.toArray(SearchHit[]::new),
+                        new TotalHits(searchHits.size(), TotalHits.Relation.EQUAL_TO),
+                        randomFloat(),
+                        null,
+                        null,
+                        null
+                    ),
+                    null,
+                    null,
+                    null,
+                    false,
+                    null,
+                    0
+                ),
+                randomAlphaOfLengthBetween(3, 8),
+                1,
+                1,
+                0,
+                10,
+                null,
+                null
+            );
+            final ActionListener<SearchResponse> listener = invocationOnMock.getArgument(1);
+            listener.onResponse(searchResponse);
+            return null;
+        }).when(client).search(any(SearchRequest.class), anyActionListener());
+
+        final BoolQueryBuilder boolQuery = QueryBuilders.boolQuery()
+            .filter(QueryBuilders.termQuery("doc_type", "api_key"))
+            .filter(QueryBuilders.termQuery("type", ApiKey.Type.CROSS_CLUSTER.value()))
+            .filter(QueryBuilders.termQuery("api_key_invalidated", false))
+            .filter(
+                QueryBuilders.boolQuery()
+                    .should(QueryBuilders.rangeQuery("expiration_time").gt(now.toEpochMilli()))
+                    .should(QueryBuilders.boolQuery().mustNot(QueryBuilders.existsQuery("expiration_time")))
+            );
+
+        final ApiKeyService apiKeyService = createApiKeyService();
+        final PlainActionFuture<Map<String, Object>> future = new PlainActionFuture<>();
+        apiKeyService.crossClusterApiKeyUsageStats(future);
+
+        verify(searchRequestBuilder).setQuery(eq(boolQuery));
+        assertThat(searchRequest.get().source().query(), is(boolQuery));
+
+        assertThat(
+            future.actionGet(),
+            equalTo(Map.of("total", ccsKeys + ccrKeys + ccsCcrKeys, "ccs", ccsKeys, "ccr", ccrKeys, "ccs_ccr", ccsCcrKeys))
+        );
+    }
+
+    private SearchHit searchHitForCrossClusterApiKey(int crossClusterAccessLevel) {
+        assert crossClusterAccessLevel >= 0 && crossClusterAccessLevel <= 2;
+        final String roleDescriptor = switch (crossClusterAccessLevel) {
+            case 0 -> """
+                {
+                  "cluster": ["cross_cluster_search"]
+                }""";
+            case 1 -> """
+                {
+                  "cluster": ["cross_cluster_replication"]
+                }""";
+            default -> """
+                {
+                  "cluster": ["cross_cluster_search", "cross_cluster_replication"]
+                }""";
+        };
+        final int docId = randomIntBetween(0, Integer.MAX_VALUE);
+        final String apiKeyId = randomAlphaOfLength(20);
+        final var searchHit = new SearchHit(docId, apiKeyId);
+        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+            builder.map(XContentHelper.convertToMap(JsonXContent.jsonXContent, Strings.format("""
+                {
+                  "doc_type": "api_key",
+                  "type": "cross_cluster",
+                  "creation_time": 1591919944598,
+                  "expiration_time": null,
+                  "api_key_invalidated": false,
+                  "api_key_hash": "{PBKDF2}10000$abc",
+                  "role_descriptors": { "cross_cluster": %s },
+                  "limited_by_role_descriptors": { },
+                  "name": null,
+                  "version": 8090099,
+                  "creator": {
+                    "principal": "admin",
+                    "metadata": {},
+                    "realm": "file1"
+                  }
+                }""", roleDescriptor), randomBoolean()));
+            searchHit.sourceRef(BytesReference.bytes(builder));
+            return searchHit;
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    public void testCrossClusterApiKeyUsageStatsAreZerosWhenServiceNotEnabled() {
+        final Settings settings = Settings.builder().put(XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.getKey(), false).build();
+        final ApiKeyService service = createApiKeyService(settings);
+        final PlainActionFuture<Map<String, Object>> future = new PlainActionFuture<>();
+        service.crossClusterApiKeyUsageStats(future);
+        assertThat(future.actionGet(), anEmptyMap());
+    }
+
+    public void testCrossClusterApiKeyUsageStatsAreZerosWhenIndexDoesNotExist() {
+        securityIndex = SecurityMocks.mockSecurityIndexManager(".security", false, false);
+        final ApiKeyService apiKeyService = createApiKeyService();
+
+        final PlainActionFuture<Map<String, Object>> future = new PlainActionFuture<>();
+        apiKeyService.crossClusterApiKeyUsageStats(future);
+        assertThat(future.actionGet(), equalTo(Map.of("total", 0, "ccs", 0, "ccr", 0, "ccs_ccr", 0)));
+    }
+
+    public void testCrossClusterApiKeyUsageFailsWhenIndexNotAvailable() {
+        securityIndex = SecurityMocks.mockSecurityIndexManager(".security", true, false);
+        final ElasticsearchException expectedException = new ElasticsearchException("not available");
+        when(securityIndex.getUnavailableReason()).thenReturn(expectedException);
+        final ApiKeyService apiKeyService = createApiKeyService();
+
+        final PlainActionFuture<Map<String, Object>> future = new PlainActionFuture<>();
+        apiKeyService.crossClusterApiKeyUsageStats(future);
+        final ElasticsearchException e = expectThrows(ElasticsearchException.class, future::actionGet);
+        assertThat(e, sameInstance(expectedException));
+    }
+
     private Map<String, Object> mockKeyDocument(
         String id,
         String key,
@@ -993,12 +1145,12 @@ public class ApiKeyServiceTests extends ESTestCase {
 
         RoleDescriptor roleWithRestriction = roleDescriptorsByName.get("role_with_restriction");
         assertThat(roleWithRestriction.hasRestriction(), equalTo(true));
-        assertThat(roleWithRestriction.getRestriction().hasWorkflowsRestriction(), equalTo(true));
+        assertThat(roleWithRestriction.getRestriction().hasWorkflows(), equalTo(true));
         assertThat(roleWithRestriction.getRestriction().getWorkflows(), arrayContainingInAnyOrder("search_application"));
 
         RoleDescriptor roleWithoutRestriction = roleDescriptorsByName.get("role_without_restriction");
         assertThat(roleWithoutRestriction.hasRestriction(), equalTo(false));
-        assertThat(roleWithoutRestriction.getRestriction().hasWorkflowsRestriction(), equalTo(false));
+        assertThat(roleWithoutRestriction.getRestriction().hasWorkflows(), equalTo(false));
         assertThat(roleWithoutRestriction.getRestriction().getWorkflows().length, equalTo(0));
     }
 
@@ -2410,7 +2562,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         final IllegalArgumentException e1 = expectThrows(IllegalArgumentException.class, createFuture::actionGet);
         assertThat(
             e1.getMessage(),
-            containsString("all nodes must have transport version [8090099] or higher to support workflows restriction for API keys")
+            containsString("all nodes must have transport version [8500005] or higher to support workflows restriction for API keys")
         );
 
         final BulkUpdateApiKeyRequest updateRequest = new BulkUpdateApiKeyRequest(
@@ -2423,7 +2575,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         final IllegalArgumentException e2 = expectThrows(IllegalArgumentException.class, createFuture::actionGet);
         assertThat(
             e2.getMessage(),
-            containsString("all nodes must have transport version [8090099] or higher to support workflows restriction for API keys")
+            containsString("all nodes must have transport version [8500005] or higher to support workflows restriction for API keys")
         );
     }
 

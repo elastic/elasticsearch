@@ -27,11 +27,9 @@ import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.Authoriza
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.ParentActionAuthorization;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
-import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
-import org.elasticsearch.xpack.core.security.user.SystemUser;
+import org.elasticsearch.xpack.core.security.user.InternalUser;
+import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
-import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.junit.Before;
 import org.mockito.Mockito;
 
@@ -88,7 +86,7 @@ public class SecurityContextTests extends ESTestCase {
     }
 
     public void testSetInternalUser() {
-        final User internalUser = randomFrom(SystemUser.INSTANCE, XPackUser.INSTANCE, XPackSecurityUser.INSTANCE, AsyncSearchUser.INSTANCE);
+        final InternalUser internalUser = AuthenticationTestHelper.randomInternalUser();
         assertNull(securityContext.getAuthentication());
         assertNull(securityContext.getUser());
         securityContext.setInternalUser(internalUser, TransportVersion.CURRENT);
@@ -97,7 +95,7 @@ public class SecurityContextTests extends ESTestCase {
 
         IllegalStateException e = expectThrows(
             IllegalStateException.class,
-            () -> securityContext.setInternalUser(randomFrom(internalUser, SystemUser.INSTANCE), TransportVersion.CURRENT)
+            () -> securityContext.setInternalUser(randomFrom(internalUser, InternalUsers.SYSTEM_USER), TransportVersion.CURRENT)
         );
         assertEquals("authentication ([_xpack_security_authentication]) is already present in the context", e.getMessage());
     }
@@ -116,12 +114,7 @@ public class SecurityContextTests extends ESTestCase {
             original = null;
         }
 
-        final User executionUser = randomFrom(
-            SystemUser.INSTANCE,
-            XPackUser.INSTANCE,
-            XPackSecurityUser.INSTANCE,
-            AsyncSearchUser.INSTANCE
-        );
+        final InternalUser executionUser = AuthenticationTestHelper.randomInternalUserWithLocalRoleDescriptor();
         final AtomicReference<StoredContext> contextAtomicReference = new AtomicReference<>();
         securityContext.executeAsInternalUser(executionUser, TransportVersion.CURRENT, (originalCtx) -> {
             assertEquals(executionUser, securityContext.getUser());

@@ -23,6 +23,7 @@ import org.elasticsearch.rest.ChunkedRestResponseBody;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestResponseListener;
 
 import java.io.IOException;
@@ -84,25 +85,27 @@ public class RestClusterInfoAction extends BaseRestHandler {
             targets.forEach(nodesStatsRequest::addMetric);
         }
 
-        return channel -> client.admin().cluster().nodesStats(nodesStatsRequest, new RestResponseListener<>(channel) {
-            @Override
-            public RestResponse buildResponse(NodesStatsResponse response) throws Exception {
-                var chunkedResponses = targets.stream().map(RESPONSE_MAPPER::get).map(mapper -> mapper.apply(response)).iterator();
+        return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin()
+            .cluster()
+            .nodesStats(nodesStatsRequest, new RestResponseListener<>(channel) {
+                @Override
+                public RestResponse buildResponse(NodesStatsResponse response) throws Exception {
+                    var chunkedResponses = targets.stream().map(RESPONSE_MAPPER::get).map(mapper -> mapper.apply(response)).iterator();
 
-                return new RestResponse(
-                    RestStatus.OK,
-                    ChunkedRestResponseBody.fromXContent(
-                        outerParams -> Iterators.concat(
-                            ChunkedToXContentHelper.startObject(),
-                            Iterators.single((builder, params) -> builder.field("cluster_name", response.getClusterName().value())),
-                            Iterators.flatMap(chunkedResponses, chunk -> chunk.toXContentChunked(outerParams)),
-                            ChunkedToXContentHelper.endObject()
-                        ),
-                        EMPTY_PARAMS,
-                        channel
-                    )
-                );
-            }
-        });
+                    return new RestResponse(
+                        RestStatus.OK,
+                        ChunkedRestResponseBody.fromXContent(
+                            outerParams -> Iterators.concat(
+                                ChunkedToXContentHelper.startObject(),
+                                Iterators.single((builder, params) -> builder.field("cluster_name", response.getClusterName().value())),
+                                Iterators.flatMap(chunkedResponses, chunk -> chunk.toXContentChunked(outerParams)),
+                                ChunkedToXContentHelper.endObject()
+                            ),
+                            EMPTY_PARAMS,
+                            channel
+                        )
+                    );
+                }
+            });
     }
 }

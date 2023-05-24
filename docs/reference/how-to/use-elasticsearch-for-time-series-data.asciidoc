@@ -93,7 +93,7 @@ Use {kib}'s **Dashboard** feature to visualize your data in a chart, table, map,
 and more. See {kib}'s {kibana-ref}/dashboard.html[Dashboard documentation].
 
 You can also search and aggregate your data using the <<search-search,search
-API>>. Use <<runtime-search-request,runtime fields>> and <<grok-basics,grok
+API>>. Use <<runtime-search-request,runtime fields>> and <<grok,grok
 patterns>> to dynamically extract data from log messages and other unstructured
 content at search time.
 

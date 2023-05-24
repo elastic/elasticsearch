@@ -14,9 +14,10 @@ import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.NoSuchNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -41,7 +42,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
-import java.util.function.Consumer;
 
 import static java.util.Collections.emptyList;
 
@@ -88,13 +88,17 @@ public abstract class TransportTasksAction<
         new AsyncAction(task, request, listener).start();
     }
 
-    private void nodeOperation(Task task, NodeTaskRequest nodeTaskRequest, ActionListener<NodeTasksResponse> listener) {
+    private void nodeOperation(CancellableTask task, NodeTaskRequest nodeTaskRequest, ActionListener<NodeTasksResponse> listener) {
         TasksRequest request = nodeTaskRequest.tasksRequest;
-        List<OperationTask> tasks = new ArrayList<>();
-        processTasks(request, tasks::add, ActionListener.wrap(noop -> nodeOperation(task, listener, request, tasks), listener::onFailure));
+        processTasks(request, ActionListener.wrap(tasks -> nodeOperation(task, listener, request, tasks), listener::onFailure));
     }
 
-    private void nodeOperation(Task task, ActionListener<NodeTasksResponse> listener, TasksRequest request, List<OperationTask> tasks) {
+    private void nodeOperation(
+        CancellableTask task,
+        ActionListener<NodeTasksResponse> listener,
+        TasksRequest request,
+        List<OperationTask> tasks
+    ) {
         if (tasks.isEmpty()) {
             listener.onResponse(new NodeTasksResponse(clusterService.localNode().getId(), emptyList(), emptyList()));
             return;
@@ -144,19 +148,16 @@ public abstract class TransportTasksAction<
         }
     }
 
-    protected String[] resolveNodes(TasksRequest request, ClusterState clusterState) {
+    protected String[] resolveNodes(TasksRequest request, DiscoveryNodes discoveryNodes) {
         if (request.getTargetTaskId().isSet()) {
             return new String[] { request.getTargetTaskId().getNodeId() };
         } else {
-            return clusterState.nodes().resolveNodes(request.getNodes());
+            return discoveryNodes.resolveNodes(request.getNodes());
         }
     }
 
-    protected void processTasks(TasksRequest request, Consumer<OperationTask> operation, ActionListener<Void> nodeOperation) {
-        for (final var task : processTasks(request)) {
-            operation.accept(task);
-        }
-        nodeOperation.onResponse(null);
+    protected void processTasks(TasksRequest request, ActionListener<List<OperationTask>> nodeOperation) {
+        nodeOperation.onResponse(processTasks(request));
     }
 
     @SuppressWarnings("unchecked")
@@ -220,7 +221,12 @@ public abstract class TransportTasksAction<
      * @param task the task on which the operation is taking place
      * @param listener the listener to signal.
      */
-    protected abstract void taskOperation(Task actionTask, TasksRequest request, OperationTask task, ActionListener<TaskResponse> listener);
+    protected abstract void taskOperation(
+        CancellableTask actionTask,
+        TasksRequest request,
+        OperationTask task,
+        ActionListener<TaskResponse> listener
+    );
 
     private class AsyncAction {
 
@@ -236,9 +242,9 @@ public abstract class TransportTasksAction<
             this.task = task;
             this.request = request;
             this.listener = listener;
-            ClusterState clusterState = clusterService.state();
-            this.nodesIds = resolveNodes(request, clusterState);
-            Map<String, DiscoveryNode> nodes = clusterState.nodes().getNodes();
+            final DiscoveryNodes discoveryNodes = clusterService.state().nodes();
+            this.nodesIds = resolveNodes(request, discoveryNodes);
+            Map<String, DiscoveryNode> nodes = discoveryNodes.getNodes();
             this.nodes = new DiscoveryNode[nodesIds.length];
             for (int i = 0; i < this.nodesIds.length; i++) {
                 this.nodes[i] = nodes.get(this.nodesIds[i]);
@@ -334,14 +340,8 @@ public abstract class TransportTasksAction<
 
         @Override
         public void messageReceived(final NodeTaskRequest request, final TransportChannel channel, Task task) throws Exception {
-            nodeOperation(task, request, ActionListener.wrap(channel::sendResponse, e -> {
-                try {
-                    channel.sendResponse(e);
-                } catch (IOException e1) {
-                    e1.addSuppressed(e);
-                    logger.warn("Failed to send failure", e1);
-                }
-            }));
+            assert task instanceof CancellableTask;
+            nodeOperation((CancellableTask) task, request, new ChannelActionListener<>(channel));
         }
     }
 

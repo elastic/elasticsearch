@@ -51,7 +51,9 @@ You can also filter indices using the search bar.
 
 You can drill down into each index to investigate the index
 <<index-modules-settings,settings>>, <<mapping,mapping>>, and statistics.
-From this view, you can also edit the index settings.
+From this view, you can also edit the index settings. 
+
+If you want to explore the documents within an index or data stream, click the compass symbol next to the index or data stream name to open the {kibana-ref}/discover.html[Discover] dashboard.
 
 [role="screenshot"]
 image::images/index-mgmt/management_index_details.png[Index Management UI]

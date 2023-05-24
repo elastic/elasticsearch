@@ -17,16 +17,14 @@ import org.elasticsearch.cluster.coordination.CoordinationStateRejectedException
 import org.elasticsearch.cluster.coordination.ElectionStrategy;
 import org.elasticsearch.cluster.coordination.StartJoinRequest;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
 import java.util.Objects;
 import java.util.OptionalLong;
 import java.util.function.Supplier;
@@ -181,27 +179,13 @@ public class StatelessElectionStrategy extends ElectionStrategy {
         if (bytesReference.length() == 0) {
             return 0L;
         } else if (bytesReference.length() == Long.BYTES) {
-            try (var baos = new ByteArrayOutputStream(Long.BYTES)) {
-                bytesReference.writeTo(baos);
-                final var bytes = baos.toByteArray();
-                assert bytes.length == Long.BYTES;
-                return ByteUtils.readLongBE(bytes, 0);
-            } catch (IOException e) {
-                assert false : "no IO takes place";
-                throw new IllegalStateException("unexpected conversion error", e);
-            }
+            return Long.reverseBytes(bytesReference.getLongLE(0));
         } else {
             throw new IllegalArgumentException("cannot read long from BytesReference of length " + bytesReference.length());
         }
     }
 
     static BytesReference bytesFromLong(long value) {
-        if (value == 0L) {
-            return BytesArray.EMPTY;
-        } else {
-            final var bytes = new byte[Long.BYTES];
-            ByteUtils.writeLongBE(value, bytes, 0);
-            return new BytesArray(bytes);
-        }
+        return value == 0L ? BytesArray.EMPTY : new BytesArray(Numbers.longToBytes(value));
     }
 }

@@ -21,8 +21,6 @@
 
 package org.elasticsearch.tdigest;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -38,38 +36,23 @@ public class Centroid implements Comparable<Centroid> {
     // ID should be generated from uniqueCount when a Centroid is deserialized.
     private transient int id;
 
-    private List<Double> actualData = null;
-
-    private Centroid(boolean record) {
+    private Centroid() {
         id = uniqueCount.getAndIncrement();
-        if (record) {
-            actualData = new ArrayList<>();
-        }
     }
 
     public Centroid(double x) {
-        this(false);
+        this();
         start(x, 1, uniqueCount.getAndIncrement());
     }
 
     public Centroid(double x, int w) {
-        this(false);
+        this();
         start(x, w, uniqueCount.getAndIncrement());
     }
 
     public Centroid(double x, int w, int id) {
-        this(false);
+        this();
         start(x, w, id);
-    }
-
-    public Centroid(double x, int id, boolean record) {
-        this(record);
-        start(x, 1, id);
-    }
-
-    Centroid(double x, int w, List<Double> data) {
-        this(x, w);
-        actualData = data;
     }
 
     private void start(double x, int w, int id) {
@@ -78,9 +61,6 @@ public class Centroid implements Comparable<Centroid> {
     }
 
     public void add(double x, int w) {
-        if (actualData != null) {
-            actualData.add(x);
-        }
         count += w;
         centroid += w * (x - centroid) / count;
     }
@@ -122,37 +102,5 @@ public class Centroid implements Comparable<Centroid> {
             r = id - o.id;
         }
         return r;
-    }
-
-    public List<Double> data() {
-        return actualData;
-    }
-
-    @SuppressWarnings("WeakerAccess")
-    public void insertData(double x) {
-        if (actualData == null) {
-            actualData = new ArrayList<>();
-        }
-        actualData.add(x);
-    }
-
-    public static Centroid createWeighted(double x, int w, Iterable<? extends Double> data) {
-        Centroid r = new Centroid(data != null);
-        r.add(x, w, data);
-        return r;
-    }
-
-    public void add(double x, int w, Iterable<? extends Double> data) {
-        if (actualData != null) {
-            if (data != null) {
-                for (Double old : data) {
-                    actualData.add(old);
-                }
-            } else {
-                actualData.add(x);
-            }
-        }
-        centroid = AbstractTDigest.weightedAverage(centroid, count, x, w);
-        count += w;
     }
 }

@@ -69,9 +69,6 @@ public class TDigestState extends AVLTreeDigest {
         if (this.getMin() != that.getMin()) {
             return false;
         }
-        if (this.isRecording() != that.isRecording()) {
-            return false;
-        }
         if (this.centroidCount() != that.centroidCount()) {
             return false;
         }
@@ -100,7 +97,6 @@ public class TDigestState extends AVLTreeDigest {
         }
         h = 31 * h + Double.hashCode(getMax());
         h = 31 * h + Double.hashCode(getMin());
-        h = 31 * h + Boolean.hashCode(isRecording());
         return h;
     }
 }

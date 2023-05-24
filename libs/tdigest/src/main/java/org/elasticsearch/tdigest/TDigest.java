@@ -27,21 +27,13 @@ import java.util.Locale;
 
 /**
  * Adaptive histogram based on something like streaming k-means crossed with Q-digest.
- *
  * The special characteristics of this algorithm are:
- *
  * - smaller summaries than Q-digest
- *
  * - works on doubles as well as integers.
- *
  * - provides part per million accuracy for extreme quantiles and typically &lt;1000 ppm accuracy for middle quantiles
- *
  * - fast
- *
  * - simple
- *
  * - test coverage roughly at 90%
- *
  * - easy to adapt for use with map-reduce
  */
 public abstract class TDigest {
@@ -74,19 +66,6 @@ public abstract class TDigest {
     }
 
     /**
-     * Creates a TDigest of whichever type is the currently recommended type.  MergingDigest is generally the best
-     * known implementation right now.
-     *
-     * @param compression The compression parameter.  100 is a common value for normal uses.  1000 is extremely large.
-     *                    The number of centroids retained will be a smallish (usually less than 10) multiple of this number.
-     * @return the TDigest
-     */
-    @SuppressWarnings({ "WeakerAccess", "SameParameterValue" })
-    public static TDigest createDigest(double compression) {
-        return createMergingDigest(compression);
-    }
-
-    /**
      * Adds a sample to a histogram.
      *
      * @param x The value to add.
@@ -94,9 +73,18 @@ public abstract class TDigest {
      */
     public abstract void add(double x, int w);
 
+    /**
+     * Add a single sample to this TDigest.
+     *
+     * @param x The data value to add
+     */
+    public final void add(double x) {
+        add(x, 1);
+    }
+
     final void checkValue(double x) {
-        if (Double.isNaN(x)) {
-            throw new IllegalArgumentException("Cannot add NaN");
+        if (Double.isNaN(x) || Double.isInfinite(x)) {
+            throw new IllegalArgumentException("Invalid value: " + x);
         }
     }
 
@@ -160,23 +148,6 @@ public abstract class TDigest {
         }
         this.scale = scaleFunction;
     }
-
-    /**
-     * Tell this TDigest to record the original data as much as possible for test
-     * purposes.
-     *
-     * @return This TDigest so that configurations can be done in fluent style.
-     */
-    public abstract TDigest recordAllData();
-
-    public abstract boolean isRecording();
-
-    /**
-     * Add a sample to this TDigest.
-     *
-     * @param x The data value to add
-     */
-    public abstract void add(double x);
 
     /**
      * Add all of the centroids of another TDigest to this one.

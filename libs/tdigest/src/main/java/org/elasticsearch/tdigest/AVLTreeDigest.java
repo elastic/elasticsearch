@@ -32,7 +32,7 @@ import static org.elasticsearch.tdigest.IntAVLTree.NIL;
 public class AVLTreeDigest extends AbstractTDigest {
     final Random gen = new Random();
     private final double compression;
-    private AVLGroupTree summary;
+    private final AVLGroupTree summary;
 
     private long count = 0; // package private for testing
 
@@ -47,7 +47,7 @@ public class AVLTreeDigest extends AbstractTDigest {
     @SuppressWarnings("WeakerAccess")
     public AVLTreeDigest(double compression) {
         this.compression = compression;
-        summary = new AVLGroupTree(false);
+        summary = new AVLGroupTree();
     }
 
     /**
@@ -62,30 +62,8 @@ public class AVLTreeDigest extends AbstractTDigest {
     }
 
     @Override
-    public TDigest recordAllData() {
-        if (summary.size() != 0) {
-            throw new IllegalStateException("Can only ask to record added data on an empty summary");
-        }
-        summary = new AVLGroupTree(true);
-        return super.recordAllData();
-    }
-
-    @Override
     public int centroidCount() {
         return summary.size();
-    }
-
-    @Override
-    void add(double x, int w, Centroid base) {
-        if (x != base.mean() || w != base.count()) {
-            throw new IllegalArgumentException();
-        }
-        add(x, w, base.data());
-    }
-
-    @Override
-    public void add(double x, int w) {
-        add(x, w, (List<Double>) null);
     }
 
     @Override
@@ -93,12 +71,13 @@ public class AVLTreeDigest extends AbstractTDigest {
         for (TDigest other : others) {
             setMinMax(Math.min(min, other.getMin()), Math.max(max, other.getMax()));
             for (Centroid centroid : other.centroids()) {
-                add(centroid.mean(), centroid.count(), recordAllData ? centroid.data() : null);
+                add(centroid.mean(), centroid.count());
             }
         }
     }
 
-    public void add(double x, int w, List<Double> data) {
+    @Override
+    public void add(double x, int w) {
         checkValue(x);
         if (x < min) {
             min = x;
@@ -113,7 +92,7 @@ public class AVLTreeDigest extends AbstractTDigest {
 
         if (start == NIL) { // empty summary
             assert summary.size() == 0;
-            summary.add(x, w, data);
+            summary.add(x, w);
             count = w;
         } else {
             double minDistance = Double.MAX_VALUE;
@@ -149,23 +128,15 @@ public class AVLTreeDigest extends AbstractTDigest {
             }
 
             if (closest == NIL) {
-                summary.add(x, w, data);
+                summary.add(x, w);
             } else {
                 // if the nearest point was not unique, then we may not be modifying the first copy
                 // which means that ordering can change
                 double centroid = summary.mean(closest);
                 int count = summary.count(closest);
-                List<Double> d = summary.data(closest);
-                if (d != null) {
-                    if (w == 1) {
-                        d.add(x);
-                    } else {
-                        d.addAll(data);
-                    }
-                }
                 centroid = weightedAverage(centroid, count, x, w);
                 count += w;
-                summary.update(closest, centroid, count, d, false);
+                summary.update(closest, centroid, count, false);
             }
             count += w;
 
@@ -199,12 +170,7 @@ public class AVLTreeDigest extends AbstractTDigest {
                     break;
                 } else {
                     double mean = weightedAverage(summary.mean(node), w0, summary.mean(after), w1);
-                    List<Double> d1 = summary.data(node);
-                    List<Double> d2 = summary.data(after);
-                    if (d1 != null && d2 != null) {
-                        d1.addAll(d2);
-                    }
-                    summary.update(node, mean, w0 + w1, d1, true);
+                    summary.update(node, mean, w0 + w1, true);
 
                     int tmp = summary.next(after);
                     summary.remove(after);
@@ -315,9 +281,7 @@ public class AVLTreeDigest extends AbstractTDigest {
 
             // scan to last element
             while (bWeight > 0) {
-                assert x > aMean;
                 if (x == bMean) {
-                    assert bMean > aMean;
                     weightSoFar += aWeight;
                     while (it.hasNext()) {
                         b = it.next();
@@ -329,11 +293,9 @@ public class AVLTreeDigest extends AbstractTDigest {
                     }
                     return (weightSoFar + bWeight / 2.0) / size();
                 }
-                assert x < bMean || x > bMean;
 
                 if (x < bMean) {
                     // we are strictly between a and b
-                    assert aMean < bMean;
                     if (aWeight == 1) {
                         // but a might be a singleton
                         if (bWeight == 1) {
@@ -356,8 +318,6 @@ public class AVLTreeDigest extends AbstractTDigest {
                     }
                 }
                 weightSoFar += aWeight;
-
-                assert x > bMean;
 
                 if (it.hasNext()) {
                     aMean = bMean;

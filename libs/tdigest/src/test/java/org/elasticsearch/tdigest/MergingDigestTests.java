@@ -39,12 +39,7 @@ public class MergingDigestTests extends TDigestTests {
     }
 
     protected DigestFactory factory(final double compression) {
-        return new DigestFactory() {
-            @Override
-            public TDigest create() {
-                return new MergingDigest(compression);
-            }
-        };
+        return () -> new MergingDigest(compression);
     }
 
     // This test came from PR#145 by github user pulver
@@ -122,7 +117,6 @@ public class MergingDigestTests extends TDigestTests {
      */
     public void testSingletonsAtEnds() {
         TDigest d = new MergingDigest(50);
-        d.recordAllData();
         Random gen = random();
         double[] data = new double[100];
         for (int i = 0; i < data.length; i++) {

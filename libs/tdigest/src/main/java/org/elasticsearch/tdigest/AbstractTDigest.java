@@ -22,8 +22,6 @@
 package org.elasticsearch.tdigest;
 
 public abstract class AbstractTDigest extends TDigest {
-    boolean recordAllData = false;
-
     /**
      * Same as {@link #weightedAverageSorted(double, double, double, double)} but flips
      * the order of the variables if <code>x2</code> is greater than
@@ -51,63 +49,10 @@ public abstract class AbstractTDigest extends TDigest {
         return Math.max(x1, Math.min(x, x2));
     }
 
-    static double interpolate(double x, double x0, double x1) {
-        return (x - x0) / (x1 - x0);
-    }
-
-    abstract void add(double x, int w, Centroid base);
-
-    /**
-     * Computes an interpolated value of a quantile that is between two centroids.
-     *
-     * Index is the quantile desired multiplied by the total number of samples - 1.
-     *
-     * @param index              Denormalized quantile desired
-     * @param previousIndex      The denormalized quantile corresponding to the center of the previous centroid.
-     * @param nextIndex          The denormalized quantile corresponding to the center of the following centroid.
-     * @param previousMean       The mean of the previous centroid.
-     * @param nextMean           The mean of the following centroid.
-     * @return  The interpolated mean.
-     */
-    static double quantile(double index, double previousIndex, double nextIndex, double previousMean, double nextMean) {
-        final double delta = nextIndex - previousIndex;
-        final double previousWeight = (nextIndex - index) / delta;
-        final double nextWeight = (index - previousIndex) / delta;
-        return previousMean * previousWeight + nextMean * nextWeight;
-    }
-
-    /**
-     * Sets up so that all centroids will record all data assigned to them.  For testing only, really.
-     */
-    @Override
-    public TDigest recordAllData() {
-        recordAllData = true;
-        return this;
-    }
-
-    @Override
-    public boolean isRecording() {
-        return recordAllData;
-    }
-
-    /**
-     * Adds a sample to a histogram.
-     *
-     * @param x The value to add.
-     */
-    @Override
-    public void add(double x) {
-        add(x, 1);
-    }
-
     @Override
     public void add(TDigest other) {
         for (Centroid centroid : other.centroids()) {
-            add(centroid.mean(), centroid.count(), centroid);
+            add(centroid.mean(), centroid.count());
         }
-    }
-
-    protected Centroid createCentroid(double mean, int id) {
-        return new Centroid(mean, id, recordAllData);
     }
 }

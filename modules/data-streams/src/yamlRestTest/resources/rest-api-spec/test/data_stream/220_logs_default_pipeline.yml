@@ -92,4 +92,3 @@ Test default logs-*-* pipeline:
             - field: '@timestamp'
   - length: { hits.hits: 1 }
   - match: { hits.hits.0.fields.@timestamp.0: '2023-05-10T00:00:00.000Z' }
-

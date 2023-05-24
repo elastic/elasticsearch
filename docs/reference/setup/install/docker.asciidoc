@@ -43,7 +43,51 @@ docker pull {docker-repo}:{version}
 
 endif::[]
 
-Now that you have the {es} Docker image, you can start a
+[[docker-verify-signature]]
+==== Optional: Verify the {es} Docker image signature
+
+Although it's optional, we highly recommend verifying the signatures included with your downloaded Docker images to ensure that the images are valid.
+
+Elastic images are signed with https://docs.sigstore.dev/cosign/overview/[Cosign] which is part of the https://www.sigstore.dev/[Sigstore] project.
+
+Cosign supports container signing, verification, and storage in an OCI registry.
+
+ifeval::["{release-state}"=="unreleased"]
+
+WARNING: Version {version} of {es} has not yet been released, so no
+Docker image signature is currently available for this version.
+
+endif::[]
+
+ifeval::["{release-state}"!="unreleased"]
+
+Install the appropriate https://docs.sigstore.dev/cosign/installation/[Cosign application]
+for your operating system.
+
+The container image signature for {es} v{version} can be verified as follows:
+
+["source","sh",subs="attributes"]
+--------------------------------------------
+wget https://artifacts.elastic.co/cosign.pub <1>
+cosign verify --key cosign.pub {docker-repo}:{version} <2>
+--------------------------------------------
+<1> Download the Elastic public key to verify container signature
+<2> Verify the container against the Elastic public key
+
+The command prints the check results and the signature payload in JSON format:
+
+[source,sh]
+--------------------------------------------
+Verification for docker.elastic.co/elasticsearch/elasticsearch:{version} --
+The following checks were performed on each of these signatures:
+  - The cosign claims were validated
+  - Existence of the claims in the transparency log was verified offline
+  - The signatures were verified against the specified public key
+--------------------------------------------
+
+endif::[]
+
+Now that you have verified the {es} Docker image signature, you can start a
 <<docker-cli-run-dev-mode,single-node>> or <<docker-compose-file,multi-node>>
 cluster.
 

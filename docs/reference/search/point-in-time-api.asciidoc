@@ -57,7 +57,7 @@ POST /_search  <1>
 // TEST[catch:unavailable]
 
 <1> A search request with the `pit` parameter must not specify `index`, `routing`,
-and {ref}/search-request-body.html#request-body-search-preference[`preference`]
+or <<search-preference,`preference`>>
 as these parameters are copied from the point in time.
 <2> Just like regular searches, you can <<paginate-search-results,use `from` and
 `size` to page through search results>>, up to the first 10,000 hits. If you 

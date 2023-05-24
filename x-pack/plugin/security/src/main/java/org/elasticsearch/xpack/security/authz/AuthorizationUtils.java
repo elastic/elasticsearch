@@ -14,11 +14,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.support.Automatons;
-import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
-import org.elasticsearch.xpack.core.security.user.SecurityProfileUser;
-import org.elasticsearch.xpack.core.security.user.StorageInternalUser;
-import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
-import org.elasticsearch.xpack.core.security.user.XPackUser;
+import org.elasticsearch.xpack.core.security.user.InternalUsers;
 
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -123,13 +119,13 @@ public final class AuthorizationUtils {
 
         switch (actionOrigin) {
             case SECURITY_ORIGIN:
-                securityContext.executeAsInternalUser(XPackSecurityUser.INSTANCE, version, consumer);
+                securityContext.executeAsInternalUser(InternalUsers.XPACK_SECURITY_USER, version, consumer);
                 break;
             case SECURITY_PROFILE_ORIGIN:
-                securityContext.executeAsInternalUser(SecurityProfileUser.INSTANCE, version, consumer);
+                securityContext.executeAsInternalUser(InternalUsers.SECURITY_PROFILE_USER, version, consumer);
                 break;
             case POST_WRITE_REFRESH_ORIGIN:
-                securityContext.executeAsInternalUser(StorageInternalUser.INSTANCE, version, consumer);
+                securityContext.executeAsInternalUser(InternalUsers.STORAGE_USER, version, consumer);
                 break;
             case WATCHER_ORIGIN:
             case ML_ORIGIN:
@@ -150,10 +146,10 @@ public final class AuthorizationUtils {
             case FLEET_ORIGIN:
             case ENT_SEARCH_ORIGIN:
             case TASKS_ORIGIN:   // TODO use a more limited user for tasks
-                securityContext.executeAsInternalUser(XPackUser.INSTANCE, version, consumer);
+                securityContext.executeAsInternalUser(InternalUsers.XPACK_USER, version, consumer);
                 break;
             case ASYNC_SEARCH_ORIGIN:
-                securityContext.executeAsInternalUser(AsyncSearchUser.INSTANCE, version, consumer);
+                securityContext.executeAsInternalUser(InternalUsers.ASYNC_SEARCH_USER, version, consumer);
                 break;
             default:
                 assert false : "action.origin [" + actionOrigin + "] is unknown!";

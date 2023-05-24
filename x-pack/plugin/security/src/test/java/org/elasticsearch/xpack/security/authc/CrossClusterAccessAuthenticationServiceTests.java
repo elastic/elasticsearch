@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.user.InternalUsers;
-import org.elasticsearch.xpack.core.security.user.UsernamesField;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
@@ -206,7 +205,7 @@ public class CrossClusterAccessAuthenticationServiceTests extends ESTestCase {
         assertThat(actual.getCause().getCause(), instanceOf(IllegalArgumentException.class));
         assertThat(
             actual.getCause().getCause().getMessage(),
-            containsString("received cross cluster request from an unexpected internal user [" + UsernamesField.XPACK_NAME + "]")
+            containsString("received cross cluster request from an unexpected internal user [" + InternalUsers.XPACK_USER.principal() + "]")
         );
         verify(auditableRequest).exceptionProcessingRequest(
             any(Exception.class),

@@ -19,9 +19,8 @@ import java.io.UncheckedIOException;
 import java.util.Optional;
 
 public class CrossClusterAccessUser extends InternalUser {
-    public static final String NAME = UsernamesField.CROSS_CLUSTER_ACCESS_NAME;
 
-    public static final RoleDescriptor REMOTE_ACCESS_ROLE_DESCRIPTOR = new RoleDescriptor(
+    private static final RoleDescriptor REMOTE_ACCESS_ROLE_DESCRIPTOR = new RoleDescriptor(
         UsernamesField.CROSS_CLUSTER_ACCESS_ROLE,
         new String[] { "cross_cluster_search", "cross_cluster_replication" },
         // Needed for CCR background jobs (with system user)
@@ -39,11 +38,14 @@ public class CrossClusterAccessUser extends InternalUser {
         null
     );
 
-    public static final InternalUser INSTANCE = new CrossClusterAccessUser();
+    /**
+     * Package protected to enforce a singleton (private constructor) - use {@link InternalUsers#CROSS_CLUSTER_ACCESS_USER} instead
+     */
+    static final InternalUser INSTANCE = new CrossClusterAccessUser();
 
     private CrossClusterAccessUser() {
         super(
-            NAME,
+            UsernamesField.CROSS_CLUSTER_ACCESS_NAME,
             /**
              *  this user is not permitted to execute actions that originate on the local cluster,
              *  its only purpose is to execute actions from a remote cluster
@@ -51,10 +53,6 @@ public class CrossClusterAccessUser extends InternalUser {
             Optional.empty(),
             Optional.of(REMOTE_ACCESS_ROLE_DESCRIPTOR)
         );
-    }
-
-    public static boolean is(User user) {
-        return INSTANCE.equals(user);
     }
 
     /**
@@ -65,7 +63,7 @@ public class CrossClusterAccessUser extends InternalUser {
     public static CrossClusterAccessSubjectInfo subjectInfo(TransportVersion transportVersion, String nodeName) {
         try {
             return new CrossClusterAccessSubjectInfo(
-                Authentication.newInternalAuthentication(INSTANCE, transportVersion, nodeName),
+                Authentication.newInternalAuthentication(InternalUsers.CROSS_CLUSTER_ACCESS_USER, transportVersion, nodeName),
                 RoleDescriptorsIntersection.EMPTY
             );
         } catch (IOException e) {

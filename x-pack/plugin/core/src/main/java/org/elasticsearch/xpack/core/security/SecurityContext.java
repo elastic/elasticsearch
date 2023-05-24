@@ -24,7 +24,7 @@ import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.ParentAct
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.user.InternalUser;
-import org.elasticsearch.xpack.core.security.user.SystemUser;
+import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
@@ -170,7 +170,7 @@ public class SecurityContext {
     }
 
     public void executeAsSystemUser(TransportVersion version, Consumer<StoredContext> consumer) {
-        executeAsInternalUser(SystemUser.INSTANCE, version, consumer);
+        executeAsInternalUser(InternalUsers.SYSTEM_USER, version, consumer);
     }
 
     /**

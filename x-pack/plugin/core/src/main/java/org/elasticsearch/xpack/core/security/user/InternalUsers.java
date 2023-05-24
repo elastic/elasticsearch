@@ -7,18 +7,17 @@
 
 package org.elasticsearch.xpack.core.security.user;
 
-import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
-import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
-import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class InternalUsers {
 
@@ -106,35 +105,6 @@ public class InternalUsers {
     );
 
     /**
-     * DLM internal user that manages DLM. Has all indices permissions to perform DLM runtime tasks.
-     */
-    public static final InternalUser DLM_USER = new InternalUser(
-        UsernamesField.DLM_NAME,
-        new RoleDescriptor(
-            UsernamesField.DLM_ROLE,
-            new String[] {},
-            new RoleDescriptor.IndicesPrivileges[] {
-                RoleDescriptor.IndicesPrivileges.builder()
-                    // There are no active plans to manage the security index or async search index with DLM, so excluding them here
-                    .indices("/@&~(\\.security.*)&~(\\.async-search.*)/")
-                    .privileges(
-                        "delete_index",
-                        RolloverAction.NAME,
-                        ForceMergeAction.NAME + "*",
-                        // indices stats is used by rollover, so we need to grant it here
-                        IndicesStatsAction.NAME + "*"
-                    )
-                    .allowRestrictedIndices(true)
-                    .build() },
-            null,
-            null,
-            new String[] {},
-            MetadataUtils.DEFAULT_RESERVED_METADATA,
-            Map.of()
-        )
-    );
-
-    /**
      * internal user that manages xpack security. Has all cluster/indices permissions.
      */
     public static final InternalUser XPACK_SECURITY_USER = new InternalUser(
@@ -152,21 +122,21 @@ public class InternalUsers {
         )
     );
 
-    private static final Map<String, InternalUser> INTERNAL_USERS = new HashMap<>();
+    public static final SystemUser SYSTEM_USER = SystemUser.INSTANCE;
+    public static final InternalUser CROSS_CLUSTER_ACCESS_USER = CrossClusterAccessUser.INSTANCE;
+
+    private static final Map<String, InternalUser> INTERNAL_USERS;
 
     static {
-        defineUser(SystemUser.INSTANCE);
-        defineUser(XPACK_USER);
-        defineUser(XPACK_SECURITY_USER);
-        defineUser(SECURITY_PROFILE_USER);
-        defineUser(ASYNC_SEARCH_USER);
-        defineUser(CrossClusterAccessUser.INSTANCE);
-        defineUser(STORAGE_USER);
-        defineUser(DLM_USER);
-    }
-
-    private static void defineUser(InternalUser user) {
-        INTERNAL_USERS.put(user.principal(), user);
+        INTERNAL_USERS = Stream.of(
+            SYSTEM_USER,
+            XPACK_USER,
+            XPACK_SECURITY_USER,
+            SECURITY_PROFILE_USER,
+            ASYNC_SEARCH_USER,
+            CROSS_CLUSTER_ACCESS_USER,
+            STORAGE_USER
+        ).collect(Collectors.toUnmodifiableMap(InternalUser::principal, Function.identity()));
     }
 
     public static Collection<InternalUser> get() {

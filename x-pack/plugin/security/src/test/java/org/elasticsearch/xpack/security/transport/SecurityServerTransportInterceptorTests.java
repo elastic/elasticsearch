@@ -58,7 +58,6 @@ import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.user.CrossClusterAccessUser;
 import org.elasticsearch.xpack.core.security.user.InternalUser;
 import org.elasticsearch.xpack.core.security.user.InternalUsers;
-import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.Security;
@@ -234,7 +233,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         sender.sendRequest(connection, "internal:foo", null, null, null);
         assertTrue(calledWrappedSender.get());
         assertNotEquals(user, sendingUser.get());
-        assertEquals(SystemUser.INSTANCE, sendingUser.get());
+        assertEquals(InternalUsers.SYSTEM_USER, sendingUser.get());
         assertEquals(user, securityContext.getUser());
         verify(securityContext).executeAsInternalUser(any(InternalUser.class), eq(TransportVersion.CURRENT), anyConsumer());
     }
@@ -431,9 +430,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             TRANSFORM_ORIGIN,
             InternalUsers.XPACK_USER,
             ASYNC_SEARCH_ORIGIN,
-            InternalUsers.ASYNC_SEARCH_USER,
-            DataLifecycle.DLM_ORIGIN,
-            InternalUsers.DLM_USER
+            InternalUsers.ASYNC_SEARCH_USER
         );
 
         final String origin = randomFrom(originToUserMap.keySet());
@@ -679,7 +676,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             true,
             action,
             request,
-            AuthenticationTestHelper.builder().internal(SystemUser.INSTANCE).build()
+            AuthenticationTestHelper.builder().internal(InternalUsers.SYSTEM_USER).build()
         );
     }
 
@@ -694,7 +691,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             true,
             action,
             request,
-            AuthenticationTestHelper.builder().internal(SystemUser.INSTANCE).build()
+            AuthenticationTestHelper.builder().internal(InternalUsers.SYSTEM_USER).build()
         );
     }
 

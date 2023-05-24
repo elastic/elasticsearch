@@ -16,8 +16,8 @@ import java.util.Optional;
 
 public class InternalUser extends User {
 
-    private final Optional<RoleDescriptor> localClusterRole;
-    private final Optional<RoleDescriptor> remoteAccessRole;
+    private final Optional<RoleDescriptor> localClusterRoleDescriptor;
+    private final Optional<RoleDescriptor> remoteAccessRoleDescriptor;
 
     InternalUser(String username, @Nullable RoleDescriptor localClusterRole) {
         this(username, Optional.ofNullable(localClusterRole), Optional.empty());
@@ -27,8 +27,9 @@ public class InternalUser extends User {
         super(username, Strings.EMPTY_ARRAY);
         assert enabled();
         assert roles() != null && roles().length == 0;
-        this.localClusterRole = Objects.requireNonNull(localClusterRole);
-        this.remoteAccessRole = Objects.requireNonNull(remoteAccessRole);
+        this.localClusterRoleDescriptor = Objects.requireNonNull(localClusterRole);
+        this.localClusterRoleDescriptor.ifPresent(rd -> { assert rd.getName().equals(username); });
+        this.remoteAccessRoleDescriptor = Objects.requireNonNull(remoteAccessRole);
     }
 
     @Override
@@ -45,10 +46,10 @@ public class InternalUser extends User {
      * The local-cluster role descriptor assigned to this internal user, or {@link Optional#empty()} if this user does not have a role.
      * This {@link RoleDescriptor} defines the privileges that the internal-user has for requests that originate from a node within the
      * local cluster.
-     * @see #getRemoteAccessRole()
+     * @see #getRemoteAccessRoleDescriptor()
      */
-    public Optional<RoleDescriptor> getLocalClusterRole() {
-        return localClusterRole;
+    public Optional<RoleDescriptor> getLocalClusterRoleDescriptor() {
+        return localClusterRoleDescriptor;
     }
 
     /**
@@ -56,9 +57,9 @@ public class InternalUser extends User {
      * make cross-cluster requests.
      * This {@link RoleDescriptor} defines the privileges that the internal-user has for requests that run on the current cluster, but
      * originate from a node within an external cluster (via CCS/CCR).
-     * @see #getLocalClusterRole()
+     * @see #getLocalClusterRoleDescriptor()
      */
-    public Optional<RoleDescriptor> getRemoteAccessRole() {
-        return remoteAccessRole;
+    public Optional<RoleDescriptor> getRemoteAccessRoleDescriptor() {
+        return remoteAccessRoleDescriptor;
     }
 }

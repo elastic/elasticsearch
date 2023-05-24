@@ -28,6 +28,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.analysis.VerificationException;
+import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.junit.Assert;
 import org.junit.Before;
 
@@ -878,7 +879,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     public void testShowFunctions() {
         EsqlQueryResponse results = run("show functions");
         assertThat(results.columns(), equalTo(List.of(new ColumnInfo("name", "keyword"), new ColumnInfo("synopsis", "keyword"))));
-        assertThat(results.values().size(), equalTo(32));
+        assertThat(results.values().size(), equalTo(new EsqlFunctionRegistry().listFunctions().size()));
     }
 
     public void testInWithNullValue() {

@@ -36,6 +36,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeSet;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
@@ -210,16 +211,12 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
                 .stream()
                 .map(IndexIlmState::indexName)
                 .limit(Math.min(maxAffectedResourcesCount, action.getValue().size()))
-                .sorted()
-                .distinct()
-                .toList();
+                .collect(Collectors.toCollection(TreeSet::new));
             var affectedPolicies = action.getValue()
                 .stream()
                 .map(IndexIlmState::policyName)
                 .limit(Math.min(maxAffectedResourcesCount, action.getValue().size()))
-                .sorted()
-                .distinct()
-                .toList();
+                .collect(Collectors.toCollection(TreeSet::new));
             return new Diagnosis(
                 STAGNATING_ACTION_DEFINITIONS.get(action.getKey()),
                 List.of(

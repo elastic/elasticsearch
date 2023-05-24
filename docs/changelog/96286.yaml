@@ -1,0 +1,5 @@
+pr: 96286
+summary: Allow the removal of an in use template if there are other matching ones
+area: Data streams
+type: bug
+issues: []

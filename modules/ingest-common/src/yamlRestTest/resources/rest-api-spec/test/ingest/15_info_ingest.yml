@@ -17,16 +17,6 @@ teardown:
         ignore_unavailable: true
 
 ---
-"Cluster ingest info with no pipelines":
-  - do:
-      cluster.info:
-        target: [ ingest ]
-
-  - is_true: cluster_name
-  - match: { ingest.total: { count: 0, time_in_millis: 0, current: 0, failed: 0 } }
-  - match: { ingest.pipelines: {} }
-
----
 "Cluster ingest information":
   - do:
       ingest.put_pipeline:

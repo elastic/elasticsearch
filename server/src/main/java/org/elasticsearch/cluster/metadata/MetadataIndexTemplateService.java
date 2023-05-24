@@ -934,7 +934,7 @@ public class MetadataIndexTemplateService {
                 }
             }
             if (templateNames.isEmpty()) {
-                // if its a match all pattern, and no templates are found (we have none), don't
+                // if it's a match all pattern, and no templates are found (we have none), don't
                 // fail with index missing...
                 boolean isMatchAll = false;
                 if (Regex.isMatchAllPattern(name)) {
@@ -966,6 +966,11 @@ public class MetadataIndexTemplateService {
         return ClusterState.builder(currentState).metadata(metadata).build();
     }
 
+    /**
+     * Returns the data stream names that solely match the patterns of the template names that were provided and no
+     * other templates. This means that the returned data streams depend on these templates which has implications for
+     * these templates, for example they cannot be removed.
+     */
     static Set<String> dataStreamsExclusivelyUsingTemplates(final ClusterState state, final Set<String> templateNames) {
         Metadata metadata = state.metadata();
 
@@ -985,7 +990,7 @@ public class MetadataIndexTemplateService {
             .filter(ds -> {
                 // Retrieve the templates that match the data stream name ordered by priority
                 List<Tuple<String, ComposableIndexTemplate>> candidates = findV2CandidateTemplates(metadata, ds.getName(), ds.isHidden());
-                if (candidates == null || candidates.isEmpty()) {
+                if (candidates.isEmpty()) {
                     throw new IllegalStateException("Data stream " + ds.getName() + " did not match any composable index templates.");
                 }
 
@@ -1195,11 +1200,10 @@ public class MetadataIndexTemplateService {
     @Nullable
     public static String findV2Template(Metadata metadata, String indexName, boolean isHidden) {
         final List<Tuple<String, ComposableIndexTemplate>> candidates = findV2CandidateTemplates(metadata, indexName, isHidden);
-        if (candidates == null) {
+        if (candidates.isEmpty()) {
             return null;
         }
 
-        assert candidates.size() > 0 : "we should have returned early with no candidates";
         ComposableIndexTemplate winner = candidates.get(0).v2();
         String winnerName = candidates.get(0).v1();
 
@@ -1223,9 +1227,8 @@ public class MetadataIndexTemplateService {
     /**
      * Return an ordered list of the name (id) and composable index templates that would apply to an index. The first
      * one is the winner template that is applied to this index. In the event that no templates are matched,
-     * {@code null} is returned.
+     * an empty list is returned.
      */
-    @Nullable
     static List<Tuple<String, ComposableIndexTemplate>> findV2CandidateTemplates(Metadata metadata, String indexName, boolean isHidden) {
         final String resolvedIndexName = IndexNameExpressionResolver.DateMathExpressionResolver.resolveExpression(indexName);
         final Predicate<String> patternMatchPredicate = pattern -> Regex.simpleMatch(pattern, resolvedIndexName);
@@ -1248,17 +1251,13 @@ public class MetadataIndexTemplateService {
             }
         }
 
-        if (candidates.size() == 0) {
-            return null;
-        }
-
         CollectionUtil.timSort(candidates, Comparator.comparing(candidate -> candidate.v2().priorityOrZero(), Comparator.reverseOrder()));
         return candidates;
     }
 
-    private static boolean hasIndexHiddenSetting(Metadata metadata, ComposableIndexTemplate winner, String winnerName) {
-        return winner.indexPatterns().stream().anyMatch(Regex::isMatchAllPattern)
-            && IndexMetadata.INDEX_HIDDEN_SETTING.exists(resolveSettings(metadata, winnerName));
+    private static boolean hasIndexHiddenSetting(Metadata metadata, ComposableIndexTemplate template, String templateName) {
+        return template.indexPatterns().stream().anyMatch(Regex::isMatchAllPattern)
+            && IndexMetadata.INDEX_HIDDEN_SETTING.exists(resolveSettings(metadata, templateName));
     }
 
     /**

@@ -22,6 +22,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
+// TODO review the need for this class, we might use just SynonymRule as this is a just a holder of SynonymRule
 public class SynonymsSet implements Writeable, ToXContentObject {
 
     public static final ParseField SYNONYMS_SET_FIELD = new ParseField("synonyms_set");

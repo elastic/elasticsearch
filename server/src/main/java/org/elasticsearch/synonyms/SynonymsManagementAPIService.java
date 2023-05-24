@@ -12,6 +12,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -30,6 +31,8 @@ import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.List;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
@@ -76,7 +79,7 @@ public class SynonymsManagementAPIService {
                     builder.field("dynamic", "strict");
                     builder.startObject("properties");
                     {
-                        builder.startObject("synonyms");
+                        builder.startObject(SYNONYMS_FIELD);
                         {
                             builder.field("type", "match_only_text");
                         }
@@ -112,6 +115,15 @@ public class SynonymsManagementAPIService {
             dbqRequest,
             listener.delegateFailure((deleteByQueryResponseListener, bulkByScrollResponse) -> {
                 boolean created = bulkByScrollResponse.getDeleted() == 0;
+                final List<BulkItemResponse.Failure> bulkFailures = bulkByScrollResponse.getBulkFailures();
+                if (bulkFailures.isEmpty() == false) {
+                    listener.onFailure(
+                        new ElasticsearchException(
+                            "Error updating synonyms: "
+                                + bulkFailures.stream().map(BulkItemResponse.Failure::getMessage).collect(Collectors.joining("\n"))
+                        )
+                    );
+                }
 
                 // Insert as bulk requests
                 BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();

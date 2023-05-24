@@ -45,7 +45,7 @@ public class SynonymsManagementAPIService {
 
     public static final String SYNONYMS_ORIGIN = "synonyms";
     public static final SystemIndexDescriptor SYNONYMS_DESCRIPTOR = SystemIndexDescriptor.builder()
-        .setIndexPattern(SYNONYMS_INDEX)
+        .setIndexPattern(SYNONYMS_INDEX + "*")
         .setDescription("Synonyms index for synonyms managed through APIs")
         .setPrimaryIndex(SYNONYMS_INDEX)
         .setMappings(mappings())

@@ -409,15 +409,16 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             return;
         }
 
-        // optimize search type for cases where there is only one shard group to search on
-        if (singleShard) {
-            // if we only have one group, then we always want Q_T_F, no need for DFS, and no need to do THEN since we hit one shard
-            searchRequest.searchType(QUERY_THEN_FETCH);
-        }
-
         // if there's only suggest, disable request cache and always use QUERY_THEN_FETCH
         if (searchRequest.isSuggestOnly()) {
             searchRequest.requestCache(false);
+            searchRequest.searchType(QUERY_THEN_FETCH);
+            return;
+        }
+
+        // optimize search type for cases where there is only one shard group to search on
+        if (singleShard) {
+            // if we only have one group, then we always want Q_T_F, no need for DFS, and no need to do THEN since we hit one shard
             searchRequest.searchType(QUERY_THEN_FETCH);
         }
     }

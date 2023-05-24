@@ -496,6 +496,8 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
                 : "total: " + total + " successful: " + successful + " skipped: " + skipped + " remote: " + remoteClusters;
             assert successful <= total : "total: " + total + " successful: " + successful + " skipped: " + skipped;
             assert remoteClusters <= total : "total: " + total + " remote: " + remoteClusters;
+            assert (ccsMinimizeRoundtrips ? remoteClusters > 0 : true)
+                : "ccsMinimizeRoundtrips is true but remoteClusters count is " + remoteClusters;
             int localCount = total - remoteClusters;
             assert localCount == 0 || localCount == 1 : "total - remoteClusters should only be 0 or 1";
             this.total = total;

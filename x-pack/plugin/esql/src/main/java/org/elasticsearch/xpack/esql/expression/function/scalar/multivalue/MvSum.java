@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.util.List;
 import java.util.function.Supplier;
-import java.util.stream.DoubleStream;
 
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isRepresentable;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
@@ -33,12 +32,6 @@ public class MvSum extends AbstractMultivalueFunction {
     @Override
     protected TypeResolution resolveFieldType() {
         return isType(field(), t -> t.isNumeric() && isRepresentable(t), sourceText(), null, "numeric");
-    }
-
-    static double sum(DoubleStream stream) {
-        CompensatedSum sum = new CompensatedSum();
-        stream.forEach(sum::add);
-        return sum.value();
     }
 
     @Override

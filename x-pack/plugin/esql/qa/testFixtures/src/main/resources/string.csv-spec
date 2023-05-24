@@ -232,6 +232,19 @@ ROW a=["foo", "zoo", "bar"]
 // end::mv_count-result[]
 ;
 
+mvJoin
+// tag::mv_join[]
+ROW a=["foo", "zoo", "bar"]
+| EVAL j = MV_JOIN(a, ", ")
+// end::mv_join[]
+;
+
+// tag::mv_join-result[]
+            a:keyword | j:keyword
+["foo", "zoo", "bar"] | "foo, zoo, bar"
+// end::mv_join-result[]
+;
+
 mvMax
 // tag::mv_max[]
 ROW a=["foo", "zoo", "bar"]

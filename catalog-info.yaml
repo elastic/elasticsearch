@@ -60,5 +60,4 @@ spec:
         everyone:
           access_level: READ_ONLY
       provider_settings:
-        build_branches: false
         build_pull_requests: false

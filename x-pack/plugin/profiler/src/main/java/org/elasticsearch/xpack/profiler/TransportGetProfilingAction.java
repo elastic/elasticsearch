@@ -175,9 +175,8 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
             .execute(ActionListener.wrap(searchResponse -> {
                 Min minTimeAgg = searchResponse.getAggregations().get("min_time");
                 Max maxTimeAgg = searchResponse.getAggregations().get("max_time");
-                // convert to millis
-                long minTime = Math.round(minTimeAgg.value() / 1000);
-                long maxTime = Math.round(maxTimeAgg.value() / 1000);
+                long minTime = Math.round(minTimeAgg.value());
+                long maxTime = Math.round(maxTimeAgg.value());
                 Sum totalCountAgg = searchResponse.getAggregations().get("total_count");
                 long totalCount = Math.round(totalCountAgg.value());
                 Resampler resampler = new Resampler(request, eventsIndex.getSampleRate(), totalCount);

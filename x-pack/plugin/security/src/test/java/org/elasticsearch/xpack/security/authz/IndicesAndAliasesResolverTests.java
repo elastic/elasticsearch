@@ -352,9 +352,13 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             @SuppressWarnings("unchecked")
             ActionListener<Role> listener = (ActionListener<Role>) i.getArguments()[1];
             if (user instanceof InternalUser internalUser) {
-                if (internalUser.getLocalClusterRole().isPresent()) {
+                if (internalUser.getLocalClusterRoleDescriptor().isPresent()) {
                     listener.onResponse(
-                        Role.buildFromRoleDescriptor(internalUser.getLocalClusterRole().get(), fieldPermissionsCache, RESTRICTED_INDICES)
+                        Role.buildFromRoleDescriptor(
+                            internalUser.getLocalClusterRoleDescriptor().get(),
+                            fieldPermissionsCache,
+                            RESTRICTED_INDICES
+                        )
                     );
                     return Void.TYPE;
                 }

@@ -114,7 +114,7 @@ public class SecurityContextTests extends ESTestCase {
             original = null;
         }
 
-        final InternalUser executionUser = AuthenticationTestHelper.randomInternalUserWithRoleDescriptor();
+        final InternalUser executionUser = AuthenticationTestHelper.randomInternalUserWithLocalRoleDescriptor();
         final AtomicReference<StoredContext> contextAtomicReference = new AtomicReference<>();
         securityContext.executeAsInternalUser(executionUser, TransportVersion.CURRENT, (originalCtx) -> {
             assertEquals(executionUser, securityContext.getUser());

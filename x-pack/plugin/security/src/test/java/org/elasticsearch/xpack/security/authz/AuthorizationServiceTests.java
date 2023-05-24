@@ -2584,7 +2584,6 @@ public class AuthorizationServiceTests extends ESTestCase {
         final Authentication authentication;
         if (user instanceof InternalUser internalUser) {
             assert authenticatingUser == null;
-            assert internalUser instanceof InternalUser;
             authentication = AuthenticationTestHelper.builder().internal(internalUser).build();
         } else if (user instanceof AnonymousUser) {
             assert authenticatingUser == null;

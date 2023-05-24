@@ -217,9 +217,8 @@ public class SubjectTests extends ESTestCase {
             authMetadata
         );
 
-        final boolean isInternalUser = CrossClusterAccessUser.is(
-            crossClusterAccessSubjectInfo.getAuthentication().getEffectiveSubject().getUser()
-        );
+        final Authentication authentication = crossClusterAccessSubjectInfo.getAuthentication();
+        final boolean isInternalUser = authentication.getEffectiveSubject().getUser() == CrossClusterAccessUser.INSTANCE;
         final RoleReferenceIntersection roleReferenceIntersection = subject.getRoleReferenceIntersection(getAnonymousUser());
         // Number of role references depends on the authentication and its number of roles.
         // Test setup can randomly authentication with 0, 1 or 2 (in case of API key) role descriptors,
@@ -276,10 +275,11 @@ public class SubjectTests extends ESTestCase {
 
     private static void expectFixedReferenceAtIndex(int index, List<RoleReference> roleReferences) {
         final FixedRoleReference fixedRoleReference = (FixedRoleReference) roleReferences.get(index);
-        assertThat(
-            fixedRoleReference.id(),
-            equalTo(new RoleKey(Set.of(CrossClusterAccessUser.REMOTE_ACCESS_ROLE_DESCRIPTOR.getName()), "cross_cluster_access_internal"))
+        final RoleKey expectedKey = new RoleKey(
+            Set.of(CrossClusterAccessUser.INSTANCE.getRemoteAccessRole().get().getName()),
+            "cross_cluster_access_internal"
         );
+        assertThat(fixedRoleReference.id(), equalTo(expectedKey));
     }
 
     public void testGetRoleReferencesForApiKeyBwc() {

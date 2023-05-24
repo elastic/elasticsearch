@@ -218,7 +218,7 @@ public class InternalUsersTests extends ESTestCase {
     private static SimpleRole getLocalClusterRole(InternalUser internalUser) {
         final FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
         return Role.buildFromRoleDescriptor(
-            internalUser.getLocalClusterRole().get(),
+            internalUser.getLocalClusterRoleDescriptor().get(),
             fieldPermissionsCache,
             TestRestrictedIndices.RESTRICTED_INDICES
         );

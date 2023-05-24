@@ -14,8 +14,10 @@ import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class InternalUsers {
 
@@ -120,21 +122,15 @@ public class InternalUsers {
         )
     );
 
-    private static final Map<String, InternalUser> INTERNAL_USERS = new HashMap<>();
-
-    static {
-        defineUser(SystemUser.INSTANCE);
-        defineUser(XPACK_USER);
-        defineUser(XPACK_SECURITY_USER);
-        defineUser(SECURITY_PROFILE_USER);
-        defineUser(ASYNC_SEARCH_USER);
-        defineUser(CrossClusterAccessUser.INSTANCE);
-        defineUser(STORAGE_USER);
-    }
-
-    private static void defineUser(InternalUser user) {
-        INTERNAL_USERS.put(user.principal(), user);
-    }
+    private static final Map<String, InternalUser> INTERNAL_USERS = Stream.of(
+        SystemUser.INSTANCE,
+        XPACK_USER,
+        XPACK_SECURITY_USER,
+        SECURITY_PROFILE_USER,
+        ASYNC_SEARCH_USER,
+        CrossClusterAccessUser.INSTANCE,
+        STORAGE_USER
+    ).collect(Collectors.toUnmodifiableMap(InternalUser::principal, Function.identity()));
 
     public static Collection<InternalUser> get() {
         return Collections.unmodifiableCollection(INTERNAL_USERS.values());

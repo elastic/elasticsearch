@@ -35,7 +35,7 @@ public class SystemUser extends InternalUser {
      * @see #isAuthorized(String)
      */
     @Override
-    public Optional<RoleDescriptor> getLocalClusterRole() {
+    public Optional<RoleDescriptor> getLocalClusterRoleDescriptor() {
         return Optional.empty();
     }
 

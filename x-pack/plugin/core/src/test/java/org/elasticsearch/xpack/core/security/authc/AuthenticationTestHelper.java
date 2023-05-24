@@ -79,7 +79,7 @@ public class AuthenticationTestHelper {
 
     private static final List<InternalUser> INTERNAL_USERS_WITH_ROLE_DESCRIPTOR = InternalUsers.get()
         .stream()
-        .filter(u -> u.getLocalClusterRole().isPresent())
+        .filter(u -> u.getLocalClusterRoleDescriptor().isPresent())
         .toList();
 
     public static AuthenticationTestBuilder builder() {
@@ -101,7 +101,7 @@ public class AuthenticationTestHelper {
         return INTERNAL_USERS_WITH_ROLE_DESCRIPTOR;
     }
 
-    public static InternalUser randomInternalUserWithRoleDescriptor() {
+    public static InternalUser randomInternalUserWithLocalRoleDescriptor() {
         return ESTestCase.randomFrom(INTERNAL_USERS_WITH_ROLE_DESCRIPTOR);
     }
 
@@ -289,7 +289,7 @@ public class AuthenticationTestHelper {
     }
 
     public static CrossClusterAccessSubjectInfo randomCrossClusterAccessSubjectInfo(final Authentication authentication) {
-        if (CrossClusterAccessUser.is(authentication.getEffectiveSubject().getUser())) {
+        if (CrossClusterAccessUser.INSTANCE == authentication.getEffectiveSubject().getUser()) {
             return crossClusterAccessSubjectInfoForInternalUser();
         }
         final int numberOfRoleDescriptors;

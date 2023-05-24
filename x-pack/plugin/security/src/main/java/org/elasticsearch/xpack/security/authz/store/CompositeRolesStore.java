@@ -154,11 +154,15 @@ public class CompositeRolesStore {
         );
         this.internalUserRoles = InternalUsers.get()
             .stream()
-            .filter(u -> u.getLocalClusterRole().isPresent())
+            .filter(u -> u.getLocalClusterRoleDescriptor().isPresent())
             .collect(
                 Collectors.toMap(
                     u -> u.principal(),
-                    u -> Role.buildFromRoleDescriptor(u.getLocalClusterRole().get(), fieldPermissionsCache, this.restrictedIndices)
+                    u -> Role.buildFromRoleDescriptor(
+                        u.getLocalClusterRoleDescriptor().get(),
+                        fieldPermissionsCache,
+                        this.restrictedIndices
+                    )
                 )
             );
         this.roleReferenceResolver = new RoleDescriptorStore(
@@ -222,7 +226,7 @@ public class CompositeRolesStore {
         String name = user.principal();
         final Role role = this.internalUserRoles.get(name);
         if (role == null) {
-            throw new IllegalArgumentException("the internal user [" + user.principal() + "] should never have its roles resolved");
+            throw new IllegalArgumentException("the internal user [" + name + "] should never have its roles resolved");
         }
         return role;
     }
@@ -358,7 +362,7 @@ public class CompositeRolesStore {
     // Package private for testing
     static Optional<RoleDescriptor> tryGetRoleDescriptorForInternalUser(Subject subject) {
         if (subject.getUser() instanceof InternalUser internalUser) {
-            final Optional<RoleDescriptor> roleDescriptor = internalUser.getLocalClusterRole();
+            final Optional<RoleDescriptor> roleDescriptor = internalUser.getLocalClusterRoleDescriptor();
             if (roleDescriptor.isEmpty()) {
                 throw new IllegalArgumentException(
                     "should never try to get the roles for internal user [" + internalUser.principal() + "]"

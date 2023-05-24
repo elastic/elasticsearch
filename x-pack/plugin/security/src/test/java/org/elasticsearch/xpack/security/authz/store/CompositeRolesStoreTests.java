@@ -1737,7 +1737,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
 
         final InternalUser internalUser = InternalUsers.getUser(roleName);
         assertThat(internalUser, notNullValue());
-        if (internalUser.getLocalClusterRole().isPresent()) {
+        if (internalUser.getLocalClusterRoleDescriptor().isPresent()) {
             Role internalRole = compositeRolesStore.getInternalUserRole(internalUser);
             assertThat(internalRole, notNullValue());
             assertThat(role, not(internalRole));
@@ -1745,7 +1745,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
 
         final Role[] internalRoles = InternalUsers.get()
             .stream()
-            .filter(u -> u.getLocalClusterRole().isPresent())
+            .filter(u -> u.getLocalClusterRoleDescriptor().isPresent())
             .map(compositeRolesStore::getInternalUserRole)
             .toArray(Role[]::new);
         // Check that we're actually testing something here...
@@ -2509,13 +2509,16 @@ public class CompositeRolesStoreTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> compositeRolesStore.getRoleDescriptorsList(subject, new PlainActionFuture<>())
         );
-        assertThat(e2.getMessage(), equalTo("should never try to get the roles for internal user [" + CrossClusterAccessUser.NAME + "]"));
+        assertThat(
+            e2.getMessage(),
+            equalTo("should never try to get the roles for internal user [" + CrossClusterAccessUser.INSTANCE.principal() + "]")
+        );
 
         for (var internalUser : AuthenticationTestHelper.internalUsersWithLocalRoleDescriptor()) {
             when(subject.getUser()).thenReturn(internalUser);
             final PlainActionFuture<Collection<Set<RoleDescriptor>>> future = new PlainActionFuture<>();
             compositeRolesStore.getRoleDescriptorsList(subject, future);
-            assertThat(future.actionGet(), equalTo(List.of(Set.of(internalUser.getLocalClusterRole().get()))));
+            assertThat(future.actionGet(), equalTo(List.of(Set.of(internalUser.getLocalClusterRoleDescriptor().get()))));
         }
     }
 

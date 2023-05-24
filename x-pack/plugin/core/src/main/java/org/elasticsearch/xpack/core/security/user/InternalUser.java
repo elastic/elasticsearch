@@ -16,7 +16,7 @@ import java.util.Optional;
 
 public class InternalUser extends User {
 
-    private final Optional<RoleDescriptor> localClusterRole;
+    private final Optional<RoleDescriptor> localClusterRoleDescriptor;
     private final Optional<RoleDescriptor> remoteAccessRole;
 
     InternalUser(String username, @Nullable RoleDescriptor localClusterRole) {
@@ -27,7 +27,8 @@ public class InternalUser extends User {
         super(username, Strings.EMPTY_ARRAY);
         assert enabled();
         assert roles() != null && roles().length == 0;
-        this.localClusterRole = Objects.requireNonNull(localClusterRole);
+        this.localClusterRoleDescriptor = Objects.requireNonNull(localClusterRole);
+        this.localClusterRoleDescriptor.ifPresent(rd -> { assert rd.getName().equals(username); });
         this.remoteAccessRole = Objects.requireNonNull(remoteAccessRole);
     }
 
@@ -47,8 +48,8 @@ public class InternalUser extends User {
      * local cluster.
      * @see #getRemoteAccessRole()
      */
-    public Optional<RoleDescriptor> getLocalClusterRole() {
-        return localClusterRole;
+    public Optional<RoleDescriptor> getLocalClusterRoleDescriptor() {
+        return localClusterRoleDescriptor;
     }
 
     /**
@@ -56,7 +57,7 @@ public class InternalUser extends User {
      * make cross-cluster requests.
      * This {@link RoleDescriptor} defines the privileges that the internal-user has for requests that run on the current cluster, but
      * originate from a node within an external cluster (via CCS/CCR).
-     * @see #getLocalClusterRole()
+     * @see #getLocalClusterRoleDescriptor()
      */
     public Optional<RoleDescriptor> getRemoteAccessRole() {
         return remoteAccessRole;

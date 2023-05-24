@@ -17,9 +17,12 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.TransportUnpromotableShardRefreshAction;
+import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.template.put.PutComponentTemplateAction;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.get.GetAction;
@@ -33,6 +36,7 @@ import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authz.permission.ApplicationPermission;
+import org.elasticsearch.xpack.core.security.authz.permission.ClusterPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.RemoteIndicesPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
@@ -208,6 +212,37 @@ public class InternalUsersTests extends ESTestCase {
         checkIndexAccess(role, randomFrom(sampleDeniedActions), randomAlphaOfLengthBetween(4, 8), false);
         checkIndexAccess(role, randomFrom(sampleDeniedActions), ".ds-" + randomAlphaOfLengthBetween(4, 8), false);
         checkIndexAccess(role, randomFrom(sampleDeniedActions), INTERNAL_SECURITY_MAIN_INDEX_7, false);
+    }
+
+    public void testDlmUser() {
+        assertThat(InternalUsers.getUser("_dlm"), is(InternalUsers.DLM_USER));
+
+        final SimpleRole role = getLocalClusterRole(InternalUsers.DLM_USER);
+
+        assertThat(role.cluster(), is(ClusterPermission.NONE));
+        assertThat(role.runAs(), is(RunAsPermission.NONE));
+        assertThat(role.application(), is(ApplicationPermission.NONE));
+        assertThat(role.remoteIndices(), is(RemoteIndicesPermission.NONE));
+
+        final List<String> sampleIndexActions = List.of(
+            RolloverAction.NAME,
+            DeleteIndexAction.NAME,
+            ForceMergeAction.NAME,
+            IndicesStatsAction.NAME
+        );
+        checkIndexAccess(role, randomFrom(sampleIndexActions), randomAlphaOfLengthBetween(3, 12), true);
+        checkIndexAccess(
+            role,
+            randomFrom(sampleIndexActions),
+            randomFrom(
+                SECURITY_MAIN_ALIAS,
+                INTERNAL_SECURITY_MAIN_INDEX_7,
+                SECURITY_TOKENS_ALIAS,
+                INTERNAL_SECURITY_TOKENS_INDEX_7,
+                XPackPlugin.ASYNC_RESULTS_INDEX
+            ),
+            false
+        );
     }
 
     public void testRegularUser() {

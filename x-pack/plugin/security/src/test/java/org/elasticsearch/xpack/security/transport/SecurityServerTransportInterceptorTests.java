@@ -15,7 +15,6 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.support.DestructiveOperations;
-import org.elasticsearch.cluster.metadata.DataLifecycle;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -80,6 +79,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.cluster.metadata.DataLifecycle.DLM_ORIGIN;
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
@@ -430,7 +430,9 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             TRANSFORM_ORIGIN,
             InternalUsers.XPACK_USER,
             ASYNC_SEARCH_ORIGIN,
-            InternalUsers.ASYNC_SEARCH_USER
+            InternalUsers.ASYNC_SEARCH_USER,
+            DLM_ORIGIN,
+            InternalUsers.DLM_USER
         );
 
         final String origin = randomFrom(originToUserMap.keySet());

@@ -119,6 +119,10 @@ public class AuthorizationUtilsTests extends ESTestCase {
         );
     }
 
+    public void testSwitchWithDlmOrigin() throws Exception {
+        assertSwitchBasedOnOriginAndExecute(DataLifecycle.DLM_ORIGIN, InternalUsers.DLM_USER, randomTransportVersion());
+    }
+
     public void testSwitchAndExecuteXpackUser() throws Exception {
         for (String origin : Arrays.asList(
             ClientHelper.ML_ORIGIN,

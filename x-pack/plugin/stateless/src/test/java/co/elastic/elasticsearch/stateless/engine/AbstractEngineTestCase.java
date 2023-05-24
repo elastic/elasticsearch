@@ -152,7 +152,13 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
         final ObjectStoreService objectStoreService,
         final StatelessCommitService commitService
     ) {
-        var indexEngine = new IndexEngine(indexConfig, translogReplicator, objectStoreService::getTranslogBlobContainer, commitService) {
+        var indexEngine = new IndexEngine(
+            indexConfig,
+            translogReplicator,
+            objectStoreService::getTranslogBlobContainer,
+            commitService,
+            RefreshThrottler.Noop::new
+        ) {
 
             @Override
             public void close() throws IOException {

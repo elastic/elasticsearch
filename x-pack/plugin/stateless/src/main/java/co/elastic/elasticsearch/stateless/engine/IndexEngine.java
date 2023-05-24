@@ -66,12 +66,14 @@ public class IndexEngine extends InternalEngine {
     private volatile TimeValue indexFlushInterval;
     private volatile Scheduler.ScheduledCancellable cancellableFlushTask;
     private final ReleasableLock flushLock = new ReleasableLock(new ReentrantLock());
+    private final RefreshThrottler refreshThrottler;
 
     public IndexEngine(
         EngineConfig engineConfig,
         TranslogReplicator translogReplicator,
         Function<String, BlobContainer> translogBlobContainer,
-        StatelessCommitService statelessCommitService
+        StatelessCommitService statelessCommitService,
+        RefreshThrottler.Factory refreshThrottlerFactory
     ) {
         super(engineConfig);
         assert engineConfig.isPromotableToPrimary();
@@ -81,6 +83,7 @@ public class IndexEngine extends InternalEngine {
         this.relativeTimeInNanosSupplier = config().getRelativeTimeInNanosSupplier();
         this.lastFlushNanos = new AtomicLong(relativeTimeInNanosSupplier.getAsLong());
         this.indexFlushInterval = INDEX_FLUSH_INTERVAL_SETTING.get(config().getIndexSettings().getSettings());
+        this.refreshThrottler = refreshThrottlerFactory.create(this::doExternalRefresh);
         cancellableFlushTask = scheduleFlushTask();
     }
 
@@ -160,7 +163,13 @@ public class IndexEngine extends InternalEngine {
 
     @Override
     public void externalRefresh(String source, ActionListener<RefreshResult> listener) {
-        flush(true, true, listener.delegateFailure((l, flushResult) -> super.externalRefresh(source, l)));
+        // TODO: should we first check if a flush/refresh is needed or not? If not we could simply not go
+        // through the throttler.
+        refreshThrottler.maybeThrottle(new RefreshThrottler.Request(source, listener));
+    }
+
+    private void doExternalRefresh(RefreshThrottler.Request request) {
+        flush(true, true, request.listener().delegateFailure((l, flushResult) -> super.externalRefresh(request.source(), l)));
     }
 
     @Override

@@ -53,7 +53,7 @@ Desktop]. Go to **Preferences > Resources > Advanced** and set Memory to at leas
 . Start an Elasticsearch container:
 +
 ----
-docker network create elastic
+docker network creates elastic
 docker pull docker.elastic.co/elasticsearch/elasticsearch:{version} <1>
 docker run --name elasticsearch --net elastic -p 9200:9200 -p 9300:9300 -e "discovery.type=single-node" -t docker.elastic.co/elasticsearch/elasticsearch:{version}
 ----

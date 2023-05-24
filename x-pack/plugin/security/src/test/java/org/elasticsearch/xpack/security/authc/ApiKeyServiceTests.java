@@ -2579,6 +2579,57 @@ public class ApiKeyServiceTests extends ESTestCase {
         );
     }
 
+    public void testValidateOwnerUserRoleDescriptorsWithWorkflowsRestriction() {
+        final Authentication authentication = AuthenticationTestHelper.builder().build();
+        final ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.getClusterSettings()).thenReturn(
+            new ClusterSettings(Settings.EMPTY, Set.of(ApiKeyService.DELETE_RETENTION_PERIOD))
+        );
+        final ClusterState clusterState = mock(ClusterState.class);
+        when(clusterService.state()).thenReturn(clusterState);
+        when(clusterState.getMinTransportVersion()).thenReturn(WORKFLOWS_RESTRICTION_VERSION);
+
+        final ApiKeyService service = new ApiKeyService(
+            Settings.EMPTY,
+            clock,
+            client,
+            securityIndex,
+            clusterService,
+            cacheInvalidatorRegistry,
+            threadPool
+        );
+
+        final Set<RoleDescriptor> userRoleDescriptorsWithWorkflowsRestriction = randomSet(
+            1,
+            2,
+            () -> randomRoleDescriptorWithWorkflowsRestriction()
+        );
+        final List<RoleDescriptor> requestRoleDescriptors = randomList(
+            0,
+            3,
+            () -> RoleDescriptorTests.randomRoleDescriptor(false, false, false)
+        );
+
+        final AbstractCreateApiKeyRequest createRequest = mock(AbstractCreateApiKeyRequest.class);
+        when(createRequest.getType()).thenReturn(ApiKey.Type.REST);
+        when(createRequest.getRoleDescriptors()).thenReturn(requestRoleDescriptors);
+
+        final PlainActionFuture<CreateApiKeyResponse> createFuture = new PlainActionFuture<>();
+        service.createApiKey(authentication, createRequest, userRoleDescriptorsWithWorkflowsRestriction, createFuture);
+        final IllegalArgumentException e1 = expectThrows(IllegalArgumentException.class, createFuture::actionGet);
+        assertThat(e1.getMessage(), containsString("owner user role descriptors must not include workflows restriction"));
+
+        final BulkUpdateApiKeyRequest updateRequest = new BulkUpdateApiKeyRequest(
+            randomList(1, 3, () -> randomAlphaOfLengthBetween(3, 5)),
+            requestRoleDescriptors,
+            Map.of()
+        );
+        final PlainActionFuture<BulkUpdateApiKeyResponse> updateFuture = new PlainActionFuture<>();
+        service.updateApiKeys(authentication, updateRequest, userRoleDescriptorsWithWorkflowsRestriction, updateFuture);
+        final IllegalArgumentException e2 = expectThrows(IllegalArgumentException.class, createFuture::actionGet);
+        assertThat(e2.getMessage(), containsString("owner user role descriptors must not include workflows restriction"));
+    }
+
     private static RoleDescriptor randomRoleDescriptorWithRemoteIndexPrivileges() {
         return new RoleDescriptor(
             randomAlphaOfLengthBetween(3, 90),

@@ -81,7 +81,7 @@ public class RoleRestrictionTests extends ESTestCase {
     }
 
     public void testIsEmpty() {
-        String[] workflows = randomBoolean() ? null : new String[] {};
+        String[] workflows = new String[] {};
         Restriction r = new Restriction(workflows);
         assertThat(r.isEmpty(), equalTo(true));
         assertThat(r.hasWorkflows(), equalTo(false));

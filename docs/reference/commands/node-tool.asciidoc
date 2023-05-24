@@ -288,7 +288,9 @@ nodes also contain a copy of the index metadata corresponding with their shards.
 <<dangling-indices,dangling indices>>. You can sometimes
 recover some indices after the loss of all main-eligible nodes in a cluster
 by creating a new cluster and then using the `elasticsearch-node
-detach-cluster` command to move any surviving nodes into this new cluster.
+detach-cluster` command to move any surviving nodes into this new cluster. Once the new cluster is fully formed,
+use the <<dangling-indices-api,Dangling indices API>> to list, import or delete
+any dangling indices.
 
 There is a risk of data loss when importing a dangling index because data nodes
 may not have the most recent copy of the index metadata and do not have any

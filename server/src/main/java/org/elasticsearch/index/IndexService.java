@@ -936,6 +936,26 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         }
     }
 
+    public void triggerAndReScheduleRefresh() {
+        threadPool.executor(ThreadPool.Names.REFRESH).execute(new AbstractRunnable() {
+            @Override
+            public void onFailure(Exception e) {
+                logger.warn("forced refresh failed after shard becoming search active", e);
+            }
+
+            @Override
+            protected void doRun() {
+                maybeRefreshEngine(true);
+            }
+
+            @Override
+            public boolean isForceExecution() {
+                return true;
+            }
+        });
+        rescheduleRefreshTasks();
+    }
+
     private void maybeTrimTranslog() {
         for (IndexShard shard : this.shards.values()) {
             switch (shard.state()) {

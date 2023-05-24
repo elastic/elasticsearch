@@ -3819,8 +3819,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * invoked immediately.
      * @param listener the listener to invoke once the pending refresh location is visible. The listener will be called with
      *                 <code>true</code> if the listener was registered to wait for a refresh.
+     * @return <code>true</code> if there is a pending refresh location otherwise <code>false</code>
      */
-    public final void awaitShardSearchActive(Consumer<Boolean> listener) {
+    public final boolean awaitShardSearchActive(Consumer<Boolean> listener) {
         markSearcherAccessed(); // move the shard into non-search idle
         final Translog.Location location = pendingRefreshLocation.get();
         if (location != null) {
@@ -3828,8 +3829,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 pendingRefreshLocation.compareAndSet(location, null);
                 listener.accept(true);
             });
+            return true;
         } else {
             listener.accept(false);
+            return false;
         }
     }
 

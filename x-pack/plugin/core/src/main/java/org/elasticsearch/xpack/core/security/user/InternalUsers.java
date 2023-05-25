@@ -122,8 +122,11 @@ public class InternalUsers {
         )
     );
 
+    /**
+     * internal user that manages synonyms via the Synonyms API. Operates on the synonyms system index
+     */
     public static final InternalUser SYNONYMS_USER = new InternalUser(
-        UsernamesField.SYNONYMS_ROLE_NAME,
+        UsernamesField.SYNONYMS_USER_NAME,
         new RoleDescriptor(
             UsernamesField.SYNONYMS_ROLE_NAME,
             null,

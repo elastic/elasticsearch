@@ -336,7 +336,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     transportService,
                     ActionListener.wrap(searchShardsResponses -> {
                         logger.warn("CCC TransportSearchAction zlistener: searchShardsResponses.size: {}", searchShardsResponses.size());
-                        logger.warn("CCC TransportSearchAction zlistener: searchShardsResponses.get(0): {}", searchShardsResponses.get(0));
+                        logger.warn("CCC TransportSearchAction zlistener: searchShardsResponses: {}", searchShardsResponses.getClass().getSimpleName());
                         final BiFunction<String, String, DiscoveryNode> clusterNodeLookup = getRemoteClusterNodeLookup(
                             searchShardsResponses
                         );
@@ -355,6 +355,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                             for (SearchShardsResponse searchShardsResponse : searchShardsResponses.values()) {
                                 remoteAliasFilters.putAll(searchShardsResponse.getAliasFilters());
                             }
+                            /// MP: at this point, the remote SearchShards query has finished and returned
+                            /// MP: whihc is why we have searchShardsResponses to parse into remoteShardIterators
                             remoteShardIterators = getRemoteShardsIterator(
                                 searchShardsResponses,
                                 remoteClusterIndices,
@@ -896,6 +898,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             final Set<String> indicesAndAliases = indexNameExpressionResolver.resolveExpressions(clusterState, searchRequest.indices());
             aliasFilter = buildIndexAliasFilters(clusterState, indicesAndAliases, indices);
             aliasFilter.putAll(remoteAliasMap);
+            logger.warn("CCC TransportSearchAction executeSearch getting local shards iterator");
             localShardIterators = getLocalShardsIterator(
                 clusterState,
                 searchRequest,
@@ -905,6 +908,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             );
         }
         final GroupShardsIterator<SearchShardIterator> shardIterators = mergeShardsIterators(localShardIterators, remoteShardIterators);
+        logger.warn("CCC TransportSearchAction merging shard iterators: size: {}", shardIterators.size());
 
         failIfOverShardCountLimit(clusterService, shardIterators.size());
 
@@ -1068,6 +1072,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             ThreadPool threadPool,
             SearchResponse.Clusters clusters
         ) {
+            logger.warn("CCC TSA.AsyncSearchActionProvider.newSearchPhase. preFIlter: {}", preFilter);
             if (preFilter) {  /// MP: is preFilter ever true after doing the SearchShards step that Nhat added?
                 return new CanMatchPreFilterSearchPhase(
                     logger,
@@ -1083,6 +1088,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     true,
                     searchService.getCoordinatorRewriteContextProvider(timeProvider::absoluteStartMillis),
                     ActionListener.wrap(iters -> {
+                        logger.warn("CCC TSA.AsyncSearchActionProvider.newSearchPhase.ActionListener iters.size: {}", iters.size());
                         SearchPhase action = newSearchPhase(
                             task,
                             searchRequest,
@@ -1129,6 +1135,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     );
                 } else {
                     assert searchRequest.searchType() == QUERY_THEN_FETCH : searchRequest.searchType();
+                    logger.warn("CCC TSA.AsyncSearchActionProvider.newSearchPhase. QUERY_THEN_FETCH");
                     return new SearchQueryThenFetchAsyncAction(
                         logger,
                         searchTransportService,
@@ -1379,6 +1386,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     }
 
     /// MP: TODO: where does this execute - coordinator or shard? And does this actually do the CanMatch? or does that happen after?
+    /// MP: This is called BEFORE the search executes
+    /// MP: I believe it is called from the coordinator, but that it can run on the shard's coordinator such as during a
+    /// MP: TransportSearchShardsAction.doExecute (which I believe is a shard-level coordinator)
+    /// MP: [my guess as to why it is a coordinator is that SearchShardsActions/CanMatch is a node level request, not shard level
+    /// MP:  so a "local" coordinator is needed to search all the shards on that node ??]
     List<SearchShardIterator> getLocalShardsIterator(
         ClusterState clusterState,
         SearchRequest searchRequest,
@@ -1386,6 +1398,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         Set<String> indicesAndAliases,
         String[] concreteIndices
     ) {
+        logger.warn("CCC TSA.getLocalShardsIterator for cluster {}. searchRequest: {}", clusterAlias, searchRequest);
         var routingMap = indexNameExpressionResolver.resolveSearchRouting(clusterState, searchRequest.routing(), searchRequest.indices());
         GroupShardsIterator<ShardIterator> shardRoutings = clusterService.operationRouting()
             .searchShards(
@@ -1402,6 +1415,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             concreteIndices,
             searchRequest.indicesOptions()
         );
+
+        /// MP: why use a spliterator here, especially since parallel=false?
         return StreamSupport.stream(shardRoutings.spliterator(), false).map(it -> {
             OriginalIndices finalIndices = originalIndices.get(it.shardId().getIndex().getName());
             assert finalIndices != null;

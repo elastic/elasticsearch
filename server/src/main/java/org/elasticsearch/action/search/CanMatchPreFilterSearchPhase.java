@@ -150,6 +150,9 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
         assert assertSearchCoordinationThread();
         final List<SearchShardIterator> matchedShardLevelRequests = new ArrayList<>();
         for (SearchShardIterator searchShardIterator : shardsIts) {
+            SearchShardIterator it = searchShardIterator;
+            logger.warn("CCC: CanMatchPreFilterSearchPhase iter prefiltered: {}; skip: {}, shardId: {}",
+                it.prefiltered(), it.skip(), it.shardId());
             final CanMatchNodeRequest canMatchNodeRequest = new CanMatchNodeRequest(
                 request,
                 searchShardIterator.getOriginalIndices().indicesOptions(),
@@ -163,6 +166,7 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
                 CanMatchShardResponse result = new CanMatchShardResponse(searchShardIterator.skip() == false, null);
                 result.setShardIndex(request.shardRequestIndex());
                 results.consumeResult(result, () -> {});
+                logger.warn("CCC: this shard is prefiltered so consuming it now rather than doing canMatch");
                 continue;
             }
             boolean canMatch = true;
@@ -171,7 +175,9 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
             );
             if (coordinatorRewriteContext != null) {
                 try {
+                    /// MP: is this somehow filtering out the remote shards that have already had can_match done?
                     canMatch = SearchService.queryStillMatchesAfterRewrite(request, coordinatorRewriteContext);
+                    logger.warn("CCC: canMatch adjustment = {} for cluster: {}", canMatch, request.getClusterAlias());
                 } catch (Exception e) {
                     // treat as if shard is still a potential match
                 }
@@ -182,11 +188,14 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
                 CanMatchShardResponse result = new CanMatchShardResponse(canMatch, null);
                 result.setShardIndex(request.shardRequestIndex());
                 results.consumeResult(result, () -> {});
+                logger.warn("CCC: since canMatch=false immediately setting CanMatchShardResponse shardtarget {}, " +
+                        "request.shardRequestIndex(): {}", result.getSearchShardTarget(), request.shardRequestIndex());
             }
         }
         if (matchedShardLevelRequests.isEmpty()) {
             finishPhase();
         } else {
+            logger.warn("CCC: since still matchedShardLevelRequests, doing new Round with size {}", matchedShardLevelRequests.size());
             new Round(new GroupShardsIterator<>(matchedShardLevelRequests)).run();
         }
     }

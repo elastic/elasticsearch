@@ -79,6 +79,7 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
             .routing(searchShardsRequest.routing())
             .preference(searchShardsRequest.preference())
             .allowPartialSearchResults(searchShardsRequest.allowPartialSearchResults());
+        logger.warn("CCCN TransportSearchShardsAction doExecute 'original' searchRequest: {}", original);
         if (searchShardsRequest.query() != null) {
             original.source(new SearchSourceBuilder().query(searchShardsRequest.query()));
         }

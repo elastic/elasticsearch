@@ -52,6 +52,7 @@ import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.I
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.INTERNAL_SECURITY_TOKENS_INDEX_7;
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.SECURITY_MAIN_ALIAS;
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.SECURITY_TOKENS_ALIAS;
+import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -231,6 +232,13 @@ public class InternalUsersTests extends ESTestCase {
         assertThat(role.application(), is(ApplicationPermission.NONE));
         assertThat(role.remoteIndices(), is(RemoteIndicesPermission.NONE));
 
+        final String allowedSystemDataStream = ".fleet-actions-results";
+        for (var group : role.indices().groups()) {
+            if (group.allowRestrictedIndices()) {
+                assertThat(group.indices(), arrayContaining(allowedSystemDataStream));
+            }
+        }
+
         final List<String> sampleIndexActions = List.of(
             RolloverAction.NAME,
             DeleteIndexAction.NAME,
@@ -247,7 +255,6 @@ public class InternalUsersTests extends ESTestCase {
             true
         );
 
-        final String allowedSystemDataStream = ".fleet-actions-results";
         checkIndexAccess(role, randomFrom(sampleIndexActions), allowedSystemDataStream, true);
         checkIndexAccess(
             role,

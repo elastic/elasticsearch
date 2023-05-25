@@ -1577,7 +1577,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         }
 
         public Restriction(StreamInput in) throws IOException {
-            this(in.readStringArray());
+            this(in.readOptionalStringArray());
         }
 
         public boolean hasWorkflows() {
@@ -1597,7 +1597,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeStringArray(workflows);
+            out.writeOptionalStringArray(workflows);
         }
 
         @Override

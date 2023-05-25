@@ -257,7 +257,6 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), false)
                 .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
-                .put(IndexEngine.INDEX_FLUSH_INTERVAL_SETTING.getKey(), TimeValue.timeValueDays(1))
                 .build()
         );
         ensureGreen(indexName);
@@ -487,7 +486,7 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), false)
-                .put(IndexEngine.INDEX_FLUSH_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(1))
+                .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(1))
                 .build()
         );
 
@@ -788,7 +787,6 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
                     .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
                     .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), false)
-                    .put(IndexEngine.INDEX_FLUSH_INTERVAL_SETTING.getKey(), TimeValue.timeValueDays(1))
                     .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
             ).get()
         );

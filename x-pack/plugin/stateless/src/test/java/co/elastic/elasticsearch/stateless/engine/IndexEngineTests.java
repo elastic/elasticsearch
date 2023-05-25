@@ -44,7 +44,7 @@ import static org.mockito.Mockito.when;
 public class IndexEngineTests extends AbstractEngineTestCase {
 
     public void testPeriodicallyFlushesRegardlessOfIndexing() throws Exception {
-        var settings = Settings.builder().put(IndexEngine.INDEX_FLUSH_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(10)).build();
+        var settings = Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(10)).build();
         try (var engine = Mockito.spy(newIndexEngine(copy(indexConfig(), settings, System::nanoTime)));) {
             int numberOfFlushes = randomIntBetween(1, 10);
             CountDownLatch latch = new CountDownLatch(numberOfFlushes);
@@ -61,7 +61,7 @@ public class IndexEngineTests extends AbstractEngineTestCase {
     public void testAdjustsPeriodicFlushingIntervalInCaseOfManualFlushes() throws Exception {
         long flushInterval = TimeUnit.MILLISECONDS.toNanos(10);
         var settings = Settings.builder()
-            .put(IndexEngine.INDEX_FLUSH_INTERVAL_SETTING.getKey(), TimeValue.timeValueNanos(flushInterval))
+            .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.timeValueNanos(flushInterval))
             .build();
         try (var engine = Mockito.spy(newIndexEngine(copy(indexConfig(), settings, System::nanoTime)));) {
             int numberOfFlushes = randomIntBetween(5, 10);
@@ -97,7 +97,7 @@ public class IndexEngineTests extends AbstractEngineTestCase {
     }
 
     public void testPeriodicFlushGracefullyHandlesException() throws Exception {
-        var settings = Settings.builder().put(IndexEngine.INDEX_FLUSH_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(10)).build();
+        var settings = Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(10)).build();
         try (var engine = Mockito.spy(newIndexEngine(copy(indexConfig(), settings, System::nanoTime)));) {
             int numberOfFlushes = 2;
             CountDownLatch latch = new CountDownLatch(numberOfFlushes);
@@ -172,7 +172,7 @@ public class IndexEngineTests extends AbstractEngineTestCase {
                 indexConfig(
                     Settings.builder()
                         .put(IndexEngine.INDEX_FAST_REFRESH.getKey(), true)
-                        .put(IndexEngine.INDEX_FLUSH_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(60))
+                        .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(60))
                         .build()
                 )
             )

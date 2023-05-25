@@ -18,13 +18,13 @@
 package co.elastic.elasticsearch.stateless;
 
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
-import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.engine.TranslogReplicator;
 import co.elastic.elasticsearch.stateless.engine.TranslogReplicatorReader;
 
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -107,6 +107,46 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
             .flatMap(ps -> ps.filterPlugins(Stateless.class).stream())
             .toList();
         assertThat(plugins.size(), greaterThan(0));
+    }
+
+    public void testRefreshIntervalSetting() {
+        startMasterOnlyNode();
+        startIndexNodes(1);
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        String refreshIntervalSetting = IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey();
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), false)
+                .build()
+        );
+
+        final String indexNameWithExplicit = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(
+            indexNameWithExplicit,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), false)
+                .put(refreshIntervalSetting, "10s")
+                .build()
+        );
+        ensureGreen(indexName, indexNameWithExplicit);
+
+        GetSettingsResponse response = client().admin().indices().prepareGetSettings(indexName, indexNameWithExplicit).get();
+        TimeValue refreshInterval = TimeValue.parseTimeValue(
+            response.getSetting(indexName, refreshIntervalSetting),
+            refreshIntervalSetting
+        );
+        assertEquals(TimeValue.timeValueSeconds(5), refreshInterval);
+
+        TimeValue refreshIntervalWithExplicit = TimeValue.parseTimeValue(
+            response.getSetting(indexNameWithExplicit, refreshIntervalSetting),
+            refreshIntervalSetting
+        );
+        assertEquals(TimeValue.timeValueSeconds(10), refreshIntervalWithExplicit);
     }
 
     public void testUploadToObjectStore() {
@@ -411,7 +451,7 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
             Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(IndexEngine.INDEX_FLUSH_INTERVAL_SETTING.getKey(), TimeValue.timeValueHours(1L))
+                .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.timeValueHours(1L))
                 .build()
         );
         ensureGreen(indexName);

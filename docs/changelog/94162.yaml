@@ -1,5 +1,0 @@
-pr: 94162
-summary: Add `delete_destination_index` parameter to the `Delete Transform API`
-area: Transform
-type: enhancement
-issues: []

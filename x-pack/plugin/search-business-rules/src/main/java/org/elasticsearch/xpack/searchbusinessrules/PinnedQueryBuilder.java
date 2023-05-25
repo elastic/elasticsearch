@@ -13,6 +13,7 @@ import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.NumericUtils;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
@@ -39,7 +40,7 @@ import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
-import java.util.stream.Collectors;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -57,13 +58,19 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
     private static final ParseField DOCS_FIELD = new ParseField("docs");
     public static final ParseField ORGANIC_QUERY_FIELD = new ParseField("organic");
 
-    private final List<String> ids;
+    // Note: For this POC I'm only focusing on IDs to showcase how we'll rewrite queries based off rules.
+    // In a production implementation we'd support rewriting pinned queries with both ids and docs.
+    private final Supplier<List<String>> ids;
     private final List<Item> docs;
     private QueryBuilder organicQuery;
 
     // Organic queries will have their scores capped to this number range,
     // We reserve the highest float exponent for scores of pinned queries
     private static final float MAX_ORGANIC_SCORE = Float.intBitsToFloat((0xfe << 23)) - 1;
+
+    public PinnedQueryBuilder(QueryBuilder organicQuery, Supplier<List<String>> ids) {
+        this(organicQuery, ids.get(), null);
+    }
 
     /**
      * A single item to be used for a {@link PinnedQueryBuilder}.
@@ -211,7 +218,10 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
                 }
             }
         }
-        this.ids = ids;
+
+        SetOnce<List<String>> idSupplier = new SetOnce<>();
+        idSupplier.set(ids);
+        this.ids = idSupplier::get;
         this.docs = docs;
     }
 
@@ -221,10 +231,14 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
     public PinnedQueryBuilder(StreamInput in) throws IOException {
         super(in);
         if (in.getTransportVersion().before(TransportVersion.V_7_15_0)) {
-            ids = in.readStringList();
+            List<String> pinnedIds = in.readStringList();
+            ids = () -> pinnedIds;
+
+
             docs = null;
         } else {
-            ids = in.readOptionalStringList();
+            List<String> pinnedIds = in.readOptionalStringList();
+            ids = () -> pinnedIds;
             docs = in.readBoolean() ? in.readList(Item::new) : null;
         }
         organicQuery = in.readNamedWriteable(QueryBuilder.class);
@@ -233,9 +247,9 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         if (out.getTransportVersion().before(TransportVersion.V_7_15_0)) {
-            out.writeStringCollection(this.ids);
+            out.writeStringCollection(this.ids.get());
         } else {
-            out.writeOptionalStringCollection(this.ids);
+            out.writeOptionalStringCollection(this.ids.get());
             if (docs == null) {
                 out.writeBoolean(false);
             } else {
@@ -260,7 +274,7 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
         if (this.ids == null) {
             return Collections.emptyList();
         }
-        return Collections.unmodifiableList(this.ids);
+        return Collections.unmodifiableList(this.ids.get());
     }
 
     /**
@@ -282,7 +296,7 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
         }
         if (ids != null) {
             builder.startArray(IDS_FIELD.getPreferredName());
-            for (String value : ids) {
+            for (String value : ids.get()) {
                 builder.value(value);
             }
             builder.endArray();
@@ -329,12 +343,12 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         QueryBuilder newOrganicQuery = organicQuery.rewrite(queryRewriteContext);
-        if (newOrganicQuery != organicQuery) {
-            PinnedQueryBuilder result = new PinnedQueryBuilder(newOrganicQuery, ids, docs);
+//        if (newOrganicQuery != organicQuery) {
+            PinnedQueryBuilder result = new PinnedQueryBuilder(newOrganicQuery, ids.get(), docs);
             result.boost(this.boost);
             return result;
-        }
-        return this;
+//        }
+//        return this;
     }
 
     @Override
@@ -343,7 +357,7 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
         if (idField == null) {
             return new MatchNoDocsQuery("No mappings");
         }
-        List<Item> items = (docs != null) ? docs : ids.stream().map(id -> new Item(id)).collect(Collectors.toList());
+        List<Item> items = (docs != null) ? docs : ids.get().stream().map(Item::new).toList();
         if (items.isEmpty()) {
             return new CappedScoreQuery(organicQuery.toQuery(context), MAX_ORGANIC_SCORE);
         } else {

@@ -297,7 +297,7 @@ public class ComparisonTests extends ESTestCase {
         }
         Arrays.sort(samples);
 
-        for (double percentile : new double[] {0, 0.01, 0.1, 1, 5, 10, 25, 50, 75, 90, 99, 99.9, 99.99, 100.0}) {
+        for (double percentile : new double[] { 0, 0.01, 0.1, 1, 5, 10, 25, 50, 75, 90, 99, 99.9, 99.99, 100.0 }) {
             double q = percentile / 100.0;
             double expected = Dist.quantile(q, samples);
             double accuracy = percentile > 1 ? Math.abs(expected / 10) : Math.abs(expected);
@@ -322,7 +322,7 @@ public class ComparisonTests extends ESTestCase {
         }
         Arrays.sort(samples);
 
-        for (double percentile : new double[] {0, 0.01, 0.1, 1, 5, 10, 25, 50, 75, 90, 99, 99.9, 99.99, 100.0}) {
+        for (double percentile : new double[] { 0, 0.01, 0.1, 1, 5, 10, 25, 50, 75, 90, 99, 99.9, 99.99, 100.0 }) {
             double q = percentile / 100.0;
             double expected = Dist.quantile(q, samples);
             double accuracy = percentile > 1 ? Math.abs(expected / 10) : Math.abs(expected);
@@ -347,7 +347,7 @@ public class ComparisonTests extends ESTestCase {
         }
         Arrays.sort(samples);
 
-        for (double percentile : new double[] {0, 0.01, 0.1, 1, 5, 10, 25, 75, 90, 99, 99.9, 99.99, 100.0}) {
+        for (double percentile : new double[] { 0, 0.01, 0.1, 1, 5, 10, 25, 75, 90, 99, 99.9, 99.99, 100.0 }) {
             double q = percentile / 100.0;
             double expected = Dist.quantile(q, samples);
             double accuracy = percentile > 1 ? Math.abs(expected / 10) : Math.abs(expected);
@@ -376,7 +376,7 @@ public class ComparisonTests extends ESTestCase {
         }
         Arrays.sort(samples);
 
-        for (double percentile : new double[] {0, 0.01, 0.1, 1, 5, 10, 25, 75, 90, 99, 99.9, 99.99, 100.0}) {
+        for (double percentile : new double[] { 0, 0.01, 0.1, 1, 5, 10, 25, 75, 90, 99, 99.9, 99.99, 100.0 }) {
             double q = percentile / 100.0;
             double expected = Dist.quantile(q, samples);
             double accuracy = percentile > 1 ? Math.abs(expected / 10) : Math.abs(expected);

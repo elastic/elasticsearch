@@ -1156,8 +1156,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
                 }
             }""");
         Response response = performRequestWithManageOwnApiKeyUser(createApiKeyRequest);
-        assertOK(response);
-        String apiKeyId = ObjectPath.createFromResponse(response).evaluate("id");
+        String apiKeyId = assertOKAndCreateObjectPath(response).evaluate("id");
         assertThat(apiKeyId, notNullValue());
         fetchAndAssertApiKeyContainsWorkflows(apiKeyId, "r1", "search_application");
 
@@ -1179,8 +1178,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
                }
             }""", MANAGE_OWN_API_KEY_USER));
         response = adminClient().performRequest(grantApiKeyRequest);
-        assertOK(response);
-        String grantedApiKeyId = ObjectPath.createFromResponse(response).evaluate("id");
+        String grantedApiKeyId = assertOKAndCreateObjectPath(response).evaluate("id");
         fetchAndAssertApiKeyContainsWorkflows(grantedApiKeyId, "r1", "search_application");
 
         final Request updateApiKeyRequest = new Request("PUT", "_security/api_key/" + apiKeyId);
@@ -1195,7 +1193,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
               }
             }""");
         response = performRequestWithManageOwnApiKeyUser(updateApiKeyRequest);
-        assertThat(ObjectPath.createFromResponse(response).evaluate("updated"), equalTo(true));
+        assertThat(assertOKAndCreateObjectPath(response).evaluate("updated"), equalTo(true));
         fetchAndAssertApiKeyContainsWorkflows(apiKeyId, "r1", "search_application", "search_analytics");
 
         final Request bulkUpdateApiKeyRequest = new Request("POST", "_security/api_key/_bulk_update");
@@ -1211,7 +1209,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
               }
             }""", apiKeyId));
         response = performRequestWithManageOwnApiKeyUser(bulkUpdateApiKeyRequest);
-        assertThat(ObjectPath.createFromResponse(response).evaluate("updated"), contains(apiKeyId));
+        assertThat(assertOKAndCreateObjectPath(response).evaluate("updated"), contains(apiKeyId));
         fetchAndAssertApiKeyContainsWorkflows(apiKeyId, "r1", "search_application");
 
         final Request removeRestrictionRequest = new Request("PUT", "_security/api_key/" + apiKeyId);
@@ -1223,7 +1221,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
               }
             }""");
         response = performRequestWithManageOwnApiKeyUser(removeRestrictionRequest);
-        assertThat(ObjectPath.createFromResponse(response).evaluate("updated"), equalTo(true));
+        assertThat(assertOKAndCreateObjectPath(response).evaluate("updated"), equalTo(true));
         fetchAndAssertApiKeyDoesNotContainWorkflows(apiKeyId, "r1");
     }
 

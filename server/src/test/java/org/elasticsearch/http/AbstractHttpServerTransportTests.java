@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
@@ -51,6 +52,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
+import org.mockito.ArgumentCaptor;
 
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
@@ -69,12 +71,16 @@ import java.util.concurrent.TimeUnit;
 import static java.net.InetAddress.getByName;
 import static java.util.Arrays.asList;
 import static org.elasticsearch.http.AbstractHttpServerTransport.resolvePublishPort;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 
 public class AbstractHttpServerTransportTests extends ESTestCase {
 
@@ -880,6 +886,66 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             transport.incomingRequest(fakeRestRequest.getHttpRequest(), fakeRestRequest.getHttpChannel());
             httpStats = transport.stats();
             assertThat(httpStats.getClientStats().size(), equalTo(1));
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testSetGracefulClose() {
+        try (
+            AbstractHttpServerTransport transport = new AbstractHttpServerTransport(
+                Settings.EMPTY,
+                networkService,
+                recycler,
+                threadPool,
+                xContentRegistry(),
+                new HttpServerTransport.Dispatcher() {
+                    @Override
+                    public void dispatchRequest(RestRequest request, RestChannel channel, ThreadContext threadContext) {
+                        channel.sendResponse(emptyResponse(RestStatus.OK));
+                    }
+
+                    @Override
+                    public void dispatchBadRequest(RestChannel channel, ThreadContext threadContext, Throwable cause) {
+                        channel.sendResponse(emptyResponse(RestStatus.BAD_REQUEST));
+                    }
+                },
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                Tracer.NOOP
+            ) {
+
+                @Override
+                protected HttpServerChannel bind(InetSocketAddress hostAddress) {
+                    return null;
+                }
+
+                @Override
+                protected void doStart() {}
+
+                @Override
+                protected void stopInternal() {}
+            }
+        ) {
+            final TestHttpRequest httpRequest = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/");
+
+            HttpChannel httpChannel = mock(HttpChannel.class);
+            transport.incomingRequest(httpRequest, httpChannel);
+
+            var response = ArgumentCaptor.forClass(TestHttpResponse.class);
+            var listener = ArgumentCaptor.forClass(ActionListener.class);
+            verify(httpChannel).sendResponse(response.capture(), listener.capture());
+
+            listener.getValue().onResponse(null);
+            assertThat(response.getValue().containsHeader(DefaultRestChannel.CONNECTION), is(false));
+            verify(httpChannel, never()).close();
+
+            httpChannel = mock(HttpChannel.class);
+            transport.gracefullyCloseConnections();
+            transport.incomingRequest(httpRequest, httpChannel);
+            verify(httpChannel).sendResponse(response.capture(), listener.capture());
+
+            listener.getValue().onResponse(null);
+            assertThat(response.getValue().headers().get(DefaultRestChannel.CONNECTION), containsInAnyOrder(DefaultRestChannel.CLOSE));
+            verify(httpChannel).close();
         }
     }
 

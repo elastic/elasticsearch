@@ -1,30 +1,45 @@
-[[cluster-info-http]]
-=== Cluster Info HTTP API
+[[cluster-info]]
+=== Cluster Info API
 ++++
-<titleabbrev>Cluster HTTP Info</titleabbrev>
+<titleabbrev>Cluster Info</titleabbrev>
 ++++
 
-Returns cluster HTTP information.
+Returns cluster information.
 
-[[cluster-info-http-api-request]]
+[[cluster-info-api-request]]
 ==== {api-request-title}
 
-`GET /_info/http` +
+`GET /_info/<target>` +
 
-[[cluster-info-http-api-prereqs]]
+[[cluster-info-api-prereqs]]
 ==== {api-prereq-title}
 
 * If the {es} {security-features} are enabled, you must have the `monitor` or
 `manage` <<privileges-list-cluster,cluster privilege>> to use this API.
 
 
-[[cluster-info-http-api-desc]]
+[[cluster-info-api-desc]]
 ==== {api-description-title}
 
-You can use the Cluster Info HTTP API to retrieve http information in a cluster.
+You can use the Cluster Info API to retrieve information of a cluster.
+
+
+[[cluster-info-api-path-params]]
+==== {api-path-parms-title}
+
+
+`<target>`::
+(Optional, string) Limits the information returned to the specific `target`.
+A comma-separated list of the following options:
++
+--
+`http`::
+HTTP connection information.
+
+--
 
 [role="child_attributes"]
-[[cluster-info-http-api-response-body]]
+[[cluster-info-api-response-body]]
 ==== {api-response-body-title}
 
 `cluster_name`::
@@ -32,10 +47,10 @@ You can use the Cluster Info HTTP API to retrieve http information in a cluster.
 Name of the cluster. Based on the <<cluster-name>> setting.
 
 
-[[cluster-info-http-api-response-body-http]]
+[[cluster-info-api-response-body-http]]
 `http`::
 (object)
-Contains http statistics for the cluster.
+Contains http information for the cluster.
 +
 .Properties of `http`
 [%collapsible%open]
@@ -111,8 +126,14 @@ Cumulative size in bytes of all requests from this client.
 ======
 
 
-[[cluster-info-http-api-example]]
+[[cluster-info-api-example]]
 ==== {api-examples-title}
+
+[source,console]
+----
+# returns all stats info of the cluster
+GET /_info/_all
+----
 
 [source,console]
 ----

@@ -49,13 +49,14 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS;
-import static org.elasticsearch.xpack.core.security.authz.RoleDescriptor.Restriction.WORKFLOWS_RESTRICTION_VERSION;
 
 /**
  * A holder for a Role that contains user-readable information about the Role
  * without containing the actual Role object.
  */
 public class RoleDescriptor implements ToXContentObject, Writeable {
+
+    public static final TransportVersion WORKFLOWS_RESTRICTION_VERSION = TransportVersion.V_8_500_005;
 
     public static final String ROLE_TYPE = "role";
 
@@ -1587,14 +1588,13 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
 
     public static class Restriction implements Writeable, ToXContentObject {
 
-        public static final TransportVersion WORKFLOWS_RESTRICTION_VERSION = TransportVersion.V_8_500_005;
-
-        public static final Restriction NONE = new Restriction(Strings.EMPTY_ARRAY);
+        public static final Restriction NONE = new Restriction((String[]) null);
 
         private final String[] workflows;
 
         public Restriction(String[] workflows) {
-            this.workflows = Objects.requireNonNull(workflows, "workflows must not be null");
+            assert workflows == null || workflows.length > 0 : "workflows cannot be an empty array";
+            this.workflows = workflows;
         }
 
         public Restriction(StreamInput in) throws IOException {
@@ -1602,7 +1602,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         }
 
         public boolean hasWorkflows() {
-            return workflows.length > 0;
+            return workflows != null && workflows.length > 0;
         }
 
         public String[] getWorkflows() {
@@ -1635,7 +1635,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         }
 
         public boolean isEmpty() {
-            return workflows.length == 0;
+            return workflows == null || workflows.length == 0;
         }
 
         @Override
@@ -1664,7 +1664,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else if (Fields.WORKFLOWS.match(currentFieldName, parser.getDeprecationHandler())) {
-                    workflows = readStringArray(roleName, parser, true);
+                    workflows = readWorkflowsStringArray(roleName, parser);
                 } else {
                     throw new ElasticsearchParseException(
                         "failed to parse restriction for role [{}]. unexpected field [{}]",
@@ -1673,14 +1673,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                     );
                 }
             }
-            if (workflows == null) {
-                throw new ElasticsearchParseException(
-                    "failed to parse restriction for role [{}]. missing required [{}] field",
-                    roleName,
-                    Fields.WORKFLOWS
-                );
-            }
-            if (workflows.length <= 0) {
+            if (workflows != null && workflows.length <= 0) {
                 throw new ElasticsearchParseException(
                     "failed to parse restriction for role [{}]. [{}] cannot be an empty array",
                     roleName,
@@ -1689,6 +1682,16 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
             }
             return new Restriction(workflows);
         }
+
+        private static String[] readWorkflowsStringArray(String roleName, XContentParser parser) throws IOException {
+            try {
+                return XContentUtils.readStringArray(parser, false);
+            } catch (ElasticsearchParseException e) {
+                // re-wrap in order to add the role name
+                throw new ElasticsearchParseException("failed to parse restriction for role [{}]. {}", e, roleName, e.getMessage());
+            }
+        }
+
     }
 
     public interface Fields {

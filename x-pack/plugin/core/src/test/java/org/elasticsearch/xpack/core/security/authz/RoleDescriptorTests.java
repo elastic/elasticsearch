@@ -48,7 +48,7 @@ import java.util.Set;
 
 import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.xpack.core.security.authz.RoleDescriptor.Restriction.WORKFLOWS_RESTRICTION_VERSION;
+import static org.elasticsearch.xpack.core.security.authz.RoleDescriptor.WORKFLOWS_RESTRICTION_VERSION;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -236,7 +236,7 @@ public class RoleDescriptorTests extends ESTestCase {
                 }
               ],
               "restriction":{
-                "workflows": ["search_application"]
+                "workflows": ["search_application", "search_analytics"]
               }
             }""";
         rd = RoleDescriptor.parse("test", new BytesArray(q), false, XContentType.JSON);
@@ -250,7 +250,7 @@ public class RoleDescriptorTests extends ESTestCase {
         assertArrayEquals(new String[] { "m", "n" }, rd.getRunAs());
         assertThat(rd.hasRestriction(), equalTo(true));
         assertThat(rd.getRestriction().hasWorkflows(), equalTo(true));
-        assertArrayEquals(new String[] { "search_application" }, rd.getRestriction().getWorkflows());
+        assertArrayEquals(new String[] { "search_application", "search_analytics" }, rd.getRestriction().getWorkflows());
         q = """
             {
               "cluster": [ "a", "b" ],
@@ -404,17 +404,29 @@ public class RoleDescriptorTests extends ESTestCase {
         );
         assertThat(ex.getMessage(), containsString("not_supported"));
 
+        rd = RoleDescriptor.parse("test_empty_restriction", new BytesArray("""
+            {
+              "index": [{"names": "idx1", "privileges": [ "p1", "p2" ]}],
+              "restriction":{}
+            }"""), false, XContentType.JSON);
+        assertThat(rd.getName(), equalTo("test_empty_restriction"));
+        assertThat(rd.hasRestriction(), equalTo(false));
+        assertThat(rd.hasWorkflowsRestriction(), equalTo(false));
+
         final ElasticsearchParseException pex1 = expectThrows(
             ElasticsearchParseException.class,
-            () -> RoleDescriptor.parse("test_empty_restriction", new BytesArray("""
+            () -> RoleDescriptor.parse("test_null_workflows", new BytesArray("""
                 {
-                  "index": [{"names": "idx1", "privileges": [ "p1", "p2" ]}],
-                  "restriction":{}
+                  "index": [{"names": ["idx1"], "privileges": [ "p1", "p2" ]}],
+                  "restriction":{"workflows":null}
                 }"""), false, XContentType.JSON)
         );
         assertThat(
             pex1.getMessage(),
-            containsString("failed to parse restriction for role [test_empty_restriction]. missing required [workflows] field")
+            containsString(
+                "failed to parse restriction for role [test_null_workflows]. could not parse [workflows] field. "
+                    + "expected a string array but found null value instead"
+            )
         );
 
         final ElasticsearchParseException pex2 = expectThrows(
@@ -1070,7 +1082,7 @@ public class RoleDescriptorTests extends ESTestCase {
             randomRoleDescriptorMetadata(allowReservedMetadata),
             Map.of(),
             remoteIndexPrivileges,
-            allowWorkflows ? RoleRestrictionTests.randomWorkflowsRestriction(0, 3) : null
+            allowWorkflows ? RoleRestrictionTests.randomWorkflowsRestriction(1, 3) : null
         );
     }
 

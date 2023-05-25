@@ -8,17 +8,13 @@
 package org.elasticsearch.xpack.profiler;
 
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.util.List;
 import java.util.Map;
-import java.util.function.Supplier;
 
 public class GetProfilingResponseTests extends AbstractWireSerializingTestCase<GetProfilingResponse> {
-    private <T> T randomNullable(Supplier<T> v) {
-        return randomBoolean() ? v.get() : null;
-    }
-
     private <T> T randomNullable(T v) {
         return randomBoolean() ? v : null;
     }
@@ -59,5 +55,22 @@ public class GetProfilingResponseTests extends AbstractWireSerializingTestCase<G
     @Override
     protected Writeable.Reader<GetProfilingResponse> instanceReader() {
         return GetProfilingResponse::new;
+    }
+
+    public void testChunking() {
+        AbstractChunkedSerializingTestCase.assertChunkCount(createTestInstance(), instance -> {
+            // start, end, total_frames
+            int chunks = 3;
+            chunks += size(instance.getExecutables());
+            chunks += size(instance.getStackFrames());
+            chunks += size(instance.getStackTraces());
+            chunks += size(instance.getStackTraceEvents());
+            return chunks;
+        });
+    }
+
+    private int size(Map<?, ?> m) {
+        // if there is a map, we also need to take into account start and end object
+        return m != null ? 2 + m.size() : 0;
     }
 }

@@ -1156,8 +1156,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
                 }
             }""");
         Response response = performRequestWithManageOwnApiKeyUser(createApiKeyRequest);
-        assertOK(response);
-        String apiKeyId = ObjectPath.createFromResponse(response).evaluate("id");
+        String apiKeyId = assertOKAndCreateObjectPath(response).evaluate("id");
         assertThat(apiKeyId, notNullValue());
         fetchAndAssertApiKeyContainsWorkflows(apiKeyId, "r1", "search_application");
 
@@ -1179,8 +1178,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
                }
             }""", MANAGE_OWN_API_KEY_USER));
         response = adminClient().performRequest(grantApiKeyRequest);
-        assertOK(response);
-        String grantedApiKeyId = ObjectPath.createFromResponse(response).evaluate("id");
+        String grantedApiKeyId = assertOKAndCreateObjectPath(response).evaluate("id");
         fetchAndAssertApiKeyContainsWorkflows(grantedApiKeyId, "r1", "search_application");
 
         final Request updateApiKeyRequest = new Request("PUT", "_security/api_key/" + apiKeyId);
@@ -1195,7 +1193,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
               }
             }""");
         response = performRequestWithManageOwnApiKeyUser(updateApiKeyRequest);
-        assertThat(ObjectPath.createFromResponse(response).evaluate("updated"), equalTo(true));
+        assertThat(assertOKAndCreateObjectPath(response).evaluate("updated"), equalTo(true));
         fetchAndAssertApiKeyContainsWorkflows(apiKeyId, "r1", "search_application", "search_analytics");
 
         final Request bulkUpdateApiKeyRequest = new Request("POST", "_security/api_key/_bulk_update");
@@ -1211,7 +1209,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
               }
             }""", apiKeyId));
         response = performRequestWithManageOwnApiKeyUser(bulkUpdateApiKeyRequest);
-        assertThat(ObjectPath.createFromResponse(response).evaluate("updated"), contains(apiKeyId));
+        assertThat(assertOKAndCreateObjectPath(response).evaluate("updated"), contains(apiKeyId));
         fetchAndAssertApiKeyContainsWorkflows(apiKeyId, "r1", "search_application");
 
         final Request removeRestrictionRequest = new Request("PUT", "_security/api_key/" + apiKeyId);
@@ -1223,7 +1221,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
               }
             }""");
         response = performRequestWithManageOwnApiKeyUser(removeRestrictionRequest);
-        assertThat(ObjectPath.createFromResponse(response).evaluate("updated"), equalTo(true));
+        assertThat(assertOKAndCreateObjectPath(response).evaluate("updated"), equalTo(true));
         fetchAndAssertApiKeyDoesNotContainWorkflows(apiKeyId, "r1");
     }
 
@@ -1256,12 +1254,9 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
             }""", r1, r2));
         var e = expectThrows(ResponseException.class, () -> performRequestWithManageOwnApiKeyUser(createInvalidApiKeyRequest));
         if (secondRoleWithWorkflowsRestriction) {
-            assertThat(e.getMessage(), containsString("more than one role descriptor with workflows restriction is not supported"));
+            assertThat(e.getMessage(), containsString("more than one role descriptor with restriction is not supported"));
         } else {
-            assertThat(
-                e.getMessage(),
-                containsString("combining role descriptors with and without workflows restriction is not supported")
-            );
+            assertThat(e.getMessage(), containsString("combining role descriptors with and without restriction is not supported"));
         }
 
         final Request grantApiKeyRequest = new Request("POST", "_security/api_key/grant");
@@ -1280,12 +1275,9 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
             }""", MANAGE_OWN_API_KEY_USER, r1, r2));
         e = expectThrows(ResponseException.class, () -> adminClient().performRequest(grantApiKeyRequest));
         if (secondRoleWithWorkflowsRestriction) {
-            assertThat(e.getMessage(), containsString("more than one role descriptor with workflows restriction is not supported"));
+            assertThat(e.getMessage(), containsString("more than one role descriptor with restriction is not supported"));
         } else {
-            assertThat(
-                e.getMessage(),
-                containsString("combining role descriptors with and without workflows restriction is not supported")
-            );
+            assertThat(e.getMessage(), containsString("combining role descriptors with and without restriction is not supported"));
         }
 
         final Request createApiKeyRequest = new Request("POST", "_security/api_key");
@@ -1315,12 +1307,9 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
             }""", r1, r2));
         e = expectThrows(ResponseException.class, () -> performRequestWithManageOwnApiKeyUser(updateApiKeyRequest));
         if (secondRoleWithWorkflowsRestriction) {
-            assertThat(e.getMessage(), containsString("more than one role descriptor with workflows restriction is not supported"));
+            assertThat(e.getMessage(), containsString("more than one role descriptor with restriction is not supported"));
         } else {
-            assertThat(
-                e.getMessage(),
-                containsString("combining role descriptors with and without workflows restriction is not supported")
-            );
+            assertThat(e.getMessage(), containsString("combining role descriptors with and without restriction is not supported"));
         }
 
         final Request bulkUpdateApiKeyRequest = new Request("POST", "_security/api_key/_bulk_update");
@@ -1334,12 +1323,9 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
             }""", apiKeyId, r1, r2));
         e = expectThrows(ResponseException.class, () -> performRequestWithManageOwnApiKeyUser(bulkUpdateApiKeyRequest));
         if (secondRoleWithWorkflowsRestriction) {
-            assertThat(e.getMessage(), containsString("more than one role descriptor with workflows restriction is not supported"));
+            assertThat(e.getMessage(), containsString("more than one role descriptor with restriction is not supported"));
         } else {
-            assertThat(
-                e.getMessage(),
-                containsString("combining role descriptors with and without workflows restriction is not supported")
-            );
+            assertThat(e.getMessage(), containsString("combining role descriptors with and without restriction is not supported"));
         }
     }
 
@@ -1354,37 +1340,18 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
     @SuppressWarnings("unchecked")
     private void fetchAndAssertApiKeyContainsWorkflows(String apiKeyId, String roleName, String... expectedWorkflows) throws IOException {
         Response getApiKeyResponse = fetchApiKey(apiKeyId);
-
-        List<Map<String, ?>> apiKeys = (List<Map<String, ?>>) responseAsMap(getApiKeyResponse).get("api_keys");
-        assertThat(apiKeys.size(), equalTo(1));
-
-        Map<String, ?> roleDescriptors = (Map<String, ?>) apiKeys.get(0).get("role_descriptors");
-        assertThat(roleDescriptors, notNullValue());
-
-        Map<String, ?> roleDescriptor = (Map<String, ?>) roleDescriptors.get(roleName);
-        assertThat(roleDescriptor, notNullValue());
-
-        Map<String, ?> restriction = (Map<String, ?>) roleDescriptor.get("restriction");
-        assertThat(restriction, notNullValue());
-
-        List<String> actualWorkflows = (List<String>) restriction.get("workflows");
+        List<String> actualWorkflows = assertOKAndCreateObjectPath(getApiKeyResponse).evaluate(
+            "api_keys.0.role_descriptors." + roleName + ".restriction.workflows"
+        );
         assertThat(actualWorkflows, containsInAnyOrder(expectedWorkflows));
     }
 
     @SuppressWarnings("unchecked")
     private void fetchAndAssertApiKeyDoesNotContainWorkflows(String apiKeyId, String roleName) throws IOException {
         Response getApiKeyResponse = fetchApiKey(apiKeyId);
-
-        List<Map<String, ?>> apiKeys = (List<Map<String, ?>>) responseAsMap(getApiKeyResponse).get("api_keys");
-        assertThat(apiKeys.size(), equalTo(1));
-
-        Map<String, ?> roleDescriptors = (Map<String, ?>) apiKeys.get(0).get("role_descriptors");
-        assertThat(roleDescriptors, notNullValue());
-
-        Map<String, ?> roleDescriptor = (Map<String, ?>) roleDescriptors.get(roleName);
-        assertThat(roleDescriptor, notNullValue());
-
-        Map<String, ?> restriction = (Map<String, ?>) roleDescriptor.get("restriction");
+        Map<String, ?> restriction = assertOKAndCreateObjectPath(getApiKeyResponse).evaluate(
+            "api_keys.0.role_descriptors." + roleName + ".restriction"
+        );
         assertThat(restriction, nullValue());
     }
 

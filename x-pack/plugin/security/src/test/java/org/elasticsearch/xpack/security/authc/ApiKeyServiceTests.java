@@ -160,14 +160,14 @@ import static org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClu
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_ID_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_METADATA_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_TYPE_KEY;
-import static org.elasticsearch.xpack.core.security.authz.RoleDescriptor.Restriction.WORKFLOWS_RESTRICTION_VERSION;
+import static org.elasticsearch.xpack.core.security.authz.RoleDescriptor.WORKFLOWS_RESTRICTION_VERSION;
 import static org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR;
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7;
 import static org.elasticsearch.xpack.security.Security.SECURITY_CRYPTO_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.security.authc.ApiKeyService.LEGACY_SUPERUSER_ROLE_DESCRIPTOR;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 import static org.hamcrest.Matchers.anEmptyMap;
-import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
+import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -1145,13 +1145,15 @@ public class ApiKeyServiceTests extends ESTestCase {
 
         RoleDescriptor roleWithRestriction = roleDescriptorsByName.get("role_with_restriction");
         assertThat(roleWithRestriction.hasRestriction(), equalTo(true));
+        assertThat(roleWithRestriction.getRestriction().isEmpty(), equalTo(false));
         assertThat(roleWithRestriction.getRestriction().hasWorkflows(), equalTo(true));
-        assertThat(roleWithRestriction.getRestriction().getWorkflows(), arrayContainingInAnyOrder("search_application"));
+        assertThat(roleWithRestriction.getRestriction().getWorkflows(), arrayContaining("search_application"));
 
         RoleDescriptor roleWithoutRestriction = roleDescriptorsByName.get("role_without_restriction");
         assertThat(roleWithoutRestriction.hasRestriction(), equalTo(false));
+        assertThat(roleWithoutRestriction.getRestriction().isEmpty(), equalTo(true));
         assertThat(roleWithoutRestriction.getRestriction().hasWorkflows(), equalTo(false));
-        assertThat(roleWithoutRestriction.getRestriction().getWorkflows().length, equalTo(0));
+        assertThat(roleWithoutRestriction.getRestriction().getWorkflows(), nullValue());
     }
 
     public void testApiKeyServiceDisabled() throws Exception {
@@ -2562,7 +2564,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         final IllegalArgumentException e1 = expectThrows(IllegalArgumentException.class, createFuture::actionGet);
         assertThat(
             e1.getMessage(),
-            containsString("all nodes must have transport version [8500005] or higher to support workflows restriction for API keys")
+            containsString("all nodes must have transport version [8500005] or higher to support restrictions for API keys")
         );
 
         final BulkUpdateApiKeyRequest updateRequest = new BulkUpdateApiKeyRequest(
@@ -2575,7 +2577,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         final IllegalArgumentException e2 = expectThrows(IllegalArgumentException.class, createFuture::actionGet);
         assertThat(
             e2.getMessage(),
-            containsString("all nodes must have transport version [8500005] or higher to support workflows restriction for API keys")
+            containsString("all nodes must have transport version [8500005] or higher to support restrictions for API keys")
         );
     }
 
@@ -2587,8 +2589,12 @@ public class ApiKeyServiceTests extends ESTestCase {
         );
         final ClusterState clusterState = mock(ClusterState.class);
         when(clusterService.state()).thenReturn(clusterState);
-        when(clusterState.getMinTransportVersion()).thenReturn(WORKFLOWS_RESTRICTION_VERSION);
-
+        final TransportVersion minTransportVersion = TransportVersionUtils.randomVersionBetween(
+            random(),
+            WORKFLOWS_RESTRICTION_VERSION,
+            TransportVersion.CURRENT
+        );
+        when(clusterState.getMinTransportVersion()).thenReturn(minTransportVersion);
         final ApiKeyService service = new ApiKeyService(
             Settings.EMPTY,
             clock,
@@ -2606,8 +2612,8 @@ public class ApiKeyServiceTests extends ESTestCase {
         );
         final List<RoleDescriptor> requestRoleDescriptors = randomList(
             0,
-            3,
-            () -> RoleDescriptorTests.randomRoleDescriptor(false, false, false)
+            1,
+            () -> RoleDescriptorTests.randomRoleDescriptor(randomBoolean(), randomBoolean(), randomBoolean())
         );
 
         final AbstractCreateApiKeyRequest createRequest = mock(AbstractCreateApiKeyRequest.class);
@@ -2617,7 +2623,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         final PlainActionFuture<CreateApiKeyResponse> createFuture = new PlainActionFuture<>();
         service.createApiKey(authentication, createRequest, userRoleDescriptorsWithWorkflowsRestriction, createFuture);
         final IllegalArgumentException e1 = expectThrows(IllegalArgumentException.class, createFuture::actionGet);
-        assertThat(e1.getMessage(), containsString("owner user role descriptors must not include workflows restriction"));
+        assertThat(e1.getMessage(), containsString("owner user role descriptors must not include restriction"));
 
         final BulkUpdateApiKeyRequest updateRequest = new BulkUpdateApiKeyRequest(
             randomList(1, 3, () -> randomAlphaOfLengthBetween(3, 5)),
@@ -2627,7 +2633,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         final PlainActionFuture<BulkUpdateApiKeyResponse> updateFuture = new PlainActionFuture<>();
         service.updateApiKeys(authentication, updateRequest, userRoleDescriptorsWithWorkflowsRestriction, updateFuture);
         final IllegalArgumentException e2 = expectThrows(IllegalArgumentException.class, createFuture::actionGet);
-        assertThat(e2.getMessage(), containsString("owner user role descriptors must not include workflows restriction"));
+        assertThat(e2.getMessage(), containsString("owner user role descriptors must not include restriction"));
     }
 
     private static RoleDescriptor randomRoleDescriptorWithRemoteIndexPrivileges() {

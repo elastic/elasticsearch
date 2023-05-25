@@ -147,7 +147,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder.CCR_CLUSTER_PRIVILEGE_NAMES;
 import static org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder.CCS_AND_CCR_CLUSTER_PRIVILEGE_NAMES;
 import static org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder.CCS_CLUSTER_PRIVILEGE_NAMES;
-import static org.elasticsearch.xpack.core.security.authz.RoleDescriptor.Restriction.WORKFLOWS_RESTRICTION_VERSION;
+import static org.elasticsearch.xpack.core.security.authz.RoleDescriptor.WORKFLOWS_RESTRICTION_VERSION;
 import static org.elasticsearch.xpack.security.Security.SECURITY_CRYPTO_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 
@@ -332,7 +332,7 @@ public class ApiKeyService {
                 );
                 return;
             }
-            final Exception workflowsValidationException = validateWorkflowsRestrictionConstrains(
+            final IllegalArgumentException workflowsValidationException = validateWorkflowsRestrictionConstraints(
                 transportVersion,
                 request.getRoleDescriptors(),
                 userRoleDescriptors
@@ -360,45 +360,41 @@ public class ApiKeyService {
         return roleDescriptors != null && roleDescriptors.stream().anyMatch(RoleDescriptor::hasRemoteIndicesPrivileges);
     }
 
-    private static boolean hasWorkflowsRestriction(Collection<RoleDescriptor> roleDescriptors) {
-        return getNumberOfRolesWithWorkflowsRestriction(roleDescriptors) > 0L;
-    }
-
-    private static Exception validateWorkflowsRestrictionConstrains(
+    private static IllegalArgumentException validateWorkflowsRestrictionConstraints(
         TransportVersion transportVersion,
         List<RoleDescriptor> requestRoleDescriptors,
         Set<RoleDescriptor> userRoleDescriptors
     ) {
-        if (hasWorkflowsRestriction(userRoleDescriptors)) {
-            return new IllegalArgumentException("owner user role descriptors must not include workflows restriction");
+        if (getNumberOfRoleDescriptorsWithRestriction(userRoleDescriptors) > 0L) {
+            return new IllegalArgumentException("owner user role descriptors must not include restriction");
         }
-        final long numberOfRolesWithWorkflowsRestriction = getNumberOfRolesWithWorkflowsRestriction(requestRoleDescriptors);
-        if (numberOfRolesWithWorkflowsRestriction > 0L) {
-            // Creating/updating API keys with workflows restriction is not allowed in a mixed cluster.
+        final long numberOfRoleDescriptorsWithRestriction = getNumberOfRoleDescriptorsWithRestriction(requestRoleDescriptors);
+        if (numberOfRoleDescriptorsWithRestriction > 0L) {
+            // creating/updating API keys with restrictions is not allowed in a mixed cluster.
             if (transportVersion.before(WORKFLOWS_RESTRICTION_VERSION)) {
                 return new IllegalArgumentException(
                     "all nodes must have transport version ["
                         + WORKFLOWS_RESTRICTION_VERSION
-                        + "] or higher to support workflows restriction for API keys"
+                        + "] or higher to support restrictions for API keys"
                 );
             }
-            // It's only allowed to create/update API keys with a single role descriptor that is restricted to workflows.
-            if (numberOfRolesWithWorkflowsRestriction != 1L) {
-                return new IllegalArgumentException("more than one role descriptor with workflows restriction is not supported");
+            // It's only allowed to create/update API keys with a single role descriptor that is restricted.
+            if (numberOfRoleDescriptorsWithRestriction != 1L) {
+                return new IllegalArgumentException("more than one role descriptor with restriction is not supported");
             }
-            // Combining roles with and without workflows restriction is not allowed either.
-            if (numberOfRolesWithWorkflowsRestriction != requestRoleDescriptors.size()) {
-                return new IllegalArgumentException("combining role descriptors with and without workflows restriction is not supported");
+            // Combining roles with and without restriction is not allowed either.
+            if (numberOfRoleDescriptorsWithRestriction != requestRoleDescriptors.size()) {
+                return new IllegalArgumentException("combining role descriptors with and without restriction is not supported");
             }
         }
         return null;
     }
 
-    private static long getNumberOfRolesWithWorkflowsRestriction(Collection<RoleDescriptor> roleDescriptors) {
+    private static long getNumberOfRoleDescriptorsWithRestriction(Collection<RoleDescriptor> roleDescriptors) {
         if (roleDescriptors == null || roleDescriptors.isEmpty()) {
             return 0L;
         }
-        return roleDescriptors.stream().filter(RoleDescriptor::hasWorkflowsRestriction).count();
+        return roleDescriptors.stream().filter(RoleDescriptor::hasRestriction).count();
     }
 
     private void createApiKeyAndIndexIt(
@@ -495,7 +491,7 @@ public class ApiKeyService {
             );
             return;
         }
-        final Exception workflowsValidationException = validateWorkflowsRestrictionConstrains(
+        final Exception workflowsValidationException = validateWorkflowsRestrictionConstraints(
             transportVersion,
             request.getRoleDescriptors(),
             userRoleDescriptors

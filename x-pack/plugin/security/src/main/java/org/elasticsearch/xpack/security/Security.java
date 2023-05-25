@@ -7,11 +7,13 @@
 package org.elasticsearch.xpack.security;
 
 import io.netty.channel.Channel;
+import io.netty.handler.codec.http.HttpUtil;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -82,6 +84,7 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestHeaderDefinition;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.threadpool.ExecutorBuilder;
@@ -1671,9 +1674,19 @@ public class Security extends Plugin
                         ActionListener.wrap(ignored -> listener.onResponse(null), listener::onFailure)
                     );
                 } else {
-                    // allow for unauthenticated OPTIONS request
-                    // this includes CORS preflight, and regular OPTIONS that return permitted methods for a given path
-                    listener.onResponse(null);
+                    if (HttpUtil.getContentLength(httpRequest, -1L) > 1 || HttpUtil.isTransferEncodingChunked(httpRequest)) {
+                        // OPTIONS requests with a body are not supported
+                        listener.onFailure(
+                            new ElasticsearchStatusException(
+                                "OPTIONS requests with a payload body are not supported",
+                                RestStatus.BAD_REQUEST
+                            )
+                        );
+                    } else {
+                        // allow for unauthenticated OPTIONS request
+                        // this includes CORS preflight, and regular OPTIONS that return permitted methods for a given path
+                        listener.onResponse(null);
+                    }
                 }
             };
             return getHttpServerTransportWithHeadersValidator(

@@ -994,11 +994,12 @@ public class MetadataIndexTemplateService {
                     throw new IllegalStateException("Data stream " + ds.getName() + " did not match any composable index templates.");
                 }
 
-                // Limit data streams that can ONLY use any of the specified templates
+                // Limit data streams that can ONLY use any of the specified templates, we do this by filtering
+                // the matching templates that are others than the ones requested and could be a valid template to use.
                 return candidates.stream()
                     .filter(
                         template -> templateNames.contains(template.v1()) == false
-                            && hasIndexHiddenSetting(metadata, template.v2(), template.v1()) == false
+                            && isGlobalAndHasIndexHiddenSetting(metadata, template.v2(), template.v1()) == false
                     )
                     .map(Tuple::v1)
                     .toList()
@@ -1211,7 +1212,7 @@ public class MetadataIndexTemplateService {
         // a restored index cluster state that modified a component template used by this global template such that it has this setting)
         // we will fail and the user will have to update the index template and remove this setting or update the corresponding component
         // template that contributes to the index template resolved settings
-        if (hasIndexHiddenSetting(metadata, winner, winnerName)) {
+        if (isGlobalAndHasIndexHiddenSetting(metadata, winner, winnerName)) {
             throw new IllegalStateException(
                 "global index template ["
                     + winnerName
@@ -1255,7 +1256,9 @@ public class MetadataIndexTemplateService {
         return candidates;
     }
 
-    private static boolean hasIndexHiddenSetting(Metadata metadata, ComposableIndexTemplate template, String templateName) {
+    // Checks if a global template specifies the `index.hidden` setting. This check is important because a global
+    // template shouldn't specify the `index.hidden` setting, we leave it up to the caller to handle this situation.
+    private static boolean isGlobalAndHasIndexHiddenSetting(Metadata metadata, ComposableIndexTemplate template, String templateName) {
         return template.indexPatterns().stream().anyMatch(Regex::isMatchAllPattern)
             && IndexMetadata.INDEX_HIDDEN_SETTING.exists(resolveSettings(metadata, templateName));
     }

@@ -1352,37 +1352,18 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
     @SuppressWarnings("unchecked")
     private void fetchAndAssertApiKeyContainsWorkflows(String apiKeyId, String roleName, String... expectedWorkflows) throws IOException {
         Response getApiKeyResponse = fetchApiKey(apiKeyId);
-
-        List<Map<String, ?>> apiKeys = (List<Map<String, ?>>) responseAsMap(getApiKeyResponse).get("api_keys");
-        assertThat(apiKeys.size(), equalTo(1));
-
-        Map<String, ?> roleDescriptors = (Map<String, ?>) apiKeys.get(0).get("role_descriptors");
-        assertThat(roleDescriptors, notNullValue());
-
-        Map<String, ?> roleDescriptor = (Map<String, ?>) roleDescriptors.get(roleName);
-        assertThat(roleDescriptor, notNullValue());
-
-        Map<String, ?> restriction = (Map<String, ?>) roleDescriptor.get("restriction");
-        assertThat(restriction, notNullValue());
-
-        List<String> actualWorkflows = (List<String>) restriction.get("workflows");
+        List<String> actualWorkflows = assertOKAndCreateObjectPath(getApiKeyResponse).evaluate(
+            "api_keys.0.role_descriptors." + roleName + ".restriction.workflows"
+        );
         assertThat(actualWorkflows, containsInAnyOrder(expectedWorkflows));
     }
 
     @SuppressWarnings("unchecked")
     private void fetchAndAssertApiKeyDoesNotContainWorkflows(String apiKeyId, String roleName) throws IOException {
         Response getApiKeyResponse = fetchApiKey(apiKeyId);
-
-        List<Map<String, ?>> apiKeys = (List<Map<String, ?>>) responseAsMap(getApiKeyResponse).get("api_keys");
-        assertThat(apiKeys.size(), equalTo(1));
-
-        Map<String, ?> roleDescriptors = (Map<String, ?>) apiKeys.get(0).get("role_descriptors");
-        assertThat(roleDescriptors, notNullValue());
-
-        Map<String, ?> roleDescriptor = (Map<String, ?>) roleDescriptors.get(roleName);
-        assertThat(roleDescriptor, notNullValue());
-
-        Map<String, ?> restriction = (Map<String, ?>) roleDescriptor.get("restriction");
+        Map<String, ?> restriction = assertOKAndCreateObjectPath(getApiKeyResponse).evaluate(
+            "api_keys.0.role_descriptors." + roleName + ".restriction"
+        );
         assertThat(restriction, nullValue());
     }
 

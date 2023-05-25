@@ -1,0 +1,58 @@
+---
+setup:
+  - do:
+      indices.create:
+        index:  test
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              data:
+                type: long
+              count:
+                type: integer
+
+---
+"Basic ESQL usage output (telemetry)":
+
+  - do: {xpack.usage: {}}
+  - match: { esql.available: true }
+  - match: { esql.enabled: true }
+  - length: { esql.features: 7 }
+  - set: {esql.features.dissect: dissect_counter}
+  - set: {esql.features.eval: eval_counter}
+  - set: {esql.features.grok: grok_counter}
+  - set: {esql.features.limit: limit_counter}
+  - set: {esql.features.sort: sort_counter}
+  - set: {esql.features.stats: stats_counter}
+  - set: {esql.features.where: where_counter}
+  - length: { esql.queries: 3 }
+  - set: {esql.queries.rest.total: rest_total_counter}
+  - set: {esql.queries.rest.failed: rest_failed_counter}
+  - set: {esql.queries.kibana.total: kibana_total_counter}
+  - set: {esql.queries.kibana.failed: kibana_failed_counter}
+  - set: {esql.queries._all.total: all_total_counter}
+  - set: {esql.queries._all.failed: all_failed_counter}
+
+  - do:
+      esql.query:
+        body:
+          query: 'from test | where data > 2 | sort count desc | limit 5 | stats m = max(data)'
+
+  - do: {xpack.usage: {}}
+  - match: { esql.available: true }
+  - match: { esql.enabled: true }
+  - match: {esql.features.dissect: $dissect_counter}
+  - match: {esql.features.eval: $eval_counter}
+  - match: {esql.features.grok: $grok_counter}
+  - gt: {esql.features.limit: $limit_counter}
+  - gt: {esql.features.sort: $sort_counter}
+  - gt: {esql.features.stats: $stats_counter}
+  - gt: {esql.features.where: $where_counter}
+  - gt: {esql.queries.rest.total: $rest_total_counter}
+  - match: {esql.queries.rest.failed: $rest_failed_counter}
+  - match: {esql.queries.kibana.total: $kibana_total_counter}
+  - match: {esql.queries.kibana.failed: $kibana_failed_counter}
+  - gt: {esql.queries._all.total: $all_total_counter}
+  - match: {esql.queries._all.failed: $all_failed_counter}

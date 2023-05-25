@@ -1,20 +1,12 @@
-apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.legacy-yaml-rest-test'
 
 dependencies {
   javaRestTestImplementation project(xpackModule('esql:qa:testFixtures'))
-  clusterModules project(xpackModule('esql'))
-  clusterModules project(':modules:mapper-extras')
-  clusterModules project(xpackModule('mapper-constant-keyword'))
-  clusterModules project(xpackModule('wildcard'))
-  clusterModules project(xpackModule('mapper-version'))
-  clusterModules project(xpackModule('spatial'))
-  clusterModules project(xpackModule('analytics'))
-  clusterModules project(xpackModule('mapper-aggregate-metric'))
 }
 
 restResources {
   restApi {
-    include '_common', 'bulk', 'indices', 'esql'
+    include '_common', 'bulk', 'indices', 'esql', 'xpack'
   }
 }
 

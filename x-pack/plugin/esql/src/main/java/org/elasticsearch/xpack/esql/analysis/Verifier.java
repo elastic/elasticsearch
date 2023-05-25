@@ -170,30 +170,34 @@ public class Verifier {
 
         // gather metrics
         if (failures.isEmpty()) {
-            BitSet b = new BitSet(FeatureMetric.values().length);
-            plan.forEachDown(p -> {
-                if (p instanceof Dissect) {
-                    b.set(DISSECT.ordinal());
-                } else if (p instanceof Eval) {
-                    b.set(EVAL.ordinal());
-                } else if (p instanceof Grok) {
-                    b.set(GROK.ordinal());
-                } else if (p instanceof Limit) {
-                    b.set(LIMIT.ordinal());
-                } else if (p instanceof OrderBy) {
-                    b.set(SORT.ordinal());
-                } else if (p instanceof Aggregate) {
-                    b.set(STATS.ordinal());
-                } else if (p instanceof Filter) {
-                    b.set(WHERE.ordinal());
-                }
-            });
-            for (int i = b.nextSetBit(0); i >= 0; i = b.nextSetBit(i + 1)) {
-                metrics.inc(FeatureMetric.values()[i]);
-            }
+            gatherMetrics(plan);
         }
 
         return failures;
+    }
+
+    private void gatherMetrics(LogicalPlan plan) {
+        BitSet b = new BitSet(FeatureMetric.values().length);
+        plan.forEachDown(p -> {
+            if (p instanceof Dissect) {
+                b.set(DISSECT.ordinal());
+            } else if (p instanceof Eval) {
+                b.set(EVAL.ordinal());
+            } else if (p instanceof Grok) {
+                b.set(GROK.ordinal());
+            } else if (p instanceof Limit) {
+                b.set(LIMIT.ordinal());
+            } else if (p instanceof OrderBy) {
+                b.set(SORT.ordinal());
+            } else if (p instanceof Aggregate) {
+                b.set(STATS.ordinal());
+            } else if (p instanceof Filter) {
+                b.set(WHERE.ordinal());
+            }
+        });
+        for (int i = b.nextSetBit(0); i >= 0; i = b.nextSetBit(i + 1)) {
+            metrics.inc(FeatureMetric.values()[i]);
+        }
     }
 
     /**

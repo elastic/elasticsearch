@@ -1245,6 +1245,10 @@ public class ReservedRolesStoreTests extends ESTestCase {
                 is(true)
             );
         });
+
+        Arrays.asList(
+            "risk-score.risk-score-" + randomAlphaOfLength(randomIntBetween(0, 13)),
+        ).forEach(index -> assertAllIndicesAccessAllowed(kibanaRole, index));
     }
 
     public void testKibanaAdminRole() {

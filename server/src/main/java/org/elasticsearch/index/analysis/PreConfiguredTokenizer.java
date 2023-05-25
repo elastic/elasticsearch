@@ -37,7 +37,7 @@ public final class PreConfiguredTokenizer extends PreConfiguredAnalysisComponent
      * @param create builds the tokenizer
      */
     public static PreConfiguredTokenizer luceneVersion(String name, Function<org.apache.lucene.util.Version, Tokenizer> create) {
-        return new PreConfiguredTokenizer(name, CachingStrategy.LUCENE, version -> create.apply(version.luceneVersion));
+        return new PreConfiguredTokenizer(name, CachingStrategy.LUCENE, version -> create.apply(version.luceneVersion()));
     }
 
     /**

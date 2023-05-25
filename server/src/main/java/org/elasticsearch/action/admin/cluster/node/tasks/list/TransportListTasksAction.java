@@ -21,16 +21,17 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.RemovedTaskListener;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Consumer;
 
 import static java.util.Objects.requireNonNullElse;
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
@@ -70,21 +71,22 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
     }
 
     @Override
-    protected void taskOperation(Task actionTask, ListTasksRequest request, Task task, ActionListener<TaskInfo> listener) {
+    protected void taskOperation(CancellableTask actionTask, ListTasksRequest request, Task task, ActionListener<TaskInfo> listener) {
         listener.onResponse(task.taskInfo(clusterService.localNode().getId(), request.getDetailed()));
     }
 
     @Override
-    protected void processTasks(ListTasksRequest request, Consumer<Task> operation, ActionListener<Void> nodeOperation) {
+    protected void processTasks(ListTasksRequest request, ActionListener<List<Task>> nodeOperation) {
         if (request.getWaitForCompletion()) {
-            final ListenableActionFuture<Void> future = new ListenableActionFuture<>();
+            final ListenableActionFuture<List<Task>> future = new ListenableActionFuture<>();
+            final List<Task> processedTasks = new ArrayList<>();
             final Set<Task> removedTasks = Sets.newConcurrentHashSet();
             final Set<Task> matchedTasks = Sets.newConcurrentHashSet();
             final RefCounted removalRefs = AbstractRefCounted.of(() -> {
                 matchedTasks.removeAll(removedTasks);
                 removedTasks.clear();
                 if (matchedTasks.isEmpty()) {
-                    future.onResponse(null);
+                    future.onResponse(processedTasks);
                 }
             });
 
@@ -96,24 +98,24 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
                 } else {
                     matchedTasks.remove(task);
                     if (matchedTasks.isEmpty()) {
-                        future.onResponse(null);
+                        future.onResponse(processedTasks);
                     }
                 }
             };
             taskManager.registerRemovedTaskListener(removedTaskListener);
-            final ActionListener<Void> allMatchedTasksRemovedListener = ActionListener.runBefore(
+            final ActionListener<List<Task>> allMatchedTasksRemovedListener = ActionListener.runBefore(
                 nodeOperation,
                 () -> taskManager.unregisterRemovedTaskListener(removedTaskListener)
             );
             try {
-                processTasks(request, task -> {
+                for (final var task : processTasks(request)) {
                     if (task.getAction().startsWith(ListTasksAction.NAME) == false) {
                         // It doesn't make sense to wait for List Tasks and it can cause an infinite loop of the task waiting
                         // for itself or one of its child tasks
                         matchedTasks.add(task);
                     }
-                    operation.accept(task);
-                });
+                    processedTasks.add(task);
+                }
             } catch (Exception e) {
                 allMatchedTasksRemovedListener.onFailure(e);
                 return;
@@ -136,7 +138,7 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
                 ThreadPool.Names.SAME
             );
         } else {
-            super.processTasks(request, operation, nodeOperation);
+            super.processTasks(request, nodeOperation);
         }
     }
 }

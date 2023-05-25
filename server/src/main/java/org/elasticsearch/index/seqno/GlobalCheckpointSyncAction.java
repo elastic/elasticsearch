@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
@@ -62,7 +63,7 @@ public class GlobalCheckpointSyncAction extends TransportReplicationAction<
             actionFilters,
             Request::new,
             Request::new,
-            ThreadPool.Names.MANAGEMENT
+            ThreadPool.Names.WRITE
         );
     }
 
@@ -77,24 +78,26 @@ public class GlobalCheckpointSyncAction extends TransportReplicationAction<
         IndexShard indexShard,
         ActionListener<PrimaryResult<Request, ReplicationResponse>> listener
     ) {
-        ActionListener.completeWith(listener, () -> {
-            maybeSyncTranslog(indexShard);
-            return new PrimaryResult<>(request, new ReplicationResponse());
-        });
+        maybeSyncTranslog(indexShard, listener, () -> new PrimaryResult<>(request, new ReplicationResponse()));
     }
 
     @Override
     protected void shardOperationOnReplica(Request shardRequest, IndexShard replica, ActionListener<ReplicaResult> listener) {
-        ActionListener.completeWith(listener, () -> {
-            maybeSyncTranslog(replica);
-            return new ReplicaResult();
-        });
+        maybeSyncTranslog(replica, listener, ReplicaResult::new);
     }
 
-    private static void maybeSyncTranslog(final IndexShard indexShard) throws IOException {
+    private static <T> void maybeSyncTranslog(IndexShard indexShard, ActionListener<T> listener, CheckedSupplier<T, Exception> supplier) {
         if (indexShard.getTranslogDurability() == Translog.Durability.REQUEST
             && indexShard.getLastSyncedGlobalCheckpoint() < indexShard.getLastKnownGlobalCheckpoint()) {
-            indexShard.sync();
+            indexShard.syncGlobalCheckpoint(indexShard.getLastKnownGlobalCheckpoint(), e -> {
+                if (e == null) {
+                    ActionListener.completeWith(listener, supplier);
+                } else {
+                    listener.onFailure(e);
+                }
+            });
+        } else {
+            ActionListener.completeWith(listener, supplier);
         }
     }
 

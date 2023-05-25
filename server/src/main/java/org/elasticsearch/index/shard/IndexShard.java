@@ -3615,6 +3615,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         getEngine().asyncEnsureTranslogSynced(location, syncListener);
     }
 
+    public final void syncGlobalCheckpoint(long globalCheckpoint, Consumer<Exception> syncListener) {
+        verifyNotClosed();
+        getEngine().asyncEnsureGlobalCheckpointSynced(globalCheckpoint, syncListener);
+    }
+
     public void sync() throws IOException {
         verifyNotClosed();
         getEngine().syncTranslog();

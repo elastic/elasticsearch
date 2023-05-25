@@ -160,7 +160,10 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             Translog.Location lastWriteLocation = tlog.getLastWriteLocation();
             try {
                 // the lastWriteLocaltion has a Integer.MAX_VALUE size so we have to create a new one
-                return tlog.ensureSynced(new Translog.Location(lastWriteLocation.generation, lastWriteLocation.translogLocation, 0));
+                return tlog.ensureSynced(
+                    new Translog.Location(lastWriteLocation.generation, lastWriteLocation.translogLocation, 0),
+                    SequenceNumbers.NO_OPS_PERFORMED
+                );
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }

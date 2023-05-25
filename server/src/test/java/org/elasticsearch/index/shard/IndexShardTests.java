@@ -1534,6 +1534,38 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(shard);
     }
 
+    public void testAsyncPersistGlobalCheckpointSync() throws InterruptedException, IOException {
+        IndexShard shard = newStartedShard();
+        Semaphore semaphore = new Semaphore(Integer.MAX_VALUE);
+        Thread[] thread = new Thread[randomIntBetween(3, 5)];
+        CountDownLatch latch = new CountDownLatch(thread.length);
+        for (int i = 0; i < thread.length; i++) {
+            thread[i] = new Thread() {
+                @Override
+                public void run() {
+                    try {
+                        latch.countDown();
+                        latch.await();
+                        for (int i = 0; i < 10000; i++) {
+                            semaphore.acquire();
+                            shard.syncGlobalCheckpoint(randomLongBetween(1, 10000), (ex) -> semaphore.release());
+                        }
+                    } catch (Exception ex) {
+                        throw new RuntimeException(ex);
+                    }
+                }
+            };
+            thread[i].start();
+        }
+
+        for (int i = 0; i < thread.length; i++) {
+            thread[i].join();
+        }
+        assertTrue(semaphore.tryAcquire(Integer.MAX_VALUE, 10, TimeUnit.SECONDS));
+
+        closeShards(shard);
+    }
+
     public void testShardStats() throws IOException {
 
         IndexShard shard = newStartedShard();

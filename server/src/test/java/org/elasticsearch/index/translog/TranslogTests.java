@@ -1024,7 +1024,7 @@ public class TranslogTests extends ESTestCase {
                             fail("duplicate op [" + op + "], old entry at " + location);
                         }
                         if (id % writers.length == threadId) {
-                            translog.ensureSynced(location);
+                            translog.ensureSynced(location, SequenceNumbers.NO_OPS_PERFORMED);
                         }
                         if (id % flushEveryOps == 0) {
                             synchronized (flushMutex) {
@@ -1162,66 +1162,56 @@ public class TranslogTests extends ESTestCase {
         logger.info("--> test done. total ops written [{}]", writtenOps.size());
     }
 
-    public void testSyncUpTo() throws IOException {
-        int translogOperations = randomIntBetween(10, 100);
-        int count = 0;
-        for (int op = 0; op < translogOperations; op++) {
-            int seqNo = ++count;
-            final Translog.Location location = translog.add(TranslogOperationsUtils.indexOp("" + op, seqNo, primaryTerm.get()));
-            if (randomBoolean()) {
-                assertTrue("at least one operation pending", translog.syncNeeded());
-                assertTrue("this operation has not been synced", translog.ensureSynced(location));
-                // we are the last location so everything should be synced
-                assertFalse("the last call to ensureSycned synced all previous ops", translog.syncNeeded());
-                seqNo = ++count;
-                translog.add(TranslogOperationsUtils.indexOp("" + op, seqNo, primaryTerm.get()));
-                assertTrue("one pending operation", translog.syncNeeded());
-                assertFalse("this op has been synced before", translog.ensureSynced(location)); // not syncing now
-                assertTrue("we only synced a previous operation yet", translog.syncNeeded());
-            }
-            if (rarely()) {
-                translog.rollGeneration();
-                assertFalse("location is from a previous translog - already synced", translog.ensureSynced(location)); // not syncing now
-                assertFalse("no sync needed since no operations in current translog", translog.syncNeeded());
-            }
+    public void testSyncUpToLocationAndCheckpoint() throws IOException {
+        assertFalse(
+            "translog empty location and not ops performed will not require sync",
+            translog.ensureSynced(Location.EMPTY, SequenceNumbers.NO_OPS_PERFORMED)
+        );
 
-            if (randomBoolean()) {
-                translog.sync();
-                assertFalse("translog has been synced already", translog.ensureSynced(location));
-            }
-        }
-    }
-
-    public void testSyncUpToStream() throws IOException {
-        int iters = randomIntBetween(5, 10);
+        int iters = randomIntBetween(25, 50);
         for (int i = 0; i < iters; i++) {
             int translogOperations = randomIntBetween(10, 100);
             int count = 0;
-            ArrayList<Location> locations = new ArrayList<>();
+
+            Location location = null;
+            final ArrayList<Location> locations = new ArrayList<>();
             for (int op = 0; op < translogOperations; op++) {
                 if (rarely()) {
                     translog.rollGeneration();
                 }
-                final Translog.Location location = translog.add(indexOp("" + op, op, primaryTerm.get(), Integer.toString(++count)));
+                location = translog.add(indexOp("" + op, op, primaryTerm.get(), Integer.toString(++count)));
+                globalCheckpoint.incrementAndGet();
                 locations.add(location);
             }
-            Collections.shuffle(locations, random());
+
             if (randomBoolean()) {
                 assertTrue("at least one operation pending", translog.syncNeeded());
-                assertTrue("this operation has not been synced", translog.ensureSynced(locations.stream()));
-                // we are the last location so everything should be synced
+                if (randomBoolean()) {
+                    assertTrue("this operation has not been synced", translog.ensureSynced(location, SequenceNumbers.NO_OPS_PERFORMED));
+                } else {
+                    assertTrue(
+                        "this global checkpoint has not been persisted",
+                        translog.ensureSynced(Location.EMPTY, globalCheckpoint.get())
+                    );
+                }
+                // everything should be synced
                 assertFalse("the last call to ensureSycned synced all previous ops", translog.syncNeeded());
             } else if (rarely()) {
                 translog.rollGeneration();
                 // not syncing now
-                assertFalse("location is from a previous translog - already synced", translog.ensureSynced(locations.stream()));
+                assertFalse(
+                    "location is from a previous translog - already synced",
+                    translog.ensureSynced(location, globalCheckpoint.get())
+                );
                 assertFalse("no sync needed since no operations in current translog", translog.syncNeeded());
             } else {
                 translog.sync();
-                assertFalse("translog has been synced already", translog.ensureSynced(locations.stream()));
+                assertFalse("translog has been synced already", translog.ensureSynced(location, globalCheckpoint.get()));
             }
-            for (Location location : locations) {
-                assertFalse("all of the locations should be synced: " + location, translog.ensureSynced(location));
+
+            Collections.shuffle(locations, random());
+            for (Location l : locations) {
+                assertFalse("all of the locations should be synced: " + l, translog.ensureSynced(l, SequenceNumbers.NO_OPS_PERFORMED));
             }
         }
     }
@@ -2550,7 +2540,7 @@ public class TranslogTests extends ESTestCase {
         try {
             Translog.Location location = translog.add(indexOp("2", 1, primaryTerm.get(), lineFileDocs.nextDoc().toString()));
             if (randomBoolean()) {
-                translog.ensureSynced(location);
+                translog.ensureSynced(location, SequenceNumbers.NO_OPS_PERFORMED);
             } else {
                 translog.sync();
             }
@@ -3888,7 +3878,7 @@ public class TranslogTests extends ESTestCase {
                             long globalCheckpoint = lastGlobalCheckpoint.get();
                             final boolean synced;
                             if (randomBoolean()) {
-                                synced = translog.ensureSynced(location);
+                                synced = translog.ensureSynced(location, globalCheckpoint);
                             } else {
                                 translog.sync();
                                 synced = true;

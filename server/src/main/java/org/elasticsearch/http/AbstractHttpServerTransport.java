@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -28,6 +29,7 @@ import org.elasticsearch.common.transport.NetworkExceptionHelper;
 import org.elasticsearch.common.transport.PortsRange;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.AbstractRefCounted;
@@ -54,6 +56,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -63,6 +66,7 @@ import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_CONT
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_PORT;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_PUBLISH_HOST;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_PUBLISH_PORT;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_SERVER_SHUTDOWN_GRACE_PERIOD;
 
 public abstract class AbstractHttpServerTransport extends AbstractLifecycleComponent implements HttpServerTransport {
     private static final Logger logger = LogManager.getLogger(AbstractHttpServerTransport.class);
@@ -87,6 +91,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     private final PlainActionFuture<Void> allClientsClosedListener = PlainActionFuture.newFuture();
     private final RefCounted refCounted = AbstractRefCounted.of(() -> allClientsClosedListener.onResponse(null));
     private final Set<HttpServerChannel> httpServerChannels = Collections.newSetFromMap(new ConcurrentHashMap<>());
+    private final long shutdownGracePeriodMillis;
     private final HttpClientStatsTracker httpClientStatsTracker;
 
     private final HttpTracer httpLogger;
@@ -136,6 +141,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         );
         slowLogThresholdMs = TransportSettings.SLOW_OPERATION_THRESHOLD_SETTING.get(settings).getMillis();
         httpClientStatsTracker = new HttpClientStatsTracker(settings, clusterSettings, threadPool);
+        shutdownGracePeriodMillis = SETTING_HTTP_SERVER_SHUTDOWN_GRACE_PERIOD.get(settings).getMillis();
     }
 
     public Recycler<BytesRef> recycler() {
@@ -229,18 +235,40 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
                 }
             }
         }
-        try {
-            refCounted.decRef();
-            CloseableChannel.closeChannels(new ArrayList<>(httpChannels), true);
-        } catch (Exception e) {
-            logger.warn("unexpected exception while closing http channels", e);
+
+        gracefullyCloseConnections();
+        refCounted.decRef();
+
+        boolean closed = false;
+        if (shutdownGracePeriodMillis > 0) {
+            try {
+                FutureUtils.get(allClientsClosedListener, shutdownGracePeriodMillis, TimeUnit.MILLISECONDS);
+                closed = true;
+            } catch (ElasticsearchTimeoutException t) {
+                logger.trace(
+                    () -> format(
+                        "timed out while waiting [%d]ms for clients to close connections [%s]",
+                        shutdownGracePeriodMillis,
+                        t.getDetailedMessage()
+                    )
+                );
+            }
         }
 
-        try {
-            allClientsClosedListener.get();
-        } catch (Exception e) {
-            assert false : e;
-            logger.warn("unexpected exception while waiting for http channels to close", e);
+        if (closed == false) {
+            try {
+                CloseableChannel.closeChannels(new ArrayList<>(httpChannels), true);
+            } catch (Exception e) {
+                logger.warn("unexpected exception while closing http channels", e);
+            }
+
+            try {
+                allClientsClosedListener.get();
+                logger.warn("STU: done force closing clients");
+            } catch (Exception e) {
+                assert false : e;
+                logger.warn("unexpected exception while waiting for http channels to close", e);
+            }
         }
         stopInternal();
     }

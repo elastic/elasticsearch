@@ -145,8 +145,8 @@ public class InternalUsers {
                     )
                     .allowRestrictedIndices(false)
                     .build(),
-                // System data stream for result history of fleet actions (see Fleet#fleetActionsResultsDescriptor)
                 RoleDescriptor.IndicesPrivileges.builder()
+                    // System data stream for result history of fleet actions (see Fleet#fleetActionsResultsDescriptor)
                     .indices(".fleet-actions-results")
                     .privileges(
                         "delete_index",

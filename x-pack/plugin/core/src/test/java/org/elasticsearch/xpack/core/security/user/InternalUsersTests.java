@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.core.security.authz.permission.RemoteIndicesPermi
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.permission.RunAsPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.SimpleRole;
+import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 import org.elasticsearch.xpack.core.security.test.TestRestrictedIndices;
 
 import java.util.List;
@@ -50,6 +51,7 @@ import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.I
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.INTERNAL_SECURITY_TOKENS_INDEX_7;
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.SECURITY_MAIN_ALIAS;
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.SECURITY_TOKENS_ALIAS;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
@@ -216,6 +218,10 @@ public class InternalUsersTests extends ESTestCase {
 
     public void testDlmUser() {
         assertThat(InternalUsers.getUser("_dlm"), is(InternalUsers.DLM_USER));
+        assertThat(
+            InternalUsers.DLM_USER.getLocalClusterRoleDescriptor().get().getMetadata(),
+            equalTo(MetadataUtils.DEFAULT_RESERVED_METADATA)
+        );
 
         final SimpleRole role = getLocalClusterRole(InternalUsers.DLM_USER);
 
@@ -223,6 +229,8 @@ public class InternalUsersTests extends ESTestCase {
         assertThat(role.runAs(), is(RunAsPermission.NONE));
         assertThat(role.application(), is(ApplicationPermission.NONE));
         assertThat(role.remoteIndices(), is(RemoteIndicesPermission.NONE));
+        assertThat(role.indices().groups().length, equalTo(1));
+        assertThat(role.indices().groups()[0].allowRestrictedIndices(), is(true));
 
         final List<String> sampleIndexActions = List.of(
             RolloverAction.NAME,

@@ -82,7 +82,7 @@ public class DataLifecycleServiceRuntimeSecurityIT extends SecurityIntegTestCase
     }
 
     public void testRolloverLifecycleAndForceMergeAuthorized() throws Exception {
-        String dataStreamName = "metrics-foo";
+        String dataStreamName = randomDataStreamName();
         // empty lifecycle contains the default rollover
         prepareDataStreamAndIndex(dataStreamName, new DataLifecycle());
 
@@ -95,7 +95,6 @@ public class DataLifecycleServiceRuntimeSecurityIT extends SecurityIntegTestCase
             String writeIndex = backingIndices.get(1).getName();
             assertThat(writeIndex, backingIndexEqualTo(dataStreamName, 2));
         });
-
         // Index another doc to force another rollover and trigger an attempted force-merge. The force-merge may be a noop under
         // the hood but for authz purposes this doesn't matter, it only matters that the force-merge API was called
         indexDoc(dataStreamName);
@@ -107,7 +106,7 @@ public class DataLifecycleServiceRuntimeSecurityIT extends SecurityIntegTestCase
     }
 
     public void testRolloverAndRetentionAuthorized() throws Exception {
-        String dataStreamName = "metrics-foo";
+        String dataStreamName = randomDataStreamName();
         prepareDataStreamAndIndex(dataStreamName, new DataLifecycle(TimeValue.timeValueMillis(0)));
 
         assertBusy(() -> {
@@ -123,7 +122,7 @@ public class DataLifecycleServiceRuntimeSecurityIT extends SecurityIntegTestCase
 
     public void testUnauthorized() throws Exception {
         // the DLM user is not authorized for this pattern since it matches the security index
-        String dataStreamName = ".security-foo";
+        String dataStreamName = randomFrom(".security-", ".async-search-") + randomDataStreamName();
         prepareDataStreamAndIndex(dataStreamName, new DataLifecycle(TimeValue.timeValueMillis(0)));
 
         assertBusy(() -> {
@@ -149,6 +148,11 @@ public class DataLifecycleServiceRuntimeSecurityIT extends SecurityIntegTestCase
             String writeIndex = backingIndices.get(0).getName();
             assertThat(writeIndex, backingIndexEqualTo(dataStreamName, 2));
         });
+    }
+
+    private static String randomDataStreamName() {
+        // lower-case since this is required for a valid data stream name
+        return randomAlphaOfLengthBetween(5, 10).toLowerCase(Locale.ROOT);
     }
 
     private Map<String, String> collectErrorsFromStoreAsMap() {

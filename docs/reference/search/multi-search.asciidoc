@@ -334,7 +334,7 @@ all search requests.
 [[msearch-security]]
 ==== Security
 
-See <<url-access-control>>
+See <<api-url-access-control>>
 
 
 [[multi-search-partial-responses]]

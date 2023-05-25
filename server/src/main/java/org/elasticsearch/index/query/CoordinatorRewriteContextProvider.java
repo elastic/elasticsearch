@@ -49,18 +49,16 @@ public class CoordinatorRewriteContextProvider {
         if (indexMetadata == null) {
             return null;
         }
+        DateFieldMapper.DateFieldType dateFieldType = mappingSupplier.apply(index);
+        if (dateFieldType == null) {
+            return null;
+        }
         IndexLongFieldRange timestampRange = indexMetadata.getTimestampRange();
         if (timestampRange.containsAllShardRanges() == false) {
-            timestampRange = indexMetadata.getTimeSeriesTimestampRange();
+            timestampRange = indexMetadata.getTimeSeriesTimestampRange(dateFieldType);
             if (timestampRange == null) {
                 return null;
             }
-        }
-
-        DateFieldMapper.DateFieldType dateFieldType = mappingSupplier.apply(index);
-
-        if (dateFieldType == null) {
-            return null;
         }
 
         return new CoordinatorRewriteContext(parserConfig, client, nowInMillis, timestampRange, dateFieldType);

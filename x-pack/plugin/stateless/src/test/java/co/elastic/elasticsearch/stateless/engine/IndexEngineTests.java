@@ -157,6 +157,35 @@ public class IndexEngineTests extends AbstractEngineTestCase {
         }
     }
 
+    public void testRefreshNeededBasedOnFastRefresh() throws Exception {
+        try (var engine = newIndexEngine(indexConfig())) {
+            engine.index(randomDoc(String.valueOf(0)));
+            // Refresh to warm-up engine
+            engine.maybeRefresh("test");
+            assertFalse(engine.refreshNeeded());
+            engine.index(randomDoc(String.valueOf(1)));
+            assertFalse(engine.refreshNeeded());
+        }
+
+        try (
+            var engine = newIndexEngine(
+                indexConfig(
+                    Settings.builder()
+                        .put(IndexEngine.INDEX_FAST_REFRESH.getKey(), true)
+                        .put(IndexEngine.INDEX_FLUSH_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(60))
+                        .build()
+                )
+            )
+        ) {
+            engine.index(randomDoc(String.valueOf(0)));
+            // Refresh to warm-up engine
+            engine.maybeRefresh("test");
+            assertFalse(engine.refreshNeeded());
+            engine.index(randomDoc(String.valueOf(1)));
+            assertTrue(engine.refreshNeeded());
+        }
+    }
+
     private EngineConfig copy(EngineConfig config, Settings additionalIndexSettings, LongSupplier relativeTimeInNanosSupplier) {
         return new EngineConfig(
             config.getShardId(),

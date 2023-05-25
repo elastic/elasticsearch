@@ -174,8 +174,12 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
     }
 
     protected EngineConfig indexConfig() throws IOException {
+        return indexConfig(Settings.EMPTY);
+    }
+
+    protected EngineConfig indexConfig(Settings settings) throws IOException {
         var shardId = new ShardId(new Index(randomAlphaOfLengthBetween(5, 10), UUIDs.randomBase64UUID(random())), randomInt(10));
-        var indexSettings = IndexSettingsModule.newIndexSettings(shardId.getIndex(), Settings.EMPTY);
+        var indexSettings = IndexSettingsModule.newIndexSettings(shardId.getIndex(), settings);
         var translogConfig = new TranslogConfig(shardId, createTempDir(), indexSettings, BigArrays.NON_RECYCLING_INSTANCE);
         var indexWriterConfig = newIndexWriterConfig();
         var primaryTerm = new AtomicLong(1);

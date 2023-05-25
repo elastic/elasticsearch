@@ -1,5 +1,0 @@
-pr: 95527
-summary: Allow deletion of component templates that are specified in the `ignore_missing_component_templates` array
-area: Data streams
-type: bug
-issues: []

@@ -39,7 +39,6 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.CyclicBarrier;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
-import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.action.support.ActionTestUtils.wrapAsRestResponseListener;
 import static org.elasticsearch.test.TaskAssertions.assertAllCancellableTasksAreCancelled;
@@ -52,10 +51,8 @@ public class ClusterInfoRestCancellationIT extends HttpSmokeTestCase {
         // we create a barrier with one extra party, so we can lock in each node within this method.
         final var cyclicBarrier = new CyclicBarrier(internalCluster().size() + 1);
         var future = new PlainActionFuture<Response>();
-        var transports = StreamSupport.stream(internalCluster().getInstances(HttpServerTransport.class).spliterator(), false)
-            .map(FakeHttpTransport.class::cast)
-            .peek(t -> t.cyclicBarrier = cyclicBarrier)
-            .toList();
+        internalCluster().getInstances(HttpServerTransport.class)
+            .forEach(transport -> ((FakeHttpTransport) transport).cyclicBarrier = cyclicBarrier);
 
         logger.info("--> Sending request");
         var cancellable = getRestClient().performRequestAsync(

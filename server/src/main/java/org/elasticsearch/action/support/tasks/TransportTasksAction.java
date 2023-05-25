@@ -135,7 +135,7 @@ public abstract class TransportTasksAction<
                             return;
                         }
 
-                        logger.debug(Strings.format("failed to execute on node [{}]", nodeId), e);
+                        logger.debug(() -> Strings.format("failed to execute on node [{}]", nodeId), e);
 
                         synchronized (failedNodeExceptions) {
                             failedNodeExceptions.add(new FailedNodeException(nodeId, "Failed node [" + nodeId + "]", e));

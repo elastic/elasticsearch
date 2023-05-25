@@ -26,6 +26,7 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.template.put.PutComponentTemplateAction;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.get.GetAction;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
@@ -229,8 +230,6 @@ public class InternalUsersTests extends ESTestCase {
         assertThat(role.runAs(), is(RunAsPermission.NONE));
         assertThat(role.application(), is(ApplicationPermission.NONE));
         assertThat(role.remoteIndices(), is(RemoteIndicesPermission.NONE));
-        assertThat(role.indices().groups().length, equalTo(1));
-        assertThat(role.indices().groups()[0].allowRestrictedIndices(), is(true));
 
         final List<String> sampleIndexActions = List.of(
             RolloverAction.NAME,
@@ -238,19 +237,26 @@ public class InternalUsersTests extends ESTestCase {
             ForceMergeAction.NAME,
             IndicesStatsAction.NAME
         );
-        checkIndexAccess(role, randomFrom(sampleIndexActions), randomAlphaOfLengthBetween(3, 12), true);
+        final String dataStream = randomAlphaOfLengthBetween(3, 12);
+        checkIndexAccess(role, randomFrom(sampleIndexActions), dataStream, true);
+        // Also check backing index access
         checkIndexAccess(
             role,
             randomFrom(sampleIndexActions),
-            randomFrom(
-                SECURITY_MAIN_ALIAS,
-                INTERNAL_SECURITY_MAIN_INDEX_7,
-                SECURITY_TOKENS_ALIAS,
-                INTERNAL_SECURITY_TOKENS_INDEX_7,
-                XPackPlugin.ASYNC_RESULTS_INDEX
-            ),
-            false
+            DataStream.BACKING_INDEX_PREFIX + dataStream + randomAlphaOfLengthBetween(4, 8),
+            true
         );
+
+        final String allowedSystemDataStream = ".fleet-actions-results";
+        checkIndexAccess(role, randomFrom(sampleIndexActions), allowedSystemDataStream, true);
+        checkIndexAccess(
+            role,
+            randomFrom(sampleIndexActions),
+            DataStream.BACKING_INDEX_PREFIX + allowedSystemDataStream + randomAlphaOfLengthBetween(4, 8),
+            true
+        );
+
+        checkIndexAccess(role, randomFrom(sampleIndexActions), randomFrom(TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES), false);
     }
 
     public void testRegularUser() {

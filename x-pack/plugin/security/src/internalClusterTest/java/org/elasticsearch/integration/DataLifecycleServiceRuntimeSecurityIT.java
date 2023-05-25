@@ -121,8 +121,8 @@ public class DataLifecycleServiceRuntimeSecurityIT extends SecurityIntegTestCase
     }
 
     public void testUnauthorized() throws Exception {
-        // the DLM user is not authorized for this pattern since it matches the security index
-        String dataStreamName = randomFrom(".security-", ".async-search-") + randomDataStreamName();
+        // the DLM user is not authorized since it matches a reserved index (security)
+        String dataStreamName = ".security"; // example system index here
         prepareDataStreamAndIndex(dataStreamName, new DataLifecycle(TimeValue.timeValueMillis(0)));
 
         assertBusy(() -> {
@@ -240,7 +240,7 @@ public class DataLifecycleServiceRuntimeSecurityIT extends SecurityIntegTestCase
 
     public static class SystemDataStreamTestPlugin extends Plugin implements SystemIndexPlugin {
 
-        static final String SYSTEM_DATA_STREAM_NAME = ".test-data-stream";
+        static final String SYSTEM_DATA_STREAM_NAME = ".fleet-actions-results";
 
         @Override
         public Collection<SystemDataStreamDescriptor> getSystemDataStreamDescriptors() {

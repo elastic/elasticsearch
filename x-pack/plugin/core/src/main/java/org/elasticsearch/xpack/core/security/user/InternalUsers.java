@@ -135,8 +135,19 @@ public class InternalUsers {
             new String[] {},
             new RoleDescriptor.IndicesPrivileges[] {
                 RoleDescriptor.IndicesPrivileges.builder()
-                    // There are no active plans to manage the security index or async search index with DLM, so excluding them here
-                    .indices("/@&~(\\.security.*)&~(\\.async-search.*)/")
+                    .indices("*")
+                    .privileges(
+                        "delete_index",
+                        RolloverAction.NAME,
+                        ForceMergeAction.NAME + "*",
+                        // indices stats is used by rollover, so we need to grant it here
+                        IndicesStatsAction.NAME + "*"
+                    )
+                    .allowRestrictedIndices(false)
+                    .build(),
+                // System data stream for result history of fleet actions (see Fleet#fleetActionsResultsDescriptor)
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".fleet-actions-results")
                     .privileges(
                         "delete_index",
                         RolloverAction.NAME,

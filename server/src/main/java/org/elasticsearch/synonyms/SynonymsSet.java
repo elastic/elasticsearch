@@ -57,11 +57,7 @@ public class SynonymsSet implements Writeable, ToXContentObject {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        {
-            builder.array(SYNONYMS_SET_FIELD.getPreferredName(), (Object[]) synonyms);
-        }
-        builder.endObject();
+        builder.array(SYNONYMS_SET_FIELD.getPreferredName(), (Object[]) synonyms);
 
         return builder;
     }

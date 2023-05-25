@@ -1536,13 +1536,13 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         // Component B: "lifecycle": {"retention": "30d"}
         // Composable Z: -
         // Result: "lifecycle": {"retention": "30d"}
-        assertLifecycleResolution(service, state, List.of(ctNoLifecycle, ct30d), null, lifecycle30d);
+        assertLifecycleResolution(service, state, List.of(ctEmptyLifecycle, ct30d), null, lifecycle30d);
 
         // Component A: "lifecycle": {"retention": "30d"}
         // Component B: "lifecycle": {"retention": "45d"}
         // Composable Z: "lifecycle": {}
         // Result: "lifecycle": {"retention": "45d"}
-        assertLifecycleResolution(service, state, List.of(ct30d, ct45d), null, lifecycle45d);
+        assertLifecycleResolution(service, state, List.of(ct30d, ct45d), DataLifecycle.IMPLICIT_INFINITE_RETENTION, lifecycle45d);
 
         // Component A: "lifecycle": {}
         // Component B: "lifecycle": {"retention": "45d"}
@@ -1553,26 +1553,22 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         // Component A: "lifecycle": {"retention": "30d"}
         // Component B: "lifecycle": {"retention": null}
         // Composable Z: -
-        // Result: "lifecycle": {"retention": null}
+        // Result: "lifecycle": {"retention": null}, here the result of the composition is with retention explicitly
+        // nullified, but effectively this is equivalent to "lifecycle": {} when there is no further composition.
         assertLifecycleResolution(service, state, List.of(ct30d, ctNullRetention), null, lifecycleNullRetention);
 
-        // Component A: "lifecycle": {"retention": "30d"}
+        // Component A: "lifecycle": {}
         // Component B: "lifecycle": {"retention": "45d"}
         // Composable Z: "lifecycle": {"retention": null}
-        // Result: "lifecycle": {"retention": null} aka "lifecycle": {}
-        assertLifecycleResolution(service, state, List.of(ct30d, ct45d), lifecycleNullRetention, lifecycleNullRetention);
+        // Result: "lifecycle": {"retention": null} , here the result of the composition is with retention explicitly
+        // nullified, but effectively this is equivalent to "lifecycle": {} when there is no further composition.
+        assertLifecycleResolution(service, state, List.of(ctEmptyLifecycle, ct45d), lifecycleNullRetention, lifecycleNullRetention);
 
         // Component A: "lifecycle": {"retention": "30d"}
         // Component B: "lifecycle": {"retention": "45d"}
         // Composable Z: "lifecycle": null
         // Result: null aka unmanaged
         assertLifecycleResolution(service, state, List.of(ct30d, ct45d), DataLifecycle.NO_LIFECYCLE, null);
-
-        // Component A: "lifecycle": {"retention": "30d"}
-        // Component B: "lifecycle": null
-        // Composable Z: -
-        // Result: null aka unmanaged
-        assertLifecycleResolution(service, state, List.of(ct30d, ctNullLifecycle), null, null);
 
         // Component A: "lifecycle": {"retention": "30d"}
         // Component B: "lifecycle": null

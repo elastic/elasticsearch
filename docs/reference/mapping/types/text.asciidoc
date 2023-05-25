@@ -77,7 +77,7 @@ The following parameters are accepted by `text` fields:
     (default). Enabling this is a good idea on fields that are frequently used for
     (significant) terms aggregations.
 
-<<fielddata,`fielddata`>>::
+<<fielddata-mapping-param,`fielddata`>>::
 
     Can the field use in-memory fielddata for sorting, aggregations,
     or scripting? Accepts `true` or `false` (default).

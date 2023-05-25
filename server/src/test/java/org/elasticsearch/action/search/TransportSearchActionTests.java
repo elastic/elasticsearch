@@ -1064,7 +1064,9 @@ public class TransportSearchActionTests extends ESTestCase {
         }
     }
 
-    public void testShouldMinimizeRoundtrips() throws Exception {
+    /// MP: TODO need to add a testShouldMinimizeRoundtrips back since both shouldMinimizeRoundtrips and minimizeRoundTripsProhibited exist
+
+    public void testMinimizeRoundtripsProhibited() throws Exception {
         {
             SearchRequest searchRequest = new SearchRequest();
             assertFalse(TransportSearchAction.minimizeRoundTripsProhibited(searchRequest));

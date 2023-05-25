@@ -61,8 +61,12 @@ public final class SearchShardsRequest extends ActionRequest implements IndicesR
         this.preference = preference;
         this.allowPartialSearchResults = allowPartialSearchResults;
         this.clusterAlias = clusterAlias;
-        logger.warn("CCC SearchShardsRequest (regular) indices:{}, routing:{}, clusterAlias:{}",
-            Arrays.toString(indices), routing, clusterAlias);
+        logger.warn(
+            "CCC SearchShardsRequest (regular) indices:{}, routing:{}, clusterAlias:{}",
+            Arrays.toString(indices),
+            routing,
+            clusterAlias
+        );
     }
 
     public SearchShardsRequest(StreamInput in) throws IOException {
@@ -74,8 +78,12 @@ public final class SearchShardsRequest extends ActionRequest implements IndicesR
         this.preference = in.readOptionalString();
         this.allowPartialSearchResults = in.readBoolean();
         this.clusterAlias = in.readOptionalString();
-        logger.warn("CCC SearchShardsRequest (StreamInput) indices:{}, routing:{}, clusterAlias:{}",
-            Arrays.toString(indices), routing, clusterAlias);
+        logger.warn(
+            "CCC SearchShardsRequest (StreamInput) indices:{}, routing:{}, clusterAlias:{}",
+            Arrays.toString(indices),
+            routing,
+            clusterAlias
+        );
     }
 
     @Override

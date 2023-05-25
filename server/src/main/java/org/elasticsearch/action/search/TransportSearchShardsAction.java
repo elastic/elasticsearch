@@ -124,8 +124,9 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
                     logger.warn("CCC TransportSearchShardsAction doExecute. canRewriteToMatchNone=true");
                     listener.onResponse(new SearchShardsResponse(toGroups(shardIts), clusterState.nodes().getAllNodes(), aliasFilters));
                 } else {
-                    logger.warn("CCC TransportSearchShardsAction doExecute. canRewriteToMatchNone=false. " +
-                        "Creating CanMatchPreFilterSearchPhase");
+                    logger.warn(
+                        "CCC TransportSearchShardsAction doExecute. canRewriteToMatchNone=false. " + "Creating CanMatchPreFilterSearchPhase"
+                    );
                     var canMatchPhase = new CanMatchPreFilterSearchPhase(logger, searchTransportService, (clusterAlias, node) -> {
                         assert Objects.equals(clusterAlias, searchShardsRequest.clusterAlias());
                         return transportService.getConnection(clusterState.nodes().get(node));

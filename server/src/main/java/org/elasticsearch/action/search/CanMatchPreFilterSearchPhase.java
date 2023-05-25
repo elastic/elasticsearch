@@ -151,8 +151,12 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
         final List<SearchShardIterator> matchedShardLevelRequests = new ArrayList<>();
         for (SearchShardIterator searchShardIterator : shardsIts) {
             SearchShardIterator it = searchShardIterator;
-            logger.warn("CCC: CanMatchPreFilterSearchPhase iter prefiltered: {}; skip: {}, shardId: {}",
-                it.prefiltered(), it.skip(), it.shardId());
+            logger.warn(
+                "CCC: CanMatchPreFilterSearchPhase iter prefiltered: {}; skip: {}, shardId: {}",
+                it.prefiltered(),
+                it.skip(),
+                it.shardId()
+            );
             final CanMatchNodeRequest canMatchNodeRequest = new CanMatchNodeRequest(
                 request,
                 searchShardIterator.getOriginalIndices().indicesOptions(),
@@ -188,8 +192,12 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
                 CanMatchShardResponse result = new CanMatchShardResponse(canMatch, null);
                 result.setShardIndex(request.shardRequestIndex());
                 results.consumeResult(result, () -> {});
-                logger.warn("CCC: since canMatch=false immediately setting CanMatchShardResponse shardtarget {}, " +
-                        "request.shardRequestIndex(): {}", result.getSearchShardTarget(), request.shardRequestIndex());
+                logger.warn(
+                    "CCC: since canMatch=false immediately setting CanMatchShardResponse shardtarget {}, "
+                        + "request.shardRequestIndex(): {}",
+                    result.getSearchShardTarget(),
+                    request.shardRequestIndex()
+                );
             }
         }
         if (matchedShardLevelRequests.isEmpty()) {

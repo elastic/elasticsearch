@@ -359,34 +359,22 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                             }
                             /// MP: at this point, the remote SearchShards query has finished and returned
                             /// MP: which is why we have searchShardsResponses to parse into remoteShardIterators
-                            remoteShardIterators = getRemoteShardsIterator(
-                                searchShardsResponses,
-                                remoteClusterIndices,
-                                remoteAliasFilters
-                            );
+                            remoteShardIterators = getRemoteShardsIterator(searchShardsResponses, remoteClusterIndices, remoteAliasFilters);
                             logger.warn("CCC TransportSearchAction remoteShardIters size: {}", remoteShardIterators.size());
                         }
 
-                        boolean minimizeRoundTrips = false;
-                        boolean prohibited = minimizeRoundTripsProhibited(original);
-                        logger.warn("CCC prohibited?: {}", prohibited);
-                        final int remoteShardCutoff = 5; // TODO need sane default and to be user configurable (per query, index or server?)
-                        if (prohibited == false && remoteShardIterators.size() > remoteShardCutoff) {
-                            minimizeRoundTrips = true;
-                        }
-                        logger.warn("CCC should we do minimize-round-trips?: {}", minimizeRoundTrips);
-                        if (minimizeRoundTrips) {
+                        if (shouldMinimizeRoundtrips(original, remoteShardIterators.size())) {
+                            logger.warn("CCC should we do minimize-round-trips?: true");
                             final AggregationReduceContext.Builder aggregationReduceContextBuilder = rewritten.source() != null
                                 && rewritten.source().aggregations() != null
-                                ? searchService.aggReduceContextBuilder(task::isCancelled, rewritten.source().aggregations())
-                                : null;
+                                    ? searchService.aggReduceContextBuilder(task::isCancelled, rewritten.source().aggregations())
+                                    : null;
                             final int totalClusters = (localIndices == null ? 0 : 1) + remoteClusterIndices.size();
                             var initClusters = new SearchResponse.Clusters(totalClusters, 0, 0, remoteClusterIndices.size(), true);
                             if (localIndices == null) {
                                 // Notify the progress listener that CCS with minimize_roundtrips is happening remote-only (no local shards)
-                                task.getProgressListener().notifyListShards(
-                                    Collections.emptyList(), Collections.emptyList(), initClusters, false
-                                );
+                                task.getProgressListener()
+                                    .notifyListShards(Collections.emptyList(), Collections.emptyList(), initClusters, false);
                             }
                             ccsRemoteReduce(
                                 parentTaskId,
@@ -410,6 +398,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                                 )
                             );
                         } else {
+                            logger.warn("CCC should we do minimize-round-trips?: false");
                             int localClusters = localIndices == null ? 0 : 1;
                             int totalClusters = remoteClusterIndices.size() + localClusters;
                             int successfulClusters = searchShardsResponses.size() + localClusters;
@@ -435,6 +424,21 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         Rewriteable.rewriteAndFetch(original, searchService.getRewriteContext(timeProvider::absoluteStartMillis), rewriteListener);
     }
 
+    private static boolean shouldMinimizeRoundtrips(SearchRequest original, int numRemoteShards) {
+        if (minimizeRoundTripsProhibited(original)) {
+            logger.warn("CCC prohibited?: true");
+            return false;
+        }
+        if (original.isCcsMinimizeRoundtrips() == Boolean.TRUE) {
+            logger.warn("CCC user requested minRT: true");
+            // if user explicitly requested ccs_minimize_roundtrips, then do it since not prohibited
+            return true;
+        }
+        // since not prohibited and not explicitly requested, use shard count heuristic to decide
+        final int remoteShardCutoff = 5; // TODO need sane default and to be user configurable (per query, index or server?)
+        return numRemoteShards > remoteShardCutoff;
+    }
+
     static void adjustSearchType(SearchRequest searchRequest, boolean singleShard) {
         // if there's a kNN search, always use DFS_QUERY_THEN_FETCH
         if (searchRequest.hasKnnSearch()) {
@@ -457,8 +461,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     }
 
     static boolean minimizeRoundTripsProhibited(SearchRequest searchRequest) {
-        /// MP: TODO: we need to know if the user explicitly set isCcsMinimizeRoundtrips or if it is just the default setting
-        if (searchRequest.isCcsMinimizeRoundtrips() == false) {
+        // prohibit only if the user explicitly specified minimize_roundtrips=false
+        if (searchRequest.isCcsMinimizeRoundtrips() == Boolean.FALSE) {
             return true;
         }
         if (searchRequest.scroll() != null) {
@@ -474,7 +478,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             return true;
         }
         SearchSourceBuilder source = searchRequest.source();
-        /// MP: TODO: I don't really understand this clause so not sure if the negation prohibts round trips
+        /// MP: TODO: I don't really understand this clause so not sure if the negation prohibits round trips
         boolean b = (source == null
             || source.collapse() == null
             || source.collapse().getInnerHits() == null
@@ -1449,7 +1453,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     /// MP: I believe it is called from the coordinator, but that it can run on the shard's coordinator such as during a
     /// MP: TransportSearchShardsAction.doExecute (which I believe is a shard-level coordinator)
     /// MP: [my guess as to why it is a coordinator is that SearchShardsActions/CanMatch is a node level request, not shard level
-    /// MP:  so a "local" coordinator is needed to search all the shards on that node ??]
+    /// MP: so a "local" coordinator is needed to search all the shards on that node ??]
     List<SearchShardIterator> getLocalShardsIterator(
         ClusterState clusterState,
         SearchRequest searchRequest,

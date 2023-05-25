@@ -90,7 +90,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
 
     private Integer preFilterShardSize;
 
-    private boolean ccsMinimizeRoundtrips;
+    // null means unset by user
+    private Boolean ccsMinimizeRoundtrips;
 
     @Nullable
     private final Version minCompatibleShardNode;
@@ -120,7 +121,9 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         this.absoluteStartMillis = DEFAULT_ABSOLUTE_START_MILLIS;
         this.finalReduce = true;
         this.minCompatibleShardNode = minCompatibleShardNode;
-        this.ccsMinimizeRoundtrips = minCompatibleShardNode == null;
+        if (minCompatibleShardNode == null) {
+            this.ccsMinimizeRoundtrips = Boolean.TRUE;  /// MP: TODO: I don't understand this - should this stay as uknown?
+        }
     }
 
     /**
@@ -261,7 +264,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             absoluteStartMillis = DEFAULT_ABSOLUTE_START_MILLIS;
             finalReduce = true;
         }
-        ccsMinimizeRoundtrips = in.readBoolean();
+        ccsMinimizeRoundtrips = in.readOptionalBoolean();
         if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_12_0) && in.readBoolean()) {
             minCompatibleShardNode = Version.readVersion(in);
         } else {
@@ -302,7 +305,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             out.writeVLong(absoluteStartMillis);
             out.writeBoolean(finalReduce);
         }
-        out.writeBoolean(ccsMinimizeRoundtrips);
+        out.writeOptionalBoolean(ccsMinimizeRoundtrips);
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_12_0)) {
             out.writeBoolean(minCompatibleShardNode != null);
             if (minCompatibleShardNode != null) {
@@ -430,7 +433,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             }
         }
         if (minCompatibleShardNode() != null) {
-            if (isCcsMinimizeRoundtrips()) {
+            if (isCcsMinimizeRoundtrips() == Boolean.TRUE) {
                 validationException = addValidationError(
                     "[ccs_minimize_roundtrips] cannot be [true] when setting a minimum compatible " + "shard version",
                     validationException
@@ -524,21 +527,22 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
      * Returns whether network round-trips should be minimized when executing cross-cluster search requests.
      * Defaults to <code>true</code>, unless <code>minCompatibleShardNode</code> is set in which case it's set to <code>false</code>.
      */
-    public boolean isCcsMinimizeRoundtrips() {
+    public Boolean isCcsMinimizeRoundtrips() {
         return ccsMinimizeRoundtrips;
     }
 
     /**
      * Sets whether network round-trips should be minimized when executing cross-cluster search requests. Defaults to <code>true</code>.
      */
-    public void setCcsMinimizeRoundtrips(boolean ccsMinimizeRoundtrips) {
+    public void setCcsMinimizeRoundtrips(Boolean ccsMinimizeRoundtrips) {
         this.ccsMinimizeRoundtrips = ccsMinimizeRoundtrips;
     }
 
     /**
      * Returns the default value of {@link #ccsMinimizeRoundtrips} of a search request
      */
-    public static boolean defaultCcsMinimizeRoundtrips(SearchRequest request) {
+    public static Boolean defaultCcsMinimizeRoundtrips(SearchRequest request) {
+        /// MP: TODO: shouldn't this default to false (or now null, meaning unknown)
         return request.minCompatibleShardNode == null;
     }
 

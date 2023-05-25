@@ -3,5 +3,4 @@ summary: Allow the removal of an in-use template if there are other ones matchin
   the dependent data streams
 area: Data streams
 type: bug
-issues:
-  - 96022
+issues: []

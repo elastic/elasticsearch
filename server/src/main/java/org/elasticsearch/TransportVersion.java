@@ -154,8 +154,8 @@ public record TransportVersion(int id) implements Comparable<TransportVersion> {
     public static final TransportVersion V_8_6_2 = registerTransportVersion(8_06_02_99, "5a82fb68-b265-4a06-97c5-53496f823f51");
     public static final TransportVersion V_8_7_0 = registerTransportVersion(8_07_00_99, "f1ee7a85-4fa6-43f5-8679-33e2b750448b");
     public static final TransportVersion V_8_7_1 = registerTransportVersion(8_07_01_99, "018de9d8-9e8b-4ac7-8f4b-3a6fbd0487fb");
-    public static final TransportVersion V_8_7_2 = registerTransportVersion(8_07_02_99, "bd84976c-fb8a-4a4c-b017-9563f8d888d9");
     public static final TransportVersion V_8_8_0 = registerTransportVersion(8_08_00_99, "f64fe576-0767-4ec3-984e-3e30b33b6c46");
+    public static final TransportVersion V_8_8_1 = registerTransportVersion(8_08_01_99, "a177d86a-7a24-41a2-ade9-5235be957f3d");
     /*
      * READ THE JAVADOC ABOVE BEFORE ADDING NEW TRANSPORT VERSIONS
      * Detached transport versions added below here. Starts at ES major version 10 equivalent.
@@ -177,7 +177,7 @@ public record TransportVersion(int id) implements Comparable<TransportVersion> {
     }
 
     /** Reference to the current transport version */
-    public static final TransportVersion CURRENT = V_8_8_0;
+    public static final TransportVersion CURRENT = V_8_8_1;
 
     /** Reference to the earliest compatible transport version to this version of the codebase */
     // TODO: can we programmatically calculate or check this? Don't want to introduce circular ref between Version/TransportVersion

@@ -1,5 +1,0 @@
-pr: 95388
-summary: Add `event_loop_utilization` Kibana stats to the monitoring index templates
-area: Monitoring
-type: enhancement
-issues: []

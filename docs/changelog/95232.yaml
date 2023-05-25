@@ -1,5 +1,0 @@
-pr: 95232
-summary: Fix bug in verbose simulations of the ingest pipeline API
-area: Ingest Node
-type: bug
-issues: []

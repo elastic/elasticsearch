@@ -1,0 +1,90 @@
+---
+"Non positive null_vallue":
+
+  - skip:
+      version: " - 8.8.99"
+      reason: "null_value parameter was added in 8.9.0"
+
+  - do:
+      catch: bad_request
+      indices.create:
+        index: test2
+        body:
+          settings:
+            number_of_replicas: 0
+          mappings:
+            properties:
+              pagerank:
+                type: rank_feature
+                null_vallue: -3
+
+---
+"Search rank_feature with and without null_value":
+
+  - skip:
+      version: " - 8.8.99"
+      reason: "null_value parameter was added in 8.9.0"
+
+  - do:
+      indices.create:
+        index: test1
+        body:
+          settings:
+            number_of_replicas: 0
+          mappings:
+            properties:
+              pagerank:
+                type: rank_feature
+                null_value: 15
+              url_length:
+                type: rank_feature
+
+  - do:
+      index:
+        index: test1
+        id: "1"
+        body:
+          pagerank: 10
+          url_length: 50
+
+  - do:
+      index:
+        index: test1
+        id: "2"
+        body:
+          pagerank: null
+          url_length: null
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        index: test1
+        body:
+          query:
+            rank_feature:
+              field: url_length
+
+  - match:
+      hits.total.value: 1
+
+  - match:
+      hits.hits.0._id: "1"
+
+  - do:
+      search:
+        index: test1
+        body:
+          query:
+            rank_feature:
+              field: pagerank
+
+  - match:
+      hits.total.value: 2
+
+  - match:
+      hits.hits.0._id: "2"
+
+  - match:
+      hits.hits.1._id: "1"

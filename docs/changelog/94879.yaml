@@ -1,6 +1,0 @@
-pr: 94879
-summary: Sort ILM explain output by natural index name
-area: ILM+SLM
-type: enhancement
-issues:
- - 94768

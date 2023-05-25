@@ -57,7 +57,7 @@ public class NodeShutdownAllocationDecider extends AllocationDecider {
     }
 
     private static Decision getDecision(RoutingAllocation allocation, String nodeId) {
-        final var nodeShutdowns = allocation.metadata().nodeShutdowns();
+        final var nodeShutdowns = allocation.metadata().nodeShutdowns().getAll();
         if (nodeShutdowns.isEmpty()) {
             return YES_EMPTY_SHUTDOWN_METADATA;
         }

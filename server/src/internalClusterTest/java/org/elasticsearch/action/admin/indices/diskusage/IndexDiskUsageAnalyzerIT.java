@@ -9,6 +9,7 @@
 package org.elasticsearch.action.admin.indices.diskusage;
 
 import org.apache.lucene.tests.util.English;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
@@ -66,12 +67,13 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
         public Optional<EngineFactory> getEngineFactory(IndexSettings indexSettings) {
             return Optional.of(config -> new InternalEngine(config) {
                 @Override
-                public boolean flush(boolean force, boolean waitIfOngoing) throws EngineException {
+                public void flush(boolean force, boolean waitIfOngoing, ActionListener<FlushResult> listener) throws EngineException {
                     final ShardId shardId = config.getShardId();
                     if (failOnFlushShards.contains(shardId)) {
-                        throw new EngineException(shardId, "simulated IO");
+                        listener.onFailure(new EngineException(shardId, "simulated IO"));
+                    } else {
+                        super.flush(force, waitIfOngoing, listener);
                     }
-                    return super.flush(force, waitIfOngoing);
                 }
             });
         }
@@ -105,9 +107,7 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
         mapping.endObject();
 
         final String index = "test-index";
-        client().admin()
-            .indices()
-            .prepareCreate(index)
+        indicesAdmin().prepareCreate(index)
             .setMapping(mapping)
             .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5)))
             .get();
@@ -191,9 +191,7 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
         int totalShards = 0;
         for (String indexName : indices) {
             int numberOfShards = between(10, 30);
-            client().admin()
-                .indices()
-                .prepareCreate(indexName)
+            indicesAdmin().prepareCreate(indexName)
                 .setSettings(
                     indexSettings(numberOfShards, between(0, 1)).put("index.shard.check_on_startup", false)
                         .put("index.routing.rebalance.enable", "none")
@@ -231,9 +229,7 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
         internalCluster().ensureAtLeastNumDataNodes(2);
         final String indexName = "test-index";
         int numberOfShards = between(1, 5);
-        client().admin()
-            .indices()
-            .prepareCreate(indexName)
+        indicesAdmin().prepareCreate(indexName)
             .setSettings(indexSettings(numberOfShards, 0).put("index.routing.rebalance.enable", "none"))
             .get();
         int numDocs = randomIntBetween(1, 10);

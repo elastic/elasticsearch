@@ -60,7 +60,7 @@ public class ResizeSourceIndexSettingsUpdaterTests extends ESAllocationTestCase 
             )
             .build();
 
-        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .routingTable(
                 RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(sourceMetadata.index(sourceIndex))
             )

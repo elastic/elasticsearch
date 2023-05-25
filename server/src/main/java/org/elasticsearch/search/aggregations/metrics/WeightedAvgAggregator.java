@@ -35,7 +35,7 @@ class WeightedAvgAggregator extends NumericMetricsAggregator.SingleValue {
     private DoubleArray valueSums;
     private DoubleArray valueCompensations;
     private DoubleArray weightCompensations;
-    private DocValueFormat format;
+    private final DocValueFormat format;
 
     WeightedAvgAggregator(
         String name,
@@ -46,26 +46,22 @@ class WeightedAvgAggregator extends NumericMetricsAggregator.SingleValue {
         Map<String, Object> metadata
     ) throws IOException {
         super(name, context, parent, metadata);
+        assert valuesSources != null;
         this.valuesSources = valuesSources;
         this.format = format;
-        if (valuesSources != null) {
-            weights = bigArrays().newDoubleArray(1, true);
-            valueSums = bigArrays().newDoubleArray(1, true);
-            valueCompensations = bigArrays().newDoubleArray(1, true);
-            weightCompensations = bigArrays().newDoubleArray(1, true);
-        }
+        weights = bigArrays().newDoubleArray(1, true);
+        valueSums = bigArrays().newDoubleArray(1, true);
+        valueCompensations = bigArrays().newDoubleArray(1, true);
+        weightCompensations = bigArrays().newDoubleArray(1, true);
     }
 
     @Override
     public ScoreMode scoreMode() {
-        return valuesSources != null && valuesSources.needsScores() ? ScoreMode.COMPLETE : ScoreMode.COMPLETE_NO_SCORES;
+        return valuesSources.needsScores() ? ScoreMode.COMPLETE : ScoreMode.COMPLETE_NO_SCORES;
     }
 
     @Override
     public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, final LeafBucketCollector sub) throws IOException {
-        if (valuesSources == null) {
-            return LeafBucketCollector.NO_OP_COLLECTOR;
-        }
         final SortedNumericDoubleValues docValues = valuesSources.getField(VALUE_FIELD.getPreferredName(), aggCtx.getLeafReaderContext());
         final SortedNumericDoubleValues docWeights = valuesSources.getField(WEIGHT_FIELD.getPreferredName(), aggCtx.getLeafReaderContext());
         final CompensatedSum compensatedValueSum = new CompensatedSum(0, 0);
@@ -118,7 +114,7 @@ class WeightedAvgAggregator extends NumericMetricsAggregator.SingleValue {
 
     @Override
     public double metric(long owningBucketOrd) {
-        if (valuesSources == null || owningBucketOrd >= valueSums.size()) {
+        if (owningBucketOrd >= valueSums.size()) {
             return Double.NaN;
         }
         return valueSums.get(owningBucketOrd) / weights.get(owningBucketOrd);
@@ -126,7 +122,7 @@ class WeightedAvgAggregator extends NumericMetricsAggregator.SingleValue {
 
     @Override
     public InternalAggregation buildAggregation(long bucket) {
-        if (valuesSources == null || bucket >= valueSums.size()) {
+        if (bucket >= valueSums.size()) {
             return buildEmptyAggregation();
         }
         return new InternalWeightedAvg(name, valueSums.get(bucket), weights.get(bucket), format, metadata());
@@ -134,7 +130,7 @@ class WeightedAvgAggregator extends NumericMetricsAggregator.SingleValue {
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalWeightedAvg(name, 0.0, 0L, format, metadata());
+        return InternalWeightedAvg.empty(name, format, metadata());
     }
 
     @Override

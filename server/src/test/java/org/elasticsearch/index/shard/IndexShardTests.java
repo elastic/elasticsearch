@@ -38,6 +38,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -1176,11 +1177,7 @@ public class IndexShardTests extends IndexShardTestCase {
             ShardRoutingState.INITIALIZING,
             RecoverySource.EmptyStoreRecoverySource.INSTANCE
         );
-        final Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .build();
+        final Settings settings = indexSettings(Version.CURRENT, 1, 2).build();
         final IndexMetadata.Builder indexMetadata = IndexMetadata.builder(shardRouting.getIndexName()).settings(settings).primaryTerm(0, 1);
         final AtomicBoolean synced = new AtomicBoolean();
         final IndexShard primaryShard = newShard(
@@ -1241,12 +1238,7 @@ public class IndexShardTests extends IndexShardTestCase {
     public void testClosedIndicesSkipSyncGlobalCheckpoint() throws Exception {
         ShardId shardId = new ShardId("index", "_na_", 0);
         IndexMetadata.Builder indexMetadata = IndexMetadata.builder("index")
-            .settings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2)
-            )
+            .settings(indexSettings(Version.CURRENT, 1, 2))
             .state(IndexMetadata.State.CLOSE)
             .primaryTerm(0, 1);
         ShardRouting shardRouting = TestShardRouting.newShardRouting(
@@ -1479,7 +1471,7 @@ public class IndexShardTests extends IndexShardTestCase {
         flushShard(shard);
 
         final IndexShard newShard = reinitShard(shard);
-        DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        DiscoveryNode localNode = TestDiscoveryNode.create("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet());
 
         Store.MetadataSnapshot snapshot = newShard.snapshotStoreMetadata();
         assertThat(snapshot.getSegmentsFile().name(), equalTo("segments_3"));
@@ -1551,7 +1543,9 @@ public class IndexShardTests extends IndexShardTestCase {
             CommonStats.getShardLevelStats(new IndicesQueryCache(Settings.EMPTY), shard, new CommonStatsFlags()),
             shard.commitStats(),
             shard.seqNoStats(),
-            shard.getRetentionLeaseStats()
+            shard.getRetentionLeaseStats(),
+            shard.isSearchIdle(),
+            shard.searchIdleTime()
         );
         assertEquals(shard.shardPath().getRootDataPath().toString(), stats.getDataPath());
         assertEquals(shard.shardPath().getRootStatePath().toString(), stats.getStatePath());
@@ -1594,11 +1588,7 @@ public class IndexShardTests extends IndexShardTestCase {
         final NodeEnvironment.DataPath dataPath = new NodeEnvironment.DataPath(createTempDir());
 
         ShardPath shardPath = new ShardPath(false, dataPath.resolve(shardId), dataPath.resolve(shardId), shardId);
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .build();
+        Settings settings = indexSettings(Version.CURRENT, 1, 0).build();
         IndexMetadata metadata = IndexMetadata.builder(shardRouting.getIndexName()).settings(settings).primaryTerm(0, 1).build();
 
         // Override two Directory methods to make them fail at our will
@@ -2200,7 +2190,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 RecoverySource.ExistingStoreRecoverySource.INSTANCE
             )
         );
-        DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        DiscoveryNode localNode = TestDiscoveryNode.create("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet());
         newShard.markAsRecovering("store", new RecoveryState(newShard.routingEntry(), localNode, null));
         assertTrue(recoverFromStore(newShard));
         assertEquals(replayedOps, newShard.recoveryState().getTranslog().recoveredOperations());
@@ -2225,7 +2215,7 @@ public class IndexShardTests extends IndexShardTestCase {
         }
         String historyUUID = shard.getHistoryUUID();
         IndexShard newShard = reinitShard(shard);
-        DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        DiscoveryNode localNode = TestDiscoveryNode.create("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet());
         newShard.markAsRecovering("store", new RecoveryState(newShard.routingEntry(), localNode, null));
         assertTrue(recoverFromStore(newShard));
         assertEquals(translogOps, newShard.recoveryState().getTranslog().recoveredOperations());
@@ -2271,7 +2261,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 RecoverySource.ExistingStoreRecoverySource.FORCE_STALE_PRIMARY_INSTANCE
             )
         );
-        DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        DiscoveryNode localNode = TestDiscoveryNode.create("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet());
         newShard.markAsRecovering("store", new RecoveryState(newShard.routingEntry(), localNode, null));
         assertTrue(recoverFromStore(newShard));
         IndexShardTestCase.updateRoutingEntry(
@@ -2329,7 +2319,7 @@ public class IndexShardTests extends IndexShardTestCase {
             otherShard,
             ShardRoutingHelper.initWithSameId(primaryShardRouting, RecoverySource.ExistingStoreRecoverySource.INSTANCE)
         );
-        DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        DiscoveryNode localNode = TestDiscoveryNode.create("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet());
         newShard.markAsRecovering("store", new RecoveryState(newShard.routingEntry(), localNode, null));
         assertTrue(recoverFromStore(newShard));
         assertEquals(1, newShard.recoveryState().getTranslog().recoveredOperations());
@@ -2381,7 +2371,7 @@ public class IndexShardTests extends IndexShardTestCase {
             ShardRoutingHelper.initWithSameId(shardRouting, RecoverySource.EmptyStoreRecoverySource.INSTANCE)
         );
 
-        DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        DiscoveryNode localNode = TestDiscoveryNode.create("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet());
         newShard.markAsRecovering("store", new RecoveryState(newShard.routingEntry(), localNode, null));
         assertTrue(recoverFromStore(newShard));
         assertEquals(0, newShard.recoveryState().getTranslog().recoveredOperations());
@@ -2409,7 +2399,7 @@ public class IndexShardTests extends IndexShardTestCase {
         cleanLuceneIndex(store.directory());
         store.decRef();
         IndexShard newShard = reinitShard(shard);
-        DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        DiscoveryNode localNode = TestDiscoveryNode.create("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet());
         ShardRouting routing = newShard.routingEntry();
         newShard.markAsRecovering("store", new RecoveryState(routing, localNode, null));
         try {
@@ -2507,7 +2497,7 @@ public class IndexShardTests extends IndexShardTestCase {
             shard.getRetentionLeaseSyncer(),
             EMPTY_EVENT_LISTENER
         );
-        DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        DiscoveryNode localNode = TestDiscoveryNode.create("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet());
         newShard.markAsRecovering("store", new RecoveryState(newShard.routingEntry(), localNode, null));
         assertTrue(recoverFromStore(newShard));
         assertThat(getShardDocUIDs(newShard), containsInAnyOrder("doc-0", "doc-2"));
@@ -2562,7 +2552,7 @@ public class IndexShardTests extends IndexShardTestCase {
         Store sourceStore = source.store();
         Store targetStore = target.store();
 
-        DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        DiscoveryNode localNode = TestDiscoveryNode.create("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet());
         target.markAsRecovering("store", new RecoveryState(routing, localNode, null));
         final PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
         target.restoreFromRepository(new RestoreOnlyRepository("test") {
@@ -2657,11 +2647,7 @@ public class IndexShardTests extends IndexShardTestCase {
     public void testReaderWrapperWorksWithGlobalOrdinals() throws IOException {
         CheckedFunction<DirectoryReader, DirectoryReader, IOException> wrapper = reader -> new FieldMaskingReader("foo", reader);
 
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .build();
+        Settings settings = indexSettings(Version.CURRENT, 1, 0).build();
         IndexMetadata metadata = IndexMetadata.builder("test").putMapping("""
             { "properties": { "foo":  { "type": "text", "fielddata": true }}}""").settings(settings).primaryTerm(0, 1).build();
         IndexShard shard = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, wrapper);
@@ -2788,11 +2774,7 @@ public class IndexShardTests extends IndexShardTestCase {
     }
 
     public void testTranslogRecoverySyncsTranslog() throws IOException {
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .build();
+        Settings settings = indexSettings(Version.CURRENT, 1, 1).build();
         IndexMetadata metadata = IndexMetadata.builder("test").putMapping("""
             { "properties": { "foo":  { "type": "text"}}}""").settings(settings).primaryTerm(0, 1).build();
         IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
@@ -2830,11 +2812,7 @@ public class IndexShardTests extends IndexShardTestCase {
     }
 
     public void testRecoverFromTranslog() throws IOException {
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .build();
+        Settings settings = indexSettings(Version.CURRENT, 1, 1).build();
         IndexMetadata metadata = IndexMetadata.builder("test")
             .putMapping("""
                 { "properties": { "foo":  { "type": "text"}}}""")
@@ -2900,10 +2878,10 @@ public class IndexShardTests extends IndexShardTestCase {
         IndexShard shard = newStartedShard(isPrimary);
         indexDoc(shard, "_doc", "0");
         shard = reinitShard(shard);
-        DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        DiscoveryNode localNode = TestDiscoveryNode.create("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet());
         DiscoveryNode sourceNode = isPrimary
             ? null
-            : new DiscoveryNode("bar", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+            : TestDiscoveryNode.create("bar", buildNewFakeTransportAddress(), emptyMap(), emptySet());
         shard.markAsRecovering("for testing", new RecoveryState(shard.routingEntry(), localNode, sourceNode));
         // Shard is still inactive since we haven't started recovering yet
         assertFalse(shard.isActive());
@@ -2918,11 +2896,7 @@ public class IndexShardTests extends IndexShardTestCase {
     }
 
     public void testShardActiveDuringPeerRecovery() throws IOException {
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .build();
+        Settings settings = indexSettings(Version.CURRENT, 1, 1).build();
         IndexMetadata metadata = IndexMetadata.builder("test").putMapping("""
             { "properties": { "foo":  { "type": "text"}}}""").settings(settings).primaryTerm(0, 1).build();
         IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
@@ -2930,7 +2904,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
         indexDoc(primary, "_doc", "0", "{\"foo\" : \"bar\"}");
         IndexShard replica = newShard(primary.shardId(), false, "n2", metadata, null);
-        DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        DiscoveryNode localNode = TestDiscoveryNode.create("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet());
         replica.markAsRecovering("for testing", new RecoveryState(replica.routingEntry(), localNode, localNode));
         // Shard is still inactive since we haven't started recovering yet
         assertFalse(replica.isActive());
@@ -2965,11 +2939,7 @@ public class IndexShardTests extends IndexShardTestCase {
     }
 
     public void testRefreshListenersDuringPeerRecovery() throws IOException {
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .build();
+        Settings settings = indexSettings(Version.CURRENT, 1, 1).build();
         IndexMetadata metadata = IndexMetadata.builder("test").putMapping("""
             { "properties": { "foo":  { "type": "text"}}}""").settings(settings).primaryTerm(0, 1).build();
         IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
@@ -2984,11 +2954,11 @@ public class IndexShardTests extends IndexShardTestCase {
             });
 
             PlainActionFuture<Void> listener = PlainActionFuture.newFuture();
-            shard.addRefreshListener(10, listener);
+            shard.addRefreshListener(10, randomBoolean(), listener);
             expectThrows(IllegalIndexShardStateException.class, listener::actionGet);
         };
         IndexShard replica = newShard(primary.shardId(), false, "n2", metadata, null);
-        DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        DiscoveryNode localNode = TestDiscoveryNode.create("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet());
         replica.markAsRecovering("for testing", new RecoveryState(replica.routingEntry(), localNode, localNode));
         assertListenerCalled.accept(replica);
         recoverReplica(replica, primary, (shard, discoveryNode) -> new RecoveryTarget(shard, discoveryNode, null, null, recoveryListener) {
@@ -3038,11 +3008,7 @@ public class IndexShardTests extends IndexShardTestCase {
     }
 
     public void testRecoverFromLocalShard() throws IOException {
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .build();
+        Settings settings = indexSettings(Version.CURRENT, 1, 1).build();
         IndexMetadata metadata = IndexMetadata.builder("source")
             .putMapping("{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
             .settings(settings)
@@ -3065,7 +3031,7 @@ public class IndexShardTests extends IndexShardTestCase {
         );
 
         final IndexShard targetShard;
-        DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        DiscoveryNode localNode = TestDiscoveryNode.create("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet());
         Map<String, MappingMetadata> requestedMappingUpdates = ConcurrentCollections.newConcurrentMap();
         {
             targetShard = newShard(targetRouting);
@@ -3707,11 +3673,7 @@ public class IndexShardTests extends IndexShardTestCase {
     }
 
     public void testIsSearchIdle() throws Exception {
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .build();
+        Settings settings = indexSettings(Version.CURRENT, 1, 1).build();
         IndexMetadata metadata = IndexMetadata.builder("test").putMapping("""
             { "properties": { "foo":  { "type": "text"}}}""").settings(settings).primaryTerm(0, 1).build();
         IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
@@ -3733,32 +3695,32 @@ public class IndexShardTests extends IndexShardTestCase {
         scopedSettings.applySettings(settings);
         assertFalse(primary.isSearchIdle());
 
-        settings = Settings.builder()
-            .put(settings)
-            .put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), TimeValue.timeValueMillis(10))
-            .build();
+        TimeValue tenMillis = TimeValue.timeValueMillis(10);
+        settings = Settings.builder().put(settings).put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), tenMillis).build();
         scopedSettings.applySettings(settings);
 
         assertBusy(() -> assertTrue(primary.isSearchIdle()));
         do {
             // now loop until we are fast enough... shouldn't take long
             primary.awaitShardSearchActive(aBoolean -> {});
+            if (primary.isSearchIdle()) {
+                assertTrue(primary.searchIdleTime() >= tenMillis.millis());
+            }
         } while (primary.isSearchIdle());
 
         assertBusy(() -> assertTrue(primary.isSearchIdle()));
         do {
             // now loop until we are fast enough... shouldn't take long
             primary.acquireSearcher("test").close();
+            if (primary.isSearchIdle()) {
+                assertTrue(primary.searchIdleTime() >= tenMillis.millis());
+            }
         } while (primary.isSearchIdle());
         closeShards(primary);
     }
 
     public void testScheduledRefresh() throws Exception {
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .build();
+        Settings settings = indexSettings(Version.CURRENT, 1, 1).build();
         IndexMetadata metadata = IndexMetadata.builder("test").putMapping("""
             { "properties": { "foo":  { "type": "text"}}}""").settings(settings).primaryTerm(0, 1).build();
         IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
@@ -3816,6 +3778,7 @@ public class IndexShardTests extends IndexShardTestCase {
         indexDoc(primary, "_doc", "2", "{\"foo\" : \"bar\"}");
         assertFalse(primary.scheduledRefresh());
         assertTrue(primary.isSearchIdle());
+        assertTrue(primary.searchIdleTime() >= TimeValue.ZERO.millis());
         primary.flushOnIdle(0);
         assertTrue(primary.scheduledRefresh()); // make sure we refresh once the shard is inactive
         try (Engine.Searcher searcher = primary.acquireSearcher("test")) {
@@ -3825,11 +3788,7 @@ public class IndexShardTests extends IndexShardTestCase {
     }
 
     public void testRefreshIsNeededWithRefreshListeners() throws IOException, InterruptedException {
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .build();
+        Settings settings = indexSettings(Version.CURRENT, 1, 1).build();
         IndexMetadata metadata = IndexMetadata.builder("test").putMapping("""
             { "properties": { "foo":  { "type": "text"}}}""").settings(settings).primaryTerm(0, 1).build();
         IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
@@ -3842,7 +3801,7 @@ public class IndexShardTests extends IndexShardTestCase {
         if (randomBoolean()) {
             primary.addRefreshListener(doc.getTranslogLocation(), r -> latch.countDown());
         } else {
-            primary.addRefreshListener(doc.getSeqNo(), new ActionListener<Void>() {
+            primary.addRefreshListener(doc.getSeqNo(), randomBoolean(), new ActionListener<Void>() {
                 @Override
                 public void onResponse(Void unused) {
                     latch.countDown();
@@ -3868,7 +3827,7 @@ public class IndexShardTests extends IndexShardTestCase {
         if (randomBoolean()) {
             primary.addRefreshListener(doc.getTranslogLocation(), r -> latch1.countDown());
         } else {
-            primary.addRefreshListener(doc.getSeqNo(), ActionListener.running(latch1::countDown));
+            primary.addRefreshListener(doc.getSeqNo(), randomBoolean(), ActionListener.running(latch1::countDown));
         }
         assertEquals(1, latch1.getCount());
         assertTrue(primary.getEngine().refreshNeeded());
@@ -4390,11 +4349,7 @@ public class IndexShardTests extends IndexShardTestCase {
     }
 
     public void testTypelessGet() throws IOException {
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .build();
+        Settings settings = indexSettings(Version.CURRENT, 1, 1).build();
         IndexMetadata metadata = IndexMetadata.builder("index")
             .putMapping("{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
             .settings(settings)
@@ -4475,7 +4430,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 }
             }
         );
-        DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        DiscoveryNode localNode = TestDiscoveryNode.create("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet());
         readonlyShard.markAsRecovering("store", new RecoveryState(readonlyShard.routingEntry(), localNode, null));
         recoverFromStore(readonlyShard);
         assertThat(readonlyShard.docStats().getCount(), equalTo(numDocs));

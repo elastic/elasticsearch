@@ -9,10 +9,10 @@ package org.elasticsearch.cluster.coordination;
 
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
@@ -89,13 +89,12 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
     }
 
     private DiscoveryNode newDiscoveryNode(String nodeName) {
-        return new DiscoveryNode(
+        return TestDiscoveryNode.create(
             nodeName,
             randomAlphaOfLength(10),
             buildNewFakeTransportAddress(),
             emptyMap(),
-            Set.of(DiscoveryNodeRole.MASTER_ROLE),
-            Version.CURRENT
+            Set.of(DiscoveryNodeRole.MASTER_ROLE)
         );
     }
 
@@ -153,14 +152,7 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
     }
 
     public void testDoesNothingByDefaultOnMasterIneligibleNodes() {
-        localNode = new DiscoveryNode(
-            "local",
-            randomAlphaOfLength(10),
-            buildNewFakeTransportAddress(),
-            emptyMap(),
-            emptySet(),
-            Version.CURRENT
-        );
+        localNode = TestDiscoveryNode.create("local", randomAlphaOfLength(10), buildNewFakeTransportAddress(), emptyMap(), emptySet());
         testDoesNothingWithSettings(Settings.builder());
     }
 
@@ -387,14 +379,7 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
     }
 
     public void testDoesNotBootstrapsOnNonMasterNode() {
-        localNode = new DiscoveryNode(
-            "local",
-            randomAlphaOfLength(10),
-            buildNewFakeTransportAddress(),
-            emptyMap(),
-            emptySet(),
-            Version.CURRENT
-        );
+        localNode = TestDiscoveryNode.create("local", randomAlphaOfLength(10), buildNewFakeTransportAddress(), emptyMap(), emptySet());
         ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(
             Settings.builder()
                 .putList(INITIAL_MASTER_NODES_SETTING.getKey(), localNode.getName(), otherNode1.getName(), otherNode2.getName())
@@ -507,21 +492,19 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
 
         discoveredNodes.set(
             Stream.of(
-                new DiscoveryNode(
+                TestDiscoveryNode.create(
                     otherNode1.getName(),
                     randomAlphaOfLength(10),
                     buildNewFakeTransportAddress(),
                     emptyMap(),
-                    Set.of(DiscoveryNodeRole.MASTER_ROLE),
-                    Version.CURRENT
+                    Set.of(DiscoveryNodeRole.MASTER_ROLE)
                 ),
-                new DiscoveryNode(
+                TestDiscoveryNode.create(
                     "yet-another-node",
                     randomAlphaOfLength(10),
                     otherNode1.getAddress(),
                     emptyMap(),
-                    Set.of(DiscoveryNodeRole.MASTER_ROLE),
-                    Version.CURRENT
+                    Set.of(DiscoveryNodeRole.MASTER_ROLE)
                 )
             ).toList()
         );

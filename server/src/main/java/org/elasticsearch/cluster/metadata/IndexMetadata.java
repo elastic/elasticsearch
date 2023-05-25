@@ -43,6 +43,7 @@ import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
@@ -480,10 +481,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         Setting.Property.Final
     );
 
-    public static final Setting<List<String>> INDEX_ROUTING_PATH = Setting.listSetting(
+    public static final Setting<List<String>> INDEX_ROUTING_PATH = Setting.stringListSetting(
         "index.routing_path",
-        List.of(),
-        Function.identity(),
         Setting.Property.IndexScope,
         Setting.Property.Final
     );
@@ -1299,14 +1298,27 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     }
 
     /**
+     * @return whether this index has a time series timestamp range
+     */
+    public boolean hasTimeSeriesTimestampRange() {
+        return indexMode != null && indexMode.getTimestampBound(this) != null;
+    }
+
+    /**
+     * @param dateFieldType the date field type of '@timestamp' field which is
+     *                      used to convert the start and end times recorded in index metadata
+     *                      to the right format that is being used by '@timestamp' field.
+     *                      For example, the '@timestamp' can be configured with nanosecond precision.
      * @return the time range this index represents if this index is in time series mode.
      *         Otherwise <code>null</code> is returned.
      */
     @Nullable
-    public IndexLongFieldRange getTimeSeriesTimestampRange() {
+    public IndexLongFieldRange getTimeSeriesTimestampRange(DateFieldMapper.DateFieldType dateFieldType) {
         var bounds = indexMode != null ? indexMode.getTimestampBound(this) : null;
         if (bounds != null) {
-            return IndexLongFieldRange.NO_SHARDS.extendWithShardRange(0, 1, ShardLongFieldRange.of(bounds.startTime(), bounds.endTime()));
+            long start = dateFieldType.resolution().convert(Instant.ofEpochMilli(bounds.startTime()));
+            long end = dateFieldType.resolution().convert(Instant.ofEpochMilli(bounds.endTime()));
+            return IndexLongFieldRange.NO_SHARDS.extendWithShardRange(0, 1, ShardLongFieldRange.of(start, end));
         } else {
             return null;
         }

@@ -221,6 +221,7 @@ public abstract class EngineTestCase extends ESTestCase {
 
         assertEquals(engine.config().getCodec().getName(), codecService.codec(codecName).getName());
         assertEquals(currentIndexWriterConfig.getCodec().getName(), codecService.codec(codecName).getName());
+        assertEquals(engine.getLiveVersionMap().getArchive(), LiveVersionMapArchive.NOOP_ARCHIVE);
         if (randomBoolean()) {
             engine.config().setEnableGcDeletes(false);
         }

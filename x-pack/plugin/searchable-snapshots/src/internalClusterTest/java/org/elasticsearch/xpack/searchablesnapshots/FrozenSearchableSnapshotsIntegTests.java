@@ -449,12 +449,7 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
                 .indices()
                 .prepareCreate("test-index")
                 .setMapping("f", "type=date")
-                .setSettings(
-                    Settings.builder()
-                        .put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true)
-                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                )
+                .setSettings(indexSettings(1, 0).put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true))
                 .get()
         );
         indexRandom(

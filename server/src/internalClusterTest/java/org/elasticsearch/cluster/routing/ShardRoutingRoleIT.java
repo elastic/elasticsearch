@@ -235,10 +235,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
 
         Settings getIndexSettings() {
             logger.info("--> numShards={}, numReplicas={}", numShards, numReplicas);
-            return Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numReplicas)
-                .build();
+            return indexSettings(numShards, numReplicas).build();
         }
     }
 
@@ -295,7 +292,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
 
             createIndex(INDEX_NAME, routingTableWatcher.getIndexSettings());
 
-            final var clusterState = client().admin().cluster().prepareState().clear().setRoutingTable(true).get().getState();
+            final var clusterState = clusterAdmin().prepareState().clear().setRoutingTable(true).get().getState();
 
             // verify non-DEFAULT roles reported in cluster state XContent
             assertRolesInRoutingTableXContent(clusterState);
@@ -328,22 +325,18 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
             // restoring the index from a snapshot may change the number of indexing replicas because the routing table is created afresh
             var repoPath = randomRepoPath();
             assertAcked(
-                client().admin()
-                    .cluster()
-                    .preparePutRepository("repo")
-                    .setType("fs")
-                    .setSettings(Settings.builder().put("location", repoPath))
+                clusterAdmin().preparePutRepository("repo").setType("fs").setSettings(Settings.builder().put("location", repoPath))
             );
 
             assertEquals(
                 SnapshotState.SUCCESS,
-                client().admin().cluster().prepareCreateSnapshot("repo", "snap").setWaitForCompletion(true).get().getSnapshotInfo().state()
+                clusterAdmin().prepareCreateSnapshot("repo", "snap").setWaitForCompletion(true).get().getSnapshotInfo().state()
             );
 
             if (randomBoolean()) {
-                assertAcked(client().admin().indices().prepareDelete(INDEX_NAME));
+                assertAcked(indicesAdmin().prepareDelete(INDEX_NAME));
             } else {
-                assertAcked(client().admin().indices().prepareClose(INDEX_NAME));
+                assertAcked(indicesAdmin().prepareClose(INDEX_NAME));
                 ensureGreen(INDEX_NAME);
             }
 
@@ -353,9 +346,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
 
             assertEquals(
                 0,
-                client().admin()
-                    .cluster()
-                    .prepareRestoreSnapshot("repo", "snap")
+                clusterAdmin().prepareRestoreSnapshot("repo", "snap")
                     .setIndices(INDEX_NAME)
                     .setIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, routingTableWatcher.numReplicas))
                     .setWaitForCompletion(true)
@@ -431,7 +422,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
             updateIndexSettings(Settings.builder().put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._name", "not-a-node"), "test");
             AllocationCommand cancelPrimaryCommand;
             while ((cancelPrimaryCommand = getCancelPrimaryCommand()) != null) {
-                client().admin().cluster().prepareReroute().add(cancelPrimaryCommand).get();
+                clusterAdmin().prepareReroute().add(cancelPrimaryCommand).get();
             }
         } finally {
             masterClusterService.removeListener(routingTableWatcher);
@@ -440,9 +431,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
 
     @Nullable
     public AllocationCommand getCancelPrimaryCommand() {
-        final var indexRoutingTable = client().admin()
-            .cluster()
-            .prepareState()
+        final var indexRoutingTable = clusterAdmin().prepareState()
             .clear()
             .setRoutingTable(true)
             .get()
@@ -490,9 +479,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
             assertEngineTypes();
 
             final var searchShardProfileKeys = new HashSet<String>();
-            final var indexRoutingTable = client().admin()
-                .cluster()
-                .prepareState()
+            final var indexRoutingTable = clusterAdmin().prepareState()
                 .clear()
                 .setRoutingTable(true)
                 .get()
@@ -554,7 +541,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
             }
             // search-shards API
             for (int i = 0; i < 10; i++) {
-                final var search = client().admin().cluster().prepareSearchShards(INDEX_NAME);
+                final var search = clusterAdmin().prepareSearchShards(INDEX_NAME);
                 switch (randomIntBetween(0, 2)) {
                     case 0 -> search.setRouting(randomAlphaOfLength(10));
                     case 1 -> search.setRouting(randomSearchPreference(routingTableWatcher.numShards, internalCluster().getNodeNames()));
@@ -608,7 +595,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
             ensureGreen(INDEX_NAME);
             assertEngineTypes();
 
-            assertAcked(client().admin().indices().prepareClose(INDEX_NAME));
+            assertAcked(indicesAdmin().prepareClose(INDEX_NAME));
             ensureGreen(INDEX_NAME);
             assertEngineTypes();
         } finally {
@@ -713,7 +700,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
                 });
             }
 
-            RefreshResponse response = client().admin().indices().prepareRefresh(INDEX_NAME).execute().actionGet();
+            RefreshResponse response = indicesAdmin().prepareRefresh(INDEX_NAME).execute().actionGet();
             assertThat(
                 "each unpromotable replica shard should be added to the shard failures",
                 response.getFailedShards(),

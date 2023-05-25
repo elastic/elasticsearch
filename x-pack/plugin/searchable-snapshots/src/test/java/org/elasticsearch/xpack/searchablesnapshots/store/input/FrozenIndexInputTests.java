@@ -55,7 +55,7 @@ public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
 
         final FileInfo fileInfo = new FileInfo(
             randomAlphaOfLength(10),
-            new StoreFileMetadata(fileName, fileData.length, checksum, Version.CURRENT.luceneVersion.toString()),
+            new StoreFileMetadata(fileName, fileData.length, checksum, Version.CURRENT.luceneVersion().toString()),
             ByteSizeValue.ofBytes(fileData.length)
         );
 
@@ -111,7 +111,7 @@ public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
             )
         ) {
             cacheService.start();
-            directory.loadSnapshot(createRecoveryState(true), ActionListener.noop());
+            directory.loadSnapshot(createRecoveryState(true), () -> false, ActionListener.noop());
 
             // TODO does not test using the recovery range size
             final IndexInput indexInput = directory.openInput(fileName, randomIOContext());

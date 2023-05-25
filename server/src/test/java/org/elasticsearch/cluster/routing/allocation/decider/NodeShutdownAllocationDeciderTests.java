@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
@@ -69,14 +70,7 @@ public class NodeShutdownAllocationDeciderTests extends ESAllocationTestCase {
     private final String idxName = "test-idx";
     private final String idxUuid = "test-idx-uuid";
     private final IndexMetadata indexMetadata = IndexMetadata.builder(idxName)
-        .settings(
-            Settings.builder()
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(IndexMetadata.SETTING_INDEX_UUID, idxUuid)
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .build()
-        )
+        .settings(indexSettings(Version.CURRENT, 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, idxUuid))
         .build();
 
     private static final List<SingleNodeShutdownMetadata.Type> REMOVE_SHUTDOWN_TYPES = List.of(
@@ -217,6 +211,11 @@ public class NodeShutdownAllocationDeciderTests extends ESAllocationTestCase {
             .setReason(this.getTestName())
             .setStartedAtMillis(1L)
             .setTargetNodeName(targetNodeName)
+            .setGracePeriod(
+                shutdownType == SingleNodeShutdownMetadata.Type.SIGTERM
+                    ? TimeValue.parseTimeValue(randomTimeValue(), this.getTestName())
+                    : null
+            )
             .build();
         NodesShutdownMetadata nodesShutdownMetadata = new NodesShutdownMetadata(new HashMap<>()).putSingleNodeMetadata(
             nodeShutdownMetadata

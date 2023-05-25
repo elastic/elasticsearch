@@ -14,6 +14,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
@@ -61,9 +62,7 @@ public class EnableAllocationTests extends ESAllocationTestCase {
             .addAsNew(metadata.index("test"))
             .build();
 
-        ClusterState clusterState = ClusterState.builder(
-            org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)
-        ).metadata(metadata).routingTable(routingTable).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(routingTable).build();
 
         logger.info("--> adding two nodes and do rerouting");
         clusterState = ClusterState.builder(clusterState)
@@ -90,9 +89,7 @@ public class EnableAllocationTests extends ESAllocationTestCase {
             .addAsNew(metadata.index("test"))
             .build();
 
-        ClusterState clusterState = ClusterState.builder(
-            org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)
-        ).metadata(metadata).routingTable(routingTable).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(routingTable).build();
 
         logger.info("--> adding two nodes do rerouting");
         clusterState = ClusterState.builder(clusterState)
@@ -127,9 +124,7 @@ public class EnableAllocationTests extends ESAllocationTestCase {
             .addAsNew(metadata.index("enabled"))
             .build();
 
-        ClusterState clusterState = ClusterState.builder(
-            org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)
-        ).metadata(metadata).routingTable(initialRoutingTable).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(initialRoutingTable).build();
 
         logger.info("--> adding two nodes and do rerouting");
         clusterState = ClusterState.builder(clusterState)
@@ -186,9 +181,7 @@ public class EnableAllocationTests extends ESAllocationTestCase {
             .addAsNew(metadata.index("always_disabled"))
             .build();
 
-        ClusterState clusterState = ClusterState.builder(
-            org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)
-        ).metadata(metadata).routingTable(initialRoutingTable).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(initialRoutingTable).build();
 
         logger.info("--> adding one nodes and do rerouting");
         clusterState = ClusterState.builder(clusterState)
@@ -306,9 +299,7 @@ public class EnableAllocationTests extends ESAllocationTestCase {
             .addAsNew(metadata.index("test"))
             .build();
 
-        ClusterState clusterState = ClusterState.builder(
-            org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)
-        ).metadata(metadata).routingTable(initialRoutingTable).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(initialRoutingTable).build();
 
         logger.info("--> adding one nodes and do rerouting");
         clusterState = ClusterState.builder(clusterState)

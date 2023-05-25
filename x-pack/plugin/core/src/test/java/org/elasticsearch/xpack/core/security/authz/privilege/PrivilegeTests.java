@@ -126,18 +126,37 @@ public class PrivilegeTests extends ESTestCase {
         assertTrue(combinedPermission.implies(monitorClusterPermission));
 
         if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
-            ClusterPrivilege crossClusterAccessClusterPrivilege = ClusterPrivilegeResolver.resolve("cross_cluster_access");
-            assertThat(crossClusterAccessClusterPrivilege, is(ClusterPrivilegeResolver.CROSS_CLUSTER_ACCESS));
+            ClusterPrivilege crossClusterSearchClusterPrivilege = ClusterPrivilegeResolver.resolve("cross_cluster_search");
+            assertThat(crossClusterSearchClusterPrivilege, is(ClusterPrivilegeResolver.CROSS_CLUSTER_SEARCH));
             verifyClusterActionAllowed(
-                crossClusterAccessClusterPrivilege,
+                crossClusterSearchClusterPrivilege,
                 "cluster:internal/remote_cluster/handshake",
                 "cluster:internal/remote_cluster/nodes"
             );
-            verifyClusterActionDenied(crossClusterAccessClusterPrivilege, "internal:transport/handshake", "cluster:admin/xpack/security/*");
-            ClusterPermission crossClusterAccessClusterPermission = crossClusterAccessClusterPrivilege.buildPermission(
+            verifyClusterActionDenied(crossClusterSearchClusterPrivilege, "internal:transport/handshake", "cluster:admin/xpack/security/*");
+            ClusterPermission crossClusterSearchClusterPermission = crossClusterSearchClusterPrivilege.buildPermission(
                 ClusterPermission.builder()
             ).build();
-            assertTrue(allClusterPermission.implies(crossClusterAccessClusterPermission));
+            assertTrue(allClusterPermission.implies(crossClusterSearchClusterPermission));
+
+            ClusterPrivilege crossClusterReplicationClusterPrivilege = ClusterPrivilegeResolver.resolve("cross_cluster_replication");
+            assertThat(crossClusterReplicationClusterPrivilege, is(ClusterPrivilegeResolver.CROSS_CLUSTER_REPLICATION));
+            verifyClusterActionAllowed(
+                crossClusterReplicationClusterPrivilege,
+                "cluster:internal/remote_cluster/handshake",
+                "cluster:internal/remote_cluster/nodes",
+                "cluster:monitor/state"
+
+            );
+            verifyClusterActionDenied(
+                crossClusterReplicationClusterPrivilege,
+                "internal:transport/handshake",
+                "cluster:admin/xpack/security/*"
+            );
+            ClusterPermission crossClusterReplicationClusterPermission = crossClusterReplicationClusterPrivilege.buildPermission(
+                ClusterPermission.builder()
+            ).build();
+            assertTrue(allClusterPermission.implies(crossClusterReplicationClusterPermission));
         }
     }
 

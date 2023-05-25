@@ -1,8 +1,4 @@
 setup:
-  - skip:
-      version: all
-      reason: https://github.com/elastic/elasticsearch/issues/95293
-
   - do:
       indices.create:
         index: test-search-index1
@@ -45,6 +41,55 @@ setup:
               params:
                 field_name: field1
                 field_value: value1
+            dictionary:
+              additionalProperties: false
+              required: [ "field_name" ]
+              properties:
+                field_name:
+                  type: string
+                field_value:
+                  type: string
+
+  - do:
+      search_application.put:
+        name: test-search-application-1
+        body:
+          indices: [ "test-search-index1", "test-search-index2" ]
+          analytics_collection_name: "test-analytics"
+          template:
+            script:
+              source:
+                query:
+                  term:
+                    "{{field_name}}": "{{field_value}}"
+              params:
+                field_name: field1
+                field_value: value1
+            dictionary:
+              additionalProperties: false
+              properties:
+                field_name:
+                  type: string
+                field_value:
+                  type: string
+  - do:
+      search_application.put:
+        name: test-search-application-with-list
+        body:
+          indices: [ "test-search-index1", "test-search-index2" ]
+          template:
+            script:
+              source: "{ \"query\": { \"multi_match\":{ \"query\": \"{{query_string}}\", \"fields\": [{{#text_fields}}\"{{name}}^{{boost}}\",{{/text_fields}}] } } }"
+              params:
+                query_string: "elastic"
+                text_fields:
+                  - name: field1
+                    boost: 1
+                  - name: field2
+                    boost: 2
+                  - name: field3
+                    boost: 3
+              lang: "mustache"
 
   - do:
       index:
@@ -72,6 +117,16 @@ teardown:
         ignore: 404
 
   - do:
+      search_application.delete:
+        name: test-search-application-1
+        ignore: 404
+
+  - do:
+      search_application.delete:
+        name: test-search-application-with-list
+        ignore: 404
+
+  - do:
       indices.delete:
         index: test-search-index1
         ignore: 404
@@ -88,10 +143,13 @@ teardown:
 
 ---
 "Query Search Application with default parameters":
+  - skip:
+      features: headers
 
   - do:
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
       search_application.search:
-        name: test-search-application
+        name: test-search-application-1
 
   - match: { hits.total.value: 2 }
   - match: { hits.hits.0._id: "doc1" }
@@ -99,8 +157,11 @@ teardown:
 
 ---
 "Query Search Application overriding part of the parameters":
+  - skip:
+      features: headers
 
   - do:
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
       search_application.search:
         name: test-search-application
         body:
@@ -113,8 +174,11 @@ teardown:
 
 ---
 "Query Search Application overriding all parameters":
+  - skip:
+      features: headers
 
   - do:
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
       search_application.search:
         name: test-search-application
         body:
@@ -127,37 +191,69 @@ teardown:
   - match: { hits.hits.0._id: "doc2" }
 
 ---
-"Query Search Application - not found":
+"Query Search Application with list of parameters":
+  - skip:
+      features: headers
 
   - do:
-      catch: "missing"
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
+      search_application.search:
+        name: test-search-application-with-list
+        body:
+          params:
+            query_string: value3
+            text_fields:
+              - name: field1
+                boost: 1
+              - name: field2
+                boost: 2
+              - name: field3
+                boost: 3
+
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc2" }
+
+---
+"Query Search Application with invalid parameter validation":
+  - skip:
+      features: headers
+
+  - do:
+      catch: "bad_request"
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
+      search_application.search:
+        name: test-search-application
+        body:
+          params:
+            field_name: field3
+            field_value: 35
+
+---
+"Query Search Application without required parameter":
+  - skip:
+      features: headers
+
+  - do:
+      catch: "bad_request"
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
+      search_application.search:
+        name: test-search-application
+        body:
+          params:
+            field_value: test
+
+---
+"Query Search Application - not found":
+  - skip:
+      features: headers
+
+  - do:
+      catch: "forbidden"
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
       search_application.search:
         name: nonexisting-test-search-application
         body:
           params:
             field_name: field3
             field_value: value3
-
----
-"Query Search Application - no read permissions on index":
-
-  - do:
-      search_application.put:
-        name: test-search-application
-        body:
-          indices: [ "test-search-index1", "test-search-index2", "test-index" ]
-          analytics_collection_name: "test-analytics"
-          template:
-            script:
-              source:
-                query:
-                  term:
-                    "{{field_name}}": "{{field_value}}"
-              params:
-                field_name: field1
-                field_value: value1
-
-  - do:
-      catch: "forbidden"
-      search_application.search:
-        name: test-search-application

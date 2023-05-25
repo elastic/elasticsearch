@@ -1,0 +1,5 @@
+pr: 96317
+summary: API rest compatibility for type parameter in `geo_bounding_box` query
+area: Geo
+type: bug
+issues: []

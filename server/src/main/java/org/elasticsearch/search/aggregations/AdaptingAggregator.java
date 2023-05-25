@@ -51,6 +51,11 @@ public abstract class AdaptingAggregator extends Aggregator {
     protected abstract InternalAggregation adapt(InternalAggregation delegateResult) throws IOException;
 
     @Override
+    public void releaseAggregations() {
+        delegate.releaseAggregations();
+    }
+
+    @Override
     public final void close() {
         delegate.close();
     }

@@ -290,7 +290,7 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
                             new TrainedModelSizeStats(
                                 totalDefinitionLength,
                                 totalDefinitionLength > 0L
-                                    ? StartTrainedModelDeploymentAction.estimateMemoryUsageBytes(totalDefinitionLength)
+                                    ? StartTrainedModelDeploymentAction.estimateMemoryUsageBytes(model.getModelId(), totalDefinitionLength)
                                     : 0L
                             )
                         );
@@ -374,11 +374,11 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
 
     static IngestStats ingestStatsForPipelineIds(NodeStats nodeStats, Set<String> pipelineIds) {
         IngestStats fullNodeStats = nodeStats.getIngestStats();
-        Map<String, List<IngestStats.ProcessorStat>> filteredProcessorStats = new HashMap<>(fullNodeStats.getProcessorStats());
+        Map<String, List<IngestStats.ProcessorStat>> filteredProcessorStats = new HashMap<>(fullNodeStats.processorStats());
         filteredProcessorStats.keySet().retainAll(pipelineIds);
-        List<IngestStats.PipelineStat> filteredPipelineStats = fullNodeStats.getPipelineStats()
+        List<IngestStats.PipelineStat> filteredPipelineStats = fullNodeStats.pipelineStats()
             .stream()
-            .filter(pipelineStat -> pipelineIds.contains(pipelineStat.getPipelineId()))
+            .filter(pipelineStat -> pipelineIds.contains(pipelineStat.pipelineId()))
             .collect(Collectors.toList());
         CounterMetric ingestCount = new CounterMetric();
         CounterMetric ingestTimeInMillis = new CounterMetric();
@@ -386,11 +386,11 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
         CounterMetric ingestFailedCount = new CounterMetric();
 
         filteredPipelineStats.forEach(pipelineStat -> {
-            IngestStats.Stats stats = pipelineStat.getStats();
-            ingestCount.inc(stats.getIngestCount());
-            ingestTimeInMillis.inc(stats.getIngestTimeInMillis());
-            ingestCurrent.inc(stats.getIngestCurrent());
-            ingestFailedCount.inc(stats.getIngestFailedCount());
+            IngestStats.Stats stats = pipelineStat.stats();
+            ingestCount.inc(stats.ingestCount());
+            ingestTimeInMillis.inc(stats.ingestTimeInMillis());
+            ingestCurrent.inc(stats.ingestCurrent());
+            ingestFailedCount.inc(stats.ingestFailedCount());
         });
 
         return new IngestStats(
@@ -407,23 +407,23 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
         IngestStatsAccumulator totalStats = new IngestStatsAccumulator();
         ingestStatsList.forEach(ingestStats -> {
 
-            ingestStats.getPipelineStats()
+            ingestStats.pipelineStats()
                 .forEach(
-                    pipelineStat -> pipelineStatsAcc.computeIfAbsent(pipelineStat.getPipelineId(), p -> new IngestStatsAccumulator())
-                        .inc(pipelineStat.getStats())
+                    pipelineStat -> pipelineStatsAcc.computeIfAbsent(pipelineStat.pipelineId(), p -> new IngestStatsAccumulator())
+                        .inc(pipelineStat.stats())
                 );
 
-            ingestStats.getProcessorStats().forEach((pipelineId, processorStat) -> {
+            ingestStats.processorStats().forEach((pipelineId, processorStat) -> {
                 Map<String, IngestStatsAccumulator> processorAcc = processorStatsAcc.computeIfAbsent(
                     pipelineId,
                     k -> new LinkedHashMap<>()
                 );
                 processorStat.forEach(
-                    p -> processorAcc.computeIfAbsent(p.getName(), k -> new IngestStatsAccumulator(p.getType())).inc(p.getStats())
+                    p -> processorAcc.computeIfAbsent(p.name(), k -> new IngestStatsAccumulator(p.type())).inc(p.stats())
                 );
             });
 
-            totalStats.inc(ingestStats.getTotalStats());
+            totalStats.inc(ingestStats.totalStats());
         });
 
         List<IngestStats.PipelineStat> pipelineStatList = new ArrayList<>(pipelineStatsAcc.size());
@@ -458,10 +458,10 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
         }
 
         void inc(IngestStats.Stats s) {
-            ingestCount.inc(s.getIngestCount());
-            ingestTimeInMillis.inc(s.getIngestTimeInMillis());
-            ingestCurrent.inc(s.getIngestCurrent());
-            ingestFailedCount.inc(s.getIngestFailedCount());
+            ingestCount.inc(s.ingestCount());
+            ingestTimeInMillis.inc(s.ingestTimeInMillis());
+            ingestCurrent.inc(s.ingestCurrent());
+            ingestFailedCount.inc(s.ingestFailedCount());
         }
 
         IngestStats.Stats build() {

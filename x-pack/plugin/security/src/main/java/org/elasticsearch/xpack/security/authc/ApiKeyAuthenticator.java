@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.security.authc;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
@@ -37,7 +38,9 @@ class ApiKeyAuthenticator implements Authenticator {
 
     @Override
     public AuthenticationToken extractCredentials(Context context) {
-        return apiKeyService.getCredentialsFromHeader(context.getThreadContext());
+        final ApiKeyCredentials apiKeyCredentials = apiKeyService.getCredentialsFromThreadContext(context.getThreadContext());
+        assert apiKeyCredentials == null || apiKeyCredentials.getExpectedType() == ApiKey.Type.REST;
+        return apiKeyCredentials;
     }
 
     @Override
@@ -57,6 +60,7 @@ class ApiKeyAuthenticator implements Authenticator {
                     ? authResult.getException()
                     : Exceptions.authenticationError(authResult.getMessage());
                 logger.debug(() -> "API key service terminated authentication for request [" + context.getRequest() + "]", e);
+                context.getRequest().exceptionProcessingRequest(e, authenticationToken);
                 listener.onFailure(e);
             } else {
                 if (authResult.getMessage() != null) {

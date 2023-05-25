@@ -8,7 +8,6 @@
 package org.elasticsearch.gateway;
 
 import org.apache.logging.log4j.LogManager;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
@@ -16,6 +15,7 @@ import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -35,22 +35,20 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class AsyncShardFetchTests extends ESTestCase {
-    private final DiscoveryNode node1 = new DiscoveryNode(
+    private final DiscoveryNode node1 = TestDiscoveryNode.create(
         "node1",
         buildNewFakeTransportAddress(),
         Collections.emptyMap(),
-        Collections.singleton(DiscoveryNodeRole.DATA_ROLE),
-        Version.CURRENT
+        Collections.singleton(DiscoveryNodeRole.DATA_ROLE)
     );
     private final Response response1 = new Response(node1);
     private final Response response1_2 = new Response(node1);
     private final Throwable failure1 = new Throwable("simulated failure 1");
-    private final DiscoveryNode node2 = new DiscoveryNode(
+    private final DiscoveryNode node2 = TestDiscoveryNode.create(
         "node2",
         buildNewFakeTransportAddress(),
         Collections.emptyMap(),
-        Collections.singleton(DiscoveryNodeRole.DATA_ROLE),
-        Version.CURRENT
+        Collections.singleton(DiscoveryNodeRole.DATA_ROLE)
     );
     private final Response response2 = new Response(node2);
     private final Throwable failure2 = new Throwable("simulate failure 2");

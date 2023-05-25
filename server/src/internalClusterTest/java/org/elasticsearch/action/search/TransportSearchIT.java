@@ -558,7 +558,7 @@ public class TransportSearchIT extends ESIntegTestCase {
     }
 
     private long requestBreakerUsed() {
-        NodesStatsResponse stats = client().admin().cluster().prepareNodesStats().setBreaker(true).get();
+        NodesStatsResponse stats = clusterAdmin().prepareNodesStats().setBreaker(true).get();
         long estimated = 0;
         for (NodeStats nodeStats : stats.getNodes()) {
             estimated += nodeStats.getBreaker().getStats(CircuitBreaker.REQUEST).getEstimated();
@@ -670,6 +670,9 @@ public class TransportSearchIT extends ESIntegTestCase {
         public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
             return new InternalAggregation[] { buildEmptyAggregation() };
         }
+
+        @Override
+        public void releaseAggregations() {}
 
         @Override
         public InternalAggregation buildEmptyAggregation() {

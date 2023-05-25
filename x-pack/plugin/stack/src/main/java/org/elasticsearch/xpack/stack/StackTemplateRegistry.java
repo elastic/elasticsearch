@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 import org.elasticsearch.xpack.core.template.IndexTemplateRegistry;
+import org.elasticsearch.xpack.core.template.IngestPipelineConfig;
 import org.elasticsearch.xpack.core.template.LifecyclePolicyConfig;
 
 import java.io.IOException;
@@ -37,7 +38,7 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
 
     // The stack template registry version. This number must be incremented when we make changes
     // to built-in templates.
-    public static final int REGISTRY_VERSION = 2;
+    public static final int REGISTRY_VERSION = 3;
 
     public static final String TEMPLATE_VERSION_VARIABLE = "xpack.stack.template.version";
     public static final Setting<Boolean> STACK_TEMPLATES_ENABLED = Setting.boolSetting(
@@ -219,6 +220,22 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
         } else {
             return Map.of();
         }
+    }
+
+    private static final List<IngestPipelineConfig> INGEST_PIPELINE_CONFIGS = List.of(
+        new IngestPipelineConfig("logs@json-message", "/logs-json-message-pipeline.json", REGISTRY_VERSION, TEMPLATE_VERSION_VARIABLE),
+        new IngestPipelineConfig(
+            "logs-default-pipeline",
+            "/logs-default-pipeline.json",
+            REGISTRY_VERSION,
+            TEMPLATE_VERSION_VARIABLE,
+            Collections.singletonList("logs@json-message")
+        )
+    );
+
+    @Override
+    protected List<IngestPipelineConfig> getIngestPipelines() {
+        return INGEST_PIPELINE_CONFIGS;
     }
 
     @Override

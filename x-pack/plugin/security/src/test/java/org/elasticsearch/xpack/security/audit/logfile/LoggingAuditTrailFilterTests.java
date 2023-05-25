@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.security.audit.logfile;
 
+import io.netty.channel.Channel;
+
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
@@ -39,7 +41,8 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
-import org.elasticsearch.xpack.core.security.user.SystemUser;
+import org.elasticsearch.xpack.core.security.user.InternalUser;
+import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
 import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail.AuditEventMetaInfo;
@@ -2853,10 +2856,10 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
 
     private static Authentication createSystemUserAuthentication(boolean isFallback) {
         if (isFallback) {
-            return Authentication.newInternalFallbackAuthentication(SystemUser.INSTANCE, randomAlphaOfLengthBetween(3, 8));
+            return Authentication.newInternalFallbackAuthentication(InternalUsers.SYSTEM_USER, randomAlphaOfLengthBetween(3, 8));
         } else {
             return Authentication.newInternalAuthentication(
-                SystemUser.INSTANCE,
+                InternalUsers.SYSTEM_USER,
                 TransportVersion.CURRENT,
                 randomAlphaOfLengthBetween(3, 8)
             );
@@ -2868,7 +2871,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
     }
 
     private static Authentication createAuthentication(User effectiveUser, @Nullable User authenticatingUser, String effectiveRealmName) {
-        assert false == User.isInternal(effectiveUser);
+        assert false == effectiveUser instanceof InternalUser;
         if (authenticatingUser != null) {
             return AuthenticationTestHelper.builder()
                 .user(authenticatingUser)
@@ -3009,7 +3012,9 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
                 remoteAddress(buildNewFakeTransportAddress().address());
             }
             if (randomBoolean()) {
-                RemoteHostHeader.putRestRemoteAddress(threadContext, new InetSocketAddress(forge("localhost", "127.0.0.1"), 1234));
+                Channel mockChannel = mock(Channel.class);
+                when(mockChannel.remoteAddress()).thenReturn(new InetSocketAddress(forge("localhost", "127.0.0.1"), 1234));
+                RemoteHostHeader.process(mockChannel, threadContext);
             }
         }
 

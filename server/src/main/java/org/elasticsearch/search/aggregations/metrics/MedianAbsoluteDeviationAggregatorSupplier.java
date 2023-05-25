@@ -10,7 +10,7 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
 import java.io.IOException;
 import java.util.Map;
@@ -18,7 +18,7 @@ import java.util.Map;
 public interface MedianAbsoluteDeviationAggregatorSupplier {
     Aggregator build(
         String name,
-        ValuesSource valuesSource,
+        ValuesSourceConfig config,
         DocValueFormat format,
         AggregationContext context,
         Aggregator parent,

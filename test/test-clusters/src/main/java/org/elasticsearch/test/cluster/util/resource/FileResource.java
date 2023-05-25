@@ -8,7 +8,6 @@
 
 package org.elasticsearch.test.cluster.util.resource;
 
-import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
@@ -19,8 +18,8 @@ import java.nio.file.StandardOpenOption;
 public class FileResource implements Resource {
     private final Path file;
 
-    FileResource(File file) {
-        this.file = file.toPath();
+    FileResource(Path file) {
+        this.file = file;
     }
 
     @Override

@@ -242,7 +242,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
     void innerPutRole(final PutRoleRequest request, final RoleDescriptor role, final ActionListener<Boolean> listener) {
         final String roleName = role.getName();
         assert NativeRealmValidationUtil.validateRoleName(roleName, false) == null : "Role name was invalid or reserved: " + roleName;
-        assert false == role.hasWorkflowsRestriction() : "workflows restriction are not supported for native roles";
+        assert false == role.hasRestriction() : "restriction is not supported for native roles";
 
         securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
             final XContentBuilder xContentBuilder;

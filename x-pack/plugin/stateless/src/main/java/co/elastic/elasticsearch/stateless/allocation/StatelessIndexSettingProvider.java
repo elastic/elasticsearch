@@ -14,7 +14,9 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettingProvider;
+import org.elasticsearch.index.IndexSettings;
 
 import java.time.Instant;
 import java.util.List;
@@ -32,9 +34,14 @@ public class StatelessIndexSettingProvider implements IndexSettingProvider {
         Settings allSettings,
         List<CompressedXContent> combinedTemplateMappings
     ) {
+        Settings.Builder settings = Settings.builder();
         // TODO find a prover way to bypass index template validation
-        return Objects.equals(indexName, "validate-index-name")
-            ? Settings.EMPTY
-            : Settings.builder().put(ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.getKey(), Stateless.NAME).build();
+        if (Objects.equals(indexName, "validate-index-name") == false) {
+            settings.put(ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.getKey(), Stateless.NAME);
+        }
+        if (allSettings.hasValue(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey()) == false) {
+            settings.put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(5));
+        }
+        return settings.build();
     }
 }

@@ -44,7 +44,6 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static co.elastic.elasticsearch.stateless.engine.IndexEngine.INDEX_FLUSH_INTERVAL_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
@@ -66,7 +65,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
             Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(INDEX_FLUSH_INTERVAL_SETTING.getKey(), new TimeValue(1, TimeUnit.MINUTES))
+                .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), new TimeValue(1, TimeUnit.MINUTES))
                 .build()
         );
         ensureGreen(indexName);

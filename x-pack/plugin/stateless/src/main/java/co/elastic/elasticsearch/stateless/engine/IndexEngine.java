@@ -27,6 +27,7 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineException;
@@ -38,7 +39,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.Optional;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
@@ -49,14 +49,6 @@ import java.util.function.LongSupplier;
  * {@link Engine} implementation for index shards
  */
 public class IndexEngine extends InternalEngine {
-
-    public static final Setting<TimeValue> INDEX_FLUSH_INTERVAL_SETTING = Setting.timeSetting(
-        "index.translog.flush_interval",
-        new TimeValue(5, TimeUnit.SECONDS),
-        new TimeValue(-1, TimeUnit.MILLISECONDS),
-        Setting.Property.Dynamic,
-        Setting.Property.IndexScope
-    );
 
     public static final Setting<Boolean> INDEX_FAST_REFRESH = Setting.boolSetting(
         "index.fast_refresh",
@@ -72,7 +64,7 @@ public class IndexEngine extends InternalEngine {
     private final Function<String, BlobContainer> translogBlobContainer;
     private final boolean fastRefresh;
     private volatile TimeValue indexFlushInterval;
-    private volatile Scheduler.ScheduledCancellable cancellableFlushTask;
+    private volatile Scheduler.Cancellable cancellableFlushTask;
     private final ReleasableLock flushLock = new ReleasableLock(new ReentrantLock());
     private final RefreshThrottler refreshThrottler;
 
@@ -90,22 +82,41 @@ public class IndexEngine extends InternalEngine {
         this.statelessCommitService = statelessCommitService;
         this.relativeTimeInNanosSupplier = config().getRelativeTimeInNanosSupplier();
         this.lastFlushNanos = new AtomicLong(relativeTimeInNanosSupplier.getAsLong());
-        this.indexFlushInterval = INDEX_FLUSH_INTERVAL_SETTING.get(config().getIndexSettings().getSettings());
+        this.indexFlushInterval = IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.get(config().getIndexSettings().getSettings());
         this.fastRefresh = INDEX_FAST_REFRESH.get(config().getIndexSettings().getSettings());
         this.refreshThrottler = refreshThrottlerFactory.create(this::doExternalRefresh);
-        cancellableFlushTask = scheduleFlushTask();
+        this.cancellableFlushTask = scheduleFlushTask();
     }
 
     @Override
     public void onSettingsChanged() {
         super.onSettingsChanged();
-        this.indexFlushInterval = INDEX_FLUSH_INTERVAL_SETTING.get(config().getIndexSettings().getSettings());
+        this.indexFlushInterval = IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.get(config().getIndexSettings().getSettings());
         cancellableFlushTask.cancel();
         cancellableFlushTask = scheduleFlushTask();
     }
 
-    private Scheduler.ScheduledCancellable scheduleFlushTask() {
-        return engineConfig.getThreadPool().schedule(this::scheduleFlush, indexFlushInterval, ThreadPool.Names.FLUSH);
+    private Scheduler.Cancellable scheduleFlushTask() {
+        if (indexFlushInterval.getMillis() > 0) {
+            return engineConfig.getThreadPool().schedule(this::scheduleFlush, indexFlushInterval, ThreadPool.Names.FLUSH);
+        } else {
+            return new Scheduler.Cancellable() {
+
+                private volatile boolean isCancelled;
+
+                @Override
+                public boolean cancel() {
+                    boolean thisCancelled = isCancelled == false;
+                    isCancelled = true;
+                    return thisCancelled;
+                }
+
+                @Override
+                public boolean isCancelled() {
+                    return isCancelled;
+                }
+            };
+        }
     }
 
     @Override

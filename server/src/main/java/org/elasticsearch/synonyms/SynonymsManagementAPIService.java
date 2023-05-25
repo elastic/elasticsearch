@@ -107,9 +107,11 @@ public class SynonymsManagementAPIService {
         return new SynonymRule(hit.getId(), (String) hit.getSourceAsMap().get(SynonymRule.SYNONYMS_FIELD.getPreferredName()));
     }
 
-    public void getSynonymsSet(String resourceName, ActionListener<SynonymsSetResult> listener) {
+    public void getSynonymsSet(String resourceName, int from, int size, ActionListener<SynonymsSetResult> listener) {
         client.prepareSearch(SYNONYMS_ALIAS_NAME)
             .setQuery(QueryBuilders.termQuery(SYNONYMS_SET_FIELD, resourceName))
+            .setFrom(from)
+            .setSize(size)
             .execute(listener.delegateFailure((searchResponseListener, searchResponse) -> {
                 final long totalSynonymRules = searchResponse.getHits().getTotalHits().value;
                 if (totalSynonymRules == 0) {

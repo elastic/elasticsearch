@@ -22,6 +22,8 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Objects;
 
+import static org.elasticsearch.action.ValidateActions.addValidationError;
+
 public class GetSynonymsAction extends ActionType<GetSynonymsAction.Response> {
 
     public static final GetSynonymsAction INSTANCE = new GetSynonymsAction();
@@ -33,30 +35,53 @@ public class GetSynonymsAction extends ActionType<GetSynonymsAction.Response> {
 
     public static class Request extends ActionRequest {
         private final String SynonymsSetId;
+        private final int from;
+        private final int size;
 
         public Request(StreamInput in) throws IOException {
             super(in);
             this.SynonymsSetId = in.readString();
+            this.from = in.readInt();
+            this.size = in.readInt();
         }
 
-        public Request(String SynonymsSetId) {
+        public Request(String SynonymsSetId, int from, int size) {
             Objects.requireNonNull(SynonymsSetId, "Synonym set ID cannot be null");
             this.SynonymsSetId = SynonymsSetId;
+            this.from = from;
+            this.size = size;
         }
 
         @Override
         public ActionRequestValidationException validate() {
-            return null;
+            ActionRequestValidationException validationException = null;
+            if (from < 0) {
+                validationException = addValidationError("from must be a positive integer", validationException);
+            }
+            if (size < 0) {
+                validationException = addValidationError("size must be a positive integer", validationException);
+            }
+            return validationException;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(SynonymsSetId);
+            out.writeInt(from);
+            out.writeInt(size);
         }
 
         public String synonymsSetId() {
             return SynonymsSetId;
+        }
+
+        public int from() {
+            return from;
+        }
+
+        public int size() {
+            return size;
         }
 
         @Override
@@ -64,18 +89,17 @@ public class GetSynonymsAction extends ActionType<GetSynonymsAction.Response> {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Objects.equals(SynonymsSetId, request.SynonymsSetId);
+            return from == request.from && size == request.size && Objects.equals(SynonymsSetId, request.SynonymsSetId);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(SynonymsSetId);
+            return Objects.hash(SynonymsSetId, from, size);
         }
     }
 
     public static class Response extends ActionResponse implements ToXContentObject {
 
-        // TODO Pagination
         private final SynonymsManagementAPIService.SynonymsSetResult synonymsSetResults;
 
         public Response(StreamInput in) throws IOException {

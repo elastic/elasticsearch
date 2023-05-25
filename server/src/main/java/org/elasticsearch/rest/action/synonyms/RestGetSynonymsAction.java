@@ -24,6 +24,9 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 @ServerlessScope(Scope.PUBLIC)
 public class RestGetSynonymsAction extends BaseRestHandler {
 
+    private static final Integer DEFAULT_FROM_PARAM = 0;
+    private static final Integer DEFAULT_SIZE_PARAM = 10;
+
     @Override
     public String getName() {
         return "synonyms_get_action";
@@ -36,7 +39,11 @@ public class RestGetSynonymsAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        GetSynonymsAction.Request request = new GetSynonymsAction.Request(restRequest.param("synonymsSet"));
+        GetSynonymsAction.Request request = new GetSynonymsAction.Request(
+            restRequest.param("synonymsSet"),
+            restRequest.paramAsInt("from", DEFAULT_FROM_PARAM),
+            restRequest.paramAsInt("size", DEFAULT_SIZE_PARAM)
+        );
         return channel -> client.execute(GetSynonymsAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

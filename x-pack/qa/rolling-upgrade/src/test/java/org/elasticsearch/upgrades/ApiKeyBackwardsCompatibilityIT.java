@@ -358,7 +358,8 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
             generateRandomStringArray(5, randomIntBetween(2, 8), false, true),
             RoleDescriptorTests.randomRoleDescriptorMetadata(false),
             Map.of(),
-            includeRemoteIndices ? RoleDescriptorTests.randomRemoteIndicesPrivileges(1, 3, excludedPrivileges) : null
+            includeRemoteIndices ? RoleDescriptorTests.randomRemoteIndicesPrivileges(1, 3, excludedPrivileges) : null,
+            null
         );
     }
 }

@@ -6,7 +6,6 @@ manage_dlm:
       privileges:
         - read
         - write
-        - view_index_metadata
         - manage_dlm
 not_privileged:
   cluster:

@@ -62,10 +62,13 @@ public class PermissionsIT extends ESRestTestCase {
             final List<Map<String, Object>> nodes = ObjectPath.createFromResponse(getDatastreamRepsonse).evaluate("data_streams");
             String index = (String) ((List<Map<String, Object>>) nodes.get(0).get("indices")).get(0).get("index_name");
 
-            Request explainLifecycleRequest = new Request("GET", "/" + index + "/_lifecycle/explain");
-            Request getLifecycleRequest = new Request("GET", "_data_stream/" + dataStreamName + "/_lifecycle");
-            Request deleteLifecycleRequest = new Request("DELETE", "_data_stream/" + dataStreamName + "/_lifecycle");
-            Request putLifecycleRequest = new Request("PUT", "_data_stream/" + dataStreamName + "/_lifecycle");
+            Request explainLifecycleRequest = new Request("GET", "/" + randomFrom("_all", "*", index) + "/_lifecycle/explain");
+            Request getLifecycleRequest = new Request("GET", "_data_stream/" + randomFrom("_all", "*", dataStreamName) + "/_lifecycle");
+            Request deleteLifecycleRequest = new Request(
+                "DELETE",
+                "_data_stream/" + randomFrom("_all", "*", dataStreamName) + "/_lifecycle"
+            );
+            Request putLifecycleRequest = new Request("PUT", "_data_stream/" + randomFrom("_all", "*", dataStreamName) + "/_lifecycle");
             putLifecycleRequest.setJsonEntity("{}");
 
             makeRequest(client(), explainLifecycleRequest, true);

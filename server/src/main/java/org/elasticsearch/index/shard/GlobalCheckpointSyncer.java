@@ -14,6 +14,9 @@ public interface GlobalCheckpointSyncer {
      * checkpoint reaches the max seqno, because in this state the replicas will have an older global checkpoint as carried by the earlier
      * indexing traffic, and may not receive any further updates without the explicit sync that this method triggers.
      * <p>
+     * It's also used if {@link org.elasticsearch.index.translog.Translog.Durability#ASYNC} is selected, because in that case indexing
+     * traffic does not advance the persisted global checkpoint.
+     * <p>
      * In production this triggers a {@link org.elasticsearch.index.seqno.GlobalCheckpointSyncAction}.
      *
      * @param shardId The ID of the shard to synchronize.

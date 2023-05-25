@@ -10,22 +10,18 @@ package org.elasticsearch.xpack.core.security.authz;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.Restriction;
 
 import java.io.IOException;
 
-import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
+import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -34,21 +30,20 @@ public class RoleRestrictionTests extends ESTestCase {
     public void testParse() throws Exception {
         final String json = """
             {
-                "workflows": ["search_application"]
+                "workflows": ["search_application", "search_analytics"]
             }
             """;
         Restriction r = Restriction.parse("test_restriction", createJsonParser(json));
-        assertThat(r.getWorkflows(), arrayContainingInAnyOrder("search_application"));
+        assertThat(r.getWorkflows(), arrayContaining("search_application", "search_analytics"));
         assertThat(r.hasWorkflows(), equalTo(true));
         assertThat(r.isEmpty(), equalTo(false));
 
-        var e = expectThrows(ElasticsearchParseException.class, () -> Restriction.parse("test_restriction", createJsonParser("{}")));
-        assertThat(
-            e.getMessage(),
-            containsString("failed to parse restriction for role [test_restriction]. missing required [workflows] field")
-        );
+        // tests that "restriction": {} is allowed
+        r = Restriction.parse("test_restriction", createJsonParser("{}"));
+        assertThat(r.hasWorkflows(), equalTo(false));
+        assertThat(r.isEmpty(), equalTo(true));
 
-        e = expectThrows(ElasticsearchParseException.class, () -> Restriction.parse("test_restriction", createJsonParser("""
+        var e = expectThrows(ElasticsearchParseException.class, () -> Restriction.parse("test_restriction", createJsonParser("""
              {
                  "workflows": []
              }
@@ -56,6 +51,19 @@ public class RoleRestrictionTests extends ESTestCase {
         assertThat(
             e.getMessage(),
             containsString("failed to parse restriction for role [test_restriction]. [workflows] cannot be an empty array")
+        );
+
+        e = expectThrows(ElasticsearchParseException.class, () -> Restriction.parse("test_restriction", createJsonParser("""
+             {
+                 "workflows": null
+             }
+            """)));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "failed to parse restriction for role [test_restriction]. could not parse [workflows] field. "
+                    + "expected a string array but found null value instead"
+            )
         );
     }
 
@@ -70,18 +78,17 @@ public class RoleRestrictionTests extends ESTestCase {
 
     public void testSerialization() throws IOException {
         final BytesStreamOutput out = new BytesStreamOutput();
-        final Restriction original = randomWorkflowsRestriction(0, 3);
+        final Restriction original = randomWorkflowsRestriction(1, 3);
         original.writeTo(out);
 
-        final NamedWriteableRegistry registry = new NamedWriteableRegistry(new XPackClientPlugin().getNamedWriteables());
-        StreamInput in = new NamedWriteableAwareStreamInput(ByteBufferStreamInput.wrap(BytesReference.toBytes(out.bytes())), registry);
+        StreamInput in = out.bytes().streamInput();
         final Restriction actual = new Restriction(in);
 
         assertThat(actual, equalTo(original));
     }
 
     public void testIsEmpty() {
-        String[] workflows = new String[] {};
+        String[] workflows = null;
         Restriction r = new Restriction(workflows);
         assertThat(r.isEmpty(), equalTo(true));
         assertThat(r.hasWorkflows(), equalTo(false));

@@ -1254,12 +1254,9 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
             }""", r1, r2));
         var e = expectThrows(ResponseException.class, () -> performRequestWithManageOwnApiKeyUser(createInvalidApiKeyRequest));
         if (secondRoleWithWorkflowsRestriction) {
-            assertThat(e.getMessage(), containsString("more than one role descriptor with workflows restriction is not supported"));
+            assertThat(e.getMessage(), containsString("more than one role descriptor with restriction is not supported"));
         } else {
-            assertThat(
-                e.getMessage(),
-                containsString("combining role descriptors with and without workflows restriction is not supported")
-            );
+            assertThat(e.getMessage(), containsString("combining role descriptors with and without restriction is not supported"));
         }
 
         final Request grantApiKeyRequest = new Request("POST", "_security/api_key/grant");
@@ -1278,12 +1275,9 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
             }""", MANAGE_OWN_API_KEY_USER, r1, r2));
         e = expectThrows(ResponseException.class, () -> adminClient().performRequest(grantApiKeyRequest));
         if (secondRoleWithWorkflowsRestriction) {
-            assertThat(e.getMessage(), containsString("more than one role descriptor with workflows restriction is not supported"));
+            assertThat(e.getMessage(), containsString("more than one role descriptor with restriction is not supported"));
         } else {
-            assertThat(
-                e.getMessage(),
-                containsString("combining role descriptors with and without workflows restriction is not supported")
-            );
+            assertThat(e.getMessage(), containsString("combining role descriptors with and without restriction is not supported"));
         }
 
         final Request createApiKeyRequest = new Request("POST", "_security/api_key");
@@ -1313,12 +1307,9 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
             }""", r1, r2));
         e = expectThrows(ResponseException.class, () -> performRequestWithManageOwnApiKeyUser(updateApiKeyRequest));
         if (secondRoleWithWorkflowsRestriction) {
-            assertThat(e.getMessage(), containsString("more than one role descriptor with workflows restriction is not supported"));
+            assertThat(e.getMessage(), containsString("more than one role descriptor with restriction is not supported"));
         } else {
-            assertThat(
-                e.getMessage(),
-                containsString("combining role descriptors with and without workflows restriction is not supported")
-            );
+            assertThat(e.getMessage(), containsString("combining role descriptors with and without restriction is not supported"));
         }
 
         final Request bulkUpdateApiKeyRequest = new Request("POST", "_security/api_key/_bulk_update");
@@ -1332,12 +1323,9 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
             }""", apiKeyId, r1, r2));
         e = expectThrows(ResponseException.class, () -> performRequestWithManageOwnApiKeyUser(bulkUpdateApiKeyRequest));
         if (secondRoleWithWorkflowsRestriction) {
-            assertThat(e.getMessage(), containsString("more than one role descriptor with workflows restriction is not supported"));
+            assertThat(e.getMessage(), containsString("more than one role descriptor with restriction is not supported"));
         } else {
-            assertThat(
-                e.getMessage(),
-                containsString("combining role descriptors with and without workflows restriction is not supported")
-            );
+            assertThat(e.getMessage(), containsString("combining role descriptors with and without restriction is not supported"));
         }
     }
 

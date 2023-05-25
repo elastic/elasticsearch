@@ -38,6 +38,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
@@ -121,11 +122,16 @@ public abstract class TransportTasksAction<
                 final ActionListener<NodeTasksResponse> nodeResponseListener = ActionListener.notifyOnce(new ActionListener<>() {
                     @Override
                     public void onResponse(NodeTasksResponse nodeResponse) {
-                        synchronized (taskResponses) {
-                            taskResponses.addAll(nodeResponse.results);
-                        }
-                        synchronized (taskOperationFailures) {
-                            taskOperationFailures.addAll(nodeResponse.exceptions);
+                        addAllSynchronized(taskResponses, nodeResponse.results);
+                        addAllSynchronized(taskOperationFailures, nodeResponse.exceptions);
+                    }
+
+                    @SuppressWarnings("SynchronizationOnLocalVariableOrMethodParameter")
+                    private static <T> void addAllSynchronized(List<T> allResults, Collection<T> response) {
+                        if (response.isEmpty() == false) {
+                            synchronized (allResults) {
+                                allResults.addAll(response);
+                            }
                         }
                     }
 

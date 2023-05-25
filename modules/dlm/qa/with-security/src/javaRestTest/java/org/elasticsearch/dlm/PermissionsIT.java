@@ -48,37 +48,53 @@ public class PermissionsIT extends ESRestTestCase {
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
-    /**
-     * Tests that a policy that simply deletes an index after 0s succeeds when an index
-     * with user `test_admin` is created referencing a policy created by `test_dlm` when both
-     * users have read/write permissions on the index. The goal is to verify that one
-     * does not need to be the same user who created both the policy and the index to have the
-     * index be properly managed by DLM.
-     */
     @SuppressWarnings("unchecked")
     public void testManageDLM() throws Exception {
-        String dataStreamName = "dlm-test"; // Needs to match the pattern of the names in roles.yml
-        createDataStreamAsAdmin(dataStreamName);
-        Response createDatastreamRepsonse = adminClient().performRequest(new Request("GET", "/_data_stream/" + dataStreamName));
-        final List<Map<String, Object>> nodes = ObjectPath.createFromResponse(createDatastreamRepsonse).evaluate("data_streams");
-        String index = (String) ((List<Map<String, Object>>) nodes.get(0).get("indices")).get(0).get("index_name");
+        {
+            /*
+             * This test checks that a user with the "manage_dlm" index privilege on "dlm-*" data streams can delete and put a lifecycle
+             * on the "dlm-test" data stream, while a user with who does not have that privilege (but does have all of the other same
+             * "dlm-*" privileges) cannot delete or put a lifecycle on that datastream.
+             */
+            String dataStreamName = "dlm-test"; // Needs to match the pattern of the names in roles.yml
+            createDataStreamAsAdmin(dataStreamName);
+            Response getDatastreamRepsonse = adminClient().performRequest(new Request("GET", "/_data_stream/" + dataStreamName));
+            final List<Map<String, Object>> nodes = ObjectPath.createFromResponse(getDatastreamRepsonse).evaluate("data_streams");
+            String index = (String) ((List<Map<String, Object>>) nodes.get(0).get("indices")).get(0).get("index_name");
 
-        Request explainLifecycleRequest = new Request("POST", "/" + index + "/_lifecycle/explain");
-        Request getLifecycleRequest = new Request("GET", "_data_stream/" + dataStreamName + "/_lifecycle");
-        Request deleteLifecycleRequest = new Request("DELETE", "_data_stream/" + dataStreamName + "/_lifecycle");
-        Request putLifecycleRequest = new Request("PUT", "_data_stream/" + dataStreamName + "/_lifecycle");
-        putLifecycleRequest.setJsonEntity("{}");
+            Request explainLifecycleRequest = new Request("GET", "/" + index + "/_lifecycle/explain");
+            Request getLifecycleRequest = new Request("GET", "_data_stream/" + dataStreamName + "/_lifecycle");
+            Request deleteLifecycleRequest = new Request("DELETE", "_data_stream/" + dataStreamName + "/_lifecycle");
+            Request putLifecycleRequest = new Request("PUT", "_data_stream/" + dataStreamName + "/_lifecycle");
+            putLifecycleRequest.setJsonEntity("{}");
 
-        makeRequest(client(), explainLifecycleRequest, true);
-        makeRequest(client(), getLifecycleRequest, true);
-        makeRequest(client(), deleteLifecycleRequest, true);
-        makeRequest(client(), putLifecycleRequest, true);
+            makeRequest(client(), explainLifecycleRequest, true);
+            makeRequest(client(), getLifecycleRequest, true);
+            makeRequest(client(), deleteLifecycleRequest, true);
+            makeRequest(client(), putLifecycleRequest, true);
 
-        try (RestClient nonDlmManagerClient = buildClient(restUnprivilegedClientSettings(), getClusterHosts().toArray(new HttpHost[0]))) {
-            makeRequest(nonDlmManagerClient, explainLifecycleRequest, true);
-            makeRequest(nonDlmManagerClient, getLifecycleRequest, true);
-            makeRequest(nonDlmManagerClient, deleteLifecycleRequest, false);
-            makeRequest(nonDlmManagerClient, putLifecycleRequest, false);
+            try (
+                RestClient nonDlmManagerClient = buildClient(restUnprivilegedClientSettings(), getClusterHosts().toArray(new HttpHost[0]))
+            ) {
+                makeRequest(nonDlmManagerClient, explainLifecycleRequest, true);
+                makeRequest(nonDlmManagerClient, getLifecycleRequest, true);
+                makeRequest(nonDlmManagerClient, deleteLifecycleRequest, false);
+                makeRequest(nonDlmManagerClient, putLifecycleRequest, false);
+            }
+        }
+        {
+            // Now test that the user who has the manage_dlm privilege on dlm-* data streams cannot manage other data streams:
+            String otherDataStreamName = "other-dlm-test";
+            createDataStreamAsAdmin(otherDataStreamName);
+            Response getOtherDataStreamResponse = adminClient().performRequest(new Request("GET", "/_data_stream/" + otherDataStreamName));
+            final List<Map<String, Object>> otherNodes = ObjectPath.createFromResponse(getOtherDataStreamResponse).evaluate("data_streams");
+            String otherIndex = (String) ((List<Map<String, Object>>) otherNodes.get(0).get("indices")).get(0).get("index_name");
+            Request putOtherLifecycleRequest = new Request("PUT", "_data_stream/" + otherDataStreamName + "/_lifecycle");
+            putOtherLifecycleRequest.setJsonEntity("{}");
+            makeRequest(client(), new Request("GET", "/" + otherIndex + "/_lifecycle/explain"), false);
+            makeRequest(client(), new Request("GET", "_data_stream/" + otherDataStreamName + "/_lifecycle"), false);
+            makeRequest(client(), new Request("DELETE", "_data_stream/" + otherDataStreamName + "/_lifecycle"), false);
+            makeRequest(client(), putOtherLifecycleRequest, false);
         }
     }
 

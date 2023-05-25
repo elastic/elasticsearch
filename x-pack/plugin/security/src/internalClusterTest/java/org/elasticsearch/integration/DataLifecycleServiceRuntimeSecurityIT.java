@@ -51,6 +51,7 @@ import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.backingIndexEqualTo;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.DEFAULT_TIMESTAMP_FIELD;
+import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.anyOf;
@@ -121,9 +122,9 @@ public class DataLifecycleServiceRuntimeSecurityIT extends SecurityIntegTestCase
     }
 
     public void testUnauthorized() throws Exception {
-        // the DLM user is not authorized since it matches a reserved index (security)
-        String dataStreamName = ".security"; // example system index here
-        prepareDataStreamAndIndex(dataStreamName, new DataLifecycle(TimeValue.timeValueMillis(0)));
+        // this is an example index pattern for a system index that DLM does not have access for. DLM will therefore fail at runtime with an
+        // authz exception
+        prepareDataStreamAndIndex(SECURITY_MAIN_ALIAS, new DataLifecycle());
 
         assertBusy(() -> {
             Map<String, String> indicesAndErrors = collectErrorsFromStoreAsMap();

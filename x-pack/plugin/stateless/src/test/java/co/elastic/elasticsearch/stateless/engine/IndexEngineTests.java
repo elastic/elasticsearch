@@ -31,6 +31,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.LongSupplier;
 
 import static org.mockito.Mockito.any;
@@ -73,8 +74,9 @@ public class IndexEngineTests extends AbstractEngineTestCase {
             }).when(engine).performScheduledFlush();
             engine.onSettingsChanged(); // Refresh the reference on the scheduledFlush method
 
+            AtomicBoolean running = new AtomicBoolean(true);
             Thread manualFlushThread = new Thread(() -> {
-                while (Thread.currentThread().isInterrupted() == false) {
+                while (running.get()) {
                     if (randomBoolean()) {
                         engine.flush();
                     }
@@ -89,7 +91,7 @@ public class IndexEngineTests extends AbstractEngineTestCase {
             manualFlushThread.start();
 
             assertTrue(latch.await(10, TimeUnit.SECONDS));
-            manualFlushThread.interrupt();
+            running.set(false);
             manualFlushThread.join();
         }
     }

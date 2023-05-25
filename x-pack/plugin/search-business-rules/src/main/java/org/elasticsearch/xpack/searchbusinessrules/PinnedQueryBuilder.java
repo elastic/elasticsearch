@@ -234,7 +234,6 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
             List<String> pinnedIds = in.readStringList();
             ids = () -> pinnedIds;
 
-
             docs = null;
         } else {
             List<String> pinnedIds = in.readOptionalStringList();
@@ -343,12 +342,12 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         QueryBuilder newOrganicQuery = organicQuery.rewrite(queryRewriteContext);
-//        if (newOrganicQuery != organicQuery) {
-            PinnedQueryBuilder result = new PinnedQueryBuilder(newOrganicQuery, ids.get(), docs);
-            result.boost(this.boost);
-            return result;
-//        }
-//        return this;
+        // if (newOrganicQuery != organicQuery) {
+        PinnedQueryBuilder result = new PinnedQueryBuilder(newOrganicQuery, ids.get(), docs);
+        result.boost(this.boost);
+        return result;
+        // }
+        // return this;
     }
 
     @Override

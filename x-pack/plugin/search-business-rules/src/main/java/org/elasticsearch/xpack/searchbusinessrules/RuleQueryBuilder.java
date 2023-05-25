@@ -6,12 +6,12 @@
  */
 
 package org.elasticsearch.xpack.searchbusinessrules;/*
- * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
- */
+                                                    * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+                                                    * or more contributor license agreements. Licensed under the Elastic License
+                                                    * 2.0 and the Server Side Public License, v 1; you may not use this file except
+                                                    * in compliance with, at your election, the Elastic License 2.0 or the Server
+                                                    * Side Public License, v 1.
+                                                    */
 
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.SetOnce;
@@ -101,10 +101,12 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
         curatedIdSupplier = null;
     }
 
-    private RuleQueryBuilder(QueryBuilder organicQuery,
-                             List<MatchCriteria> matchCriteria,
-                             @Nullable List<String> rulesetIds,
-                             Supplier<List<String>> curatedIdSupplier) {
+    private RuleQueryBuilder(
+        QueryBuilder organicQuery,
+        List<MatchCriteria> matchCriteria,
+        @Nullable List<String> rulesetIds,
+        Supplier<List<String>> curatedIdSupplier
+    ) {
         // No validation, this is a POC
         this.organicQuery = organicQuery;
         this.matchCriteria = (matchCriteria != null ? matchCriteria : Collections.emptyList());
@@ -113,10 +115,12 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
         this.curatedIdSupplier = curatedIdSupplier;
     }
 
-    private RuleQueryBuilder(QueryBuilder organicQuery,
-                             List<MatchCriteria> matchCriteria,
-                             @Nullable List<String> rulesetIds,
-                             List<String> curatedIds) {
+    private RuleQueryBuilder(
+        QueryBuilder organicQuery,
+        List<MatchCriteria> matchCriteria,
+        @Nullable List<String> rulesetIds,
+        List<String> curatedIds
+    ) {
         // No validation, this is a POC
         this.organicQuery = organicQuery;
         this.matchCriteria = (matchCriteria != null ? matchCriteria : Collections.emptyList());
@@ -137,9 +141,17 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
         out.writeStringCollection(curatedIds);
     }
 
-    public List<String> rulesetIds() { return rulesetIds; }
-    public List<MatchCriteria> matchCriteria() { return matchCriteria; }
-    public QueryBuilder organicQuery() { return organicQuery; }
+    public List<String> rulesetIds() {
+        return rulesetIds;
+    }
+
+    public List<MatchCriteria> matchCriteria() {
+        return matchCriteria;
+    }
+
+    public QueryBuilder organicQuery() {
+        return organicQuery;
+    }
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
@@ -199,7 +211,8 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
                         .map(action -> (Map<?, ?>) action)
                         .map(actionMap -> actionMap.get("ids"))
                         .flatMap(_ids -> ((List<?>) _ids).stream())
-                        .map(id -> (String) id).toList();
+                        .map(id -> (String) id)
+                        .toList();
                     ids.addAll(idsArray);
                 }
                 idSetOnce.set(ids.stream().distinct().toList());
@@ -207,10 +220,10 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
             }, listener::onFailure));
         });
 
-            QueryBuilder newOrganicQuery = organicQuery.rewrite(queryRewriteContext);
-            RuleQueryBuilder rewritten = new RuleQueryBuilder(newOrganicQuery, matchCriteria, rulesetIds, idSetOnce::get);
-            rewritten.boost(this.boost);
-            return rewritten;
+        QueryBuilder newOrganicQuery = organicQuery.rewrite(queryRewriteContext);
+        RuleQueryBuilder rewritten = new RuleQueryBuilder(newOrganicQuery, matchCriteria, rulesetIds, idSetOnce::get);
+        rewritten.boost(this.boost);
+        return rewritten;
     }
 
     private QueryBuilder buildCurationQuery() {

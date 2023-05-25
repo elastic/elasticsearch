@@ -445,8 +445,8 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         if (info == null || info.getReason() != UnassignedInfo.Reason.NODE_RESTARTING) {
             return false;
         }
-        var shutdown = shutdowns.getAllNodeMetadataMap().get(info.getLastAllocatedNodeId());
-        if (shutdown == null || shutdown.getType() != SingleNodeShutdownMetadata.Type.RESTART) {
+        var shutdown = shutdowns.get(info.getLastAllocatedNodeId(), SingleNodeShutdownMetadata.Type.RESTART);
+        if (shutdown == null) {
             return false;
         }
         var now = System.nanoTime();

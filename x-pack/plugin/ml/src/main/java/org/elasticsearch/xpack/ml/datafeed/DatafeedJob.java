@@ -31,7 +31,7 @@ import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
-import org.elasticsearch.xpack.core.security.user.XPackUser;
+import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetector;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetectorFactory.BucketWithMissingData;
@@ -300,12 +300,12 @@ class DatafeedJob {
         Date currentTime = new Date(currentTimeSupplier.get());
         return new Annotation.Builder().setAnnotation(msg)
             .setCreateTime(currentTime)
-            .setCreateUsername(XPackUser.NAME)
+            .setCreateUsername(InternalUsers.XPACK_USER.principal())
             .setTimestamp(startTime)
             .setEndTimestamp(endTime)
             .setJobId(jobId)
             .setModifiedTime(currentTime)
-            .setModifiedUsername(XPackUser.NAME)
+            .setModifiedUsername(InternalUsers.XPACK_USER.principal())
             .setType(Annotation.Type.ANNOTATION)
             .setEvent(Annotation.Event.DELAYED_DATA)
             .build();
@@ -316,7 +316,7 @@ class DatafeedJob {
             .setTimestamp(annotation.getTimestamp())
             .setEndTimestamp(annotation.getEndTimestamp())
             .setModifiedTime(new Date(currentTimeSupplier.get()))
-            .setModifiedUsername(XPackUser.NAME)
+            .setModifiedUsername(InternalUsers.XPACK_USER.principal())
             .build();
     }
 

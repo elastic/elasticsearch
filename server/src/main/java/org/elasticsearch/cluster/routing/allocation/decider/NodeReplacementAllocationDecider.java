@@ -15,8 +15,6 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 
-import java.util.Optional;
-
 public class NodeReplacementAllocationDecider extends AllocationDecider {
 
     public static final String NAME = "node_replacement";
@@ -183,11 +181,8 @@ public class NodeReplacementAllocationDecider extends AllocationDecider {
         if (sourceNodeId == null || targetNodeName == null) {
             return false;
         }
-        final SingleNodeShutdownMetadata shutdown = allocation.metadata().nodeShutdowns().get(sourceNodeId);
-        return shutdown != null
-            && shutdown.getType().equals(SingleNodeShutdownMetadata.Type.REPLACE)
-            && shutdown.getNodeId().equals(sourceNodeId)
-            && shutdown.getTargetNodeName().equals(targetNodeName);
+        var shutdown = allocation.metadata().nodeShutdowns().get(sourceNodeId, SingleNodeShutdownMetadata.Type.REPLACE);
+        return shutdown != null && shutdown.getTargetNodeName().equals(targetNodeName);
     }
 
     /**
@@ -197,8 +192,7 @@ public class NodeReplacementAllocationDecider extends AllocationDecider {
         if (nodeId == null || replacementOngoing(allocation) == false) {
             return false;
         }
-        final SingleNodeShutdownMetadata shutdown = allocation.metadata().nodeShutdowns().get(nodeId);
-        return shutdown != null && shutdown.getType().equals(SingleNodeShutdownMetadata.Type.REPLACE);
+        return allocation.metadata().nodeShutdowns().contains(nodeId, SingleNodeShutdownMetadata.Type.REPLACE);
     }
 
     /**
@@ -215,9 +209,7 @@ public class NodeReplacementAllocationDecider extends AllocationDecider {
         if (nodeIdBeingReplaced == null || replacementOngoing(allocation) == false) {
             return null;
         }
-        return Optional.ofNullable(allocation.metadata().nodeShutdowns().get(nodeIdBeingReplaced))
-            .filter(shutdown -> shutdown.getType().equals(SingleNodeShutdownMetadata.Type.REPLACE))
-            .map(SingleNodeShutdownMetadata::getTargetNodeName)
-            .orElse(null);
+        var metadata = allocation.metadata().nodeShutdowns().get(nodeIdBeingReplaced, SingleNodeShutdownMetadata.Type.REPLACE);
+        return metadata != null ? metadata.getTargetNodeName() : null;
     }
 }

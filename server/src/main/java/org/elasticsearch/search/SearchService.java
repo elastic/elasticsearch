@@ -1606,7 +1606,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 QueryBuilder queryBuilder = request.source().query();
                 canMatch &= queryBuilder instanceof MatchNoneQueryBuilder == false;
             } else {
-                canMatch &= request.source().queries().stream().anyMatch(sqwb -> sqwb.getQueryBuilder() instanceof MatchNoneQueryBuilder == false);
+                canMatch &= request.source()
+                    .queries()
+                    .stream()
+                    .anyMatch(sqwb -> sqwb.getQueryBuilder() instanceof MatchNoneQueryBuilder == false);
             }
         }
         return canMatch;

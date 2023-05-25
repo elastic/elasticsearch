@@ -1,7 +1,0 @@
-pr: 96274
-summary: Do not fail upon `ResourceAlreadyExistsException` during destination index
-  creation
-area: Transform
-type: bug
-issues:
- - 95310

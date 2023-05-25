@@ -647,7 +647,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             null,
             Collections.emptyList(),
             Arrays.asList(listeners),
-            () -> {},
+            IndexShardTestCase.NOOP_GCP_SYNCER,
             RetentionLeaseSyncer.EMPTY,
             cbs,
             IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER,

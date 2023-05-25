@@ -42,7 +42,7 @@ public class RoleWithWorkflowsRestrictionRestIT extends SecurityOnTrialLicenseRe
     }
 
     public void testUpdateRoleWithWorkflowsRestrictionFail() throws IOException {
-        Request createRoleRequest = new Request(HttpPut.METHOD_NAME, "/_security/role/role_without_restriction");
+        Request createRoleRequest = new Request(HttpPut.METHOD_NAME, "/_security/role/my_role");
         createRoleRequest.setJsonEntity("""
             {
               "cluster": ["all"],
@@ -56,7 +56,7 @@ public class RoleWithWorkflowsRestrictionRestIT extends SecurityOnTrialLicenseRe
         Response createRoleResponse = adminClient().performRequest(createRoleRequest);
         assertOK(createRoleResponse);
 
-        Request updateRoleRequest = new Request(HttpPost.METHOD_NAME, "/_security/role/role_without_restriction");
+        Request updateRoleRequest = new Request(HttpPost.METHOD_NAME, "/_security/role/my_role");
         updateRoleRequest.setJsonEntity("""
             {
               "cluster": ["all"],
@@ -73,6 +73,6 @@ public class RoleWithWorkflowsRestrictionRestIT extends SecurityOnTrialLicenseRe
 
         ResponseException e = expectThrows(ResponseException.class, () -> adminClient().performRequest(updateRoleRequest));
         assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
-        assertThat(e.getMessage(), containsString("failed to parse role [role_without_restriction]. unexpected field [restriction]"));
+        assertThat(e.getMessage(), containsString("failed to parse role [my_role]. unexpected field [restriction]"));
     }
 }

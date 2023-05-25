@@ -17,14 +17,23 @@ import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Collections.emptyIterator;
 import static org.elasticsearch.common.collect.Iterators.single;
 
 public record ThreadPoolStats(List<Stats> stats) implements Writeable, ChunkedToXContent, Iterable<ThreadPoolStats.Stats> {
+
+    public static final ThreadPoolStats IDENTITY = new ThreadPoolStats(new ArrayList<>());
+
+    public static ThreadPoolStats merge(ThreadPoolStats first, ThreadPoolStats second) {
+        return new ThreadPoolStats(Stream.concat(first.stats.stream(), second.stats.stream()).collect(Collectors.toList()));
+    }
 
     public record Stats(String name, int threads, int queue, int active, long rejected, int largest, long completed)
         implements

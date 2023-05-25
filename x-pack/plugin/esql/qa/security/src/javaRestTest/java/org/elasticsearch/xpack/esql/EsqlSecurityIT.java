@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.eql;
+package org.elasticsearch.xpack.esql;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;

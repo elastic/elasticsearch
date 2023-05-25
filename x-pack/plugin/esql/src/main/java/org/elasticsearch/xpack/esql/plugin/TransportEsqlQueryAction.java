@@ -74,7 +74,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.get(settings)
         );
         String sessionId = sessionID(task);
-        planExecutor.newSession(sessionId, configuration).execute(request, wrap(r -> {
+        planExecutor.esql(request, sessionId, configuration, wrap(r -> {
             computeService.execute(sessionId, (CancellableTask) task, r, configuration, listener.map(pages -> {
                 List<ColumnInfo> columns = r.output()
                     .stream()

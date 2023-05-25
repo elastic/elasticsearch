@@ -62,14 +62,15 @@ public class EsqlSession {
         PreAnalyzer preAnalyzer,
         FunctionRegistry functionRegistry,
         LogicalPlanOptimizer logicalPlanOptimizer,
-        Mapper mapper
+        Mapper mapper,
+        Verifier verifier
     ) {
         this.sessionId = sessionId;
         this.configuration = configuration;
         this.indexResolver = indexResolver;
 
         this.preAnalyzer = preAnalyzer;
-        this.verifier = new Verifier();
+        this.verifier = verifier;
         this.functionRegistry = functionRegistry;
         this.mapper = mapper;
         this.logicalPlanOptimizer = logicalPlanOptimizer;

@@ -8,7 +8,12 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
+import org.elasticsearch.xpack.esql.plan.logical.Dissect;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
+import org.elasticsearch.xpack.esql.stats.FeatureMetric;
+import org.elasticsearch.xpack.esql.stats.Metrics;
 import org.elasticsearch.xpack.ql.capabilities.Unresolvable;
 import org.elasticsearch.xpack.ql.common.Failure;
 import org.elasticsearch.xpack.ql.expression.Alias;
@@ -22,22 +27,40 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Binar
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.ql.plan.logical.Filter;
+import org.elasticsearch.xpack.ql.plan.logical.Limit;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.ArrayList;
+import java.util.BitSet;
 import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.xpack.esql.stats.FeatureMetric.DISSECT;
+import static org.elasticsearch.xpack.esql.stats.FeatureMetric.EVAL;
+import static org.elasticsearch.xpack.esql.stats.FeatureMetric.GROK;
+import static org.elasticsearch.xpack.esql.stats.FeatureMetric.LIMIT;
+import static org.elasticsearch.xpack.esql.stats.FeatureMetric.SORT;
+import static org.elasticsearch.xpack.esql.stats.FeatureMetric.STATS;
+import static org.elasticsearch.xpack.esql.stats.FeatureMetric.WHERE;
 import static org.elasticsearch.xpack.ql.common.Failure.fail;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
 
 public class Verifier {
+
+    private final Metrics metrics;
+
+    public Verifier(Metrics metrics) {
+        this.metrics = metrics;
+    }
+
     Collection<Failure> verify(LogicalPlan plan) {
         Set<Failure> failures = new LinkedHashSet<>();
 
@@ -145,7 +168,36 @@ public class Verifier {
             });
         });
 
+        // gather metrics
+        if (failures.isEmpty()) {
+            gatherMetrics(plan);
+        }
+
         return failures;
+    }
+
+    private void gatherMetrics(LogicalPlan plan) {
+        BitSet b = new BitSet(FeatureMetric.values().length);
+        plan.forEachDown(p -> {
+            if (p instanceof Dissect) {
+                b.set(DISSECT.ordinal());
+            } else if (p instanceof Eval) {
+                b.set(EVAL.ordinal());
+            } else if (p instanceof Grok) {
+                b.set(GROK.ordinal());
+            } else if (p instanceof Limit) {
+                b.set(LIMIT.ordinal());
+            } else if (p instanceof OrderBy) {
+                b.set(SORT.ordinal());
+            } else if (p instanceof Aggregate) {
+                b.set(STATS.ordinal());
+            } else if (p instanceof Filter) {
+                b.set(WHERE.ordinal());
+            }
+        });
+        for (int i = b.nextSetBit(0); i >= 0; i = b.nextSetBit(i + 1)) {
+            metrics.inc(FeatureMetric.values()[i]);
+        }
     }
 
     /**

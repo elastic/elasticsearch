@@ -8,7 +8,6 @@ dependencies {
   // Common utilities from QL
   api project(xpackModule('ql:test-fixtures'))
   api project(xpackModule('esql:qa:testFixtures'))
-  implementation project(":client:rest-high-level")
 }
 
 subprojects {

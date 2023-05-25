@@ -17,6 +17,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
@@ -42,7 +43,7 @@ public class DataLifecycleTests extends AbstractXContentSerializingTestCase<Data
     @Override
     protected DataLifecycle createTestInstance() {
         // We exclude the nullified data lifecycle because on the XContent level we cannot differentiate it from the
-        // implicit infinite retention. We test wire serialization in a separate test case
+        // implicit infinite retention. We test wire serialization in a separate test case.
         return switch (randomInt(2)) {
             case 0 -> DataLifecycle.IMPLICIT_INFINITE_RETENTION;
             case 1 -> DataLifecycle.EXPLICIT_INFINITE_RETENTION;
@@ -102,6 +103,15 @@ public class DataLifecycleTests extends AbstractXContentSerializingTestCase<Data
             instanceReader(),
             TransportVersion.V_8_9_0
         );
+    }
+
+    public void testInvalidDataLifecycle() {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new DataLifecycle.Builder().dataRetention(new DataLifecycle.Retention(TimeValue.timeValueDays(1))).nullified(true)
+        );
+        assertThat(e.getMessage(), containsString("Invalid lifecycle, when a lifecycle is nullified, retention should also be null."));
+
     }
 
     public void testLifecycleComposition() {

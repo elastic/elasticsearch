@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.ql.expression.UnresolvedAlias;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.expression.UnresolvedStar;
 import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.tree.Node;
 import org.elasticsearch.xpack.ql.tree.NodeSubclassTests;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -49,7 +50,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
 
     private static final List<Class<?>> CLASSES_WITH_MIN_TWO_CHILDREN = List.of(Concat.class, CIDRMatch.class);
 
-    // List of classes that are "unresolved" NamedExpression subclasses, therefore not suitable for use with physical plan nodes.
+    // List of classes that are "unresolved" NamedExpression subclasses, therefore not suitable for use with logical/physical plan nodes.
     private static final List<Class<?>> UNRESOLVED_CLASSES = List.of(
         UnresolvedAttribute.class,
         UnresolvedAlias.class,
@@ -76,7 +77,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             return randomFieldSort();
         } else if (toBuildClass == Pow.class && Expression.class.isAssignableFrom(argClass)) {
             return randomResolvedExpression(randomBoolean() ? FieldAttribute.class : Literal.class);
-        } else if (PhysicalPlan.class.isAssignableFrom(toBuildClass) && Expression.class.isAssignableFrom(argClass)) {
+        } else if (isPlanNodeClass(toBuildClass) && Expression.class.isAssignableFrom(argClass)) {
             return randomResolvedExpression(argClass);
         }
         return null;
@@ -119,6 +120,10 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             .filter(c -> testClassFor(c) == null)
             .map(c -> new Object[] { c })
             .toList();
+    }
+
+    static boolean isPlanNodeClass(Class<? extends Node<?>> toBuildClass) {
+        return PhysicalPlan.class.isAssignableFrom(toBuildClass) || LogicalPlan.class.isAssignableFrom(toBuildClass);
     }
 
     Expression randomResolvedExpression(Class<?> argClass) throws Exception {

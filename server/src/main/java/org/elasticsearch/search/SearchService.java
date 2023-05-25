@@ -1600,14 +1600,14 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     @SuppressWarnings("unchecked")
     public static boolean queryStillMatchesAfterRewrite(ShardSearchRequest request, QueryRewriteContext context) throws IOException {
         Rewriteable.rewrite(request.getRewriteable(), context, false);
-        final boolean aliasFilterCanMatch = request.getAliasFilter().getQueryBuilder() instanceof MatchNoneQueryBuilder == false;
-        final boolean canMatch;
+        boolean canMatch = request.getAliasFilter().getQueryBuilder() instanceof MatchNoneQueryBuilder == false;
         if (canRewriteToMatchNone(request.source())) {
-            QueryBuilder queryBuilder = request.source().query();
-            canMatch = aliasFilterCanMatch && queryBuilder instanceof MatchNoneQueryBuilder == false;
-        } else {
-            // null query means match_all
-            canMatch = aliasFilterCanMatch;
+            if (request.source().query() != null) {
+                QueryBuilder queryBuilder = request.source().query();
+                canMatch &= queryBuilder instanceof MatchNoneQueryBuilder == false;
+            } else {
+                canMatch &= request.source().queries().stream().anyMatch(sqwb -> sqwb.getQueryBuilder() instanceof MatchNoneQueryBuilder == false);
+            }
         }
         return canMatch;
     }
@@ -1618,7 +1618,14 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      * a global aggregation is part of this request or if there is a suggest builder present.
      */
     public static boolean canRewriteToMatchNone(SearchSourceBuilder source) {
-        if (source == null || source.query() == null || source.query() instanceof MatchAllQueryBuilder || source.suggest() != null) {
+        if (source == null || source.suggest() != null) {
+            return false;
+        }
+        if (source.query() == null) {
+            if (source.queries().stream().anyMatch(sqwb -> sqwb.getQueryBuilder() instanceof MatchAllQueryBuilder)) {
+                return false;
+            }
+        } else if (source.query() instanceof MatchAllQueryBuilder) {
             return false;
         }
         AggregatorFactories.Builder aggregations = source.aggregations();

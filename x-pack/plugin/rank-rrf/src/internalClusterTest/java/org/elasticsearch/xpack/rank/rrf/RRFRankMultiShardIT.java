@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.rank.rrf;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
@@ -549,6 +550,7 @@ public class RRFRankMultiShardIT extends ESIntegTestCase {
         for (SearchType searchType : SearchType.CURRENTLY_SUPPORTED) {
             SearchResponse response = client().prepareSearch("nrd_index")
                 .setSearchType(searchType)
+                .setPreFilterShardSize(1)
                 .setRankBuilder(new RRFRankBuilder(8, 1))
                 .setTrackTotalHits(false)
                 .setQueries(

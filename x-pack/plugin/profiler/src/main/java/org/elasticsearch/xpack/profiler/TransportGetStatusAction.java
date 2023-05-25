@@ -51,10 +51,10 @@ public class TransportGetStatusAction extends TransportMasterNodeAction<GetStatu
         ClusterState state,
         ActionListener<GetStatusAction.Response> listener
     ) {
-        boolean enabled = XPackSettings.PROFILING_ENABLED.get(state.getMetadata().settings());
-        boolean indexManagementEnabled = ProfilingPlugin.PROFILING_TEMPLATES_ENABLED.get(state.getMetadata().settings());
+        boolean pluginEnabled = XPackSettings.PROFILING_ENABLED.get(state.getMetadata().settings());
+        boolean resourceManagementEnabled = ProfilingPlugin.PROFILING_TEMPLATES_ENABLED.get(state.getMetadata().settings());
         boolean resourcesCreated = ProfilingIndexTemplateRegistry.areAllTemplatesCreated(state);
-        listener.onResponse(new GetStatusAction.Response(enabled, indexManagementEnabled, resourcesCreated));
+        listener.onResponse(new GetStatusAction.Response(pluginEnabled, resourceManagementEnabled, resourcesCreated));
     }
 
     @Override

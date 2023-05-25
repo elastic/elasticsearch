@@ -30,37 +30,37 @@ public class GetStatusAction extends ActionType<GetStatusAction.Response> {
 
     public static class Response extends ActionResponse implements ToXContentObject {
 
-        private boolean enabled;
-        private boolean active;
+        private boolean profilingEnabled;
+        private boolean resourceManagementEnabled;
         private boolean resourcesCreated;
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            enabled = in.readBoolean();
-            active = in.readBoolean();
+            profilingEnabled = in.readBoolean();
+            resourceManagementEnabled = in.readBoolean();
             resourcesCreated = in.readBoolean();
         }
 
-        public Response(boolean enabled, boolean active, boolean resourcesCreated) {
-            this.enabled = enabled;
-            this.active = active;
+        public Response(boolean profilingEnabled, boolean resourceManagementEnabled, boolean resourcesCreated) {
+            this.profilingEnabled = profilingEnabled;
+            this.resourceManagementEnabled = resourceManagementEnabled;
             this.resourcesCreated = resourcesCreated;
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field("enabled", enabled);
-            builder.field("active", active);
-            builder.field("resources_created", resourcesCreated);
+            builder.startObject("profiling").field("enabled", profilingEnabled).endObject();
+            builder.startObject("resource_management").field("enabled", resourceManagementEnabled).endObject();
+            builder.startObject("resources").field("created", resourcesCreated).endObject();
             builder.endObject();
             return builder;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeBoolean(enabled);
-            out.writeBoolean(active);
+            out.writeBoolean(profilingEnabled);
+            out.writeBoolean(resourceManagementEnabled);
             out.writeBoolean(resourcesCreated);
         }
 
@@ -69,12 +69,14 @@ public class GetStatusAction extends ActionType<GetStatusAction.Response> {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Response response = (Response) o;
-            return enabled == response.enabled && active == response.active && resourcesCreated == response.resourcesCreated;
+            return profilingEnabled == response.profilingEnabled
+                && resourceManagementEnabled == response.resourceManagementEnabled
+                && resourcesCreated == response.resourcesCreated;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(enabled, active, resourcesCreated);
+            return Objects.hash(profilingEnabled, resourceManagementEnabled, resourcesCreated);
         }
 
         @Override

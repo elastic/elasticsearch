@@ -121,8 +121,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     private final DocumentParser documentParser;
     private final Version indexVersionCreated;
     private final MapperRegistry mapperRegistry;
-    private final MappingParserContext mappingParserContext;
-
+    private final Supplier<MappingParserContext> mappingParserContextSupplier;
     private volatile DocumentMapper mapper;
 
     public MapperService(
@@ -164,7 +163,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         this.indexVersionCreated = indexSettings.getIndexVersionCreated();
         this.indexAnalyzers = indexAnalyzers;
         this.mapperRegistry = mapperRegistry;
-        this.mappingParserContext = new MappingParserContext(
+        this.mappingParserContextSupplier = () -> new MappingParserContext(
             similarityService::getSimilarity,
             type -> mapperRegistry.getMapperParser(type, indexVersionCreated),
             mapperRegistry.getRuntimeFieldParsers()::get,
@@ -176,12 +175,12 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             indexSettings,
             idFieldMapper
         );
-        this.documentParser = new DocumentParser(parserConfiguration, this.mappingParserContext);
+        this.documentParser = new DocumentParser(parserConfiguration, this.mappingParserContextSupplier.get());
         Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers = mapperRegistry.getMetadataMapperParsers(
             indexSettings.getIndexVersionCreated()
         );
         this.mappingParser = new MappingParser(
-            mappingParserContext,
+            mappingParserContextSupplier,
             metadataMapperParsers,
             this::getMetadataMappers,
             this::resolveDocumentType
@@ -197,7 +196,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     public MappingParserContext parserContext() {
-        return this.mappingParserContext;
+        return mappingParserContextSupplier.get();
     }
 
     /**
@@ -209,6 +208,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> getMetadataMappers() {
+        final MappingParserContext mappingParserContext = parserContext();
         final DocumentMapper existingMapper = mapper;
         final Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers = mapperRegistry.getMetadataMapperParsers(
             indexSettings.getIndexVersionCreated()
@@ -216,7 +216,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers = new LinkedHashMap<>();
         if (existingMapper == null) {
             for (MetadataFieldMapper.TypeParser parser : metadataMapperParsers.values()) {
-                MetadataFieldMapper metadataFieldMapper = parser.getDefault(parserContext());
+                MetadataFieldMapper metadataFieldMapper = parser.getDefault(mappingParserContext);
                 // A MetadataFieldMapper may choose to not be added to the metadata mappers
                 // of an index (eg TimeSeriesIdFieldMapper is only added to time series indices)
                 // In this case its TypeParser will return null instead of the MetadataFieldMapper

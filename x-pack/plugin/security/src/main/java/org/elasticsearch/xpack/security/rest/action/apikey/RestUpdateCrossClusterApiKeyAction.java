@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.rest.action.apikey;
 
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -24,6 +25,7 @@ import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xpack.security.Security.ADVANCED_REMOTE_CLUSTER_SECURITY_FEATURE;
 
 public final class RestUpdateCrossClusterApiKeyAction extends ApiKeyBaseRestHandler {
 
@@ -62,6 +64,18 @@ public final class RestUpdateCrossClusterApiKeyAction extends ApiKeyBaseRestHand
             new UpdateCrossClusterApiKeyRequest(apiKeyId, payload.builder, payload.metadata),
             new RestToXContentListener<>(channel)
         );
+    }
+
+    @Override
+    protected Exception checkFeatureAvailable(RestRequest request) {
+        final Exception failedFeature = super.checkFeatureAvailable(request);
+        if (failedFeature != null) {
+            return failedFeature;
+        } else if (ADVANCED_REMOTE_CLUSTER_SECURITY_FEATURE.checkWithoutTracking(licenseState)) {
+            return null;
+        } else {
+            return LicenseUtils.newComplianceException(ADVANCED_REMOTE_CLUSTER_SECURITY_FEATURE.getName());
+        }
     }
 
     record Payload(CrossClusterApiKeyRoleDescriptorBuilder builder, Map<String, Object> metadata) {}

@@ -132,7 +132,9 @@ public class CrudDataLifecycleIT extends ESIntegTestCase {
 
         // Set lifecycle
         {
-            DataLifecycle lifecycle = randomDataLifecycle();
+            // The request body contains only the retention as a parameter meaning that an explicitly nullified lifecycle
+            // cannot be passed an input, this is why we exclude it from the random generator.
+            DataLifecycle lifecycle = randomValueOtherThan(DataLifecycle.NO_LIFECYCLE, DLMFixtures::randomDataLifecycle);
             PutDataLifecycleAction.Request putDataLifecycleRequest = new PutDataLifecycleAction.Request(
                 new String[] { "*" },
                 lifecycle.getEffectiveDataRetention()

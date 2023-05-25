@@ -108,10 +108,9 @@ public class DataLifecycleTests extends AbstractXContentSerializingTestCase<Data
     public void testInvalidDataLifecycle() {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> new DataLifecycle.Builder().dataRetention(new DataLifecycle.Retention(TimeValue.timeValueDays(1))).nullified(true)
+            () -> new DataLifecycle.Builder().dataRetention(new DataLifecycle.Retention(TimeValue.timeValueDays(1))).nullified(true).build()
         );
         assertThat(e.getMessage(), containsString("Invalid lifecycle, when a lifecycle is nullified, retention should also be null."));
-
     }
 
     public void testLifecycleComposition() {

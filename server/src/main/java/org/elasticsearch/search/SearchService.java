@@ -1625,7 +1625,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             return false;
         }
         if (source.query() == null) {
-            if (source.queries().stream().anyMatch(sqwb -> sqwb.getQueryBuilder() instanceof MatchAllQueryBuilder)) {
+            if (source.queries().isEmpty()
+                || source.queries().stream().anyMatch(sqwb -> sqwb.getQueryBuilder() instanceof MatchAllQueryBuilder)) {
                 return false;
             }
         } else if (source.query() instanceof MatchAllQueryBuilder) {

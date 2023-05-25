@@ -151,6 +151,16 @@ public class IndexEngine extends InternalEngine {
         }
     }
 
+    @Override
+    protected RefreshResult refreshInternalSearcher(String source, boolean block) throws EngineException {
+        if (source.equals(REAL_TIME_GET_REFRESH_SOURCE) || source.equals(UNSAFE_VERSION_MAP_REFRESH_SOURCE)) {
+            // TODO: Eventually the Refresh API will also need to transition (maybe) to an async API here.
+            flush(true, true);
+        }
+        // TODO: could we avoid this refresh if we have flushed above?
+        return super.refreshInternalSearcher(source, block);
+    }
+
     // visible for testing
     long getLastFlushNanos() {
         return lastFlushNanos.get();

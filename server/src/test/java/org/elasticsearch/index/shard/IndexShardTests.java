@@ -1185,7 +1185,7 @@ public class IndexShardTests extends IndexShardTestCase {
             indexMetadata.build(),
             null,
             new InternalEngineFactory(),
-            () -> synced.set(true),
+            ignoredShardId -> synced.set(true),
             RetentionLeaseSyncer.EMPTY
         );
         // add a replica
@@ -1254,7 +1254,7 @@ public class IndexShardTests extends IndexShardTestCase {
             indexMetadata.build(),
             null,
             new InternalEngineFactory(),
-            () -> synced.set(true),
+            ignoredShardId -> synced.set(true),
             RetentionLeaseSyncer.EMPTY
         );
         recoverShardFromStore(primaryShard);
@@ -1630,7 +1630,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 i -> store,
                 null,
                 new InternalEngineFactory(),
-                () -> {},
+                NOOP_GCP_SYNCER,
                 RetentionLeaseSyncer.EMPTY,
                 EMPTY_EVENT_LISTENER
             );
@@ -2622,7 +2622,7 @@ public class IndexShardTests extends IndexShardTestCase {
             null,
             wrapper,
             new InternalEngineFactory(),
-            () -> {},
+            NOOP_GCP_SYNCER,
             RetentionLeaseSyncer.EMPTY,
             EMPTY_EVENT_LISTENER
         );
@@ -2757,7 +2757,7 @@ public class IndexShardTests extends IndexShardTestCase {
             null,
             wrapper,
             new InternalEngineFactory(),
-            () -> {},
+            NOOP_GCP_SYNCER,
             RetentionLeaseSyncer.EMPTY,
             EMPTY_EVENT_LISTENER
         );
@@ -4538,7 +4538,7 @@ public class IndexShardTests extends IndexShardTestCase {
             null,
             null,
             new InternalEngineFactory(),
-            () -> {},
+            NOOP_GCP_SYNCER,
             RetentionLeaseSyncer.EMPTY,
             EMPTY_EVENT_LISTENER,
             fakeClock

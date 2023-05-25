@@ -91,6 +91,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
 
     private final HttpTracer httpLogger;
     private final Tracer tracer;
+    private volatile boolean gracefullyCloseConnections;
 
     private volatile long slowLogThresholdMs;
 
@@ -454,7 +455,8 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
                     threadContext,
                     corsHandler,
                     maybeHttpLogger,
-                    tracer
+                    tracer,
+                    gracefullyCloseConnections
                 );
             } catch (final IllegalArgumentException e) {
                 badRequestCause = ExceptionsHelper.useOrSuppress(badRequestCause, e);
@@ -468,7 +470,8 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
                     threadContext,
                     corsHandler,
                     httpLogger,
-                    tracer
+                    tracer,
+                    gracefullyCloseConnections
                 );
             }
             channel = innerChannel;
@@ -509,5 +512,9 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
 
     public ThreadPool getThreadPool() {
         return threadPool;
+    }
+
+    public void gracefullyCloseConnections() {
+        gracefullyCloseConnections = true;
     }
 }

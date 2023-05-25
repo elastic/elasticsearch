@@ -20,6 +20,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.synonyms.SynonymsManagementAPIService;
 import org.elasticsearch.synonyms.SynonymsSet;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -103,14 +104,14 @@ public class PutSynonymsAction extends ActionType<PutSynonymsAction.Response> {
 
     public static class Response extends ActionResponse implements StatusToXContentObject {
 
-        private final Result result;
+        private final SynonymsManagementAPIService.UpdateSynonymsResult result;
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            this.result = in.readEnum((Result.class));
+            this.result = in.readEnum((SynonymsManagementAPIService.UpdateSynonymsResult.class));
         }
 
-        public Response(Result result) {
+        public Response(SynonymsManagementAPIService.UpdateSynonymsResult result) {
             super();
             Objects.requireNonNull(result, "Result must not be null");
             this.result = result;
@@ -151,9 +152,5 @@ public class PutSynonymsAction extends ActionType<PutSynonymsAction.Response> {
             return Objects.hash(result);
         }
 
-        public enum Result {
-            CREATED,
-            UPDATED
-        }
     }
 }

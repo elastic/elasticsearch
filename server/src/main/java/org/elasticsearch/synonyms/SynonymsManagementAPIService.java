@@ -9,6 +9,7 @@
 package org.elasticsearch.synonyms;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
@@ -17,7 +18,6 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.action.synonyms.PutSynonymsAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -26,11 +26,13 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -101,7 +103,27 @@ public class SynonymsManagementAPIService {
         }
     }
 
-    public void putSynonymsset(String resourceName, SynonymsSet synonymsset, ActionListener<PutSynonymsAction.Response> listener) {
+    private static SynonymRule hitToSynonymRule(SearchHit hit) {
+        return new SynonymRule(hit.getId(), (String) hit.getSourceAsMap().get(SynonymRule.SYNONYMS_FIELD.getPreferredName()));
+    }
+
+    public void getSynonymsSet(String resourceName, ActionListener<SynonymsSetResult> listener) {
+        client.prepareSearch(SYNONYMS_ALIAS_NAME)
+            .setQuery(QueryBuilders.termQuery(SYNONYMS_SET_FIELD, resourceName))
+            .execute(listener.delegateFailure((searchResponseListener, searchResponse) -> {
+                final long totalSynonymRules = searchResponse.getHits().getTotalHits().value;
+                if (totalSynonymRules == 0) {
+                    listener.onFailure(new ResourceNotFoundException("Synonym set [" + resourceName + "] not found"));
+                    return;
+                }
+                final SynonymRule[] synonymRules = Arrays.stream(searchResponse.getHits().getHits())
+                    .map(SynonymsManagementAPIService::hitToSynonymRule)
+                    .toArray(SynonymRule[]::new);
+                listener.onResponse(new SynonymsSetResult(totalSynonymRules, new SynonymsSet(synonymRules)));
+            }));
+    }
+
+    public void putSynonymsSet(String resourceName, SynonymsSet synonymsset, ActionListener<UpdateSynonymsResult> listener) {
 
         // TODO Add synonym rules validation
 
@@ -155,10 +177,8 @@ public class SynonymsManagementAPIService {
                 bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                     .execute(deleteByQueryResponseListener.delegateFailure((bulkResponseListener, bulkResponse) -> {
                         if (bulkResponse.hasFailures() == false) {
-                            PutSynonymsAction.Response.Result result = created
-                                ? PutSynonymsAction.Response.Result.CREATED
-                                : PutSynonymsAction.Response.Result.UPDATED;
-                            bulkResponseListener.onResponse(new PutSynonymsAction.Response(result));
+                            UpdateSynonymsResult result = created ? UpdateSynonymsResult.CREATED : UpdateSynonymsResult.UPDATED;
+                            bulkResponseListener.onResponse(result);
                         } else {
                             bulkResponseListener.onFailure(
                                 new ElasticsearchException("Couldn't update synonyms: " + bulkResponse.buildFailureMessage())
@@ -176,5 +196,12 @@ public class SynonymsManagementAPIService {
             .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-all")
             .build();
     }
+
+    public enum UpdateSynonymsResult {
+        CREATED,
+        UPDATED
+    }
+
+    public record SynonymsSetResult(long totalSynonymRules, SynonymsSet synonymsSet) {}
 
 }

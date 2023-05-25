@@ -25,16 +25,19 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
+import org.elasticsearch.action.admin.indices.refresh.TransportShardRefreshAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.MultiGetResponse;
+import org.elasticsearch.action.get.TransportGetFromTranslogAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.blobcache.BlobCachePlugin;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.Requests;
@@ -78,6 +81,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.WAIT_UNTIL;
@@ -243,7 +247,84 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         ensureGreen(indexName);
     }
 
-    public void testStatelessRealTimeGet() {
+    public void testRealTimeGet() {
+        startIndexNodes(numShards);
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), false)
+                .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
+                .put(IndexEngine.INDEX_FLUSH_INTERVAL_SETTING.getKey(), TimeValue.timeValueDays(1))
+                .build()
+        );
+        ensureGreen(indexName);
+        startSearchNodes(numShards * numReplicas);
+        updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numReplicas), indexName);
+        ensureGreen(indexName);
+
+        var bulkRequest = client().prepareBulk();
+        int numOfIndexRequests = randomIntBetween(2, 5);
+        for (int i = 0; i < numOfIndexRequests; i++) {
+            var indexRequest = new IndexRequest(indexName).source("field", "value1");
+            if (randomBoolean()) {
+                indexRequest.id(String.valueOf(i));
+            }
+            bulkRequest.add(indexRequest);
+        }
+        BulkResponse response = bulkRequest.get();
+        assertNoFailures(response);
+
+        final AtomicInteger getFromTranslogActionsSent = new AtomicInteger();
+        final AtomicInteger shardRefreshActionsSent = new AtomicInteger();
+        for (var transportService : internalCluster().getInstances(TransportService.class)) {
+            MockTransportService mockTransportService = (MockTransportService) transportService;
+            mockTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
+                if (action.equals(TransportGetFromTranslogAction.NAME)) {
+                    getFromTranslogActionsSent.incrementAndGet();
+                } else if (action.equals(TransportShardRefreshAction.NAME)) {
+                    shardRefreshActionsSent.incrementAndGet();
+                }
+                connection.sendRequest(requestId, action, request, options);
+            });
+        }
+
+        var id = randomFrom(Arrays.stream(response.getItems()).map(BulkItemResponse::getId).toList());
+
+        GetResponse getResponse = client().prepareGet().setIndex(indexName).setId(id).get();
+        assertTrue(getResponse.isExists());
+        assertThat(getFromTranslogActionsSent.get(), equalTo(1));
+        assertThat(shardRefreshActionsSent.get(), equalTo(0));
+
+        // TODO: before refreshing, check that a non-real-time get would not see the doc.
+        // Currently, that would make the test flaky, since we seem to have unexpected flushes happening in the background.
+        // getResponse = client().prepareGet().setIndex(indexName).setId(id).setRealtime(false).get();
+        // assertFalse(getResponse.isExists());
+
+        // Since we refresh, whether the get is real-time or not should not matter
+        getResponse = client().prepareGet().setIndex(indexName).setId(id).setRefresh(true).setRealtime(randomBoolean()).get();
+        assertTrue(getResponse.isExists());
+        assertThat(getFromTranslogActionsSent.get(), equalTo(1));
+        assertThat(shardRefreshActionsSent.get(), equalTo(1));
+
+        // A non realtime get, shouldn't cause any GetFromTranslogAction
+        getResponse = client().prepareGet().setIndex(indexName).setId(id).setRealtime(false).get();
+        assertTrue(getResponse.isExists());
+        assertThat(getFromTranslogActionsSent.get(), equalTo(1));
+        assertThat(shardRefreshActionsSent.get(), equalTo(1));
+
+        // Test with a doc that has also a newer value after refresh
+        assertNoFailures(client().prepareBulk().add(new UpdateRequest().index(indexName).id(id).doc("field", "value2")).get());
+        getResponse = client().prepareGet().setIndex(indexName).setId(id).get();
+        assertTrue(getResponse.isExists());
+        assertThat(getFromTranslogActionsSent.get(), equalTo(2));
+        assertThat(shardRefreshActionsSent.get(), equalTo(1));
+        assertThat(getResponse.getSource().get("field"), equalTo("value2"));
+    }
+
+    public void testRealTimeMGet() {
         // Currently this test depends on routing requests to indexing shards. However, eventually these
         // requests will route to search shards and fall back to indexing shards in certain circumstances.
         startIndexNodes(numShards);
@@ -254,6 +335,7 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), false)
+                .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
                 .build()
         );
         ensureGreen(indexName);
@@ -262,16 +344,21 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         ensureGreen(indexName);
 
         var bulkRequest = client().prepareBulk();
-        bulkRequest.add(new IndexRequest(indexName).source("field", randomUnicodeOfCodepointLengthBetween(1, 25)));
-        bulkRequest.add(new IndexRequest(indexName).source("field", randomUnicodeOfCodepointLengthBetween(1, 25)));
+        int numOfIndexRequests = randomIntBetween(2, 5);
+        for (int i = 0; i < numOfIndexRequests; i++) {
+            var indexRequest = new IndexRequest(indexName).source("field", randomUnicodeOfCodepointLengthBetween(1, 25));
+            if (randomBoolean()) {
+                indexRequest.id(String.valueOf(i));
+            }
+            bulkRequest.add(indexRequest);
+        }
         BulkResponse response = bulkRequest.get();
         assertNoFailures(response);
-        String id = response.getItems()[0].getResponse().getId();
-        GetResponse getResponse = client().prepareGet().setIndex(indexName).setId(id).get();
-        assertTrue(getResponse.isExists());
+        var items = randomSubsetOf(2, IntStream.range(0, numOfIndexRequests).boxed().toList());
+        String id1 = response.getItems()[items.get(0)].getResponse().getId();
+        String id2 = response.getItems()[items.get(1)].getResponse().getId();
 
-        String id2 = response.getItems()[1].getResponse().getId();
-        MultiGetResponse multiGetResponse = client().prepareMultiGet().addIds(indexName, id, id2).get();
+        MultiGetResponse multiGetResponse = client().prepareMultiGet().addIds(indexName, id1, id2).get();
         assertTrue(multiGetResponse.getResponses()[0].getResponse().isExists());
         assertTrue(multiGetResponse.getResponses()[1].getResponse().isExists());
     }

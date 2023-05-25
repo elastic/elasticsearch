@@ -758,6 +758,72 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
         }
     }
 
+    public void testCrossClusterApiKeyUsage() throws IOException {
+        // Randomly create REST API keys
+        for (int i = 0; i < randomIntBetween(0, 2); i++) {
+            createOrGrantApiKey(Strings.format("""
+                {
+                  "name": "my-rest-key-%s"
+                }
+                """, i));
+        }
+
+        // Randomly create cross-cluster API keys
+        final int ccsKeys = randomIntBetween(0, 2);
+        for (int i = 0; i < ccsKeys; i++) {
+            final Request request = new Request("POST", "/_security/cross_cluster/api_key");
+            request.setJsonEntity(Strings.format("""
+                {
+                  "name": "my-ccs-key-%s",
+                  "access": {
+                    "search": [ {
+                      "names": [ "logs*" ]
+                    } ]
+                  }
+                }""", i));
+            assertOK(adminClient().performRequest(request));
+        }
+        final int ccrKeys = randomIntBetween(0, 2);
+        for (int i = 0; i < ccrKeys; i++) {
+            final Request request = new Request("POST", "/_security/cross_cluster/api_key");
+            request.setJsonEntity(Strings.format("""
+                {
+                  "name": "my-ccr-key-%s",
+                  "access": {
+                    "replication": [ {
+                      "names": [ "archive*" ]
+                    } ]
+                  }
+                }""", i));
+            assertOK(adminClient().performRequest(request));
+        }
+        final int ccsCcrKeys = randomIntBetween(0, 2);
+        for (int i = 0; i < ccsCcrKeys; i++) {
+            final Request request = new Request("POST", "/_security/cross_cluster/api_key");
+            request.setJsonEntity(Strings.format("""
+                {
+                  "name": "my-ccs-ccr-key-%s",
+                  "access": {
+                    "search": [ {
+                      "names": [ "logs*" ]
+                    } ],
+                    "replication": [ {
+                      "names": [ "archive*" ]
+                    } ]
+                  }
+                }""", i));
+            assertOK(adminClient().performRequest(request));
+        }
+
+        final Request xPackUsageRequest = new Request("GET", "/_xpack/usage");
+        final ObjectPath path = assertOKAndCreateObjectPath(adminClient().performRequest(xPackUsageRequest));
+
+        assertThat(path.evaluate("security.remote_cluster_server.api_keys.ccs"), equalTo(ccsKeys));
+        assertThat(path.evaluate("security.remote_cluster_server.api_keys.ccr"), equalTo(ccrKeys));
+        assertThat(path.evaluate("security.remote_cluster_server.api_keys.ccs_ccr"), equalTo(ccsCcrKeys));
+        assertThat(path.evaluate("security.remote_cluster_server.api_keys.total"), equalTo(ccsKeys + ccrKeys + ccsCcrKeys));
+    }
+
     private void testCcsWithApiKeyCrossClusterAccessAuthenticationAgainstSingleCluster(
         String cluster,
         String apiKeyEncoded,

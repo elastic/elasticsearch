@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataLifecycle;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamAction;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -380,12 +381,21 @@ public class DataLifecycleServiceIT extends ESIntegTestCase {
             .count();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/96070")
     public void testErrorRecordingOnRollover() throws Exception {
         // empty lifecycle contains the default rollover
         DataLifecycle lifecycle = new DataLifecycle();
-
-        putComposableIndexTemplate("id1", null, List.of("metrics-foo*"), null, null, lifecycle);
+        /*
+         * We set index.auto_expand_replicas to 0-1 so that if we get a single-node cluster it is not yellow. The cluster being yellow
+         * could result in DLM's automatic forcemerge failing, which would result in an unexpected error in the error store.
+         */
+        putComposableIndexTemplate(
+            "id1",
+            null,
+            List.of("metrics-foo*"),
+            Settings.builder().put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1").build(),
+            null,
+            lifecycle
+        );
         Iterable<DataLifecycleService> dataLifecycleServices = internalCluster().getInstances(DataLifecycleService.class);
 
         String dataStreamName = "metrics-foo";
@@ -461,7 +471,18 @@ public class DataLifecycleServiceIT extends ESIntegTestCase {
         // that its retention execution fails
         DataLifecycle lifecycle = new DataLifecycle();
 
-        putComposableIndexTemplate("id1", null, List.of("metrics-foo*"), null, null, lifecycle);
+        /*
+         * We set index.auto_expand_replicas to 0-1 so that if we get a single-node cluster it is not yellow. The cluster being yellow
+         * could result in DLM's automatic forcemerge failing, which would result in an unexpected error in the error store.
+         */
+        putComposableIndexTemplate(
+            "id1",
+            null,
+            List.of("metrics-foo*"),
+            Settings.builder().put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1").build(),
+            null,
+            lifecycle
+        );
         Iterable<DataLifecycleService> dataLifecycleServices = internalCluster().getInstances(DataLifecycleService.class);
 
         String dataStreamName = "metrics-foo";

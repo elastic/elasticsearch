@@ -29,7 +29,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authz.privilege.HealthAndStatsPrivilege;
-import org.elasticsearch.xpack.core.security.user.SystemUser;
+import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.security.action.SecurityActionMapper;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
@@ -152,7 +152,7 @@ public class SecurityActionFilter implements ActionFilter {
          here if a request is not associated with any other user.
          */
         final String securityAction = SecurityActionMapper.action(action, request);
-        authcService.authenticate(securityAction, request, SystemUser.INSTANCE, ActionListener.wrap((authc) -> {
+        authcService.authenticate(securityAction, request, InternalUsers.SYSTEM_USER, ActionListener.wrap((authc) -> {
             if (authc != null) {
                 final String requestId = AuditUtil.extractRequestId(threadContext);
                 assert Strings.hasText(requestId);

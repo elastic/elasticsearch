@@ -366,34 +366,67 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                             );
                             logger.warn("CCC TransportSearchAction remoteShardIters size: {}", remoteShardIterators.size());
                         }
-                        /// MP: TODO: at this point do we have enough information about whether to minimizeRT based on remote shards?
 
-                        /// MP DEBUG
                         boolean minimizeRoundTrips = false;
                         boolean prohibited = minimizeRoundTripsProhibited(original);
                         logger.warn("CCC prohibited?: {}", prohibited);
-                        final int remoteShardCutoff = 5;
+                        final int remoteShardCutoff = 5; // TODO need sane default and to be user configurable (per query, index or server?)
                         if (prohibited == false && remoteShardIterators.size() > remoteShardCutoff) {
                             minimizeRoundTrips = true;
                         }
-                        logger.warn("CCC (simulate) should we do minimize-round-trips?: {}", minimizeRoundTrips);
-                        /// MP END DEBUG
-                        int localClusters = localIndices == null ? 0 : 1;
-                        int totalClusters = remoteClusterIndices.size() + localClusters;
-                        int successfulClusters = searchShardsResponses.size() + localClusters;
-                        executeSearch(
-                            task,
-                            timeProvider,
-                            rewritten,
-                            localIndices,
-                            remoteShardIterators,
-                            clusterNodeLookup,
-                            clusterState,
-                            remoteAliasFilters,
-                            new SearchResponse.Clusters(totalClusters, successfulClusters, skippedClusters.get()),
-                            searchContext,
-                            searchPhaseProvider.apply(listener)
-                        );
+                        logger.warn("CCC should we do minimize-round-trips?: {}", minimizeRoundTrips);
+                        if (minimizeRoundTrips) {
+                            final AggregationReduceContext.Builder aggregationReduceContextBuilder = rewritten.source() != null
+                                && rewritten.source().aggregations() != null
+                                ? searchService.aggReduceContextBuilder(task::isCancelled, rewritten.source().aggregations())
+                                : null;
+                            final int totalClusters = (localIndices == null ? 0 : 1) + remoteClusterIndices.size();
+                            var initClusters = new SearchResponse.Clusters(totalClusters, 0, 0, remoteClusterIndices.size(), true);
+                            if (localIndices == null) {
+                                // Notify the progress listener that CCS with minimize_roundtrips is happening remote-only (no local shards)
+                                task.getProgressListener().notifyListShards(
+                                    Collections.emptyList(), Collections.emptyList(), initClusters, false
+                                );
+                            }
+                            ccsRemoteReduce(
+                                parentTaskId,
+                                rewritten,
+                                localIndices,
+                                remoteClusterIndices,
+                                timeProvider,
+                                aggregationReduceContextBuilder,
+                                remoteClusterService,
+                                threadPool,
+                                listener,
+                                (r, l) -> executeLocalSearch(
+                                    task,
+                                    timeProvider,
+                                    r,
+                                    localIndices,
+                                    clusterState,
+                                    initClusters,
+                                    searchContext,
+                                    searchPhaseProvider.apply(l)
+                                )
+                            );
+                        } else {
+                            int localClusters = localIndices == null ? 0 : 1;
+                            int totalClusters = remoteClusterIndices.size() + localClusters;
+                            int successfulClusters = searchShardsResponses.size() + localClusters;
+                            executeSearch(
+                                task,
+                                timeProvider,
+                                rewritten,
+                                localIndices,
+                                remoteShardIterators,
+                                clusterNodeLookup,
+                                clusterState,
+                                remoteAliasFilters,
+                                new SearchResponse.Clusters(totalClusters, successfulClusters, skippedClusters.get()),
+                                searchContext,
+                                searchPhaseProvider.apply(listener)
+                            );
+                        }
                     }, listener::onFailure)
                 );
             }
@@ -425,9 +458,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     static boolean minimizeRoundTripsProhibited(SearchRequest searchRequest) {
         /// MP: TODO: we need to know if the user explicitly set isCcsMinimizeRoundtrips or if it is just the default setting
-//        if (searchRequest.isCcsMinimizeRoundtrips() == false) {
-//            return true;
-//        }
+        if (searchRequest.isCcsMinimizeRoundtrips() == false) {
+            return true;
+        }
         if (searchRequest.scroll() != null) {
             return true;
         }
@@ -539,7 +572,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     timeProvider.absoluteStartMillis(),
                     false
                 );
-                ActionListener<SearchResponse> ccsListener = createCCSListener(
+                ActionListener<SearchResponse> ccsListener = createMinimizeRoundtripsCCSListener(
                     clusterAlias,
                     skipUnavailable,
                     countDown,
@@ -547,13 +580,14 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     exceptions,
                     searchResponseMerger,
                     totalClusters,
+                    remoteIndices.size(),
                     listener
                 );
                 Client remoteClusterClient = remoteClusterService.getRemoteClusterClient(threadPool, clusterAlias);
                 remoteClusterClient.search(ccsSearchRequest, ccsListener);
             }
             if (localIndices != null) {
-                ActionListener<SearchResponse> ccsListener = createCCSListener(
+                ActionListener<SearchResponse> ccsListener = createMinimizeRoundtripsCCSListener(
                     RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
                     false,
                     countDown,
@@ -561,6 +595,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     exceptions,
                     searchResponseMerger,
                     totalClusters,
+                    remoteIndices.size(),
                     listener
                 );
                 SearchRequest ccsLocalSearchRequest = SearchRequest.subSearchRequest(
@@ -689,7 +724,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         }
     }
 
-    private static ActionListener<SearchResponse> createCCSListener(
+    private static ActionListener<SearchResponse> createMinimizeRoundtripsCCSListener(
         String clusterAlias,
         boolean skipUnavailable,
         CountDown countDown,
@@ -697,6 +732,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         AtomicReference<Exception> exceptions,
         SearchResponseMerger searchResponseMerger,
         int totalClusters,
+        int remoteClusters,
         ActionListener<SearchResponse> originalListener
     ) {
         logger.warn("CCC TransportSearchAction - creating CCSListener");
@@ -719,7 +755,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 SearchResponse.Clusters clusters = new SearchResponse.Clusters(
                     totalClusters,
                     searchResponseMerger.numResponses(),
-                    skippedClusters.get()
+                    skippedClusters.get(),
+                    remoteClusters,
+                    true // always true since this method is only called for minimizeRoundTrips=true
                 );
                 logger.warn("CCC CCSActionListener finalResponse - clusters: {}", clusters);
                 return searchResponseMerger.getMergedResponse(clusters);
@@ -1109,6 +1147,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     searchService.getCoordinatorRewriteContextProvider(timeProvider::absoluteStartMillis),
                     ActionListener.wrap(iters -> {
                         logger.warn("CCC TSA.AsyncSearchActionProvider.newSearchPhase.ActionListener iters.size: {}", iters.size());
+                        logger.warn("CCC TSA.AsyncSearchActionProvider.newSearchPhase.ActionListener iters: {}", iters);
                         SearchPhase action = newSearchPhase(
                             task,
                             searchRequest,

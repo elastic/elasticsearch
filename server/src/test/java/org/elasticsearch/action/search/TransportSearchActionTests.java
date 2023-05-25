@@ -1067,17 +1067,17 @@ public class TransportSearchActionTests extends ESTestCase {
     public void testShouldMinimizeRoundtrips() throws Exception {
         {
             SearchRequest searchRequest = new SearchRequest();
-            assertTrue(TransportSearchAction.minimizeRoundTripsProhibited(searchRequest));
+            assertFalse(TransportSearchAction.minimizeRoundTripsProhibited(searchRequest));
         }
         {
             SearchRequest searchRequest = new SearchRequest();
             searchRequest.source(new SearchSourceBuilder());
-            assertTrue(TransportSearchAction.minimizeRoundTripsProhibited(searchRequest));
+            assertFalse(TransportSearchAction.minimizeRoundTripsProhibited(searchRequest));
         }
         {
             SearchRequest searchRequest = new SearchRequest();
             searchRequest.scroll("5s");
-            assertFalse(TransportSearchAction.minimizeRoundTripsProhibited(searchRequest));
+            assertTrue(TransportSearchAction.minimizeRoundTripsProhibited(searchRequest));
         }
         {
             SearchRequest searchRequest = new SearchRequest();
@@ -1086,12 +1086,12 @@ public class TransportSearchActionTests extends ESTestCase {
             CollapseBuilder collapseBuilder = new CollapseBuilder("field");
             source.collapse(collapseBuilder);
             collapseBuilder.setInnerHits(new InnerHitBuilder("inner"));
-            assertFalse(TransportSearchAction.minimizeRoundTripsProhibited(searchRequest));
+            assertTrue(TransportSearchAction.minimizeRoundTripsProhibited(searchRequest));
         }
         {
             SearchRequest searchRequest = new SearchRequest();
             searchRequest.searchType(SearchType.DFS_QUERY_THEN_FETCH);
-            assertFalse(TransportSearchAction.minimizeRoundTripsProhibited(searchRequest));
+            assertTrue(TransportSearchAction.minimizeRoundTripsProhibited(searchRequest));
         }
         {
             SearchRequestTests searchRequestTests = new SearchRequestTests();
@@ -1109,9 +1109,9 @@ public class TransportSearchActionTests extends ESTestCase {
                 }
             }
             searchRequest.setCcsMinimizeRoundtrips(true);
-            assertTrue(TransportSearchAction.minimizeRoundTripsProhibited(searchRequest));
-            searchRequest.setCcsMinimizeRoundtrips(false);
             assertFalse(TransportSearchAction.minimizeRoundTripsProhibited(searchRequest));
+            searchRequest.setCcsMinimizeRoundtrips(false);
+            assertTrue(TransportSearchAction.minimizeRoundTripsProhibited(searchRequest));
         }
         {
             SearchRequest searchRequest = new SearchRequest();
@@ -1120,9 +1120,9 @@ public class TransportSearchActionTests extends ESTestCase {
             searchRequest.source(source);
 
             searchRequest.setCcsMinimizeRoundtrips(true);
-            assertFalse(TransportSearchAction.minimizeRoundTripsProhibited(searchRequest));
+            assertTrue(TransportSearchAction.minimizeRoundTripsProhibited(searchRequest));
             searchRequest.setCcsMinimizeRoundtrips(false);
-            assertFalse(TransportSearchAction.minimizeRoundTripsProhibited(searchRequest));
+            assertTrue(TransportSearchAction.minimizeRoundTripsProhibited(searchRequest));
         }
     }
 

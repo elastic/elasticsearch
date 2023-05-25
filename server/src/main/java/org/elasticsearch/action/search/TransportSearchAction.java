@@ -334,9 +334,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     skippedClusters,
                     remoteClusterIndices,
                     transportService,
+                    // zlistener
                     ActionListener.wrap(searchShardsResponses -> {
                         logger.warn("CCC TransportSearchAction zlistener: searchShardsResponses.size: {}", searchShardsResponses.size());
-                        logger.warn("CCC TransportSearchAction zlistener: searchShardsResponses: {}", searchShardsResponses.getClass().getSimpleName());
+                        logger.warn("CCC TransportSearchAction zlistener: searchShardsResponses keys: {}", searchShardsResponses.keySet());
+                        logger.warn("CCC TransportSearchAction zlistener: searchShardsResponses: {}", searchShardsResponses);
                         final BiFunction<String, String, DiscoveryNode> clusterNodeLookup = getRemoteClusterNodeLookup(
                             searchShardsResponses
                         );
@@ -356,7 +358,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                                 remoteAliasFilters.putAll(searchShardsResponse.getAliasFilters());
                             }
                             /// MP: at this point, the remote SearchShards query has finished and returned
-                            /// MP: whihc is why we have searchShardsResponses to parse into remoteShardIterators
+                            /// MP: which is why we have searchShardsResponses to parse into remoteShardIterators
                             remoteShardIterators = getRemoteShardsIterator(
                                 searchShardsResponses,
                                 remoteClusterIndices,
@@ -364,6 +366,18 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                             );
                             logger.warn("CCC TransportSearchAction remoteShardIters size: {}", remoteShardIterators.size());
                         }
+                        /// MP: TODO: at this point do we have enough information about whether to minimizeRT based on remote shards?
+
+                        /// MP DEBUG
+                        boolean minimizeRoundTrips = false;
+                        boolean prohibited = minimizeRoundTripsProhibited(original);
+                        logger.warn("CCC prohibited?: {}", prohibited);
+                        final int remoteShardCutoff = 5;
+                        if (prohibited == false && remoteShardIterators.size() > remoteShardCutoff) {
+                            minimizeRoundTrips = true;
+                        }
+                        logger.warn("CCC (simulate) should we do minimize-round-trips?: {}", minimizeRoundTrips);
+                        /// MP END DEBUG
                         int localClusters = localIndices == null ? 0 : 1;
                         int totalClusters = remoteClusterIndices.size() + localClusters;
                         int successfulClusters = searchShardsResponses.size() + localClusters;
@@ -411,9 +425,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     static boolean minimizeRoundTripsProhibited(SearchRequest searchRequest) {
         /// MP: TODO: we need to know if the user explicitly set isCcsMinimizeRoundtrips or if it is just the default setting
-        if (searchRequest.isCcsMinimizeRoundtrips() == false) {
-            return true;
-        }
+//        if (searchRequest.isCcsMinimizeRoundtrips() == false) {
+//            return true;
+//        }
         if (searchRequest.scroll() != null) {
             return true;
         }
@@ -597,24 +611,27 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         AtomicInteger skippedClusters,
         Map<String, OriginalIndices> remoteIndicesByCluster,
         TransportService transportService,
-        ActionListener<Map<String, SearchShardsResponse>> listener /// MP: this listener receives the SearchShardsResponses
+        ActionListener<Map<String, SearchShardsResponse>> zlistener /// MP: this zlistener receives the SearchShardsResponses
     ) {
         RemoteClusterService remoteClusterService = transportService.getRemoteClusterService();
         final CountDown responsesCountDown = new CountDown(remoteIndicesByCluster.size());
         /// MP key = clusterAlias
         final Map<String, SearchShardsResponse> searchShardsResponses = new ConcurrentHashMap<>();
         final AtomicReference<Exception> exceptions = new AtomicReference<>();
+        /// MP: TODO: does this only iterate over remote clusters? If yes, where is the local cluster search handled?
         for (Map.Entry<String, OriginalIndices> entry : remoteIndicesByCluster.entrySet()) {
             final String clusterAlias = entry.getKey();
+            logger.warn("CCC TSA.collectSearchShards top of for loop for: {}", clusterAlias);
             boolean skipUnavailable = remoteClusterService.isSkipUnavailable(clusterAlias);
-            TransportSearchAction.CCSActionListener<SearchShardsResponse, Map<String, SearchShardsResponse>> singleListener =
+            /// MP: ylistener - there is one per remote cluster!
+            TransportSearchAction.CCSActionListener<SearchShardsResponse, Map<String, SearchShardsResponse>> ylistener =
                 new TransportSearchAction.CCSActionListener<>(
                     clusterAlias,
                     skipUnavailable,
                     responsesCountDown,
                     skippedClusters,
                     exceptions,
-                    listener
+                    zlistener
                 ) {
                     @Override
                     void innerOnResponse(SearchShardsResponse searchShardsResponse) {
@@ -629,7 +646,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             remoteClusterService.maybeEnsureConnectedAndGetConnection(
                 clusterAlias,
                 skipUnavailable == false,
-                ActionListener.wrap(connection -> {
+                /// MP: maybeEnsureConnectedAndGetConnection makes a connection to the remote cluster and
+                /// MP: send back the connection object to this listener (xlistener), which sends the SearchShardsRequest to the
+                /// MP: remote cluster, passing the ylistener as to the response handler, so it is called with the SearchShardsResponse
+                ActionListener.wrap(connection -> {  /// MP: xlistener
                     final String[] indices = entry.getValue().indices();
                     // TODO: support point-in-time
                     if (searchContext == null && connection.getTransportVersion().onOrAfter(TransportVersion.V_8_500_000)) {
@@ -647,7 +667,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                             SearchShardsAction.NAME,
                             searchShardsRequest,
                             TransportRequestOptions.EMPTY,
-                            new ActionListenerResponseHandler<>(singleListener, SearchShardsResponse::new)
+                            new ActionListenerResponseHandler<>(ylistener, SearchShardsResponse::new)
                         );
                     } else {
                         ClusterSearchShardsRequest searchShardsRequest = new ClusterSearchShardsRequest(indices).indicesOptions(
@@ -659,12 +679,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                             searchShardsRequest,
                             TransportRequestOptions.EMPTY,
                             new ActionListenerResponseHandler<>(
-                                singleListener.map(SearchShardsResponse::fromLegacyResponse),
+                                ylistener.map(SearchShardsResponse::fromLegacyResponse),
                                 ClusterSearchShardsResponse::new
                             )
                         );
                     }
-                }, singleListener::onFailure)
+                }, ylistener::onFailure)
             );
         }
     }

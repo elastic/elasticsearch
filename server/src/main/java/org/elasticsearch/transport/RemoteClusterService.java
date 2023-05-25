@@ -246,14 +246,14 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
      *
      * @param clusterAlias    the remote cluster
      * @param ensureConnected whether requests should wait for a connection attempt when there isn't available connection
-     * @param listener        a listener that will be notified the connection or failure
+     * @param xlistener        a xlistener that will be notified the connection or failure
      */
     public void maybeEnsureConnectedAndGetConnection(
         String clusterAlias,
         boolean ensureConnected,
-        ActionListener<Transport.Connection> listener
+        ActionListener<Transport.Connection> xlistener
     ) {
-        ActionListener<Void> ensureConnectedListener = ActionListener.wrap(nullValue -> ActionListener.completeWith(listener, () -> {
+        ActionListener<Void> ensureConnectedListener = ActionListener.wrap(nullValue -> ActionListener.completeWith(xlistener, () -> {
             try {
                 return getConnection(clusterAlias);
             } catch (NoSuchRemoteClusterException e) {
@@ -263,7 +263,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
                 }
                 throw e;
             }
-        }), listener::onFailure);
+        }), xlistener::onFailure);
         if (ensureConnected) {
             ensureConnected(clusterAlias, ensureConnectedListener);
         } else {

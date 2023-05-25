@@ -236,13 +236,13 @@ public class NodeStatsTests extends ESTestCase {
                     while (threadPoolIterator.hasNext()) {
                         ThreadPoolStats.Stats stats = threadPoolIterator.next();
                         ThreadPoolStats.Stats deserializedStats = deserializedThreadPoolIterator.next();
-                        assertEquals(stats.getName(), deserializedStats.getName());
-                        assertEquals(stats.getThreads(), deserializedStats.getThreads());
-                        assertEquals(stats.getActive(), deserializedStats.getActive());
-                        assertEquals(stats.getLargest(), deserializedStats.getLargest());
-                        assertEquals(stats.getCompleted(), deserializedStats.getCompleted());
-                        assertEquals(stats.getQueue(), deserializedStats.getQueue());
-                        assertEquals(stats.getRejected(), deserializedStats.getRejected());
+                        assertEquals(stats.name(), deserializedStats.name());
+                        assertEquals(stats.threads(), deserializedStats.threads());
+                        assertEquals(stats.active(), deserializedStats.active());
+                        assertEquals(stats.largest(), deserializedStats.largest());
+                        assertEquals(stats.completed(), deserializedStats.completed());
+                        assertEquals(stats.queue(), deserializedStats.queue());
+                        assertEquals(stats.rejected(), deserializedStats.rejected());
                     }
                 }
                 FsInfo fs = nodeStats.getFs();

@@ -25,7 +25,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ThreadPoolStatsTests extends ESTestCase {
-    public void testThreadPoolStatsSort() throws IOException {
+    public void testThreadPoolStatsSort() {
         List<ThreadPoolStats.Stats> stats = new ArrayList<>();
         stats.add(new ThreadPoolStats.Stats("z", -1, 0, 0, 0, 0, 0L));
         stats.add(new ThreadPoolStats.Stats("m", 3, 0, 0, 0, 0, 0L));
@@ -40,13 +40,13 @@ public class ThreadPoolStatsTests extends ESTestCase {
 
         List<String> names = new ArrayList<>(copy.size());
         for (ThreadPoolStats.Stats stat : copy) {
-            names.add(stat.getName());
+            names.add(stat.name());
         }
         assertThat(names, contains("a", "d", "m", "m", "m", "t", "z"));
 
         List<Integer> threads = new ArrayList<>(copy.size());
         for (ThreadPoolStats.Stats stat : copy) {
-            threads.add(stat.getThreads());
+            threads.add(stat.threads());
         }
         assertThat(threads, contains(-1, -1, 1, 2, 3, -1, -1));
     }

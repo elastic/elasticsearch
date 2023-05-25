@@ -20,36 +20,16 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
-public class ThreadPoolStats implements Writeable, ToXContentFragment, Iterable<ThreadPoolStats.Stats> {
+public record ThreadPoolStats(List<Stats> stats) implements Writeable, ToXContentFragment, Iterable<ThreadPoolStats.Stats> {
 
-    public static class Stats implements Writeable, ToXContentFragment, Comparable<Stats> {
-
-        private final String name;
-        private final int threads;
-        private final int queue;
-        private final int active;
-        private final long rejected;
-        private final int largest;
-        private final long completed;
-
-        public Stats(String name, int threads, int queue, int active, long rejected, int largest, long completed) {
-            this.name = name;
-            this.threads = threads;
-            this.queue = queue;
-            this.active = active;
-            this.rejected = rejected;
-            this.largest = largest;
-            this.completed = completed;
-        }
+    public record Stats(String name, int threads, int queue, int active, long rejected, int largest, long completed)
+        implements
+            Writeable,
+            ToXContentFragment,
+            Comparable<Stats> {
 
         public Stats(StreamInput in) throws IOException {
-            name = in.readString();
-            threads = in.readInt();
-            queue = in.readInt();
-            active = in.readInt();
-            rejected = in.readLong();
-            largest = in.readInt();
-            completed = in.readLong();
+            this(in.readString(), in.readInt(), in.readInt(), in.readInt(), in.readLong(), in.readInt(), in.readLong());
         }
 
         @Override
@@ -61,34 +41,6 @@ public class ThreadPoolStats implements Writeable, ToXContentFragment, Iterable<
             out.writeLong(rejected);
             out.writeInt(largest);
             out.writeLong(completed);
-        }
-
-        public String getName() {
-            return this.name;
-        }
-
-        public int getThreads() {
-            return this.threads;
-        }
-
-        public int getQueue() {
-            return this.queue;
-        }
-
-        public int getActive() {
-            return this.active;
-        }
-
-        public long getRejected() {
-            return rejected;
-        }
-
-        public int getLargest() {
-            return largest;
-        }
-
-        public long getCompleted() {
-            return this.completed;
         }
 
         @Override
@@ -118,31 +70,28 @@ public class ThreadPoolStats implements Writeable, ToXContentFragment, Iterable<
 
         @Override
         public int compareTo(Stats other) {
-            if ((getName() == null) && (other.getName() == null)) {
+            if ((name() == null) && (other.name() == null)) {
                 return 0;
-            } else if ((getName() != null) && (other.getName() == null)) {
+            } else if ((name() != null) && (other.name() == null)) {
                 return 1;
-            } else if (getName() == null) {
+            } else if (name() == null) {
                 return -1;
             } else {
-                int compare = getName().compareTo(other.getName());
+                int compare = name().compareTo(other.name());
                 if (compare == 0) {
-                    compare = Integer.compare(getThreads(), other.getThreads());
+                    compare = Integer.compare(threads(), other.threads());
                 }
                 return compare;
             }
         }
     }
 
-    private List<Stats> stats;
-
-    public ThreadPoolStats(List<Stats> stats) {
+    public ThreadPoolStats {
         Collections.sort(stats);
-        this.stats = stats;
     }
 
     public ThreadPoolStats(StreamInput in) throws IOException {
-        stats = in.readList(Stats::new);
+        this(in.readList(Stats::new));
     }
 
     @Override

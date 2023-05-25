@@ -21,6 +21,7 @@ import java.util.Map;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.containsStringIgnoringCase;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class UpdateApiKeyRequestTests extends ESTestCase {
 
@@ -45,6 +46,7 @@ public class UpdateApiKeyRequestTests extends ESTestCase {
         final var id = randomAlphaOfLength(10);
         final var metadata = ApiKeyTests.randomMetadata();
         final var request = new UpdateApiKeyRequest(id, descriptorList, metadata);
+        assertThat(request.getType(), is(ApiKey.Type.REST));
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             request.writeTo(out);
@@ -52,7 +54,8 @@ public class UpdateApiKeyRequestTests extends ESTestCase {
                 final var serialized = new UpdateApiKeyRequest(in);
                 assertEquals(id, serialized.getId());
                 assertEquals(descriptorList, serialized.getRoleDescriptors());
-                assertEquals(metadata, request.getMetadata());
+                assertEquals(metadata, serialized.getMetadata());
+                assertEquals(request.getType(), serialized.getType());
             }
         }
     }

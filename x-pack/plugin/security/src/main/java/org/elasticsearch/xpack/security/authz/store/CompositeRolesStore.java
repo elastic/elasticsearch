@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.core.security.authz.store.RoleReferenceIntersecti
 import org.elasticsearch.xpack.core.security.authz.store.RolesRetrievalResult;
 import org.elasticsearch.xpack.core.security.support.CacheIteratorHelper;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
+import org.elasticsearch.xpack.core.security.user.InternalUser;
 import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
@@ -151,13 +152,17 @@ public class CompositeRolesStore {
             fieldPermissionsCache,
             this.restrictedIndices
         );
-        this.internalUserRoles = InternalUsers.getRoleDescriptors()
-            .entrySet()
+        this.internalUserRoles = InternalUsers.get()
             .stream()
+            .filter(u -> u.getLocalClusterRoleDescriptor().isPresent())
             .collect(
                 Collectors.toMap(
-                    Map.Entry::getKey,
-                    e -> Role.buildFromRoleDescriptor(e.getValue(), fieldPermissionsCache, this.restrictedIndices)
+                    u -> u.principal(),
+                    u -> Role.buildFromRoleDescriptor(
+                        u.getLocalClusterRoleDescriptor().get(),
+                        fieldPermissionsCache,
+                        this.restrictedIndices
+                    )
                 )
             );
         this.roleReferenceResolver = new RoleDescriptorStore(
@@ -195,7 +200,7 @@ public class CompositeRolesStore {
             return;
         }
 
-        assert false == User.isInternal(subject.getUser()) : "Internal user should not pass here";
+        assert false == subject.getUser() instanceof InternalUser : "Internal user [" + subject.getUser() + "] should not pass here";
 
         final RoleReferenceIntersection roleReferenceIntersection = subject.getRoleReferenceIntersection(anonymousUser);
         roleReferenceIntersection.buildRole(this::buildRoleFromRoleReference, roleActionListener);
@@ -210,18 +215,18 @@ public class CompositeRolesStore {
         // method.
         // The other internal users have directly assigned roles that are handled with special cases here
         final User user = subject.getUser();
-        if (User.isInternal(user)) {
-            return getInternalUserRole(user);
+        if (user instanceof InternalUser internal) {
+            return getInternalUserRole(internal);
         }
         return null;
     }
 
     // Accessible for testing
-    protected Role getInternalUserRole(User user) {
-        String name = InternalUsers.getInternalUserName(user);
+    protected Role getInternalUserRole(InternalUser user) {
+        String name = user.principal();
         final Role role = this.internalUserRoles.get(name);
         if (role == null) {
-            throw new IllegalArgumentException("the internal user [" + user.principal() + "] should never have its roles resolved");
+            throw new IllegalArgumentException("the internal user [" + name + "] should never have its roles resolved");
         }
         return role;
     }
@@ -356,9 +361,14 @@ public class CompositeRolesStore {
 
     // Package private for testing
     static Optional<RoleDescriptor> tryGetRoleDescriptorForInternalUser(Subject subject) {
-        final User user = subject.getUser();
-        if (User.isInternal(user)) {
-            return Optional.of(InternalUsers.getRoleDescriptor(user));
+        if (subject.getUser() instanceof InternalUser internalUser) {
+            final Optional<RoleDescriptor> roleDescriptor = internalUser.getLocalClusterRoleDescriptor();
+            if (roleDescriptor.isEmpty()) {
+                throw new IllegalArgumentException(
+                    "should never try to get the roles for internal user [" + internalUser.principal() + "]"
+                );
+            }
+            return roleDescriptor;
         } else {
             return Optional.empty();
         }

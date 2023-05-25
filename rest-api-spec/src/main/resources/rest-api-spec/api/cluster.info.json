@@ -1,0 +1,34 @@
+{
+  "cluster.info": {
+      "documentation": {
+          "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/cluster-info.html",
+          "description": "Returns different information about the cluster."
+      },
+      "stability": "stable",
+      "visibility": "public",
+      "headers": {
+          "accept": ["application/json"]
+      },
+      "url": {
+          "paths": [
+              {
+                  "path": "/_info/{target}",
+                  "methods": [
+                      "GET"
+                  ],
+                  "parts":{
+                      "target":{
+                          "type":"list",
+                          "options":[
+                              "_all",
+                              "http"
+                          ],
+                          "description":"Limit the information returned to the specified target."
+                      }
+                  }
+              }
+          ]
+      },
+      "params": {}
+  }
+}

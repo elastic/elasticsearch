@@ -765,11 +765,6 @@ public class AzureBlobStore implements BlobStore {
             }
         }
 
-        @Override
-        public long skip(long n) {
-            throw new UnsupportedOperationException("skip is not supported");
-        }
-
         private void releaseByteBuf(ByteBuf buf) {
             ReferenceCountUtil.safeRelease(buf);
             this.byteBuf = null;

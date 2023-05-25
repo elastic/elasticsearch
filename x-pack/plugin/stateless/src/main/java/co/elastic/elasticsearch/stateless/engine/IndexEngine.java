@@ -58,11 +58,19 @@ public class IndexEngine extends InternalEngine {
         Setting.Property.IndexScope
     );
 
+    public static final Setting<Boolean> INDEX_FAST_REFRESH = Setting.boolSetting(
+        "index.fast_refresh",
+        false,
+        Setting.Property.Final,
+        Setting.Property.IndexScope
+    );
+
     private final TranslogReplicator translogReplicator;
     private final StatelessCommitService statelessCommitService;
     private final LongSupplier relativeTimeInNanosSupplier;
     private final AtomicLong lastFlushNanos;
     private final Function<String, BlobContainer> translogBlobContainer;
+    private final boolean fastRefresh;
     private volatile TimeValue indexFlushInterval;
     private volatile Scheduler.ScheduledCancellable cancellableFlushTask;
     private final ReleasableLock flushLock = new ReleasableLock(new ReentrantLock());
@@ -83,6 +91,7 @@ public class IndexEngine extends InternalEngine {
         this.relativeTimeInNanosSupplier = config().getRelativeTimeInNanosSupplier();
         this.lastFlushNanos = new AtomicLong(relativeTimeInNanosSupplier.getAsLong());
         this.indexFlushInterval = INDEX_FLUSH_INTERVAL_SETTING.get(config().getIndexSettings().getSettings());
+        this.fastRefresh = INDEX_FAST_REFRESH.get(config().getIndexSettings().getSettings());
         this.refreshThrottler = refreshThrottlerFactory.create(this::doExternalRefresh);
         cancellableFlushTask = scheduleFlushTask();
     }
@@ -97,6 +106,16 @@ public class IndexEngine extends InternalEngine {
 
     private Scheduler.ScheduledCancellable scheduleFlushTask() {
         return engineConfig.getThreadPool().schedule(this::scheduleFlush, indexFlushInterval, ThreadPool.Names.FLUSH);
+    }
+
+    @Override
+    public boolean refreshNeeded() {
+        // TODO: maybe read the routingEntry.isSearchable()?
+        if (fastRefresh) {
+            return super.refreshNeeded();
+        } else {
+            return false;
+        }
     }
 
     private void scheduleFlush() {
@@ -200,7 +219,6 @@ public class IndexEngine extends InternalEngine {
                     }
                 });
             }
-
         });
     }
 
@@ -273,21 +291,7 @@ public class IndexEngine extends InternalEngine {
                 }
             };
         } else {
-            // TODO: Use org.elasticsearch.index.engine.ReadOnlyEngine.newEmptySnapshot() instead
-            return new Translog.Snapshot() {
-                @Override
-                public void close() {}
-
-                @Override
-                public int totalOperations() {
-                    return 0;
-                }
-
-                @Override
-                public Translog.Operation next() {
-                    return null;
-                }
-            };
+            return Translog.Snapshot.EMPTY;
         }
     }
 

@@ -126,7 +126,7 @@ public final class EnrichCache {
         }
     }
 
-    private static class CacheKey {
+    private static final class CacheKey {
 
         final String enrichIndex;
         final SearchRequest searchRequest;

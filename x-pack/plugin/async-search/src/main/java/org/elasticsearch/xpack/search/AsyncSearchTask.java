@@ -405,7 +405,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
         protected void onListShards(List<SearchShard> shards, List<SearchShard> skipped, Clusters clusters, boolean fetchPhase) {
             // best effort to cancel expired tasks
             checkCancellation();
-            ccsMinimizeRoundtrips = (clusters.isCcsMinimizeRoundtrips() && clusters.getRemoteClusters() > 0);
+            ccsMinimizeRoundtrips = clusters.isCcsMinimizeRoundtrips();
             searchResponse.compareAndSet(
                 null,
                 new MutableSearchResponse(shards.size() + skipped.size(), skipped.size(), clusters, threadPool.getThreadContext())

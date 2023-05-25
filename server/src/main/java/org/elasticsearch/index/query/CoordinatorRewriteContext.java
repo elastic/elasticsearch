@@ -12,9 +12,11 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
+import java.util.Collections;
 import java.util.function.LongSupplier;
 
 /**
@@ -35,7 +37,7 @@ public class CoordinatorRewriteContext extends QueryRewriteContext {
         IndexLongFieldRange indexLongFieldRange,
         DateFieldMapper.DateFieldType timestampFieldType
     ) {
-        super(parserConfig, client, nowInMillis, null, null, null, null, null, null);
+        super(parserConfig, client, nowInMillis, null, MappingLookup.EMPTY, Collections.emptyMap(), null, null, null);
         this.indexLongFieldRange = indexLongFieldRange;
         this.timestampFieldType = timestampFieldType;
     }
@@ -59,10 +61,5 @@ public class CoordinatorRewriteContext extends QueryRewriteContext {
         }
 
         return timestampFieldType;
-    }
-
-    @Override
-    public CoordinatorRewriteContext convertToCoordinatorRewriteContext() {
-        return this;
     }
 }

@@ -63,7 +63,7 @@ public class QueryRewriteContext {
         this.nowInMillis = nowInMillis;
         this.mapperService = mapperService;
         this.mappingLookup = mappingLookup;
-        this.allowUnmappedFields = indexSettings != null && indexSettings.isDefaultAllowUnmappedFields();
+        this.allowUnmappedFields = indexSettings == null || indexSettings.isDefaultAllowUnmappedFields();
         this.runtimeMappings = runtimeMappings;
         this.allowedFields = allowedFields;
         this.indexSettings = indexSettings;
@@ -71,7 +71,7 @@ public class QueryRewriteContext {
     }
 
     public QueryRewriteContext(final XContentParserConfiguration parserConfiguration, final Client client, final LongSupplier nowInMillis) {
-        this(parserConfiguration, client, nowInMillis, null, null, null, null, null, null);
+        this(parserConfiguration, client, nowInMillis, null, MappingLookup.EMPTY, Collections.emptyMap(), null, null, null);
     }
 
     /**
@@ -96,10 +96,6 @@ public class QueryRewriteContext {
      * Returns an instance of {@link SearchExecutionContext} if available of null otherwise
      */
     public SearchExecutionContext convertToSearchExecutionContext() {
-        return null;
-    }
-
-    public CoordinatorRewriteContext convertToCoordinatorRewriteContext() {
         return null;
     }
 

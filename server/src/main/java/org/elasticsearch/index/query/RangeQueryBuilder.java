@@ -433,33 +433,30 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
 
     // Overridable for testing only
     protected MappedFieldType.Relation getRelation(QueryRewriteContext queryRewriteContext) throws IOException {
-        CoordinatorRewriteContext coordinatorRewriteContext = queryRewriteContext.convertToCoordinatorRewriteContext();
-        if (coordinatorRewriteContext != null) {
-            final MappedFieldType fieldType = coordinatorRewriteContext.getFieldType(fieldName);
-            if (fieldType instanceof final DateFieldMapper.DateFieldType dateFieldType) {
-                if (coordinatorRewriteContext.hasTimestampData() == false) {
-                    return MappedFieldType.Relation.DISJOINT;
-                }
-                long minTimestamp = coordinatorRewriteContext.getMinTimestamp();
-                long maxTimestamp = coordinatorRewriteContext.getMaxTimestamp();
-                DateMathParser dateMathParser = getForceDateParser();
-                return dateFieldType.isFieldWithinQuery(
-                    minTimestamp,
-                    maxTimestamp,
-                    from,
-                    to,
-                    includeLower,
-                    includeUpper,
-                    timeZone,
-                    dateMathParser,
-                    queryRewriteContext
-                );
+        final MappedFieldType fieldType = queryRewriteContext.getFieldType(fieldName);
+        if (queryRewriteContext instanceof final CoordinatorRewriteContext coordinatorRewriteContext
+            && fieldType instanceof final DateFieldMapper.DateFieldType dateFieldType) {
+            if (coordinatorRewriteContext.hasTimestampData() == false) {
+                return MappedFieldType.Relation.DISJOINT;
             }
+            long minTimestamp = coordinatorRewriteContext.getMinTimestamp();
+            long maxTimestamp = coordinatorRewriteContext.getMaxTimestamp();
+            DateMathParser dateMathParser = getForceDateParser();
+            return dateFieldType.isFieldWithinQuery(
+                minTimestamp,
+                maxTimestamp,
+                from,
+                to,
+                includeLower,
+                includeUpper,
+                timeZone,
+                dateMathParser,
+                queryRewriteContext
+            );
         }
 
-        SearchExecutionContext searchExecutionContext = queryRewriteContext.convertToSearchExecutionContext();
+        final SearchExecutionContext searchExecutionContext = queryRewriteContext.convertToSearchExecutionContext();
         if (searchExecutionContext != null) {
-            final MappedFieldType fieldType = searchExecutionContext.getFieldType(fieldName);
             if (fieldType == null) {
                 return MappedFieldType.Relation.DISJOINT;
             }

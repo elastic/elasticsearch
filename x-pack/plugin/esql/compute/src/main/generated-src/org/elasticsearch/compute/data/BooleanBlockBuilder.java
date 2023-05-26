@@ -113,12 +113,7 @@ final class BooleanBlockBuilder extends AbstractBlockBuilder implements BooleanB
         }
     }
 
-    /**
-     * How are multivalued fields ordered? This defaults to {@link Block.MvOrdering#UNORDERED}
-     * and operators can use it to optimize themselves. This order isn't checked so don't
-     * set it to anything other than {@link Block.MvOrdering#UNORDERED} unless you are sure
-     * of the ordering.
-     */
+    @Override
     public BooleanBlockBuilder mvOrdering(Block.MvOrdering mvOrdering) {
         this.mvOrdering = mvOrdering;
         return this;

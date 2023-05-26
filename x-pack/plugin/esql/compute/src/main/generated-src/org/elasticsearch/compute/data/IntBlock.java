@@ -181,6 +181,9 @@ public sealed interface IntBlock extends Block permits FilterIntBlock, IntArrayB
         Builder copyFrom(Block block, int beginInclusive, int endExclusive);
 
         @Override
+        Builder mvOrdering(Block.MvOrdering mvOrdering);
+
+        @Override
         IntBlock build();
     }
 }

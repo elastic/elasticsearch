@@ -184,6 +184,9 @@ public sealed interface BytesRefBlock extends Block permits FilterBytesRefBlock,
         Builder copyFrom(Block block, int beginInclusive, int endExclusive);
 
         @Override
+        Builder mvOrdering(Block.MvOrdering mvOrdering);
+
+        @Override
         BytesRefBlock build();
     }
 }

@@ -148,6 +148,16 @@ public interface Block extends NamedWriteable {
         Builder copyFrom(Block block, int beginInclusive, int endExclusive);
 
         /**
+         * How are multivalued fields ordered? This defaults to {@link Block.MvOrdering#UNORDERED}
+         * but when you set it to {@link Block.MvOrdering#ASCENDING} some operators can optimize
+         * themselves. This is a <strong>promise</strong> that is never checked. If you set this
+         * to anything other than {@link Block.MvOrdering#UNORDERED} be sure the values are in
+         * that order or other operators will make mistakes. The actual ordering isn't checked
+         * at runtime.
+         */
+        Builder mvOrdering(Block.MvOrdering mvOrdering);
+
+        /**
          * Builds the block. This method can be called multiple times.
          */
         Block build();

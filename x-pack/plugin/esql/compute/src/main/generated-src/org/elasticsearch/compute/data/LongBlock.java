@@ -182,6 +182,9 @@ public sealed interface LongBlock extends Block permits FilterLongBlock, LongArr
         Builder copyFrom(Block block, int beginInclusive, int endExclusive);
 
         @Override
+        Builder mvOrdering(Block.MvOrdering mvOrdering);
+
+        @Override
         LongBlock build();
     }
 }

@@ -128,12 +128,7 @@ final class BytesRefBlockBuilder extends AbstractBlockBuilder implements BytesRe
         }
     }
 
-    /**
-     * How are multivalued fields ordered? This defaults to {@link Block.MvOrdering#UNORDERED}
-     * and operators can use it to optimize themselves. This order isn't checked so don't
-     * set it to anything other than {@link Block.MvOrdering#UNORDERED} unless you are sure
-     * of the ordering.
-     */
+    @Override
     public BytesRefBlockBuilder mvOrdering(Block.MvOrdering mvOrdering) {
         this.mvOrdering = mvOrdering;
         return this;

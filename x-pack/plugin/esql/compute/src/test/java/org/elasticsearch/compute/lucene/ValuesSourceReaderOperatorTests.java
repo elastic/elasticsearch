@@ -268,6 +268,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             LongBlock mvLongs = p.<LongBlock>getBlock(8);
             DoubleVector doubles = p.<DoubleBlock>getBlock(9).asVector();
             DoubleBlock mvDoubles = p.getBlock(10);
+
             for (int i = 0; i < p.getPositionCount(); i++) {
                 int key = keys.getInt(i);
                 assertThat(longs.getLong(i), equalTo((long) key));
@@ -278,6 +279,9 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 for (int v = 0; v <= key % 3; v++) {
                     assertThat(mvKeywords.getBytesRef(offset + v, new BytesRef()).utf8ToString(), equalTo(PREFIX[v] + key));
                 }
+                if (key % 3 > 0) {
+                    assertThat(mvKeywords.mvOrdering(), equalTo(Block.MvOrdering.ASCENDING));
+                }
 
                 assertThat(bools.getBoolean(i), equalTo(key % 2 == 0));
                 assertThat(mvBools.getValueCount(i), equalTo(key % 3 + 1));
@@ -285,11 +289,17 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 for (int v = 0; v <= key % 3; v++) {
                     assertThat(mvBools.getBoolean(offset + v), equalTo(BOOLEANS[key % 3][v]));
                 }
+                if (key % 3 > 0) {
+                    assertThat(mvBools.mvOrdering(), equalTo(Block.MvOrdering.ASCENDING));
+                }
 
                 assertThat(mvInts.getValueCount(i), equalTo(key % 3 + 1));
                 offset = mvInts.getFirstValueIndex(i);
                 for (int v = 0; v <= key % 3; v++) {
                     assertThat(mvInts.getInt(offset + v), equalTo(1_000 * key + v));
+                }
+                if (key % 3 > 0) {
+                    assertThat(mvInts.mvOrdering(), equalTo(Block.MvOrdering.ASCENDING));
                 }
 
                 assertThat(mvLongs.getValueCount(i), equalTo(key % 3 + 1));
@@ -297,11 +307,17 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 for (int v = 0; v <= key % 3; v++) {
                     assertThat(mvLongs.getLong(offset + v), equalTo(-1_000L * key + v));
                 }
+                if (key % 3 > 0) {
+                    assertThat(mvLongs.mvOrdering(), equalTo(Block.MvOrdering.ASCENDING));
+                }
 
                 assertThat(doubles.getDouble(i), equalTo(key / 123_456d));
                 offset = mvDoubles.getFirstValueIndex(i);
                 for (int v = 0; v <= key % 3; v++) {
                     assertThat(mvDoubles.getDouble(offset + v), equalTo(key / 123_456d + v));
+                }
+                if (key % 3 > 0) {
+                    assertThat(mvDoubles.mvOrdering(), equalTo(Block.MvOrdering.ASCENDING));
                 }
             }
         }

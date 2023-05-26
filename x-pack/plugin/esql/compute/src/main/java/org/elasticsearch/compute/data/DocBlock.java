@@ -107,6 +107,11 @@ public class DocBlock extends AbstractVectorBlock implements Block {
         }
 
         @Override
+        public Block.Builder mvOrdering(MvOrdering mvOrdering) {
+            throw new UnsupportedOperationException("doc blocks only contain one value per position");
+        }
+
+        @Override
         public DocBlock build() {
             // Pass null for singleSegmentNonDecreasing so we calculate it when we first need it.
             return new DocVector(shards.build(), segments.build(), docs.build(), null).asBlock();

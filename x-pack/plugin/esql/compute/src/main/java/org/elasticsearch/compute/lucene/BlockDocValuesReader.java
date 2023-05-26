@@ -142,7 +142,7 @@ public abstract class BlockDocValuesReader {
 
         @Override
         public LongBlock.Builder builder(int positionCount) {
-            return LongBlock.newBlockBuilder(positionCount);
+            return LongBlock.newBlockBuilder(positionCount).mvOrdering(Block.MvOrdering.ASCENDING);
         }
 
         @Override
@@ -197,13 +197,13 @@ public abstract class BlockDocValuesReader {
 
         @Override
         public LongBlock.Builder builder(int positionCount) {
-            return LongBlock.newBlockBuilder(positionCount);
+            return LongBlock.newBlockBuilder(positionCount).mvOrdering(Block.MvOrdering.ASCENDING);
         }
 
         @Override
         public LongBlock readValues(IntVector docs) throws IOException {
             final int positionCount = docs.getPositionCount();
-            var blockBuilder = LongBlock.newBlockBuilder(positionCount);
+            var blockBuilder = builder(positionCount);
             for (int i = 0; i < positionCount; i++) {
                 int doc = docs.getInt(i);
                 // docs within same block must be in order
@@ -259,7 +259,7 @@ public abstract class BlockDocValuesReader {
 
         @Override
         public IntBlock.Builder builder(int positionCount) {
-            return IntBlock.newBlockBuilder(positionCount);
+            return IntBlock.newBlockBuilder(positionCount).mvOrdering(Block.MvOrdering.ASCENDING);
         }
 
         @Override
@@ -314,7 +314,7 @@ public abstract class BlockDocValuesReader {
 
         @Override
         public IntBlock.Builder builder(int positionCount) {
-            return IntBlock.newBlockBuilder(positionCount);
+            return IntBlock.newBlockBuilder(positionCount).mvOrdering(Block.MvOrdering.ASCENDING);
         }
 
         @Override
@@ -378,7 +378,7 @@ public abstract class BlockDocValuesReader {
 
         @Override
         public DoubleBlock.Builder builder(int positionCount) {
-            return DoubleBlock.newBlockBuilder(positionCount);
+            return DoubleBlock.newBlockBuilder(positionCount).mvOrdering(Block.MvOrdering.ASCENDING);
         }
 
         @Override
@@ -435,13 +435,13 @@ public abstract class BlockDocValuesReader {
 
         @Override
         public DoubleBlock.Builder builder(int positionCount) {
-            return DoubleBlock.newBlockBuilder(positionCount);
+            return DoubleBlock.newBlockBuilder(positionCount).mvOrdering(Block.MvOrdering.ASCENDING);
         }
 
         @Override
         public DoubleBlock readValues(IntVector docs) throws IOException {
             final int positionCount = docs.getPositionCount();
-            var blockBuilder = DoubleBlock.newBlockBuilder(positionCount);
+            var blockBuilder = builder(positionCount);
             for (int i = 0; i < positionCount; i++) {
                 int doc = docs.getInt(i);
                 // docs within same block must be in order
@@ -497,7 +497,7 @@ public abstract class BlockDocValuesReader {
 
         @Override
         public BytesRefBlock.Builder builder(int positionCount) {
-            return BytesRefBlock.newBlockBuilder(positionCount);
+            return BytesRefBlock.newBlockBuilder(positionCount).mvOrdering(Block.MvOrdering.ASCENDING);
         }
 
         @Override
@@ -558,7 +558,7 @@ public abstract class BlockDocValuesReader {
 
         @Override
         public BooleanBlock.Builder builder(int positionCount) {
-            return BooleanBlock.newBlockBuilder(positionCount);
+            return BooleanBlock.newBlockBuilder(positionCount).mvOrdering(Block.MvOrdering.ASCENDING);
         }
 
         @Override
@@ -613,7 +613,7 @@ public abstract class BlockDocValuesReader {
 
         @Override
         public BooleanBlock.Builder builder(int positionCount) {
-            return BooleanBlock.newBlockBuilder(positionCount);
+            return BooleanBlock.newBlockBuilder(positionCount).mvOrdering(Block.MvOrdering.ASCENDING);
         }
 
         @Override

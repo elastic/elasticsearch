@@ -165,6 +165,11 @@ public final class BlockUtils {
                 }
 
                 @Override
+                public Block.Builder mvOrdering(Block.MvOrdering mvOrdering) {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
                 public Block build() {
                     return constantNullBlock(size);
                 }

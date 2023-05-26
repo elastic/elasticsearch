@@ -181,6 +181,9 @@ public sealed interface BooleanBlock extends Block permits FilterBooleanBlock, B
         Builder copyFrom(Block block, int beginInclusive, int endExclusive);
 
         @Override
+        Builder mvOrdering(Block.MvOrdering mvOrdering);
+
+        @Override
         BooleanBlock build();
     }
 }

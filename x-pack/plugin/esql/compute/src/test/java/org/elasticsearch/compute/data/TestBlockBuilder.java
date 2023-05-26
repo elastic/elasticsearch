@@ -109,6 +109,12 @@ public abstract class TestBlockBuilder implements Block.Builder {
         }
 
         @Override
+        public TestBlockBuilder mvOrdering(Block.MvOrdering mvOrdering) {
+            builder.mvOrdering(mvOrdering);
+            return this;
+        }
+
+        @Override
         public IntBlock build() {
             return builder.build();
         }
@@ -149,6 +155,12 @@ public abstract class TestBlockBuilder implements Block.Builder {
         @Override
         public TestBlockBuilder copyFrom(Block block, int beginInclusive, int endExclusive) {
             builder.copyFrom(block, beginInclusive, endExclusive);
+            return this;
+        }
+
+        @Override
+        public TestBlockBuilder mvOrdering(Block.MvOrdering mvOrdering) {
+            builder.mvOrdering(mvOrdering);
             return this;
         }
 
@@ -197,6 +209,12 @@ public abstract class TestBlockBuilder implements Block.Builder {
         }
 
         @Override
+        public TestBlockBuilder mvOrdering(Block.MvOrdering mvOrdering) {
+            builder.mvOrdering(mvOrdering);
+            return this;
+        }
+
+        @Override
         public DoubleBlock build() {
             return builder.build();
         }
@@ -237,6 +255,12 @@ public abstract class TestBlockBuilder implements Block.Builder {
         @Override
         public TestBlockBuilder copyFrom(Block block, int beginInclusive, int endExclusive) {
             builder.copyFrom(block, beginInclusive, endExclusive);
+            return this;
+        }
+
+        @Override
+        public TestBlockBuilder mvOrdering(Block.MvOrdering mvOrdering) {
+            builder.mvOrdering(mvOrdering);
             return this;
         }
 

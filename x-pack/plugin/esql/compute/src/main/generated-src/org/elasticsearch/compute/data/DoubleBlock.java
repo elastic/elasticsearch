@@ -182,6 +182,9 @@ public sealed interface DoubleBlock extends Block permits FilterDoubleBlock, Dou
         Builder copyFrom(Block block, int beginInclusive, int endExclusive);
 
         @Override
+        Builder mvOrdering(Block.MvOrdering mvOrdering);
+
+        @Override
         DoubleBlock build();
     }
 }

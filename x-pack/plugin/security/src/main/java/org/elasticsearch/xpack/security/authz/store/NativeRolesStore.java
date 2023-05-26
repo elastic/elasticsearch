@@ -242,6 +242,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
     void innerPutRole(final PutRoleRequest request, final RoleDescriptor role, final ActionListener<Boolean> listener) {
         final String roleName = role.getName();
         assert NativeRealmValidationUtil.validateRoleName(roleName, false) == null : "Role name was invalid or reserved: " + roleName;
+        assert false == role.hasRestriction() : "restriction is not supported for native roles";
 
         securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
             final XContentBuilder xContentBuilder;
@@ -454,9 +455,9 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
         assert id.startsWith(ROLE_TYPE) : "[" + id + "] does not have role prefix";
         final String name = id.substring(ROLE_TYPE.length() + 1);
         try {
-            // we pass true as last parameter because we do not want to reject permissions if the field permissions
+            // we pass true as allow2xFormat parameter because we do not want to reject permissions if the field permissions
             // are given in 2.x syntax
-            RoleDescriptor roleDescriptor = RoleDescriptor.parse(name, sourceBytes, true, XContentType.JSON);
+            RoleDescriptor roleDescriptor = RoleDescriptor.parse(name, sourceBytes, true, XContentType.JSON, false);
             final boolean dlsEnabled = Arrays.stream(roleDescriptor.getIndicesPrivileges())
                 .anyMatch(IndicesPrivileges::isUsingDocumentLevelSecurity);
             final boolean flsEnabled = Arrays.stream(roleDescriptor.getIndicesPrivileges())
@@ -488,7 +489,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                 return roleDescriptor;
             }
         } catch (Exception e) {
-            logger.error(() -> "error in the format of data for role [" + name + "]", e);
+            logger.error("error in the format of data for role [" + name + "]", e);
             return null;
         }
     }

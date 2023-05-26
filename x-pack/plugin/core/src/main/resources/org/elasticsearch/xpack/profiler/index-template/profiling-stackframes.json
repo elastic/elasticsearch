@@ -4,7 +4,7 @@
   ],
   "composed_of": [
     "profiling-stackframes",
-    "profiling-ilm-kv"
+    "profiling-ilm"
   ],
   "priority": 100,
   "_meta": {

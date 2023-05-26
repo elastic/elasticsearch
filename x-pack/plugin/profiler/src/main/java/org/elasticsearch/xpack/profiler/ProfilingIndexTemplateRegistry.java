@@ -72,9 +72,6 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
     private static final List<LifecyclePolicy> LIFECYCLE_POLICIES = List.of(
         new LifecyclePolicyConfig("profiling", "/org/elasticsearch/xpack/profiler/ilm-policy/profiling.json").load(
             LifecyclePolicyConfig.DEFAULT_X_CONTENT_REGISTRY
-        ),
-        new LifecyclePolicyConfig("profiling-kv", "/org/elasticsearch/xpack/profiler/ilm-policy/profiling-kv.json").load(
-            LifecyclePolicyConfig.DEFAULT_X_CONTENT_REGISTRY
         )
     );
 
@@ -103,12 +100,6 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
             new IndexTemplateConfig(
                 "profiling-ilm",
                 "/org/elasticsearch/xpack/profiler/component-template/profiling-ilm.json",
-                INDEX_TEMPLATE_VERSION,
-                PROFILING_TEMPLATE_VERSION_VARIABLE
-            ),
-            new IndexTemplateConfig(
-                "profiling-ilm-kv",
-                "/org/elasticsearch/xpack/profiler/component-template/profiling-ilm-kv.json",
                 INDEX_TEMPLATE_VERSION,
                 PROFILING_TEMPLATE_VERSION_VARIABLE
             ),

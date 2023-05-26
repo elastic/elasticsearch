@@ -932,6 +932,27 @@ public class AnalyzerTests extends ESTestCase {
             """, "second argument of [date_format(date, date)] must be [string], found value [date] type [datetime]");
     }
 
+    public void testDateParseOnInt() {
+        verifyUnsupported("""
+            from test
+            | eval date_parse(int, keyword)
+            """, "first argument of [date_parse(int, keyword)] must be [string], found value [int] type [integer]");
+    }
+
+    public void testDateParseOnDate() {
+        verifyUnsupported("""
+            from test
+            | eval date_parse(date, keyword)
+            """, "first argument of [date_parse(date, keyword)] must be [string], found value [date] type [datetime]");
+    }
+
+    public void testDateParseOnIntPattern() {
+        verifyUnsupported("""
+            from test
+            | eval date_parse(keyword, int)
+            """, "second argument of [date_parse(keyword, int)] must be [string], found value [int] type [integer]");
+    }
+
     public void testDateTruncOnInt() {
         verifyUnsupported("""
             from test

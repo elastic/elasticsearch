@@ -204,3 +204,98 @@ hire_date:date           | hd:date
 1985-11-20T00:00:00.000Z | 1985-11-18T00:00:00.000Z
 1985-11-20T00:00:00.000Z | 1985-11-18T00:00:00.000Z
 ;
+
+
+
+evalDateParseWithSimpleDate
+row a = "2023-02-01" | eval b = date_parse(a, "yyyy-MM-dd") | project b;
+
+b:datetime
+2023-02-01T00:00:00.000Z
+;
+
+evalDateParseWithDateTime
+row a = "2023-02-01 12:15:55" | eval b = date_parse(a, "yyyy-MM-dd HH:mm:ss") | project b;
+
+b:datetime
+2023-02-01T12:15:55.000Z
+;
+
+evalDateParseWithDateTimeDefaultFormat
+row a = "2023-02-01T12:15:55.000Z" | eval b = date_parse(a) | project b;
+
+b:datetime
+2023-02-01T12:15:55.000Z
+;
+
+evalDateParseWrongDate
+row a = "2023-02-01 foo" | eval b = date_parse(a, "yyyy-MM-dd") | project b;
+
+b:datetime
+null
+;
+
+evalDateParseNotMatching
+row a = "2023-02-01" | eval b = date_parse(a, "yyyy-MM") | project b;
+
+b:datetime
+null
+;
+
+evalDateParseNotMatching2
+row a = "2023-02-01" | eval b = date_parse(a, "yyyy-MM-dd HH:mm:ss") | project b;
+
+b:datetime
+null
+;
+
+evalDateParseNullPattern
+row a = "2023-02-01" | eval b = date_parse(a, null) | project b;
+
+b:datetime
+null
+;
+
+evalDateParseDynamic
+from employees | where emp_no == 10039 or emp_no == 10040 | sort emp_no 
+| eval birth_date_string = date_format(birth_date, "yyyy-MM-dd")
+| eval new_date = date_parse(birth_date_string, "yyyy-MM-dd") | eval bool = new_date == birth_date | project emp_no, new_date, birth_date, bool;
+
+emp_no:integer  | new_date:datetime | birth_date:datetime | bool:boolean
+10039           | 1959-10-01        | 1959-10-01          | true
+10040           | null              | null                | null
+;
+
+evalDateParseDynamic2
+from employees | where emp_no >= 10047 | sort emp_no | where emp_no <= 10051 
+| eval birth_date_string = date_format(birth_date, "yyyy-MM-dd") 
+| eval new_date = date_parse(birth_date_string, "yyyy-MM-dd") 
+| project emp_no, new_date, birth_date | eval bool = new_date == birth_date;
+
+emp_no:integer | new_date:datetime        | birth_date:datetime       | bool:boolean      
+10047          | null                     | null                      | null           
+10048          | null                     | null                      | null           
+10049          | null                     | null                      | null           
+10050          | 1958-05-21T00:00:00.000Z | 1958-05-21T00:00:00.000Z  | true           
+10051          | 1953-07-28T00:00:00.000Z | 1953-07-28T00:00:00.000Z  | true      
+;
+
+
+evalDateParseDynamicDateAndPattern
+from employees | where emp_no == 10049 or emp_no == 10050 | sort emp_no 
+| eval pattern = "yyyy-MM-dd", birth_date_string = date_format(birth_date, pattern)
+| eval new_date = date_parse(birth_date_string, "yyyy-MM-dd") | eval bool = new_date == birth_date | project emp_no, new_date, birth_date, bool;
+
+emp_no:integer  | new_date:datetime | birth_date:datetime | bool:boolean
+10049           | null              | null                | null
+10050           | 1958-05-21        | 1958-05-21          | true
+;
+
+evalDateFormatParse
+from employees | where emp_no == 10049 or emp_no == 10050 | sort emp_no 
+| eval new_date = date_parse(date_format(birth_date)) | eval bool = new_date == birth_date | project emp_no, new_date, birth_date, bool;
+
+emp_no:integer  | new_date:datetime          | birth_date:datetime       | bool:boolean
+10049           | null                       | null                      | null
+10050           | 1958-05-21T00:00:00.000Z   | 1958-05-21T00:00:00.000Z  | true
+;

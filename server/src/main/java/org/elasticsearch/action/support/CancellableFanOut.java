@@ -56,6 +56,8 @@ public abstract class CancellableFanOut<Item, ItemResponse, FinalResponse> {
             if (cancellableTask != null && cancellableTask.notifyIfCancelled(resultListener)) {
                 return;
             }
+            // It's important that we complete resultListener before returning, because otherwise there's a risk that a cancellation arrives
+            // later which might unexpectedly complete the final listener on a transport thread.
             ActionListener.completeWith(resultListener, this::onCompletion);
         });
 

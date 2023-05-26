@@ -1169,29 +1169,41 @@ public class TranslogTests extends ESTestCase {
         );
 
         int iters = randomIntBetween(25, 50);
+        Location alreadySynced = Location.EMPTY;
+        long alreadySyncedCheckpoint = SequenceNumbers.UNASSIGNED_SEQ_NO;
         for (int i = 0; i < iters; i++) {
             int translogOperations = randomIntBetween(10, 100);
             int count = 0;
 
             Location location = null;
             final ArrayList<Location> locations = new ArrayList<>();
+            final ArrayList<Location> locationsInCurrentGeneration = new ArrayList<>();
             for (int op = 0; op < translogOperations; op++) {
                 if (rarely()) {
                     translog.rollGeneration();
+                    locationsInCurrentGeneration.clear();
                 }
                 location = translog.add(indexOp("" + op, op, primaryTerm.get(), Integer.toString(++count)));
                 globalCheckpoint.incrementAndGet();
                 locations.add(location);
+                locationsInCurrentGeneration.add(location);
             }
+
+            assertFalse("should have been synced on previous iteration", translog.ensureSynced(alreadySynced, alreadySyncedCheckpoint));
 
             if (randomBoolean()) {
                 assertTrue("at least one operation pending", translog.syncNeeded());
                 if (randomBoolean()) {
-                    assertTrue("this operation has not been synced", translog.ensureSynced(location, SequenceNumbers.NO_OPS_PERFORMED));
+                    Location randomLocationToSync = locationsInCurrentGeneration.get(randomInt(locationsInCurrentGeneration.size() - 1));
+                    assertTrue(
+                        "this operation has not been synced",
+                        translog.ensureSynced(randomLocationToSync, SequenceNumbers.NO_OPS_PERFORMED)
+                    );
                 } else {
+                    long globalCheckpointToSync = randomLongBetween(translog.getLastSyncedGlobalCheckpoint() + 1, globalCheckpoint.get());
                     assertTrue(
                         "this global checkpoint has not been persisted",
-                        translog.ensureSynced(Location.EMPTY, globalCheckpoint.get())
+                        translog.ensureSynced(Location.EMPTY, globalCheckpointToSync)
                     );
                 }
                 // everything should be synced
@@ -1213,6 +1225,9 @@ public class TranslogTests extends ESTestCase {
             for (Location l : locations) {
                 assertFalse("all of the locations should be synced: " + l, translog.ensureSynced(l, SequenceNumbers.NO_OPS_PERFORMED));
             }
+
+            alreadySynced = location;
+            alreadySyncedCheckpoint = globalCheckpoint.get();
         }
     }
 
@@ -3878,7 +3893,11 @@ public class TranslogTests extends ESTestCase {
                             long globalCheckpoint = lastGlobalCheckpoint.get();
                             final boolean synced;
                             if (randomBoolean()) {
-                                synced = translog.ensureSynced(location, globalCheckpoint);
+                                if (randomBoolean()) {
+                                    synced = translog.ensureSynced(location, globalCheckpoint);
+                                } else {
+                                    synced = translog.ensureSynced(location, SequenceNumbers.UNASSIGNED_SEQ_NO);
+                                }
                             } else {
                                 translog.sync();
                                 synced = true;

@@ -346,7 +346,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
      * raising the exception.
      */
     public void sync() throws IOException {
-        syncUpTo(Long.MAX_VALUE, Long.MAX_VALUE);
+        syncUpTo(Long.MAX_VALUE, SequenceNumbers.UNASSIGNED_SEQ_NO);
     }
 
     /**
@@ -464,6 +464,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
      */
     final boolean syncUpTo(long offset, long globalCheckpointToPersist) throws IOException {
         if ((lastSyncedCheckpoint.offset < offset || lastSyncedCheckpoint.globalCheckpoint < globalCheckpointToPersist) && syncNeeded()) {
+            assert globalCheckpointToPersist <= globalCheckpointSupplier.getAsLong();
             synchronized (syncLock) { // only one sync/checkpoint should happen concurrently but we wait
                 if ((lastSyncedCheckpoint.offset < offset || lastSyncedCheckpoint.globalCheckpoint < globalCheckpointToPersist)
                     && syncNeeded()) {

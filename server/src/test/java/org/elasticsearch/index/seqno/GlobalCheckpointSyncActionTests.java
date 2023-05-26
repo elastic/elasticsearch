@@ -132,8 +132,10 @@ public class GlobalCheckpointSyncActionTests extends ESTestCase {
         }
 
         if (durability == Translog.Durability.ASYNC || lastSyncedGlobalCheckpoint == globalCheckpoint) {
+            verify(indexShard, never()).sync();
             verify(indexShard, never()).syncGlobalCheckpoint(anyLong(), any());
         } else {
+            verify(indexShard, never()).sync();
             verify(indexShard).syncGlobalCheckpoint(eq(globalCheckpoint), any());
         }
     }

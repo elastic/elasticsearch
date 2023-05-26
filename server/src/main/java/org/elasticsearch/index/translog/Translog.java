@@ -51,7 +51,6 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReadWriteLock;
@@ -61,7 +60,6 @@ import java.util.function.LongSupplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.core.Strings.format;
@@ -858,27 +856,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             throw ex;
         }
         return false;
-    }
-
-    /**
-     * Ensures that all locations and processed global checkpoints in the given stream have been synced / written to the underlying storage.
-     * This method allows for internal optimization to minimize the amount of fsync operations if multiple locations must be synced.
-     *
-     * @return Returns <code>true</code> iff this call caused an actual sync operation otherwise <code>false</code>
-     */
-    public boolean ensureSynced(Stream<Location> locations, LongStream globalCheckpoints) throws IOException {
-        final Optional<Location> maxLocation = locations.max(Location::compareTo);
-        final OptionalLong maxGlobalCheckpoint = globalCheckpoints.max();
-        // we only need to sync the max location since it will sync all other
-        // locations implicitly
-        if (maxGlobalCheckpoint.isPresent() || maxLocation.isPresent()) {
-            return ensureSynced(
-                maxLocation.orElse(new Translog.Location(0, 0, 0)),
-                maxGlobalCheckpoint.orElse(SequenceNumbers.NO_OPS_PERFORMED)
-            );
-        } else {
-            return false;
-        }
     }
 
     /**

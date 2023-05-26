@@ -15,16 +15,16 @@ import java.util.concurrent.atomic.AtomicInteger;
  * A basic {@link RefCounted} implementation that is initialized with a ref count of 1 and calls {@link #closeInternal()} once it reaches
  * a 0 ref count.
  */
-public abstract class AbstractRefCounted extends AtomicInteger implements RefCounted {
+public abstract class AbstractRefCounted implements RefCounted {
     public static final String ALREADY_CLOSED_MESSAGE = "already closed, can't increment ref count";
 
     public static boolean incrementIfPositive(AtomicInteger counter) {
         return counter.updateAndGet(i -> i == 0 ? 0 : i + 1) > 0;
     }
 
-    protected AbstractRefCounted() {
-        super(1);
-    }
+    private final AtomicInteger refCount = new AtomicInteger(1);
+
+    protected AbstractRefCounted() {}
 
     @Override
     public final void incRef() {
@@ -35,7 +35,7 @@ public abstract class AbstractRefCounted extends AtomicInteger implements RefCou
 
     @Override
     public final boolean tryIncRef() {
-        if (incrementIfPositive(this)) {
+        if (incrementIfPositive(refCount)) {
             touch();
             return true;
         }
@@ -45,7 +45,7 @@ public abstract class AbstractRefCounted extends AtomicInteger implements RefCou
     @Override
     public final boolean decRef() {
         touch();
-        int i = decrementAndGet();
+        int i = refCount.decrementAndGet();
         assert i >= 0 : "invalid decRef call: already closed";
         if (i == 0) {
             try {
@@ -61,7 +61,7 @@ public abstract class AbstractRefCounted extends AtomicInteger implements RefCou
 
     @Override
     public final boolean hasReferences() {
-        return get() > 0;
+        return refCount.get() > 0;
     }
 
     /**
@@ -71,7 +71,7 @@ public abstract class AbstractRefCounted extends AtomicInteger implements RefCou
     protected void touch() {}
 
     protected void alreadyClosed() {
-        final int currentRefCount = get();
+        final int currentRefCount = refCount.get();
         assert currentRefCount == 0 : currentRefCount;
         throw new IllegalStateException(ALREADY_CLOSED_MESSAGE);
     }
@@ -80,7 +80,7 @@ public abstract class AbstractRefCounted extends AtomicInteger implements RefCou
      * Returns the current reference count.
      */
     public final int refCount() {
-        return get();
+        return refCount.get();
     }
 
     /**

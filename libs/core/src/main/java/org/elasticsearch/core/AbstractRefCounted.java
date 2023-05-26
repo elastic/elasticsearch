@@ -15,12 +15,16 @@ import java.util.concurrent.atomic.AtomicInteger;
  * A basic {@link RefCounted} implementation that is initialized with a ref count of 1 and calls {@link #closeInternal()} once it reaches
  * a 0 ref count.
  */
-public abstract class AbstractRefCounted implements RefCounted {
+public abstract class AbstractRefCounted extends AtomicInteger implements RefCounted {
     public static final String ALREADY_CLOSED_MESSAGE = "already closed, can't increment ref count";
 
-    private final AtomicInteger refCount = new AtomicInteger(1);
+    public static boolean incrementIfPositive(AtomicInteger counter) {
+        return counter.updateAndGet(i -> i == 0 ? 0 : i + 1) > 0;
+    }
 
-    protected AbstractRefCounted() {}
+    protected AbstractRefCounted() {
+        super(1);
+    }
 
     @Override
     public final void incRef() {
@@ -31,23 +35,17 @@ public abstract class AbstractRefCounted implements RefCounted {
 
     @Override
     public final boolean tryIncRef() {
-        do {
-            int i = refCount.get();
-            if (i > 0) {
-                if (refCount.compareAndSet(i, i + 1)) {
-                    touch();
-                    return true;
-                }
-            } else {
-                return false;
-            }
-        } while (true);
+        if (incrementIfPositive(this)) {
+            touch();
+            return true;
+        }
+        return false;
     }
 
     @Override
     public final boolean decRef() {
         touch();
-        int i = refCount.decrementAndGet();
+        int i = decrementAndGet();
         assert i >= 0 : "invalid decRef call: already closed";
         if (i == 0) {
             try {
@@ -63,7 +61,7 @@ public abstract class AbstractRefCounted implements RefCounted {
 
     @Override
     public final boolean hasReferences() {
-        return refCount.get() > 0;
+        return get() > 0;
     }
 
     /**
@@ -73,7 +71,7 @@ public abstract class AbstractRefCounted implements RefCounted {
     protected void touch() {}
 
     protected void alreadyClosed() {
-        final int currentRefCount = refCount.get();
+        final int currentRefCount = get();
         assert currentRefCount == 0 : currentRefCount;
         throw new IllegalStateException(ALREADY_CLOSED_MESSAGE);
     }
@@ -82,7 +80,7 @@ public abstract class AbstractRefCounted implements RefCounted {
      * Returns the current reference count.
      */
     public final int refCount() {
-        return this.refCount.get();
+        return get();
     }
 
     /**

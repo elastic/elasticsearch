@@ -93,12 +93,15 @@ public class QueryRewriteContext {
     }
 
     /**
-     * Returns an instance of {@link SearchExecutionContext} if available of null otherwise
+     * Returns an instance of {@link SearchExecutionContext} if available or null otherwise
      */
     public SearchExecutionContext convertToSearchExecutionContext() {
         return null;
     }
 
+    /**
+     * Returns an instance of {@link CoordinatorRewriteContext} if available or null otherwise
+     */
     public CoordinatorRewriteContext convertToCoordinatorRewriteContext() {
         return null;
     }

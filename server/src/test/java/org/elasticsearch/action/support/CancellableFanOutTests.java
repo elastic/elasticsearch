@@ -35,6 +35,7 @@ public class CancellableFanOutTests extends ESTestCase {
         final var future = new PlainActionFuture<String>();
 
         final var itemListeners = new HashMap<String, ActionListener<String>>();
+        final var finalFailure = randomBoolean();
 
         new CancellableFanOut<String, String, String>() {
             int counter;
@@ -58,9 +59,13 @@ public class CancellableFanOutTests extends ESTestCase {
             }
 
             @Override
-            protected void onCompletion(ActionListener<String> listener) {
+            protected String onCompletion() {
                 assertEquals(3, counter);
-                listener.onResponse("completed");
+                if (finalFailure) {
+                    throw new ElasticsearchException("failed");
+                } else {
+                    return "completed";
+                }
             }
         }.run(task, List.of("a", "b", "c").iterator(), future);
 
@@ -70,7 +75,11 @@ public class CancellableFanOutTests extends ESTestCase {
         assertFalse(future.isDone());
         itemListeners.remove("c").onResponse("c-response");
         assertTrue(future.isDone());
-        assertEquals("completed", future.actionGet());
+        if (finalFailure) {
+            assertEquals("failed", expectThrows(ElasticsearchException.class, future::actionGet).getMessage());
+        } else {
+            assertEquals("completed", future.actionGet());
+        }
     }
 
     public void testReleaseOnCancellation() {
@@ -100,8 +109,8 @@ public class CancellableFanOutTests extends ESTestCase {
             }
 
             @Override
-            protected void onCompletion(ActionListener<String> listener) {
-                fail("onCompletion");
+            protected String onCompletion() {
+                throw new AssertionError("onCompletion");
             }
         }).run(task, List.of("a", "b", "c").iterator(), future);
 

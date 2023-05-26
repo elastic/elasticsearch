@@ -56,11 +56,7 @@ public abstract class CancellableFanOut<Item, ItemResponse, FinalResponse> {
             if (cancellableTask != null && cancellableTask.notifyIfCancelled(resultListener)) {
                 return;
             }
-            onCompletion(resultListener);
-
-            // It's important that onCompletion() completes resultListener before returning, because otherwise there's a risk that
-            // a cancellation arrives later which might unexpectedly complete the final listener on a transport thread.
-            assert resultListener.isDone() : "onCompletion did not complete its listener";
+            ActionListener.completeWith(resultListener, this::onCompletion);
         });
 
         // Collects the per-item listeners up so they can all be completed exceptionally on cancellation. Never completed successfully.
@@ -152,10 +148,10 @@ public abstract class CancellableFanOut<Item, ItemResponse, FinalResponse> {
 
     /**
      * Called when responses for all items have been processed, on the thread that processed the last per-item response. Not called if the
-     * task is cancelled. Must complete the listener before returning.
+     * task is cancelled.
      * <p>
      * Note that it's easy to accidentally capture another reference to this class when implementing this method, and that will prevent the
      * early release of any accumulated results. Beware of lambdas, and test carefully.
      */
-    protected abstract void onCompletion(ActionListener<FinalResponse> listener);
+    protected abstract FinalResponse onCompletion() throws Exception;
 }

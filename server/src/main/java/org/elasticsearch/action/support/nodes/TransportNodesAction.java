@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportChannel;
@@ -129,7 +130,7 @@ public abstract class TransportNodesAction<
             assert request.concreteNodes() != null;
         }
 
-        new CancellableFanOut<DiscoveryNode, NodeResponse, NodesResponse>() {
+        new CancellableFanOut<DiscoveryNode, NodeResponse, CheckedConsumer<ActionListener<NodesResponse>, Exception>>() {
 
             final ArrayList<NodeResponse> responses = new ArrayList<>(request.concreteNodes().length);
             final ArrayList<FailedNodeException> exceptions = new ArrayList<>(0);
@@ -168,17 +169,20 @@ public abstract class TransportNodesAction<
             }
 
             @Override
-            protected void onCompletion(ActionListener<NodesResponse> listener) {
+            protected CheckedConsumer<ActionListener<NodesResponse>, Exception> onCompletion() {
                 // ref releases all happen-before here so no need to be synchronized
-                threadPool.executor(finalExecutor)
-                    .execute(ActionRunnable.wrap(listener, l -> newResponseAsync(task, request, responses, exceptions, l)));
+                return l -> newResponseAsync(task, request, responses, exceptions, l);
             }
 
             @Override
             public String toString() {
                 return actionName;
             }
-        }.run(task, Iterators.forArray(request.concreteNodes()), listener);
+        }.run(
+            task,
+            Iterators.forArray(request.concreteNodes()),
+            listener.delegateFailure((l, r) -> threadPool.executor(finalExecutor).execute(ActionRunnable.wrap(l, r)))
+        );
     }
 
     private Writeable.Reader<NodeResponse> nodeResponseReader(DiscoveryNode discoveryNode) {

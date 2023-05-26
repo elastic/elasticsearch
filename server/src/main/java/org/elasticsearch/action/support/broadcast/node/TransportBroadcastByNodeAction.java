@@ -346,10 +346,14 @@ public abstract class TransportBroadcastByNodeAction<
             }
 
             @Override
-            protected void onCompletion(ActionListener<Response> listener) {
+            protected Response onCompletion() {
                 // ref releases all happen-before here so no need to be synchronized
-                listener.onResponse(
-                    responseFactory.newResponse(totalShards.get(), successfulShards.get(), exceptions.size(), shardResponses, exceptions)
+                return responseFactory.newResponse(
+                    totalShards.get(),
+                    successfulShards.get(),
+                    exceptions.size(),
+                    shardResponses,
+                    exceptions
                 );
             }
 
@@ -420,10 +424,9 @@ public abstract class TransportBroadcastByNodeAction<
             }
 
             @Override
-            protected void onCompletion(ActionListener<NodeResponse> listener) {
+            protected NodeResponse onCompletion() {
                 // ref releases all happen-before here so no need to be synchronized
-                listener.onResponse(new NodeResponse(nodeId, shards.size(), results, exceptions));
-
+                return new NodeResponse(nodeId, shards.size(), results, exceptions);
             }
 
             @Override

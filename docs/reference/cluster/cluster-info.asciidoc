@@ -33,9 +33,14 @@ You can use the Cluster Info API to retrieve information of a cluster.
 A comma-separated list of the following options:
 +
 --
+`_all`::
+All the information available. Can not be mixed with other targets.
+
 `http`::
 HTTP connection information.
 
+`ingest`::
+Ingest information.
 --
 
 [role="child_attributes"]
@@ -126,6 +131,114 @@ Cumulative size in bytes of all requests from this client.
 ======
 
 
+[[cluster-info-api-response-body-ingest]]
+`ingest`::
+(object)
+Contains ingest information for the cluster.
++
+.Properties of `ingest`
+[%collapsible%open]
+======
+`total`::
+(object)
+Contains information about ingest operations for the cluster.
++
+.Properties of `total`
+[%collapsible%open]
+=======
+`count`::
+(integer)
+Total number of documents ingested across the cluster.
+
+`time`::
+(<<time-units,time value>>)
+Total time spent preprocessing ingest documents across the cluster.
+
+`time_in_millis`::
+(integer)
+Total time, in milliseconds, spent preprocessing ingest documents across the cluster.
+
+`current`::
+(integer)
+Total number of documents currently being ingested.
+
+`failed`::
+(integer)
+Total number of failed ingest operations across the cluster.
+=======
+
+`pipelines`::
+(object)
+Contains information about ingest pipelines for the cluster.
++
+.Properties of `pipelines`
+[%collapsible%open]
+=======
+`<pipeline_id>`::
+(object)
+Contains information about the ingest pipeline.
++
+.Properties of `<pipeline_id>`
+[%collapsible%open]
+========
+`count`::
+(integer)
+Number of documents preprocessed by the ingest pipeline.
+
+`time`::
+(<<time-units,time value>>)
+Total time spent preprocessing documents in the ingest pipeline.
+
+`time_in_millis`::
+(integer)
+Total time, in milliseconds, spent preprocessing documents in the ingest
+pipeline.
+
+`failed`::
+(integer)
+Total number of failed operations for the ingest pipeline.
+
+`processors`::
+(array of objects)
+Contains information for the ingest processors for the ingest pipeline.
++
+.Properties of `processors`
+[%collapsible%open]
+=========
+`<processor>`::
+(object)
+Contains information for the ingest processor.
++
+.Properties of `<processor>`
+[%collapsible%open]
+==========
+`count`::
+(integer)
+Number of documents transformed by the processor.
+
+`time`::
+(<<time-units,time value>>)
+Time spent by the processor transforming documents.
+
+`time_in_millis`::
+(integer)
+Time, in milliseconds, spent by the processor transforming documents.
+
+`current`::
+(integer)
+Number of documents currently being transformed by the processor.
+
+`failed`::
+(integer)
+Number of failed operations for the processor.
+==========
+=========
+========
+=======
+======
+
+
+
 [[cluster-info-api-example]]
 ==== {api-examples-title}
 
@@ -133,10 +246,13 @@ Cumulative size in bytes of all requests from this client.
 ----
 # returns all stats info of the cluster
 GET /_info/_all
-----
 
-[source,console]
-----
 # returns the http info of the cluster
 GET /_info/http
+
+# returns the http info of the cluster
+GET /_info/ingest
+
+# returns the http and ingest info of the cluster
+GET /_info/http,ingest
 ----

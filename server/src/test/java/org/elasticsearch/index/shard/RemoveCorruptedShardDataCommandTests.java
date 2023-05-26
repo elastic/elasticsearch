@@ -170,7 +170,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
                 null,
                 null,
                 new InternalEngineFactory(),
-                () -> {},
+                NOOP_GCP_SYNCER,
                 RetentionLeaseSyncer.EMPTY,
                 EMPTY_EVENT_LISTENER
             ),

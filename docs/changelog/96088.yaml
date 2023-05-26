@@ -1,6 +1,0 @@
-pr: 96088
-summary: Adjust `BoundedGeoHexGridTiler#FACTOR` to prevent missing hits
-area: Geo
-type: bug
-issues:
- - 96057

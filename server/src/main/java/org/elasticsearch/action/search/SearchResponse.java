@@ -479,8 +479,12 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         private final int total;
         private final int successful;
         private final int skipped;
-        private final int remoteClusters;
-        private final boolean ccsMinimizeRoundtrips;
+        // NOTE: these two new fields (remoteClusters and ccsMinimizeRoundtrips) have not been added to the wire protocol
+        // or equals/hashCode methods. They are needed for CCS only (async-search CCS in particular). If we need to write
+        // these to the .async-search system index in the future, we may want to refactor Clusters to allow async-search
+        // to subclass it.
+        private final transient int remoteClusters;
+        private final transient boolean ccsMinimizeRoundtrips;
 
         /**
          * An Clusters object meant for use with CCS holding additional information about
@@ -496,8 +500,8 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
                 : "total: " + total + " successful: " + successful + " skipped: " + skipped + " remote: " + remoteClusters;
             assert successful <= total : "total: " + total + " successful: " + successful + " skipped: " + skipped;
             assert remoteClusters <= total : "total: " + total + " remote: " + remoteClusters;
-            assert (ccsMinimizeRoundtrips ? remoteClusters > 0 : true)
-                : "ccsMinimizeRoundtrips is true but remoteClusters count is " + remoteClusters;
+            assert ccsMinimizeRoundtrips == false || remoteClusters > 0
+                : "ccsMinimizeRoundtrips is true but remoteClusters count is not a positive number: " + remoteClusters;
             int localCount = total - remoteClusters;
             assert localCount == 0 || localCount == 1 : "total - remoteClusters should only be 0 or 1";
             this.total = total;
@@ -578,7 +582,6 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             return ccsMinimizeRoundtrips;
         }
 
-        // TODO: should this be updated to include the new fields?
         @Override
         public boolean equals(Object o) {
             if (this == o) {
@@ -591,7 +594,6 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             return total == clusters.total && successful == clusters.successful && skipped == clusters.skipped;
         }
 
-        // TODO: should this be updated to include the new fields?
         @Override
         public int hashCode() {
             return Objects.hash(total, successful, skipped);
@@ -599,6 +601,10 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
 
         @Override
         public String toString() {
+            return "Clusters{total=" + total + ", successful=" + successful + ", skipped=" + skipped + '}';
+        }
+
+        public String toStringExtended() {
             return Strings.format(
                 "Clusters{total=%d, successful=%d, skipped=%d, remote=%d, ccsMinimizeRoundtrips=%s}",
                 total,

@@ -109,8 +109,8 @@ public class QueryRewriteContext {
      * In case unmapped fields are allowed, null is returned when the field is not mapped.
      * In case unmapped fields are not allowed, either an exception is thrown or the field is automatically mapped as a text field.
      * @throws QueryShardException if unmapped fields are not allowed and automatically mapping unmapped fields as text is disabled.
-     * @see SearchExecutionContext#setAllowUnmappedFields(boolean)
-     * @see SearchExecutionContext#setMapUnmappedFieldAsString(boolean)
+     * @see QueryRewriteContext#setAllowUnmappedFields(boolean)
+     * @see QueryRewriteContext#setMapUnmappedFieldAsString(boolean)
      */
     public MappedFieldType getFieldType(String name) {
         return failIfFieldMappingNotFound(name, fieldType(name));
@@ -141,6 +141,14 @@ public class QueryRewriteContext {
         } else {
             throw new QueryShardException(this, "No field mapping can be found for the field with name [{}]", name);
         }
+    }
+
+    public void setAllowUnmappedFields(boolean allowUnmappedFields) {
+        this.allowUnmappedFields = allowUnmappedFields;
+    }
+
+    public void setMapUnmappedFieldAsString(boolean mapUnmappedFieldAsString) {
+        this.mapUnmappedFieldAsString = mapUnmappedFieldAsString;
     }
 
     /**

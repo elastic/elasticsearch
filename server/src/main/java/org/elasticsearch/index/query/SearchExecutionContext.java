@@ -230,7 +230,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
     }
 
     private void reset() {
-        allowUnmappedFields = indexSettings.isDefaultAllowUnmappedFields();
+        setAllowUnmappedFields(indexSettings.isDefaultAllowUnmappedFields());
         this.lookup = null;
         this.namedQueries.clear();
         this.nestedScope = new NestedScope();
@@ -426,14 +426,6 @@ public class SearchExecutionContext extends QueryRewriteContext {
 
     public ValuesSourceRegistry getValuesSourceRegistry() {
         return valuesSourceRegistry;
-    }
-
-    public void setAllowUnmappedFields(boolean allowUnmappedFields) {
-        this.allowUnmappedFields = allowUnmappedFields;
-    }
-
-    public void setMapUnmappedFieldAsString(boolean mapUnmappedFieldAsString) {
-        this.mapUnmappedFieldAsString = mapUnmappedFieldAsString;
     }
 
     public void setAllowedFields(Predicate<String> allowedFields) {

@@ -346,7 +346,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
      * raising the exception.
      */
     public void sync() throws IOException {
-        syncUpTo(Long.MAX_VALUE, SequenceNumbers.UNASSIGNED_SEQ_NO);
+        syncUpTo(Long.MAX_VALUE, SequenceNumbers.NO_OPS_PERFORMED);
     }
 
     /**

@@ -623,7 +623,7 @@ public class InternalEngine extends Engine {
             protected void write(List<Tuple<Tuple<Long, Translog.Location>, Consumer<Exception>>> candidates) throws IOException {
                 try {
                     Translog.Location location = Translog.Location.EMPTY;
-                    long processGlobalCheckpoint = SequenceNumbers.UNASSIGNED_SEQ_NO;
+                    long processGlobalCheckpoint = SequenceNumbers.NO_OPS_PERFORMED;
                     for (Tuple<Tuple<Long, Translog.Location>, Consumer<Exception>> syncMarkers : candidates) {
                         Tuple<Long, Translog.Location> marker = syncMarkers.v1();
                         processGlobalCheckpoint = SequenceNumbers.max(processGlobalCheckpoint, marker.v1());
@@ -647,7 +647,7 @@ public class InternalEngine extends Engine {
 
     @Override
     public void asyncEnsureTranslogSynced(Translog.Location location, Consumer<Exception> listener) {
-        translogSyncProcessor.put(new Tuple<>(SequenceNumbers.UNASSIGNED_SEQ_NO, location), listener);
+        translogSyncProcessor.put(new Tuple<>(SequenceNumbers.NO_OPS_PERFORMED, location), listener);
     }
 
     @Override

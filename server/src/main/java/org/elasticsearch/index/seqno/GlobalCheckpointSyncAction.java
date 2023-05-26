@@ -16,7 +16,6 @@ import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
@@ -80,26 +79,26 @@ public class GlobalCheckpointSyncAction extends TransportReplicationAction<
         IndexShard indexShard,
         ActionListener<PrimaryResult<Request, ReplicationResponse>> listener
     ) {
-        maybeSyncTranslog(indexShard, listener, () -> new PrimaryResult<>(request, new ReplicationResponse()));
+        maybeSyncTranslog(indexShard, listener.map(v -> new PrimaryResult<>(request, new ReplicationResponse())));
     }
 
     @Override
     protected void shardOperationOnReplica(Request shardRequest, IndexShard replica, ActionListener<ReplicaResult> listener) {
-        maybeSyncTranslog(replica, listener, ReplicaResult::new);
+        maybeSyncTranslog(replica, listener.map(v -> new ReplicaResult()));
     }
 
-    private static <T> void maybeSyncTranslog(IndexShard indexShard, ActionListener<T> listener, CheckedSupplier<T, Exception> supplier) {
+    private static <T> void maybeSyncTranslog(IndexShard indexShard, ActionListener<Void> listener) {
         if (indexShard.getTranslogDurability() == Translog.Durability.REQUEST
             && indexShard.getLastSyncedGlobalCheckpoint() < indexShard.getLastKnownGlobalCheckpoint()) {
             indexShard.syncGlobalCheckpoint(indexShard.getLastKnownGlobalCheckpoint(), e -> {
                 if (e == null) {
-                    ActionListener.completeWith(listener, supplier);
+                    listener.onResponse(null);
                 } else {
                     listener.onFailure(e);
                 }
             });
         } else {
-            ActionListener.completeWith(listener, supplier);
+            listener.onResponse(null);
         }
     }
 

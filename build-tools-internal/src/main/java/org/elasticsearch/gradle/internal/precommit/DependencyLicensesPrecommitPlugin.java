@@ -31,7 +31,10 @@ public class DependencyLicensesPrecommitPlugin extends PrecommitPlugin {
             Configuration compileOnly = project.getConfigurations()
                 .getByName(CompileOnlyResolvePlugin.RESOLVEABLE_COMPILE_ONLY_CONFIGURATION_NAME);
             t.setDependencies(
-                runtimeClasspath.fileCollection(dependency -> dependency instanceof ProjectDependency == false).minus(compileOnly)
+                runtimeClasspath.fileCollection(
+                    dependency -> dependency instanceof ProjectDependency == false
+                        && dependency.getGroup().startsWith("org.elasticsearch") == false
+                ).minus(compileOnly)
             );
         });
         return dependencyLicenses;

@@ -1,5 +1,0 @@
-pr: 96025
-summary: Fix `RebalanceOnlyWhenActiveAllocationDecider`
-area: Allocation
-type: bug
-issues: []

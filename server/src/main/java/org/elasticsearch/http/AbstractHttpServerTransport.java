@@ -245,8 +245,8 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
                 FutureUtils.get(allClientsClosedListener, shutdownGracePeriodMillis, TimeUnit.MILLISECONDS);
                 closed = true;
             } catch (ElasticsearchTimeoutException t) {
-                logger.trace(
-                    () -> format(
+                logger.warn(
+                    format(
                         "timed out while waiting [%d]ms for clients to close connections [%s]",
                         shutdownGracePeriodMillis,
                         t.getDetailedMessage()

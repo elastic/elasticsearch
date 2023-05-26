@@ -4,7 +4,7 @@
       "actions": {
         "rollover": {
           "max_primary_shard_size": "50gb",
-          "max_age": "15d"
+          "max_age": "30d"
         },
         "set_priority": {
           "priority": 100

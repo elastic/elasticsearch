@@ -3621,7 +3621,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * will not ensure that the request global checkpoint is available to be synced. It is the caller's duty to only call this
      * method with a valid processed global checkpoint that is available to sync.
      */
-    public final void syncGlobalCheckpoint(long globalCheckpoint, Consumer<Exception> syncListener) {
+    public void syncGlobalCheckpoint(long globalCheckpoint, Consumer<Exception> syncListener) {
         verifyNotClosed();
         getEngine().asyncEnsureGlobalCheckpointSynced(globalCheckpoint, syncListener);
     }

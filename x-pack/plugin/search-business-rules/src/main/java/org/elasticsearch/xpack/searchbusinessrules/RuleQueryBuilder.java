@@ -232,14 +232,6 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
         return boolQueryBuilder;
     }
 
-    private void foo() {
-        BoolQueryBuilder boolQueryBuilder = QueryBuilders.boolQuery();
-
-        boolQueryBuilder.filter()
-
-        boolQueryBuilder.filter(QueryBuilders.termsQuery("ruleset_id", rulesetIds));
-    }
-
     @Override
     protected boolean doEquals(RuleQueryBuilder other) {
         if (this == other) return true;

@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.ComposableIndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.DataStreamMetadata;
 import org.elasticsearch.cluster.metadata.DesiredNodesMetadata;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataDeleteIndexService;
@@ -162,12 +163,12 @@ public class ClusterModule extends AbstractModule {
                 // has injected a different strategy.
 
                 @Override
-                public ShardRouting.Role newReplicaRole() {
+                public ShardRouting.Role newReplicaRole(ShardRouting.Role primaryRole) {
                     return ShardRouting.Role.DEFAULT;
                 }
 
                 @Override
-                public ShardRouting.Role newEmptyRole(int copyIndex) {
+                public ShardRouting.Role newEmptyRole(int copyIndex, IndexMetadata indexMetadata) {
                     return ShardRouting.Role.DEFAULT;
                 }
             };

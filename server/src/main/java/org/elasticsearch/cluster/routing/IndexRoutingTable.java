@@ -456,7 +456,7 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable> {
                                 primary,
                                 primary ? EmptyStoreRecoverySource.INSTANCE : PeerRecoverySource.INSTANCE,
                                 unassignedInfo,
-                                shardRoutingRoleStrategy.newRestoredRole(i)
+                                shardRoutingRoleStrategy.newRestoredRole(i, indexMetadata)
                             )
                         );
                     } else {
@@ -466,7 +466,7 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable> {
                                 primary,
                                 primary ? recoverySource : PeerRecoverySource.INSTANCE,
                                 withLastAllocatedNodeId(unassignedInfo, previousNodes, i),
-                                shardRoutingRoleStrategy.newRestoredRole(i)
+                                shardRoutingRoleStrategy.newRestoredRole(i, indexMetadata)
                             )
                         );
                     }
@@ -513,7 +513,7 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable> {
                             primary,
                             primary ? primaryRecoverySource : PeerRecoverySource.INSTANCE,
                             withLastAllocatedNodeId(unassignedInfo, previousNodes, i),
-                            shardRoutingRoleStrategy.newEmptyRole(i)
+                            shardRoutingRoleStrategy.newEmptyRole(i, indexMetadata)
                         )
                     );
                 }

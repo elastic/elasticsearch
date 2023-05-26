@@ -159,12 +159,12 @@ public class ActiveShardCountTests extends ESTestCase {
     private static ShardRoutingRoleStrategy createCustomRoleStrategy(int indexShardCount) {
         return new ShardRoutingRoleStrategy() {
             @Override
-            public ShardRouting.Role newEmptyRole(int copyIndex) {
+            public ShardRouting.Role newEmptyRole(int copyIndex, IndexMetadata indexMetadata) {
                 return copyIndex < indexShardCount ? ShardRouting.Role.INDEX_ONLY : ShardRouting.Role.SEARCH_ONLY;
             }
 
             @Override
-            public ShardRouting.Role newReplicaRole() {
+            public ShardRouting.Role newReplicaRole(ShardRouting.Role primaryRole) {
                 return ShardRouting.Role.SEARCH_ONLY;
             }
         };

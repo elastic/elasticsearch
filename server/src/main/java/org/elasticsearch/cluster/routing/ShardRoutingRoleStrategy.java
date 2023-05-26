@@ -8,25 +8,27 @@
 
 package org.elasticsearch.cluster.routing;
 
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+
 public interface ShardRoutingRoleStrategy {
 
     /**
      * @return the role for a copy of a new empty shard, where {@code copyIndex} is the index of the copy ({@code 0} for the primary and
      * {@code 1..N} for replicas).
      */
-    ShardRouting.Role newEmptyRole(int copyIndex);
+    ShardRouting.Role newEmptyRole(int copyIndex, IndexMetadata indexMetadata);
 
     /**
      * @return the role for a new replica copy of an existing shard.
      */
-    ShardRouting.Role newReplicaRole();
+    ShardRouting.Role newReplicaRole(ShardRouting.Role primaryRole);
 
     /**
      * @return the role for a copy of a new shard being restored from snapshot, where {@code copyIndex} is the index of the copy ({@code 0}
      * for the primary and {@code 1..N} for replicas).
      */
-    default ShardRouting.Role newRestoredRole(int copyIndex) {
-        return newEmptyRole(copyIndex);
+    default ShardRouting.Role newRestoredRole(int copyIndex, IndexMetadata indexMetadata) {
+        return newEmptyRole(copyIndex, indexMetadata);
     }
 
     /**
@@ -34,12 +36,13 @@ public interface ShardRoutingRoleStrategy {
      */
     ShardRoutingRoleStrategy NO_SHARD_CREATION = new ShardRoutingRoleStrategy() {
         @Override
-        public ShardRouting.Role newEmptyRole(int copyIndex) {
-            return newReplicaRole();
+        public ShardRouting.Role newEmptyRole(int copyIndex, IndexMetadata indexMetadata) {
+            assert false : "no shard creation permitted";
+            throw new IllegalStateException("no shard creation permitted");
         }
 
         @Override
-        public ShardRouting.Role newReplicaRole() {
+        public ShardRouting.Role newReplicaRole(ShardRouting.Role primaryRole) {
             assert false : "no shard creation permitted";
             throw new IllegalStateException("no shard creation permitted");
         }

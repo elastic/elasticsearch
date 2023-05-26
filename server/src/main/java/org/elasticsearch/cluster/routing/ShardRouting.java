@@ -936,7 +936,8 @@ public final class ShardRouting implements Writeable, ToXContentObject {
     public enum Role implements Writeable, ToXContentFragment {
         DEFAULT((byte) 0, true, true),
         INDEX_ONLY((byte) 1, true, false),
-        SEARCH_ONLY((byte) 2, false, true);
+        SEARCH_ONLY((byte) 2, false, true),
+        NONE((byte) 3, false, false);
 
         private final byte code;
         private final boolean promotable;
@@ -978,6 +979,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
                 case 0 -> DEFAULT;
                 case 1 -> INDEX_ONLY;
                 case 2 -> SEARCH_ONLY;
+                case 3 -> NONE;
                 default -> throw new IllegalStateException("unknown role");
             };
         }

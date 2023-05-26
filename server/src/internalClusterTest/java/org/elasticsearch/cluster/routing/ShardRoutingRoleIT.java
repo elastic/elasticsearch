@@ -94,12 +94,12 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
         public ShardRoutingRoleStrategy getShardRoutingRoleStrategy() {
             return new ShardRoutingRoleStrategy() {
                 @Override
-                public ShardRouting.Role newReplicaRole() {
+                public ShardRouting.Role newReplicaRole(ShardRouting.Role primaryRole) {
                     return ShardRouting.Role.SEARCH_ONLY;
                 }
 
                 @Override
-                public ShardRouting.Role newEmptyRole(int copyIndex) {
+                public ShardRouting.Role newEmptyRole(int copyIndex, IndexMetadata indexMetadata) {
                     assert 0 < numIndexingCopies;
                     return copyIndex < numIndexingCopies ? ShardRouting.Role.INDEX_ONLY : ShardRouting.Role.SEARCH_ONLY;
                 }

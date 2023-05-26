@@ -513,7 +513,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
                 if (currentNumberOfReplicas < numberOfReplicas) {
                     // now, add "empty" ones
                     for (int i = 0; i < (numberOfReplicas - currentNumberOfReplicas); i++) {
-                        builder.addReplica(shardRoutingRoleStrategy.newReplicaRole());
+                        builder.addReplica(shardRoutingRoleStrategy.newReplicaRole(indexRoutingTable.shard(0).primaryShard().role()));
                     }
                 } else if (currentNumberOfReplicas > numberOfReplicas) {
                     for (int i = 0; i < (currentNumberOfReplicas - numberOfReplicas); i++) {

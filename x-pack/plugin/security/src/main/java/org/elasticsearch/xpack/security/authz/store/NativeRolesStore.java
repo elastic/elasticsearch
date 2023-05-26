@@ -489,7 +489,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                 return roleDescriptor;
             }
         } catch (Exception e) {
-            logger.error(() -> "error in the format of data for role [" + name + "]", e);
+            logger.error("error in the format of data for role [" + name + "]", e);
             return null;
         }
     }

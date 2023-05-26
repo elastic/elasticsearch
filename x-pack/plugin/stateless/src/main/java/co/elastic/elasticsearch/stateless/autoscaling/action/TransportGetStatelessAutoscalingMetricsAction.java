@@ -85,7 +85,15 @@ public class TransportGetStatelessAutoscalingMetricsAction extends TransportMast
             )
         );
 
-        final StatelessAutoscalingMetrics metrics = new StatelessAutoscalingMetrics(indexTierMetrics, searchTierMetrics);
+        final TierMetrics mlTierMetrics = new TierMetrics.MlTierMetrics(
+            new MetricsContainer(Map.of("current_ml_nodes", 3, "remove_container_size_gb", 0)),
+            new ConstraintsContainer(
+                new TierLevelConstraints(Map.of("min_num_nodes", 2, "min_ml_memory_bytes", 20000000, "min_processors", 6)),
+                new NodeLevelConstraints(Map.of("min_ml_memory_bytes", 20000000, "min_processors", 3))
+            )
+        );
+
+        final StatelessAutoscalingMetrics metrics = new StatelessAutoscalingMetrics(indexTierMetrics, searchTierMetrics, mlTierMetrics);
 
         listener.onResponse(new Response(metrics));
 

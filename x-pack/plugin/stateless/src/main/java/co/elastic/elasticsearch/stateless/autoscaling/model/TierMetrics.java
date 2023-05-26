@@ -42,6 +42,18 @@ public abstract class TierMetrics implements ToXContentObject, Writeable {
 
     }
 
+    public static class MlTierMetrics extends TierMetrics {
+
+        public MlTierMetrics(final StreamInput input) throws IOException {
+            super(input);
+        }
+
+        public MlTierMetrics(MetricsContainer metrics, ConstraintsContainer constraints) {
+            super(metrics, constraints);
+        }
+
+    }
+
     private final MetricsContainer metrics;
     private final ConstraintsContainer constraints;
 

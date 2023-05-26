@@ -20,15 +20,22 @@ public class StatelessAutoscalingMetrics implements ToXContentObject, Writeable 
 
     private final TierMetrics indexTierMetrics;
     private final TierMetrics searchTierMetrics;
+    private final TierMetrics mlTierMetrics;
 
     public StatelessAutoscalingMetrics(final StreamInput input) throws IOException {
         this.indexTierMetrics = new TierMetrics.IndexTierMetrics(input);
         this.searchTierMetrics = new TierMetrics.SearchTierMetrics(input);
+        this.mlTierMetrics = new TierMetrics.MlTierMetrics(input);
     }
 
-    public StatelessAutoscalingMetrics(final TierMetrics indexTierMetrics, final TierMetrics searchTierMetrics) {
+    public StatelessAutoscalingMetrics(
+        final TierMetrics indexTierMetrics,
+        final TierMetrics searchTierMetrics,
+        final TierMetrics mlTierMetrics
+    ) {
         this.indexTierMetrics = indexTierMetrics;
         this.searchTierMetrics = searchTierMetrics;
+        this.mlTierMetrics = mlTierMetrics;
     }
 
     @Override
@@ -36,6 +43,7 @@ public class StatelessAutoscalingMetrics implements ToXContentObject, Writeable 
         builder.startObject();
         builder.field("index-tier", indexTierMetrics);
         builder.field("search-tier", searchTierMetrics);
+        builder.field("ml-tier", mlTierMetrics);
         builder.endObject();
         return builder;
     }
@@ -44,5 +52,6 @@ public class StatelessAutoscalingMetrics implements ToXContentObject, Writeable 
     public void writeTo(StreamOutput out) throws IOException {
         indexTierMetrics.writeTo(out);
         searchTierMetrics.writeTo(out);
+        mlTierMetrics.writeTo(out);
     }
 }

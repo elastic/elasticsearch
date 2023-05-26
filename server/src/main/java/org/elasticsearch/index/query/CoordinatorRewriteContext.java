@@ -62,4 +62,9 @@ public class CoordinatorRewriteContext extends QueryRewriteContext {
 
         return timestampFieldType;
     }
+
+    @Override
+    public CoordinatorRewriteContext convertToCoordinatorRewriteContext() {
+        return this;
+    }
 }

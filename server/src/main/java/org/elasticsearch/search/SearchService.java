@@ -1629,10 +1629,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             if (request.readerId() != null) {
                 listener.onResponse(request);
             } else {
-                // now we need to check if there is a pending refresh and register
-                if (shard.awaitShardSearchActive(b -> listener.onResponse(request))) {
-                    IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
-                    indexService.triggerAndReScheduleRefresh();
+                try {
+                    // now we need to make shard search active and execute refresh if there are pending merges:
+                    shard.makeShardSearchActive();
+                    listener.onResponse(request);
+                } catch (Exception e) {
+                    listener.onFailure(e);
                 }
             }
         }, listener::onFailure);

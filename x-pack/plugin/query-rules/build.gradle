@@ -1,0 +1,16 @@
+apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.internal-cluster-test'
+
+esplugin {
+  name 'query-rules'
+  description 'A plugin for applying query rules to customize search requests and results'
+  classname 'org.elasticsearch.xpack.queryrules.QueryRules'
+  extendedPlugins = ['x-pack-core']
+}
+archivesBaseName = 'x-pack-query-rules'
+
+dependencies {
+  compileOnly project(path: xpackModule('core'))
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation project(":test:framework")
+}

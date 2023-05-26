@@ -32,6 +32,32 @@ public class SearchProfileResultsTests extends AbstractXContentSerializingTestCa
         return new SearchProfileResults(shards);
     }
 
+    public void testParseProfileShardId() {
+        record TestPattern(String id, SearchProfileResults.ShardProfileId expected) {}
+
+        TestPattern[] cases = new TestPattern[] {
+            new TestPattern(null, null),
+            new TestPattern("", null),
+            new TestPattern("[][][]", null),
+            new TestPattern("chsk8ad", null),
+            new TestPattern("[UngEVXTBQL-7w5j_tftGAQ][remote1:blogs]", null),  // shardId is missing
+            new TestPattern("[UngEVXTBQL-7w5j_tftGAQ][remote1:blogs][xyz]", null),  // shardId must be integer
+
+            new TestPattern(
+                "[UngEVXTBQL-7w5j_tftGAQ][remote1:blogs][0]",
+                new SearchProfileResults.ShardProfileId("UngEVXTBQL-7w5j_tftGAQ", "blogs", 0, "remote1")
+            ),
+            new TestPattern(
+                "[2m7SW9oIRrirdrwirM1mwQ][.ds-filebeat-8.3.2-2023.05.04-000420][303]",
+                new SearchProfileResults.ShardProfileId("2m7SW9oIRrirdrwirM1mwQ", ".ds-filebeat-8.3.2-2023.05.04-000420", 303, null)
+            ),
+            new TestPattern("[_na_][:indexName_1][303]", new SearchProfileResults.ShardProfileId("_na_", "indexName_1", 303, "")) };
+
+        for (TestPattern testPattern : cases) {
+            assertEquals(testPattern.expected, SearchProfileResults.parseProfileShardId(testPattern.id));
+        }
+    }
+
     @Override
     protected SearchProfileResults createTestInstance() {
         return createTestItem();

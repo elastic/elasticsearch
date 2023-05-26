@@ -34,6 +34,7 @@ public class SearchProfileResultsBuilder {
         Map<String, SearchProfileShardResult> mergedShardResults = Maps.newMapWithExpectedSize(queryPhaseResults.size());
         for (SearchPhaseResult r : fetchResults) {
             FetchSearchResult fr = r.fetchResult();
+            /// MP: THIS IS WHERE THE _key_ for the Map<String, SearchProfileShardResult> is created
             String key = fr.getSearchShardTarget().toString();
             SearchProfileQueryPhaseResult queryPhase = queryPhaseResults.get(key);
             if (queryPhase == null) {

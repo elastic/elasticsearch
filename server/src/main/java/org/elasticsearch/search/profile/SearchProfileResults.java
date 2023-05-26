@@ -8,11 +8,14 @@
 
 package org.elasticsearch.search.profile;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.profile.aggregation.AggregationProfileShardResult;
 import org.elasticsearch.search.profile.query.QueryProfileShardResult;
 import org.elasticsearch.xcontent.ToXContentFragment;
@@ -26,6 +29,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeSet;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
@@ -34,10 +39,16 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
  */
 public final class SearchProfileResults implements Writeable, ToXContentFragment {
 
+    private static final Logger logger = LogManager.getLogger(SearchProfileResults.class);
     private static final String ID_FIELD = "id";
+    private static final String NODE_ID_FIELD = "node_id";
+    private static final String CLUSTER_FIELD = "cluster";
+    private static final String INDEX_NAME_FIELD = "index";
+    private static final String SHARD_ID_FIELD = "shard_id";
     private static final String SHARDS_FIELD = "shards";
     public static final String PROFILE_FIELD = "profile";
 
+    /// MP: key to this map is [nodeId] [remote-index-name] [shardId] created from the SearchShardTarget.toString method
     private Map<String, SearchProfileShardResult> shardResults;
 
     public SearchProfileResults(Map<String, SearchProfileShardResult> shardResults) {
@@ -76,9 +87,24 @@ public final class SearchProfileResults implements Writeable, ToXContentFragment
         for (String key : sortedKeys) {
             builder.startObject();
             builder.field(ID_FIELD, key);
-            shardResults.get(key).toXContent(builder, params);
+
+            ShardProfileId shardProfileId = parseProfileShardId(key);
+            if (shardProfileId != null) {
+                builder.field(NODE_ID_FIELD, shardProfileId.nodeId());
+                builder.field(SHARD_ID_FIELD, shardProfileId.shardId());
+                builder.field(INDEX_NAME_FIELD, shardProfileId.indexName());
+                String cluster = shardProfileId.clusterName();
+                if (cluster == null) {
+                    cluster = "(local)";
+                }
+                builder.field(CLUSTER_FIELD, cluster);
+            }
+
+            SearchProfileShardResult shardResult = shardResults.get(key);
+            shardResult.toXContent(builder, params);
             builder.endObject();
         }
+
         builder.endArray().endObject();
         return builder;
     }
@@ -122,6 +148,7 @@ public final class SearchProfileResults implements Writeable, ToXContentFragment
         return new SearchProfileResults(profileResults);
     }
 
+    /// MP: what is the key to this map?
     private static void parseProfileResultsEntry(XContentParser parser, Map<String, SearchProfileShardResult> searchProfileResults)
         throws IOException {
         XContentParser.Token token = parser.currentToken();
@@ -169,5 +196,54 @@ public final class SearchProfileResults implements Writeable, ToXContentFragment
         );
         result.getQueryPhase().setSearchProfileDfsPhaseResult(searchProfileDfsPhaseResult);
         searchProfileResults.put(id, result);
+    }
+
+    /**
+     * Parsed representation of a composite id used for shards in a profile.
+     * The composite id format is specified/created via the {@code SearchShardTargetÏ} method.
+     * @param nodeId nodeId that the shard is on
+     * @param indexName index profiled
+     * @param shardId integer shard id
+     * @param clusterName if a CCS search, the remote clusters will have a name in the id. Local clusters will be null.
+     */
+    record ShardProfileId(String nodeId, String indexName, int shardId, @Nullable String clusterName) {}
+
+    /**
+     * Parse the composite "shard id" from the profiles output, which comes from the
+     * {@code SearchShardTarget.toString()} method, into its separate components.
+     * <p>
+     * One of two expected patterns is accepted:
+     * <p>
+     * 1) [nodeId][indexName][shardId]
+     * example: [2m7SW9oIRrirdrwirM1mwQ][blogs][1]
+     * <p>
+     * 2) [nodeId][clusterName:indexName][shardId]
+     * example: [UngEVXTBQL-7w5j_tftGAQ][remote1:blogs][0]
+     *
+     * @param compositeId see above for accepted formats
+     * @return ShardProfileId with parsed components or null if the compositeId has an unsupported format
+     */
+    static ShardProfileId parseProfileShardId(String compositeId) {
+        if (Strings.isNullOrEmpty(compositeId)) {
+            return null;
+        }
+        Pattern r = Pattern.compile("\\[([^]]+)\\]\\[([^]]+)\\]\\[(\\d+)\\]");
+        Matcher m = r.matcher(compositeId);
+        if (m.find()) {
+            String nodeId = m.group(1);
+            String indexName = m.group(2);
+            int shardId = Integer.parseInt(m.group(3));
+            String cluster = null;
+            if (indexName.contains(":")) {
+                // index names and cluster names cannot contain a ':', so this split should be accurate
+                String[] tokens = indexName.split(":", 2);
+                cluster = tokens[0];
+                indexName = tokens[1];
+            }
+            return new ShardProfileId(nodeId, indexName, shardId, cluster);
+        } else {
+            logger.warn("Unable to match input against expected pattern of [nodeId][indexName][shardId]. Input: {}", compositeId);
+            return null;
+        }
     }
 }

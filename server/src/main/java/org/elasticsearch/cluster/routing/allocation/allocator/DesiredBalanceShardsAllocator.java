@@ -50,13 +50,12 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
     private final ThreadPool threadPool;
     private final DesiredBalanceReconcilerAction reconciler;
     private final DesiredBalanceComputer desiredBalanceComputer;
+    private final DesiredBalanceReconciler desiredBalanceReconciler;
     private final ContinuousComputation<DesiredBalanceInput> desiredBalanceComputation;
     private final PendingListenersQueue queue;
     private final AtomicLong indexGenerator = new AtomicLong(-1);
     private final ConcurrentLinkedQueue<List<MoveAllocationCommand>> pendingDesiredBalanceMoves = new ConcurrentLinkedQueue<>();
     private final MasterServiceTaskQueue<ReconcileDesiredBalanceTask> masterServiceTaskQueue;
-    private final NodeAllocationOrdering allocationOrdering = new NodeAllocationOrdering();
-    private final NodeAllocationOrdering moveOrdering = new NodeAllocationOrdering();
     private volatile DesiredBalance currentDesiredBalance = DesiredBalance.INITIAL;
     private volatile boolean resetCurrentDesiredBalance = false;
 
@@ -100,6 +99,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         this.threadPool = threadPool;
         this.reconciler = reconciler;
         this.desiredBalanceComputer = desiredBalanceComputer;
+        this.desiredBalanceReconciler = new DesiredBalanceReconciler(clusterService.getClusterSettings(), threadPool);
         this.desiredBalanceComputation = new ContinuousComputation<>(threadPool) {
 
             @Override
@@ -228,13 +228,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         } else {
             logger.debug("Reconciling desired balance for [{}]", desiredBalance.lastConvergedIndex());
         }
-        var allNodeIds = allocation.routingNodes().getAllNodeIds();
-        allocationOrdering.retainNodes(allNodeIds);
-        moveOrdering.retainNodes(allNodeIds);
-        recordTime(
-            cumulativeReconciliationTime,
-            new DesiredBalanceReconciler(desiredBalance, allocation, allocationOrdering, moveOrdering)::run
-        );
+        recordTime(cumulativeReconciliationTime, () -> desiredBalanceReconciler.reconcile(desiredBalance, allocation));
         if (logger.isTraceEnabled()) {
             logger.trace("Reconciled desired balance: {}", desiredBalance);
         } else {
@@ -287,7 +281,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             currentDesiredBalance = DesiredBalance.INITIAL;
             queue.completeAllAsNotMaster();
             pendingDesiredBalanceMoves.clear();
-            allocationOrdering.clear();
+            desiredBalanceReconciler.clear();
         }
     }
 

@@ -264,7 +264,6 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
 
             try {
                 allClientsClosedListener.get();
-                logger.warn("STU: done force closing clients");
             } catch (Exception e) {
                 assert false : e;
                 logger.warn("unexpected exception while waiting for http channels to close", e);

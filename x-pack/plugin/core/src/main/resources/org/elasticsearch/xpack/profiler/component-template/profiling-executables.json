@@ -28,7 +28,7 @@
           "type": "date",
           "format": "epoch_second"
         },
-        "Symbolization.lastprocessed": {
+        "Symbolization.next_time": {
           "type": "date",
           "format": "epoch_second",
           "index": false

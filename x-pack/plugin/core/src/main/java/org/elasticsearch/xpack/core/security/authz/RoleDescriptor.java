@@ -434,7 +434,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         BytesReference source,
         boolean allow2xFormat,
         XContentType xContentType,
-        boolean allowWorkflowsRestriction
+        boolean allowRestriction
     ) throws IOException {
         assert name != null;
         // EMPTY is safe here because we never use namedObject
@@ -443,7 +443,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
             XContentParser parser = xContentType.xContent()
                 .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)
         ) {
-            return parse(name, parser, allow2xFormat, allowWorkflowsRestriction);
+            return parse(name, parser, allow2xFormat, allowRestriction);
         }
     }
 
@@ -451,9 +451,9 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         return parse(name, parser, allow2xFormat, TcpTransport.isUntrustedRemoteClusterEnabled(), true);
     }
 
-    public static RoleDescriptor parse(String name, XContentParser parser, boolean allow2xFormat, boolean allowWorkflowsRestriction)
+    public static RoleDescriptor parse(String name, XContentParser parser, boolean allow2xFormat, boolean allowRestriction)
         throws IOException {
-        return parse(name, parser, allow2xFormat, TcpTransport.isUntrustedRemoteClusterEnabled(), allowWorkflowsRestriction);
+        return parse(name, parser, allow2xFormat, TcpTransport.isUntrustedRemoteClusterEnabled(), allowRestriction);
     }
 
     static RoleDescriptor parse(
@@ -461,7 +461,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         XContentParser parser,
         boolean allow2xFormat,
         boolean untrustedRemoteClusterEnabled,
-        boolean allowWorkflowsRestriction
+        boolean allowRestriction
     ) throws IOException {
         // validate name
         Validation.Error validationError = Validation.Roles.validateRoleName(name, true);
@@ -523,18 +523,17 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                     } else if (untrustedRemoteClusterEnabled
                         && Fields.REMOTE_INDICES.match(currentFieldName, parser.getDeprecationHandler())) {
                             remoteIndicesPrivileges = parseRemoteIndices(name, parser);
-                        } else if (allowWorkflowsRestriction
-                            && Fields.RESTRICTION.match(currentFieldName, parser.getDeprecationHandler())) {
-                                restriction = Restriction.parse(name, parser);
-                            } else if (Fields.TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
-                                // don't need it
-                            } else {
-                                throw new ElasticsearchParseException(
-                                    "failed to parse role [{}]. unexpected field [{}]",
-                                    name,
-                                    currentFieldName
-                                );
-                            }
+                        } else if (allowRestriction && Fields.RESTRICTION.match(currentFieldName, parser.getDeprecationHandler())) {
+                            restriction = Restriction.parse(name, parser);
+                        } else if (Fields.TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
+                            // don't need it
+                        } else {
+                            throw new ElasticsearchParseException(
+                                "failed to parse role [{}]. unexpected field [{}]",
+                                name,
+                                currentFieldName
+                            );
+                        }
         }
         return new RoleDescriptor(
             name,

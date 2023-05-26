@@ -53,7 +53,7 @@ setup:
       indices.refresh: { }
 
 ---
-"geo_line on position field":
+"geo_line on position field ASC":
   - skip:
       features: close_to
 
@@ -64,7 +64,7 @@ setup:
         body:
           aggregations:
             by_time_series:
-              time_series: {}
+              time_series: { }
               aggregations:
                 museum_tour:
                   geo_line:
@@ -72,6 +72,7 @@ setup:
                       field: location
                     sort:
                       field: "@timestamp"
+                    sort_order: ASC
   - match: { hits.total: 8 }
   - length: { aggregations.by_time_series.buckets: 3 }
   - match:
@@ -82,7 +83,7 @@ setup:
           museum_tour:
             type: Feature
             geometry:
-              coordinates: [[2.336389, 48.861111], [2.327, 48.86]]
+              coordinates: [ [ 2.336389, 48.861111 ], [ 2.327, 48.86 ] ]
               type: LineString
             properties: { complete: true }
         "{city=Antwerp}":
@@ -91,7 +92,7 @@ setup:
           museum_tour:
             type: Feature
             geometry:
-              coordinates: [4.4052, 51.2229]
+              coordinates: [ 4.4052, 51.2229 ]
               type: Point
             properties: { complete: true }
         "{city=Amsterdam}":
@@ -100,7 +101,64 @@ setup:
           museum_tour:
             type: Feature
             geometry:
-              coordinates: [[4.889187, 52.373184], [4.885057, 52.370159], [4.901618, 52.369219], [4.91235, 52.374081], [4.914722, 52.371667]]
+              coordinates: [ [ 4.889187, 52.373184 ], [ 4.885057, 52.370159 ], [ 4.901618, 52.369219 ], [ 4.91235, 52.374081 ], [ 4.914722, 52.371667 ] ]
+              type: LineString
+            properties: { complete: true }
+
+---
+"geo_line on position field DESC":
+  - skip:
+      features: close_to
+
+  - do:
+      search:
+        index: locations
+        rest_total_hits_as_int: true
+        body:
+          aggregations:
+            by_time_series:
+              time_series: { }
+              aggregations:
+                museum_tour:
+                  geo_line:
+                    point:
+                      field: location
+                    sort:
+                      field: "@timestamp"
+                    sort_order: DESC
+  - match: { hits.total: 8 }
+  - length: { aggregations.by_time_series.buckets: 3 }
+  - match:
+      aggregations.by_time_series.buckets:
+        "{city=Paris}":
+          key: { city: Paris }
+          doc_count: 2
+          museum_tour:
+            type: Feature
+            geometry:
+              coordinates: [ [ 2.327, 48.86 ], [ 2.336389, 48.861111 ] ]
+              type: LineString
+            properties: { complete: true }
+        "{city=Antwerp}":
+          key: { city: Antwerp }
+          doc_count: 1
+          museum_tour:
+            type: Feature
+            geometry:
+              coordinates: [ 4.4052, 51.2229 ]
+              type: Point
+            properties: { complete: true }
+        "{city=Amsterdam}":
+          key: { city: Amsterdam }
+          doc_count: 5
+          museum_tour:
+            type: Feature
+            geometry:
+              coordinates: [ [ 4.914722, 52.371667 ],
+                             [ 4.91235, 52.374081 ],
+                             [ 4.901618, 52.369219 ],
+                             [ 4.885057, 52.370159 ],
+                             [ 4.889187, 52.373184 ] ]
               type: LineString
             properties: { complete: true }
 
@@ -134,7 +192,7 @@ setup:
         museum_tour:
           type: Feature
           geometry:
-            coordinates: [[4.889187, 52.373184], [4.885057, 52.370159], [4.901618, 52.369219], [4.91235, 52.374081], [4.914722, 52.371667]]
+            coordinates: [ [ 4.889187, 52.373184 ], [ 4.885057, 52.370159 ], [ 4.901618, 52.369219 ], [ 4.91235, 52.374081 ], [ 4.914722, 52.371667 ] ]
             type: LineString
           properties: { complete: true }
   - match:
@@ -144,7 +202,7 @@ setup:
         museum_tour:
           type: Feature
           geometry:
-            coordinates: [[2.336389, 48.861111], [2.327, 48.86]]
+            coordinates: [ [ 2.336389, 48.861111 ], [ 2.327, 48.86 ] ]
             type: LineString
           properties: { complete: true }
   - match:
@@ -154,7 +212,7 @@ setup:
         museum_tour:
           type: Feature
           geometry:
-            coordinates: [4.4052, 51.2229]
+            coordinates: [ 4.4052, 51.2229 ]
             type: Point
           properties: { complete: true }
 
@@ -171,7 +229,7 @@ setup:
         body:
           aggregations:
             with_time_series:
-              time_series: {}
+              time_series: { }
               aggregations:
                 museums:
                   terms:
@@ -199,7 +257,7 @@ setup:
                 museum_tour:
                   type: Feature
                   geometry:
-                    coordinates: [[4.889187, 52.373184], [4.885057, 52.370159], [4.901618, 52.369219], [4.91235, 52.374081], [4.914722, 52.371667]]
+                    coordinates: [ [ 4.889187, 52.373184 ], [ 4.885057, 52.370159 ], [ 4.901618, 52.369219 ], [ 4.91235, 52.374081 ], [ 4.914722, 52.371667 ] ]
                     type: LineString
                   properties:
                     complete: true
@@ -210,15 +268,15 @@ setup:
             doc_count_error_upper_bound: 0
             sum_other_doc_count: 0
             buckets:
-            - key: Paris
-              doc_count: 2
-              museum_tour:
-                type: Feature
-                geometry:
-                  coordinates: [[2.336389, 48.861111], [2.327, 48.86]]
-                  type: LineString
-                properties:
-                  complete: true
+              - key: Paris
+                doc_count: 2
+                museum_tour:
+                  type: Feature
+                  geometry:
+                    coordinates: [ [ 2.336389, 48.861111 ], [ 2.327, 48.86 ] ]
+                    type: LineString
+                  properties:
+                    complete: true
         "{city=Antwerp}":
           key: { city: Antwerp }
           doc_count: 1
@@ -226,12 +284,12 @@ setup:
             doc_count_error_upper_bound: 0
             sum_other_doc_count: 0
             buckets:
-            - key: Antwerp
-              doc_count: 1
-              museum_tour:
-                type: Feature
-                geometry:
-                  coordinates: [4.4052, 51.2229]
-                  type: Point
-                properties:
-                  complete: true
+              - key: Antwerp
+                doc_count: 1
+                museum_tour:
+                  type: Feature
+                  geometry:
+                    coordinates: [ 4.4052, 51.2229 ]
+                    type: Point
+                  properties:
+                    complete: true

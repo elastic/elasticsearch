@@ -22,9 +22,9 @@ import java.util.Map;
 
 final class GeoLineAggregatorFactory extends MultiValuesSourceAggregatorFactory {
 
-    private boolean includeSort;
-    private SortOrder sortOrder;
-    private int size;
+    private final boolean includeSort;
+    private final SortOrder sortOrder;
+    private final int size;
 
     GeoLineAggregatorFactory(
         String name,

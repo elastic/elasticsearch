@@ -7,17 +7,28 @@
 
 package org.elasticsearch.xpack.spatial.search.aggregations;
 
+import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.DoubleArray;
+import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.util.ArrayUtils;
+import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.GeometryVisitor;
+import org.elasticsearch.geometry.Line;
+import org.elasticsearch.geometry.ShapeType;
+import org.elasticsearch.geometry.simplify.SimplificationErrorCalculator;
+import org.elasticsearch.geometry.simplify.StreamingGeometrySimplifier;
+import org.elasticsearch.geometry.utils.WellKnownText;
+import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoLineMultiValuesSource;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -30,21 +41,231 @@ import static org.elasticsearch.xpack.spatial.search.aggregations.GeoLineAggrega
  * bucket based on whether there are too many items in the bucket that
  * need to be dropped based on their sort value.
  */
-class TimeSeriesGeoLineBucketedSort extends BucketedSort.ForDoubles {
+class TimeSeriesGeoLineBucketedSort extends LeafBucketCollector implements BucketedSort.ExtraData {
     private final GeoLineMultiValuesSource valuesSources;
     private final SortOrder sortOrder;
+    private final int bucketSize;
+    private int tsidOrd;
+    private Simplifier simplifier;
+    private Leaf leaf;
 
     TimeSeriesGeoLineBucketedSort(
-        BigArrays bigArrays,
         SortOrder sortOrder,
-        DocValueFormat format,
         int bucketSize,
         GeoLineMultiValuesSource valuesSources,
-        GeoLineBucketedSort.Extra extra
+        int tsidOrd,
+        Simplifier simplifier
     ) {
-        super(bigArrays, sortOrder, format, bucketSize, extra);
         this.valuesSources = valuesSources;
         this.sortOrder = sortOrder;
+        this.bucketSize = bucketSize;
+        this.tsidOrd = tsidOrd;
+        this.simplifier = simplifier;
+    }
+
+    int length() {
+        return simplifier.length();
+    }
+
+    void reset() {
+        simplifier.reset();
+    }
+
+    @Override
+    public Loader loader(LeafReaderContext ctx) {
+        final MultiGeoPointValues docGeoPointValues = valuesSources.getGeoPointField(
+            GeoLineAggregationBuilder.POINT_FIELD.getPreferredName(),
+            ctx
+        );
+        return (index, doc) -> {
+            if (false == docGeoPointValues.advanceExact(doc)) {
+                return;
+            }
+
+            if (docGeoPointValues.docValueCount() > 1) {
+                throw new AggregationExecutionException(
+                    "Encountered more than one geo_point value for a "
+                        + "single document. Use a script to combine multiple geo_point-values-per-doc into a single value."
+                );
+            }
+
+            final GeoPoint point = docGeoPointValues.nextValue();
+            simplifier.consume(point.getX(), point.getY());
+        };
+    }
+
+    @Override
+    public void collect(int doc, long owningBucketOrd) throws IOException {
+        leaf.collect(doc, owningBucketOrd);
+    }
+
+    public void setAggregationExecutionContext(AggregationExecutionContext aggCtx) throws IOException {
+        this.tsidOrd = aggCtx.getTsidOrd();
+        this.leaf = new Leaf(aggCtx.getLeafReaderContext());
+    }
+
+    public int getTsidOrd() {
+        return tsidOrd;
+    }
+
+    /**
+     * Wrapper for points and sort fields that it also usable in the GeometrySimplifier library,
+     * allowing us to track which points will survive geometry simplification during geo_line aggregations.
+     */
+    private static class SimplifiablePoint extends StreamingGeometrySimplifier.PointError {
+        private double sortValue;
+        private long encoded;
+
+        private SimplifiablePoint(int index, double x, double y, double sortValue) {
+            super(index, x, y);
+            this.sortValue = sortValue;
+            setEncoded(x, y);
+        }
+
+        public StreamingGeometrySimplifier.PointError reset(int index, double x, double y, double sortValue) {
+            super.reset(index, x, y);
+            this.sortValue = sortValue;
+            setEncoded(x, y);
+            return this;
+        }
+
+        private void setEncoded(double x, double y) {
+            this.encoded = (((long) GeoEncodingUtils.encodeLongitude(x)) << 32) | GeoEncodingUtils.encodeLatitude(y) & 0xffffffffL;
+        }
+    }
+
+    /** Controlled memory version of Line from streaming data */
+    private static class LineStream implements Geometry {
+        private final long[] encodedPoints;
+        private final double[] sortValues;
+
+        private LineStream(int length, StreamingGeometrySimplifier.PointError[] points) {
+            this.encodedPoints = new long[length];
+            this.sortValues = new double[length];
+            for (int i = 0; i < length; i++) {
+                SimplifiablePoint p = (SimplifiablePoint) points[i];
+                encodedPoints[i] = p.encoded;
+                sortValues[i] = p.sortValue;
+            }
+        }
+
+        @Override
+        public ShapeType type() {
+            return ShapeType.LINESTRING;
+        }
+
+        @Override
+        public <T, E extends Exception> T visit(GeometryVisitor<T, E> visitor) throws E {
+            double[] x = new double[encodedPoints.length];
+            double[] y = new double[encodedPoints.length];
+            for (int i = 0; i < encodedPoints.length; i++) {
+                x[i] = decodeLongitude(encodedPoints[i]);
+                y[i] = decodeLatitude(encodedPoints[i]);
+            }
+            Line line = new Line(x, y);
+            return visitor.visit(line);
+        }
+
+        private static double decodeLongitude(long encoded) {
+            return GeoEncodingUtils.decodeLongitude((int) (encoded >>> 32));
+        }
+
+        private static double decodeLatitude(long encoded) {
+            return GeoEncodingUtils.decodeLatitude((int) (encoded & 0xffffffffL));
+        }
+
+        @Override
+        public boolean isEmpty() {
+            return encodedPoints.length == 0;
+        }
+
+        @Override
+        public String toString() {
+            return WellKnownText.toWKT(this);
+        }
+
+        public int length() {
+            return encodedPoints.length;
+        }
+    }
+
+    private static class TestGeometrySimplifierMonitor implements StreamingGeometrySimplifier.Monitor {
+        private int addedCount;
+        private int removedCount;
+
+        public void reset() {
+            addedCount = 0;
+            removedCount = 0;
+        }
+
+        @Override
+        public void pointAdded(String status, List<SimplificationErrorCalculator.PointLike> points) {
+            addedCount++;
+            System.out.println("Adding point " + points.get(points.size() - 1));
+        }
+
+        @Override
+        public void pointRemoved(
+            String status,
+            List<SimplificationErrorCalculator.PointLike> points,
+            SimplificationErrorCalculator.PointLike removed,
+            double error,
+            SimplificationErrorCalculator.PointLike previous,
+            SimplificationErrorCalculator.PointLike next
+        ) {
+            addedCount++;
+            removedCount++;
+            System.out.println("Adding point " + points.get(points.size() - 1) + " and removing point " + removed);
+        }
+
+        @Override
+        public void startSimplification(String description, int maxPoints) {}
+
+        @Override
+        public void endSimplification(String description, List<SimplificationErrorCalculator.PointLike> points) {}
+    }
+
+    /**
+     * Wrapping the Streaming GeometrySimplifier allowing the aggregation to extract
+     * expected points and their sort fields after simplification
+     */
+    static class Simplifier extends StreamingGeometrySimplifier<LineStream>
+        implements
+            StreamingGeometrySimplifier.PointConstructor,
+            StreamingGeometrySimplifier.PointResetter {
+        double currentSortValue;
+
+        Simplifier(int maxPoints) {
+            super("GeoLineTSDB", maxPoints, SimplificationErrorCalculator.TRIANGLE_AREA, new TestGeometrySimplifierMonitor());
+            this.pointConstructor = this;
+            this.pointResetter = this;
+        }
+
+        @Override
+        public void reset() {
+            System.out.println("Resetting!");
+            new Exception("Stack trace").printStackTrace(System.out);
+            super.reset();
+        }
+
+        @Override
+        public PointError newPoint(int index, double x, double y) {
+            return new SimplifiablePoint(index, x, y, currentSortValue);
+        }
+
+        @Override
+        public PointError resetPoint(PointError point, int index, double x, double y) {
+            return ((SimplifiablePoint) point).reset(index, x, y, currentSortValue);
+        }
+
+        @Override
+        public LineStream produce() {
+            return new LineStream(this.length, this.points);
+        }
+
+        public int length() {
+            return length;
+        }
     }
 
     /** Build the aggregation based on saved state from the collector phase */
@@ -57,111 +278,69 @@ class TimeSeriesGeoLineBucketedSort extends BucketedSort.ForDoubles {
         int size,
         Function<Long, Long> circuitBreaker
     ) {
-        circuitBreaker.apply((Double.SIZE + Long.SIZE) * sizeOf(bucket));
-        double[] sortVals = getSortValues(bucket);
-        long[] bucketLine = getPoints(bucket);
-        PathArraySorter.forOrder(sortOrder).apply(bucketLine, sortVals).sort();
+        circuitBreaker.apply((Double.SIZE + Long.SIZE) * (long) size);
+        LineStream line = simplifier.produce();
+        if (line.isEmpty()) {
+            // TODO: Perhaps we should return an empty geo_line here?
+            throw new IllegalStateException("Invalid bucket " + bucket + " for geo_line");
+        }
+        double[] sortVals = line.sortValues;
+        long[] bucketLine = line.encodedPoints;
+        if (sortOrder == SortOrder.ASC) {
+            // time-series is natively sorted DESC, so we need to reverse the order
+            ArrayUtils.reverseSubArray(sortVals, 0, sortVals.length);
+            ArrayUtils.reverseSubArray(bucketLine, 0, bucketLine.length);
+        }
         return new InternalGeoLine(name, bucketLine, sortVals, metadata, complete, includeSorts, sortOrder, size);
     }
 
-    long sizeOf(long bucket) {
-        int bucketSize = getBucketSize();
-        long rootIndex = bucket * bucketSize;
-        if (rootIndex >= values().size()) {
-            // We've never seen this bucket.
-            return 0;
-        }
-        long start = inHeapMode(bucket) ? rootIndex : (rootIndex + getNextGatherOffset(rootIndex) + 1);
-        long end = rootIndex + bucketSize;
-        long size = 0;
-        for (long index = start; index < end; index++) {
-            if (((GeoLineBucketedSort.Extra) extra).empty.isEmpty(index) == false) {
-                size += 1;
-            }
-        }
-        return size;
-    }
+    protected class Leaf {
+        private final SortedNumericDoubleValues docSortValues;
+        private double docValue;  // TODO: This can be removed
+        private final Loader loader;
 
-    /**
-     * @param bucket the bucket ordinal
-     * @return the array of sort-values for the specific bucket. This array may not necessarily be heapified already, so no ordering is
-     *         guaranteed.
-     */
-    double[] getSortValues(long bucket) {
-        int bucketSize = getBucketSize();
-        long rootIndex = bucket * bucketSize;
-        if (rootIndex >= values().size()) {
-            // We've never seen this bucket.
-            return new double[] {};
+        protected Leaf(LeafReaderContext ctx) throws IOException {
+            System.out.println("\n\n**** Constructing new Leaf " + ctx.ord);
+            // TODO: Should the sort field be hard-coded for time-series? Or just validated earlier on?
+            docSortValues = valuesSources.getNumericField(SORT_FIELD.getPreferredName(), ctx);
+            loader = TimeSeriesGeoLineBucketedSort.this.loader(ctx);
         }
-        long start = inHeapMode(bucket) ? rootIndex : (rootIndex + getNextGatherOffset(rootIndex) + 1);
-        long end = rootIndex + bucketSize;
-        double[] result = new double[(int) sizeOf(bucket)];
-        int i = 0;
-        for (long index = start; index < end; index++) {
-            if (((GeoLineBucketedSort.Extra) extra).empty.isEmpty(index) == false) {
-                double timestampValue = ((DoubleArray) values()).get(index);
-                result[i++] = timestampValue;
-            }
-        }
-        return result;
-    }
 
-    /**
-     * @param bucket the bucket ordinal
-     * @return the array of points, ordered by their respective sort-value for the specific bucket.
-     */
-    long[] getPoints(long bucket) {
-        int bucketSize = getBucketSize();
-        long rootIndex = bucket * bucketSize;
-        if (rootIndex >= values().size()) {
-            // We've never seen this bucket.
-            return new long[] {};
-        }
-        long start = inHeapMode(bucket) ? rootIndex : (rootIndex + getNextGatherOffset(rootIndex) + 1);
-        long end = rootIndex + bucketSize;
-        long[] result = new long[(int) sizeOf(bucket)];
-        int i = 0;
-        for (long index = start; index < end; index++) {
-            if (((GeoLineBucketedSort.Extra) extra).empty.isEmpty(index) == false) {
-                long geoPointValue = ((GeoLineBucketedSort.Extra) extra).values.get(index);
-                result[i++] = geoPointValue;
+        protected boolean advanceExact(int doc) throws IOException {
+            if (docSortValues.advanceExact(doc)) {
+                // If we get here from TSDB `position` metric, this assertion should have been made during indexing
+                if (docSortValues.docValueCount() > 1) {
+                    throw new AggregationExecutionException(
+                        "Encountered more than one sort value for a "
+                            + "single document. Use a script to combine multiple sort-values-per-doc into a single value."
+                    );
+                }
+
+                // There should always be one weight if advanceExact lands us here, either
+                // a real weight or a `missing` weight
+                assert docSortValues.docValueCount() == 1;
+                docValue = docSortValues.nextValue();
+                return true;
+            } else {
+                docValue = Long.MIN_VALUE;
             }
+            // TODO: We might not need this customer loader, if we can access the docValue from outside the leaf
+            simplifier.currentSortValue = docValue;
+            return false;
         }
-        return result;
+
+        public void collect(int doc, long bucket) throws IOException {
+            System.out.println("collect(" + doc + ", " + bucket + ") for sort-order " + sortOrder);
+            if (false == advanceExact(doc)) {
+                return;
+            }
+            simplifier.currentSortValue = docValue;
+            loader.loadFromDoc(bucket, doc);
+        }
     }
 
     @Override
-    public BucketedSort.Leaf forLeaf(LeafReaderContext ctx) throws IOException {
-        return new BucketedSort.ForDoubles.Leaf(ctx) {
-            private final SortedNumericDoubleValues docSortValues = valuesSources.getNumericField(SORT_FIELD.getPreferredName(), ctx);
-            private double docValue;
-
-            @Override
-            protected boolean advanceExact(int doc) throws IOException {
-                if (docSortValues.advanceExact(doc)) {
-                    if (docSortValues.docValueCount() > 1) {
-                        throw new AggregationExecutionException(
-                            "Encountered more than one sort value for a "
-                                + "single document. Use a script to combine multiple sort-values-per-doc into a single value."
-                        );
-                    }
-
-                    // There should always be one weight if advanceExact lands us here, either
-                    // a real weight or a `missing` weight
-                    assert docSortValues.docValueCount() == 1;
-                    docValue = docSortValues.nextValue();
-                    return true;
-                } else {
-                    docValue = Long.MIN_VALUE;
-                }
-                return false;
-            }
-
-            @Override
-            protected double docValue() {
-                return docValue;
-            }
-        };
+    public void swap(long lhs, long rhs) {
+        throw new IllegalStateException("No sorting should be called in time-series aggregation");
     }
 }

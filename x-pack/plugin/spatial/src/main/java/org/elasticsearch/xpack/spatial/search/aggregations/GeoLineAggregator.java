@@ -23,6 +23,7 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoLineMultiValuesSource;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -32,8 +33,6 @@ abstract class GeoLineAggregator extends MetricsAggregator {
     /** Multiple ValuesSource with field names */
     protected final GeoLineMultiValuesSource valuesSources;
 
-    protected final BigArrays bigArrays;
-    protected LongArray counts;
     protected final boolean includeSorts;
     protected final SortOrder sortOrder;
     protected final int size;
@@ -50,7 +49,6 @@ abstract class GeoLineAggregator extends MetricsAggregator {
     ) throws IOException {
         super(name, context, parent, metaData);
         this.valuesSources = valuesSources;
-        this.bigArrays = context.bigArrays();
         this.includeSorts = includeSorts;
         this.sortOrder = sortOrder;
         this.size = size;
@@ -64,30 +62,9 @@ abstract class GeoLineAggregator extends MetricsAggregator {
         return super.scoreMode();
     }
 
-    protected abstract BucketedSort.Leaf getLeafSort(AggregationExecutionContext aggCtx) throws IOException;
-
-    @Override
-    public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, final LeafBucketCollector sub) throws IOException {
-        BucketedSort.Leaf leafSort = getLeafSort(aggCtx);
-
-        return new LeafBucketCollector() {
-            @Override
-            public void collect(int doc, long bucket) throws IOException {
-                leafSort.collect(doc, bucket);
-                counts = bigArrays.grow(counts, bucket + 1);
-                counts.increment(bucket, 1);
-            }
-        };
-    }
-
     @Override
     public InternalAggregation buildEmptyAggregation() {
         return new InternalGeoLine(name, new long[0], new double[0], metadata(), true, includeSorts, sortOrder, size);
-    }
-
-    @Override
-    public void doClose() {
-        Releasables.close(counts);
     }
 
     static class Empty extends GeoLineAggregator {
@@ -109,11 +86,6 @@ abstract class GeoLineAggregator extends MetricsAggregator {
         }
 
         @Override
-        protected BucketedSort.Leaf getLeafSort(AggregationExecutionContext aggCtx) {
-            return null;
-        }
-
-        @Override
         public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, final LeafBucketCollector sub) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
@@ -125,6 +97,8 @@ abstract class GeoLineAggregator extends MetricsAggregator {
     }
 
     static class Normal extends GeoLineAggregator {
+        protected final BigArrays bigArrays;
+        protected LongArray counts;
         private final GeoLineBucketedSort sort;
         private final GeoLineBucketedSort.Extra extra;
 
@@ -139,19 +113,24 @@ abstract class GeoLineAggregator extends MetricsAggregator {
             int size
         ) throws IOException {
             super(name, valuesSources, context, parent, metaData, includeSorts, sortOrder, size);
-            if (valuesSources != null) {
-                this.extra = new GeoLineBucketedSort.Extra(bigArrays, valuesSources);
-                this.sort = new GeoLineBucketedSort(bigArrays, sortOrder, null, size, valuesSources, extra);
-                this.counts = bigArrays.newLongArray(1, true);
-            } else {
-                this.extra = null;
-                this.sort = null;
-            }
+            this.bigArrays = context.bigArrays();
+            this.extra = new GeoLineBucketedSort.Extra(bigArrays, valuesSources);
+            this.sort = new GeoLineBucketedSort(bigArrays, sortOrder, null, size, valuesSources, extra);
+            this.counts = bigArrays.newLongArray(1, true);
         }
 
         @Override
-        protected BucketedSort.Leaf getLeafSort(AggregationExecutionContext aggCtx) throws IOException {
-            return sort.forLeaf(aggCtx.getLeafReaderContext());
+        public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, final LeafBucketCollector sub) throws IOException {
+            BucketedSort.Leaf leafSort = sort.forLeaf(aggCtx.getLeafReaderContext());
+
+            return new LeafBucketCollector() {
+                @Override
+                public void collect(int doc, long bucket) throws IOException {
+                    leafSort.collect(doc, bucket);
+                    counts = bigArrays.grow(counts, bucket + 1);
+                    counts.increment(bucket, 1);
+                }
+            };
         }
 
         @Override
@@ -166,13 +145,15 @@ abstract class GeoLineAggregator extends MetricsAggregator {
         @Override
         public void doClose() {
             super.doClose();
-            Releasables.close(sort, extra);
+            Releasables.close(counts, sort, extra);
         }
     }
 
     static class TimeSeries extends GeoLineAggregator {
-        private final GeoLineBucketedSort sort;
-        private final GeoLineBucketedSort.Extra extra;
+        private final TimeSeriesGeoLineBucketedSort sort;
+        private final HashMap<Long, InternalAggregation> geoLines = new HashMap<>();
+        private int tsidOrd;
+        private TimeSeriesGeoLineBucketedSort.Simplifier simplifier;
 
         TimeSeries(
             String name,
@@ -185,34 +166,68 @@ abstract class GeoLineAggregator extends MetricsAggregator {
             int size
         ) throws IOException {
             super(name, valuesSources, context, parent, metaData, includeSorts, sortOrder, size);
-            if (valuesSources != null) {
-                this.extra = new GeoLineBucketedSort.Extra(bigArrays, valuesSources);
-                this.sort = new GeoLineBucketedSort(bigArrays, sortOrder, null, size, valuesSources, extra);
-                this.counts = bigArrays.newLongArray(1, true);
-            } else {
-                this.extra = null;
-                this.sort = null;
+            this.tsidOrd = -1;
+            this.simplifier = new TimeSeriesGeoLineBucketedSort.Simplifier(size);
+            this.sort = new TimeSeriesGeoLineBucketedSort(sortOrder, size, valuesSources, tsidOrd, simplifier);
+        }
+
+        private void postCollectLastCollector() {
+            System.out.println(
+                "\n**** post-collection (last collector) - previous TsidOrd=" + sort.getTsidOrd() + " new TsidOrd=" + tsidOrd + " ***\n"
+            );
+            if (sort.getTsidOrd() != tsidOrd && sort.getTsidOrd() != -1) {
+                flushBucket();
             }
         }
 
         @Override
-        protected BucketedSort.Leaf getLeafSort(AggregationExecutionContext aggCtx) throws IOException {
-            return sort.forLeaf(aggCtx.getLeafReaderContext());
+        protected void doPostCollection() {
+            System.out.println("\n**** post-collection ***\n");
+            this.tsidOrd = -1;
+            postCollectLastCollector();
+        }
+
+        @Override
+        public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, final LeafBucketCollector sub) throws IOException {
+            // TODO: We should use bucket id not tsid for nested aggregations
+            this.tsidOrd = aggCtx.getTsidOrd();
+            postCollectLastCollector();
+            sort.setAggregationExecutionContext(aggCtx);
+            System.out.println("Agg context: " + aggCtx);
+            System.out.println("Leaf reader context: " + aggCtx.getLeafReaderContext());
+            System.out.println("TSID ord: " + aggCtx.getTsidOrd());
+            return sort;
+        }
+
+        private InternalGeoLine makeAggregation(long bucket) {
+            boolean complete = sort.length() < size;
+            return sort.buildAggregation(bucket, name, metadata(), complete, includeSorts, size, this::addRequestCircuitBreakerBytes);
+        }
+
+        private void flushBucket() {
+            // TODO use bucket not TsidOrd
+            System.out.println("Flushing geoline to bucket " + sort.getTsidOrd());
+            geoLines.put((long) sort.getTsidOrd(), makeAggregation(sort.getTsidOrd()));
+            sort.reset();
         }
 
         @Override
         public InternalAggregation buildAggregation(long bucket) {
-            if (bucket >= counts.size()) {
-                return buildEmptyAggregation();
+            if (geoLines.containsKey(bucket)) {
+                return geoLines.get(bucket);
             }
-            boolean complete = counts.get(bucket) <= size;
-            return sort.buildAggregation(bucket, name, metadata(), complete, includeSorts, size, this::addRequestCircuitBreakerBytes);
+            // TODO: remove this as it is already done in doPostCollection
+            if (sort.getTsidOrd() == bucket) {
+                flushBucket();
+                return geoLines.get(bucket);
+            }
+            return buildEmptyAggregation();
         }
 
         @Override
         public void doClose() {
             super.doClose();
-            Releasables.close(sort, extra);
+            simplifier.reset();
         }
     }
 }

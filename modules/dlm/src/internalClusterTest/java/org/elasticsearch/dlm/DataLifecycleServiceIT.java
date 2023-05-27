@@ -259,6 +259,7 @@ public class DataLifecycleServiceIT extends ESIntegTestCase {
         });
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/96084")
     public void testAutomaticForceMerge() throws Exception {
         /*
          * This test makes sure that (1) DLM does _not_ call forcemerge on an index in the same DLM pass when it rolls over the index and

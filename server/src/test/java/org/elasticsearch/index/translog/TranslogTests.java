@@ -1024,7 +1024,7 @@ public class TranslogTests extends ESTestCase {
                             fail("duplicate op [" + op + "], old entry at " + location);
                         }
                         if (id % writers.length == threadId) {
-                            translog.ensureSynced(location, SequenceNumbers.NO_OPS_PERFORMED);
+                            translog.ensureSynced(location, SequenceNumbers.UNASSIGNED_SEQ_NO);
                         }
                         if (id % flushEveryOps == 0) {
                             synchronized (flushMutex) {
@@ -1165,7 +1165,7 @@ public class TranslogTests extends ESTestCase {
     public void testSyncUpToLocationAndCheckpoint() throws IOException {
         assertFalse(
             "translog empty location and not ops performed will not require sync",
-            translog.ensureSynced(Location.EMPTY, SequenceNumbers.NO_OPS_PERFORMED)
+            translog.ensureSynced(Location.EMPTY, SequenceNumbers.UNASSIGNED_SEQ_NO)
         );
 
         int iters = randomIntBetween(25, 50);
@@ -1197,7 +1197,7 @@ public class TranslogTests extends ESTestCase {
                     Location randomLocationToSync = locationsInCurrentGeneration.get(randomInt(locationsInCurrentGeneration.size() - 1));
                     assertTrue(
                         "this operation has not been synced",
-                        translog.ensureSynced(randomLocationToSync, SequenceNumbers.NO_OPS_PERFORMED)
+                        translog.ensureSynced(randomLocationToSync, SequenceNumbers.UNASSIGNED_SEQ_NO)
                     );
                 } else {
                     long globalCheckpointToSync = randomLongBetween(translog.getLastSyncedGlobalCheckpoint() + 1, globalCheckpoint.get());
@@ -1223,7 +1223,7 @@ public class TranslogTests extends ESTestCase {
 
             Collections.shuffle(locations, random());
             for (Location l : locations) {
-                assertFalse("all of the locations should be synced: " + l, translog.ensureSynced(l, SequenceNumbers.NO_OPS_PERFORMED));
+                assertFalse("all of the locations should be synced: " + l, translog.ensureSynced(l, SequenceNumbers.UNASSIGNED_SEQ_NO));
             }
 
             alreadySynced = location;
@@ -2555,7 +2555,7 @@ public class TranslogTests extends ESTestCase {
         try {
             Translog.Location location = translog.add(indexOp("2", 1, primaryTerm.get(), lineFileDocs.nextDoc().toString()));
             if (randomBoolean()) {
-                translog.ensureSynced(location, SequenceNumbers.NO_OPS_PERFORMED);
+                translog.ensureSynced(location, SequenceNumbers.UNASSIGNED_SEQ_NO);
             } else {
                 translog.sync();
             }

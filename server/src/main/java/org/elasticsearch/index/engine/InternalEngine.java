@@ -623,10 +623,13 @@ public class InternalEngine extends Engine {
             protected void write(List<Tuple<Tuple<Long, Translog.Location>, Consumer<Exception>>> candidates) throws IOException {
                 try {
                     Translog.Location location = Translog.Location.EMPTY;
-                    long processGlobalCheckpoint = SequenceNumbers.NO_OPS_PERFORMED;
+                    long processGlobalCheckpoint = SequenceNumbers.UNASSIGNED_SEQ_NO;
                     for (Tuple<Tuple<Long, Translog.Location>, Consumer<Exception>> syncMarkers : candidates) {
                         Tuple<Long, Translog.Location> marker = syncMarkers.v1();
-                        processGlobalCheckpoint = SequenceNumbers.max(processGlobalCheckpoint, marker.v1());
+                        long globalCheckpointToSync = marker.v1();
+                        if (globalCheckpointToSync != SequenceNumbers.UNASSIGNED_SEQ_NO) {
+                            processGlobalCheckpoint = SequenceNumbers.max(processGlobalCheckpoint, globalCheckpointToSync);
+                        }
                         location = location.compareTo(marker.v2()) >= 0 ? location : marker.v2();
                     }
 

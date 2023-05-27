@@ -40,12 +40,16 @@ import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator.Exchange
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceOperator.ExchangeSourceOperatorFactory;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
+import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
+import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.GrokExec;
@@ -58,7 +62,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.RowExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
-import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -98,7 +102,7 @@ public class LocalExecutionPlanner {
     private final String sessionId;
     private final BigArrays bigArrays;
     private final ThreadPool threadPool;
-    private final QueryPragmas queryPragmas;
+    private final EsqlConfiguration configuration;
     private final ExchangeService exchangeService;
     private final PhysicalOperationProviders physicalOperationProviders;
 
@@ -106,7 +110,7 @@ public class LocalExecutionPlanner {
         String sessionId,
         BigArrays bigArrays,
         ThreadPool threadPool,
-        QueryPragmas queryPragmas,
+        EsqlConfiguration configuration,
         ExchangeService exchangeService,
         PhysicalOperationProviders physicalOperationProviders
     ) {
@@ -115,7 +119,7 @@ public class LocalExecutionPlanner {
         this.threadPool = threadPool;
         this.exchangeService = exchangeService;
         this.physicalOperationProviders = physicalOperationProviders;
-        this.queryPragmas = queryPragmas;
+        this.configuration = configuration;
     }
 
     /**
@@ -125,8 +129,8 @@ public class LocalExecutionPlanner {
         var context = new LocalExecutionPlannerContext(
             new ArrayList<>(),
             new Holder<>(DriverParallelism.SINGLE),
-            queryPragmas.taskConcurrency(),
-            queryPragmas.dataPartitioning(),
+            configuration.pragmas().taskConcurrency(),
+            configuration.pragmas().dataPartitioning(),
             bigArrays
         );
 
@@ -172,10 +176,14 @@ public class LocalExecutionPlanner {
             return planLocal(localSource, context);
         } else if (node instanceof ShowExec show) {
             return planShow(show);
+        } else if (node instanceof ExchangeSourceExec exchangeSource) {
+            return planExchangeSource(exchangeSource);
         }
         // output
         else if (node instanceof OutputExec outputExec) {
             return planOutput(outputExec, context);
+        } else if (node instanceof ExchangeSinkExec exchangeSink) {
+            return planExchangeSink(exchangeSink, context);
         }
 
         throw new UnsupportedOperationException(node.nodeName());
@@ -186,6 +194,16 @@ public class LocalExecutionPlanner {
     }
 
     private PhysicalOperation planEsQueryNode(EsQueryExec esQuery, LocalExecutionPlannerContext context) {
+        if (esQuery.query() == null) {
+            esQuery = new EsQueryExec(
+                esQuery.source(),
+                esQuery.index(),
+                esQuery.output(),
+                new MatchAllQueryBuilder(),
+                esQuery.limit(),
+                esQuery.sorts()
+            );
+        }
         return physicalOperationProviders.sourcePhysicalOperation(esQuery, context);
     }
 
@@ -243,10 +261,7 @@ public class LocalExecutionPlanner {
             return new Page(blocks);
         } : Function.identity();
 
-        return source.withSink(
-            new OutputOperatorFactory(Expressions.names(outputExec.output()), mapper, outputExec.getPageConsumer()),
-            source.layout
-        );
+        return source.withSink(new OutputOperatorFactory(Expressions.names(output), mapper, outputExec.getPageConsumer()), source.layout);
     }
 
     private PhysicalOperation planExchange(ExchangeExec exchangeExec, LocalExecutionPlannerContext context) {
@@ -258,10 +273,11 @@ public class LocalExecutionPlanner {
                 PhysicalOperation source = plan(exchangeExec.child(), subContext);
                 Layout layout = source.layout;
 
-                var sinkHandler = new ExchangeSinkHandler(queryPragmas.exchangeBufferSize());
+                var pragmas = configuration.pragmas();
+                var sinkHandler = new ExchangeSinkHandler(pragmas.exchangeBufferSize());
                 var executor = threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION);
-                var sourceHandler = new ExchangeSourceHandler(queryPragmas.exchangeBufferSize(), executor);
-                sourceHandler.addRemoteSink(sinkHandler::fetchPageAsync, queryPragmas.concurrentExchangeClients());
+                var sourceHandler = new ExchangeSourceHandler(pragmas.exchangeBufferSize(), executor);
+                sourceHandler.addRemoteSink(sinkHandler::fetchPageAsync, pragmas.concurrentExchangeClients());
                 PhysicalOperation sinkOperator = source.withSink(
                     new ExchangeSinkOperatorFactory(sinkHandler::createExchangeSink),
                     source.layout
@@ -270,30 +286,31 @@ public class LocalExecutionPlanner {
                 context.addDriverFactory(new DriverFactory(new DriverSupplier(context.bigArrays, sinkOperator), driverParallelism));
                 yield PhysicalOperation.fromSource(new ExchangeSourceOperatorFactory(sourceHandler::createExchangeSource), layout);
             }
-            case REMOTE_SINK -> {
-                var sinkHandler = exchangeService.getSinkHandler(sessionId, true);
-                PhysicalOperation source = plan(exchangeExec.child(), context);
-                yield source.withSink(new ExchangeSinkOperatorFactory(sinkHandler::createExchangeSink), source.layout);
-            }
-            case REMOTE_SOURCE -> {
-                final Layout layout;
-                if (exchangeExec.child() instanceof ExchangeExec remoteSink) {
-                    LocalExecutionPlannerContext dummyContext = new LocalExecutionPlannerContext(
-                        new ArrayList<>(),
-                        new Holder<>(DriverParallelism.SINGLE),
-                        context.taskConcurrency,
-                        context.dataPartitioning,
-                        context.bigArrays
-                    );
-                    PhysicalOperation source = plan(remoteSink.child(), dummyContext);
-                    layout = source.layout;
-                } else {
-                    throw new IllegalStateException("Expected remote sink; got " + exchangeExec.child());
-                }
-                var sourceHandler = exchangeService.getSourceHandler(sessionId, true);
-                yield PhysicalOperation.fromSource(new ExchangeSourceOperatorFactory(sourceHandler::createExchangeSource), layout);
+            case REMOTE -> {
+                throw new EsqlIllegalArgumentException("Remote exchange needs to be replaced with a sink/source");
             }
         };
+    }
+
+    private PhysicalOperation planExchangeSink(ExchangeSinkExec exchangeSink, LocalExecutionPlannerContext context) {
+        var sinkHandler = exchangeService.getSinkHandler(sessionId, true);
+        PhysicalOperation source = plan(exchangeSink.child(), context);
+        return source.withSink(new ExchangeSinkOperatorFactory(sinkHandler::createExchangeSink), source.layout);
+    }
+
+    private PhysicalOperation planExchangeSource(ExchangeSourceExec exchangeSource) {
+        // TODO: ugly hack for now to get the same layout - need to properly support it and have it exposed in the plan and over the wire
+        LocalExecutionPlannerContext dummyContext = new LocalExecutionPlannerContext(
+            new ArrayList<>(),
+            new Holder<>(DriverParallelism.SINGLE),
+            1,
+            DataPartitioning.SHARD,
+            BigArrays.NON_RECYCLING_INSTANCE
+        );
+
+        var planToGetLayout = plan(exchangeSource.nodeLayout(), dummyContext);
+        var sourceHandler = exchangeService.getSourceHandler(sessionId, true);
+        return PhysicalOperation.fromSource(new ExchangeSourceOperatorFactory(sourceHandler::createExchangeSource), planToGetLayout.layout);
     }
 
     private PhysicalOperation planTopN(TopNExec topNExec, LocalExecutionPlannerContext context) {

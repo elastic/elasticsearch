@@ -52,7 +52,6 @@ public class ExchangeExec extends UnaryExec {
 
     public enum Mode {
         LOCAL,
-        REMOTE_SINK,
-        REMOTE_SOURCE
+        REMOTE,
     }
 }

@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAlias;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.ql.expression.UnresolvedNamedExpression;
 import org.elasticsearch.xpack.ql.expression.UnresolvedStar;
 import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
@@ -43,7 +44,7 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
-import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 
 public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeSubclassTests<T, B> {
@@ -56,6 +57,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         UnresolvedAlias.class,
         UnresolvedException.class,
         UnresolvedFunction.class,
+        UnresolvedNamedExpression.class,
         UnresolvedStar.class
     );
 
@@ -85,13 +87,13 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
 
     @Override
     protected Object pluggableMakeParameterizedArg(Class<? extends Node<?>> toBuildClass, ParameterizedType pt) {
-        if (toBuildClass == OutputExec.class && pt.getRawType() == BiConsumer.class) {
+        if (toBuildClass == OutputExec.class && pt.getRawType() == Consumer.class) {
             // pageConsumer just needs a BiConsumer. But the consumer has to have reasonable
             // `equals` for randomValueOtherThan, so we just ensure that a new instance is
             // created each time which uses Object::equals identity.
-            return new BiConsumer<List<String>, Page>() {
+            return new Consumer<Page>() {
                 @Override
-                public void accept(List<String> strings, Page page) {
+                public void accept(Page page) {
                     // do nothing
                 }
             };

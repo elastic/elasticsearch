@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
+import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 
 import java.io.IOException;
 import java.util.function.Function;
@@ -38,8 +39,13 @@ public final class PlanStreamOutput extends OutputStreamStreamOutput {
         this.nameSupplier = nameSupplier;
     }
 
+    public void writeLogicalPlanNode(LogicalPlan logicalPlan) throws IOException {
+        assert logicalPlan.children().size() <= 1;
+        writeNamed(LogicalPlan.class, logicalPlan);
+    }
+
     public void writePhysicalPlanNode(PhysicalPlan physicalPlan) throws IOException {
-        assert physicalPlan.children().size() == 0 || physicalPlan.children().size() == 1;
+        assert physicalPlan.children().size() <= 1;
         writeNamed(PhysicalPlan.class, physicalPlan);
     }
 

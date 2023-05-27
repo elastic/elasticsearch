@@ -29,6 +29,7 @@ import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.logging.LogManager;
@@ -46,18 +47,15 @@ import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
-import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
-import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
-import org.elasticsearch.xpack.ql.util.Holder;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -107,50 +105,49 @@ public class ComputeService {
         EsqlConfiguration configuration,
         ActionListener<List<Page>> outListener
     ) {
+        Tuple<PhysicalPlan, PhysicalPlan> coordinatorAndDataNodePlan = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(physicalPlan);
+        PhysicalPlan coordinatorPlan = coordinatorAndDataNodePlan.v1();
+        PhysicalPlan dataNodePlan = coordinatorAndDataNodePlan.v2();
+
+        var indexNames = PlannerUtils.planIndices(dataNodePlan);
+
         final List<Page> collectedPages = Collections.synchronizedList(new ArrayList<>());
-        String[] indexNames = physicalPlan.collect(l -> l instanceof EsQueryExec)
-            .stream()
-            .map(qe -> ((EsQueryExec) qe).index().concreteIndices())
-            .flatMap(Collection::stream)
-            .distinct()
-            .toArray(String[]::new);
-        PhysicalPlan planForDataNodes = planForDataNodes(physicalPlan);
-        PhysicalPlan planForCoordinator = new OutputExec(physicalPlan, (c, p) -> collectedPages.add(p));
+        coordinatorPlan = new OutputExec(coordinatorPlan, collectedPages::add);
         QueryPragmas queryPragmas = configuration.pragmas();
-        if (indexNames.length == 0 || planForDataNodes == null) {
-            runCompute(sessionId, rootTask, planForCoordinator, List.of(), queryPragmas, outListener.map(unused -> collectedPages));
+
+        var computeContext = new ComputeContext(sessionId, List.of(), configuration);
+
+        if (indexNames.length == 0) {
+            runCompute(rootTask, computeContext, coordinatorPlan, outListener.map(unused -> collectedPages));
             return;
         }
+
         ClusterState clusterState = clusterService.state();
         Map<String, List<ShardId>> targetNodes = computeTargetNodes(clusterState, indexNames);
+
         final ExchangeSourceHandler sourceHandler = exchangeService.createSourceHandler(sessionId, queryPragmas.exchangeBufferSize());
         final ActionListener<Void> listener = ActionListener.releaseAfter(
             outListener.map(unused -> collectedPages),
             () -> exchangeService.completeSourceHandler(sessionId)
         );
+
         final AtomicBoolean cancelled = new AtomicBoolean();
         try (RefCountingListener refs = new RefCountingListener(listener)) {
             // run compute on the coordinator
-            runCompute(
-                sessionId,
-                rootTask,
-                planForCoordinator,
-                List.of(),
-                queryPragmas,
-                cancelOnFailure(rootTask, cancelled, refs.acquire())
-            );
+            runCompute(rootTask, computeContext, coordinatorPlan, cancelOnFailure(rootTask, cancelled, refs.acquire()));
             // link with exchange sinks
             for (String targetNode : targetNodes.keySet()) {
                 var remoteSink = exchangeService.newRemoteSink(rootTask, sessionId, transportService, clusterState.nodes().get(targetNode));
                 sourceHandler.addRemoteSink(remoteSink, queryPragmas.concurrentExchangeClients());
             }
+
             // dispatch compute requests to data nodes
             for (Map.Entry<String, List<ShardId>> e : targetNodes.entrySet()) {
                 DiscoveryNode targetNode = clusterState.nodes().get(e.getKey());
                 transportService.sendChildRequest(
                     targetNode,
                     DATA_ACTION_NAME,
-                    new DataNodeRequest(sessionId, queryPragmas, e.getValue(), planForDataNodes),
+                    new DataNodeRequest(sessionId, configuration, e.getValue(), dataNodePlan),
                     rootTask,
                     TransportRequestOptions.EMPTY,
                     new ActionListenerResponseHandler<TransportResponse>(
@@ -172,28 +169,25 @@ public class ComputeService {
         });
     }
 
-    void runCompute(
-        String sessionId,
-        Task task,
-        PhysicalPlan plan,
-        List<SearchContext> searchContexts,
-        QueryPragmas queryPragmas,
-        ActionListener<Void> listener
-    ) {
+    void runCompute(Task task, ComputeContext context, PhysicalPlan plan, ActionListener<Void> listener) {
         List<Driver> drivers = new ArrayList<>();
         listener = ActionListener.releaseAfter(listener, () -> Releasables.close(drivers));
         try {
             LocalExecutionPlanner planner = new LocalExecutionPlanner(
-                sessionId,
+                context.sessionId,
                 bigArrays,
                 threadPool,
-                queryPragmas,
+                context.configuration,
                 exchangeService,
-                new EsPhysicalOperationProviders(searchContexts)
+                new EsPhysicalOperationProviders(context.searchContexts)
             );
+
+            LOGGER.info("Received physical plan:\n{}", plan);
+            plan = PlannerUtils.localPlan(context.searchContexts, context.configuration, plan);
             LocalExecutionPlanner.LocalExecutionPlan localExecutionPlan = planner.plan(plan);
+
             LOGGER.info("Local execution plan:\n{}", localExecutionPlan.describe());
-            drivers.addAll(localExecutionPlan.createDrivers(sessionId));
+            drivers.addAll(localExecutionPlan.createDrivers(context.sessionId));
             if (drivers.isEmpty()) {
                 throw new IllegalStateException("no drivers created");
             }
@@ -267,16 +261,6 @@ public class ComputeService {
         return nodes;
     }
 
-    public static PhysicalPlan planForDataNodes(PhysicalPlan plan) {
-        Holder<ExchangeExec> exchange = new Holder<>();
-        plan.forEachDown(ExchangeExec.class, e -> {
-            if (e.mode() == ExchangeExec.Mode.REMOTE_SINK) {
-                exchange.set(e);
-            }
-        });
-        return exchange.get();
-    }
-
     // TODO: To include stats/profiles
     private static class DataNodeResponse extends TransportResponse {
         DataNodeResponse() {}
@@ -306,14 +290,14 @@ public class ComputeService {
                 );
                 exchangeService.createSinkHandler(sessionId, request.pragmas().exchangeBufferSize());
                 runCompute(
-                    sessionId,
                     task,
+                    new ComputeContext(sessionId, searchContexts, request.configuration()),
                     request.plan(),
-                    searchContexts,
-                    request.pragmas(),
                     ActionListener.releaseAfter(listener.map(unused -> new DataNodeResponse()), releasable)
                 );
             }, listener::onFailure));
         }
     }
+
+    record ComputeContext(String sessionId, List<SearchContext> searchContexts, EsqlConfiguration configuration) {}
 }

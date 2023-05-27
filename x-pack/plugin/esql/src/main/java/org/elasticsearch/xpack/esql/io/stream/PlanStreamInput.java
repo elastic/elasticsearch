@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.ql.expression.AttributeSet;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.NameId;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
+import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.EsField;
 
@@ -72,6 +73,10 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput {
             throw new IOException("Unknown DataType for type name: " + typeName);
         }
         return dataType;
+    }
+
+    public LogicalPlan readLogicalPlanNode() throws IOException {
+        return readNamed(LogicalPlan.class);
     }
 
     public PhysicalPlan readPhysicalPlanNode() throws IOException {

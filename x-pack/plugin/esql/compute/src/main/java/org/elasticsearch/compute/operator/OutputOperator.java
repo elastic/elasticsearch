@@ -11,7 +11,7 @@ import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.Page;
 
 import java.util.List;
-import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static java.util.stream.Collectors.joining;
@@ -24,10 +24,10 @@ import static java.util.stream.Collectors.joining;
 public class OutputOperator extends SinkOperator {
 
     private final List<String> columns;
-    private final BiConsumer<List<String>, Page> pageConsumer;
+    private final Consumer<Page> pageConsumer;
     private final Function<Page, Page> mapper;
 
-    public record OutputOperatorFactory(List<String> columns, Function<Page, Page> mapper, BiConsumer<List<String>, Page> pageConsumer)
+    public record OutputOperatorFactory(List<String> columns, Function<Page, Page> mapper, Consumer<Page> pageConsumer)
         implements
             SinkOperatorFactory {
 
@@ -42,7 +42,7 @@ public class OutputOperator extends SinkOperator {
         }
     }
 
-    public OutputOperator(List<String> columns, Function<Page, Page> mapper, BiConsumer<List<String>, Page> pageConsumer) {
+    public OutputOperator(List<String> columns, Function<Page, Page> mapper, Consumer<Page> pageConsumer) {
         this.columns = columns;
         this.mapper = mapper;
         this.pageConsumer = pageConsumer;
@@ -67,7 +67,7 @@ public class OutputOperator extends SinkOperator {
 
     @Override
     public void addInput(Page page) {
-        pageConsumer.accept(columns, mapper.apply(page));
+        pageConsumer.accept(mapper.apply(page));
     }
 
     @Override

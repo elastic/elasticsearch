@@ -35,8 +35,11 @@ import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
+import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
+import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
+import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.GrokExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
@@ -102,8 +105,11 @@ public class PlanNamedTypesTests extends ESTestCase {
         EsSourceExec.class,
         EvalExec.class,
         ExchangeExec.class,
+        ExchangeSinkExec.class,
+        ExchangeSourceExec.class,
         FieldExtractExec.class,
         FilterExec.class,
+        FragmentExec.class,
         GrokExec.class,
         LimitExec.class,
         MvExpandExec.class,

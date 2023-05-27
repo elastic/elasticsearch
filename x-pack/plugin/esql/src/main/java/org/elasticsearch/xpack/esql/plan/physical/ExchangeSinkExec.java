@@ -10,23 +10,19 @@ package org.elasticsearch.xpack.esql.plan.physical;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 
-/**
- * Scope marked used as a delimiter inside the plan.
- * Currently used to demarcate a per-segment local plan.
- */
-public class LocalPlanExec extends UnaryExec {
+public class ExchangeSinkExec extends UnaryExec {
 
-    public LocalPlanExec(Source source, PhysicalPlan child) {
+    public ExchangeSinkExec(Source source, PhysicalPlan child) {
         super(source, child);
     }
 
     @Override
-    public UnaryExec replaceChild(PhysicalPlan newChild) {
-        return new LocalPlanExec(source(), newChild);
+    protected NodeInfo<? extends ExchangeSinkExec> info() {
+        return NodeInfo.create(this, ExchangeSinkExec::new, child());
     }
 
     @Override
-    protected NodeInfo<? extends PhysicalPlan> info() {
-        return NodeInfo.create(this, LocalPlanExec::new, child());
+    public ExchangeSinkExec replaceChild(PhysicalPlan newChild) {
+        return new ExchangeSinkExec(source(), newChild);
     }
 }

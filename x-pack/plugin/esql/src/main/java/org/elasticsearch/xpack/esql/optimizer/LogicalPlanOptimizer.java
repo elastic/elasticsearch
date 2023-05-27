@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.IsNul
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
+import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
@@ -71,7 +72,11 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
     }
 
     @Override
-    protected Iterable<RuleExecutor.Batch<LogicalPlan>> batches() {
+    protected List<Batch<LogicalPlan>> batches() {
+        return rules();
+    }
+
+    protected static List<Batch<LogicalPlan>> rules() {
         var operators = new Batch<>(
             "Operator Optimization",
             new CombineProjections(),
@@ -101,10 +106,11 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
             new PruneRedundantSortClauses()
         );
 
-        var local = new Batch<>("Skip Compute", new SkipQueryOnLimitZero());
+        var skip = new Batch<>("Skip Compute", new SkipQueryOnLimitZero());
+        var cleanup = new Batch<>("Clean Up", new ReplaceLimitAndSortAsTopN());
         var label = new Batch<>("Set as Optimized", Limiter.ONCE, new SetAsOptimized());
 
-        return asList(operators, local, label);
+        return asList(operators, skip, cleanup, label);
     }
 
     static class ConvertStringToByteRef extends OptimizerRules.OptimizerExpressionRule<Literal> {
@@ -591,6 +597,18 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
         @Override
         protected In createIn(Expression key, List<Expression> values, ZoneId zoneId) {
             return new In(key.source(), key, values);
+        }
+    }
+
+    static class ReplaceLimitAndSortAsTopN extends OptimizerRules.OptimizerRule<Limit> {
+
+        @Override
+        protected LogicalPlan rule(Limit plan) {
+            LogicalPlan p = plan;
+            if (plan.child() instanceof OrderBy o) {
+                p = new TopN(plan.source(), o.child(), o.order(), plan.limit());
+            }
+            return p;
         }
     }
 }

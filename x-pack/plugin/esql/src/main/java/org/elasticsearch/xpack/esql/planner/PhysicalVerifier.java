@@ -26,19 +26,17 @@ public final class PhysicalVerifier {
     public Collection<Failure> verify(PhysicalPlan plan) {
         Set<Failure> failures = new LinkedHashSet<>();
 
-        plan.forEachDown(p -> {
-            if (p instanceof FieldExtractExec fieldExtractExec) {
-                Attribute sourceAttribute = fieldExtractExec.sourceAttribute();
-                if (sourceAttribute == null) {
-                    failures.add(
-                        fail(
-                            fieldExtractExec,
-                            "Need to add field extractor for [{}] but cannot detect source attributes from node [{}]",
-                            Expressions.names(fieldExtractExec.attributesToExtract()),
-                            fieldExtractExec.child()
-                        )
-                    );
-                }
+        plan.forEachDown(FieldExtractExec.class, fieldExtractExec -> {
+            Attribute sourceAttribute = fieldExtractExec.sourceAttribute();
+            if (sourceAttribute == null) {
+                failures.add(
+                    fail(
+                        fieldExtractExec,
+                        "Need to add field extractor for [{}] but cannot detect source attributes from node [{}]",
+                        Expressions.names(fieldExtractExec.attributesToExtract()),
+                        fieldExtractExec.child()
+                    )
+                );
             }
         });
 

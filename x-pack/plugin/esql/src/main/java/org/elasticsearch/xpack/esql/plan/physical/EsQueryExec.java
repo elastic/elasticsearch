@@ -92,12 +92,16 @@ public class EsQueryExec extends LeafExec {
         return sorts;
     }
 
+    public EsQueryExec withQuery(QueryBuilder query) {
+        return Objects.equals(this.query, query) ? this : new EsQueryExec(source(), index, attrs, query, limit, sorts);
+    }
+
     public EsQueryExec withLimit(Expression limit) {
-        return new EsQueryExec(source(), index, attrs, query, limit, sorts);
+        return Objects.equals(this.limit, limit) ? this : new EsQueryExec(source(), index, attrs, query, limit, sorts);
     }
 
     public EsQueryExec withSorts(List<FieldSort> sorts) {
-        return new EsQueryExec(source(), index, attrs, query, limit, sorts);
+        return Objects.equals(this.sorts, sorts) ? this : new EsQueryExec(source(), index, attrs, query, limit, sorts);
     }
 
     @Override

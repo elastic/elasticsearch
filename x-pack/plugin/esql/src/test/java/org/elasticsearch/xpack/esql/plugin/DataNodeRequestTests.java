@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.compute.lucene.DataPartitioning;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
@@ -24,6 +23,7 @@ import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.Mapper;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
+import org.elasticsearch.xpack.esql.session.EsqlConfigurationSerializationTests;
 import org.elasticsearch.xpack.esql.stats.Metrics;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.ql.index.EsIndex;
@@ -48,7 +48,6 @@ public class DataNodeRequestTests extends AbstractWireSerializingTestCase<DataNo
     @Override
     protected DataNodeRequest createTestInstance() {
         var sessionId = randomAlphaOfLength(10);
-        var pragmas = Settings.builder().put(QueryPragmas.DATA_PARTITIONING.getKey(), randomFrom(DataPartitioning.values()));
         String query = randomFrom("""
             from test
             | where round(emp_no) > 10
@@ -64,7 +63,12 @@ public class DataNodeRequestTests extends AbstractWireSerializingTestCase<DataNo
             """);
         List<ShardId> shardIds = randomList(1, 10, () -> new ShardId("index-" + between(1, 10), "n/a", between(1, 10)));
         PhysicalPlan physicalPlan = mapAndMaybeOptimize(parse(query));
-        DataNodeRequest request = new DataNodeRequest(sessionId, new QueryPragmas(pragmas.build()), shardIds, physicalPlan);
+        DataNodeRequest request = new DataNodeRequest(
+            sessionId,
+            EsqlConfigurationSerializationTests.randomConfiguration(),
+            shardIds,
+            physicalPlan
+        );
         request.setParentTask(randomAlphaOfLength(10), randomNonNegativeLong());
         return request;
     }
@@ -73,19 +77,23 @@ public class DataNodeRequestTests extends AbstractWireSerializingTestCase<DataNo
     protected DataNodeRequest mutateInstance(DataNodeRequest in) throws IOException {
         return switch (between(0, 4)) {
             case 0 -> {
-                var request = new DataNodeRequest(randomAlphaOfLength(20), in.pragmas(), in.shardIds(), in.plan());
+                var request = new DataNodeRequest(randomAlphaOfLength(20), in.configuration(), in.shardIds(), in.plan());
                 request.setParentTask(in.getParentTask());
                 yield request;
             }
             case 1 -> {
-                var pragmas = Settings.builder().put(QueryPragmas.EXCHANGE_BUFFER_SIZE.getKey(), between(1, 10));
-                var request = new DataNodeRequest(in.sessionId(), new QueryPragmas(pragmas.build()), in.shardIds(), in.plan());
+                var request = new DataNodeRequest(
+                    in.sessionId(),
+                    EsqlConfigurationSerializationTests.randomConfiguration(),
+                    in.shardIds(),
+                    in.plan()
+                );
                 request.setParentTask(in.getParentTask());
                 yield request;
             }
             case 2 -> {
                 List<ShardId> shardIds = randomList(1, 10, () -> new ShardId("new-index-" + between(1, 10), "n/a", between(1, 10)));
-                var request = new DataNodeRequest(in.sessionId(), in.pragmas(), shardIds, in.plan());
+                var request = new DataNodeRequest(in.sessionId(), in.configuration(), shardIds, in.plan());
                 request.setParentTask(in.getParentTask());
                 yield request;
             }
@@ -103,12 +111,12 @@ public class DataNodeRequestTests extends AbstractWireSerializingTestCase<DataNo
                     | eval c = first_name
                     | stats x = avg(salary)
                     """);
-                var request = new DataNodeRequest(in.sessionId(), in.pragmas(), in.shardIds(), mapAndMaybeOptimize(parse(newQuery)));
+                var request = new DataNodeRequest(in.sessionId(), in.configuration(), in.shardIds(), mapAndMaybeOptimize(parse(newQuery)));
                 request.setParentTask(in.getParentTask());
                 yield request;
             }
             case 4 -> {
-                var request = new DataNodeRequest(in.sessionId(), in.pragmas(), in.shardIds(), in.plan());
+                var request = new DataNodeRequest(in.sessionId(), in.configuration(), in.shardIds(), in.plan());
                 request.setParentTask(
                     randomValueOtherThan(request.getParentTask().getNodeId(), () -> randomAlphaOfLength(10)),
                     randomNonNegativeLong()

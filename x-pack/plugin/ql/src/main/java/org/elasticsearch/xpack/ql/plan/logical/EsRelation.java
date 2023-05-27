@@ -32,7 +32,6 @@ public class EsRelation extends LeafPlan {
 
     public EsRelation(Source source, EsIndex index, List<Attribute> attributes) {
         this(source, index, attributes, false);
-
     }
 
     private EsRelation(Source source, EsIndex index, List<Attribute> attributes, boolean frozen) {

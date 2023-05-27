@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 
 import java.io.IOException;
 import java.util.List;
@@ -29,15 +30,15 @@ import java.util.Objects;
 final class DataNodeRequest extends TransportRequest implements IndicesRequest {
     private static final PlanNameRegistry planNameRegistry = new PlanNameRegistry();
     private final String sessionId;
-    private final QueryPragmas pragmas;
+    private final EsqlConfiguration configuration;
     private final List<ShardId> shardIds;
     private final PhysicalPlan plan;
 
     private String[] indices; // lazily computed
 
-    DataNodeRequest(String sessionId, QueryPragmas pragmas, List<ShardId> shardIds, PhysicalPlan plan) {
+    DataNodeRequest(String sessionId, EsqlConfiguration configuration, List<ShardId> shardIds, PhysicalPlan plan) {
         this.sessionId = sessionId;
-        this.pragmas = pragmas;
+        this.configuration = configuration;
         this.shardIds = shardIds;
         this.plan = plan;
     }
@@ -45,7 +46,7 @@ final class DataNodeRequest extends TransportRequest implements IndicesRequest {
     DataNodeRequest(StreamInput in) throws IOException {
         super(in);
         this.sessionId = in.readString();
-        this.pragmas = new QueryPragmas(in);
+        this.configuration = new EsqlConfiguration(in);
         this.shardIds = in.readList(ShardId::new);
         this.plan = new PlanStreamInput(in, planNameRegistry, in.namedWriteableRegistry()).readPhysicalPlanNode();
     }
@@ -54,7 +55,7 @@ final class DataNodeRequest extends TransportRequest implements IndicesRequest {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(sessionId);
-        pragmas.writeTo(out);
+        configuration.writeTo(out);
         out.writeList(shardIds);
         new PlanStreamOutput(out, planNameRegistry).writePhysicalPlanNode(plan);
     }
@@ -90,8 +91,12 @@ final class DataNodeRequest extends TransportRequest implements IndicesRequest {
         return sessionId;
     }
 
+    EsqlConfiguration configuration() {
+        return configuration;
+    }
+
     QueryPragmas pragmas() {
-        return pragmas;
+        return configuration.pragmas();
     }
 
     List<ShardId> shardIds() {
@@ -118,7 +123,7 @@ final class DataNodeRequest extends TransportRequest implements IndicesRequest {
         if (o == null || getClass() != o.getClass()) return false;
         DataNodeRequest request = (DataNodeRequest) o;
         return sessionId.equals(request.sessionId)
-            && pragmas.equals(request.pragmas)
+            && configuration.equals(request.configuration)
             && shardIds.equals(request.shardIds)
             && plan.equals(request.plan)
             && getParentTask().equals(request.getParentTask());
@@ -126,6 +131,6 @@ final class DataNodeRequest extends TransportRequest implements IndicesRequest {
 
     @Override
     public int hashCode() {
-        return Objects.hash(sessionId, pragmas, shardIds, plan);
+        return Objects.hash(sessionId, configuration, shardIds, plan);
     }
 }

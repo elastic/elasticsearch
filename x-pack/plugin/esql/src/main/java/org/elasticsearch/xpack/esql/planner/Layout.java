@@ -8,8 +8,10 @@
 package org.elasticsearch.xpack.esql.planner;
 
 import org.elasticsearch.xpack.ql.expression.NameId;
+import org.elasticsearch.xpack.ql.expression.NamedExpression;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -91,19 +93,28 @@ public class Layout {
          * Appends a new channel to the layout. The channel is mapped to a single attribute id.
          * @param id the attribute id
          */
-        public void appendChannel(NameId id) {
+        public Builder appendChannel(NameId id) {
             channels.add(Set.of(id));
+            return this;
         }
 
         /**
          * Appends a new channel to the layout. The channel is mapped to one or more attribute ids.
          * @param ids the attribute ids
          */
-        public void appendChannel(Set<NameId> ids) {
+        public Builder appendChannel(Set<NameId> ids) {
             if (ids.size() < 1) {
                 throw new IllegalArgumentException("Channel must be mapped to at least one id.");
             }
             channels.add(ids);
+            return this;
+        }
+
+        public Builder appendChannels(Collection<? extends NamedExpression> attributes) {
+            for (var attribute : attributes) {
+                appendChannel(attribute.id());
+            }
+            return this;
         }
 
         public Layout build() {

@@ -11,24 +11,23 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 
-import java.util.List;
-import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 public class OutputExec extends UnaryExec {
 
-    private final BiConsumer<List<String>, Page> pageConsumer;
+    private final Consumer<Page> pageConsumer;
 
-    public OutputExec(PhysicalPlan child, BiConsumer<List<String>, Page> pageConsumer) {
+    public OutputExec(PhysicalPlan child, Consumer<Page> pageConsumer) {
         super(null, child);
         this.pageConsumer = pageConsumer;
     }
 
-    public OutputExec(Source source, PhysicalPlan child, BiConsumer<List<String>, Page> pageConsumer) {
+    public OutputExec(Source source, PhysicalPlan child, Consumer<Page> pageConsumer) {
         super(source, child);
         this.pageConsumer = pageConsumer;
     }
 
-    public BiConsumer<List<String>, Page> getPageConsumer() {
+    public Consumer<Page> getPageConsumer() {
         return pageConsumer;
     }
 

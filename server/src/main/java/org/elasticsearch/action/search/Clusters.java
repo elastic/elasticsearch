@@ -71,6 +71,9 @@ public class Clusters implements ToXContentFragment, Writeable {
     /**
      * Creates a Clusters object in its "final" state, where successful + skipped = total.
      * All clusters must be accounted for.
+     * @param total total number of clusters being searched
+     * @param successful
+     * @param skipped
      */
     public Clusters(int total, int successful, int skipped) {
         this(total, successful, skipped, true);
@@ -84,7 +87,7 @@ public class Clusters implements ToXContentFragment, Writeable {
      */
     protected Clusters(int total, int successful, int skipped, boolean finalState) {
         assert total >= 0 && successful >= 0 && skipped >= 0 : "total: " + total + " successful: " + successful + " skipped: " + skipped;
-        assert finalState == false || successful <= total && skipped == total - successful
+        assert finalState == false || (successful <= total && skipped == total - successful)
             : "total: " + total + " successful: " + successful + " skipped: " + skipped;
         this.total = total;
         this.successful = successful;

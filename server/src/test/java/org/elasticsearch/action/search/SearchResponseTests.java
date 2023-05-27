@@ -145,7 +145,7 @@ public class SearchResponseTests extends ESTestCase {
             }
             // Clusters has an assert that if ccsMinimizeRoundtrips = true, then remoteClusters must be > 0
             boolean ccsMinimizeRoundtrips = (remoteClusters > 0 ? randomBoolean() : false);
-            return new Clusters(totalClusters, successfulClusters, skippedClusters, remoteClusters, ccsMinimizeRoundtrips);
+            return new CcsClusters(totalClusters, successfulClusters, skippedClusters, remoteClusters, ccsMinimizeRoundtrips);
         }
     }
 

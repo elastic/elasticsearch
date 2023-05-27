@@ -322,7 +322,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                             ? searchService.aggReduceContextBuilder(task::isCancelled, rewritten.source().aggregations())
                             : null;
                     final int totalClusters = (localIndices == null ? 0 : 1) + remoteClusterIndices.size();
-                    var initClusters = new Clusters(totalClusters, 0, 0, remoteClusterIndices.size(), true);
+                    var initClusters = new CcsClusters(totalClusters, 0, 0, remoteClusterIndices.size(), true);
                     if (localIndices == null) {
                         // Notify the progress listener that a CCS with minimize_roundtrips is happening remote-only (no local shards)
                         task.getProgressListener().notifyListShards(Collections.emptyList(), Collections.emptyList(), initClusters, false);

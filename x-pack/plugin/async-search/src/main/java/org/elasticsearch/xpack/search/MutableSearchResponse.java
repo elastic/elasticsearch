@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.search.CcsClusters;
 import org.elasticsearch.action.search.Clusters;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
@@ -116,7 +117,7 @@ class MutableSearchResponse {
             // currently only ccsMinimizeRoundTrip=true creates Clusters in their initial state (where successful=0)
             // ccsMinimizeRoundtrips=false creates Clusters in its final state even at the beginning (successful+skipped=total)
             // so update the clusters object 'successful' count if local cluster search is done AND ccsMinimizeRoundtrips=true
-            Clusters newClusters = new Clusters(
+            Clusters newClusters = new CcsClusters(
                 clusters.getTotal(),
                 clusters.getSuccessful() + 1,
                 clusters.getSkipped(),

@@ -87,7 +87,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     private final AtomicInteger successfulOps = new AtomicInteger();
     private final AtomicInteger skippedOps = new AtomicInteger();
     private final SearchTimeProvider timeProvider;
-    private final SearchResponse.Clusters clusters;
+    private final Clusters clusters;
 
     protected final GroupShardsIterator<SearchShardIterator> toSkipShardsIts;
     protected final GroupShardsIterator<SearchShardIterator> shardsIts;
@@ -118,7 +118,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         SearchTask task,
         SearchPhaseResults<Result> resultConsumer,
         int maxConcurrentRequestsPerNode,
-        SearchResponse.Clusters clusters
+        Clusters clusters
     ) {
         super(name);
         final List<SearchShardIterator> toSkipIterators = new ArrayList<>();
@@ -168,11 +168,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         this.clusters = clusters;
     }
 
-    protected void notifyListShards(
-        SearchProgressListener progressListener,
-        SearchResponse.Clusters clusters,
-        SearchSourceBuilder sourceBuilder
-    ) {
+    protected void notifyListShards(SearchProgressListener progressListener, Clusters clusters, SearchSourceBuilder sourceBuilder) {
         progressListener.notifyListShards(
             SearchProgressListener.buildSearchShards(this.shardsIts),
             SearchProgressListener.buildSearchShards(toSkipShardsIts),

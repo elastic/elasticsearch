@@ -262,7 +262,7 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
                     0,
                     buildTookInMillis(),
                     buildShardFailures(),
-                    SearchResponse.Clusters.EMPTY,
+                    Clusters.EMPTY,
                     null
                 )
             );

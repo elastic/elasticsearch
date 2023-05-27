@@ -115,7 +115,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
             Map<String, Float> concreteIndexBoosts,
             boolean preFilter,
             ThreadPool threadPool,
-            SearchResponse.Clusters clusters
+            Clusters clusters
         ) {
             return new AbstractSearchAsyncAction<>(
                 actionName,

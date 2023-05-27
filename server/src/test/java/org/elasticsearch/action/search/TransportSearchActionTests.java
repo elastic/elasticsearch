@@ -487,7 +487,7 @@ public class TransportSearchActionTests extends ESTestCase {
             null,
             1
         );
-        return new SearchResponse(response, null, 1, 1, 0, 100, ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY, null);
+        return new SearchResponse(response, null, 1, 1, 0, 100, ShardSearchFailure.EMPTY_ARRAY, Clusters.EMPTY, null);
     }
 
     public void testCCSRemoteReduceMergeFails() throws Exception {

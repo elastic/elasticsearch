@@ -15,6 +15,7 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.search.Clusters;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
@@ -95,7 +96,7 @@ public class TransformIndexerStateTests extends ESTestCase {
         0,
         0,
         ShardSearchFailure.EMPTY_ARRAY,
-        SearchResponse.Clusters.EMPTY
+        Clusters.EMPTY
     );
 
     private Client client;

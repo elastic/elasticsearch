@@ -30,6 +30,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.ClearScrollResponse;
+import org.elasticsearch.action.search.Clusters;
 import org.elasticsearch.action.search.ReduceSearchPhaseException;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequest;
@@ -572,16 +573,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
             0
         );
         InternalSearchResponse internalResponse = new InternalSearchResponse(hits, null, null, null, false, false, 1);
-        SearchResponse searchResponse = new SearchResponse(
-            internalResponse,
-            scrollId(),
-            5,
-            4,
-            0,
-            randomLong(),
-            null,
-            SearchResponse.Clusters.EMPTY
-        );
+        SearchResponse searchResponse = new SearchResponse(internalResponse, scrollId(), 5, 4, 0, randomLong(), null, Clusters.EMPTY);
 
         client.lastSearch.get().listener.onResponse(searchResponse);
 

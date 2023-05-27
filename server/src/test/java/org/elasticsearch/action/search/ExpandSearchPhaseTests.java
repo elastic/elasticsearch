@@ -162,7 +162,7 @@ public class ExpandSearchPhaseTests extends ESTestCase {
                     0,
                     0,
                     ShardSearchFailure.EMPTY_ARRAY,
-                    SearchResponse.Clusters.EMPTY
+                    Clusters.EMPTY
                 );
                 listener.onResponse(
                     new MultiSearchResponse(

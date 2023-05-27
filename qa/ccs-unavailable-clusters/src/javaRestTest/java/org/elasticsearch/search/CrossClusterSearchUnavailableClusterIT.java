@@ -19,6 +19,7 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.search.Clusters;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -127,7 +128,7 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
                     0,
                     100,
                     ShardSearchFailure.EMPTY_ARRAY,
-                    SearchResponse.Clusters.EMPTY
+                    Clusters.EMPTY
                 );
                 channel.sendResponse(searchResponse);
             });
@@ -177,7 +178,7 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
 
             {
                 SearchResponse response = restHighLevelClient.search(new SearchRequest("index"), RequestOptions.DEFAULT);
-                assertSame(SearchResponse.Clusters.EMPTY, response.getClusters());
+                assertSame(Clusters.EMPTY, response.getClusters());
                 assertEquals(10, response.getHits().getTotalHits().value);
                 assertEquals(10, response.getHits().getHits().length);
             }
@@ -209,7 +210,7 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
                 assertEquals(10, response.getHits().getHits().length);
                 String scrollId = response.getScrollId();
                 SearchResponse scrollResponse = restHighLevelClient.scroll(new SearchScrollRequest(scrollId), RequestOptions.DEFAULT);
-                assertSame(SearchResponse.Clusters.EMPTY, scrollResponse.getClusters());
+                assertSame(Clusters.EMPTY, scrollResponse.getClusters());
                 assertEquals(10, scrollResponse.getHits().getTotalHits().value);
                 assertEquals(0, scrollResponse.getHits().getHits().length);
             }
@@ -246,7 +247,7 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
                 assertEquals(10, response.getHits().getHits().length);
                 String scrollId = response.getScrollId();
                 SearchResponse scrollResponse = restHighLevelClient.scroll(new SearchScrollRequest(scrollId), RequestOptions.DEFAULT);
-                assertSame(SearchResponse.Clusters.EMPTY, scrollResponse.getClusters());
+                assertSame(Clusters.EMPTY, scrollResponse.getClusters());
                 assertEquals(10, scrollResponse.getHits().getTotalHits().value);
                 assertEquals(0, scrollResponse.getHits().getHits().length);
             }

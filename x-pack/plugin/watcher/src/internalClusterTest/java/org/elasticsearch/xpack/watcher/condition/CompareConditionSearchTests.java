@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.watcher.condition;
 
 import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.action.search.Clusters;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.index.shard.ShardId;
@@ -107,7 +108,7 @@ public class CompareConditionSearchTests extends AbstractWatcherIntegrationTestC
             0,
             500L,
             ShardSearchFailure.EMPTY_ARRAY,
-            SearchResponse.Clusters.EMPTY
+            Clusters.EMPTY
         );
 
         WatchExecutionContext ctx = mockExecutionContext("_watch_name", new Payload.XContent(response, ToXContent.EMPTY_PARAMS));

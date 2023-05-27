@@ -9,6 +9,7 @@
 package org.elasticsearch.script.mustache;
 
 import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.action.search.Clusters;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -64,7 +65,7 @@ public class SearchTemplateResponseTests extends AbstractXContentTestCase<Search
             skippedShards,
             tookInMillis,
             ShardSearchFailure.EMPTY_ARRAY,
-            SearchResponse.Clusters.EMPTY
+            Clusters.EMPTY
         );
     }
 
@@ -178,7 +179,7 @@ public class SearchTemplateResponseTests extends AbstractXContentTestCase<Search
             0,
             0,
             ShardSearchFailure.EMPTY_ARRAY,
-            SearchResponse.Clusters.EMPTY
+            Clusters.EMPTY
         );
 
         SearchTemplateResponse response = new SearchTemplateResponse();

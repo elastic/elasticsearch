@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.search.Clusters;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -256,7 +257,7 @@ public class ClientHelperTests extends ESTestCase {
                 0,
                 0L,
                 ShardSearchFailure.EMPTY_ARRAY,
-                SearchResponse.Clusters.EMPTY
+                Clusters.EMPTY
             )
         );
         when(client.search(any())).thenReturn(searchFuture);
@@ -280,7 +281,7 @@ public class ClientHelperTests extends ESTestCase {
                 0,
                 0L,
                 ShardSearchFailure.EMPTY_ARRAY,
-                SearchResponse.Clusters.EMPTY
+                Clusters.EMPTY
             )
         );
         when(client.search(any())).thenReturn(searchFuture);
@@ -315,7 +316,7 @@ public class ClientHelperTests extends ESTestCase {
                 0,
                 0L,
                 ShardSearchFailure.EMPTY_ARRAY,
-                SearchResponse.Clusters.EMPTY
+                Clusters.EMPTY
             )
         );
         when(client.search(any())).thenReturn(searchFuture);

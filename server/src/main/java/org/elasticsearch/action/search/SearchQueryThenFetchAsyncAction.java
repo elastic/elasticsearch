@@ -50,7 +50,7 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
         final TransportSearchAction.SearchTimeProvider timeProvider,
         ClusterState clusterState,
         SearchTask task,
-        SearchResponse.Clusters clusters
+        Clusters clusters
     ) {
         super(
             "query",

@@ -15,6 +15,7 @@ import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ValidateActions;
+import org.elasticsearch.action.search.Clusters;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
@@ -312,7 +313,7 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
             0,
             1L,
             ShardSearchFailure.EMPTY_ARRAY,
-            SearchResponse.Clusters.EMPTY
+            Clusters.EMPTY
         );
     }
 

@@ -42,7 +42,7 @@ final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction
         final TransportSearchAction.SearchTimeProvider timeProvider,
         final ClusterState clusterState,
         final SearchTask task,
-        SearchResponse.Clusters clusters
+        Clusters clusters
     ) {
         super(
             "dfs",

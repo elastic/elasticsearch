@@ -16,7 +16,6 @@ import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.SearchPhaseController.TopDocsStats;
-import org.elasticsearch.action.search.SearchResponse.Clusters;
 import org.elasticsearch.action.search.TransportSearchAction.SearchTimeProvider;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.index.shard.ShardId;

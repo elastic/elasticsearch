@@ -87,7 +87,7 @@ public class TransportMultiSearchActionTests extends ESTestCase {
                     assertEquals(task.getId(), request.getParentTask().getId());
                     assertEquals(localNodeId, request.getParentTask().getNodeId());
                     counter.incrementAndGet();
-                    listener.onResponse(SearchResponse.empty(() -> 1L, SearchResponse.Clusters.EMPTY));
+                    listener.onResponse(SearchResponse.empty(() -> 1L, Clusters.EMPTY));
                 }
 
                 @Override
@@ -176,7 +176,7 @@ public class TransportMultiSearchActionTests extends ESTestCase {
                             0,
                             0L,
                             ShardSearchFailure.EMPTY_ARRAY,
-                            SearchResponse.Clusters.EMPTY
+                            Clusters.EMPTY
                         )
                     );
                 });

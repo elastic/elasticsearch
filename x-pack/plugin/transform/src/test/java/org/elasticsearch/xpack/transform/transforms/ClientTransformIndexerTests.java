@@ -15,6 +15,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
 import org.elasticsearch.action.search.ClosePointInTimeResponse;
+import org.elasticsearch.action.search.Clusters;
 import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.OpenPointInTimeResponse;
 import org.elasticsearch.action.search.SearchRequest;
@@ -489,7 +490,7 @@ public class ClientTransformIndexerTests extends ESTestCase {
                         0,
                         0,
                         ShardSearchFailure.EMPTY_ARRAY,
-                        SearchResponse.Clusters.EMPTY,
+                        Clusters.EMPTY,
                         // copy the pit from the request
                         searchRequest.pointInTimeBuilder() != null ? searchRequest.pointInTimeBuilder().getEncodedId() + "+" : null
                     );

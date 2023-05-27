@@ -92,7 +92,7 @@ public final class MockSearchPhaseContext implements SearchPhaseContext {
                 0,
                 0,
                 failures.toArray(ShardSearchFailure.EMPTY_ARRAY),
-                SearchResponse.Clusters.EMPTY,
+                Clusters.EMPTY,
                 searchContextId
             )
         );

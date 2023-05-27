@@ -310,7 +310,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     rewritten,
                     localIndices,
                     clusterState,
-                    SearchResponse.Clusters.EMPTY,
+                    Clusters.EMPTY,
                     searchContext,
                     searchPhaseProvider.apply(listener)
                 );
@@ -322,7 +322,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                             ? searchService.aggReduceContextBuilder(task::isCancelled, rewritten.source().aggregations())
                             : null;
                     final int totalClusters = (localIndices == null ? 0 : 1) + remoteClusterIndices.size();
-                    var initClusters = new SearchResponse.Clusters(totalClusters, 0, 0, remoteClusterIndices.size(), true);
+                    var initClusters = new Clusters(totalClusters, 0, 0, remoteClusterIndices.size(), true);
                     if (localIndices == null) {
                         // Notify the progress listener that a CCS with minimize_roundtrips is happening remote-only (no local shards)
                         task.getProgressListener().notifyListShards(Collections.emptyList(), Collections.emptyList(), initClusters, false);
@@ -398,7 +398,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                                 clusterNodeLookup,
                                 clusterState,
                                 remoteAliasFilters,
-                                new SearchResponse.Clusters(totalClusters, successfulClusters, skippedClusters.get()),
+                                new Clusters(totalClusters, successfulClusters, skippedClusters.get()),
                                 searchContext,
                                 searchPhaseProvider.apply(listener)
                             );
@@ -507,7 +507,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                             searchResponse.getSkippedShards(),
                             timeProvider.buildTookInMillis(),
                             searchResponse.getShardFailures(),
-                            new SearchResponse.Clusters(1, 1, 0),
+                            new Clusters(1, 1, 0),
                             searchResponse.pointInTimeId()
                         )
                     );
@@ -516,7 +516,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 @Override
                 public void onFailure(Exception e) {
                     if (skipUnavailable) {
-                        listener.onResponse(SearchResponse.empty(timeProvider::buildTookInMillis, new SearchResponse.Clusters(1, 0, 1)));
+                        listener.onResponse(SearchResponse.empty(timeProvider::buildTookInMillis, new Clusters(1, 0, 1)));
                     } else {
                         listener.onFailure(wrapRemoteClusterFailure(clusterAlias, e));
                     }
@@ -712,11 +712,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
             @Override
             SearchResponse createFinalResponse() {
-                SearchResponse.Clusters clusters = new SearchResponse.Clusters(
-                    totalClusters,
-                    searchResponseMerger.numResponses(),
-                    skippedClusters.get()
-                );
+                Clusters clusters = new Clusters(totalClusters, searchResponseMerger.numResponses(), skippedClusters.get());
                 return searchResponseMerger.getMergedResponse(clusters);
             }
         };
@@ -728,7 +724,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         SearchRequest searchRequest,
         OriginalIndices localIndices,
         ClusterState clusterState,
-        SearchResponse.Clusters clusterInfo,
+        Clusters clusterInfo,
         SearchContextId searchContext,
         SearchPhaseProvider searchPhaseProvider
     ) {
@@ -876,7 +872,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         BiFunction<String, String, DiscoveryNode> remoteConnections,
         ClusterState clusterState,
         Map<String, AliasFilter> remoteAliasMap,
-        SearchResponse.Clusters clusters,
+        Clusters clusters,
         @Nullable SearchContextId searchContext,
         SearchPhaseProvider searchPhaseProvider
     ) {
@@ -1054,7 +1050,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             Map<String, Float> concreteIndexBoosts,
             boolean preFilter,
             ThreadPool threadPool,
-            SearchResponse.Clusters clusters
+            Clusters clusters
         );
     }
 
@@ -1078,7 +1074,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             Map<String, Float> concreteIndexBoosts,
             boolean preFilter,
             ThreadPool threadPool,
-            SearchResponse.Clusters clusters
+            Clusters clusters
         ) {
             if (preFilter) {
                 return new CanMatchPreFilterSearchPhase(

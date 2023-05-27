@@ -18,6 +18,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.MultiGetItemResponse;
 import org.elasticsearch.action.get.MultiGetResponse;
+import org.elasticsearch.action.search.Clusters;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.ActionFilters;
@@ -125,7 +126,7 @@ public class TransportGetPipelineActionTests extends ESTestCase {
             0,
             100,
             ShardSearchFailure.EMPTY_ARRAY,
-            SearchResponse.Clusters.EMPTY,
+            Clusters.EMPTY,
             null
         );
 

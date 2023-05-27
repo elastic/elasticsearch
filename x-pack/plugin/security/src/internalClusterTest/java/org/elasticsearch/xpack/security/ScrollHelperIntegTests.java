@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.search.Clusters;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
@@ -100,7 +101,7 @@ public class ScrollHelperIntegTests extends ESSingleNodeTestCase {
             0,
             0,
             ShardSearchFailure.EMPTY_ARRAY,
-            SearchResponse.Clusters.EMPTY
+            Clusters.EMPTY
         );
 
         Answer<?> returnResponse = invocation -> {

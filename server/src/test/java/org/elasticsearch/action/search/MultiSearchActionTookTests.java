@@ -159,7 +159,7 @@ public class MultiSearchActionTookTests extends ESTestCase {
                             0,
                             0L,
                             ShardSearchFailure.EMPTY_ARRAY,
-                            SearchResponse.Clusters.EMPTY
+                            Clusters.EMPTY
                         )
                     );
                 });

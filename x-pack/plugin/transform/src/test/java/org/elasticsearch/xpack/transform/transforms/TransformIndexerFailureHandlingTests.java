@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.search.Clusters;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -246,7 +247,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
                     0,
                     0,
                     ShardSearchFailure.EMPTY_ARRAY,
-                    SearchResponse.Clusters.EMPTY
+                    Clusters.EMPTY
                 )
             );
         }
@@ -398,7 +399,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             0,
             0,
             ShardSearchFailure.EMPTY_ARRAY,
-            SearchResponse.Clusters.EMPTY
+            Clusters.EMPTY
         );
         AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
         Function<SearchRequest, SearchResponse> searchFunction = searchRequest -> searchResponse;
@@ -536,7 +537,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             0,
             0,
             ShardSearchFailure.EMPTY_ARRAY,
-            SearchResponse.Clusters.EMPTY
+            Clusters.EMPTY
         );
 
         AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
@@ -628,7 +629,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             0,
             0,
             ShardSearchFailure.EMPTY_ARRAY,
-            SearchResponse.Clusters.EMPTY
+            Clusters.EMPTY
         );
 
         AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
@@ -723,7 +724,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             0,
             0,
             ShardSearchFailure.EMPTY_ARRAY,
-            SearchResponse.Clusters.EMPTY
+            Clusters.EMPTY
         );
 
         AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);

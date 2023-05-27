@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.ml.datafeed.extractor;
 
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.action.search.Clusters;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
 
@@ -53,7 +54,7 @@ public interface DataExtractor {
      * @param searchResponse The search response to check for skipped CCS clusters.
      */
     default void checkForSkippedClusters(SearchResponse searchResponse) {
-        SearchResponse.Clusters clusterResponse = searchResponse.getClusters();
+        Clusters clusterResponse = searchResponse.getClusters();
         if (clusterResponse != null && clusterResponse.getSkipped() > 0) {
             throw new ResourceNotFoundException(
                 "[{}] remote clusters out of [{}] were skipped when performing datafeed search",

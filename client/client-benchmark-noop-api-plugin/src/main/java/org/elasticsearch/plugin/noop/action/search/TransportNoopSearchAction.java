@@ -9,6 +9,7 @@ package org.elasticsearch.plugin.noop.action.search;
 
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.search.Clusters;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
@@ -52,7 +53,7 @@ public class TransportNoopSearchAction extends HandledTransportAction<SearchRequ
                 0,
                 0,
                 ShardSearchFailure.EMPTY_ARRAY,
-                SearchResponse.Clusters.EMPTY
+                Clusters.EMPTY
             )
         );
     }

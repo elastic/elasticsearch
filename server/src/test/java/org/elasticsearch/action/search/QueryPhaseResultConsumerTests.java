@@ -91,7 +91,7 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
         for (int i = 0; i < 10; i++) {
             searchShards.add(new SearchShard(null, new ShardId("index", "uuid", i)));
         }
-        searchProgressListener.notifyListShards(searchShards, Collections.emptyList(), SearchResponse.Clusters.EMPTY, false);
+        searchProgressListener.notifyListShards(searchShards, Collections.emptyList(), Clusters.EMPTY, false);
 
         SearchRequest searchRequest = new SearchRequest("index");
         searchRequest.setBatchedReduceSize(2);
@@ -137,12 +137,7 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
         private final AtomicInteger onFinalReduce = new AtomicInteger(0);
 
         @Override
-        protected void onListShards(
-            List<SearchShard> shards,
-            List<SearchShard> skippedShards,
-            SearchResponse.Clusters clusters,
-            boolean fetchPhase
-        ) {
+        protected void onListShards(List<SearchShard> shards, List<SearchShard> skippedShards, Clusters clusters, boolean fetchPhase) {
             throw new UnsupportedOperationException();
         }
 

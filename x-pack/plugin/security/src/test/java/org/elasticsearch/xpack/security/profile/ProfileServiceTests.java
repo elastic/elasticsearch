@@ -23,6 +23,7 @@ import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.search.Clusters;
 import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchRequestBuilder;
@@ -583,8 +584,7 @@ public class ProfileServiceTests extends ESTestCase {
             final ActionListener<MultiSearchResponse> listener = (ActionListener<MultiSearchResponse>) invocation.getArguments()[2];
             listener.onResponse(
                 new MultiSearchResponse(
-                    new MultiSearchResponse.Item[] {
-                        new MultiSearchResponse.Item(SearchResponse.empty(() -> 1L, SearchResponse.Clusters.EMPTY), null) },
+                    new MultiSearchResponse.Item[] { new MultiSearchResponse.Item(SearchResponse.empty(() -> 1L, Clusters.EMPTY), null) },
                     1L
                 )
             );

@@ -16,6 +16,7 @@ import org.elasticsearch.action.admin.cluster.remote.RemoteClusterNodesAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.search.Clusters;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -163,7 +164,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                     0,
                     100,
                     ShardSearchFailure.EMPTY_ARRAY,
-                    SearchResponse.Clusters.EMPTY
+                    Clusters.EMPTY
                 );
                 channel.sendResponse(searchResponse);
             });

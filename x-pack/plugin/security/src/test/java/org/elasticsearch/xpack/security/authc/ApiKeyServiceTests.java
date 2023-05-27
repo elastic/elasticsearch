@@ -27,6 +27,7 @@ import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.search.Clusters;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
@@ -274,7 +275,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         doAnswer(invocationOnMock -> {
             searchRequest.set((SearchRequest) invocationOnMock.getArguments()[0]);
             ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocationOnMock.getArguments()[1];
-            listener.onResponse(SearchResponse.empty(() -> 1L, SearchResponse.Clusters.EMPTY));
+            listener.onResponse(SearchResponse.empty(() -> 1L, Clusters.EMPTY));
             return null;
         }).when(client).search(any(SearchRequest.class), anyActionListener());
         String[] realmNames = generateRandomStringArray(4, 4, true, true);
@@ -327,7 +328,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         doAnswer(invocationOnMock -> {
             searchRequest.set((SearchRequest) invocationOnMock.getArguments()[0]);
             ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocationOnMock.getArguments()[1];
-            listener.onResponse(SearchResponse.empty(() -> 1L, SearchResponse.Clusters.EMPTY));
+            listener.onResponse(SearchResponse.empty(() -> 1L, Clusters.EMPTY));
             return null;
         }).when(client).search(any(SearchRequest.class), anyActionListener());
         PlainActionFuture<InvalidateApiKeyResponse> listener = new PlainActionFuture<>();

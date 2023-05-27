@@ -127,16 +127,16 @@ public class SearchResponseTests extends ESTestCase {
             skippedShards,
             tookInMillis,
             shardSearchFailures,
-            randomBoolean() ? randomClusters() : SearchResponse.Clusters.EMPTY
+            randomBoolean() ? randomClusters() : Clusters.EMPTY
         );
     }
 
-    static SearchResponse.Clusters randomClusters() {
+    static Clusters randomClusters() {
         int totalClusters = randomIntBetween(0, 10);
         int successfulClusters = randomIntBetween(0, totalClusters);
         int skippedClusters = totalClusters - successfulClusters;
         if (randomBoolean()) {
-            return new SearchResponse.Clusters(totalClusters, successfulClusters, skippedClusters);
+            return new Clusters(totalClusters, successfulClusters, skippedClusters);
         } else {
             int remoteClusters = totalClusters;
             if (totalClusters > 0 && randomBoolean()) {
@@ -145,7 +145,7 @@ public class SearchResponseTests extends ESTestCase {
             }
             // Clusters has an assert that if ccsMinimizeRoundtrips = true, then remoteClusters must be > 0
             boolean ccsMinimizeRoundtrips = (remoteClusters > 0 ? randomBoolean() : false);
-            return new SearchResponse.Clusters(totalClusters, successfulClusters, skippedClusters, remoteClusters, ccsMinimizeRoundtrips);
+            return new Clusters(totalClusters, successfulClusters, skippedClusters, remoteClusters, ccsMinimizeRoundtrips);
         }
     }
 
@@ -257,7 +257,7 @@ public class SearchResponseTests extends ESTestCase {
                 0,
                 0,
                 ShardSearchFailure.EMPTY_ARRAY,
-                SearchResponse.Clusters.EMPTY
+                Clusters.EMPTY
             );
             String expectedString = XContentHelper.stripWhitespace("""
                 {
@@ -297,7 +297,7 @@ public class SearchResponseTests extends ESTestCase {
                 0,
                 0,
                 ShardSearchFailure.EMPTY_ARRAY,
-                new SearchResponse.Clusters(5, 3, 2)
+                new Clusters(5, 3, 2)
             );
             String expectedString = XContentHelper.stripWhitespace("""
                 {
@@ -353,7 +353,7 @@ public class SearchResponseTests extends ESTestCase {
             0,
             1,
             ShardSearchFailure.EMPTY_ARRAY,
-            SearchResponse.Clusters.EMPTY
+            Clusters.EMPTY
         );
         SearchResponse deserialized = copyWriteable(searchResponse, namedWriteableRegistry, SearchResponse::new, TransportVersion.CURRENT);
         XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent());

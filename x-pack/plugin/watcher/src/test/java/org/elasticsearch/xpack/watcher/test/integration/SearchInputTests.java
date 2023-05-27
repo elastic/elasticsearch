@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.watcher.test.integration;
 
+import org.elasticsearch.action.search.Clusters;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
@@ -99,7 +100,7 @@ public class SearchInputTests extends ESTestCase {
             0,
             1234,
             ShardSearchFailure.EMPTY_ARRAY,
-            SearchResponse.Clusters.EMPTY
+            Clusters.EMPTY
         );
         searchFuture.onResponse(searchResponse);
         when(client.search(requestCaptor.capture())).thenReturn(searchFuture);
@@ -140,7 +141,7 @@ public class SearchInputTests extends ESTestCase {
             0,
             1234,
             ShardSearchFailure.EMPTY_ARRAY,
-            SearchResponse.Clusters.EMPTY
+            Clusters.EMPTY
         );
         searchFuture.onResponse(searchResponse);
         when(client.search(requestCaptor.capture())).thenReturn(searchFuture);
@@ -195,7 +196,7 @@ public class SearchInputTests extends ESTestCase {
             0,
             1234,
             ShardSearchFailure.EMPTY_ARRAY,
-            SearchResponse.Clusters.EMPTY
+            Clusters.EMPTY
         );
         searchFuture.onResponse(searchResponse);
         when(client.search(requestCaptor.capture())).thenReturn(searchFuture);

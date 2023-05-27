@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.watcher.condition;
 
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.action.search.Clusters;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -103,7 +104,7 @@ public class ScriptConditionTests extends ESTestCase {
             0,
             500L,
             ShardSearchFailure.EMPTY_ARRAY,
-            SearchResponse.Clusters.EMPTY
+            Clusters.EMPTY
         );
         WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.XContent(response, Settings.EMPTY_PARAMS));
         assertFalse(condition.execute(ctx).met());
@@ -125,7 +126,7 @@ public class ScriptConditionTests extends ESTestCase {
             0,
             500L,
             ShardSearchFailure.EMPTY_ARRAY,
-            SearchResponse.Clusters.EMPTY
+            Clusters.EMPTY
         );
         WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.XContent(response, Settings.EMPTY_PARAMS));
         assertFalse(executable.execute(ctx).met());
@@ -147,7 +148,7 @@ public class ScriptConditionTests extends ESTestCase {
             0,
             500L,
             ShardSearchFailure.EMPTY_ARRAY,
-            SearchResponse.Clusters.EMPTY
+            Clusters.EMPTY
         );
         WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.XContent(response, Settings.EMPTY_PARAMS));
 
@@ -219,7 +220,7 @@ public class ScriptConditionTests extends ESTestCase {
             0,
             500L,
             ShardSearchFailure.EMPTY_ARRAY,
-            SearchResponse.Clusters.EMPTY
+            Clusters.EMPTY
         );
         WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.XContent(response, ToXContent.EMPTY_PARAMS));
         ScriptException exception = expectThrows(ScriptException.class, () -> condition.execute(ctx));
@@ -239,7 +240,7 @@ public class ScriptConditionTests extends ESTestCase {
             0,
             500L,
             ShardSearchFailure.EMPTY_ARRAY,
-            SearchResponse.Clusters.EMPTY
+            Clusters.EMPTY
         );
         WatchExecutionContext ctx = mockExecutionContext(
             "_name",

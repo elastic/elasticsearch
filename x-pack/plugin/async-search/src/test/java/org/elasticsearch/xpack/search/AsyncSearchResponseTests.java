@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.search;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.search.Clusters;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.Strings;
@@ -124,7 +125,7 @@ public class AsyncSearchResponseTests extends ESTestCase {
             skippedShards,
             tookInMillis,
             ShardSearchFailure.EMPTY_ARRAY,
-            SearchResponse.Clusters.EMPTY
+            Clusters.EMPTY
         );
     }
 

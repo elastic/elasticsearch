@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.bulk.BackoffPolicy;
+import org.elasticsearch.action.search.Clusters;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -162,16 +163,7 @@ public class ClientScrollableHitSourceTests extends ESTestCase {
             0
         );
         InternalSearchResponse internalResponse = new InternalSearchResponse(hits, null, null, null, false, false, 1);
-        return new SearchResponse(
-            internalResponse,
-            randomSimpleString(random(), 1, 10),
-            5,
-            4,
-            0,
-            randomLong(),
-            null,
-            SearchResponse.Clusters.EMPTY
-        );
+        return new SearchResponse(internalResponse, randomSimpleString(random(), 1, 10), 5, 4, 0, randomLong(), null, Clusters.EMPTY);
     }
 
     private void assertSameHits(List<? extends ScrollableHitSource.Hit> actual, SearchHit[] expected) {

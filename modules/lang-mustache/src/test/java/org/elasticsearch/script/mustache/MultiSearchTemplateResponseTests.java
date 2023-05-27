@@ -8,6 +8,7 @@
 package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.search.Clusters;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.Strings;
@@ -39,7 +40,7 @@ public class MultiSearchTemplateResponseTests extends AbstractXContentTestCase<M
             int successfulShards = randomIntBetween(0, totalShards);
             int skippedShards = totalShards - successfulShards;
             InternalSearchResponse internalSearchResponse = InternalSearchResponse.EMPTY_WITH_TOTAL_HITS;
-            SearchResponse.Clusters clusters = randomClusters();
+            Clusters clusters = randomClusters();
             SearchTemplateResponse searchTemplateResponse = new SearchTemplateResponse();
             SearchResponse searchResponse = new SearchResponse(
                 internalSearchResponse,
@@ -57,11 +58,11 @@ public class MultiSearchTemplateResponseTests extends AbstractXContentTestCase<M
         return new MultiSearchTemplateResponse(items, overallTookInMillis);
     }
 
-    private static SearchResponse.Clusters randomClusters() {
+    private static Clusters randomClusters() {
         int totalClusters = randomIntBetween(0, 10);
         int successfulClusters = randomIntBetween(0, totalClusters);
         int skippedClusters = totalClusters - successfulClusters;
-        return new SearchResponse.Clusters(totalClusters, successfulClusters, skippedClusters);
+        return new Clusters(totalClusters, successfulClusters, skippedClusters);
     }
 
     private static MultiSearchTemplateResponse createTestInstanceWithFailures() {
@@ -76,7 +77,7 @@ public class MultiSearchTemplateResponseTests extends AbstractXContentTestCase<M
                 int successfulShards = randomIntBetween(0, totalShards);
                 int skippedShards = totalShards - successfulShards;
                 InternalSearchResponse internalSearchResponse = InternalSearchResponse.EMPTY_WITH_TOTAL_HITS;
-                SearchResponse.Clusters clusters = randomClusters();
+                Clusters clusters = randomClusters();
                 SearchTemplateResponse searchTemplateResponse = new SearchTemplateResponse();
                 SearchResponse searchResponse = new SearchResponse(
                     internalSearchResponse,

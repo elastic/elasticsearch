@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.search.Clusters;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.internal.Client;
@@ -271,7 +272,7 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
                     0,
                     0,
                     ShardSearchFailure.EMPTY_ARRAY,
-                    SearchResponse.Clusters.EMPTY
+                    Clusters.EMPTY
                 );
                 requestCounter[0]++;
                 listener.onResponse((Response) emptyResponse);

@@ -15,9 +15,9 @@ import java.util.Objects;
 /**
  * Extension of the Clusters class for CCS uses. It adds the number of remote clusters
  * included in a search and whether ccs_minimize_roundtrips is true.
- *
+ * <p>
  * Like Clusters, this is an immutable class.
- *
+ * <p>
  * Unlike Clusters, (for now at least) the new fields are not Writeable. They are only
  * used during CCS searches for accounting on the primary coordinator.
  */
@@ -57,11 +57,18 @@ public class CcsClusters extends Clusters {
 
     @Override
     public boolean equals(Object o) {
-        if (super.equals(o) == false) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
             return false;
         }
-        Clusters clusters = (Clusters) o;
-        return remoteClusters == clusters.getRemoteClusters() && ccsMinimizeRoundtrips == clusters.isCcsMinimizeRoundtrips();
+        CcsClusters clusters = (CcsClusters) o;
+        return getTotal() == clusters.getTotal()
+            && getSuccessful() == clusters.getSuccessful()
+            && getSkipped() == clusters.getSkipped()
+            && remoteClusters == clusters.getRemoteClusters()
+            && ccsMinimizeRoundtrips == clusters.isCcsMinimizeRoundtrips();
     }
 
     @Override

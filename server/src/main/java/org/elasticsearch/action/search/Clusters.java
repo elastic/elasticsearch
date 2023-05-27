@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -35,38 +34,6 @@ public class Clusters implements ToXContentFragment, Writeable {
     private final int total;
     private final int successful;
     private final int skipped;
-    // NOTE: these two new fields (remoteClusters and ccsMinimizeRoundtrips) have not been added to the wire protocol
-    // or equals/hashCode methods. They are needed for CCS only (async-search CCS in particular). If we need to write
-    // these to the .async-search system index in the future, we may want to refactor Clusters to allow async-search
-    // to subclass it.
-    private final transient int remoteClusters;
-    private final transient boolean ccsMinimizeRoundtrips;
-
-    /**
-     * An Clusters object meant for use with CCS holding additional information about
-     * the number of remote clusters and whether ccsMinimizeRoundtrips is being used.
-     *
-     * @param total
-     * @param successful
-     * @param skipped
-     * @param remoteClusters
-     * @param ccsMinimizeRoundtrips
-     */
-    public Clusters(int total, int successful, int skipped, int remoteClusters, boolean ccsMinimizeRoundtrips) {
-        assert total >= 0 && successful >= 0 && skipped >= 0 && remoteClusters >= 0
-            : "total: " + total + " successful: " + successful + " skipped: " + skipped + " remote: " + remoteClusters;
-        assert successful <= total : "total: " + total + " successful: " + successful + " skipped: " + skipped;
-        assert remoteClusters <= total : "total: " + total + " remote: " + remoteClusters;
-        assert ccsMinimizeRoundtrips == false || remoteClusters > 0
-            : "ccsMinimizeRoundtrips is true but remoteClusters count is not a positive number: " + remoteClusters;
-        int localCount = total - remoteClusters;
-        assert localCount == 0 || localCount == 1 : "total - remoteClusters should only be 0 or 1";
-        this.total = total;
-        this.successful = successful;
-        this.skipped = skipped;
-        this.remoteClusters = remoteClusters;
-        this.ccsMinimizeRoundtrips = ccsMinimizeRoundtrips;
-    }
 
     /**
      * Creates a Clusters object in its "final" state, where successful + skipped = total.
@@ -92,8 +59,6 @@ public class Clusters implements ToXContentFragment, Writeable {
         this.total = total;
         this.successful = successful;
         this.skipped = skipped;
-        this.remoteClusters = -1;  // means "unknown" and not needed for this usage
-        this.ccsMinimizeRoundtrips = false;
     }
 
     Clusters(StreamInput in) throws IOException {
@@ -120,39 +85,24 @@ public class Clusters implements ToXContentFragment, Writeable {
     }
 
     /**
-     * @return how many total clusters the search was requested to be executed on
+     * Returns how many total clusters the search was requested to be executed on
      */
     public int getTotal() {
         return total;
     }
 
     /**
-     * @return how many total clusters the search was executed successfully on
+     * Returns how many total clusters the search was executed successfully on
      */
     public int getSuccessful() {
         return successful;
     }
 
     /**
-     * @return how many total clusters were used during the execution of the search request
+     * Returns how many total clusters were during the execution of the search request
      */
     public int getSkipped() {
         return skipped;
-    }
-
-    /**
-     * @return how many remote clusters were using during the execution of the search request
-     * If not set, returns -1, meaning 'unknown'.
-     */
-    public int getRemoteClusters() {
-        return remoteClusters;
-    }
-
-    /**
-     * @return whether this search was a cross cluster search done with ccsMinimizeRoundtrips=true
-     */
-    public boolean isCcsMinimizeRoundtrips() {
-        return ccsMinimizeRoundtrips;
     }
 
     @Override
@@ -175,16 +125,5 @@ public class Clusters implements ToXContentFragment, Writeable {
     @Override
     public String toString() {
         return "Clusters{total=" + total + ", successful=" + successful + ", skipped=" + skipped + '}';
-    }
-
-    public String toStringExtended() {
-        return Strings.format(
-            "Clusters{total=%d, successful=%d, skipped=%d, remote=%d, ccsMinimizeRoundtrips=%s}",
-            total,
-            successful,
-            skipped,
-            remoteClusters,
-            ccsMinimizeRoundtrips
-        );
     }
 }

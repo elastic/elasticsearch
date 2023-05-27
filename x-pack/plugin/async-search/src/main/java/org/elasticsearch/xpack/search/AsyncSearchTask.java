@@ -13,6 +13,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
+import org.elasticsearch.action.search.CcsClusters;
 import org.elasticsearch.action.search.Clusters;
 import org.elasticsearch.action.search.SearchProgressActionListener;
 import org.elasticsearch.action.search.SearchRequest;
@@ -405,7 +406,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
         protected void onListShards(List<SearchShard> shards, List<SearchShard> skipped, Clusters clusters, boolean fetchPhase) {
             // best effort to cancel expired tasks
             checkCancellation();
-            ccsMinimizeRoundtrips = clusters.isCcsMinimizeRoundtrips();
+            ccsMinimizeRoundtrips = clusters instanceof CcsClusters ccsClusters && ccsClusters.isCcsMinimizeRoundtrips();
             searchResponse.compareAndSet(
                 null,
                 new MutableSearchResponse(shards.size() + skipped.size(), skipped.size(), clusters, threadPool.getThreadContext())

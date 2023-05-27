@@ -113,16 +113,16 @@ class MutableSearchResponse {
         this.totalHits = totalHits;
         this.reducedAggsSource = reducedAggs;
         this.reducePhase = reducePhase;
-        if (isFinalLocalReduce && clusters.isCcsMinimizeRoundtrips()) {
+        if (isFinalLocalReduce && clusters instanceof CcsClusters ccsClusters && ccsClusters.isCcsMinimizeRoundtrips()) {
             // currently only ccsMinimizeRoundTrip=true creates Clusters in their initial state (where successful=0)
             // ccsMinimizeRoundtrips=false creates Clusters in its final state even at the beginning (successful+skipped=total)
             // so update the clusters object 'successful' count if local cluster search is done AND ccsMinimizeRoundtrips=true
             Clusters newClusters = new CcsClusters(
-                clusters.getTotal(),
-                clusters.getSuccessful() + 1,
-                clusters.getSkipped(),
-                clusters.getRemoteClusters(),
-                clusters.isCcsMinimizeRoundtrips()
+                ccsClusters.getTotal(),
+                ccsClusters.getSuccessful() + 1,
+                ccsClusters.getSkipped(),
+                ccsClusters.getRemoteClusters(),
+                ccsClusters.isCcsMinimizeRoundtrips()
             );
             this.clusters = newClusters;
             logger.debug("Updating Clusters info to indicate that the local cluster search has completed: {}", newClusters);

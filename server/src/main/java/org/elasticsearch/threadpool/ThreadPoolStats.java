@@ -8,24 +8,28 @@
 
 package org.elasticsearch.threadpool;
 
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.ToXContentFragment;
-import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
-public record ThreadPoolStats(List<Stats> stats) implements Writeable, ToXContentFragment, Iterable<ThreadPoolStats.Stats> {
+import static java.util.Collections.emptyIterator;
+import static org.elasticsearch.common.collect.Iterators.single;
+
+public record ThreadPoolStats(List<Stats> stats) implements Writeable, ChunkedToXContent, Iterable<ThreadPoolStats.Stats> {
 
     public record Stats(String name, int threads, int queue, int active, long rejected, int largest, long completed)
         implements
             Writeable,
-            ToXContentFragment,
+            ChunkedToXContent,
             Comparable<Stats> {
 
         public Stats(StreamInput in) throws IOException {
@@ -44,31 +48,6 @@ public record ThreadPoolStats(List<Stats> stats) implements Writeable, ToXConten
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject(name);
-            if (threads != -1) {
-                builder.field(Fields.THREADS, threads);
-            }
-            if (queue != -1) {
-                builder.field(Fields.QUEUE, queue);
-            }
-            if (active != -1) {
-                builder.field(Fields.ACTIVE, active);
-            }
-            if (rejected != -1) {
-                builder.field(Fields.REJECTED, rejected);
-            }
-            if (largest != -1) {
-                builder.field(Fields.LARGEST, largest);
-            }
-            if (completed != -1) {
-                builder.field(Fields.COMPLETED, completed);
-            }
-            builder.endObject();
-            return builder;
-        }
-
-        @Override
         public int compareTo(Stats other) {
             if ((name() == null) && (other.name() == null)) {
                 return 0;
@@ -83,6 +62,20 @@ public record ThreadPoolStats(List<Stats> stats) implements Writeable, ToXConten
                 }
                 return compare;
             }
+        }
+
+        @Override
+        public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params outerParams) {
+            return Iterators.concat(
+                ChunkedToXContentHelper.startObject(name),
+                threads != -1 ? single((builder, params) -> builder.field(Fields.THREADS, threads)) : emptyIterator(),
+                queue != -1 ? single((builder, params) -> builder.field(Fields.QUEUE, queue)) : emptyIterator(),
+                active != -1 ? single((builder, params) -> builder.field(Fields.ACTIVE, active)) : emptyIterator(),
+                rejected != -1 ? single((builder, params) -> builder.field(Fields.REJECTED, rejected)) : emptyIterator(),
+                largest != -1 ? single((builder, params) -> builder.field(Fields.LARGEST, largest)) : emptyIterator(),
+                completed != -1 ? single((builder, params) -> builder.field(Fields.COMPLETED, completed)) : emptyIterator(),
+                ChunkedToXContentHelper.endObject()
+            );
         }
     }
 
@@ -115,12 +108,11 @@ public record ThreadPoolStats(List<Stats> stats) implements Writeable, ToXConten
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
-        builder.startObject(Fields.THREAD_POOL);
-        for (Stats stat : stats) {
-            stat.toXContent(builder, params);
-        }
-        builder.endObject();
-        return builder;
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+        return Iterators.concat(
+            ChunkedToXContentHelper.startObject(Fields.THREAD_POOL),
+            Iterators.flatMap(stats.iterator(), s -> s.toXContentChunked(params)),
+            ChunkedToXContentHelper.endObject()
+        );
     }
 }

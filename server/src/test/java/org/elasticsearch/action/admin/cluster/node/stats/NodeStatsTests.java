@@ -69,7 +69,6 @@ import org.elasticsearch.script.ScriptContextStats;
 import org.elasticsearch.script.ScriptStats;
 import org.elasticsearch.script.TimeSeries;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
-import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.ThreadPoolStats;
@@ -90,6 +89,7 @@ import java.util.stream.IntStream;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.elasticsearch.test.AbstractChunkedSerializingTestCase.assertChunkCount;
 
 public class NodeStatsTests extends ESTestCase {
     public void testSerialization() throws IOException {
@@ -545,17 +545,17 @@ public class NodeStatsTests extends ESTestCase {
     }
 
     public void testChunking() {
-        AbstractChunkedSerializingTestCase.assertChunkCount(
+        assertChunkCount(
             createNodeStats(),
             randomFrom(ToXContent.EMPTY_PARAMS, new ToXContent.MapParams(Map.of("level", "node"))),
             nodeStats -> expectedChunks(nodeStats, NodeStatsLevel.NODE)
         );
-        AbstractChunkedSerializingTestCase.assertChunkCount(
+        assertChunkCount(
             createNodeStats(),
             new ToXContent.MapParams(Map.of("level", "indices")),
             nodeStats -> expectedChunks(nodeStats, NodeStatsLevel.INDICES)
         );
-        AbstractChunkedSerializingTestCase.assertChunkCount(
+        assertChunkCount(
             createNodeStats(),
             new ToXContent.MapParams(Map.of("level", "shards")),
             nodeStats -> expectedChunks(nodeStats, NodeStatsLevel.SHARDS)
@@ -563,9 +563,18 @@ public class NodeStatsTests extends ESTestCase {
     }
 
     private static int expectedChunks(NodeStats nodeStats, NodeStatsLevel level) {
-        return 4 + expectedChunks(nodeStats.getHttp()) + expectedChunks(nodeStats.getIndices(), level) + expectedChunks(
-            nodeStats.getTransport()
-        ) + expectedChunks(nodeStats.getIngestStats());
+        return 5 // one per each chunkeable object
+            + expectedChunks(nodeStats.getHttp()) //
+            + expectedChunks(nodeStats.getIndices(), level) //
+            + expectedChunks(nodeStats.getTransport()) //
+            + expectedChunks(nodeStats.getIngestStats()) //
+            + expectedChunks(nodeStats.getThreadPool());
+    }
+
+    private static int expectedChunks(ThreadPoolStats threadPool) {
+        // {@link ThreadPoolStats#toXContentChunked} => 2 = startObject + endObject
+        // {@link ThreadPoolStats.Stats#toXContentChunked} => 8 each stat = startObject + 6 stats + endObject
+        return threadPool == null ? 0 : 2 + threadPool.stats().size() * 8;
     }
 
     private static int expectedChunks(@Nullable IngestStats ingestStats) {

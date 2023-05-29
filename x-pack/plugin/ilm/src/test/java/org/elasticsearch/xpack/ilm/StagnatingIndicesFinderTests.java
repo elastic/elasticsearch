@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 
@@ -22,8 +21,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiPredicate;
 import java.util.function.LongSupplier;
-import java.util.function.Predicate;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
@@ -40,111 +39,88 @@ public class StagnatingIndicesFinderTests extends ESTestCase {
         var idxMd3 = randomIndexMetadata();
         var stagnatingIndices = List.of(idxMd1.indexName, idxMd3.indexName);
         var mockedTimeSupplier = mock(LongSupplier.class);
-        var ruleEvaluator = new IlmHealthIndicatorService.StagnatingIndicesRuleEvaluator(
-            List.of(state -> (stagnatingIndices.contains(state.indexName())))
-        );
         var instant = (long) randomIntBetween(100000, 200000);
+        var ruleEvaluator = new IlmHealthIndicatorService.StagnatingIndicesRuleEvaluator(
+            List.of((now, indexMetadata) -> now == instant && stagnatingIndices.contains(indexMetadata.getIndex().getName()))
+        );
         // Per the evaluator, the timeSupplier _must_ be called only twice
         when(mockedTimeSupplier.getAsLong()).thenReturn(instant, instant);
+
+        var stagnatedIdx1 = idxMetadataFrom(idxMd1);
+        var stagnatedIdx2 = idxMetadataFrom(idxMd3);
         var finder = createStagnatingIndicesFinder(
             ruleEvaluator,
             mockedTimeSupplier,
-            idxMetadataUnmanaged(randomAlphaOfLength(10)),                     // non-managed by ILM
-            idxMetadata(idxMd1.indexName, idxMd1.policyName, idxMd1.ilmState), // should be stagnated
-            idxMetadata(idxMd2.indexName, idxMd2.policyName, idxMd2.ilmState), // won't be stagnated
-            idxMetadata(idxMd3.indexName, idxMd3.policyName, idxMd3.ilmState), // should be stagnated
-            idxMetadataUnmanaged(randomAlphaOfLength(10))                      // non-managed by ILM
+            idxMetadataUnmanaged(randomAlphaOfLength(10)), // non-managed by ILM
+            stagnatedIdx1,                                 // should be stagnated
+            idxMetadataFrom(idxMd2),                       // won't be stagnated
+            stagnatedIdx2,                                 // should be stagnated
+            idxMetadataUnmanaged(randomAlphaOfLength(10))  // non-managed by ILM
         );
 
         var foundIndices = finder.find();
 
         assertThat(foundIndices, hasSize(2));
-        assertThat(
-            foundIndices,
-            containsInAnyOrder(
-                new IlmHealthIndicatorService.IndexIlmState(
-                    idxMd1.indexName,
-                    idxMd1.policyName,
-                    idxMd1.ilmState.phase(),
-                    idxMd1.ilmState.action(),
-                    TimeValue.timeValueMillis(instant - idxMd1.ilmState.actionTime()),
-                    idxMd1.ilmState.step(),
-                    TimeValue.timeValueMillis(instant - idxMd1.ilmState.stepTime()),
-                    idxMd1.ilmState.failedStepRetryCount()
-                ),
-                new IlmHealthIndicatorService.IndexIlmState(
-                    idxMd3.indexName,
-                    idxMd3.policyName,
-                    idxMd3.ilmState.phase(),
-                    idxMd3.ilmState.action(),
-                    TimeValue.timeValueMillis(instant - idxMd3.ilmState.actionTime()),
-                    idxMd3.ilmState.step(),
-                    TimeValue.timeValueMillis(instant - idxMd3.ilmState.stepTime()),
-                    idxMd3.ilmState.failedStepRetryCount()
-                )
-            )
-        );
+        assertThat(foundIndices, containsInAnyOrder(stagnatedIdx1, stagnatedIdx2));
     }
 
     public void testStagnatingIndicesEvaluator() {
-        var idxIlmState = new IlmHealthIndicatorService.IndexIlmState(
-            "some-index",
-            "some-policy",
-            "some-phase",
-            "some-action",
-            TimeValue.ZERO,
-            "some-step",
-            TimeValue.ZERO,
-            100
-        );
+        var idxMd1 = randomIndexMetadata();
+        var indexMetadata = idxMetadataFrom(idxMd1);
+        Long moment = 111333111222L;
         {
             // no rule matches
             var executions = randomIntBetween(3, 200);
             var calls = new AtomicInteger(0);
-            var predicates = IntStream.range(0, executions).mapToObj(i -> (Predicate<IlmHealthIndicatorService.IndexIlmState>) a -> {
-                assertSame(a, idxIlmState);
+            var predicates = IntStream.range(0, executions).mapToObj(i -> (BiPredicate<Long, IndexMetadata>) (now, idxMd) -> {
+                assertEquals(now, moment);
+                assertSame(idxMd, indexMetadata);
                 calls.incrementAndGet();
                 return false;
             }).toList();
-            assertFalse(new IlmHealthIndicatorService.StagnatingIndicesRuleEvaluator(predicates).isStagnated(idxIlmState));
+            assertFalse(new IlmHealthIndicatorService.StagnatingIndicesRuleEvaluator(predicates).isStagnated(moment, indexMetadata));
             assertEquals(calls.get(), executions);
         }
         {
             var calls = new AtomicReference<>(new ArrayList<Integer>());
-            var predicates = List.<Predicate<IlmHealthIndicatorService.IndexIlmState>>of(a -> { // will be called
-                assertSame(a, idxIlmState);
+            var predicates = List.<BiPredicate<Long, IndexMetadata>>of((now, idxMd) -> { // will be called
+                assertEquals(now, moment);
+                assertSame(idxMd, indexMetadata);
                 calls.get().add(1);
                 return false;
-            }, a -> { // will be called and cut the execution
-                assertSame(a, idxIlmState);
+            }, (now, idxMd) -> { // will be called and cut the execution
+                assertEquals(now, moment);
+                assertSame(idxMd, indexMetadata);
                 calls.get().add(2);
                 return true;
-            }, a -> { // won't be called
-                assertSame(a, idxIlmState);
+            }, (now, idxMd) -> { // won't be called
+                assertEquals(now, moment);
+                assertSame(idxMd, indexMetadata);
                 calls.get().add(3);
                 return true;
-            }, a -> { // won't be called
-                assertSame(a, idxIlmState);
+            }, (now, idxMd) -> { // won't be called
+                assertEquals(now, moment);
+                assertSame(idxMd, indexMetadata);
                 calls.get().add(4);
                 return false;
             });
 
-            assertTrue(new IlmHealthIndicatorService.StagnatingIndicesRuleEvaluator(predicates).isStagnated(idxIlmState));
+            assertTrue(new IlmHealthIndicatorService.StagnatingIndicesRuleEvaluator(predicates).isStagnated(moment, indexMetadata));
             assertEquals(calls.get(), List.of(1, 2));
         }
     }
 
     private static IndexMetadata idxMetadataUnmanaged(String indexName) {
-        return idxMetadata(indexName, null, null);
+        return idxMetadataFrom(new IndexMetadataTestCase(indexName, null, null));
     }
 
-    private static IndexMetadata idxMetadata(String indexName, String policyName, LifecycleExecutionState ilmState) {
+    private static IndexMetadata idxMetadataFrom(IndexMetadataTestCase indexMetadataTestCase) {
         var settings = settings(Version.CURRENT);
-        var indexMetadataBuilder = IndexMetadata.builder(indexName);
+        var indexMetadataBuilder = IndexMetadata.builder(indexMetadataTestCase.indexName);
 
-        if (ilmState != null) {
-            settings.put(LifecycleSettings.LIFECYCLE_NAME, policyName);
-            indexMetadataBuilder.putCustom(ILM_CUSTOM_METADATA_KEY, ilmState.asMap());
+        if (indexMetadataTestCase.ilmState != null) {
+            settings.put(LifecycleSettings.LIFECYCLE_NAME, indexMetadataTestCase.policyName);
+            indexMetadataBuilder.putCustom(ILM_CUSTOM_METADATA_KEY, indexMetadataTestCase.ilmState.asMap());
         }
 
         return indexMetadataBuilder.settings(settings)

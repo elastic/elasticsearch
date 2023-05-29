@@ -42,7 +42,7 @@ public class ThreadPoolStatsTests extends ESTestCase {
     }
 
     public void testSerialization() throws IOException {
-        var original = new ThreadPoolStats(randomList(2, this::randomStats));
+        var original = new ThreadPoolStats(randomList(2, ThreadPoolStatsTests::randomStats));
         var other = serialize(original);
 
         assertNotSame(original, other);
@@ -55,11 +55,11 @@ public class ThreadPoolStatsTests extends ESTestCase {
         return new ThreadPoolStats(out.bytes().streamInput());
     }
 
-    private ThreadPoolStats.Stats randomStats() {
+    public static ThreadPoolStats.Stats randomStats() {
         return randomStats(randomFrom(THREAD_POOL_TYPES.keySet()));
     }
 
-    private ThreadPoolStats.Stats randomStats(String name) {
+    public static ThreadPoolStats.Stats randomStats(String name) {
         return new ThreadPoolStats.Stats(
             name,
             randomMinusOneOrOther(),
@@ -72,6 +72,6 @@ public class ThreadPoolStatsTests extends ESTestCase {
     }
 
     private static int randomMinusOneOrOther() {
-        return randomBoolean() ? -1 : randomIntBetween(-1, Integer.MAX_VALUE);
+        return randomBoolean() ? -1 : randomIntBetween(0, Integer.MAX_VALUE);
     }
 }

@@ -572,9 +572,16 @@ public class NodeStatsTests extends ESTestCase {
     }
 
     private static int expectedChunks(ThreadPoolStats threadPool) {
-        // {@link ThreadPoolStats#toXContentChunked} => 2 = startObject + endObject
-        // {@link ThreadPoolStats.Stats#toXContentChunked} => 8 each stat = startObject + 6 stats + endObject
-        return threadPool == null ? 0 : 2 + threadPool.stats().size() * 8;
+        return threadPool == null ? 0 : 2 + threadPool.stats().stream().mapToInt(s -> {
+            var chunks = 0;
+            chunks += s.threads() == -1 ? 0 : 1;
+            chunks += s.queue() == -1 ? 0 : 1;
+            chunks += s.active() == -1 ? 0 : 1;
+            chunks += s.rejected() == -1 ? 0 : 1;
+            chunks += s.largest() == -1 ? 0 : 1;
+            chunks += s.completed() == -1 ? 0 : 1;
+            return 2 + chunks; // start + endObject + chunks
+        }).sum();
     }
 
     private static int expectedChunks(@Nullable IngestStats ingestStats) {
@@ -824,20 +831,10 @@ public class NodeStatsTests extends ESTestCase {
         }
         ThreadPoolStats threadPoolStats = null;
         if (frequently()) {
-            int numThreadPoolStats = randomIntBetween(0, 10);
-            List<ThreadPoolStats.Stats> threadPoolStatsList = new ArrayList<>();
+            var numThreadPoolStats = randomIntBetween(0, 10);
+            var threadPoolStatsList = new ArrayList<ThreadPoolStats.Stats>();
             for (int i = 0; i < numThreadPoolStats; i++) {
-                threadPoolStatsList.add(
-                    new ThreadPoolStats.Stats(
-                        randomAlphaOfLengthBetween(3, 10),
-                        randomIntBetween(1, 1000),
-                        randomIntBetween(1, 1000),
-                        randomIntBetween(1, 1000),
-                        randomNonNegativeLong(),
-                        randomIntBetween(1, 1000),
-                        randomIntBetween(1, 1000)
-                    )
-                );
+                threadPoolStatsList.add(ThreadPoolStatsTests.randomStats(randomAlphaOfLengthBetween(3, 10)));
             }
             threadPoolStats = new ThreadPoolStats(threadPoolStatsList);
         }

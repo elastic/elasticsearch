@@ -16,13 +16,11 @@ import org.elasticsearch.tasks.Task;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.BitSet;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
-import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -53,7 +51,9 @@ public class HeaderWarning {
         "\\d{4} " + // 4-digit year
         "\\d{2}:\\d{2}:\\d{2} " + // (two-digit hour):(two-digit minute):(two-digit second)
         "GMT" + // GMT
-        "\")?"); // closing quote (optional, since an older version can still send a warn-date)
+        "\")?",// closing quote (optional, since an older version can still send a warn-date)
+        Pattern.DOTALL
+    ); // in order to parse new line inside the qdText
 
     /**
      * qdText is defined in https://datatracker.ietf.org/doc/html/rfc7230#section-3.2.6
@@ -62,18 +62,18 @@ public class HeaderWarning {
      * <p>
      * this was previously used in WARNING_HEADER_PATTERN, but can cause stackoverflow
      * "\"((?:\t| |!|[\\x23-\\x5B]|[\\x5D-\\x7E]|[\\x80-\\xFF]|\\\\|\\\\\")*)\"( " + // quoted warning value, captured
+     * the \\\\|\\\\\" (escaped '\' 0x20 and '"' 0x5c) which is used for quoted-pair has to be validated separately
      */
     private static Set<Integer> qdTextChars = Stream.of(
-            IntStream.of(0x09),// HTAB
-            IntStream.of(0x20), // SPACE
-            IntStream.of(0x21), // !
-            IntStream.rangeClosed(0x23, 0x5B),//ascii #-[
-            //excluding 0x5c = "
-            IntStream.rangeClosed(0x5D, 0x7E),//ascii ]-~
-            IntStream.rangeClosed(0x80, 0xFF)//obs-text
-        ).flatMapToInt(i -> i)
-        .boxed()
-        .collect(Collectors.toSet());
+        IntStream.of(0x09),// HTAB
+        IntStream.of(0x20), // SPACE
+        IntStream.of(0x21), // !
+        // excluding 0x22 '"\"' which has to be escaped
+        IntStream.rangeClosed(0x23, 0x5B),// ascii #-[
+        // excluding 0x5c '\' which has to be escaped
+        IntStream.rangeClosed(0x5D, 0x7E),// ascii ]-~
+        IntStream.rangeClosed(0x80, 0xFF)// obs-text -bear in mind it contains 0x85 new line. Which requires DOT_ALL flag
+    ).flatMapToInt(i -> i).boxed().collect(Collectors.toSet());
     public static final Pattern WARNING_XCONTENT_LOCATION_PATTERN = Pattern.compile("^\\[.*?]\\[-?\\d+:-?\\d+] ");
 
     /*
@@ -207,10 +207,12 @@ public class HeaderWarning {
         final Matcher matcher = WARNING_HEADER_PATTERN.matcher(s);
         final boolean matches = matcher.matches();
         assert matches;
-        return matcher.group("qdText").equals(warningValue);
+        String qdText = matcher.group("qdText");
+        assert matchesQuotedString(qdText);
+        return qdText.equals(warningValue);
     }
 
-    //this is meant to be in testing only
+    // this is meant to be in testing only
     public static boolean warningHeaderPatternMatches(final String s) {
         final Matcher matcher = WARNING_HEADER_PATTERN.matcher(s);
         final boolean matches = matcher.matches();
@@ -222,6 +224,8 @@ public class HeaderWarning {
     }
 
     private static boolean matchesQuotedString(String qdtext) {
+        qdtext = qdtext.replaceAll("\\\\\"", "");
+        qdtext = qdtext.replaceAll("\\\\", "");
         return qdtext.chars().allMatch(c -> qdTextChars.contains(c));
     }
 
@@ -306,7 +310,7 @@ public class HeaderWarning {
         }
 
         final StringBuilder sb = new StringBuilder(s.length());
-        for (int i = 0; i < s.length(); ) {
+        for (int i = 0; i < s.length();) {
             int current = s.charAt(i);
             /*
              * Either the character does not need encoding or it does; when the character does not need encoding we append the character to
@@ -370,7 +374,6 @@ public class HeaderWarning {
         if (iterator.hasNext()) {
             final String formattedMessage = LoggerMessageFormat.format(message, params);
             final String warningHeaderValue = formatWarning(formattedMessage);
-            // TODO #95972: Temporarily commented out to avoid StackOverflowError, see https://github.com/elastic/elasticsearch/issues/95972
             assert warningHeaderPatternMatches(warningHeaderValue);
             assert extractWarningValueFromWarningHeader(warningHeaderValue, false).equals(escapeAndEncode(formattedMessage));
             while (iterator.hasNext()) {

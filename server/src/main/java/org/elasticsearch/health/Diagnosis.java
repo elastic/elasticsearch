@@ -112,11 +112,6 @@ public record Diagnosis(Definition definition, @Nullable List<Resource> affected
             return Objects.hash(type, values, nodes);
         }
 
-        @Override
-        public String toString() {
-            return "Resource{" + "type=" + type + ", values=" + values + ", nodes=" + nodes + '}';
-        }
-
         public Type getType() {
             return type;
         }

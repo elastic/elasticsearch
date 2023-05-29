@@ -108,7 +108,7 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
             100,
             List.of(WaitForDataTierStep.NAME, WaitForIndexColorStep.NAME, WaitForNoFollowersStep.NAME)
         ),
-        new RuleConfig(DeleteStep.NAME, ONE_DAY, 100, List.of(WaitForNoFollowersStep.NAME)),
+        new RuleConfig(DeleteStep.NAME, ONE_DAY, 100),
         new RuleConfig(ShrinkAction.NAME, ONE_DAY, 100, List.of(WaitForNoFollowersStep.NAME)),
         new RuleConfig(AllocateAction.NAME, ONE_DAY, 100),
         new RuleConfig(ForceMergeAction.NAME, ONE_DAY, 100, List.of(WaitForIndexColorStep.NAME)),
@@ -169,43 +169,34 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
                 List.of(ILM_NOT_RUNNING)
             );
         } else {
-            return calculateIndicator(verbose, ilmMetadata, currentMode, maxAffectedResourcesCount);
+            var stagnatingIndices = stagnatingIndicesFinder.find();
+
+            if (stagnatingIndices.isEmpty()) {
+                return createIndicator(
+                    GREEN,
+                    "Index Lifecycle Management is running",
+                    createDetails(verbose, ilmMetadata, currentMode),
+                    Collections.emptyList(),
+                    Collections.emptyList()
+                );
+            } else {
+                return createIndicator(
+                    YELLOW,
+                    (stagnatingIndices.size() > 1 ? stagnatingIndices.size() + " indices have" : "An index has")
+                        + " stayed on the same action longer than expected.",
+                    createDetails(verbose, ilmMetadata, currentMode, stagnatingIndices),
+                    STAGNATING_INDEX_IMPACT,
+                    createDiagnoses(stagnatingIndices, maxAffectedResourcesCount)
+                );
+            }
         }
     }
 
-    private HealthIndicatorDetails createDetails(boolean verbose, IndexLifecycleMetadata ilmMetadata, OperationMode currentMode) {
+    private static HealthIndicatorDetails createDetails(boolean verbose, IndexLifecycleMetadata ilmMetadata, OperationMode currentMode) {
         return createDetails(verbose, ilmMetadata, currentMode, List.of());
     }
 
-    private HealthIndicatorResult calculateIndicator(
-        boolean verbose,
-        IndexLifecycleMetadata ilmMetadata,
-        OperationMode currentMode,
-        int maxAffectedResourcesCount
-    ) {
-        var stagnatingIndices = stagnatingIndicesFinder.find();
-
-        if (stagnatingIndices.isEmpty()) {
-            return createIndicator(
-                GREEN,
-                "Index Lifecycle Management is running",
-                createDetails(verbose, ilmMetadata, currentMode, stagnatingIndices),
-                Collections.emptyList(),
-                Collections.emptyList()
-            );
-        }
-
-        return createIndicator(
-            YELLOW,
-            (stagnatingIndices.size() > 1 ? stagnatingIndices.size() + " indices have" : "An index has")
-                + " stayed on the same action longer than expected.",
-            createDetails(verbose, ilmMetadata, currentMode, stagnatingIndices),
-            STAGNATING_INDEX_IMPACT,
-            createDiagnoses(stagnatingIndices, maxAffectedResourcesCount)
-        );
-    }
-
-    private List<Diagnosis> createDiagnoses(List<IndexIlmState> stagnatingIndices, int maxAffectedResourcesCount) {
+    private static List<Diagnosis> createDiagnoses(List<IndexIlmState> stagnatingIndices, int maxAffectedResourcesCount) {
         return stagnatingIndices.stream().collect(groupingBy(IndexIlmState::action)).entrySet().stream().map(action -> {
             var affectedIndices = action.getValue()
                 .stream()
@@ -253,6 +244,10 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
         return new SimpleHealthIndicatorDetails(details);
     }
 
+    /**
+     * Class in charge of find all the indices that are _potentially_ stagnated at some ILM action. To find the indices, it uses a list of
+     * rules evaluators (Check {@link org.elasticsearch.xpack.ilm.IlmHealthIndicatorService#RULES_BY_ACTION_CONFIG to the current rules}
+     */
     static class StagnatingIndicesFinder {
 
         private final ClusterService clusterService;
@@ -269,6 +264,9 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
             this.nowSupplier = nowSupplier;
         }
 
+        /**
+         * @return A list containing info about the stagnating indices in the cluster.
+         */
         public List<IndexIlmState> find() {
             return findIndicesManagedByIlm().filter(stagnatingIndicesRuleEvaluator::isStagnated).toList();
         }

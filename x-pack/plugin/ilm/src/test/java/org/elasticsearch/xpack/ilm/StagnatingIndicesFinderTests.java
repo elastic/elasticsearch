@@ -87,34 +87,49 @@ public class StagnatingIndicesFinderTests extends ESTestCase {
     }
 
     public void testStagnatingIndicesEvaluator() {
+        var idxIlmState = new IlmHealthIndicatorService.IndexIlmState(
+            "some-index",
+            "some-policy",
+            "some-phase",
+            "some-action",
+            TimeValue.ZERO,
+            "some-step",
+            TimeValue.ZERO,
+            100
+        );
         {
             // no rule matches
             var executions = randomIntBetween(3, 200);
             var calls = new AtomicInteger(0);
             var predicates = IntStream.range(0, executions).mapToObj(i -> (Predicate<IlmHealthIndicatorService.IndexIlmState>) a -> {
+                assertSame(a, idxIlmState);
                 calls.incrementAndGet();
                 return false;
             }).toList();
-            assertFalse(new IlmHealthIndicatorService.StagnatingIndicesRuleEvaluator(predicates).isStagnated(null));
+            assertFalse(new IlmHealthIndicatorService.StagnatingIndicesRuleEvaluator(predicates).isStagnated(idxIlmState));
             assertEquals(calls.get(), executions);
         }
         {
             var calls = new AtomicReference<>(new ArrayList<Integer>());
             var predicates = List.<Predicate<IlmHealthIndicatorService.IndexIlmState>>of(a -> { // will be called
+                assertSame(a, idxIlmState);
                 calls.get().add(1);
                 return false;
             }, a -> { // will be called and cut the execution
+                assertSame(a, idxIlmState);
                 calls.get().add(2);
                 return true;
             }, a -> { // won't be called
+                assertSame(a, idxIlmState);
                 calls.get().add(3);
                 return true;
             }, a -> { // won't be called
+                assertSame(a, idxIlmState);
                 calls.get().add(4);
                 return false;
             });
 
-            assertTrue(new IlmHealthIndicatorService.StagnatingIndicesRuleEvaluator(predicates).isStagnated(null));
+            assertTrue(new IlmHealthIndicatorService.StagnatingIndicesRuleEvaluator(predicates).isStagnated(idxIlmState));
             assertEquals(calls.get(), List.of(1, 2));
         }
     }

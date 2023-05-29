@@ -7,13 +7,14 @@
 
 package org.elasticsearch.xpack.ilm;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.health.Diagnosis;
 import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
@@ -29,6 +30,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
+import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -36,6 +38,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
 import static org.elasticsearch.xpack.core.ilm.OperationMode.RUNNING;
@@ -55,10 +58,10 @@ import static org.mockito.Mockito.when;
 
 public class IlmHealthIndicatorServiceTests extends ESTestCase {
 
-    public void testIsGreenWhenRunningAndPoliciesConfiguredAndNoStuckIndices() {
+    public void testIsGreenWhenRunningAndPoliciesConfiguredAndNoStagnatingIndices() {
         var clusterState = createClusterStateWith(new IndexLifecycleMetadata(createIlmPolicy(), RUNNING));
-        var stuckIndicesFinder = mockedStagnatingIndicesFinder(List.of());
-        var service = createIlmHealthIndicatorService(clusterState, stuckIndicesFinder);
+        var stagnatingIndicesFinder = mockedStagnatingIndicesFinder(List.of());
+        var service = createIlmHealthIndicatorService(clusterState, stagnatingIndicesFinder);
 
         assertThat(
             service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO),
@@ -73,16 +76,16 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
                 )
             )
         );
-        verify(stuckIndicesFinder, times(1)).find();
+        verify(stagnatingIndicesFinder, times(1)).find();
     }
 
-    public void testIsYellowIfThereIsOneStuckIndicesAndDetailsEmptyIfNoVerbose() throws IOException {
+    public void testIsYellowIfThereIsOneStagnatingIndicesAndDetailsEmptyIfNoVerbose() throws IOException {
         var clusterState = createClusterStateWith(new IndexLifecycleMetadata(createIlmPolicy(), RUNNING));
         var action = randomAction();
         var policyName = randomAlphaOfLength(10);
         var indexName = randomAlphaOfLength(10);
-        var stuckIndicesFinder = mockedStagnatingIndicesFinder(List.of(indexIlmState(indexName, policyName, action)));
-        var service = createIlmHealthIndicatorService(clusterState, stuckIndicesFinder);
+        var stagnatingIndicesFinder = mockedStagnatingIndicesFinder(List.of(indexMetadata(indexName, policyName, action)));
+        var service = createIlmHealthIndicatorService(clusterState, stagnatingIndicesFinder);
 
         var indicatorResult = service.calculate(false, HealthInfo.EMPTY_HEALTH_INFO);
 
@@ -116,16 +119,16 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
         assertEquals(affectedResources.get(1).getType(), Diagnosis.Resource.Type.INDEX);
         assertThat(affectedResources.get(1).getValues(), containsInAnyOrder(indexName));
 
-        verify(stuckIndicesFinder, times(1)).find();
+        verify(stagnatingIndicesFinder, times(1)).find();
     }
 
-    public void testIsYellowIfThereIsOneStuckIndices() throws IOException {
+    public void testIsYellowIfThereIsOneStagnatingIndices() throws IOException {
         var clusterState = createClusterStateWith(new IndexLifecycleMetadata(createIlmPolicy(), RUNNING));
         var action = randomAction();
         var policyName = randomAlphaOfLength(10);
         var indexName = randomAlphaOfLength(10);
-        var stuckIndicesFinder = mockedStagnatingIndicesFinder(List.of(indexIlmState(indexName, policyName, action)));
-        var service = createIlmHealthIndicatorService(clusterState, stuckIndicesFinder);
+        var stagnatingIndicesFinder = mockedStagnatingIndicesFinder(List.of(indexMetadata(indexName, policyName, action)));
+        var service = createIlmHealthIndicatorService(clusterState, stagnatingIndicesFinder);
 
         var indicatorResult = service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
 
@@ -182,31 +185,27 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
         assertEquals(affectedResources.get(1).getType(), Diagnosis.Resource.Type.INDEX);
         assertThat(affectedResources.get(1).getValues(), containsInAnyOrder(indexName));
 
-        verify(stuckIndicesFinder, times(1)).find();
+        verify(stagnatingIndicesFinder, times(1)).find();
     }
 
     private static String randomAction() {
         return randomFrom(RULES_BY_ACTION_CONFIG.keySet());
     }
 
-    private static IlmHealthIndicatorService.IndexIlmState indexIlmState(String indexName, String policyName, String action) {
-        return new IlmHealthIndicatorService.IndexIlmState(
-            indexName,
-            policyName,
-            randomAlphaOfLength(10),
-            action,
-            TimeValue.parseTimeValue(randomTimeValue(), "setting.name"),
-            randomAlphaOfLength(10),
-            TimeValue.parseTimeValue(randomTimeValue(), "setting.name"),
-            randomInt()
-        );
+    private static IndexMetadata indexMetadata(String indexName, String policyName, String action) {
+        return IndexMetadata.builder(indexName)
+            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .putCustom(ILM_CUSTOM_METADATA_KEY, Map.of("action", action))
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
+            .build();
     }
 
     public void testIsYellowWhenNotRunningAndPoliciesConfigured() {
         var status = randomFrom(STOPPED, STOPPING);
         var clusterState = createClusterStateWith(new IndexLifecycleMetadata(createIlmPolicy(), status));
-        var stuckIndicesFinder = mockedStagnatingIndicesFinder(List.of());
-        var service = createIlmHealthIndicatorService(clusterState, stuckIndicesFinder);
+        var stagnatingIndicesFinder = mockedStagnatingIndicesFinder(List.of());
+        var service = createIlmHealthIndicatorService(clusterState, stagnatingIndicesFinder);
 
         assertThat(
             service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO),
@@ -230,14 +229,14 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
                 )
             )
         );
-        verifyNoInteractions(stuckIndicesFinder);
+        verifyNoInteractions(stagnatingIndicesFinder);
     }
 
     public void testIsGreenWhenNotRunningAndNoPolicies() {
         var status = randomFrom(STOPPED, STOPPING);
         var clusterState = createClusterStateWith(new IndexLifecycleMetadata(Map.of(), status));
-        var stuckIndicesFinder = mockedStagnatingIndicesFinder(List.of());
-        var service = createIlmHealthIndicatorService(clusterState, stuckIndicesFinder);
+        var stagnatingIndicesFinder = mockedStagnatingIndicesFinder(List.of());
+        var service = createIlmHealthIndicatorService(clusterState, stagnatingIndicesFinder);
 
         assertThat(
             service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO),
@@ -252,13 +251,13 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
                 )
             )
         );
-        verifyNoInteractions(stuckIndicesFinder);
+        verifyNoInteractions(stagnatingIndicesFinder);
     }
 
     public void testIsGreenWhenNoMetadata() {
         var clusterState = createClusterStateWith(null);
-        var stuckIndicesFinder = mockedStagnatingIndicesFinder(List.of());
-        var service = createIlmHealthIndicatorService(clusterState, stuckIndicesFinder);
+        var stagnatingIndicesFinder = mockedStagnatingIndicesFinder(List.of());
+        var service = createIlmHealthIndicatorService(clusterState, stagnatingIndicesFinder);
 
         assertThat(
             service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO),
@@ -273,7 +272,7 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
                 )
             )
         );
-        verifyNoInteractions(stuckIndicesFinder);
+        verifyNoInteractions(stagnatingIndicesFinder);
     }
 
     // We expose the indicator name and the diagnoses in the x-pack usage API. In order to index them properly in a telemetry index
@@ -326,9 +325,7 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
         return new IlmHealthIndicatorService(clusterService, stagnatingIndicesFinder);
     }
 
-    private static IlmHealthIndicatorService.StagnatingIndicesFinder mockedStagnatingIndicesFinder(
-        List<IlmHealthIndicatorService.IndexIlmState> states
-    ) {
+    private static IlmHealthIndicatorService.StagnatingIndicesFinder mockedStagnatingIndicesFinder(List<IndexMetadata> states) {
         var finder = mock(IlmHealthIndicatorService.StagnatingIndicesFinder.class);
         when(finder.find()).thenReturn(states);
         return finder;

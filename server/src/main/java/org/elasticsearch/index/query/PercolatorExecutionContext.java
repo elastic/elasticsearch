@@ -15,11 +15,15 @@ import org.elasticsearch.index.query.support.NestedScope;
 
 public class PercolatorExecutionContext extends SearchExecutionContext {
 
-    protected boolean allowUnmappedFields;
-    protected boolean mapUnmappedFieldAsString;
+    private boolean allowUnmappedFields;
+    private final boolean mapUnmappedFieldAsString;
 
-    public PercolatorExecutionContext(final SearchExecutionContext source, boolean allowUnmappedFields, boolean mapUnmappedFieldAsString) {
-        super(source);
+    public PercolatorExecutionContext(
+        final SearchExecutionContext searchExecutionContext,
+        boolean allowUnmappedFields,
+        boolean mapUnmappedFieldAsString
+    ) {
+        super(searchExecutionContext);
         this.allowUnmappedFields = allowUnmappedFields;
         this.mapUnmappedFieldAsString = mapUnmappedFieldAsString;
     }

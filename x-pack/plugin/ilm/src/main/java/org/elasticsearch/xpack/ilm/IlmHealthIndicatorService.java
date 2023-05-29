@@ -40,14 +40,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeSet;
 import java.util.function.BiPredicate;
-import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.counting;
 import static java.util.stream.Collectors.groupingBy;
-import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
 import static org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata.currentILMMode;
@@ -101,25 +98,38 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
 
     public static final TimeValue ONE_DAY = TimeValue.timeValueDays(1);
 
-    static final Map<String, RuleConfig> RULES_BY_ACTION_CONFIG = Stream.of(
-        new RuleConfig(RolloverAction.NAME, ONE_DAY, 100, List.of(WaitForActiveShardsStep.NAME)),
-        new RuleConfig(MigrateAction.NAME, ONE_DAY, 100),
-        new RuleConfig(
-            SearchableSnapshotAction.NAME,
-            ONE_DAY,
-            100,
-            List.of(WaitForDataTierStep.NAME, WaitForIndexColorStep.NAME, WaitForNoFollowersStep.NAME)
+    static final Map<String, RuleConfig> RULES_BY_ACTION_CONFIG = Map.of(
+        RolloverAction.NAME,
+        new ActionRule(RolloverAction.NAME).and(new StepRule(WaitForActiveShardsStep.NAME, ONE_DAY, 100)),
+        //
+        MigrateAction.NAME,
+        new ActionRule(MigrateAction.NAME, ONE_DAY),
+        //
+        SearchableSnapshotAction.NAME,
+        new ActionRule(SearchableSnapshotAction.NAME, ONE_DAY).and(
+            new StepRule(WaitForDataTierStep.NAME, ONE_DAY, 100) //
+                .or(new StepRule(WaitForIndexColorStep.NAME, ONE_DAY, 100)) //
+                .or(new StepRule(WaitForNoFollowersStep.NAME, ONE_DAY, 100))
         ),
-        new RuleConfig(DeleteStep.NAME, ONE_DAY, 100),
-        new RuleConfig(ShrinkAction.NAME, ONE_DAY, 100, List.of(WaitForNoFollowersStep.NAME)),
-        new RuleConfig(AllocateAction.NAME, ONE_DAY, 100),
-        new RuleConfig(ForceMergeAction.NAME, ONE_DAY, 100, List.of(WaitForIndexColorStep.NAME)),
-        new RuleConfig(DownsampleAction.NAME, ONE_DAY, 100, List.of(WaitForNoFollowersStep.NAME))
-    ).collect(toMap(RuleConfig::action, Function.identity()));
+        //
+        DeleteStep.NAME,
+        new ActionRule(DeleteStep.NAME, ONE_DAY),
+        //
+        ShrinkAction.NAME,
+        new ActionRule(ShrinkAction.NAME, ONE_DAY).and(new StepRule(WaitForNoFollowersStep.NAME, ONE_DAY, 100)),
+        //
+        AllocateAction.NAME,
+        new ActionRule(AllocateAction.NAME, ONE_DAY),
+        //
+        ForceMergeAction.NAME,
+        new ActionRule(ForceMergeAction.NAME, ONE_DAY).and(new StepRule(WaitForIndexColorStep.NAME, ONE_DAY, 100)),
+        //
+        DownsampleAction.NAME,
+        new ActionRule(DownsampleAction.NAME, ONE_DAY).and(new StepRule(WaitForNoFollowersStep.NAME, ONE_DAY, 100))
+    );
 
     public static final StagnatingIndicesRuleEvaluator ILM_RULE_EVALUATOR = new StagnatingIndicesRuleEvaluator(
-
-        RULES_BY_ACTION_CONFIG.values().stream().map(RuleConfig::toPredicate).toList()
+        RULES_BY_ACTION_CONFIG.values().stream().toList()
     );
 
     static final Map<String, Diagnosis.Definition> STAGNATING_ACTION_DEFINITIONS = RULES_BY_ACTION_CONFIG.entrySet()
@@ -289,39 +299,47 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
         }
     }
 
-    record StagnatingIndicesRuleEvaluator(List<BiPredicate<Long, IndexMetadata>> rules) {
+    record StagnatingIndicesRuleEvaluator(List<RuleConfig> rules) {
         public boolean isStagnated(Long now, IndexMetadata indexMetadata) {
             return rules.stream().anyMatch(r -> r.test(now, indexMetadata));
         }
     }
 
-    private record RuleConfig(String action, TimeValue maxTimeOn, long maxRetries, List<String> stepsToCheck) {
-        RuleConfig(String action, TimeValue maxTimeOn, long maxRetries) {
-            this(action, maxTimeOn, maxRetries, null);
+    interface RuleConfig extends BiPredicate<Long, IndexMetadata> {
+        default TimeValue safelyGetTimeValue(Long now, Long currentTime) {
+            return currentTime == null ? TimeValue.ZERO : TimeValue.timeValueMillis(now - currentTime);
         }
 
-        public BiPredicate<Long, IndexMetadata> toPredicate() {
-            return stepsToCheck == null || stepsToCheck.isEmpty() ? this::onlyCheckAction : this::checkActionAndStep;
+        @Override
+        default RuleConfig and(BiPredicate<? super Long, ? super IndexMetadata> other) {
+            return (RuleConfig) BiPredicate.super.and(other);
+        }
+    }
+
+    private record ActionRule(String action, TimeValue maxTimeOn) implements RuleConfig {
+        ActionRule(String action) {
+            this(action, null);
         }
 
-        private boolean checkActionAndStep(Long now, IndexMetadata indexMetadata) {
+        @Override
+        public boolean test(Long now, IndexMetadata indexMetadata) {
             var currentAction = indexMetadata.getLifecycleExecutionState().action();
+            if (maxTimeOn == null) {
+                return action.equals(currentAction);
+            } else {
+                return action.equals(currentAction)
+                    && maxTimeOn.compareTo(safelyGetTimeValue(now, indexMetadata.getLifecycleExecutionState().actionTime())) < 0;
+            }
+        }
+    }
+
+    private record StepRule(String step, TimeValue maxTimeOn, long maxRetries) implements RuleConfig {
+        @Override
+        public boolean test(Long now, IndexMetadata indexMetadata) {
             var currentStep = indexMetadata.getLifecycleExecutionState().step();
             var currentStepRetries = indexMetadata.getLifecycleExecutionState().failedStepRetryCount();
             var currentTimeOnAction = safelyGetTimeValue(now, indexMetadata.getLifecycleExecutionState().actionTime());
-            return action.equals(currentAction)
-                && stepsToCheck.contains(currentStep)
-                && (maxTimeOn.compareTo(currentTimeOnAction) < 0 || currentStepRetries > maxRetries);
-        }
-
-        private boolean onlyCheckAction(Long now, IndexMetadata indexMetadata) {
-            var currentAction = indexMetadata.getLifecycleExecutionState().action();
-            var currentTimeOnAction = safelyGetTimeValue(now, indexMetadata.getLifecycleExecutionState().actionTime());
-            return action.equals(currentAction) && maxTimeOn.compareTo(currentTimeOnAction) < 0;
-        }
-
-        private static TimeValue safelyGetTimeValue(Long now, Long currentTime) {
-            return currentTime == null ? TimeValue.ZERO : TimeValue.timeValueMillis(now - currentTime);
+            return step.contains(currentStep) && (maxTimeOn.compareTo(currentTimeOnAction) < 0 || currentStepRetries > maxRetries);
         }
     }
 }

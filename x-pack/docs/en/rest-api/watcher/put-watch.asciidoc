@@ -77,6 +77,9 @@ A watch has the following fields:
 | `actions`         | The list of <<actions,actions>> that will be
                       run if the condition matches
 
+| `transform`       | The <<transform,transform>> that processes the 
+                      watch payload to prepare it for the watch actions.
+
 | `metadata`        | Metadata json that will be copied into the history entries.
 
 | `throttle_period` | The minimum time between actions being run, the default

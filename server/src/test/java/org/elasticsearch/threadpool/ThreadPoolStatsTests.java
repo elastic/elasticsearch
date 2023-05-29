@@ -14,31 +14,46 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.List;
 
 import static org.elasticsearch.threadpool.ThreadPool.THREAD_POOL_TYPES;
 import static org.hamcrest.Matchers.contains;
 
 public class ThreadPoolStatsTests extends ESTestCase {
     public void testThreadPoolStatsSort() {
-        var stats = List.of(
-            new ThreadPoolStats.Stats("z", -1, 0, 0, 0, 0, 0L),
-            new ThreadPoolStats.Stats("m", 3, 0, 0, 0, 0, 0L),
-            new ThreadPoolStats.Stats("m", 1, 0, 0, 0, 0, 0L),
-            new ThreadPoolStats.Stats("d", -1, 0, 0, 0, 0, 0L),
-            new ThreadPoolStats.Stats("m", 2, 0, 0, 0, 0, 0L),
-            new ThreadPoolStats.Stats("t", -1, 0, 0, 0, 0, 0L),
-            new ThreadPoolStats.Stats("a", -1, 0, 0, 0, 0, 0L)
-        );
+        var unorderedStats = new ArrayList<ThreadPoolStats.Stats>();
 
-        var copy = new ArrayList<>(stats);
+        unorderedStats.add(new ThreadPoolStats.Stats("z", 7, 0, 0, 0, 0, 0L));
+        unorderedStats.add(new ThreadPoolStats.Stats("m", 5, 0, 0, 0, 0, 0L));
+        unorderedStats.add(new ThreadPoolStats.Stats("m", -3, 0, 0, 0, 0, 0L));
+        unorderedStats.add(new ThreadPoolStats.Stats("d", 2, 0, 0, 0, 0, 0L));
+        unorderedStats.add(new ThreadPoolStats.Stats("m", 4, 0, 0, 0, 0, 0L));
+        unorderedStats.add(new ThreadPoolStats.Stats("t", 6, 0, 0, 0, 0, 0L));
+        unorderedStats.add(new ThreadPoolStats.Stats("a", 1, 0, 0, 0, 0, 0L));
+
+        var copy = new ArrayList<>(unorderedStats);
         Collections.sort(copy);
 
-        var names = copy.stream().map(ThreadPoolStats.Stats::name).toList();
-        assertThat(names, contains("a", "d", "m", "m", "m", "t", "z"));
+        assertThat(copy.stream().map(ThreadPoolStats.Stats::name).toList(), contains("a", "d", "m", "m", "m", "t", "z"));
+        assertThat(copy.stream().map(ThreadPoolStats.Stats::threads).toList(), contains(-1, 2, -3, 4, 5, 6, 7));
 
-        var threads = copy.stream().map(ThreadPoolStats.Stats::threads).toList();
-        assertThat(threads, contains(-1, -1, 1, 2, 3, -1, -1));
+        // assert that the ThreadPoolStats constructor sorts the stat list
+        var threadPoolStats = new ThreadPoolStats(unorderedStats);
+        assertThat(threadPoolStats.stats().stream().map(ThreadPoolStats.Stats::name).toList(), contains("a", "d", "m", "m", "m", "t", "z"));
+        assertThat(threadPoolStats.stats().stream().map(ThreadPoolStats.Stats::threads).toList(), contains(-1, 2, -3, 4, 5, 6, 7));
+    }
+
+    public void testMergeThreadPoolStats() {
+        var firstStats = randomList(1, 20, ThreadPoolStatsTests::randomStats);
+        var secondStats = randomList(1, 20, ThreadPoolStatsTests::randomStats);
+
+        var fullStats = new ArrayList<>(firstStats);
+        fullStats.addAll(secondStats);
+
+        var target = new ThreadPoolStats(fullStats);
+        var expected = ThreadPoolStats.merge(new ThreadPoolStats(firstStats), new ThreadPoolStats(secondStats));
+
+        assertNotSame(target, expected);
+        assertEquals(target, expected);
     }
 
     public void testSerialization() throws IOException {

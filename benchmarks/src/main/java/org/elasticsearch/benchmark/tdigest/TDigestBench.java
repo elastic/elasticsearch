@@ -80,7 +80,7 @@ public class TDigestBench {
     @Param({ "MERGE", "AVL_TREE" })
     TDigestFactory tdigestFactory;
 
-    @Param({"NORMAL", "GAUSSIAN"})
+    @Param({ "NORMAL", "GAUSSIAN" })
     String distribution;
 
     Random random;

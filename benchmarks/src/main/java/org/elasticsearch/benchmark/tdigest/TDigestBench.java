@@ -38,7 +38,6 @@ import org.openjdk.jmh.annotations.Threads;
 import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.profile.GCProfiler;
 import org.openjdk.jmh.profile.StackProfiler;
-import org.openjdk.jmh.results.format.ResultFormatType;
 import org.openjdk.jmh.runner.Runner;
 import org.openjdk.jmh.runner.RunnerException;
 import org.openjdk.jmh.runner.options.Options;
@@ -47,6 +46,7 @@ import org.openjdk.jmh.runner.options.OptionsBuilder;
 import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.NANOSECONDS)
@@ -63,76 +63,16 @@ public class TDigestBench {
             TDigest create(double compression) {
                 return new MergingDigest(compression, (int) (10 * compression));
             }
-
-            @Override
-            TDigest create() {
-                return create(100);
-            }
         },
         AVL_TREE {
             @Override
             TDigest create(double compression) {
                 return new AVLTreeDigest(compression);
             }
-
-            @Override
-            TDigest create() {
-                return create(20);
-            }
         };
 
         abstract TDigest create(double compression);
-
-        abstract TDigest create();
     }
-    //
-    // public enum DistributionFactory {
-    // UNIFORM {
-    // @Override
-    // AbstractDistribution create(Random random) {
-    // return new Uniform(0, 1, random);
-    // }
-    // },
-    // SEQUENTIAL {
-    // @Override
-    // AbstractDistribution create(Random random) {
-    // return new AbstractContinousDistribution() {
-    // double base = 0;
-    //
-    // @Override
-    // public double nextDouble() {
-    // base += Math.PI * 1e-5;
-    // return base;
-    // }
-    // };
-    // }
-    // },
-    // REPEATED {
-    // @Override
-    // AbstractDistribution create(final Random random) {
-    // return new AbstractContinousDistribution() {
-    // @Override
-    // public double nextDouble() {
-    // return random.nextInt(10);
-    // }
-    // };
-    // }
-    // },
-    // GAMMA {
-    // @Override
-    // AbstractDistribution create(Random random) {
-    // return new Gamma(0.1, 0.1, random);
-    // }
-    // },
-    // NORMAL {
-    // @Override
-    // AbstractDistribution create(Random random) {
-    // return new Normal(0.1, 0.1, random);
-    // }
-    // };
-    //
-    // abstract AbstractDistribution create(Random random);
-    // }
 
     @Param({ "100", "300" })
     double compression;
@@ -140,8 +80,8 @@ public class TDigestBench {
     @Param({ "MERGE", "AVL_TREE" })
     TDigestFactory tdigestFactory;
 
-    // @Param({"NORMAL", "GAMMA"})
-    // DistributionFactory distributionFactory;
+    @Param({"NORMAL", "GAUSSIAN"})
+    String distribution;
 
     Random random;
     TDigest tdigest;
@@ -153,15 +93,14 @@ public class TDigestBench {
     public void setUp() {
         random = ThreadLocalRandom.current();
         tdigest = tdigestFactory.create(compression);
-        // distribution = distributionFactory.create(random);
-        // first values are cheap to add, so pre-fill the t-digest to have more realistic results
-        Random random = ThreadLocalRandom.current();
+
+        Supplier<Double> nextRandom = () -> distribution.equals("GAUSSIAN") ? random.nextGaussian() : random.nextDouble();
         for (int i = 0; i < 10000; ++i) {
-            tdigest.add(random.nextDouble());
+            tdigest.add(nextRandom.get());
         }
 
         for (int i = 0; i < data.length; ++i) {
-            data[i] = random.nextDouble();
+            data[i] = nextRandom.get();
         }
     }
 
@@ -171,7 +110,9 @@ public class TDigestBench {
     }
 
     @Benchmark
-    public void timeAdd(MergeBench.ThreadState state) {
+    @BenchmarkMode(Mode.AverageTime)
+    @OutputTimeUnit(TimeUnit.MICROSECONDS)
+    public void add(ThreadState state) {
         if (state.index >= data.length) {
             state.index = 0;
         }
@@ -180,8 +121,8 @@ public class TDigestBench {
 
     public static void main(String[] args) throws RunnerException {
         Options opt = new OptionsBuilder().include(".*" + TDigestBench.class.getSimpleName() + ".*")
-            .resultFormat(ResultFormatType.CSV)
-            .result("overall-results.csv")
+            .warmupIterations(5)
+            .measurementIterations(5)
             .addProfiler(GCProfiler.class)
             .addProfiler(StackProfiler.class)
             .build();

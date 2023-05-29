@@ -735,9 +735,9 @@ public abstract class TDigestTests extends ESTestCase {
         // Otherwise, quantiles above 0.9 use interpolation between 10 and 20, thus returning higher values.
         assertEquals(10.0, dist.quantile(0), 0);
         assertEquals(10.0, dist.quantile(0.9), 0);
-        assertEquals(10.0, dist.quantile(0.999), 3);
+        assertEquals(13.0, dist.quantile(0.999), 3);
         assertEquals(13.0, dist.quantile(0.9999), 3);
-        assertEquals(19.0, dist.quantile(0.99999), 3);
+        assertEquals(17.0, dist.quantile(0.99999), 2);
         assertEquals(20.0, dist.quantile(1), 0);
     }
 

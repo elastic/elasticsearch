@@ -8,7 +8,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfigurationTests;
@@ -17,7 +16,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
@@ -26,7 +24,6 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
@@ -42,8 +39,6 @@ public class DataLifecycleTests extends AbstractXContentSerializingTestCase<Data
 
     @Override
     protected DataLifecycle createTestInstance() {
-        // We exclude the nullified data lifecycle because on the XContent level we cannot differentiate it from the
-        // implicit infinite retention. We test wire serialization in a separate test case.
         return switch (randomInt(2)) {
             case 0 -> DataLifecycle.IMPLICIT_INFINITE_RETENTION;
             case 1 -> DataLifecycle.EXPLICIT_INFINITE_RETENTION;
@@ -90,56 +85,6 @@ public class DataLifecycleTests extends AbstractXContentSerializingTestCase<Data
             if (rolloverConfiguration.getAutomaticConditions().isEmpty() == false) {
                 assertThat(serialized, containsString("[automatic]"));
             }
-        }
-    }
-
-    // We test the wire serialization of a nullified data lifecycle separately because
-    // we cannot properly test the XContent conversion on this level. We test it on the template
-    // level where it matters.
-    public void testWireSerializationOfNullifiedDataLifecycle() throws IOException {
-        copyWriteable(
-            new DataLifecycle.Builder().nullified(true).build(),
-            getNamedWriteableRegistry(),
-            instanceReader(),
-            TransportVersion.V_8_9_0
-        );
-    }
-
-    public void testInvalidDataLifecycle() {
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> new DataLifecycle.Builder().dataRetention(new DataLifecycle.Retention(TimeValue.timeValueDays(1))).nullified(true).build()
-        );
-        assertThat(e.getMessage(), containsString("Invalid lifecycle, when a lifecycle is nullified, retention should also be null."));
-    }
-
-    public void testLifecycleComposition() {
-        // No lifecycles result to null
-        {
-            List<DataLifecycle> lifecycles = List.of();
-            assertThat(DataLifecycle.compose(lifecycles), nullValue());
-        }
-        // One lifecycle results to this lifecycle as the final
-        {
-            DataLifecycle lifecycle = createTestInstance();
-            List<DataLifecycle> lifecycles = List.of(lifecycle);
-            assertThat(DataLifecycle.compose(lifecycles), equalTo(lifecycle));
-        }
-        // If the last lifecycle is missing a property we keep the latest from the previous ones
-        {
-            DataLifecycle lifecycleWithRetention = new DataLifecycle(randomMillisUpToYear9999());
-            List<DataLifecycle> lifecycles = List.of(lifecycleWithRetention, new DataLifecycle());
-            assertThat(
-                DataLifecycle.compose(lifecycles).getEffectiveDataRetention(),
-                equalTo(lifecycleWithRetention.getEffectiveDataRetention())
-            );
-        }
-        // If both lifecycle have all properties, then the latest one overwrites all the others
-        {
-            DataLifecycle lifecycle1 = new DataLifecycle(randomMillisUpToYear9999());
-            DataLifecycle lifecycle2 = new DataLifecycle(randomMillisUpToYear9999());
-            List<DataLifecycle> lifecycles = List.of(lifecycle1, lifecycle2);
-            assertThat(DataLifecycle.compose(lifecycles), equalTo(lifecycle2));
         }
     }
 

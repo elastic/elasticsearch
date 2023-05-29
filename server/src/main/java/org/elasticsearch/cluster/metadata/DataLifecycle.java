@@ -27,7 +27,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Objects;
 
 /**
@@ -46,12 +45,9 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
     private static final FeatureFlag DLM_FEATURE_FLAG = new FeatureFlag("dlm");
 
     // This represents a lifecycle with infinite retention that will overwrite other retention periods during composition
-    public static final DataLifecycle EXPLICIT_INFINITE_RETENTION = new DataLifecycle(Retention.NULL, false);
+    public static final DataLifecycle EXPLICIT_INFINITE_RETENTION = new DataLifecycle(Retention.NULL);
     // This represents a lifecycle with infinite retention that will inherit other retention periods during composition
-    public static final DataLifecycle IMPLICIT_INFINITE_RETENTION = new DataLifecycle(null, false);
-    // This represents when the data lifecycle was explicitly set to be null, meaning the user wants to remove the
-    // lifecycle.
-    public static final DataLifecycle NO_LIFECYCLE = new DataLifecycle(null, true);
+    public static final DataLifecycle IMPLICIT_INFINITE_RETENTION = new DataLifecycle((TimeValue) null);
     public static final String DLM_ORIGIN = "data_lifecycle";
 
     public static final ParseField DATA_RETENTION_FIELD = new ParseField("data_retention");
@@ -60,7 +56,7 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
     public static final ConstructingObjectParser<DataLifecycle, Void> PARSER = new ConstructingObjectParser<>(
         "lifecycle",
         false,
-        (args, unused) -> new DataLifecycle((Retention) args[0], false)
+        (args, unused) -> new DataLifecycle((Retention) args[0])
     );
 
     static {
@@ -80,26 +76,17 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
 
     @Nullable
     private final Retention dataRetention;
-    private final boolean nullified;
 
     public DataLifecycle() {
-        this(null, false);
+        this((TimeValue) null);
     }
 
     public DataLifecycle(@Nullable TimeValue dataRetention) {
-        this(dataRetention == null ? null : new Retention(dataRetention), false);
+        this(dataRetention == null ? null : new Retention(dataRetention));
     }
 
     public DataLifecycle(Retention dataRetention) {
-        this(dataRetention, false);
-    }
-
-    private DataLifecycle(@Nullable Retention dataRetention, boolean nullified) {
-        if (nullified && dataRetention != null) {
-            throw new IllegalArgumentException("Invalid lifecycle, when a lifecycle is nullified, retention should also be null.");
-        }
         this.dataRetention = dataRetention;
-        this.nullified = nullified;
     }
 
     public DataLifecycle(long timeInMills) {
@@ -107,58 +94,8 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
     }
 
     /**
-     * This method composes a series of lifecycles to a final one. The lifecycles are getting composed one level deep,
-     * meaning that the keys present on the latest lifecycle will override the ones of the others. If a key is missing
-     * then it keeps the value of the previous lifecycles. For example, if we have the following two lifecycles:
-     * [
-     *   {
-     *     "lifecycle": {
-     *       "data_retention" : "10d"
-     *     }
-     *   },
-     *   {
-     *     "lifecycle": {
-     *       "data_retention" : "20d"
-     *     }
-     *   }
-     * ]
-     * The result will be { "lifecycle": { "data_retention" : "20d"}} because the second data retention overrides the first.
-     * However, if we have the following two lifecycles:
-     * [
-     *   {
-     *     "lifecycle": {
-     *       "data_retention" : "10d"
-     *     }
-     *   },
-     *   {
-     *   "lifecycle": { }
-     *   }
-     * ]
-     * The result will be { "lifecycle": { "data_retention" : "10d"} } because the latest lifecycle does not have any
-     * information on retention.
-     * @param lifecycles a sorted list of lifecycles in the order that they will be composed
-     * @return the final lifecycle
-     */
-    @Nullable
-    public static DataLifecycle compose(List<DataLifecycle> lifecycles) {
-        DataLifecycle.Builder builder = null;
-        for (DataLifecycle current : lifecycles) {
-            if (current.isNullified()) {
-                builder = null;
-            } else if (builder == null) {
-                builder = Builder.newBuilder(current);
-            } else {
-                if (current.dataRetention != null) {
-                    builder.dataRetention(current.getDataRetention());
-                }
-            }
-        }
-        return builder == null ? null : builder.build();
-    }
-
-    /**
      * The least amount of time data should be kept by elasticsearch.
-     * @return the time period or null, null represents the data should never be deleted.
+     * @return the time period or null, null represents that data should never be deleted.
      */
     @Nullable
     public TimeValue getEffectiveDataRetention() {
@@ -179,32 +116,27 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
         return dataRetention;
     }
 
-    public boolean isNullified() {
-        return nullified;
-    }
-
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
 
         final DataLifecycle that = (DataLifecycle) o;
-        return Objects.equals(dataRetention, that.dataRetention) && this.nullified == that.nullified;
+        return Objects.equals(dataRetention, that.dataRetention);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(dataRetention, nullified);
+        return Objects.hash(dataRetention);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalWriteable(dataRetention);
-        out.writeBoolean(nullified);
     }
 
     public DataLifecycle(StreamInput in) throws IOException {
-        this(in.readOptionalWriteable(Retention::read), in.readBoolean());
+        this(in.readOptionalWriteable(Retention::read));
     }
 
     public static Diff<DataLifecycle> readDiffFrom(StreamInput in) throws IOException {
@@ -226,10 +158,6 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
      */
     public XContentBuilder toXContent(XContentBuilder builder, Params params, @Nullable RolloverConfiguration rolloverConfiguration)
         throws IOException {
-        if (nullified) {
-            return builder.nullValue();
-        }
-
         builder.startObject();
         if (dataRetention != null) {
             if (dataRetention.value() == null) {
@@ -256,24 +184,18 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
     static class Builder {
         @Nullable
         private Retention dataRetention = null;
-        private boolean nullified = false;
 
         Builder dataRetention(@Nullable Retention value) {
             dataRetention = value;
             return this;
         }
 
-        Builder nullified(boolean value) {
-            nullified = value;
-            return this;
-        }
-
         DataLifecycle build() {
-            return new DataLifecycle(dataRetention, nullified);
+            return new DataLifecycle(dataRetention);
         }
 
         static Builder newBuilder(DataLifecycle dataLifecycle) {
-            return new Builder().dataRetention(dataLifecycle.getDataRetention()).nullified(dataLifecycle.isNullified());
+            return new Builder().dataRetention(dataLifecycle.getDataRetention());
         }
     }
 

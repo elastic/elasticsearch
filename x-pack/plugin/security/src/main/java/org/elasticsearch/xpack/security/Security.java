@@ -7,11 +7,14 @@
 package org.elasticsearch.xpack.security;
 
 import io.netty.channel.Channel;
+import io.netty.handler.codec.http.HttpMethod;
+import io.netty.handler.codec.http.HttpUtil;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -77,6 +80,7 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestHeaderDefinition;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.threadpool.ExecutorBuilder;
@@ -1502,26 +1506,6 @@ public class Security extends Plugin
             }
             final AuthenticationService authenticationService = this.authcService.get();
             final ThreadContext threadContext = this.threadContext.get();
-            final HttpValidator httpValidator = (httpRequest, channel, listener) -> {
-                HttpPreRequest httpPreRequest = HttpHeadersAuthenticatorUtils.asHttpPreRequest(httpRequest);
-                // step 1: Populate the thread context with credentials and any other HTTP request header values (eg run-as) that the
-                // authentication process looks for while doing its duty.
-                perRequestThreadContext.accept(httpPreRequest, threadContext);
-                populateClientCertificate.accept(channel, threadContext);
-                RemoteHostHeader.process(channel, threadContext);
-                // step 2: Run authentication on the now properly prepared thread-context.
-                // This inspects and modifies the thread context.
-                if (httpPreRequest.method() != RestRequest.Method.OPTIONS) {
-                    authenticationService.authenticate(
-                        httpPreRequest,
-                        ActionListener.wrap(ignored -> listener.onResponse(null), listener::onFailure)
-                    );
-                } else {
-                    // allow for unauthenticated OPTIONS request
-                    // this includes CORS preflight, and regular OPTIONS that return permitted methods for a given path
-                    listener.onResponse(null);
-                }
-            };
             return getHttpServerTransportWithHeadersValidator(
                 settings,
                 networkService,
@@ -1533,7 +1517,30 @@ public class Security extends Plugin
                 getSslService(),
                 getNettySharedGroupFactory(settings),
                 clusterSettings,
-                httpValidator
+                (httpRequest, channel, listener) -> {
+                    HttpPreRequest httpPreRequest = HttpHeadersAuthenticatorUtils.asHttpPreRequest(httpRequest);
+                    // step 1: Populate the thread context with credentials and any other HTTP request header values (eg run-as) that the
+                    // authentication process looks for while doing its duty.
+                    perRequestThreadContext.accept(httpPreRequest, threadContext);
+                    populateClientCertificate.accept(channel, threadContext);
+                    RemoteHostHeader.process(channel, threadContext);
+                    // step 2: Run authentication on the now properly prepared thread-context.
+                    // This inspects and modifies the thread context.
+                    authenticationService.authenticate(
+                        httpPreRequest,
+                        ActionListener.wrap(ignored -> listener.onResponse(null), listener::onFailure)
+                    );
+                },
+                (httpRequest, channel, listener) -> {
+                    // allow unauthenticated OPTIONS request through
+                    // this includes CORS preflight, and regular OPTIONS that return permitted methods for a given path
+                    // But still populate the thread context with the usual request headers (as for any other request that is dispatched)
+                    HttpPreRequest httpPreRequest = HttpHeadersAuthenticatorUtils.asHttpPreRequest(httpRequest);
+                    perRequestThreadContext.accept(httpPreRequest, threadContext);
+                    populateClientCertificate.accept(channel, threadContext);
+                    RemoteHostHeader.process(channel, threadContext);
+                    listener.onResponse(null);
+                }
             );
         });
         httpTransports.put(SecurityField.NIO, () -> {
@@ -1567,6 +1574,52 @@ public class Security extends Plugin
         });
 
         return httpTransports;
+    }
+
+    // "public" so it can be used in tests
+    public static SecurityNetty4HttpServerTransport getHttpServerTransportWithHeadersValidator(
+        Settings settings,
+        NetworkService networkService,
+        BigArrays bigArrays,
+        ThreadPool threadPool,
+        NamedXContentRegistry xContentRegistry,
+        HttpServerTransport.Dispatcher dispatcher,
+        IPFilter ipFilter,
+        SSLService sslService,
+        SharedGroupFactory sharedGroupFactory,
+        ClusterSettings clusterSettings,
+        HttpValidator httpValidator,
+        HttpValidator httpOptionsValidator
+    ) {
+        return getHttpServerTransportWithHeadersValidator(
+            settings,
+            networkService,
+            bigArrays,
+            threadPool,
+            xContentRegistry,
+            dispatcher,
+            ipFilter,
+            sslService,
+            sharedGroupFactory,
+            clusterSettings,
+            (httpRequest, channel, listener) -> {
+                if (httpRequest.method() == HttpMethod.OPTIONS) {
+                    if (HttpUtil.getContentLength(httpRequest, -1L) > 1 || HttpUtil.isTransferEncodingChunked(httpRequest)) {
+                        // OPTIONS requests with a body are not supported
+                        listener.onFailure(
+                            new ElasticsearchStatusException(
+                                "OPTIONS requests with a payload body are not supported",
+                                RestStatus.BAD_REQUEST
+                            )
+                        );
+                    } else {
+                        httpOptionsValidator.validate(httpRequest, channel, listener);
+                    }
+                } else {
+                    httpValidator.validate(httpRequest, channel, listener);
+                }
+            }
+        );
     }
 
     // "public" so it can be used in tests

@@ -68,8 +68,6 @@ public class WatcherScheduleEngineBenchmark {
         .build();
 
     public static void main(String[] args) throws Exception {
-        System.setProperty("es.logger.prefix", "");
-
         String[] engines = new String[] { "ticker", "scheduler" };
         int numWatches = 2000;
         int benchTime = 60000;

@@ -1294,7 +1294,7 @@ Number of selected nodes using the HTTP type.
 
 `discovery_types`::
 (object)
-Contains statistics about the <<modules-discovery-hosts-providers,discovery
+Contains statistics about the <<discovery-hosts-providers,discovery
 types>> used by selected nodes.
 +
 .Properties of `discovery_types`
@@ -1302,7 +1302,7 @@ types>> used by selected nodes.
 =====
 `<discovery_type>`::
 (integer)
-Number of selected nodes using the <<modules-discovery-hosts-providers,discovery
+Number of selected nodes using the <<discovery-hosts-providers,discovery
 type>> to find other nodes.
 =====
 

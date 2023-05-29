@@ -214,6 +214,9 @@ public class InternalEngine extends Engine {
 
     private final ByteSizeValue totalDiskSpace;
 
+    protected static final String REAL_TIME_GET_REFRESH_SOURCE = "realtime_get";
+    protected static final String UNSAFE_VERSION_MAP_REFRESH_SOURCE = "unsafe_version_map";
+
     public InternalEngine(EngineConfig engineConfig) {
         this(engineConfig, IndexWriter.MAX_DOCS, LocalCheckpointTracker::new);
     }
@@ -848,7 +851,7 @@ public class InternalEngine extends Engine {
                 }
             }
             assert versionValue.seqNo >= 0 : versionValue;
-            refreshIfNeeded("realtime_get", versionValue.seqNo);
+            refreshIfNeeded(REAL_TIME_GET_REFRESH_SOURCE, versionValue.seqNo);
         }
         if (getFromSearcherIfNotInTranslog) {
             return getFromSearcher(get, acquireSearcher("realtime_get", SearcherScope.INTERNAL, searcherWrapper), false);
@@ -960,7 +963,7 @@ public class InternalEngine extends Engine {
                 // map so once we pass this point we can safely lookup from the version map.
                 if (versionMap.isUnsafe()) {
                     lastUnsafeSegmentGenerationForGets.set(lastCommittedSegmentInfos.getGeneration() + 1);
-                    refresh("unsafe_version_map", SearcherScope.INTERNAL, true);
+                    refreshInternalSearcher(UNSAFE_VERSION_MAP_REFRESH_SOURCE, true);
                 }
                 versionMap.enforceSafeAccess();
             }
@@ -1927,6 +1930,10 @@ public class InternalEngine extends Engine {
     @Override
     public RefreshResult maybeRefresh(String source) throws EngineException {
         return refresh(source, SearcherScope.EXTERNAL, false);
+    }
+
+    protected RefreshResult refreshInternalSearcher(String source, boolean block) throws EngineException {
+        return refresh(source, SearcherScope.INTERNAL, block);
     }
 
     final RefreshResult refresh(String source, SearcherScope scope, boolean block) throws EngineException {
@@ -3052,7 +3059,7 @@ public class InternalEngine extends Engine {
         if (lastRefreshedCheckpoint() < requestingSeqNo) {
             synchronized (refreshIfNeededMutex) {
                 if (lastRefreshedCheckpoint() < requestingSeqNo) {
-                    refresh(source, SearcherScope.INTERNAL, true);
+                    refreshInternalSearcher(source, true);
                 }
             }
         }

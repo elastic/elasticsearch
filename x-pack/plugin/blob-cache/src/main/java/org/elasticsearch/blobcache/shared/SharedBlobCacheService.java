@@ -731,7 +731,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
 
                 ensureOpen();
                 final SharedBytes.IO fileChannel = sharedBytes.getFileChannel(sharedBytesPos);
-                resources[0] = Releasables.releaseOnce(fileChannel::decRef);
+                resources[0] = Releasables.releaseOnce(fileChannel);
 
                 final ActionListener<Void> rangeListener = rangeListener(
                     rangeToRead,

@@ -8,48 +8,32 @@
 
 package org.elasticsearch.threadpool;
 
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.ToXContentFragment;
-import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
-public class ThreadPoolStats implements Writeable, ToXContentFragment, Iterable<ThreadPoolStats.Stats> {
+import static java.util.Collections.emptyIterator;
+import static org.elasticsearch.common.collect.Iterators.single;
 
-    public static class Stats implements Writeable, ToXContentFragment, Comparable<Stats> {
+public record ThreadPoolStats(List<Stats> stats) implements Writeable, ChunkedToXContent, Iterable<ThreadPoolStats.Stats> {
 
-        private final String name;
-        private final int threads;
-        private final int queue;
-        private final int active;
-        private final long rejected;
-        private final int largest;
-        private final long completed;
-
-        public Stats(String name, int threads, int queue, int active, long rejected, int largest, long completed) {
-            this.name = name;
-            this.threads = threads;
-            this.queue = queue;
-            this.active = active;
-            this.rejected = rejected;
-            this.largest = largest;
-            this.completed = completed;
-        }
+    public record Stats(String name, int threads, int queue, int active, long rejected, int largest, long completed)
+        implements
+            Writeable,
+            ChunkedToXContent,
+            Comparable<Stats> {
 
         public Stats(StreamInput in) throws IOException {
-            name = in.readString();
-            threads = in.readInt();
-            queue = in.readInt();
-            active = in.readInt();
-            rejected = in.readLong();
-            largest = in.readInt();
-            completed = in.readLong();
+            this(in.readString(), in.readInt(), in.readInt(), in.readInt(), in.readLong(), in.readInt(), in.readLong());
         }
 
         @Override
@@ -63,86 +47,45 @@ public class ThreadPoolStats implements Writeable, ToXContentFragment, Iterable<
             out.writeLong(completed);
         }
 
-        public String getName() {
-            return this.name;
-        }
-
-        public int getThreads() {
-            return this.threads;
-        }
-
-        public int getQueue() {
-            return this.queue;
-        }
-
-        public int getActive() {
-            return this.active;
-        }
-
-        public long getRejected() {
-            return rejected;
-        }
-
-        public int getLargest() {
-            return largest;
-        }
-
-        public long getCompleted() {
-            return this.completed;
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject(name);
-            if (threads != -1) {
-                builder.field(Fields.THREADS, threads);
-            }
-            if (queue != -1) {
-                builder.field(Fields.QUEUE, queue);
-            }
-            if (active != -1) {
-                builder.field(Fields.ACTIVE, active);
-            }
-            if (rejected != -1) {
-                builder.field(Fields.REJECTED, rejected);
-            }
-            if (largest != -1) {
-                builder.field(Fields.LARGEST, largest);
-            }
-            if (completed != -1) {
-                builder.field(Fields.COMPLETED, completed);
-            }
-            builder.endObject();
-            return builder;
-        }
-
         @Override
         public int compareTo(Stats other) {
-            if ((getName() == null) && (other.getName() == null)) {
+            if ((name() == null) && (other.name() == null)) {
                 return 0;
-            } else if ((getName() != null) && (other.getName() == null)) {
+            } else if ((name() != null) && (other.name() == null)) {
                 return 1;
-            } else if (getName() == null) {
+            } else if (name() == null) {
                 return -1;
             } else {
-                int compare = getName().compareTo(other.getName());
+                int compare = name().compareTo(other.name());
                 if (compare == 0) {
-                    compare = Integer.compare(getThreads(), other.getThreads());
+                    compare = Integer.compare(threads(), other.threads());
                 }
                 return compare;
             }
         }
+
+        @Override
+        public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params outerParams) {
+            return Iterators.concat(
+                ChunkedToXContentHelper.startObject(name),
+                threads != -1 ? single((builder, params) -> builder.field(Fields.THREADS, threads)) : emptyIterator(),
+                queue != -1 ? single((builder, params) -> builder.field(Fields.QUEUE, queue)) : emptyIterator(),
+                active != -1 ? single((builder, params) -> builder.field(Fields.ACTIVE, active)) : emptyIterator(),
+                rejected != -1 ? single((builder, params) -> builder.field(Fields.REJECTED, rejected)) : emptyIterator(),
+                largest != -1 ? single((builder, params) -> builder.field(Fields.LARGEST, largest)) : emptyIterator(),
+                completed != -1 ? single((builder, params) -> builder.field(Fields.COMPLETED, completed)) : emptyIterator(),
+                ChunkedToXContentHelper.endObject()
+            );
+        }
     }
 
-    private List<Stats> stats;
-
-    public ThreadPoolStats(List<Stats> stats) {
+    public ThreadPoolStats {
         Collections.sort(stats);
-        this.stats = stats;
+        stats = Collections.unmodifiableList(stats);
     }
 
     public ThreadPoolStats(StreamInput in) throws IOException {
-        stats = in.readList(Stats::new);
+        this(in.readList(Stats::new));
     }
 
     @Override
@@ -166,12 +109,11 @@ public class ThreadPoolStats implements Writeable, ToXContentFragment, Iterable<
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
-        builder.startObject(Fields.THREAD_POOL);
-        for (Stats stat : stats) {
-            stat.toXContent(builder, params);
-        }
-        builder.endObject();
-        return builder;
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+        return Iterators.concat(
+            ChunkedToXContentHelper.startObject(Fields.THREAD_POOL),
+            Iterators.flatMap(stats.iterator(), s -> s.toXContentChunked(params)),
+            ChunkedToXContentHelper.endObject()
+        );
     }
 }

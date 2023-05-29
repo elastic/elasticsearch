@@ -81,6 +81,7 @@ public record ThreadPoolStats(List<Stats> stats) implements Writeable, ChunkedTo
 
     public ThreadPoolStats {
         Collections.sort(stats);
+        stats = Collections.unmodifiableList(stats);
     }
 
     public ThreadPoolStats(StreamInput in) throws IOException {

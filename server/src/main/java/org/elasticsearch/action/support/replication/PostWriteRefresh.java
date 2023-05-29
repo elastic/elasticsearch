@@ -25,8 +25,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
-import static org.elasticsearch.cluster.node.DiscoveryNodeRole.INDEX_ROLE;
-
 public class PostWriteRefresh {
 
     public static final String POST_WRITE_REFRESH_ORIGIN = "post_write_refresh";
@@ -49,7 +47,7 @@ public class PostWriteRefresh {
             case WAIT_UNTIL -> waitUntil(indexShard, location, new ActionListener<>() {
                 @Override
                 public void onResponse(Boolean forced) {
-                    if (transportService.getLocalNode().hasRole(INDEX_ROLE.roleName()) && location != null) {
+                    if (indexShard.routingEntry().canHaveUnpromotables() && location != null) {
                         refreshUnpromotables(indexShard, location, listener, forced, postWriteRefreshTimeout);
                     } else {
                         listener.onResponse(forced);

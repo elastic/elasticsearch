@@ -478,9 +478,9 @@ public class RoutingNodesTests extends ESAllocationTestCase {
             .addShard(TestShardRouting.newShardRouting(shardId, "node-2", null, false, STARTED, ShardRouting.Role.SEARCH_ONLY))
             .build();
 
-        var node1 = newNode("node-1", Set.of(DiscoveryNodeRole.INDEX_ROLE));
-        var node2 = newNode("node-2", Set.of(DiscoveryNodeRole.SEARCH_ROLE));
-        var node3 = newNode("node-3", Set.of(DiscoveryNodeRole.INDEX_ROLE));
+        var node1 = newNode("node-1");
+        var node2 = newNode("node-2");
+        var node3 = newNode("node-3");
 
         var clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(Metadata.builder().put(indexMetadata, false).build())

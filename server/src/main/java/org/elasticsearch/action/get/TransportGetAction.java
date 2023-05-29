@@ -96,7 +96,10 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
         if (iterator == null) {
             return null;
         }
-        return new PlainShardIterator(iterator.shardId(), iterator.getShardRoutings().stream().filter(ShardRouting::isSearchable).toList());
+        return new PlainShardIterator(
+            iterator.shardId(),
+            iterator.getShardRoutings().stream().filter(ShardRouting::canHandleGets).toList()
+        );
     }
 
     @Override

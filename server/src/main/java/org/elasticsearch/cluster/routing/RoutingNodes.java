@@ -43,8 +43,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
-import static org.elasticsearch.cluster.node.DiscoveryNodeRole.INDEX_ROLE;
-
 /**
  * {@link RoutingNodes} represents a copy the routing information contained in the {@link ClusterState cluster state}.
  * It can be either initialized as mutable or immutable allowing or disallowing changes to its elements.
@@ -467,9 +465,12 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         long expectedShardSize,
         RoutingChangesObserver changes
     ) {
-        if (node(nodeId).node().hasRole(INDEX_ROLE.roleName())) {
+        if (startedShard.canHaveUnpromotables()) {
             remove(startedShard);
-            var unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.REINITIALIZED, "relocating unsearchable shard");
+            var unassignedInfo = new UnassignedInfo(
+                UnassignedInfo.Reason.REINITIALIZED,
+                "relocating shard that can have unpromotable shards"
+            );
             var assignedShards = assignedShards(startedShard.shardId());
             var promotableShard = assignedShards.stream().filter(ShardRouting::isPromotableToPrimary).findAny();
             assert promotableShard.isEmpty() : "multiple promotable shards are not supported yet";

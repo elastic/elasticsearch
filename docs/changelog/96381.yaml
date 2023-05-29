@@ -1,5 +1,5 @@
 pr: 96381
-summary: New unpromotable and unsearchable shard role
+summary: New real-time gets flag in shard roles
 area: Allocation
 type: enhancement
 issues: []

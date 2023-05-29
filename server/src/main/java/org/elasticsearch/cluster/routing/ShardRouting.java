@@ -933,20 +933,31 @@ public final class ShardRouting implements Writeable, ToXContentObject {
         return role.isSearchable();
     }
 
+    public boolean canHandleGets() {
+        return role.canHandleGets();
+    }
+
+    public boolean canHaveUnpromotables() {
+        return role.canHaveUnpromotables();
+    }
+
     public enum Role implements Writeable, ToXContentFragment {
-        DEFAULT((byte) 0, true, true),
-        INDEX_ONLY((byte) 1, true, false),
-        SEARCH_ONLY((byte) 2, false, true),
-        NONE((byte) 3, false, false);
+        DEFAULT((byte) 0, true, true, true),
+        INDEX_ONLY((byte) 1, true, false, false),
+        SEARCH_ONLY((byte) 2, false, true, true),
+        INDEX_SEARCH((byte) 3, true, true, false),
+        GETS_ONLY((byte) 4, false, false, true);
 
         private final byte code;
         private final boolean promotable;
         private final boolean searchable;
+        private final boolean gets;
 
-        Role(byte code, boolean promotable, boolean searchable) {
+        Role(byte code, boolean promotable, boolean searchable, boolean gets) {
             this.code = code;
             this.promotable = promotable;
             this.searchable = searchable;
+            this.gets = gets;
         }
 
         /**
@@ -964,6 +975,20 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             return searchable;
         }
 
+        /**
+         * @return whether a shard copy with this role may be the target of a (m)get.
+         */
+        public boolean canHandleGets() {
+            return gets;
+        }
+
+        /**
+         * @return whether a shard copy with this role can be associated with unpromotable shard copies.
+         */
+        public boolean canHaveUnpromotables() {
+            return gets == false;
+        }
+
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             return this == DEFAULT ? builder : builder.field("role", toString());
@@ -979,7 +1004,8 @@ public final class ShardRouting implements Writeable, ToXContentObject {
                 case 0 -> DEFAULT;
                 case 1 -> INDEX_ONLY;
                 case 2 -> SEARCH_ONLY;
-                case 3 -> NONE;
+                case 3 -> INDEX_SEARCH;
+                case 4 -> GETS_ONLY;
                 default -> throw new IllegalStateException("unknown role");
             };
         }

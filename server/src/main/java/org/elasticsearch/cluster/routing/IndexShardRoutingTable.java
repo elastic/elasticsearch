@@ -58,8 +58,8 @@ public class IndexShardRoutingTable {
      */
     final List<ShardRouting> allInitializingShards;
     final boolean allShardsStarted;
-    final int activeSearchShardCount;
-    final int totalSearchShardCount;
+    final int activeShardHandlingGetsCount;
+    final int totalShardHandlingGetsCount;
 
     IndexShardRoutingTable(ShardId shardId, List<ShardRouting> shards) {
         this.shuffler = new RotationShardShuffler(Randomness.get().nextInt());
@@ -73,8 +73,8 @@ public class IndexShardRoutingTable {
         List<ShardRouting> unpromotableShards = new ArrayList<>();
         List<ShardRouting> allInitializingShards = new ArrayList<>();
         boolean allShardsStarted = true;
-        int activeSearchShardCount = 0;
-        int totalSearchShardCount = 0;
+        int activeShardHandlingGetsCount = 0;
+        int totalShardHandlingGetsCount = 0;
         for (ShardRouting shard : this.shards) {
             if (shard.primary()) {
                 assert primary == null : "duplicate primary: " + primary + " vs " + shard;
@@ -84,12 +84,12 @@ public class IndexShardRoutingTable {
             }
             if (shard.active()) {
                 activeShards.add(shard);
-                if (shard.role().isSearchable()) {
-                    activeSearchShardCount++;
+                if (shard.role().canHandleGets()) {
+                    activeShardHandlingGetsCount++;
                 }
             }
-            if (shard.role().isSearchable()) {
-                totalSearchShardCount++;
+            if (shard.role().canHandleGets()) {
+                totalShardHandlingGetsCount++;
             }
             if (shard.initializing()) {
                 allInitializingShards.add(shard);
@@ -121,8 +121,8 @@ public class IndexShardRoutingTable {
         this.unpromotableShards = CollectionUtils.wrapUnmodifiableOrEmptySingleton(unpromotableShards);
         this.allInitializingShards = CollectionUtils.wrapUnmodifiableOrEmptySingleton(allInitializingShards);
         this.allShardsStarted = allShardsStarted;
-        this.activeSearchShardCount = activeSearchShardCount;
-        this.totalSearchShardCount = totalSearchShardCount;
+        this.activeShardHandlingGetsCount = activeShardHandlingGetsCount;
+        this.totalShardHandlingGetsCount = totalShardHandlingGetsCount;
     }
 
     /**
@@ -497,19 +497,12 @@ public class IndexShardRoutingTable {
     /**
      * @return the count of active searchable shards
      */
-    public int getActiveSearchShardCount() {
-        return activeSearchShardCount;
+    public int getActiveShardHandlingGetsCount() {
+        return activeShardHandlingGetsCount;
     }
 
-    /**
-     * @return the total count of searchable shards
-     */
-    public int getTotalSearchShardCount() {
-        return totalSearchShardCount;
-    }
-
-    public boolean hasSearchShards() {
-        return totalSearchShardCount > 0;
+    public boolean hasShardsHandlingGets() {
+        return totalShardHandlingGetsCount > 0;
     }
 
     @Nullable
@@ -613,7 +606,8 @@ public class IndexShardRoutingTable {
             assert distinctNodes(shards) : "more than one shard with same id assigned to same node (shards: " + shards + ")";
             assert noDuplicatePrimary(shards) : "expected but did not find unique primary in shard routing table: " + shards;
             assert noAssignedReplicaWithoutActivePrimary(shards) : "unexpected assigned replica with no active primary: " + shards;
-            assert noRelocatingUnsearchableShards(shards) : "unexpected RELOCATING unsearchable shard: " + shards;
+            assert noRelocatingShardsThatCanHaveUnpromotables(shards)
+                : "unexpected RELOCATING shard that can have unpromotables: " + shards;
             return new IndexShardRoutingTable(shardId, shards);
         }
 
@@ -664,10 +658,11 @@ public class IndexShardRoutingTable {
             return seenAssignedReplica == false;
         }
 
-        static boolean noRelocatingUnsearchableShards(List<ShardRouting> shards) {
+        static boolean noRelocatingShardsThatCanHaveUnpromotables(List<ShardRouting> shards) {
             // this is unsupported until ES-4677 is implemented
             for (var shard : shards) {
-                assert shard.role().isSearchable() || shard.relocating() == false : "unexpected RELOCATING unsearchable shard: " + shard;
+                assert shard.canHaveUnpromotables() == false || shard.relocating() == false
+                    : "unexpected RELOCATING shard that can have unpromotables: " + shard;
             }
             return true;
         }

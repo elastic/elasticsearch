@@ -149,9 +149,9 @@ public class ShardRoutingTests extends AbstractWireSerializingTestCase<ShardRout
                 instance.role(),
                 () -> randomFrom(
                     ShardRouting.Role.DEFAULT,
-                    (instance.primary() ? ShardRouting.Role.INDEX_ONLY
-                        : randomBoolean() ? ShardRouting.Role.SEARCH_ONLY
-                        : ShardRouting.Role.NONE)
+                    (instance.primary()
+                        ? (randomBoolean() ? ShardRouting.Role.INDEX_ONLY : ShardRouting.Role.INDEX_SEARCH)
+                        : (randomBoolean() ? ShardRouting.Role.SEARCH_ONLY : ShardRouting.Role.GETS_ONLY))
                 )
             )
         );

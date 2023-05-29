@@ -42,7 +42,7 @@ public class HeaderWarning {
         "Elasticsearch-" + // warn agent
         "\\d+\\.\\d+\\.\\d+(?:-(?:alpha|beta|rc)\\d+)?(?:-SNAPSHOT)?-" + // warn agent
         "(?:[a-f0-9]{7}(?:[a-f0-9]{33})?|unknown) " + // warn agent
-        "\"(?<qdText>.*)\"( " + // quoted warning value, captured
+        "\"(?<quotedStringValue>.*)\"( " + // quoted warning value, captured
         // quoted RFC 1123 date format
         "\"" + // opening quote
         "(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun), " + // weekday
@@ -56,13 +56,15 @@ public class HeaderWarning {
     ); // in order to parse new line inside the qdText
 
     /**
-     * qdText is defined in https://datatracker.ietf.org/doc/html/rfc7230#section-3.2.6
+     * quoted-string is defined in https://datatracker.ietf.org/doc/html/rfc7230#section-3.2.6
+     * quoted-string  = DQUOTE *( qdtext / quoted-pair ) DQUOTE
      * qdtext         = HTAB / SP /%x21 / %x23-5B / %x5D-7E / obs-text
      * obs-text       = %x80-FF
      * <p>
      * this was previously used in WARNING_HEADER_PATTERN, but can cause stackoverflow
      * "\"((?:\t| |!|[\\x23-\\x5B]|[\\x5D-\\x7E]|[\\x80-\\xFF]|\\\\|\\\\\")*)\"( " + // quoted warning value, captured
-     * the \\\\|\\\\\" (escaped '\' 0x20 and '"' 0x5c) which is used for quoted-pair has to be validated separately
+     * the individual chars from qdText can be validated using the set of chars
+     * the \\\\|\\\\\" (escaped '\' 0x20 and '"' 0x5c) which is used for quoted-pair has to be validated as strings
      */
     private static Set<Integer> qdTextChars = Stream.of(
         IntStream.of(0x09),// HTAB
@@ -207,9 +209,9 @@ public class HeaderWarning {
         final Matcher matcher = WARNING_HEADER_PATTERN.matcher(s);
         final boolean matches = matcher.matches();
         assert matches;
-        String qdText = matcher.group("qdText");
-        assert matchesQuotedString(qdText);
-        return qdText.equals(warningValue);
+        String quotedStringValue = matcher.group("quotedStringValue");
+        assert matchesQuotedString(quotedStringValue);
+        return quotedStringValue.equals(warningValue);
     }
 
     // this is meant to be in testing only
@@ -217,8 +219,8 @@ public class HeaderWarning {
         final Matcher matcher = WARNING_HEADER_PATTERN.matcher(s);
         final boolean matches = matcher.matches();
         if (matches) {
-            String qdtext = matcher.group("qdText");
-            return matchesQuotedString(qdtext);
+            String quotedStringValue = matcher.group("quotedStringValue");
+            return matchesQuotedString(quotedStringValue);
         }
         return false;
     }

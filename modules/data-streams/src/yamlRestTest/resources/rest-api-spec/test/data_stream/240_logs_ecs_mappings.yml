@@ -1,5 +1,4 @@
----
-Test ECS mappings for logs:
+setup:
   - do:
       ingest.put_pipeline:
         # opting in to use the JSON parsing pipeline for message field
@@ -19,8 +18,9 @@ Test ECS mappings for logs:
   - do:
       indices.create_data_stream:
         name: logs-generic-default
-  - is_true: acknowledged
 
+---
+Test Elastic Agent log ECS mappings:
   - do:
       indices.get_data_stream:
         name: logs-generic-default
@@ -182,4 +182,189 @@ Test ECS mappings for logs:
   - match: { .$idx0name.mappings.properties.log.properties.file.properties.path.fields.text.type: "match_only_text" }
   - match: { .$idx0name.mappings.properties.host.properties.os.properties.name.type: "keyword" }
   - match: { .$idx0name.mappings.properties.host.properties.os.properties.name.fields.text.type: "match_only_text" }
+
+---
+Test general mockup ECS mappings:
+  - do:
+      indices.get_data_stream:
+        name: logs-generic-default
+  - set: { data_streams.0.indices.0.index_name: idx0name }
+
+  - do:
+      index:
+        index: logs-generic-default
+        refresh: true
+        body: >
+          {
+            "start_timestamp": "not a date",
+            "start-timestamp": "not a date",
+            "test": "mockup-ecs-log",
+            "registry": {
+              "data": {
+                "strings": ["C:\\rta\\red_ttp\\bin\\myapp.exe"]
+              }
+            },
+            "process": {
+              "title": "ssh",
+              "executable": "/usr/bin/ssh",
+              "name": "ssh",
+              "command_line": "/usr/bin/ssh -l user 10.0.0.16",
+              "working_directory": "/home/ekoren",
+              "io": {
+                "text": "test"
+              }
+            },
+            "url": {
+              "path": "/page",
+              "full": "https://mydomain.com/app/page",
+              "original": "https://mydomain.com/app/original"
+            },
+            "parent": {
+              "url": {
+                "path": "/page",
+                "full": "https://mydomain.com/app/page",
+                "original": "https://mydomain.com/app/original"
+              },
+              "body": {
+                "content": "Some content"
+              },
+              "file": {
+                "path": "/path/to/my/file",
+                "target_path": "/path/to/my/file"
+              }
+            },
+            "error": {
+              "stack_trace": "co.elastic.test.TestClass error:\n at co.elastic.test.BaseTestClass"
+            },
+            "file": {
+              "path": "/path/to/my/file",
+              "target_path": "/path/to/my/file"
+            },
+            "os": {
+              "full": "Mac OS Mojave"
+            },
+            "user_agent": {
+              "original": "Mozilla/5.0 (iPhone; CPU iPhone OS 12_1 like Mac OS X) AppleWebKit/605.1.15"
+            },
+            "user": {
+              "full_name": "John Doe"
+            },
+            "vulnerability": {
+              "score": {
+                "base": 5.5,
+                "temporal": 5.5,
+                "version": "2.0"
+              },
+              "textual_score": "bad"
+            },
+            "geo": {
+              "location": {
+                "lon": -73.614830,
+                "lat": 45.505918
+              }
+            },
+            "data_stream": {
+              "dataset": "nginx.access",
+              "namespace": "production",
+              "type": "logs"
+            },
+            "structured_data": {
+              "key1": "value1",
+              "key2": ["value2", "value3"]
+            },
+            "exports": {
+              "key": "value"
+            },
+            "top_level_imports": {
+              "key": "value"
+            },
+            "nested": {
+              "imports": {
+                "key": "value"
+              }
+            },
+            "numeric_as_string": "42"
+          }
+  - match: {result: "created"}
+
+  - do:
+      search:
+        index: logs-generic-default
+        body:
+          query:
+            term:
+              test:
+                value: 'mockup-ecs-log'
+          fields:
+            - field: 'start_timestamp'
+            - field: 'start-timestamp'
+  - length: { hits.hits: 1 }
+  # the ECS date dynamic template enforces mapping of "*_timestamp" fields to a date type
+  - length: { hits.hits.0._ignored: 2 }
+  - match: { hits.hits.0._ignored.0: 'start_timestamp' }
+  - length: { hits.hits.0.ignored_field_values.start_timestamp: 1 }
+  - match: { hits.hits.0.ignored_field_values.start_timestamp.0: 'not a date' }
+  # "start-timestamp" doesn't match the ECS dynamic mapping pattern "*_timestamp"
+  - match: { hits.hits.0.fields.start-timestamp.0: 'not a date' }
+  - match: { hits.hits.0._ignored.1: 'vulnerability.textual_score' }
+
+  - do:
+      indices.get_mapping:
+        index: logs-generic-default
+  - match: { .$idx0name.mappings.properties.registry.properties.data.properties.strings.type: "wildcard" }
+  - match: { .$idx0name.mappings.properties.process.properties.io.properties.text.type: "wildcard" }
+  - match: { .$idx0name.mappings.properties.url.properties.path.type: "wildcard" }
+  - match: { .$idx0name.mappings.properties.parent.properties.url.properties.path.type: "wildcard" }
+  - match: { .$idx0name.mappings.properties.url.properties.full.type: "wildcard" }
+  - match: { .$idx0name.mappings.properties.url.properties.full.fields.text.type: "match_only_text" }
+  - match: { .$idx0name.mappings.properties.parent.properties.url.properties.full.type: "wildcard" }
+  - match: { .$idx0name.mappings.properties.parent.properties.url.properties.full.fields.text.type: "match_only_text" }
+  - match: { .$idx0name.mappings.properties.url.properties.original.type: "wildcard" }
+  - match: { .$idx0name.mappings.properties.url.properties.original.fields.text.type: "match_only_text" }
+  - match: { .$idx0name.mappings.properties.parent.properties.url.properties.original.type: "wildcard" }
+  - match: { .$idx0name.mappings.properties.parent.properties.url.properties.original.fields.text.type: "match_only_text" }
+  - match: { .$idx0name.mappings.properties.parent.properties.body.properties.content.type: "wildcard" }
+  - match: { .$idx0name.mappings.properties.parent.properties.body.properties.content.fields.text.type: "match_only_text" }
+  - match: { .$idx0name.mappings.properties.process.properties.command_line.type: "wildcard" }
+  - match: { .$idx0name.mappings.properties.process.properties.command_line.fields.text.type: "match_only_text" }
+  - match: { .$idx0name.mappings.properties.error.properties.stack_trace.type: "wildcard" }
+  - match: { .$idx0name.mappings.properties.error.properties.stack_trace.fields.text.type: "match_only_text" }
+  - match: { .$idx0name.mappings.properties.file.properties.path.type: "keyword" }
+  - match: { .$idx0name.mappings.properties.file.properties.path.fields.text.type: "match_only_text" }
+  - match: { .$idx0name.mappings.properties.parent.properties.file.properties.path.type: "keyword" }
+  - match: { .$idx0name.mappings.properties.parent.properties.file.properties.path.fields.text.type: "match_only_text" }
+  - match: { .$idx0name.mappings.properties.file.properties.target_path.type: "keyword" }
+  - match: { .$idx0name.mappings.properties.file.properties.target_path.fields.text.type: "match_only_text" }
+  - match: { .$idx0name.mappings.properties.parent.properties.file.properties.target_path.type: "keyword" }
+  - match: { .$idx0name.mappings.properties.parent.properties.file.properties.target_path.fields.text.type: "match_only_text" }
+  - match: { .$idx0name.mappings.properties.os.properties.full.type: "keyword" }
+  - match: { .$idx0name.mappings.properties.os.properties.full.fields.text.type: "match_only_text" }
+  - match: { .$idx0name.mappings.properties.user_agent.properties.original.type: "keyword" }
+  - match: { .$idx0name.mappings.properties.user_agent.properties.original.fields.text.type: "match_only_text" }
+  - match: { .$idx0name.mappings.properties.process.properties.title.type: "keyword" }
+  - match: { .$idx0name.mappings.properties.process.properties.title.fields.text.type: "match_only_text" }
+  - match: { .$idx0name.mappings.properties.process.properties.executable.type: "keyword" }
+  - match: { .$idx0name.mappings.properties.process.properties.executable.fields.text.type: "match_only_text" }
+  - match: { .$idx0name.mappings.properties.process.properties.name.type: "keyword" }
+  - match: { .$idx0name.mappings.properties.process.properties.name.fields.text.type: "match_only_text" }
+  - match: { .$idx0name.mappings.properties.process.properties.working_directory.type: "keyword" }
+  - match: { .$idx0name.mappings.properties.process.properties.working_directory.fields.text.type: "match_only_text" }
+  - match: { .$idx0name.mappings.properties.user.properties.full_name.type: "keyword" }
+  - match: { .$idx0name.mappings.properties.user.properties.full_name.fields.text.type: "match_only_text" }
+  - match: { .$idx0name.mappings.properties.start_timestamp.type: "date" }
+  - match: { .$idx0name.mappings.properties.start-timestamp.type: "keyword" }
+  - match: { .$idx0name.mappings.properties.vulnerability.properties.score.properties.base.type: "float" }
+  - match: { .$idx0name.mappings.properties.vulnerability.properties.score.properties.temporal.type: "float" }
+  - match: { .$idx0name.mappings.properties.vulnerability.properties.score.properties.version.type: "keyword" }
+  - match: { .$idx0name.mappings.properties.vulnerability.properties.textual_score.type: "float" }
+  - match: { .$idx0name.mappings.properties.geo.properties.location.type: "geo_point" }
+  - match: { .$idx0name.mappings.properties.data_stream.properties.dataset.type: "constant_keyword" }
+  - match: { .$idx0name.mappings.properties.data_stream.properties.namespace.type: "constant_keyword" }
+  - match: { .$idx0name.mappings.properties.data_stream.properties.type.type: "constant_keyword" }
+  - match: { .$idx0name.mappings.properties.structured_data.type: "flattened" }
+  - match: { .$idx0name.mappings.properties.exports.type: "flattened" }
+  - match: { .$idx0name.mappings.properties.top_level_imports.type: "flattened" }
+  - match: { .$idx0name.mappings.properties.nested.properties.imports.type: "flattened" }
+  # verifying the default mapping for strings into keyword, overriding the automatic numeric string detection
+  - match: { .$idx0name.mappings.properties.numeric_as_string.type: "keyword" }
 

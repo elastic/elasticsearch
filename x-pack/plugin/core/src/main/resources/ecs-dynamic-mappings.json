@@ -55,8 +55,8 @@
             },
             "path_match": [
               "*.body.content",
-              "*.url.full",
-              "*.url.original"
+              "*url.full",
+              "*url.original"
             ]
           }
         },
@@ -87,9 +87,9 @@
               "type": "keyword"
             },
             "path_match": [
-              "*.file.path",
-              "*.file.target_path",
-              "*.os.full",
+              "*file.path",
+              "*file.target_path",
+              "*os.full",
               "user_agent.original"
             ]
           }
@@ -108,8 +108,8 @@
               "title",
               "executable",
               "name",
-              "full_name",
-              "working_directory"
+              "working_directory",
+              "full_name"
             ]
           }
         },
@@ -141,18 +141,10 @@
               "type": "float"
             },
             "path_match": [
-              "*.score*",
+              "*.score.*",
               "*_score*"
             ],
             "path_unmatch": "*.version"
-          }
-        },
-        {
-          "ecs_match_float": {
-            "mapping": {
-              "type": "float"
-            },
-            "match": "usage"
           }
         },
         {
@@ -177,8 +169,8 @@
               "type": "flattened"
             },
             "match": [
-              "exports",
               "structured_data",
+              "exports",
               "*imports"
             ]
           }

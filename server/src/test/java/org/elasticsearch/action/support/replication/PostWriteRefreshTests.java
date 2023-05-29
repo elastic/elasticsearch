@@ -144,7 +144,7 @@ public class PostWriteRefreshTests extends IndexShardTestCase {
                 true,
                 RecoverySource.EmptyStoreRecoverySource.INSTANCE,
                 new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""),
-                ShardRouting.Role.INDEX_ONLY
+                randomBoolean() ? ShardRouting.Role.INDEX_ONLY : ShardRouting.Role.INDEX_SEARCH
             );
             when(primary.routingEntry()).thenReturn(routing);
             when(primary.getReplicationGroup()).thenReturn(replicationGroup).thenReturn(realReplicationGroup);
@@ -154,7 +154,7 @@ public class PostWriteRefreshTests extends IndexShardTestCase {
                 false,
                 RecoverySource.PeerRecoverySource.INSTANCE,
                 new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "message"),
-                ShardRouting.Role.SEARCH_ONLY
+                routing.role() == ShardRouting.Role.INDEX_ONLY ? ShardRouting.Role.SEARCH_ONLY : ShardRouting.Role.GETS_ONLY
             );
             when(routingTable.unpromotableShards()).thenReturn(List.of(shardRouting));
             when(routingTable.shardId()).thenReturn(shardId);
@@ -228,7 +228,7 @@ public class PostWriteRefreshTests extends IndexShardTestCase {
                 false,
                 RecoverySource.PeerRecoverySource.INSTANCE,
                 new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "message"),
-                ShardRouting.Role.SEARCH_ONLY
+                randomFrom(ShardRouting.Role.SEARCH_ONLY, ShardRouting.Role.GETS_ONLY)
             );
             // Randomly test scenarios with and without unpromotables
             if (randomBoolean()) {

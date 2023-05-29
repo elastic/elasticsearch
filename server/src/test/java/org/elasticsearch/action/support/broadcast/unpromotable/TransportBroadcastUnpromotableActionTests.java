@@ -155,10 +155,15 @@ public class TransportBroadcastUnpromotableActionTests extends ESTestCase {
         }
     }
 
-    private static List<ShardRouting.Role> getReplicaRoles(int numPromotableReplicas, int numSearchReplicas) {
+    private static List<ShardRouting.Role> getReplicaRoles(int numPromotableReplicas, int numUnpromotableReplicas) {
         List<ShardRouting.Role> replicaRoles = Stream.concat(
-            Collections.nCopies(numPromotableReplicas, randomBoolean() ? ShardRouting.Role.DEFAULT : ShardRouting.Role.INDEX_ONLY).stream(),
-            Collections.nCopies(numSearchReplicas, ShardRouting.Role.SEARCH_ONLY).stream()
+            Collections.nCopies(
+                numPromotableReplicas,
+                randomBoolean() ? ShardRouting.Role.DEFAULT
+                    : randomBoolean() ? ShardRouting.Role.INDEX_ONLY
+                    : ShardRouting.Role.INDEX_SEARCH
+            ).stream(),
+            Collections.nCopies(numUnpromotableReplicas, randomFrom(ShardRouting.Role.SEARCH_ONLY, ShardRouting.Role.GETS_ONLY)).stream()
         ).collect(Collectors.toList());
         Collections.shuffle(replicaRoles, random());
         return replicaRoles;
@@ -166,19 +171,19 @@ public class TransportBroadcastUnpromotableActionTests extends ESTestCase {
 
     private static List<Tuple<ShardRoutingState, ShardRouting.Role>> getReplicaRolesWithRandomStates(
         int numPromotableReplicas,
-        int numSearchReplicas,
+        int numUnpromotableReplicas,
         ShardRoutingState... possibleStates
     ) {
-        return getReplicaRoles(numPromotableReplicas, numSearchReplicas).stream()
+        return getReplicaRoles(numPromotableReplicas, numUnpromotableReplicas).stream()
             .map(role -> new Tuple<>(getValidStateForRole(role, possibleStates), role))
             .collect(Collectors.toList());
     }
 
     private static List<Tuple<ShardRoutingState, ShardRouting.Role>> getReplicaRolesWithRandomStates(
         int numPromotableReplicas,
-        int numSearchReplicas
+        int numUnpromotableReplicas
     ) {
-        return getReplicaRolesWithRandomStates(numPromotableReplicas, numSearchReplicas, ShardRoutingState.values());
+        return getReplicaRolesWithRandomStates(numPromotableReplicas, numUnpromotableReplicas, ShardRoutingState.values());
     }
 
     private static ShardRoutingState getValidStateForRole(ShardRouting.Role role, ShardRoutingState... possibleStates) {
@@ -192,10 +197,10 @@ public class TransportBroadcastUnpromotableActionTests extends ESTestCase {
 
     private static List<Tuple<ShardRoutingState, ShardRouting.Role>> getReplicaRolesWithState(
         int numPromotableReplicas,
-        int numSearchReplicas,
+        int numUnpromotableReplicas,
         ShardRoutingState state
     ) {
-        return getReplicaRolesWithRandomStates(numPromotableReplicas, numSearchReplicas, state);
+        return getReplicaRolesWithRandomStates(numPromotableReplicas, numUnpromotableReplicas, state);
     }
 
     private int countRequestsForIndex(ClusterState state, String index) {
@@ -222,45 +227,45 @@ public class TransportBroadcastUnpromotableActionTests extends ESTestCase {
     public void testNotStartedPrimary() {
         final String index = "test";
         final int numPromotableReplicas = randomInt(2);
-        final int numSearchReplicas = randomInt(2);
+        final int numUnpromotableReplicas = randomInt(2);
         final ClusterState state = state(
             index,
             randomBoolean(),
             randomBoolean() ? ShardRoutingState.INITIALIZING : ShardRoutingState.UNASSIGNED,
-            getReplicaRolesWithState(numPromotableReplicas, numSearchReplicas, ShardRoutingState.UNASSIGNED)
+            getReplicaRolesWithState(numPromotableReplicas, numUnpromotableReplicas, ShardRoutingState.UNASSIGNED)
         );
         setState(clusterService, state);
         logger.debug("--> using initial state:\n{}", clusterService.state());
         assertThat(countRequestsForIndex(state, index), is(equalTo(0)));
     }
 
-    public void testMixOfStartedPromotableAndSearchReplicas() {
+    public void testMixOfStartedPromotableAndUnpromotableReplicas() {
         final String index = "test";
         final int numShards = 1 + randomInt(3);
         final int numPromotableReplicas = randomInt(2);
-        final int numSearchReplicas = randomInt(2);
+        final int numUnpromotableReplicas = randomInt(2);
 
         ClusterState state = stateWithAssignedPrimariesAndReplicas(
             new String[] { index },
             numShards,
-            getReplicaRoles(numPromotableReplicas, numSearchReplicas)
+            getReplicaRoles(numPromotableReplicas, numUnpromotableReplicas)
         );
         setState(clusterService, state);
         logger.debug("--> using initial state:\n{}", clusterService.state());
-        assertThat(countRequestsForIndex(state, index), is(equalTo(numShards * numSearchReplicas)));
+        assertThat(countRequestsForIndex(state, index), is(equalTo(numShards * numUnpromotableReplicas)));
     }
 
-    public void testSearchReplicasWithRandomStates() {
+    public void testUnpromotableReplicasWithRandomStates() {
         final String index = "test";
         final int numPromotableReplicas = randomInt(2);
-        final int numSearchReplicas = randomInt(6);
+        final int numUnpromotableReplicas = randomInt(6);
 
         List<Tuple<ShardRoutingState, ShardRouting.Role>> replicas = getReplicaRolesWithRandomStates(
             numPromotableReplicas,
-            numSearchReplicas
+            numUnpromotableReplicas
         );
         int numReachableUnpromotables = replicas.stream().mapToInt(t -> {
-            if (t.v2() == ShardRouting.Role.SEARCH_ONLY && t.v1() != ShardRoutingState.UNASSIGNED) {
+            if (t.v2().isPromotableToPrimary() == false && t.v1() != ShardRoutingState.UNASSIGNED) {
                 if (t.v1() == ShardRoutingState.RELOCATING) {
                     return 2; // accounts for both the RELOCATING and the INITIALIZING copies
                 }

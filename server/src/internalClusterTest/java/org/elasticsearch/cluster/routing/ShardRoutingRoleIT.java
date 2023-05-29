@@ -74,6 +74,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.cluster.routing.ShardRoutingRoleStrategyHelper.createTestShardRoutingRoleStrategy;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsString;
@@ -100,20 +101,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
 
         @Override
         public ShardRoutingRoleStrategy getShardRoutingRoleStrategy() {
-            return new ShardRoutingRoleStrategy() {
-                @Override
-                public ShardRouting.Role newReplicaRole(ShardRouting.Role primaryRole) {
-                    return primaryRole == ShardRouting.Role.INDEX_ONLY ? ShardRouting.Role.SEARCH_ONLY : ShardRouting.Role.GETS_ONLY;
-                }
-
-                @Override
-                public ShardRouting.Role newEmptyRole(int copyIndex, IndexMetadata indexMetadata) {
-                    assert 0 < numIndexingCopies;
-                    return copyIndex < numIndexingCopies
-                        ? (copyIndex % 2 == 0 ? ShardRouting.Role.INDEX_ONLY : ShardRouting.Role.INDEX_SEARCH)
-                        : (copyIndex % 2 == 0 ? ShardRouting.Role.SEARCH_ONLY : ShardRouting.Role.GETS_ONLY);
-                }
-            };
+            return createTestShardRoutingRoleStrategy(() -> numIndexingCopies);
         }
 
         @Override

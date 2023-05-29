@@ -49,7 +49,12 @@ public class ShardRoutingTests extends AbstractWireSerializingTestCase<ShardRout
             TestShardRouting.buildRelocationFailureInfo(state),
             TestShardRouting.buildAllocationId(state),
             randomLongBetween(-1, 1024),
-            randomFrom(ShardRouting.Role.DEFAULT, (primary ? ShardRouting.Role.INDEX_ONLY : ShardRouting.Role.SEARCH_ONLY))
+            randomFrom(
+                ShardRouting.Role.DEFAULT,
+                (primary
+                    ? randomFrom(ShardRouting.Role.INDEX_ONLY, ShardRouting.Role.INDEX_SEARCH)
+                    : randomFrom(ShardRouting.Role.SEARCH_ONLY, ShardRouting.Role.GETS_ONLY))
+            )
         );
     }
 
@@ -149,9 +154,9 @@ public class ShardRoutingTests extends AbstractWireSerializingTestCase<ShardRout
                 instance.role(),
                 () -> randomFrom(
                     ShardRouting.Role.DEFAULT,
-                    (instance.primary()
-                        ? (randomBoolean() ? ShardRouting.Role.INDEX_ONLY : ShardRouting.Role.INDEX_SEARCH)
-                        : (randomBoolean() ? ShardRouting.Role.SEARCH_ONLY : ShardRouting.Role.GETS_ONLY))
+                    instance.primary()
+                        ? randomFrom(ShardRouting.Role.INDEX_ONLY, ShardRouting.Role.INDEX_SEARCH)
+                        : randomFrom(ShardRouting.Role.SEARCH_ONLY, ShardRouting.Role.GETS_ONLY)
                 )
             )
         );

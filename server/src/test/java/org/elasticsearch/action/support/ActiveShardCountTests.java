@@ -28,6 +28,8 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 
+import static org.elasticsearch.cluster.routing.ShardRoutingRoleStrategyHelper.createTestShardRoutingRoleStrategy;
+
 /**
  * Tests for the {@link ActiveShardCount} class
  */
@@ -103,7 +105,7 @@ public class ActiveShardCountTests extends ESTestCase {
         runTestForOneActiveShard(ActiveShardCount.DEFAULT);
     }
 
-    public void testEnoughShardsActiveLevelDefaultWithSearchOnlyRole() {
+    public void testEnoughShardsActiveLevelDefaultThatHandleGets() {
         final String indexName = "test-idx";
         final int numberOfShards = randomIntBetween(1, 5);
         final int numberOfReplicas = randomIntBetween(4, 7);
@@ -118,7 +120,7 @@ public class ActiveShardCountTests extends ESTestCase {
         assertTrue(waitForActiveShards.enoughShardsActive(clusterState, indexName));
     }
 
-    public void testEnoughShardsActiveCustomLevelWithSearchOnlyRole() {
+    public void testEnoughShardsActiveCustomLevelThatHandleGets() {
         final String indexName = "test-idx";
         final int numberOfShards = randomIntBetween(1, 5);
         final int numberOfReplicas = randomIntBetween(4, 7);
@@ -136,7 +138,7 @@ public class ActiveShardCountTests extends ESTestCase {
         assertTrue(waitForActiveShards.enoughShardsActive(clusterState, indexName));
     }
 
-    public void testEnoughShardsActiveWithNoSearchOnlyRoles() {
+    public void testEnoughShardsActiveWithNoShardsThatHandleGets() {
         final String indexName = "test-idx";
         final int numberOfShards = randomIntBetween(1, 5);
         final int numberOfReplicas = randomIntBetween(4, 7);
@@ -157,17 +159,7 @@ public class ActiveShardCountTests extends ESTestCase {
     }
 
     private static ShardRoutingRoleStrategy createCustomRoleStrategy(int indexShardCount) {
-        return new ShardRoutingRoleStrategy() {
-            @Override
-            public ShardRouting.Role newEmptyRole(int copyIndex, IndexMetadata indexMetadata) {
-                return copyIndex < indexShardCount ? ShardRouting.Role.INDEX_ONLY : ShardRouting.Role.SEARCH_ONLY;
-            }
-
-            @Override
-            public ShardRouting.Role newReplicaRole(ShardRouting.Role primaryRole) {
-                return ShardRouting.Role.SEARCH_ONLY;
-            }
-        };
+        return createTestShardRoutingRoleStrategy(() -> indexShardCount);
     }
 
     public void testEnoughShardsActiveRandom() {

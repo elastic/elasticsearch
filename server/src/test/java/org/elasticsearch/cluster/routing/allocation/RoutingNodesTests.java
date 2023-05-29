@@ -474,8 +474,26 @@ public class RoutingNodesTests extends ESAllocationTestCase {
         var shardId = new ShardId(indexMetadata.getIndex(), 0);
 
         var indexRoutingTable = IndexRoutingTable.builder(indexMetadata.getIndex())
-            .addShard(TestShardRouting.newShardRouting(shardId, "node-1", null, true, STARTED, ShardRouting.Role.INDEX_ONLY))
-            .addShard(TestShardRouting.newShardRouting(shardId, "node-2", null, false, STARTED, ShardRouting.Role.SEARCH_ONLY))
+            .addShard(
+                TestShardRouting.newShardRouting(
+                    shardId,
+                    "node-1",
+                    null,
+                    true,
+                    STARTED,
+                    randomFrom(ShardRouting.Role.INDEX_ONLY, ShardRouting.Role.INDEX_SEARCH)
+                )
+            )
+            .addShard(
+                TestShardRouting.newShardRouting(
+                    shardId,
+                    "node-2",
+                    null,
+                    false,
+                    STARTED,
+                    randomFrom(ShardRouting.Role.SEARCH_ONLY, ShardRouting.Role.GETS_ONLY)
+                )
+            )
             .build();
 
         var node1 = newNode("node-1");

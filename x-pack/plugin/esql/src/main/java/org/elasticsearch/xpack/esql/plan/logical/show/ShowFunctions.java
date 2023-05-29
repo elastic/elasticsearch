@@ -43,7 +43,7 @@ public class ShowFunctions extends LeafPlan {
 
     public List<List<Object>> values(FunctionRegistry functionRegistry) {
         List<List<Object>> rows = new ArrayList<>();
-        for (var def : functionRegistry.listFunctions()) {
+        for (var def : functionRegistry.listFunctions(null)) {
             List<Object> row = new ArrayList<>();
             row.add(asBytesRefOrNull(def.name()));
 

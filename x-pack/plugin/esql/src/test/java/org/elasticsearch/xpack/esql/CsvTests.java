@@ -175,6 +175,11 @@ public class CsvTests extends ESTestCase {
         }
     }
 
+    @Override
+    protected final boolean enableWarningsCheck() {
+        return testName.endsWith("-IgnoreWarnings") == false;
+    }
+
     public boolean logResults() {
         return false;
     }

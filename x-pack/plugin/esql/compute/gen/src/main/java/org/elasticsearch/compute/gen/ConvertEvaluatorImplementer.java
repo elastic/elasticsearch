@@ -13,6 +13,8 @@ import com.squareup.javapoet.MethodSpec;
 import com.squareup.javapoet.TypeName;
 import com.squareup.javapoet.TypeSpec;
 
+import java.util.BitSet;
+
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.Modifier;
 import javax.lang.model.element.TypeElement;
@@ -26,7 +28,9 @@ import static org.elasticsearch.compute.gen.Types.BLOCK;
 import static org.elasticsearch.compute.gen.Types.BYTES_REF;
 import static org.elasticsearch.compute.gen.Types.BYTES_REF_ARRAY;
 import static org.elasticsearch.compute.gen.Types.EXPRESSION_EVALUATOR;
+import static org.elasticsearch.compute.gen.Types.SOURCE;
 import static org.elasticsearch.compute.gen.Types.VECTOR;
+import static org.elasticsearch.compute.gen.Types.arrayBlockType;
 import static org.elasticsearch.compute.gen.Types.arrayVectorType;
 import static org.elasticsearch.compute.gen.Types.blockType;
 import static org.elasticsearch.compute.gen.Types.constantVectorType;
@@ -84,7 +88,8 @@ public class ConvertEvaluatorImplementer {
     private MethodSpec ctor() {
         MethodSpec.Builder builder = MethodSpec.constructorBuilder().addModifiers(Modifier.PUBLIC);
         builder.addParameter(EXPRESSION_EVALUATOR, "field");
-        builder.addStatement("super($N)", "field");
+        builder.addParameter(SOURCE, "source");
+        builder.addStatement("super($N, $N)", "field", "source");
         return builder.build();
     }
 
@@ -97,7 +102,7 @@ public class ConvertEvaluatorImplementer {
 
     private MethodSpec evalVector() {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("evalVector").addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
-        builder.addParameter(VECTOR, "v").returns(VECTOR);
+        builder.addParameter(VECTOR, "v").returns(BLOCK);
 
         TypeName vectorType = vectorType(argumentType);
         builder.addStatement("$T vector = ($T) v", vectorType, vectorType);
@@ -111,14 +116,28 @@ public class ConvertEvaluatorImplementer {
 
         builder.beginControlFlow("if (vector.isConstant())");
         {
-            var constVectType = constantVectorType(resultType);
-            builder.addStatement("return new $T($N, positionCount)", constVectType, evalValueCall("vector", "0", scratchPadName));
+            builder.beginControlFlow("try");
+            {
+                var constVectType = constantVectorType(resultType);
+                builder.addStatement(
+                    "return new $T($N, positionCount).asBlock()",
+                    constVectType,
+                    evalValueCall("vector", "0", scratchPadName)
+                );
+            }
+            builder.nextControlFlow("catch (Exception e)");
+            {
+                builder.addStatement("registerException(e)");
+                builder.addStatement("return Block.constantNullBlock(positionCount)");
+            }
+            builder.endControlFlow();
         }
         builder.endControlFlow();
 
+        builder.addStatement("$T nullsMask = null", BitSet.class);
         if (resultType.equals(BYTES_REF)) {
             builder.addStatement(
-                "$T values = new $T(positionCount, $T.NON_RECYCLING_INSTANCE)", // TODO: see note MvEvaluatorImplementer
+                "$T values = new $T(positionCount, $T.NON_RECYCLING_INSTANCE)", // TODO: see note in MvEvaluatorImplementer
                 BYTES_REF_ARRAY,
                 BYTES_REF_ARRAY,
                 BIG_ARRAYS
@@ -128,15 +147,37 @@ public class ConvertEvaluatorImplementer {
         }
         builder.beginControlFlow("for (int p = 0; p < positionCount; p++)");
         {
-            if (resultType.equals(BYTES_REF)) {
-                builder.addStatement("values.append($N)", evalValueCall("vector", "p", scratchPadName));
-            } else {
-                builder.addStatement("values[p] = $N", evalValueCall("vector", "p", scratchPadName));
+            builder.beginControlFlow("try");
+            {
+                if (resultType.equals(BYTES_REF)) {
+                    builder.addStatement("values.append($N)", evalValueCall("vector", "p", scratchPadName));
+                } else {
+                    builder.addStatement("values[p] = $N", evalValueCall("vector", "p", scratchPadName));
+                }
             }
+            builder.nextControlFlow("catch (Exception e)");
+            {
+                builder.addStatement("registerException(e)");
+                builder.beginControlFlow("if (nullsMask == null)");
+                {
+                    builder.addStatement("nullsMask = new BitSet(positionCount)");
+                }
+                builder.endControlFlow();
+                builder.addStatement("nullsMask.set(p)");
+            }
+            builder.endControlFlow();
         }
         builder.endControlFlow();
 
-        builder.addStatement("return new $T(values, positionCount)", arrayVectorType(resultType));
+        builder.addStatement(
+            """
+                return nullsMask == null
+                  ? new $T(values, positionCount).asBlock()
+                  // UNORDERED, since whatever ordering there is, it isn't necessarily preserved
+                  : new $T(values, positionCount, null, nullsMask, Block.MvOrdering.UNORDERED)""",
+            arrayVectorType(resultType),
+            arrayBlockType(resultType)
+        );
 
         return builder.build();
     }
@@ -160,22 +201,41 @@ public class ConvertEvaluatorImplementer {
         builder.beginControlFlow("for (int p = 0; p < positionCount; p++)");
         {
             builder.addStatement("int valueCount = block.getValueCount(p)");
-            builder.beginControlFlow("if (valueCount == 0)");
-            {
-                builder.addStatement("builder.appendNull()");
-                builder.addStatement("continue");
-            }
-            builder.endControlFlow();
-
             builder.addStatement("int start = block.getFirstValueIndex(p)");
             builder.addStatement("int end = start + valueCount");
-            builder.addStatement("builder.beginPositionEntry()");
+            builder.addStatement("boolean positionOpened = false");
+            builder.addStatement("boolean valuesAppended = false");
+            // builder.addStatement("builder.beginPositionEntry()");
             builder.beginControlFlow("for (int i = start; i < end; i++)");
             {
-                builder.addStatement("builder.$N($N)", appendMethod, evalValueCall("block", "i", scratchPadName));
+                builder.beginControlFlow("try");
+                {
+                    builder.addStatement("$T value = $N", resultType, evalValueCall("block", "i", scratchPadName));
+                    builder.beginControlFlow("if (positionOpened == false && valueCount > 1)");
+                    {
+                        builder.addStatement("builder.beginPositionEntry()");
+                        builder.addStatement("positionOpened = true");
+                    }
+                    builder.endControlFlow();
+                    builder.addStatement("builder.$N(value)", appendMethod);
+                    builder.addStatement("valuesAppended = true");
+                }
+                builder.nextControlFlow("catch (Exception e)");
+                {
+                    builder.addStatement("registerException(e)");
+                }
+                builder.endControlFlow();
             }
             builder.endControlFlow();
-            builder.addStatement("builder.endPositionEntry()");
+            builder.beginControlFlow("if (valuesAppended == false)");
+            {
+                builder.addStatement("builder.appendNull()");
+            }
+            builder.nextControlFlow("else if (positionOpened)");
+            {
+                builder.addStatement("builder.endPositionEntry()");
+            }
+            builder.endControlFlow();
         }
         builder.endControlFlow();
 

@@ -10,8 +10,6 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.ConvertEvaluator;
 import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.xpack.esql.planner.Mappable;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -25,32 +23,28 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
-import static org.elasticsearch.xpack.ql.type.DataTypes.IP;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
-import static org.elasticsearch.xpack.ql.util.DateUtils.UTC_DATE_TIME_FORMATTER;
 
-public class ToString extends AbstractConvertFunction implements Mappable {
+public class ToDouble extends AbstractConvertFunction {
 
     private static final Map<DataType, BiFunction<EvalOperator.ExpressionEvaluator, Source, EvalOperator.ExpressionEvaluator>> EVALUATORS =
         Map.of(
-            KEYWORD,
+            DOUBLE,
             (fieldEval, source) -> fieldEval,
             BOOLEAN,
-            ToStringFromBooleanEvaluator::new,
+            ToDoubleFromBooleanEvaluator::new,
             DATETIME,
-            ToStringFromDatetimeEvaluator::new,
-            IP,
-            ToStringFromIPEvaluator::new,
-            DOUBLE,
-            ToStringFromDoubleEvaluator::new,
+            ToDoubleFromLongEvaluator::new, // CastLongToDoubleEvaluator would be a candidate, but not MV'd
+            KEYWORD,
+            ToDoubleFromStringEvaluator::new,
             LONG,
-            ToStringFromLongEvaluator::new,
+            ToDoubleFromLongEvaluator::new, // CastLongToDoubleEvaluator would be a candidate, but not MV'd
             INTEGER,
-            ToStringFromIntEvaluator::new
+            ToDoubleFromIntEvaluator::new // CastIntToDoubleEvaluator would be a candidate, but not MV'd
         );
 
-    public ToString(Source source, Expression field) {
+    public ToDouble(Source source, Expression field) {
         super(source, field);
     }
 
@@ -61,46 +55,36 @@ public class ToString extends AbstractConvertFunction implements Mappable {
 
     @Override
     public DataType dataType() {
-        return KEYWORD;
+        return DOUBLE;
     }
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new ToString(source(), newChildren.get(0));
+        return new ToDouble(source(), newChildren.get(0));
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, ToString::new, field());
+        return NodeInfo.create(this, ToDouble::new, field());
     }
 
     @ConvertEvaluator(extraName = "FromBoolean")
-    static BytesRef fromBoolean(boolean bool) {
-        return new BytesRef(String.valueOf(bool));
+    static double fromBoolean(boolean bool) {
+        return bool ? 1d : 0d;
     }
 
-    @ConvertEvaluator(extraName = "FromIP")
-    static BytesRef fromIP(BytesRef ip) {
-        return new BytesRef(DocValueFormat.IP.format(ip));
-    }
-
-    @ConvertEvaluator(extraName = "FromDatetime")
-    static BytesRef fromDatetime(long datetime) {
-        return new BytesRef(UTC_DATE_TIME_FORMATTER.formatMillis(datetime));
-    }
-
-    @ConvertEvaluator(extraName = "FromDouble")
-    static BytesRef fromDouble(double dbl) {
-        return new BytesRef(String.valueOf(dbl));
+    @ConvertEvaluator(extraName = "FromString")
+    static double fromKeyword(BytesRef in) {
+        return Double.parseDouble(in.utf8ToString());
     }
 
     @ConvertEvaluator(extraName = "FromLong")
-    static BytesRef fromDouble(long lng) {
-        return new BytesRef(String.valueOf(lng));
+    static double fromLong(long l) {
+        return l;
     }
 
     @ConvertEvaluator(extraName = "FromInt")
-    static BytesRef fromDouble(int integer) {
-        return new BytesRef(String.valueOf(integer));
+    static double fromInt(int i) {
+        return i;
     }
 }

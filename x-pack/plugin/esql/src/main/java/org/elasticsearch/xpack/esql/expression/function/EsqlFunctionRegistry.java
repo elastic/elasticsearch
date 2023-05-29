@@ -17,6 +17,12 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.IsNull;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToBoolean;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIP;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateFormat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateParse;
@@ -94,7 +100,14 @@ public class EsqlFunctionRegistry extends FunctionRegistry {
             // IP
             new FunctionDefinition[] { def(CIDRMatch.class, CIDRMatch::new, "cidr_match") },
             // conversion functions
-            new FunctionDefinition[] { def(ToString.class, ToString::new, "to_string") },
+            new FunctionDefinition[] {
+                def(ToBoolean.class, ToBoolean::new, "to_boolean", "to_bool"),
+                def(ToDatetime.class, ToDatetime::new, "to_datetime", "to_dt"),
+                def(ToDouble.class, ToDouble::new, "to_double", "to_dbl"),
+                def(ToIP.class, ToIP::new, "to_ip"),
+                def(ToInteger.class, ToInteger::new, "to_integer", "to_int"),
+                def(ToLong.class, ToLong::new, "to_long"),
+                def(ToString.class, ToString::new, "to_string", "to_str"), },
             // multivalue functions
             new FunctionDefinition[] {
                 def(MvAvg.class, MvAvg::new, "mv_avg"),

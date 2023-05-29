@@ -24,6 +24,7 @@ import static org.elasticsearch.xpack.esql.CsvTestUtils.ExpectedResults;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.Type;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.logMetaData;
 import static org.elasticsearch.xpack.ql.util.DateUtils.UTC_DATE_TIME_FORMATTER;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
@@ -175,18 +176,10 @@ public final class CsvAssert {
                         var expectedType = expected.columnTypes().get(column);
                         // convert the long from CSV back to its STRING form
                         if (expectedType == Type.DATETIME) {
-                            expectedValue = UTC_DATE_TIME_FORMATTER.formatMillis((long) expectedValue);
+                            expectedValue = rebuildExpected(expectedValue, Long.class, x -> UTC_DATE_TIME_FORMATTER.formatMillis((long) x));
                         } else if (expectedType == Type.IP) {
                             // convert BytesRef-packed IP to String, allowing subsequent comparison with what's expected
-                            if (List.class.isAssignableFrom(expectedValue.getClass())) {
-                                assertThat(((List<?>) expectedValue).get(0), Matchers.instanceOf(BytesRef.class));
-                                expectedValue = ((List<?>) expectedValue).stream()
-                                    .map(x -> DocValueFormat.IP.format((BytesRef) x))
-                                    .toList();
-                            } else {
-                                assertThat(expectedValue, Matchers.instanceOf(BytesRef.class));
-                                expectedValue = DocValueFormat.IP.format((BytesRef) expectedValue);
-                            }
+                            expectedValue = rebuildExpected(expectedValue, BytesRef.class, x -> DocValueFormat.IP.format((BytesRef) x));
                         }
 
                     }
@@ -208,6 +201,16 @@ public final class CsvAssert {
         }
         if (row + 1 < actualValues.size()) {
             fail("Elasticsearch still has data after [" + row + "] entries:\n" + row(actualValues, row));
+        }
+    }
+
+    private static Object rebuildExpected(Object expectedValue, Class<?> clazz, Function<Object, Object> mapper) {
+        if (List.class.isAssignableFrom(expectedValue.getClass())) {
+            assertThat(((List<?>) expectedValue).get(0), instanceOf(clazz));
+            return ((List<?>) expectedValue).stream().map(mapper).toList();
+        } else {
+            assertThat(expectedValue, instanceOf(clazz));
+            return mapper.apply(expectedValue);
         }
     }
 

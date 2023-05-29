@@ -55,6 +55,12 @@ public class Types {
     static final ClassName LONG_ARRAY_VECTOR = ClassName.get(DATA_PACKAGE, "LongArrayVector");
     static final ClassName DOUBLE_ARRAY_VECTOR = ClassName.get(DATA_PACKAGE, "DoubleArrayVector");
 
+    static final ClassName BOOLEAN_ARRAY_BLOCK = ClassName.get(DATA_PACKAGE, "BooleanArrayBlock");
+    static final ClassName BYTES_REF_ARRAY_BLOCK = ClassName.get(DATA_PACKAGE, "BytesRefArrayBlock");
+    static final ClassName INT_ARRAY_BLOCK = ClassName.get(DATA_PACKAGE, "IntArrayBlock");
+    static final ClassName LONG_ARRAY_BLOCK = ClassName.get(DATA_PACKAGE, "LongArrayBlock");
+    static final ClassName DOUBLE_ARRAY_BLOCK = ClassName.get(DATA_PACKAGE, "DoubleArrayBlock");
+
     static final ClassName BOOLEAN_CONSTANT_VECTOR = ClassName.get(DATA_PACKAGE, "ConstantBooleanVector");
     static final ClassName BYTES_REF_CONSTANT_VECTOR = ClassName.get(DATA_PACKAGE, "ConstantBytesRefVector");
     static final ClassName INT_CONSTANT_VECTOR = ClassName.get(DATA_PACKAGE, "ConstantIntVector");
@@ -75,7 +81,7 @@ public class Types {
         "AbstractEvaluator"
     );
 
-    static final ClassName EXPRESSION = ClassName.get("org.elasticsearch.xpack.ql.expression", "Expression");
+    static final ClassName SOURCE = ClassName.get("org.elasticsearch.xpack.ql.tree", "Source");
 
     static final ClassName BYTES_REF = ClassName.get("org.apache.lucene.util", "BytesRef");
 
@@ -132,6 +138,25 @@ public class Types {
         }
         if (elementType.equals(TypeName.DOUBLE)) {
             return DOUBLE_ARRAY_VECTOR;
+        }
+        throw new IllegalArgumentException("unknown vector type for [" + elementType + "]");
+    }
+
+    static ClassName arrayBlockType(TypeName elementType) {
+        if (elementType.equals(TypeName.BOOLEAN)) {
+            return BOOLEAN_ARRAY_BLOCK;
+        }
+        if (elementType.equals(BYTES_REF)) {
+            return BYTES_REF_ARRAY_BLOCK;
+        }
+        if (elementType.equals(TypeName.INT)) {
+            return INT_ARRAY_BLOCK;
+        }
+        if (elementType.equals(TypeName.LONG)) {
+            return LONG_ARRAY_BLOCK;
+        }
+        if (elementType.equals(TypeName.DOUBLE)) {
+            return DOUBLE_ARRAY_BLOCK;
         }
         throw new IllegalArgumentException("unknown vector type for [" + elementType + "]");
     }

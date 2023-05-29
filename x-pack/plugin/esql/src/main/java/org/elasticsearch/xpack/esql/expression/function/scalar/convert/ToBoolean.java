@@ -10,8 +10,6 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.ConvertEvaluator;
 import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.xpack.esql.planner.Mappable;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -22,35 +20,28 @@ import java.util.Map;
 import java.util.function.BiFunction;
 
 import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
-import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
-import static org.elasticsearch.xpack.ql.type.DataTypes.IP;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
-import static org.elasticsearch.xpack.ql.util.DateUtils.UTC_DATE_TIME_FORMATTER;
 
-public class ToString extends AbstractConvertFunction implements Mappable {
+public class ToBoolean extends AbstractConvertFunction {
 
     private static final Map<DataType, BiFunction<EvalOperator.ExpressionEvaluator, Source, EvalOperator.ExpressionEvaluator>> EVALUATORS =
         Map.of(
-            KEYWORD,
-            (fieldEval, source) -> fieldEval,
             BOOLEAN,
-            ToStringFromBooleanEvaluator::new,
-            DATETIME,
-            ToStringFromDatetimeEvaluator::new,
-            IP,
-            ToStringFromIPEvaluator::new,
+            (fieldEval, source) -> fieldEval,
+            KEYWORD,
+            ToBooleanFromStringEvaluator::new,
             DOUBLE,
-            ToStringFromDoubleEvaluator::new,
+            ToBooleanFromDoubleEvaluator::new,
             LONG,
-            ToStringFromLongEvaluator::new,
+            ToBooleanFromLongEvaluator::new,
             INTEGER,
-            ToStringFromIntEvaluator::new
+            ToBooleanFromIntEvaluator::new
         );
 
-    public ToString(Source source, Expression field) {
+    public ToBoolean(Source source, Expression field) {
         super(source, field);
     }
 
@@ -61,46 +52,36 @@ public class ToString extends AbstractConvertFunction implements Mappable {
 
     @Override
     public DataType dataType() {
-        return KEYWORD;
+        return BOOLEAN;
     }
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new ToString(source(), newChildren.get(0));
+        return new ToBoolean(source(), newChildren.get(0));
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, ToString::new, field());
+        return NodeInfo.create(this, ToBoolean::new, field());
     }
 
-    @ConvertEvaluator(extraName = "FromBoolean")
-    static BytesRef fromBoolean(boolean bool) {
-        return new BytesRef(String.valueOf(bool));
-    }
-
-    @ConvertEvaluator(extraName = "FromIP")
-    static BytesRef fromIP(BytesRef ip) {
-        return new BytesRef(DocValueFormat.IP.format(ip));
-    }
-
-    @ConvertEvaluator(extraName = "FromDatetime")
-    static BytesRef fromDatetime(long datetime) {
-        return new BytesRef(UTC_DATE_TIME_FORMATTER.formatMillis(datetime));
+    @ConvertEvaluator(extraName = "FromString")
+    static boolean fromKeyword(BytesRef keyword) {
+        return Boolean.parseBoolean(keyword.utf8ToString());
     }
 
     @ConvertEvaluator(extraName = "FromDouble")
-    static BytesRef fromDouble(double dbl) {
-        return new BytesRef(String.valueOf(dbl));
+    static boolean fromDouble(double d) {
+        return d != 0;
     }
 
     @ConvertEvaluator(extraName = "FromLong")
-    static BytesRef fromDouble(long lng) {
-        return new BytesRef(String.valueOf(lng));
+    static boolean fromLong(long l) {
+        return l != 0;
     }
 
     @ConvertEvaluator(extraName = "FromInt")
-    static BytesRef fromDouble(int integer) {
-        return new BytesRef(String.valueOf(integer));
+    static boolean fromInt(int i) {
+        return fromLong(i);
     }
 }

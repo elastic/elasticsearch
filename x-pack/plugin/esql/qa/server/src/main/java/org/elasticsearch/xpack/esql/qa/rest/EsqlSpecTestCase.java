@@ -89,7 +89,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
     protected final void doTest() throws Throwable {
         RequestObjectBuilder builder = new RequestObjectBuilder(randomFrom(XContentType.values()));
-        Map<String, Object> answer = runEsql(builder.query(testCase.query).build());
+        Map<String, Object> answer = runEsql(builder.query(testCase.query).build(), testName.endsWith("-IgnoreWarnings"));
         var expectedColumnsWithValues = loadCsvSpecValues(testCase.expectedResults);
 
         assertNotNull(answer.get("columns"));

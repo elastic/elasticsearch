@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.Vector;
@@ -15,13 +17,21 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFuncti
 import org.elasticsearch.xpack.esql.planner.Mappable;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataType;
 
+import java.util.Locale;
+import java.util.Map;
+import java.util.function.BiFunction;
 import java.util.function.Supplier;
+
+import static org.elasticsearch.common.logging.HeaderWarning.addWarning;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
 
 /**
  * Base class for functions that converts a field into a function-specific type.
  */
 public abstract class AbstractConvertFunction extends UnaryScalarFunction implements Mappable {
+
     protected AbstractConvertFunction(Source source, Expression field) {
         super(source, field);
     }
@@ -29,17 +39,30 @@ public abstract class AbstractConvertFunction extends UnaryScalarFunction implem
     /**
      * Build the evaluator given the evaluator a multivalued field.
      */
-    protected abstract Supplier<EvalOperator.ExpressionEvaluator> evaluator(Supplier<EvalOperator.ExpressionEvaluator> fieldEval);
+    protected Supplier<EvalOperator.ExpressionEvaluator> evaluator(Supplier<EvalOperator.ExpressionEvaluator> fieldEval) {
+        DataType sourceType = field().dataType();
+        var evaluator = evaluators().get(sourceType);
+        if (evaluator == null) {
+            throw new AssertionError("unsupported type [" + sourceType + "]");
+        }
+        return () -> evaluator.apply(fieldEval.get(), source());
+    }
 
     @Override
     protected final TypeResolution resolveType() {
         if (childrenResolved() == false) {
             return new TypeResolution("Unresolved children");
         }
-        return resolveFieldType();
+        return isType(
+            field(),
+            evaluators()::containsKey,
+            sourceText(),
+            null,
+            evaluators().keySet().stream().map(dt -> dt.name().toLowerCase(Locale.ROOT)).sorted().toArray(String[]::new)
+        );
     }
 
-    protected abstract TypeResolution resolveFieldType();
+    protected abstract Map<DataType, BiFunction<EvalOperator.ExpressionEvaluator, Source, EvalOperator.ExpressionEvaluator>> evaluators();
 
     @Override
     public final Object fold() {
@@ -54,10 +77,18 @@ public abstract class AbstractConvertFunction extends UnaryScalarFunction implem
     }
 
     public abstract static class AbstractEvaluator implements EvalOperator.ExpressionEvaluator {
-        private final EvalOperator.ExpressionEvaluator fieldEvaluator;
 
-        protected AbstractEvaluator(EvalOperator.ExpressionEvaluator field) {
+        private static final Log logger = LogFactory.getLog(AbstractEvaluator.class);
+
+        private final EvalOperator.ExpressionEvaluator fieldEvaluator;
+        private final Source source;
+        private int addedWarnings;
+
+        private static final int MAX_ADDED_WARNINGS = 20;
+
+        protected AbstractEvaluator(EvalOperator.ExpressionEvaluator field, Source source) {
             this.fieldEvaluator = field;
+            this.source = source;
         }
 
         protected abstract String name();
@@ -70,7 +101,7 @@ public abstract class AbstractConvertFunction extends UnaryScalarFunction implem
         /**
          * Called when evaluating a {@link Block} that does not contain null values.
          */
-        protected abstract Vector evalVector(Vector v);
+        protected abstract Block evalVector(Vector v);
 
         public Block eval(Page page) {
             Block block = fieldEvaluator.eval(page);
@@ -78,7 +109,24 @@ public abstract class AbstractConvertFunction extends UnaryScalarFunction implem
                 return Block.constantNullBlock(page.getPositionCount());
             }
             Vector vector = block.asVector();
-            return vector == null ? evalBlock(block) : evalVector(vector).asBlock();
+            return vector == null ? evalBlock(block) : evalVector(vector);
+        }
+
+        protected void registerException(Exception exception) {
+            logger.trace("conversion failure", exception);
+            if (addedWarnings < MAX_ADDED_WARNINGS) {
+                if (addedWarnings == 0) {
+                    addWarning(
+                        "Line {}:{}: evaluation of [{}] failed, treating result as null. Only first {} failures recorded.",
+                        source.source().getLineNumber(),
+                        source.source().getColumnNumber(),
+                        source.text(),
+                        MAX_ADDED_WARNINGS
+                    );
+                }
+                addWarning(exception.getClass().getName() + ": " + exception.getMessage());
+                addedWarnings++;
+            }
         }
 
         @Override

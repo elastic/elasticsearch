@@ -14,34 +14,34 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefArrayBlock;
 import org.elasticsearch.compute.data.BytesRefArrayVector;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.ConstantBytesRefVector;
-import org.elasticsearch.compute.data.DoubleBlock;
-import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.ql.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link ToString}.
+ * {@link EvalOperator.ExpressionEvaluator} implementation for {@link ToIP}.
  * This class is generated. Do not edit it.
  */
-public final class ToStringFromDoubleEvaluator extends AbstractConvertFunction.AbstractEvaluator {
-  public ToStringFromDoubleEvaluator(EvalOperator.ExpressionEvaluator field, Source source) {
+public final class ToIPFromStringEvaluator extends AbstractConvertFunction.AbstractEvaluator {
+  public ToIPFromStringEvaluator(EvalOperator.ExpressionEvaluator field, Source source) {
     super(field, source);
   }
 
   @Override
   public String name() {
-    return "ToString";
+    return "ToIP";
   }
 
   @Override
   public Block evalVector(Vector v) {
-    DoubleVector vector = (DoubleVector) v;
+    BytesRefVector vector = (BytesRefVector) v;
     int positionCount = v.getPositionCount();
+    BytesRef scratchPad = new BytesRef();
     if (vector.isConstant()) {
       try {
-        return new ConstantBytesRefVector(evalValue(vector, 0), positionCount).asBlock();
+        return new ConstantBytesRefVector(evalValue(vector, 0, scratchPad), positionCount).asBlock();
       } catch (Exception e) {
         registerException(e);
         return Block.constantNullBlock(positionCount);
@@ -51,7 +51,7 @@ public final class ToStringFromDoubleEvaluator extends AbstractConvertFunction.A
     BytesRefArray values = new BytesRefArray(positionCount, BigArrays.NON_RECYCLING_INSTANCE);
     for (int p = 0; p < positionCount; p++) {
       try {
-        values.append(evalValue(vector, p));
+        values.append(evalValue(vector, p, scratchPad));
       } catch (Exception e) {
         registerException(e);
         if (nullsMask == null) {
@@ -66,16 +66,17 @@ public final class ToStringFromDoubleEvaluator extends AbstractConvertFunction.A
           : new BytesRefArrayBlock(values, positionCount, null, nullsMask, Block.MvOrdering.UNORDERED);
   }
 
-  private static BytesRef evalValue(DoubleVector container, int index) {
-    double value = container.getDouble(index);
-    return ToString.fromDouble(value);
+  private static BytesRef evalValue(BytesRefVector container, int index, BytesRef scratchPad) {
+    BytesRef value = container.getBytesRef(index, scratchPad);
+    return ToIP.fromKeyword(value);
   }
 
   @Override
   public Block evalBlock(Block b) {
-    DoubleBlock block = (DoubleBlock) b;
+    BytesRefBlock block = (BytesRefBlock) b;
     int positionCount = block.getPositionCount();
     BytesRefBlock.Builder builder = BytesRefBlock.newBlockBuilder(positionCount);
+    BytesRef scratchPad = new BytesRef();
     for (int p = 0; p < positionCount; p++) {
       int valueCount = block.getValueCount(p);
       int start = block.getFirstValueIndex(p);
@@ -84,7 +85,7 @@ public final class ToStringFromDoubleEvaluator extends AbstractConvertFunction.A
       boolean valuesAppended = false;
       for (int i = start; i < end; i++) {
         try {
-          BytesRef value = evalValue(block, i);
+          BytesRef value = evalValue(block, i, scratchPad);
           if (positionOpened == false && valueCount > 1) {
             builder.beginPositionEntry();
             positionOpened = true;
@@ -104,8 +105,8 @@ public final class ToStringFromDoubleEvaluator extends AbstractConvertFunction.A
     return builder.build();
   }
 
-  private static BytesRef evalValue(DoubleBlock container, int index) {
-    double value = container.getDouble(index);
-    return ToString.fromDouble(value);
+  private static BytesRef evalValue(BytesRefBlock container, int index, BytesRef scratchPad) {
+    BytesRef value = container.getBytesRef(index, scratchPad);
+    return ToIP.fromKeyword(value);
   }
 }

@@ -282,7 +282,7 @@ min(salary):integer | max(salary):integer | job_positions:keyword
 25324               | 58715               | Head Human Resources
 ;
 
-convertToString
+convertFromString
 from employees | eval positions = to_string(job_positions) | project emp_no, positions, job_positions | limit 5;
 
 emp_no:integer |positions:keyword                                                     |job_positions:keyword
@@ -291,4 +291,47 @@ emp_no:integer |positions:keyword                                               
 10003          |null                                                                  |null                                                                  
 10004          |[Head Human Resources, Reporting Analyst, Support Engineer, Tech Lead]|[Head Human Resources, Reporting Analyst, Support Engineer, Tech Lead]
 10005          |null                                                                  |null                                                                  
+;
+
+convertFromBoolean
+from employees | eval rehired = to_string(is_rehired) | project emp_no, rehired, is_rehired | limit 5;
+
+emp_no:integer |rehired:string              |is_rehired:boolean
+10001          |[false, true]               |[false, true]
+10002          |[false, false]              |[false, false]
+10003          |null                        |null
+10004          |true                        |true
+10005          |[false, false, false, true] |[false, false, false, true]
+;
+
+convertFromDatetime
+from employees | sort emp_no| eval hired_at = to_string(hire_date) | project emp_no, hired_at, hire_date  | limit 1;
+
+emp_no:integer |hired_at:keyword         |hire_date:date
+10001          |1986-06-26T00:00:00.000Z |1986-06-26T00:00:00.000Z
+;
+
+convertFromIP
+from hosts | where host=="epsilon" | eval str0 = to_string(ip0) | project str0, ip0;
+
+str0:keyword                                                                            |ip0:ip
+["fe80::cae2:65ff:fece:feb9", "fe80::cae2:65ff:fece:fec0", "fe80::cae2:65ff:fece:fec1"] |[fe80::cae2:65ff:fece:feb9, fe80::cae2:65ff:fece:fec0, fe80::cae2:65ff:fece:fec1]
+null                                                                                    |null
+["fe81::cae2:65ff:fece:feb9", "fe82::cae2:65ff:fece:fec0"]                              |[fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece:fec0]
+;
+
+convertFromFloats
+from employees | sort emp_no| eval double = to_string(height), float = to_string(height.float), scaled_float = to_string(height.scaled_float), half_float = to_string(height.half_float) | project emp_no, double, float, scaled_float, half_float, height  | limit 2;
+
+emp_no:integer |double:keyword |float:keyword     |scaled_float:keyword   |half_float:keyword   |height:double
+10001          |2.03           |2.0299999713897705|2.0300000000000002     |2.029296875          |2.03
+10002          |2.08           |2.0799999237060547|2.08                   |2.080078125          |2.08
+;
+
+convertFromInts
+from employees | sort emp_no| eval byte = to_string(languages.byte), short = to_string(languages.short), long = to_string(languages.long), int = to_string(languages) | project emp_no, byte, short, long, int, languages  | limit 2;
+
+emp_no:integer |byte:keyword   |short:keyword  |long:keyword |int:keyword |languages:integer
+10001          |2              |2              |2            |2           |2
+10002          |5              |5              |5            |5           |5
 ;

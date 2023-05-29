@@ -158,11 +158,40 @@ x:date                  |hire_date:date
 1995-01-01T00:00:00.000Z|1995-01-27T00:00:00.000Z
 ;
 
-convertToString
-from employees | sort emp_no| eval hired_at = to_string(hire_date) | project emp_no, hired_at, hire_date  | limit 1;
+convertFromDatetime
+from employees| project birth_date | eval bd = to_datetime(birth_date) | limit 2;
 
-emp_no:integer |hired_at:keyword         |hire_date:date
-10001          |1986-06-26T00:00:00.000Z |1986-06-26T00:00:00.000Z
+birth_date:date         |bd:date
+1953-09-02T00:00:00.000Z|1953-09-02T00:00:00.000Z
+1964-06-02T00:00:00.000Z|1964-06-02T00:00:00.000Z
+;
+
+convertFromString
+row string = ["1953-09-02T00:00:00.000Z", "1964-06-02T00:00:00.000Z"] | eval datetime = to_datetime(string);
+
+string:keyword                                      |datetime:date
+[1953-09-02T00:00:00.000Z, 1964-06-02T00:00:00.000Z]|[1953-09-02T00:00:00.000Z, 1964-06-02T00:00:00.000Z]
+;
+
+convertFromLong
+row long = [501379200000, 520128000000] | eval dt = to_datetime(long);
+
+long:long                    |dt:date
+[501379200000, 520128000000] |[1985-11-21T00:00:00.000Z, 1986-06-26T00:00:00.000Z]
+;
+
+convertFromDouble
+row dbl = [501379200000.1, 520128000000.2] | eval dt = to_datetime(dbl);
+
+dbl:double                            |dt:date                         
+[5.013792000001E11, 5.201280000002E11]|[1985-11-21T00:00:00.000Z, 1986-06-26T00:00:00.000Z]
+;
+
+convertFromInt
+row int = [501379200, 520128000] | eval dt = to_datetime(int);
+
+int:integer           |dt:date
+[501379200, 520128000]|[1970-01-06T19:16:19.200Z, 1970-01-07T00:28:48.000Z]
 ;
 
 autoBucketMonth

@@ -15,6 +15,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -42,6 +43,7 @@ import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class RestEsqlTestCase extends ESRestTestCase {
 
@@ -231,6 +233,37 @@ public class RestEsqlTestCase extends ESRestTestCase {
         assertEquals("keyword0,0\r\n", actual);
     }
 
+    public void testWarningHeadersOnFailedConversions() throws IOException {
+        int count = randomFrom(10, 40, 60);
+        bulkLoadTestData(count);
+
+        Request request = prepareRequest();
+        var query = fromIndex() + " | eval asInt = to_int(case(integer % 2 == 0, to_str(integer), keyword))";
+        var mediaType = attachBody(new RequestObjectBuilder().query(query).build(), request);
+
+        RequestOptions.Builder options = request.getOptions().toBuilder();
+        options.setWarningsHandler(WarningsHandler.PERMISSIVE);
+        options.addHeader("Content-Type", mediaType);
+        options.addHeader("Accept", mediaType);
+
+        request.setOptions(options);
+        Response response = client().performRequest(request);
+        assertThat(response.getStatusLine().getStatusCode(), is(200));
+
+        int expectedWarnings = Math.min(count / 2, 20);
+        var warnings = response.getWarnings();
+        assertThat(warnings.size(), is(1 + expectedWarnings));
+        var firstHeader = "Line 1:36: evaluation of [to_int(case(integer %25 2 == 0, to_str(integer), keyword))] failed, "
+            + "treating result as null. Only first 20 failures recorded.";
+        assertThat(warnings.get(0), containsString(firstHeader));
+        for (int i = 1; i <= expectedWarnings; i++) {
+            assertThat(
+                warnings.get(i),
+                containsString("java.lang.NumberFormatException: For input string: \\\"keyword" + (2 * i - 1) + "\\\"")
+            );
+        }
+    }
+
     private static String expectedTextBody(String format, int count, @Nullable Character csvDelimiter) {
         StringBuilder sb = new StringBuilder();
         switch (format) {
@@ -262,10 +295,17 @@ public class RestEsqlTestCase extends ESRestTestCase {
     }
 
     public static Map<String, Object> runEsql(RequestObjectBuilder requestObject) throws IOException {
+        return runEsql(requestObject, false);
+    }
+
+    public static Map<String, Object> runEsql(RequestObjectBuilder requestObject, boolean allowWarnings) throws IOException {
         Request request = prepareRequest();
         String mediaType = attachBody(requestObject, request);
 
         RequestOptions.Builder options = request.getOptions().toBuilder();
+        if (allowWarnings) {
+            options.setWarningsHandler(WarningsHandler.PERMISSIVE);
+        }
         options.addHeader("Content-Type", mediaType);
 
         if (randomBoolean()) {

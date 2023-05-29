@@ -246,3 +246,24 @@ row a=1, b=2 | where 2 in (a, b);
 a:integer|b:integer
 1        |2
 ;
+
+convertMvToMvDifferentCardinality-IgnoreWarnings
+row strings = ["1", "2", "three"] | eval ints = to_int(strings);
+
+strings:keyword |ints:integer
+[1, 2, three]   |[1, 2]
+;
+
+convertMvToSv-IgnoreWarnings
+row strings = ["1", "two"] | eval ints = to_int(strings);
+
+strings:keyword |ints:integer
+[1, two]        |1
+;
+
+convertMvToNull-IgnoreWarnings
+row strings = ["one", "two"] | eval ints = to_int(strings);
+
+strings:keyword |ints:integer
+[one, two]      |null
+;

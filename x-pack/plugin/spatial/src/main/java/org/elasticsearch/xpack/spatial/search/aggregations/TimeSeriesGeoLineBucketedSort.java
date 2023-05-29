@@ -22,8 +22,6 @@ import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
-import org.elasticsearch.search.aggregations.LeafBucketCollector;
-import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoLineMultiValuesSource;
 
@@ -41,13 +39,12 @@ import static org.elasticsearch.xpack.spatial.search.aggregations.GeoLineAggrega
  * bucket based on whether there are too many items in the bucket that
  * need to be dropped based on their sort value.
  */
-class TimeSeriesGeoLineBucketedSort extends LeafBucketCollector implements BucketedSort.ExtraData {
+class TimeSeriesGeoLineBucketedSort {
     private final GeoLineMultiValuesSource valuesSources;
     private final SortOrder sortOrder;
     private final int bucketSize;
     private int tsidOrd;
     private Simplifier simplifier;
-    private Leaf leaf;
 
     TimeSeriesGeoLineBucketedSort(
         SortOrder sortOrder,
@@ -71,37 +68,9 @@ class TimeSeriesGeoLineBucketedSort extends LeafBucketCollector implements Bucke
         simplifier.reset();
     }
 
-    @Override
-    public Loader loader(LeafReaderContext ctx) {
-        final MultiGeoPointValues docGeoPointValues = valuesSources.getGeoPointField(
-            GeoLineAggregationBuilder.POINT_FIELD.getPreferredName(),
-            ctx
-        );
-        return (index, doc) -> {
-            if (false == docGeoPointValues.advanceExact(doc)) {
-                return;
-            }
-
-            if (docGeoPointValues.docValueCount() > 1) {
-                throw new AggregationExecutionException(
-                    "Encountered more than one geo_point value for a "
-                        + "single document. Use a script to combine multiple geo_point-values-per-doc into a single value."
-                );
-            }
-
-            final GeoPoint point = docGeoPointValues.nextValue();
-            simplifier.consume(point.getX(), point.getY());
-        };
-    }
-
-    @Override
-    public void collect(int doc, long owningBucketOrd) throws IOException {
-        leaf.collect(doc, owningBucketOrd);
-    }
-
-    public void setAggregationExecutionContext(AggregationExecutionContext aggCtx) throws IOException {
+    public Leaf forLeaf(AggregationExecutionContext aggCtx) throws IOException {
         this.tsidOrd = aggCtx.getTsidOrd();
-        this.leaf = new Leaf(aggCtx.getLeafReaderContext());
+        return new Leaf(aggCtx.getLeafReaderContext());
     }
 
     public int getTsidOrd() {
@@ -296,17 +265,20 @@ class TimeSeriesGeoLineBucketedSort extends LeafBucketCollector implements Bucke
 
     protected class Leaf {
         private final SortedNumericDoubleValues docSortValues;
-        private double docValue;  // TODO: This can be removed
-        private final Loader loader;
+        private final MultiGeoPointValues docGeoPointValues;
+        private final int leafReaderOrd;
 
         protected Leaf(LeafReaderContext ctx) throws IOException {
             System.out.println("\n\n**** Constructing new Leaf " + ctx.ord);
+            this.leafReaderOrd = ctx.ord;
             // TODO: Should the sort field be hard-coded for time-series? Or just validated earlier on?
             docSortValues = valuesSources.getNumericField(SORT_FIELD.getPreferredName(), ctx);
-            loader = TimeSeriesGeoLineBucketedSort.this.loader(ctx);
+            docGeoPointValues = valuesSources.getGeoPointField(GeoLineAggregationBuilder.POINT_FIELD.getPreferredName(), ctx);
         }
 
-        protected boolean advanceExact(int doc) throws IOException {
+        private boolean loadSortField(int doc) throws IOException {
+            System.out.println("Collecting for ctx.ord " + leafReaderOrd);
+            simplifier.currentSortValue = Long.MIN_VALUE;
             if (docSortValues.advanceExact(doc)) {
                 // If we get here from TSDB `position` metric, this assertion should have been made during indexing
                 if (docSortValues.docValueCount() > 1) {
@@ -315,32 +287,34 @@ class TimeSeriesGeoLineBucketedSort extends LeafBucketCollector implements Bucke
                             + "single document. Use a script to combine multiple sort-values-per-doc into a single value."
                     );
                 }
-
-                // There should always be one weight if advanceExact lands us here, either
-                // a real weight or a `missing` weight
                 assert docSortValues.docValueCount() == 1;
-                docValue = docSortValues.nextValue();
+                simplifier.currentSortValue = docSortValues.nextValue();
                 return true;
-            } else {
-                docValue = Long.MIN_VALUE;
             }
-            // TODO: We might not need this customer loader, if we can access the docValue from outside the leaf
-            simplifier.currentSortValue = docValue;
             return false;
+        }
+
+        private void loadPointField(int doc) throws IOException {
+            if (false == docGeoPointValues.advanceExact(doc)) {
+                return;
+            }
+
+            if (docGeoPointValues.docValueCount() > 1) {
+                throw new AggregationExecutionException(
+                    "Encountered more than one geo_point value for a "
+                        + "single document. Use a script to combine multiple geo_point-values-per-doc into a single value."
+                );
+            }
+
+            final GeoPoint point = docGeoPointValues.nextValue();
+            simplifier.consume(point.getX(), point.getY());
         }
 
         public void collect(int doc, long bucket) throws IOException {
             System.out.println("collect(" + doc + ", " + bucket + ") for sort-order " + sortOrder);
-            if (false == advanceExact(doc)) {
-                return;
+            if (loadSortField(doc)) {
+                loadPointField(doc);
             }
-            simplifier.currentSortValue = docValue;
-            loader.loadFromDoc(bucket, doc);
         }
-    }
-
-    @Override
-    public void swap(long lhs, long rhs) {
-        throw new IllegalStateException("No sorting should be called in time-series aggregation");
     }
 }

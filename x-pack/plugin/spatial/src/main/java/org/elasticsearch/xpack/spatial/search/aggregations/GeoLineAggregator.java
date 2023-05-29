@@ -192,11 +192,17 @@ abstract class GeoLineAggregator extends MetricsAggregator {
             // TODO: We should use bucket id not tsid for nested aggregations
             this.tsidOrd = aggCtx.getTsidOrd();
             postCollectLastCollector();
-            sort.setAggregationExecutionContext(aggCtx);
+            TimeSeriesGeoLineBucketedSort.Leaf leaf = sort.forLeaf(aggCtx);
             System.out.println("Agg context: " + aggCtx);
-            System.out.println("Leaf reader context: " + aggCtx.getLeafReaderContext());
+            System.out.println("Leaf reader context ord: " + aggCtx.getLeafReaderContext().ord);
             System.out.println("TSID ord: " + aggCtx.getTsidOrd());
-            return sort;
+
+            return new LeafBucketCollector() {
+                @Override
+                public void collect(int doc, long bucket) throws IOException {
+                    leaf.collect(doc, bucket);
+                }
+            };
         }
 
         private InternalGeoLine makeAggregation(long bucket) {

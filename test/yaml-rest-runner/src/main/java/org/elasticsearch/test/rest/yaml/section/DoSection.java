@@ -438,8 +438,7 @@ public class DoSection implements ExecutableSection {
             .collect(toCollection(LinkedHashSet::new));
         final Set<Pattern> expectedRegex = new LinkedHashSet<>(expectedWarningHeadersRegex);
         for (final String header : warningHeaders) {
-            final Matcher matcher = HeaderWarning.WARNING_HEADER_PATTERN.matcher(header);
-            final boolean matches = matcher.matches();
+            final boolean matches = HeaderWarning.warningHeaderPatternMatches(header);
             if (matches) {
                 final String message = HeaderWarning.extractWarningValueFromWarningHeader(header, true);
                 if (allowed.contains(message)) {

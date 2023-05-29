@@ -16,13 +16,18 @@ import org.elasticsearch.tasks.Task;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.BitSet;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
+import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 /**
  * This is a simplistic logger that adds warning messages to HTTP headers.
@@ -39,7 +44,7 @@ public class HeaderWarning {
         "Elasticsearch-" + // warn agent
         "\\d+\\.\\d+\\.\\d+(?:-(?:alpha|beta|rc)\\d+)?(?:-SNAPSHOT)?-" + // warn agent
         "(?:[a-f0-9]{7}(?:[a-f0-9]{33})?|unknown) " + // warn agent
-        "\"((?:\t| |!|[\\x23-\\x5B]|[\\x5D-\\x7E]|[\\x80-\\xFF]|\\\\|\\\\\")*)\"( " + // quoted warning value, captured
+        "\"(?<qdText>.*)\"( " + // quoted warning value, captured
         // quoted RFC 1123 date format
         "\"" + // opening quote
         "(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun), " + // weekday
@@ -49,6 +54,26 @@ public class HeaderWarning {
         "\\d{2}:\\d{2}:\\d{2} " + // (two-digit hour):(two-digit minute):(two-digit second)
         "GMT" + // GMT
         "\")?"); // closing quote (optional, since an older version can still send a warn-date)
+
+    /**
+     * qdText is defined in https://datatracker.ietf.org/doc/html/rfc7230#section-3.2.6
+     * qdtext         = HTAB / SP /%x21 / %x23-5B / %x5D-7E / obs-text
+     * obs-text       = %x80-FF
+     * <p>
+     * this was previously used in WARNING_HEADER_PATTERN, but can cause stackoverflow
+     * "\"((?:\t| |!|[\\x23-\\x5B]|[\\x5D-\\x7E]|[\\x80-\\xFF]|\\\\|\\\\\")*)\"( " + // quoted warning value, captured
+     */
+    private static Set<Integer> qdTextChars = Stream.of(
+            IntStream.of(0x09),// HTAB
+            IntStream.of(0x20), // SPACE
+            IntStream.of(0x21), // !
+            IntStream.rangeClosed(0x23, 0x5B),//ascii #-[
+            //excluding 0x5c = "
+            IntStream.rangeClosed(0x5D, 0x7E),//ascii ]-~
+            IntStream.rangeClosed(0x80, 0xFF)//obs-text
+        ).flatMapToInt(i -> i)
+        .boxed()
+        .collect(Collectors.toSet());
     public static final Pattern WARNING_XCONTENT_LOCATION_PATTERN = Pattern.compile("^\\[.*?]\\[-?\\d+:-?\\d+] ");
 
     /*
@@ -182,7 +207,22 @@ public class HeaderWarning {
         final Matcher matcher = WARNING_HEADER_PATTERN.matcher(s);
         final boolean matches = matcher.matches();
         assert matches;
-        return matcher.group(1).equals(warningValue);
+        return matcher.group("qdText").equals(warningValue);
+    }
+
+    //this is meant to be in testing only
+    public static boolean warningHeaderPatternMatches(final String s) {
+        final Matcher matcher = WARNING_HEADER_PATTERN.matcher(s);
+        final boolean matches = matcher.matches();
+        if (matches) {
+            String qdtext = matcher.group("qdText");
+            return matchesQuotedString(qdtext);
+        }
+        return false;
+    }
+
+    private static boolean matchesQuotedString(String qdtext) {
+        return qdtext.chars().allMatch(c -> qdTextChars.contains(c));
     }
 
     /**
@@ -266,7 +306,7 @@ public class HeaderWarning {
         }
 
         final StringBuilder sb = new StringBuilder(s.length());
-        for (int i = 0; i < s.length();) {
+        for (int i = 0; i < s.length(); ) {
             int current = s.charAt(i);
             /*
              * Either the character does not need encoding or it does; when the character does not need encoding we append the character to
@@ -331,8 +371,8 @@ public class HeaderWarning {
             final String formattedMessage = LoggerMessageFormat.format(message, params);
             final String warningHeaderValue = formatWarning(formattedMessage);
             // TODO #95972: Temporarily commented out to avoid StackOverflowError, see https://github.com/elastic/elasticsearch/issues/95972
-            // assert WARNING_HEADER_PATTERN.matcher(warningHeaderValue).matches();
-            // assert extractWarningValueFromWarningHeader(warningHeaderValue, false).equals(escapeAndEncode(formattedMessage));
+            assert warningHeaderPatternMatches(warningHeaderValue);
+            assert extractWarningValueFromWarningHeader(warningHeaderValue, false).equals(escapeAndEncode(formattedMessage));
             while (iterator.hasNext()) {
                 try {
                     final ThreadContext next = iterator.next();

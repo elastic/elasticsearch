@@ -72,6 +72,7 @@ import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.ThreadPoolStats;
+import org.elasticsearch.threadpool.ThreadPoolStatsTests;
 import org.elasticsearch.transport.TransportActionStats;
 import org.elasticsearch.transport.TransportStats;
 import org.elasticsearch.xcontent.ToXContent;
@@ -82,7 +83,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.IntStream;
@@ -231,20 +231,10 @@ public class NodeStatsTests extends ESTestCase {
                 if (nodeStats.getThreadPool() == null) {
                     assertNull(deserializedNodeStats.getThreadPool());
                 } else {
-                    Iterator<ThreadPoolStats.Stats> threadPoolIterator = nodeStats.getThreadPool().iterator();
-                    Iterator<ThreadPoolStats.Stats> deserializedThreadPoolIterator = deserializedNodeStats.getThreadPool().iterator();
-                    while (threadPoolIterator.hasNext()) {
-                        ThreadPoolStats.Stats stats = threadPoolIterator.next();
-                        ThreadPoolStats.Stats deserializedStats = deserializedThreadPoolIterator.next();
-                        assertEquals(stats.name(), deserializedStats.name());
-                        assertEquals(stats.threads(), deserializedStats.threads());
-                        assertEquals(stats.active(), deserializedStats.active());
-                        assertEquals(stats.largest(), deserializedStats.largest());
-                        assertEquals(stats.completed(), deserializedStats.completed());
-                        assertEquals(stats.queue(), deserializedStats.queue());
-                        assertEquals(stats.rejected(), deserializedStats.rejected());
-                    }
+                    assertNotSame(nodeStats.getThreadPool(), deserializedNodeStats.getThreadPool());
+                    assertEquals(nodeStats.getThreadPool(), deserializedNodeStats.getThreadPool());
                 }
+
                 FsInfo fs = nodeStats.getFs();
                 FsInfo deserializedFs = deserializedNodeStats.getFs();
                 if (fs == null) {
@@ -467,34 +457,8 @@ public class NodeStatsTests extends ESTestCase {
                 if (ingestStats == null) {
                     assertNull(deserializedIngestStats);
                 } else {
-                    IngestStats.Stats totalStats = ingestStats.totalStats();
-                    assertEquals(totalStats.ingestCount(), deserializedIngestStats.totalStats().ingestCount());
-                    assertEquals(totalStats.ingestCurrent(), deserializedIngestStats.totalStats().ingestCurrent());
-                    assertEquals(totalStats.ingestFailedCount(), deserializedIngestStats.totalStats().ingestFailedCount());
-                    assertEquals(totalStats.ingestTimeInMillis(), deserializedIngestStats.totalStats().ingestTimeInMillis());
-                    assertEquals(ingestStats.pipelineStats().size(), deserializedIngestStats.pipelineStats().size());
-                    for (IngestStats.PipelineStat pipelineStat : ingestStats.pipelineStats()) {
-                        String pipelineId = pipelineStat.pipelineId();
-                        IngestStats.Stats deserializedPipelineStats = getPipelineStats(deserializedIngestStats.pipelineStats(), pipelineId);
-                        assertEquals(pipelineStat.stats().ingestFailedCount(), deserializedPipelineStats.ingestFailedCount());
-                        assertEquals(pipelineStat.stats().ingestTimeInMillis(), deserializedPipelineStats.ingestTimeInMillis());
-                        assertEquals(pipelineStat.stats().ingestCurrent(), deserializedPipelineStats.ingestCurrent());
-                        assertEquals(pipelineStat.stats().ingestCount(), deserializedPipelineStats.ingestCount());
-                        List<IngestStats.ProcessorStat> processorStats = ingestStats.processorStats().get(pipelineId);
-                        // intentionally validating identical order
-                        Iterator<IngestStats.ProcessorStat> it = deserializedIngestStats.processorStats().get(pipelineId).iterator();
-                        for (IngestStats.ProcessorStat processorStat : processorStats) {
-                            IngestStats.ProcessorStat deserializedProcessorStat = it.next();
-                            assertEquals(processorStat.stats().ingestFailedCount(), deserializedProcessorStat.stats().ingestFailedCount());
-                            assertEquals(
-                                processorStat.stats().ingestTimeInMillis(),
-                                deserializedProcessorStat.stats().ingestTimeInMillis()
-                            );
-                            assertEquals(processorStat.stats().ingestCurrent(), deserializedProcessorStat.stats().ingestCurrent());
-                            assertEquals(processorStat.stats().ingestCount(), deserializedProcessorStat.stats().ingestCount());
-                        }
-                        assertFalse(it.hasNext());
-                    }
+                    assertNotSame(ingestStats, deserializedIngestStats);
+                    assertEquals(ingestStats, deserializedIngestStats);
                 }
                 AdaptiveSelectionStats adaptiveStats = nodeStats.getAdaptiveSelectionStats();
                 AdaptiveSelectionStats deserializedAdaptiveStats = deserializedNodeStats.getAdaptiveSelectionStats();

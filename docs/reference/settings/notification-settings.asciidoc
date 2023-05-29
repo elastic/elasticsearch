@@ -235,7 +235,7 @@ The following block elements: `<p>`, `<div>`, `<h1>`,
 (<<static-cluster-setting,Static>>)
 The following inline formatting elements: `<b>`, `<i>`,
 `<s>`, `<u>`, `<o>`, `<sup>`, `<sub>`, `<ins>`, `<del>`,
-`<strong>`, `<strike>`, `<code>`, `<code>`, `<big>`,
+`<strong>`, `<strike>`, `<tt>`, `<code>`, `<big>`,
 `<small>`, `<hr>`, `<br>`, `<span>`, and `<em>`.
 
 `_links`::

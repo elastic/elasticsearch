@@ -23,6 +23,8 @@ import org.elasticsearch.rest.ChunkedRestResponseBody;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestResponseListener;
 import org.elasticsearch.threadpool.ThreadPoolStats;
@@ -42,6 +44,7 @@ import static org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest.
 import static org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest.Metric.THREAD_POOL;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestClusterInfoAction extends BaseRestHandler {
 
     static final Map<String, Function<NodesStatsResponse, ChunkedToXContent>> RESPONSE_MAPPER = Map.of(

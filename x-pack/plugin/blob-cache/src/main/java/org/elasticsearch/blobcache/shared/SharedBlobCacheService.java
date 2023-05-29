@@ -427,6 +427,14 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                 }
             }
         }
+        if (Assertions.ENABLED) {
+            synchronized (this) {
+                // assert linked (or evicted)
+                assert entry.prev != null || entry.chunk.isEvicted();
+
+            }
+        }
+        assert regionOwners[entry.chunk.sharedBytesPos].get() == entry.chunk || entry.chunk.isEvicted();
 
         // existing item, check if we need to promote item
         synchronized (this) {

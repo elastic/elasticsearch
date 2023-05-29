@@ -976,7 +976,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
         }
 
         /**
-         * @return whether a shard copy with this role may be the target of a (m)get.
+         * @return whether a shard copy with this role may be the target of a get.
          */
         public boolean canHandleGets() {
             return gets;

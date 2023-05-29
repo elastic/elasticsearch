@@ -14,6 +14,10 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.admin.indices.refresh.TransportUnpromotableShardRefreshAction;
+import org.elasticsearch.action.get.GetAction;
+import org.elasticsearch.action.get.GetRequest;
+import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.search.ClosePointInTimeAction;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
 import org.elasticsearch.action.search.OpenPointInTimeAction;
@@ -30,6 +34,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -41,6 +46,7 @@ import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.NoOpEngine;
+import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.ClusterPlugin;
@@ -58,6 +64,7 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -70,6 +77,7 @@ import java.util.stream.IntStream;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -95,13 +103,15 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
             return new ShardRoutingRoleStrategy() {
                 @Override
                 public ShardRouting.Role newReplicaRole(ShardRouting.Role primaryRole) {
-                    return ShardRouting.Role.SEARCH_ONLY;
+                    return primaryRole == ShardRouting.Role.INDEX_ONLY ? ShardRouting.Role.SEARCH_ONLY : ShardRouting.Role.GETS_ONLY;
                 }
 
                 @Override
                 public ShardRouting.Role newEmptyRole(int copyIndex, IndexMetadata indexMetadata) {
                     assert 0 < numIndexingCopies;
-                    return copyIndex < numIndexingCopies ? ShardRouting.Role.INDEX_ONLY : ShardRouting.Role.SEARCH_ONLY;
+                    return copyIndex < numIndexingCopies
+                        ? (copyIndex % 2 == 0 ? ShardRouting.Role.INDEX_ONLY : ShardRouting.Role.INDEX_SEARCH)
+                        : (copyIndex % 2 == 0 ? ShardRouting.Role.SEARCH_ONLY : ShardRouting.Role.GETS_ONLY);
                 }
             };
         }
@@ -221,9 +231,9 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
                 for (int shardCopy = 0; shardCopy < numReplicas + 1; shardCopy++) {
                     final var shardRouting = indexShardRoutingTable.shard(shardCopy);
                     switch (shardRouting.role()) {
-                        case INDEX_ONLY -> indexingShards += 1;
-                        case SEARCH_ONLY -> assertFalse(shardRouting.primary());
-                        case DEFAULT -> fail("should not have any DEFAULT shards");
+                        case INDEX_ONLY, INDEX_SEARCH -> indexingShards += 1;
+                        case SEARCH_ONLY, GETS_ONLY -> assertFalse(shardRouting.primary());
+                        default -> fail("illegal role " + shardRouting.role());
                     }
                     if (shardRouting.relocating()) {
                         assertEquals("role on relocation: " + message, shardRouting.role(), shardRouting.getTargetRelocatingShard().role());
@@ -299,10 +309,20 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
 
             // verify non-DEFAULT roles reported in cluster state string representation
             var stateAsString = clusterState.toString();
-            assertThat(stateAsString, containsString("[" + ShardRouting.Role.INDEX_ONLY + "]"));
+            assertThat(
+                stateAsString,
+                either(containsString("[" + ShardRouting.Role.INDEX_ONLY + "]")).or(
+                    containsString("[" + ShardRouting.Role.INDEX_SEARCH + "]")
+                )
+            );
             assertThat(stateAsString, not(containsString("[" + ShardRouting.Role.DEFAULT + "]")));
             if (routingTableWatcher.numReplicas + 1 > routingTableWatcher.numIndexingCopies) {
-                assertThat(stateAsString, containsString("[" + ShardRouting.Role.SEARCH_ONLY + "]"));
+                assertThat(
+                    stateAsString,
+                    either(containsString("[" + ShardRouting.Role.SEARCH_ONLY + "]")).or(
+                        containsString("[" + ShardRouting.Role.GETS_ONLY + "]")
+                    )
+                );
             }
 
             ensureGreen(INDEX_NAME);
@@ -458,15 +478,35 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
         return null;
     }
 
-    public void testSearchRouting() throws Exception {
-
+    public void testRoutingOfSearchesAndGets() throws Exception {
         var routingTableWatcher = new RoutingTableWatcher();
-        routingTableWatcher.numReplicas = Math.max(1, routingTableWatcher.numReplicas);
+        routingTableWatcher.numReplicas = Math.max(2, routingTableWatcher.numReplicas);
         routingTableWatcher.numIndexingCopies = Math.min(routingTableWatcher.numIndexingCopies, routingTableWatcher.numReplicas);
         getMasterNodePlugin().numIndexingCopies = routingTableWatcher.numIndexingCopies;
 
-        internalCluster().ensureAtLeastNumDataNodes(routingTableWatcher.numReplicas + 1);
+        internalCluster().ensureAtLeastNumDataNodes(routingTableWatcher.numReplicas + 3);
         installMockTransportVerifications(routingTableWatcher);
+
+        final var nodesForGets = new HashSet<String>();
+        for (var transportService : internalCluster().getInstances(TransportService.class)) {
+            MockTransportService mockTransportService = (MockTransportService) transportService;
+            mockTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
+                if (action.startsWith(GetAction.NAME + "[s]")) {
+                    assertThat("node should not handle gets", nodesForGets, hasItem(connection.getNode().getId()));
+                }
+                connection.sendRequest(requestId, action, request, options);
+            });
+            mockTransportService.addRequestHandlingBehavior(GetAction.NAME + "[s]", (handler, request, channel, task) -> {
+                GetRequest r = (GetRequest) request;
+                String newId = "myid-" + (Integer.valueOf(r.id().substring(5)) + 100);
+                GetResponse response = new GetResponse(
+                    new GetResult(r.index(), newId, 0, 1, 0L, true, BytesArray.EMPTY, Collections.emptyMap(), Collections.emptyMap())
+                );
+                channel.sendResponse(response);
+            });
+        }
+
+        final var nodesForSearches = new HashSet<String>();
 
         final var masterClusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
         try {
@@ -475,6 +515,10 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
 
             createIndex(INDEX_NAME, routingTableWatcher.getIndexSettings());
             indexRandom(randomBoolean(), INDEX_NAME, randomIntBetween(50, 100));
+            int customDocs = randomIntBetween(5, 10);
+            for (int i = 0; i < customDocs; i++) {
+                indexDoc(INDEX_NAME, "myid-" + Integer.toString(i), "foo", "bar" + i);
+            }
             ensureGreen(INDEX_NAME);
             assertEngineTypes();
 
@@ -491,8 +535,12 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
                 final var indexShardRoutingTable = indexRoutingTable.shard(shardId);
                 for (int shardCopy = 0; shardCopy < indexShardRoutingTable.size(); shardCopy++) {
                     final var shardRouting = indexShardRoutingTable.shard(shardCopy);
-                    if (shardRouting.role() == ShardRouting.Role.SEARCH_ONLY) {
+                    if (shardRouting.role().isSearchable()) {
                         searchShardProfileKeys.add("[" + shardRouting.currentNodeId() + "][" + INDEX_NAME + "][" + shardId + "]");
+                        nodesForSearches.add(shardRouting.currentNodeId());
+                    }
+                    if (shardRouting.canHandleGets()) {
+                        nodesForGets.add(shardRouting.currentNodeId());
                     }
                 }
             }
@@ -556,6 +604,35 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
                         assertThat(profileKey, in(searchShardProfileKeys));
                     }
                 }
+            }
+            // Get
+            for (int i = 0; i < customDocs; i++) {
+                String id = "myid-" + Integer.toString(i);
+                final var get = client().prepareGet(INDEX_NAME, id);
+                switch (randomIntBetween(0, 1)) {
+                    case 0 -> get.setPreference(randomSearchPreference(routingTableWatcher.numShards, internalCluster().getNodeNames()));
+                    default -> {
+                        // do nothing
+                    }
+                }
+                assertThat(get.get().getId(), equalTo("myid-" + Integer.toString(i + 100)));
+            }
+            // mGet (these are serviced by promotable shards still)
+            for (int i = 1; i < customDocs; i++) {
+                String id1 = "myid-" + Integer.toString(i - 1);
+                String id2 = "myid-" + Integer.toString(i);
+                final var mget = client().prepareMultiGet();
+                mget.addIds(INDEX_NAME, id1, id2);
+
+                switch (randomIntBetween(0, 1)) {
+                    case 0 -> mget.setPreference(randomSearchPreference(routingTableWatcher.numShards, internalCluster().getNodeNames()));
+                    default -> {
+                        // do nothing
+                    }
+                }
+                MultiGetResponse mgetResponse = mget.get();
+                assertThat(mgetResponse.getResponses()[0].getId(), equalTo(id1));
+                assertThat(mgetResponse.getResponses()[1].getId(), equalTo(id2));
             }
         } finally {
             masterClusterService.removeListener(routingTableWatcher);

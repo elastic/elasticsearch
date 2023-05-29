@@ -72,7 +72,7 @@ public class FixedThreadPoolTests extends ESThreadPoolTestCase {
             block.countDown();
 
             assertThat(counter, equalTo(rejections));
-            assertThat(stats(threadPool, threadPoolName).getRejected(), equalTo(rejections));
+            assertThat(stats(threadPool, threadPoolName).rejected(), equalTo(rejections));
         } finally {
             terminateThreadPoolIfNeeded(threadPool);
         }

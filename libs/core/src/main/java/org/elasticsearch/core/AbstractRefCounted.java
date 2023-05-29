@@ -8,21 +8,32 @@
 
 package org.elasticsearch.core;
 
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * A basic {@link RefCounted} implementation that is initialized with a ref count of 1 and calls {@link #closeInternal()} once it reaches
  * a 0 ref count.
  */
 public abstract class AbstractRefCounted implements RefCounted {
+
     public static final String ALREADY_CLOSED_MESSAGE = "already closed, can't increment ref count";
 
-    public static boolean incrementIfPositive(AtomicInteger counter) {
-        return counter.updateAndGet(i -> i == 0 ? 0 : i + 1) > 0;
+    private static final VarHandle VH_REFCOUNT_FIELD;
+
+    static {
+        try {
+            VH_REFCOUNT_FIELD = MethodHandles.lookup()
+                .in(AbstractRefCounted.class)
+                .findVarHandle(AbstractRefCounted.class, "refCount", int.class);
+        } catch (NoSuchFieldException | IllegalAccessException e) {
+            throw new RuntimeException(e);
+        }
     }
 
-    private final AtomicInteger refCount = new AtomicInteger(1);
+    @SuppressWarnings("FieldMayBeFinal") // updated via VH_REFCOUNT_FIELD (and _only_ via VH_REFCOUNT_FIELD)
+    private volatile int refCount = 1;
 
     protected AbstractRefCounted() {}
 
@@ -35,19 +46,25 @@ public abstract class AbstractRefCounted implements RefCounted {
 
     @Override
     public final boolean tryIncRef() {
-        if (incrementIfPositive(refCount)) {
-            touch();
-            return true;
-        }
-        return false;
+        do {
+            int i = refCount;
+            if (i > 0) {
+                if (VH_REFCOUNT_FIELD.weakCompareAndSet(this, i, i + 1)) {
+                    touch();
+                    return true;
+                }
+            } else {
+                return false;
+            }
+        } while (true);
     }
 
     @Override
     public final boolean decRef() {
         touch();
-        int i = refCount.decrementAndGet();
-        assert i >= 0 : "invalid decRef call: already closed";
-        if (i == 0) {
+        int i = (int) VH_REFCOUNT_FIELD.getAndAdd(this, -1);
+        assert i > 0 : "invalid decRef call: already closed";
+        if (i == 1) {
             try {
                 closeInternal();
             } catch (Exception e) {
@@ -61,7 +78,7 @@ public abstract class AbstractRefCounted implements RefCounted {
 
     @Override
     public final boolean hasReferences() {
-        return refCount.get() > 0;
+        return refCount > 0;
     }
 
     /**
@@ -71,7 +88,7 @@ public abstract class AbstractRefCounted implements RefCounted {
     protected void touch() {}
 
     protected void alreadyClosed() {
-        final int currentRefCount = refCount.get();
+        final int currentRefCount = refCount;
         assert currentRefCount == 0 : currentRefCount;
         throw new IllegalStateException(ALREADY_CLOSED_MESSAGE);
     }
@@ -80,7 +97,7 @@ public abstract class AbstractRefCounted implements RefCounted {
      * Returns the current reference count.
      */
     public final int refCount() {
-        return refCount.get();
+        return refCount;
     }
 
     /**

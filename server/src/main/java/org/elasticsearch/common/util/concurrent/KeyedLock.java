@@ -8,7 +8,6 @@
 
 package org.elasticsearch.common.util.concurrent;
 
-import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
@@ -28,29 +27,13 @@ import java.util.function.BiFunction;
 public final class KeyedLock<T> {
 
     private final ConcurrentMap<T, KeyLock> map = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
-    private final boolean fair;
-
-    /**
-     * Creates a new lock
-     * @param fair Use fair locking, ie threads get the lock in the order they requested it
-     */
-    public KeyedLock(boolean fair) {
-        this.fair = fair;
-    }
-
-    /**
-     * Creates a non-fair lock
-     */
-    public KeyedLock() {
-        this(false);
-    }
 
     /**
      * Acquires a lock for the given key. The key is compared by it's equals method not by object identity. The lock can be acquired
      * by the same thread multiple times. The lock is released by closing the returned {@link Releasable}.
      */
     public Releasable acquire(T key) {
-        KeyLock perNodeLock = map.compute(key, computeLock(fair));
+        KeyLock perNodeLock = map.compute(key, computeLock());
         perNodeLock.lock();
         return releasableLock(key, perNodeLock);
     }
@@ -59,7 +42,7 @@ public final class KeyedLock<T> {
      * Tries to acquire the lock for the given key and returns it. If the lock can't be acquired null is returned.
      */
     public Releasable tryAcquire(T key) {
-        KeyLock perNodeLock = map.compute(key, computeLock(fair));
+        KeyLock perNodeLock = map.compute(key, computeLock());
         if (perNodeLock.tryLock()) {
             return releasableLock(key, perNodeLock);
         }
@@ -71,15 +54,9 @@ public final class KeyedLock<T> {
         return null;
     }
 
-    private static <S> BiFunction<S, KeyLock, KeyLock> computeLock(boolean fair) {
+    private static <S> BiFunction<S, KeyLock, KeyLock> computeLock() {
         // duplicate lambdas a little to save capturing lambda instantiation from capturing the 'fair' flag
-        return fair
-            ? (k, existing) -> tryIncrementCount(existing) ? existing : new KeyLock(true)
-            : (k, existing) -> tryIncrementCount(existing) ? existing : new KeyLock(false);
-    }
-
-    private static boolean tryIncrementCount(KeyLock existing) {
-        return existing != null && AbstractRefCounted.incrementIfPositive(existing.count);
+        return (k, existing) -> existing != null && existing.count.updateAndGet(i -> i == 0 ? 0 : i + 1) > 0 ? existing : new KeyLock();
     }
 
     /**
@@ -109,8 +86,8 @@ public final class KeyedLock<T> {
 
     @SuppressWarnings("serial")
     private static final class KeyLock extends ReentrantLock {
-        KeyLock(boolean fair) {
-            super(fair);
+        KeyLock() {
+            super();
         }
 
         private final AtomicInteger count = new AtomicInteger(1);

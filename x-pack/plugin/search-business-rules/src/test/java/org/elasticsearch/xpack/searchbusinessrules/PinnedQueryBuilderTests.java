@@ -222,7 +222,6 @@ public class PinnedQueryBuilderTests extends AbstractQueryTestCase<PinnedQueryBu
     @Override
     public void testMustRewrite() throws IOException {
         SearchExecutionContext context = createSearchExecutionContext();
-        context.setAllowUnmappedFields(true);
         PinnedQueryBuilder queryBuilder = new PinnedQueryBuilder(new TermQueryBuilder("unmapped_field", "42"), "42");
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> queryBuilder.toQuery(context));
         assertEquals("Rewrite first", e.getMessage());

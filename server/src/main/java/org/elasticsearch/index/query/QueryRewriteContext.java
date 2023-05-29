@@ -14,10 +14,8 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
-import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
@@ -42,8 +40,6 @@ public class QueryRewriteContext {
     protected final Client client;
     protected final LongSupplier nowInMillis;
     private final List<BiConsumer<Client, ActionListener<?>>> asyncActions = new ArrayList<>();
-    protected boolean allowUnmappedFields;
-    protected boolean mapUnmappedFieldAsString;
     protected Predicate<String> allowedFields;
 
     public QueryRewriteContext(
@@ -63,7 +59,6 @@ public class QueryRewriteContext {
         this.nowInMillis = nowInMillis;
         this.mapperService = mapperService;
         this.mappingLookup = mappingLookup;
-        this.allowUnmappedFields = indexSettings == null || indexSettings.isDefaultAllowUnmappedFields();
         this.runtimeMappings = runtimeMappings;
         this.allowedFields = allowedFields;
         this.indexSettings = indexSettings;
@@ -106,15 +101,6 @@ public class QueryRewriteContext {
         return null;
     }
 
-    /**
-     * Returns the {@link MappedFieldType} for the provided field name.
-     * If the field is not mapped, the behaviour depends on the index.query.parse.allow_unmapped_fields setting, which defaults to true.
-     * In case unmapped fields are allowed, null is returned when the field is not mapped.
-     * In case unmapped fields are not allowed, either an exception is thrown or the field is automatically mapped as a text field.
-     * @throws QueryShardException if unmapped fields are not allowed and automatically mapping unmapped fields as text is disabled.
-     * @see QueryRewriteContext#setAllowUnmappedFields(boolean)
-     * @see QueryRewriteContext#setMapUnmappedFieldAsString(boolean)
-     */
     public MappedFieldType getFieldType(String name) {
         return failIfFieldMappingNotFound(name, fieldType(name));
     }
@@ -136,22 +122,7 @@ public class QueryRewriteContext {
     }
 
     MappedFieldType failIfFieldMappingNotFound(String name, MappedFieldType fieldMapping) {
-        if (fieldMapping != null || allowUnmappedFields) {
-            return fieldMapping;
-        } else if (mapUnmappedFieldAsString) {
-            TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name, getIndexAnalyzers());
-            return builder.build(MapperBuilderContext.root(false)).fieldType();
-        } else {
-            throw new QueryShardException(this, "No field mapping can be found for the field with name [{}]", name);
-        }
-    }
-
-    public void setAllowUnmappedFields(boolean allowUnmappedFields) {
-        this.allowUnmappedFields = allowUnmappedFields;
-    }
-
-    public void setMapUnmappedFieldAsString(boolean mapUnmappedFieldAsString) {
-        this.mapUnmappedFieldAsString = mapUnmappedFieldAsString;
+        return fieldMapping;
     }
 
     /**

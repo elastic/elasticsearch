@@ -112,7 +112,6 @@ public class ConstantScoreQueryBuilderTests extends AbstractQueryTestCase<Consta
     @Override
     public void testMustRewrite() throws IOException {
         SearchExecutionContext context = createSearchExecutionContext();
-        context.setAllowUnmappedFields(true);
         ConstantScoreQueryBuilder queryBuilder = new ConstantScoreQueryBuilder(new TermQueryBuilder("unmapped_field", "foo"));
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> queryBuilder.toQuery(context));
         assertEquals("Rewrite first", e.getMessage());

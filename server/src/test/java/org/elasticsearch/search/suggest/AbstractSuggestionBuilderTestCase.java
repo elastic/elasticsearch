@@ -27,6 +27,7 @@ import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MockFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextSearchInfo;
+import org.elasticsearch.index.query.PercolatorExecutionContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.ingest.TestTemplateService;
 import org.elasticsearch.script.Script;
@@ -246,11 +247,12 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
             emptyMap()
         );
         if (randomBoolean()) {
-            mockContext.setAllowUnmappedFields(randomBoolean());
+            mockContext = new PercolatorExecutionContext(mockContext, randomBoolean(), false);
         }
 
         SB suggestionBuilder = randomTestBuilder();
-        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> suggestionBuilder.build(mockContext));
+        SearchExecutionContext finalMockContext = mockContext;
+        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> suggestionBuilder.build(finalMockContext));
         assertEquals("no mapping found for field [" + suggestionBuilder.field + "]", iae.getMessage());
     }
 

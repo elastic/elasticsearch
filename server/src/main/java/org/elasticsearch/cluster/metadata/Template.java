@@ -41,6 +41,18 @@ import java.util.Objects;
  * template and a {@link ComponentTemplate}.
  */
 public class Template implements SimpleDiffable<Template>, ToXContentObject {
+
+    // This represents when the data lifecycle was explicitly set to be null, meaning the user wants to remove the
+    // lifecycle.
+    public static final DataLifecycle NO_LIFECYCLE = new DataLifecycle() {
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params, RolloverConfiguration rolloverConfiguration)
+            throws IOException {
+            return builder.nullValue();
+        }
+    };
+
     private static final ParseField SETTINGS = new ParseField("settings");
     private static final ParseField MAPPINGS = new ParseField("mappings");
     private static final ParseField ALIASES = new ParseField("aliases");
@@ -85,7 +97,7 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
             PARSER.declareObjectOrNull(
                 ConstructingObjectParser.optionalConstructorArg(),
                 (p, c) -> DataLifecycle.fromXContent(p),
-                DataLifecycle.NO_LIFECYCLE,
+                NO_LIFECYCLE,
                 LIFECYCLE
             );
         }
@@ -137,8 +149,13 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
         } else {
             this.aliases = null;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0) && DataLifecycle.isEnabled()) {
-            this.lifecycle = in.readOptionalWriteable(DataLifecycle::new);
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_006) && DataLifecycle.isEnabled()) {
+            boolean isExplicitNull = in.readBoolean();
+            if (isExplicitNull) {
+                this.lifecycle = NO_LIFECYCLE;
+            } else {
+                this.lifecycle = in.readOptionalWriteable(DataLifecycle::new);
+            }
         } else {
             this.lifecycle = null;
         }
@@ -184,8 +201,12 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
             out.writeBoolean(true);
             out.writeMap(this.aliases, StreamOutput::writeString, (stream, aliasMetadata) -> aliasMetadata.writeTo(stream));
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0) && DataLifecycle.isEnabled()) {
-            out.writeOptionalWriteable(lifecycle);
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_006) && DataLifecycle.isEnabled()) {
+            boolean isExplicitNull = NO_LIFECYCLE.equals(lifecycle);
+            out.writeBoolean(isExplicitNull);
+            if (isExplicitNull == false) {
+                out.writeOptionalWriteable(lifecycle);
+            }
         }
     }
 

@@ -97,7 +97,7 @@ public class DLMFixtures {
         return switch (randomInt(3)) {
             case 0 -> DataLifecycle.IMPLICIT_INFINITE_RETENTION;
             case 1 -> DataLifecycle.EXPLICIT_INFINITE_RETENTION;
-            case 2 -> DataLifecycle.NO_LIFECYCLE;
+            case 2 -> Template.NO_LIFECYCLE;
             default -> new DataLifecycle(TimeValue.timeValueDays(randomIntBetween(1, 365)));
         };
     }

@@ -10,6 +10,7 @@ package org.elasticsearch.dlm;
 
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.cluster.metadata.DataLifecycle;
+import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.dlm.action.DeleteDataLifecycleAction;
@@ -116,7 +117,7 @@ public class CrudDataLifecycleIT extends ESIntegTestCase {
     }
 
     private void assertDataLifecycle(DataLifecycle dataLifecycle, DataLifecycle expected) {
-        if (expected.isNullified()) {
+        if (expected.equals(Template.NO_LIFECYCLE)) {
             assertThat(dataLifecycle, nullValue());
         } else {
             assertThat(dataLifecycle, equalTo(expected));

@@ -1515,7 +1515,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         state = addComponentTemplate(service, state, ctEmptyLifecycle, DataLifecycle.IMPLICIT_INFINITE_RETENTION);
 
         String ctNullLifecycle = "ct_null_lifecycle";
-        state = addComponentTemplate(service, state, ctNullLifecycle, DataLifecycle.NO_LIFECYCLE);
+        state = addComponentTemplate(service, state, ctNullLifecycle, Template.NO_LIFECYCLE);
 
         String ctNoLifecycle = "ct_no_lifecycle";
         state = addComponentTemplate(service, state, ctNoLifecycle, null);
@@ -1568,7 +1568,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         // Component B: "lifecycle": {"retention": "45d"}
         // Composable Z: "lifecycle": null
         // Result: null aka unmanaged
-        assertLifecycleResolution(service, state, List.of(ct30d, ct45d), DataLifecycle.NO_LIFECYCLE, null);
+        assertLifecycleResolution(service, state, List.of(ct30d, ct45d), Template.NO_LIFECYCLE, null);
 
         // Component A: "lifecycle": {"retention": "30d"}
         // Component B: "lifecycle": null

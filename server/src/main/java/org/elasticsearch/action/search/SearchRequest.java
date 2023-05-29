@@ -120,9 +120,9 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         this.absoluteStartMillis = DEFAULT_ABSOLUTE_START_MILLIS;
         this.finalReduce = true;
         this.minCompatibleShardNode = minCompatibleShardNode;
-        if (minCompatibleShardNode == null) {
-            this.ccsMinimizeRoundtrips = Boolean.TRUE;  /// MP: TODO: I don't understand this - should this stay as unknown?
-        }
+//        if (minCompatibleShardNode == null) {
+//            this.ccsMinimizeRoundtrips = Boolean.TRUE;  /// MP: TODO: I don't understand this - should this stay as unknown?
+//        }
     }
 
     /**

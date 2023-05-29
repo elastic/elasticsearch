@@ -202,15 +202,14 @@ public class RestRequestTests extends ESTestCase {
     }
 
     public void testInvalidMediaTypeCharacter() {
-       List<String> headers = List.of("a/b[","a/b]","a/b\\");
-        for(String header : headers) {
-            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> RestRequest.parseContentType(Collections.singletonList(header)));
-            assertThat(e.getMessage(),equalTo("invalid Content-Type header ["+header+"]"));
+        List<String> headers = List.of("a/b[", "a/b]", "a/b\\");
+        for (String header : headers) {
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> RestRequest.parseContentType(Collections.singletonList(header))
+            );
+            assertThat(e.getMessage(), equalTo("invalid Content-Type header [" + header + "]"));
         }
-
-
-
     }
 
     public void testNoContentTypeHeader() {

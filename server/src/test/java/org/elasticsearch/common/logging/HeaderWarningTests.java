@@ -340,7 +340,7 @@ public class HeaderWarningTests extends ESTestCase {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         final Set<ThreadContext> threadContexts = Collections.singleton(threadContext);
 
-        HeaderWarning.addWarning(threadContexts, allPossibleChars());
+        HeaderWarning.addWarning(threadContexts, allAllowedChars());
 
         // LoggerMessageFormat.format makes sure all not allowed chars are escaped
         HeaderWarning.addWarning(threadContexts, "\"");
@@ -358,7 +358,7 @@ public class HeaderWarningTests extends ESTestCase {
         return chars.toString();
     }
 
-    private static String allPossibleChars() {
+    private static String allAllowedChars() {
         StringBuilder allPossibleChars = new StringBuilder();
         allPossibleChars.append('\t');
         allPossibleChars.append(' ');

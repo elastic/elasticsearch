@@ -28,7 +28,7 @@ public class ThreadPoolStatsTests extends ESTestCase {
         unorderedStats.add(new ThreadPoolStats.Stats("d", 2, 0, 0, 0, 0, 0L));
         unorderedStats.add(new ThreadPoolStats.Stats("m", 4, 0, 0, 0, 0, 0L));
         unorderedStats.add(new ThreadPoolStats.Stats("t", 6, 0, 0, 0, 0, 0L));
-        unorderedStats.add(new ThreadPoolStats.Stats("a", 1, 0, 0, 0, 0, 0L));
+        unorderedStats.add(new ThreadPoolStats.Stats("a", -1, 0, 0, 0, 0, 0L));
 
         var copy = new ArrayList<>(unorderedStats);
         Collections.sort(copy);

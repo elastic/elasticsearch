@@ -257,7 +257,7 @@ GROUP BY gender ORDER BY gender;
 -----------------+------------------+---------------
 85906.32         |30.00000000000000 |null
 93503.28         |37.03569653103581 |F
-86754.72         |44.337514210592246|M
+86754.72         |45.614035087719294|M
 ;
 
 extendedStatsAggregateFunctionsWithScalars
@@ -568,7 +568,7 @@ ORDER BY status;
      percentile:d    | percentile_rank:d |    status:s
 ---------------------+-------------------+---------------
 1.8618876151530934E19|0.0                |Error
-1.7996186360999041E19|26.644793296251386 |OK
+1.7923220123812004E19|26.644793296251386 |OK
 ;
 
 extendedStatsAggregateFunctionsWithScalarsLargeInput

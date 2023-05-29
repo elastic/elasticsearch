@@ -1210,7 +1210,7 @@ GROUP BY gender ORDER BY gender;
 -----------------+------------------+---------------
 85906.32         |30.0              |null
 93503.28         |37.03569653103581 |F
-86754.72         |44.337514210592246|M
+86754.72         |45.614035087719294|M
 ;
 
 extendedStatsAggregateFunctionsWithScalars

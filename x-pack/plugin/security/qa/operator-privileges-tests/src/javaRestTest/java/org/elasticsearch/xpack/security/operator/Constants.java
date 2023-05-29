@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.security.operator;
 
+import org.elasticsearch.cluster.metadata.DataLifecycle;
 import org.elasticsearch.transport.TcpTransport;
 
 import java.util.Objects;
@@ -108,7 +109,6 @@ public class Constants {
         "cluster:admin/xpack/application/search_application/list",
         "cluster:admin/xpack/application/search_application/put",
         "cluster:admin/xpack/application/search_application/render_query",
-        "cluster:admin/xpack/application/search_application/search",
         "cluster:admin/xpack/ccr/auto_follow_pattern/activate",
         "cluster:admin/xpack/ccr/auto_follow_pattern/delete",
         "cluster:admin/xpack/ccr/auto_follow_pattern/get",
@@ -289,6 +289,7 @@ public class Constants {
         "cluster:monitor/nodes/info",
         "cluster:monitor/nodes/stats",
         "cluster:monitor/nodes/usage",
+        "cluster:monitor/profiling/status/get",
         "cluster:monitor/remote/info",
         "cluster:monitor/settings",
         "cluster:monitor/state",
@@ -410,10 +411,10 @@ public class Constants {
         "indices:admin/data_stream/migrate",
         "indices:admin/data_stream/modify",
         "indices:admin/data_stream/promote",
-        "indices:admin/dlm/delete",
-        "indices:admin/dlm/get",
-        "indices:admin/dlm/put",
-        "indices:admin/dlm/explain",
+        DataLifecycle.isEnabled() ? "indices:admin/dlm/delete" : null,
+        DataLifecycle.isEnabled() ? "indices:admin/dlm/get" : null,
+        DataLifecycle.isEnabled() ? "indices:admin/dlm/put" : null,
+        DataLifecycle.isEnabled() ? "indices:admin/dlm/explain" : null,
         "indices:admin/delete",
         "indices:admin/flush",
         "indices:admin/flush[s]",
@@ -485,6 +486,7 @@ public class Constants {
         "indices:data/read/sql/translate",
         "indices:data/read/sql/async/get", // org.elasticsearch.xpack.core.sql.SqlAsyncActionNames.SQL_ASYNC_GET_RESULT_ACTION_NAME
         "indices:data/read/tv",
+        "indices:data/read/xpack/application/search_application/search",
         "indices:data/read/xpack/ccr/shard_changes",
         "indices:data/read/xpack/enrich/coordinate_lookups",
         "indices:data/read/xpack/graph/explore",

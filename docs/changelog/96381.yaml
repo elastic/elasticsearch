@@ -1,5 +1,5 @@
 pr: 96381
-summary: New real-time gets flag in shard roles
+summary: New flag in shard role for gets
 area: Allocation
 type: enhancement
 issues: []

@@ -84,11 +84,11 @@ public class IndexShardRoutingTable {
             }
             if (shard.active()) {
                 activeShards.add(shard);
-                if (shard.role().canHandleGets()) {
+                if (shard.canHandleGets()) {
                     activeShardHandlingGetsCount++;
                 }
             }
-            if (shard.role().canHandleGets()) {
+            if (shard.canHandleGets()) {
                 totalShardHandlingGetsCount++;
             }
             if (shard.initializing()) {

@@ -492,8 +492,8 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
         }
         int active = -1;
         for (var stats : threadPool.stats()) {
-            if (stats.getName().equals(uploadThreadPoolName)) {
-                active = stats.getActive();
+            if (stats.name().equals(uploadThreadPoolName)) {
+                active = stats.active();
                 break;
             }
         }

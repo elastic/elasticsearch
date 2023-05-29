@@ -41,6 +41,14 @@ setup:
               params:
                 field_name: field1
                 field_value: value1
+            dictionary:
+              additionalProperties: false
+              required: [ "field_name" ]
+              properties:
+                field_name:
+                  type: string
+                field_value:
+                  type: string
 
   - do:
       index:
@@ -84,6 +92,9 @@ teardown:
 
 ---
 "Query Search Application with default parameters":
+  - skip:
+      version: all
+      reason: "AwaitsFix https://github.com/elastic/enterprise-search-team/issues/4540"
 
   - do:
       search_application.search:
@@ -95,6 +106,9 @@ teardown:
 
 ---
 "Query Search Application overriding part of the parameters":
+  - skip:
+      version: all
+      reason: "AwaitsFix https://github.com/elastic/enterprise-search-team/issues/4540"
 
   - do:
       search_application.search:
@@ -109,6 +123,9 @@ teardown:
 
 ---
 "Query Search Application overriding all parameters":
+  - skip:
+      version: all
+      reason: "AwaitsFix https://github.com/elastic/enterprise-search-team/issues/4540"
 
   - do:
       search_application.search:
@@ -121,6 +138,35 @@ teardown:
 
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "doc2" }
+
+---
+"Query Search Application with invalid parameter validation":
+  - skip:
+      version: all
+      reason: "AwaitsFix https://github.com/elastic/enterprise-search-team/issues/4540"
+
+  - do:
+      catch: "bad_request"
+      search_application.search:
+        name: test-search-application
+        body:
+          params:
+            field_name: field3
+            field_value: 35
+
+---
+"Query Search Application without required parameter":
+  - skip:
+      version: all
+      reason: "AwaitsFix https://github.com/elastic/enterprise-search-team/issues/4540"
+
+  - do:
+      catch: "bad_request"
+      search_application.search:
+        name: test-search-application
+        body:
+          params:
+            field_value: test
 
 ---
 "Query Search Application - not found":

@@ -3325,9 +3325,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
 
     public void testHighlightQueryRewriteDatesWithNow() throws Exception {
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("index-1")
+            indicesAdmin().prepareCreate("index-1")
                 .setMapping("d", "type=date", "field", "type=text,store=true,term_vector=with_positions_offsets")
                 .setSettings(indexSettings(2, 0))
                 .get()

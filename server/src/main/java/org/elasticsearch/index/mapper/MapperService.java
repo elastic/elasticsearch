@@ -530,6 +530,17 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return mappingLookup().isMultiField(field);
     }
 
+    /**
+     * Finish building analyzers that initially were built for validation only.
+     * This is called during shard recovery.
+     * As MapperService and indexAnalyzers are shared among index shards on a node,
+     * indexAnalyzers.finalizeBuilding ensures that analyzers are finally built
+     * only once even if multiple shards are present.
+     */
+    public synchronized void finalizeBuildingAnalyzers() throws IOException {
+        indexAnalyzers.finalizeBuilding(analysisRegistry, indexSettings);
+    }
+
     public synchronized List<String> reloadSearchAnalyzers() throws IOException {
         logger.debug("reloading search analyzers");
         // TODO this should bust the cache somehow. Tracked in https://github.com/elastic/elasticsearch/issues/66722

@@ -1,5 +1,5 @@
 pr: 96114
-summary: Build search analyzers on shard recovery
-area: "Distributed, Analysis"
+summary: Build synonym index analyzer on shard recovery
+area: Analysis
 type: enhancement
 issues: []

@@ -633,7 +633,7 @@ public final class IndexModule {
             clusterService,
             indexSettings,
             analysisRegistry,
-            analysisRegistry.buildForValidation(indexSettings),
+            analysisRegistry.build(true, indexSettings),
             parserConfiguration,
             new SimilarityService(indexSettings, scriptService, similarities),
             mapperRegistry,

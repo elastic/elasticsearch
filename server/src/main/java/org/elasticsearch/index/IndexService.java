@@ -195,7 +195,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         IndexAnalyzers indexAnalyzers = null;
         try {
             if (needsMapperService(indexSettings, indexCreationContext)) {
-                indexAnalyzers = analysisRegistry.buildForValidation(indexSettings);
+                indexAnalyzers = analysisRegistry.build(true, indexSettings);
                 assert indexAnalyzers != null;
                 this.mapperService = new MapperService(
                     clusterService,

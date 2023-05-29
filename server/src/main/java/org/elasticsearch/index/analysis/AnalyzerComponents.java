@@ -24,6 +24,7 @@ public final class AnalyzerComponents {
     private final CharFilterFactory[] charFilters;
     private final TokenFilterFactory[] tokenFilters;
     private final AnalysisMode analysisMode;
+    private final boolean builtForValidation;
 
     AnalyzerComponents(TokenizerFactory tokenizerFactory, CharFilterFactory[] charFilters, TokenFilterFactory[] tokenFilters) {
 
@@ -31,10 +32,14 @@ public final class AnalyzerComponents {
         this.charFilters = charFilters;
         this.tokenFilters = tokenFilters;
         AnalysisMode mode = AnalysisMode.ALL;
+        boolean builtForValidationTemp = false;
         for (TokenFilterFactory f : tokenFilters) {
             mode = mode.merge(f.getAnalysisMode());
+            // if one of the tokenFilter is built for validation, the whole analyzer is built for validation
+            builtForValidationTemp |= f.builtForValidation();
         }
         this.analysisMode = mode;
+        this.builtForValidation = builtForValidationTemp;
     }
 
     static AnalyzerComponents createComponents(
@@ -109,5 +114,9 @@ public final class AnalyzerComponents {
 
     public AnalysisMode analysisMode() {
         return this.analysisMode;
+    }
+
+    public boolean builtForValidation() {
+        return builtForValidation;
     }
 }

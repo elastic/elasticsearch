@@ -99,6 +99,8 @@ public interface IndexAnalyzers extends Closeable {
         return List.of();
     }
 
+    default void finalizeBuilding(AnalysisRegistry registry, IndexSettings indexSettings) throws IOException {}
+
     default void close() throws IOException {}
 
     static IndexAnalyzers of(Map<String, NamedAnalyzer> analyzers) {
@@ -158,6 +160,37 @@ public interface IndexAnalyzers extends Closeable {
                 }
 
                 return reloadableAnalyzers.stream().map(NamedAnalyzer::name).toList();
+            }
+
+            /**
+             * Finish building analyzers that initially were built for validation only.
+             * This is called during shard recovery.
+             */
+            @Override
+            public void finalizeBuilding(AnalysisRegistry registry, IndexSettings indexSettings) throws IOException {
+                List<NamedAnalyzer> reloadableAnalyzers = analyzers.values()
+                    .stream()
+                    .filter(
+                        a -> a.analyzer() instanceof ReloadableCustomAnalyzer reloadableCustomAnalyzer
+                            && reloadableCustomAnalyzer.getComponents().builtForValidation()
+                    )
+                    .toList();
+                if (reloadableAnalyzers.isEmpty()) {
+                    return;
+                }
+
+                final Map<String, TokenizerFactory> tokenizerFactories = registry.buildTokenizerFactories(indexSettings);
+                final Map<String, CharFilterFactory> charFilterFactories = registry.buildCharFilterFactories(indexSettings);
+                final Map<String, TokenFilterFactory> tokenFilterFactories = registry.buildTokenFilterFactories(indexSettings);
+                final Map<String, Settings> settings = indexSettings.getSettings().getGroups("index.analysis.analyzer");
+
+                for (NamedAnalyzer analyzer : reloadableAnalyzers) {
+                    String name = analyzer.name();
+                    Settings analyzerSettings = settings.get(name);
+                    ReloadableCustomAnalyzer reloadableAnalyzer = (ReloadableCustomAnalyzer) analyzer.analyzer();
+                    // reload method sets builtForValidation to false to ensure that we finalize building of analyzers only once
+                    reloadableAnalyzer.reload(name, analyzerSettings, tokenizerFactories, charFilterFactories, tokenFilterFactories);
+                }
             }
         };
     }

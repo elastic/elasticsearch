@@ -12,6 +12,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.synonym.SynonymFilter;
 import org.apache.lucene.analysis.synonym.SynonymMap;
+import org.elasticsearch.analysis.common.synonyms.SynonymsManagementAPIService;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
@@ -107,6 +108,12 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
             public AnalysisMode getAnalysisMode() {
                 return analysisMode;
             }
+
+            @Override
+            public boolean builtForValidation() {
+                // ReaderWithOrigin defines if we really built for validation with fake synonym rules
+                return rulesFromSettings.forValidation();
+            }
         };
     }
 
@@ -145,20 +152,29 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
             for (String line : rulesList) {
                 sb.append(line).append(System.lineSeparator());
             }
-            return new ReaderWithOrigin(new StringReader(sb.toString()), "'" + name() + "' analyzer settings");
-
+            return new ReaderWithOrigin(new StringReader(sb.toString()), "'" + name() + "' analyzer settings", false);
+        } else if ((settings.get("synonyms_set") != null) && SynonymsManagementAPIService.isEnabled()) {
+            if (analysisMode != AnalysisMode.SEARCH_TIME) {
+                throw new IllegalArgumentException(
+                    "Can't apply [synonyms_set]! " + "Loading synonyms from index is supported only for search time synonyms!"
+                );
+            }
+            if (forValidation) {
+                // for validation only we provide fake synonyms
+                return new ReaderWithOrigin(new StringReader("fake, fake rule"), "fake synonyms for validation only", true);
+            }
+            String synonymsSet = settings.get("synonyms_set", null);
+            // TODO: load synonyms from the system synonyms index after this functionality is ready
+            String synonyms = "synonym1 => synonym";
+            return new ReaderWithOrigin(new StringReader(synonyms), "[" + synonymsSet + "] synonyms_set in .synonyms index", false);
         } else if (settings.get("synonyms_path") != null) {
             String synonyms_path = settings.get("synonyms_path", null);
-            if (forValidation) {
-                // for validation only, we don't check rules from a file
-                return new ReaderWithOrigin(new StringReader("fake, fake rule"), synonyms_path);
-            } else {
-                return new ReaderWithOrigin(Analysis.getReaderFromFile(env, synonyms_path, "synonyms_path"), synonyms_path);
-            }
+            return new ReaderWithOrigin(Analysis.getReaderFromFile(env, synonyms_path, "synonyms_path"), synonyms_path, false);
         } else {
-            throw new IllegalArgumentException("synonym requires either `synonyms` or `synonyms_path` to be configured");
+            String err = SynonymsManagementAPIService.isEnabled() ? "`synonyms_set`," : "";
+            throw new IllegalArgumentException("synonym requires either `synonyms`," + err + " or `synonyms_path` to be configured");
         }
     }
 
-    record ReaderWithOrigin(Reader reader, String origin) {};
+    record ReaderWithOrigin(Reader reader, String origin, boolean forValidation) {};
 }

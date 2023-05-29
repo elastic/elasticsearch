@@ -201,20 +201,17 @@ public final class AnalysisRegistry implements Closeable {
 
     /**
      * Creates an index-level {@link IndexAnalyzers} from this registry using the given index settings
-     * Creates analyzers for validation only, as some components will not be built using real data.
-     */
-    public IndexAnalyzers buildForValidation(IndexSettings indexSettings) throws IOException {
-        return build(true, indexSettings);
-    }
-
-    /**
-     * Creates an index-level {@link IndexAnalyzers} from this registry using the given index settings
      */
     public IndexAnalyzers build(IndexSettings indexSettings) throws IOException {
         return build(false, indexSettings);
     }
 
-    private IndexAnalyzers build(boolean forValidation, IndexSettings indexSettings) throws IOException {
+    /**
+     * Creates an index-level {@link IndexAnalyzers} from this registry using the given index settings
+     * @param forValidation if true, signals to create analyzers for validation only; applicable only
+     *                      to certain analysis components that are built using fake data.
+     */
+    public IndexAnalyzers build(boolean forValidation, IndexSettings indexSettings) throws IOException {
         final Map<String, CharFilterFactory> charFilterFactories = buildCharFilterFactories(indexSettings);
         final Map<String, TokenizerFactory> tokenizerFactories = buildTokenizerFactories(indexSettings);
         final Map<String, TokenFilterFactory> tokenFilterFactories = buildTokenFilterFactories(indexSettings);

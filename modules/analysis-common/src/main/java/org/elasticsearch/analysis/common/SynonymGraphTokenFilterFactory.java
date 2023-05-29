@@ -61,6 +61,11 @@ public class SynonymGraphTokenFilterFactory extends SynonymTokenFilterFactory {
             public AnalysisMode getAnalysisMode() {
                 return analysisMode;
             }
+
+            @Override
+            public boolean builtForValidation() {
+                return rulesFromSettings.forValidation();
+            }
         };
     }
 

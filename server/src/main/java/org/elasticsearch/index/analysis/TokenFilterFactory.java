@@ -78,6 +78,10 @@ public interface TokenFilterFactory {
         return AnalysisMode.ALL;
     }
 
+    default boolean builtForValidation() {
+        return false;
+    }
+
     /**
      * A TokenFilterFactory that does no filtering to its TokenStream
      */

@@ -23,6 +23,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.BiConsumer;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
@@ -58,8 +59,8 @@ public class QueryRewriteContext {
         this.client = client;
         this.nowInMillis = nowInMillis;
         this.mapperService = mapperService;
-        this.mappingLookup = mappingLookup == null ? MappingLookup.EMPTY : mappingLookup;
-        this.runtimeMappings = runtimeMappings == null ? Collections.emptyMap() : runtimeMappings;
+        this.mappingLookup = Objects.requireNonNull(mappingLookup);
+        this.runtimeMappings = Objects.requireNonNull(runtimeMappings);
         this.allowedFields = allowedFields;
         this.indexSettings = indexSettings;
         this.fullyQualifiedIndex = fullyQualifiedIndex;

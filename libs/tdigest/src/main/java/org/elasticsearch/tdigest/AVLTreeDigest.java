@@ -32,7 +32,7 @@ import static org.elasticsearch.tdigest.IntAVLTree.NIL;
 public class AVLTreeDigest extends AbstractTDigest {
     final Random gen = new Random();
     private final double compression;
-    private final AVLGroupTree summary;
+    private AVLGroupTree summary;
 
     private long count = 0; // package private for testing
 
@@ -111,11 +111,11 @@ public class AVLTreeDigest extends AbstractTDigest {
 
             int closest = NIL;
             double n = 0;
+            long sum = summary.headSum(start);
             for (int neighbor = start; neighbor != lastNeighbor; neighbor = summary.next(neighbor)) {
                 assert minDistance == Math.abs(summary.mean(neighbor) - x);
-                double q0 = (double) summary.headSum(neighbor) / count;
-                double q1 = q0 + (double) summary.count(neighbor) / count;
-                double k = count * Math.min(scale.max(q0, compression, count), scale.max(q1, compression, count));
+                double q = count == 1 ? 0.5 : (sum + (summary.count(neighbor) - 1) / 2.0) / (count - 1);
+                double k = 4 * count * q * (1 - q) / compression;
 
                 // this slightly clever selection method improves accuracy with lots of repeated points
                 // what it does is sample uniformly from all clusters that have room
@@ -125,6 +125,7 @@ public class AVLTreeDigest extends AbstractTDigest {
                         closest = neighbor;
                     }
                 }
+                sum += summary.count(neighbor);
             }
 
             if (closest == NIL) {
@@ -153,39 +154,26 @@ public class AVLTreeDigest extends AbstractTDigest {
             return;
         }
 
-        double n0 = 0;
-        double k0 = count * scale.max(n0 / count, compression, count);
-        int node = summary.first();
-        int w0 = summary.count(node);
-        double n1 = n0 + summary.count(node);
+        AVLGroupTree centroids = summary;
+        this.summary = new AVLGroupTree();
 
-        int w1 = 0;
-        double k1;
-        while (node != NIL) {
-            int after = summary.next(node);
-            while (after != NIL) {
-                w1 = summary.count(after);
-                k1 = count * scale.max((n1 + w1) / count, compression, count);
-                if (w0 + w1 > Math.min(k0, k1)) {
-                    break;
-                } else {
-                    double mean = weightedAverage(summary.mean(node), w0, summary.mean(after), w1);
-                    summary.update(node, mean, w0 + w1, true);
+        final int[] nodes = new int[centroids.size()];
+        nodes[0] = centroids.first();
+        for (int i = 1; i < nodes.length; ++i) {
+            nodes[i] = centroids.next(nodes[i - 1]);
+            assert nodes[i] != IntAVLTree.NIL;
+        }
+        assert centroids.next(nodes[nodes.length - 1]) == IntAVLTree.NIL;
 
-                    int tmp = summary.next(after);
-                    summary.remove(after);
-                    after = tmp;
-                    n1 += w1;
-                    w0 += w1;
-                }
-            }
-            node = after;
-            if (node != NIL) {
-                n0 = n1;
-                k0 = count * scale.max(n0 / count, compression, count);
-                w0 = w1;
-                n1 = n0 + w0;
-            }
+        for (int i = centroids.size() - 1; i > 0; --i) {
+            final int other = gen.nextInt(i + 1);
+            final int tmp = nodes[other];
+            nodes[other] = nodes[i];
+            nodes[i] = tmp;
+        }
+
+        for (int node : nodes) {
+            add(centroids.mean(node), centroids.count(node));
         }
     }
 
@@ -386,17 +374,6 @@ public class AVLTreeDigest extends AbstractTDigest {
 
         int currentNode = values.first();
         int currentWeight = values.count(currentNode);
-
-        if (currentWeight == 2 && index <= 2) {
-            // first node is a doublet with one sample at min
-            // so we can infer location of other sample
-            return 2 * values.mean(currentNode) - min;
-        }
-
-        if (values.count(values.last()) == 2 && index > count - 2) {
-            // likewise for last centroid
-            return 2 * values.mean(values.last()) - max;
-        }
 
         // weightSoFar represents the total mass to the left of the center of the current node.
         // If there's a singleton on the left boundary, there's no more mass on the left.

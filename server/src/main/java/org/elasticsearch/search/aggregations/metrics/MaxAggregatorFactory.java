@@ -56,7 +56,8 @@ class MaxAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     @Override
     protected Aggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException {
-        return new MaxAggregator(name, config, context, parent, metadata);
+        final Max empty = Max.createEmptyMax(name, config.format(), metadata);
+        return new NonCollectingSingleMetricAggregator(name, context, parent, empty, metadata);
     }
 
     @Override

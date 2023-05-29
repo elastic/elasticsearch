@@ -138,8 +138,8 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     public static final Version V_8_6_2 = new Version(8_06_02_99, org.apache.lucene.util.Version.LUCENE_9_4_2);
     public static final Version V_8_7_0 = new Version(8_07_00_99, org.apache.lucene.util.Version.LUCENE_9_5_0);
     public static final Version V_8_7_1 = new Version(8_07_01_99, org.apache.lucene.util.Version.LUCENE_9_5_0);
-    public static final Version V_8_7_2 = new Version(8_07_02_99, org.apache.lucene.util.Version.LUCENE_9_5_0);
     public static final Version V_8_8_0 = new Version(8_08_00_99, org.apache.lucene.util.Version.LUCENE_9_6_0);
+    public static final Version V_8_8_1 = new Version(8_08_01_99, org.apache.lucene.util.Version.LUCENE_9_6_0);
     public static final Version V_8_9_0 = new Version(8_09_00_99, org.apache.lucene.util.Version.LUCENE_9_6_0);
     public static final Version CURRENT = V_8_9_0;
 
@@ -310,7 +310,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     public final byte minor;
     public final byte revision;
     public final byte build;
-    public final org.apache.lucene.util.Version luceneVersion;
+    private final org.apache.lucene.util.Version luceneVersion;
     private final String toString;
     private final int previousMajorId;
 
@@ -349,6 +349,10 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         return builder.value(toString());
+    }
+
+    public org.apache.lucene.util.Version luceneVersion() {
+        return luceneVersion;
     }
 
     /*

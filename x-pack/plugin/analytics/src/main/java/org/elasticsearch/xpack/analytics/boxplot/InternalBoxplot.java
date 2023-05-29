@@ -119,6 +119,15 @@ public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValu
             return Metrics.valueOf(name.toUpperCase(Locale.ROOT));
         }
 
+        public static boolean hasMetric(String name) {
+            try {
+                InternalBoxplot.Metrics.resolve(name);
+                return true;
+            } catch (IllegalArgumentException iae) {
+                return false;
+            }
+        }
+
         public String value() {
             return name().toLowerCase(Locale.ROOT);
         }
@@ -165,6 +174,10 @@ public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValu
             results[1] = state.getMax();
         }
         return results;
+    }
+
+    static InternalBoxplot empty(String name, double compression, DocValueFormat format, Map<String, Object> metadata) {
+        return new InternalBoxplot(name, new TDigestState(compression), format, metadata);
     }
 
     static final Set<String> METRIC_NAMES = Collections.unmodifiableSet(

@@ -1,0 +1,343 @@
+---
+setup:
+  - skip:
+      features: headers
+
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+
+  - do:
+      security.put_role:
+        name: "admin_role"
+        body: >
+          {
+            "cluster": ["manage_security"]
+          }
+
+  - do:
+      security.put_user:
+        username: "admin_user"
+        body: >
+          {
+            "password" : "x-pack-test-password",
+            "roles" : [ "admin_role" ],
+            "full_name" : "Admin user"
+          }
+
+---
+teardown:
+  - do:
+      security.delete_role:
+        name: "admin_role"
+        ignore: 404
+
+  - do:
+      security.delete_user:
+        username: "admin_user"
+        ignore: 404
+
+---
+"Test create a cross-cluster API key":
+  - skip:
+      features: transform_and_set
+
+  - do:
+      headers:
+        Authorization: "Basic YWRtaW5fdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # admin_user
+      security.create_cross_cluster_api_key:
+        body: >
+          {
+            "name": "my-cc-api-key",
+            "expiration": "1d",
+            "access": {
+              "search": [
+                {
+                  "names": ["logs*"],
+                  "query": {
+                    "term": { "category": "shared" }
+                  },
+                  "field_security": {
+                    "grant": ["*"],
+                    "except": ["private"]
+                  }
+                }
+              ],
+              "replication": [
+                {
+                  "names": ["archive"],
+                  "allow_restricted_indices": false
+                }
+              ]
+            },
+            "metadata": {
+              "answer": 42,
+              "tag": "dev"
+            }
+          }
+  - match: { name: "my-cc-api-key" }
+  - is_true: id
+  - is_true: api_key
+  - is_true: expiration
+  - set: { id: api_key_id }
+  - transform_and_set: { login_creds: "#base64EncodeCredentials(id,api_key)" }
+  - match: { encoded: $login_creds }
+
+  # Authenticate with it via the REST interface should fail
+  - do:
+      catch: unauthorized
+      headers:
+        Authorization: ApiKey ${login_creds}
+      security.authenticate: { }
+
+  - match: { "error.type": "security_exception" }
+  - match:
+      "error.reason": "authentication expected API key type of [rest], but API key [${api_key_id}] has type [cross_cluster]"
+
+  - do:
+      headers:
+        Authorization: "Basic YWRtaW5fdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # admin_user
+      security.get_api_key:
+        id: "$api_key_id"
+        with_limited_by: true
+
+  - length: { "api_keys": 1 }
+  - match: { "api_keys.0.id": "$api_key_id" }
+  - match: { "api_keys.0.name": "my-cc-api-key" }
+  - match: { "api_keys.0.type": "cross_cluster" }
+  - is_false: api_keys.0.invalidated
+  - match: { "api_keys.0.metadata": { "answer": 42, "tag": "dev" } }
+  - match: { "api_keys.0.role_descriptors": {
+    "cross_cluster": {
+      "cluster": [
+        "cross_cluster_search",
+        "cross_cluster_replication"
+      ],
+      "indices": [
+        {
+          "names": [
+            "logs*"
+          ],
+          "privileges": [
+            "read",
+            "read_cross_cluster",
+            "view_index_metadata"
+          ],
+          "field_security": {
+            "grant": [
+              "*"
+            ],
+            "except": [
+              "private"
+            ]
+          },
+          "query": "{\"term\":{\"category\":\"shared\"}}",
+          "allow_restricted_indices": false
+        },
+        {
+          "names": [
+            "archive"
+          ],
+          "privileges": [
+            "cross_cluster_replication",
+            "cross_cluster_replication_internal"
+          ],
+          "allow_restricted_indices": false
+        }
+      ],
+      "applications": [ ],
+      "run_as": [ ],
+      "metadata": { },
+      "transient_metadata": {
+        "enabled": true
+      }
+    }
+  }
+  }
+  - is_false: api_keys.0.limited_by
+
+---
+"Test update a cross-cluster API Key":
+
+  - do:
+      headers:
+        Authorization: "Basic YWRtaW5fdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # admin_user
+      security.create_cross_cluster_api_key:
+        body: >
+          {
+            "name": "my-cc-api-key",
+            "access": {
+              "search": [
+                {
+                  "names": ["logs*"]
+                }
+              ]
+            },
+            "metadata": { "tag": "dev" }
+          }
+  - is_true: id
+  - set: { id: api_key_id }
+
+  - do:
+      headers:
+        Authorization: "Basic YWRtaW5fdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # admin_user
+      security.update_cross_cluster_api_key:
+        id: "$api_key_id"
+        body: >
+          {
+            "access": {
+              "replication": [
+                {
+                  "names": ["archive"]
+                }
+              ]
+            },
+            "metadata": { "tag": "prod" }
+          }
+  - match: { updated: true }
+
+  - do:
+      headers:
+        Authorization: "Basic YWRtaW5fdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # admin_user
+      security.get_api_key:
+        id: "$api_key_id"
+        with_limited_by: true
+
+  - length: { "api_keys": 1 }
+  - match: { "api_keys.0.id": "$api_key_id" }
+  - match: { "api_keys.0.name": "my-cc-api-key" }
+  - match: { "api_keys.0.type": "cross_cluster" }
+  - is_false: api_keys.0.invalidated
+  - match: { "api_keys.0.metadata": { "tag": "prod" } }
+  - match: { "api_keys.0.role_descriptors": {
+    "cross_cluster": {
+      "cluster": [
+        "cross_cluster_replication"
+      ],
+      "indices": [
+        {
+          "names": [
+            "archive"
+          ],
+          "privileges": [
+            "cross_cluster_replication",
+            "cross_cluster_replication_internal"
+          ],
+          "allow_restricted_indices": false
+        }
+      ],
+      "applications": [ ],
+      "run_as": [ ],
+      "metadata": { },
+      "transient_metadata": {
+        "enabled": true
+      }
+    }
+  }
+  }
+  - is_false: api_keys.0.limited_by
+
+  # No-op update
+  - do:
+      headers:
+        Authorization: "Basic YWRtaW5fdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # admin_user
+      security.update_cross_cluster_api_key:
+        id: "$api_key_id"
+        body: >
+          {
+            "access": {
+              "replication": [
+                {
+                  "names": ["archive"]
+                }
+              ]
+            },
+            "metadata": { "tag": "prod" }
+          }
+  - match: { updated: false }
+
+---
+"Test invalidate a cross-cluster API Key":
+
+  - do:
+      headers:
+        Authorization: "Basic YWRtaW5fdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # admin_user
+      security.create_cross_cluster_api_key:
+        body: >
+          {
+            "name": "my-cc-api-key",
+            "access": {
+              "search": [
+                {
+                  "names": ["*"],
+                  "allow_restricted_indices": true
+                }
+              ]
+            }
+          }
+  - is_true: id
+  - set: { id: api_key_id }
+
+  - do:
+      headers:
+        Authorization: "Basic YWRtaW5fdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # admin_user
+      security.get_api_key:
+        id: "$api_key_id"
+
+  - length: { "api_keys": 1 }
+  - match: { "api_keys.0.id": "$api_key_id" }
+  - match: { "api_keys.0.name": "my-cc-api-key" }
+  - match: { "api_keys.0.type": "cross_cluster" }
+  - is_false: api_keys.0.invalidated
+  - match: { "api_keys.0.metadata": { } }
+  - match: { "api_keys.0.role_descriptors": {
+    "cross_cluster": {
+      "cluster": [
+        "cross_cluster_search"
+      ],
+      "indices": [
+        {
+          "names": [
+            "*"
+          ],
+          "privileges": [
+            "read",
+            "read_cross_cluster",
+            "view_index_metadata"
+          ],
+          "allow_restricted_indices": true
+        }
+      ],
+      "applications": [ ],
+      "run_as": [ ],
+      "metadata": { },
+      "transient_metadata": {
+        "enabled": true
+      }
+    }
+  }
+  }
+  - is_false: api_keys.0.limited_by
+
+  - do:
+      headers:
+        Authorization: "Basic YWRtaW5fdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # admin_user
+      security.invalidate_api_key:
+        body: >
+          {
+            "ids": [ "${api_key_id}" ]
+          }
+  - length: { "invalidated_api_keys": 1 }
+  - match: { "invalidated_api_keys.0": "${api_key_id}" }
+  - length: { "previously_invalidated_api_keys": 0 }
+  - match: { "error_count": 0 }
+
+  - do:
+      headers:
+        Authorization: "Basic YWRtaW5fdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # admin_user
+      security.get_api_key:
+        id: "$api_key_id"
+
+  - length: { "api_keys": 1 }
+  - match: { "api_keys.0.id": "$api_key_id" }
+  - is_true: api_keys.0.invalidated

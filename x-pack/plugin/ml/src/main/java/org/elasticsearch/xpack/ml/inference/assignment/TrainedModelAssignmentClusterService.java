@@ -939,9 +939,6 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
      * Returns the set of nodes that are currently shutting down
      */
     static Set<String> nodesShuttingDown(final ClusterState state) {
-        return NodesShutdownMetadata.getShutdowns(state)
-            .map(NodesShutdownMetadata::getAllNodeMetadataMap)
-            .map(Map::keySet)
-            .orElse(Collections.emptySet());
+        return state.metadata().nodeShutdowns().getAllNodeIds();
     }
 }

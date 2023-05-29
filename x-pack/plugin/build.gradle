@@ -70,6 +70,7 @@ if (BuildParams.isSnapshotBuild() == false) {
   // cross_cluster_search privilege is only available when untrusted_remote_cluster_feature_flag_registered is enabled
   // which requires snapshot build
   restTestBlacklist.add('privileges/11_builtin/Test get builtin privileges')
+  restTestBlacklist.add('api_key/50_cross_cluster/*')
 }
 
 tasks.named("yamlRestTest").configure {

@@ -127,6 +127,9 @@ public final class AuthorizationUtils {
             case POST_WRITE_REFRESH_ORIGIN:
                 securityContext.executeAsInternalUser(InternalUsers.STORAGE_USER, version, consumer);
                 break;
+            case DLM_ORIGIN:
+                securityContext.executeAsInternalUser(InternalUsers.DLM_USER, version, consumer);
+                break;
             case WATCHER_ORIGIN:
             case ML_ORIGIN:
             case MONITORING_ORIGIN:
@@ -135,7 +138,6 @@ public final class AuthorizationUtils {
             case PERSISTENT_TASK_ORIGIN:
             case ROLLUP_ORIGIN:
             case INDEX_LIFECYCLE_ORIGIN:
-            case DLM_ORIGIN:
             case ENRICH_ORIGIN:
             case IDP_ORIGIN:
             case INGEST_ORIGIN:

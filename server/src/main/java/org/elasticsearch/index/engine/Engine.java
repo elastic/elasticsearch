@@ -744,6 +744,11 @@ public abstract class Engine implements Closeable {
      */
     public abstract void asyncEnsureTranslogSynced(Translog.Location location, Consumer<Exception> listener);
 
+    /**
+     * Ensures that the global checkpoint has been persisted to the underlying storage.
+     */
+    public abstract void asyncEnsureGlobalCheckpointSynced(long globalCheckpoint, Consumer<Exception> listener);
+
     public abstract void syncTranslog() throws IOException;
 
     /**

@@ -339,7 +339,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
      * raising the exception.
      */
     public void sync() throws IOException {
-        syncUpTo(Long.MAX_VALUE);
+        syncUpTo(Long.MAX_VALUE, SequenceNumbers.UNASSIGNED_SEQ_NO);
     }
 
     /**
@@ -455,10 +455,17 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
      *
      * @return <code>true</code> if this call caused an actual sync operation
      */
-    final boolean syncUpTo(long offset) throws IOException {
-        if (lastSyncedCheckpoint.offset < offset && syncNeeded()) {
+    final boolean syncUpTo(long offset, long globalCheckpointToPersist) throws IOException {
+        if ((lastSyncedCheckpoint.offset < offset || lastSyncedCheckpoint.globalCheckpoint < globalCheckpointToPersist) && syncNeeded()) {
+            assert globalCheckpointToPersist <= globalCheckpointSupplier.getAsLong()
+                : "globalCheckpointToPersist ["
+                    + globalCheckpointToPersist
+                    + "] greater than global checkpoint ["
+                    + globalCheckpointSupplier.getAsLong()
+                    + "]";
             synchronized (syncLock) { // only one sync/checkpoint should happen concurrently but we wait
-                if (lastSyncedCheckpoint.offset < offset && syncNeeded()) {
+                if ((lastSyncedCheckpoint.offset < offset || lastSyncedCheckpoint.globalCheckpoint < globalCheckpointToPersist)
+                    && syncNeeded()) {
                     // double checked locking - we don't want to fsync unless we have to and now that we have
                     // the lock we should check again since if this code is busy we might have fsynced enough already
                     final Checkpoint checkpointToSync;

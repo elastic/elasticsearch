@@ -21,7 +21,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BiPredicate;
 import java.util.function.LongSupplier;
 import java.util.stream.IntStream;
 
@@ -46,33 +45,33 @@ public class StagnatingIndicesFinderTests extends ESTestCase {
         // Per the evaluator, the timeSupplier _must_ be called only twice
         when(mockedTimeSupplier.getAsLong()).thenReturn(instant, instant);
 
-        var stagnatedIdx1 = idxMetadataFrom(idxMd1);
-        var stagnatedIdx2 = idxMetadataFrom(idxMd3);
+        var stagnatedIdx1 = indexMetadataFrom(idxMd1);
+        var stagnatedIdx3 = indexMetadataFrom(idxMd3);
         var finder = createStagnatingIndicesFinder(
             ruleEvaluator,
             mockedTimeSupplier,
-            idxMetadataUnmanaged(randomAlphaOfLength(10)), // non-managed by ILM
+            indexMetadataUnmanaged(randomAlphaOfLength(10)), // non-managed by ILM
             stagnatedIdx1,                                 // should be stagnated
-            idxMetadataFrom(idxMd2),                       // won't be stagnated
-            stagnatedIdx2,                                 // should be stagnated
-            idxMetadataUnmanaged(randomAlphaOfLength(10))  // non-managed by ILM
+            indexMetadataFrom(idxMd2),                       // won't be stagnated
+            stagnatedIdx3,                                 // should be stagnated
+            indexMetadataUnmanaged(randomAlphaOfLength(10))  // non-managed by ILM
         );
 
         var foundIndices = finder.find();
 
         assertThat(foundIndices, hasSize(2));
-        assertThat(foundIndices, containsInAnyOrder(stagnatedIdx1, stagnatedIdx2));
+        assertThat(foundIndices, containsInAnyOrder(stagnatedIdx1, stagnatedIdx3));
     }
 
     public void testStagnatingIndicesEvaluator() {
         var idxMd1 = randomIndexMetadata();
-        var indexMetadata = idxMetadataFrom(idxMd1);
+        var indexMetadata = indexMetadataFrom(idxMd1);
         Long moment = 111333111222L;
         {
             // no rule matches
             var executions = randomIntBetween(3, 200);
             var calls = new AtomicInteger(0);
-            var predicates = IntStream.range(0, executions).mapToObj(i -> (BiPredicate<Long, IndexMetadata>) (now, idxMd) -> {
+            var predicates = IntStream.range(0, executions).mapToObj(i -> (IlmHealthIndicatorService.RuleConfig) (now, idxMd) -> {
                 assertEquals(now, moment);
                 assertSame(idxMd, indexMetadata);
                 calls.incrementAndGet();
@@ -83,7 +82,7 @@ public class StagnatingIndicesFinderTests extends ESTestCase {
         }
         {
             var calls = new AtomicReference<>(new ArrayList<Integer>());
-            var predicates = List.<BiPredicate<Long, IndexMetadata>>of((now, idxMd) -> { // will be called
+            var predicates = List.<IlmHealthIndicatorService.RuleConfig>of((now, idxMd) -> { // will be called
                 assertEquals(now, moment);
                 assertSame(idxMd, indexMetadata);
                 calls.get().add(1);
@@ -110,11 +109,11 @@ public class StagnatingIndicesFinderTests extends ESTestCase {
         }
     }
 
-    private static IndexMetadata idxMetadataUnmanaged(String indexName) {
-        return idxMetadataFrom(new IndexMetadataTestCase(indexName, null, null));
+    private static IndexMetadata indexMetadataUnmanaged(String indexName) {
+        return indexMetadataFrom(new IndexMetadataTestCase(indexName, null, null));
     }
 
-    private static IndexMetadata idxMetadataFrom(IndexMetadataTestCase indexMetadataTestCase) {
+    private static IndexMetadata indexMetadataFrom(IndexMetadataTestCase indexMetadataTestCase) {
         var settings = settings(Version.CURRENT);
         var indexMetadataBuilder = IndexMetadata.builder(indexMetadataTestCase.indexName);
 
@@ -138,7 +137,7 @@ public class StagnatingIndicesFinderTests extends ESTestCase {
         var state = mock(ClusterState.class);
         var metadataBuilder = Metadata.builder();
 
-        Arrays.stream(indicesMetadata).forEach(im -> metadataBuilder.put(im, true));
+        Arrays.stream(indicesMetadata).forEach(im -> metadataBuilder.put(im, false));
         when(state.metadata()).thenReturn(metadataBuilder.build());
 
         when(clusterService.state()).thenReturn(state);

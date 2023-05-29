@@ -96,7 +96,7 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
         )
     );
 
-    public static final TimeValue ONE_DAY = TimeValue.timeValueDays(1);
+    private static final TimeValue ONE_DAY = TimeValue.timeValueDays(1);
 
     static final Map<String, RuleConfig> RULES_BY_ACTION_CONFIG = Map.of(
         RolloverAction.NAME,
@@ -285,7 +285,7 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
         }
 
         /**
-         * @return A list containing info about the stagnating indices in the cluster.
+         * @return A list containing the ILM managed indices that are stagnated in any ILM action/step.
          */
         public List<IndexMetadata> find() {
             var metadata = clusterService.state().metadata();

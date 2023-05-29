@@ -58,10 +58,7 @@ public class RestClusterInfoAction extends BaseRestHandler {
             .reduce(IngestStats.IDENTITY, IngestStats::merge),
         //
         THREAD_POOL.metricName(),
-        response -> response.getNodes()
-            .stream()
-            .map(NodeStats::getThreadPool)
-            .reduce(ThreadPoolStats.IDENTITY, ThreadPoolStats::merge)
+        response -> response.getNodes().stream().map(NodeStats::getThreadPool).reduce(ThreadPoolStats.IDENTITY, ThreadPoolStats::merge)
     );
     static final Set<String> AVAILABLE_TARGETS = RESPONSE_MAPPER.keySet();
 

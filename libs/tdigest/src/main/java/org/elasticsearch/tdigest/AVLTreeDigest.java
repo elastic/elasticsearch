@@ -36,6 +36,9 @@ public class AVLTreeDigest extends AbstractTDigest {
 
     private long count = 0; // package private for testing
 
+    // Indicates if a sample has been added after the last compression.
+    private boolean needsCompression;
+
     /**
      * A histogram structure that will record a sketch of a distribution.
      *
@@ -79,6 +82,8 @@ public class AVLTreeDigest extends AbstractTDigest {
     @Override
     public void add(double x, int w) {
         checkValue(x);
+        needsCompression = true;
+
         if (x < min) {
             min = x;
         }
@@ -150,9 +155,10 @@ public class AVLTreeDigest extends AbstractTDigest {
 
     @Override
     public void compress() {
-        if (summary.size() <= 1) {
+        if (needsCompression == false) {
             return;
         }
+        needsCompression = false;
 
         AVLGroupTree centroids = summary;
         this.summary = new AVLGroupTree();

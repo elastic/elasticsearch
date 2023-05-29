@@ -64,7 +64,6 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
         if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
             if (in.readBoolean()) {
                 state = TDigestState.read(in);
-                state.compress();
             } else {
                 state = null;
             }

@@ -468,12 +468,18 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             return false;
         }
         if (original.isCcsMinimizeRoundtrips() == Boolean.TRUE) {
+            return false;
+        }
+        if (original.isCcsMinimizeRoundtrips() == Boolean.TRUE) {
             // if user explicitly requested ccs_minimize_roundtrips, then do it since not prohibited
             return true;
         }
         // since not prohibited and not explicitly requested, use shard count and/or cluster count heuristic to decide
         if (numRemoteClusters >= MIN_REMOTE_CLUSTERS_TO_MINIMIZE_ROUNDTRIPS_WITHOUT_SHARD_COUNT_CHECK) {
             return true;
+        }
+        if (numRemoteShards == null) {
+            return false;
         }
         return numRemoteClusters >= MIN_REMOTE_CLUSTERS_TO_MINIMIZE_ROUNDTRIPS
             && numRemoteShards > MIN_REMOTE_SHARDS_TO_MINIMIZE_ROUNDTRIPS;

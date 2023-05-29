@@ -258,7 +258,9 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                         } else if ("search_type".equals(entry.getKey()) || "searchType".equals(entry.getKey())) {
                             searchRequest.searchType(nodeStringValue(value, null));
                         } else if ("ccs_minimize_roundtrips".equals(entry.getKey()) || "ccsMinimizeRoundtrips".equals(entry.getKey())) {
-                            searchRequest.setCcsMinimizeRoundtrips(nodeBooleanValue(value));
+                            if (value != null) {
+                                searchRequest.setCcsMinimizeRoundtrips(nodeBooleanValue(value));
+                            }
                         } else if ("request_cache".equals(entry.getKey()) || "requestCache".equals(entry.getKey())) {
                             searchRequest.requestCache(nodeBooleanValue(value, entry.getKey()));
                         } else if ("preference".equals(entry.getKey())) {

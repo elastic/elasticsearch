@@ -185,7 +185,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
 
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         String searchType = request.param("search_type");
-        boolean ccsMinimizeRoundtrips = request.paramAsBoolean("ccs_minimize_roundtrips", true);
+        Boolean ccsMinimizeRoundtrips = request.paramAsBoolean("ccs_minimize_roundtrips", null);
         String routing = request.param("routing");
 
         final Tuple<XContentType, BytesReference> sourceTuple = request.contentOrSourceParam();

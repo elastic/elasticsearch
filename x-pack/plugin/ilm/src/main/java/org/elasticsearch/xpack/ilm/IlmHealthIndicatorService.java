@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.ilm;
 
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.health.Diagnosis;
@@ -17,6 +18,7 @@ import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.health.ImpactArea;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
 import org.elasticsearch.health.node.HealthInfo;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.ilm.AllocateAction;
 import org.elasticsearch.xpack.core.ilm.DeleteStep;
 import org.elasticsearch.xpack.core.ilm.DownsampleAction;
@@ -37,9 +39,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeSet;
+import java.util.function.BiPredicate;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -116,6 +118,7 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
     ).collect(toMap(RuleConfig::action, Function.identity()));
 
     public static final StagnatingIndicesRuleEvaluator ILM_RULE_EVALUATOR = new StagnatingIndicesRuleEvaluator(
+
         RULES_BY_ACTION_CONFIG.values().stream().map(RuleConfig::toPredicate).toList()
     );
 
@@ -196,33 +199,39 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
         return createDetails(verbose, ilmMetadata, currentMode, List.of());
     }
 
-    private static List<Diagnosis> createDiagnoses(List<IndexIlmState> stagnatingIndices, int maxAffectedResourcesCount) {
-        return stagnatingIndices.stream().collect(groupingBy(IndexIlmState::action)).entrySet().stream().map(action -> {
-            var affectedIndices = action.getValue()
-                .stream()
-                .map(IndexIlmState::indexName)
-                .limit(Math.min(maxAffectedResourcesCount, action.getValue().size()))
-                .collect(Collectors.toCollection(TreeSet::new));
-            var affectedPolicies = action.getValue()
-                .stream()
-                .map(IndexIlmState::policyName)
-                .limit(Math.min(maxAffectedResourcesCount, action.getValue().size()))
-                .collect(Collectors.toCollection(TreeSet::new));
-            return new Diagnosis(
-                STAGNATING_ACTION_DEFINITIONS.get(action.getKey()),
-                List.of(
-                    new Diagnosis.Resource(Diagnosis.Resource.Type.ILM_POLICY, affectedPolicies),
-                    new Diagnosis.Resource(Diagnosis.Resource.Type.INDEX, affectedIndices)
-                )
-            );
-        }).toList();
+    private static List<Diagnosis> createDiagnoses(List<IndexMetadata> stagnatingIndices, int maxAffectedResourcesCount) {
+        return stagnatingIndices.stream()
+            .collect(groupingBy(md -> md.getLifecycleExecutionState().action()))
+            .entrySet()
+            .stream()
+            .map(action -> {
+                var affectedIndices = action.getValue()
+                    .stream()
+                    .map(IndexMetadata::getIndex)
+                    .map(Index::getName)
+                    .limit(Math.min(maxAffectedResourcesCount, action.getValue().size()))
+                    .collect(Collectors.toCollection(TreeSet::new));
+                var affectedPolicies = action.getValue()
+                    .stream()
+                    .map(IndexMetadata::getLifecyclePolicyName)
+                    .limit(Math.min(maxAffectedResourcesCount, action.getValue().size()))
+                    .collect(Collectors.toCollection(TreeSet::new));
+                return new Diagnosis(
+                    STAGNATING_ACTION_DEFINITIONS.get(action.getKey()),
+                    List.of(
+                        new Diagnosis.Resource(Diagnosis.Resource.Type.ILM_POLICY, affectedPolicies),
+                        new Diagnosis.Resource(Diagnosis.Resource.Type.INDEX, affectedIndices)
+                    )
+                );
+            })
+            .toList();
     }
 
     private static HealthIndicatorDetails createDetails(
         boolean verbose,
         IndexLifecycleMetadata metadata,
         OperationMode mode,
-        List<IndexIlmState> stagnatingIndices
+        List<IndexMetadata> stagnatingIndices
     ) {
         if (verbose == false) {
             return HealthIndicatorDetails.EMPTY;
@@ -234,7 +243,8 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
         details.put("policies", metadata.getPolicies().size());
         details.put("stagnating_indices", stagnatingIndices.size());
 
-        var stagnatingIndicesPerAction = stagnatingIndices.stream().collect(groupingBy(IndexIlmState::action, counting()));
+        var stagnatingIndicesPerAction = stagnatingIndices.stream()
+            .collect(groupingBy(md -> md.getLifecycleExecutionState().action(), counting()));
 
         if (stagnatingIndicesPerAction.isEmpty() == false) {
             RULES_BY_ACTION_CONFIG.forEach((action, value) -> stagnatingIndicesPerAction.putIfAbsent(action, 0L));
@@ -267,41 +277,21 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
         /**
          * @return A list containing info about the stagnating indices in the cluster.
          */
-        public List<IndexIlmState> find() {
-            return findIndicesManagedByIlm().filter(stagnatingIndicesRuleEvaluator::isStagnated).toList();
-        }
-
-        private Stream<IndexIlmState> findIndicesManagedByIlm() {
+        public List<IndexMetadata> find() {
             var metadata = clusterService.state().metadata();
-
-            return metadata.indices().values().stream().filter(metadata::isIndexManagedByILM).map(indexMetadata -> {
-                var ilmExecutionState = indexMetadata.getLifecycleExecutionState();
-                var now = nowSupplier.getAsLong();
-                return new IndexIlmState(
-                    indexMetadata.getIndex().getName(),
-                    indexMetadata.getLifecyclePolicyName(),
-                    ilmExecutionState.phase(),
-                    ilmExecutionState.action(),
-                    ilmExecutionState.actionTime() != null
-                        ? TimeValue.timeValueMillis(now - ilmExecutionState.actionTime())
-                        : TimeValue.ZERO,
-                    ilmExecutionState.step(),
-                    ilmExecutionState.stepTime() != null ? TimeValue.timeValueMillis(now - ilmExecutionState.stepTime()) : TimeValue.ZERO,
-                    ilmExecutionState.failedStepRetryCount()
-                );
-            });
+            var now = nowSupplier.getAsLong();
+            return metadata.indices()
+                .values()
+                .stream()
+                .filter(metadata::isIndexManagedByILM)
+                .filter(md -> stagnatingIndicesRuleEvaluator.isStagnated(now, md))
+                .toList();
         }
     }
 
-    static class StagnatingIndicesRuleEvaluator {
-        private final List<Predicate<IndexIlmState>> rules;
-
-        StagnatingIndicesRuleEvaluator(List<Predicate<IndexIlmState>> rules) {
-            this.rules = rules;
-        }
-
-        public boolean isStagnated(IndexIlmState indexIlmState) {
-            return rules.stream().anyMatch(r -> r.test(indexIlmState));
+    record StagnatingIndicesRuleEvaluator(List<BiPredicate<Long, IndexMetadata>> rules) {
+        public boolean isStagnated(Long now, IndexMetadata indexMetadata) {
+            return rules.stream().anyMatch(r -> r.test(now, indexMetadata));
         }
     }
 
@@ -310,23 +300,28 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
             this(action, maxTimeOn, maxRetries, null);
         }
 
-        public Predicate<IndexIlmState> toPredicate() {
-            return stepsToCheck == null || stepsToCheck.isEmpty()
-                ? state -> action.equals(state.action) && maxTimeOn.compareTo(state.timeOnAction) < 0
-                : state -> action.equals(state.action)
-                    && stepsToCheck.contains(state.step)
-                    && (maxTimeOn.compareTo(state.timeOnAction) < 0 || state.stepRetries > maxRetries);
+        public BiPredicate<Long, IndexMetadata> toPredicate() {
+            return stepsToCheck == null || stepsToCheck.isEmpty() ? this::onlyCheckAction : this::checkActionAndStep;
+        }
+
+        private boolean checkActionAndStep(Long now, IndexMetadata indexMetadata) {
+            var currentAction = indexMetadata.getLifecycleExecutionState().action();
+            var currentStep = indexMetadata.getLifecycleExecutionState().step();
+            var currentStepRetries = indexMetadata.getLifecycleExecutionState().failedStepRetryCount();
+            var currentTimeOnAction = safelyGetTimeValue(now, indexMetadata.getLifecycleExecutionState().actionTime());
+            return action.equals(currentAction)
+                && stepsToCheck.contains(currentStep)
+                && (maxTimeOn.compareTo(currentTimeOnAction) < 0 || currentStepRetries > maxRetries);
+        }
+
+        private boolean onlyCheckAction(Long now, IndexMetadata indexMetadata) {
+            var currentAction = indexMetadata.getLifecycleExecutionState().action();
+            var currentTimeOnAction = safelyGetTimeValue(now, indexMetadata.getLifecycleExecutionState().actionTime());
+            return action.equals(currentAction) && maxTimeOn.compareTo(currentTimeOnAction) < 0;
+        }
+
+        private static TimeValue safelyGetTimeValue(Long now, Long currentTime) {
+            return currentTime == null ? TimeValue.ZERO : TimeValue.timeValueMillis(now - currentTime);
         }
     }
-
-    record IndexIlmState(
-        String indexName,
-        String policyName,
-        String phase,
-        String action,
-        TimeValue timeOnAction,
-        String step,
-        TimeValue timeOnStep,
-        Integer stepRetries
-    ) {}
 }

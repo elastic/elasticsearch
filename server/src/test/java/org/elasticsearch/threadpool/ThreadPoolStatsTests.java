@@ -17,6 +17,8 @@ import java.util.Collections;
 
 import static org.elasticsearch.threadpool.ThreadPool.THREAD_POOL_TYPES;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.hasSize;
 
 public class ThreadPoolStatsTests extends ESTestCase {
     public void testThreadPoolStatsSort() {
@@ -43,17 +45,43 @@ public class ThreadPoolStatsTests extends ESTestCase {
     }
 
     public void testMergeThreadPoolStats() {
-        var firstStats = randomList(1, 20, ThreadPoolStatsTests::randomStats);
-        var secondStats = randomList(1, 20, ThreadPoolStatsTests::randomStats);
+        var firstStats = new ArrayList<ThreadPoolStats.Stats>();
+        firstStats.add(randomStats("name-1"));
+        firstStats.add(randomStats("name-2"));
+        firstStats.add(randomStats("name-3"));
 
-        var fullStats = new ArrayList<>(firstStats);
-        fullStats.addAll(secondStats);
+        var secondStats = new ArrayList<ThreadPoolStats.Stats>();
+        secondStats.add(randomStats("name-4"));
+        secondStats.add(randomStats("name-5"));
+        secondStats.add(randomStats("name-2"));
+        secondStats.add(randomStats("name-3"));
 
-        var target = new ThreadPoolStats(fullStats);
-        var expected = ThreadPoolStats.merge(new ThreadPoolStats(firstStats), new ThreadPoolStats(secondStats));
+        var tps1 = new ThreadPoolStats(firstStats);
+        var tps2 = new ThreadPoolStats(secondStats);
+        var target = ThreadPoolStats.merge(tps1, tps2);
 
-        assertNotSame(target, expected);
-        assertEquals(target, expected);
+        assertThat(target.stats(), hasSize(5));
+        assertThat(
+            target.stats(),
+            containsInAnyOrder(
+                firstStats.get(0), // name-1
+                ThreadPoolStats.Stats.merge(firstStats.get(1), secondStats.get(2)), // name-2
+                ThreadPoolStats.Stats.merge(firstStats.get(2), secondStats.get(3)), // name-3
+                secondStats.get(0), // name-4
+                secondStats.get(1) // name-5
+            )
+        );
+    }
+
+    public void testStatsMerge() {
+        assertEquals(ThreadPoolStats.Stats.merge(stats(-1), stats(-1)), stats(-1));
+        assertEquals(ThreadPoolStats.Stats.merge(stats(1), stats(-1)), stats(1));
+        assertEquals(ThreadPoolStats.Stats.merge(stats(-1), stats(1)), stats(1));
+        assertEquals(ThreadPoolStats.Stats.merge(stats(1), stats(2)), stats(3));
+    }
+
+    private static ThreadPoolStats.Stats stats(int value) {
+        return new ThreadPoolStats.Stats("a", value, value, value, value, value, value);
     }
 
     public void testSerialization() throws IOException {
@@ -87,6 +115,6 @@ public class ThreadPoolStatsTests extends ESTestCase {
     }
 
     private static int randomMinusOneOrOther() {
-        return randomBoolean() ? -1 : randomIntBetween(0, Integer.MAX_VALUE);
+        return randomBoolean() ? -1 : randomIntBetween(0, 1000);
     }
 }

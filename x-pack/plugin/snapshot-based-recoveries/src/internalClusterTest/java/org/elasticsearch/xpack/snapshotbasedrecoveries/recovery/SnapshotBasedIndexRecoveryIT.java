@@ -662,6 +662,74 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
         }
     }
 
+    public void testCancelledRecoveryAbortsDownloadPromptly() throws Exception {
+        updateSetting(INDICES_RECOVERY_MAX_CONCURRENT_SNAPSHOT_FILE_DOWNLOADS.getKey(), "1");
+
+        try {
+            internalCluster().ensureAtLeastNumDataNodes(2);
+
+            String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+            createIndex(
+                indexName,
+                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
+            );
+            ensureGreen(indexName);
+
+            int numDocs = randomIntBetween(1, 1000);
+            indexDocs(indexName, numDocs, numDocs);
+
+            String repoName = "repo";
+            createRepo(repoName, TestRepositoryPlugin.FILTER_TYPE);
+            createSnapshot(repoName, "snap", Collections.singletonList(indexName));
+
+            final AtomicBoolean isCancelled = new AtomicBoolean();
+            final CountDownLatch readFromBlobCalledLatch = new CountDownLatch(1);
+            final CountDownLatch readFromBlobRespondLatch = new CountDownLatch(1);
+
+            FilterFsRepository.wrapReadBlobMethod((blobName, stream) -> {
+                if (blobName.startsWith("__")) {
+                    return new FilterInputStream(stream) {
+                        @Override
+                        public int read() throws IOException {
+                            beforeRead();
+                            return super.read();
+                        }
+
+                        @Override
+                        public int read(byte[] b, int off, int len) throws IOException {
+                            beforeRead();
+                            return super.read(b, off, len);
+                        }
+
+                        private void beforeRead() {
+                            assertFalse(isCancelled.get()); // should have no further reads once the index is deleted
+                            readFromBlobCalledLatch.countDown();
+                            safeAwait(readFromBlobRespondLatch);
+                        }
+                    };
+                } else {
+                    return stream;
+                }
+            });
+
+            updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1), indexName);
+            safeAwait(readFromBlobCalledLatch);
+
+            assertAcked(client().admin().indices().prepareDelete(indexName).get());
+            // cancellation flag is set when applying the cluster state that deletes the index, so no further waiting is necessary
+            isCancelled.set(true);
+            readFromBlobRespondLatch.countDown();
+
+            assertThat(indexExists(indexName), is(equalTo(false)));
+            assertBusy(
+                () -> internalCluster().getInstances(PeerRecoveryTargetService.class)
+                    .forEach(peerRecoveryTargetService -> assertEquals(0, peerRecoveryTargetService.ongoingRecoveryCount()))
+            );
+        } finally {
+            updateSetting(INDICES_RECOVERY_MAX_CONCURRENT_SNAPSHOT_FILE_DOWNLOADS.getKey(), null);
+        }
+    }
+
     public void testRecoveryAfterRestoreUsesSnapshots() throws Exception {
         String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(

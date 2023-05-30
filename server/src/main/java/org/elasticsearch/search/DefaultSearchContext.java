@@ -11,7 +11,6 @@ package org.elasticsearch.search;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
-import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
@@ -53,7 +52,6 @@ import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QuerySearchResult;
-import org.elasticsearch.search.query.TwoPhaseCollector;
 import org.elasticsearch.search.rank.RankShardContext;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.slice.SliceBuilder;
@@ -129,7 +127,6 @@ final class DefaultSearchContext extends SearchContext {
     private Profilers profilers;
 
     private final Map<String, SearchExtBuilder> searchExtBuilders = new HashMap<>();
-    private CollectorManager<TwoPhaseCollector, Void> aggCollectorManager;
     private final SearchExecutionContext searchExecutionContext;
     private final FetchPhase fetchPhase;
 
@@ -761,16 +758,6 @@ final class DefaultSearchContext extends SearchContext {
     @Override
     public long getRelativeTimeInMillis() {
         return relativeTimeSupplier.getAsLong();
-    }
-
-    @Override
-    public CollectorManager<TwoPhaseCollector, Void> getAggsCollectorManager() {
-        return aggCollectorManager;
-    }
-
-    @Override
-    public void registerAggsCollectorManager(CollectorManager<TwoPhaseCollector, Void> collectorManager) {
-        this.aggCollectorManager = collectorManager;
     }
 
     @Override

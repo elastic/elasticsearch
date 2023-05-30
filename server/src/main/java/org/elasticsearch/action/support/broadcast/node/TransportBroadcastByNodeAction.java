@@ -18,11 +18,11 @@ import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.CancellableFanOut;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.broadcast.BaseBroadcastResponse;
 import org.elasticsearch.action.support.broadcast.BroadcastRequest;
@@ -37,9 +37,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.util.concurrent.ListenableFuture;
-import org.elasticsearch.common.util.concurrent.RunOnce;
-import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportChannel;
@@ -280,99 +277,17 @@ public abstract class TransportBroadcastByNodeAction<
         ResponseFactory<Response, ShardOperationResult> responseFactory,
         ActionListener<Response> listener
     ) {
-        final var mutex = new Object();
-        final var shardResponses = new ArrayList<ShardOperationResult>(availableShardCount);
-        final var exceptions = new ArrayList<DefaultShardOperationFailedException>(0);
-        final var totalShards = new AtomicInteger(unavailableShardCount);
-        final var successfulShards = new AtomicInteger(0);
+        new CancellableFanOut<Map.Entry<String, List<ShardRouting>>, NodeResponse, Response>() {
+            final ArrayList<ShardOperationResult> shardResponses = new ArrayList<>(availableShardCount);
+            final ArrayList<DefaultShardOperationFailedException> exceptions = new ArrayList<>(0);
+            final AtomicInteger totalShards = new AtomicInteger(unavailableShardCount);
+            final AtomicInteger successfulShards = new AtomicInteger(0);
+            final TransportRequestOptions transportRequestOptions = TransportRequestOptions.timeout(request.timeout());
 
-        final var resultListener = new ListenableFuture<Response>();
-        final var resultListenerCompleter = new RunOnce(() -> {
-            if (task instanceof CancellableTask cancellableTask) {
-                if (cancellableTask.notifyIfCancelled(resultListener)) {
-                    return;
-                }
-            }
-            // ref releases all happen-before here so no need to be synchronized
-            resultListener.onResponse(
-                responseFactory.newResponse(totalShards.get(), successfulShards.get(), exceptions.size(), shardResponses, exceptions)
-            );
-        });
-
-        final var nodeFailureListeners = new ListenableFuture<NodeResponse>();
-        if (task instanceof CancellableTask cancellableTask) {
-            cancellableTask.addListener(() -> {
-                assert cancellableTask.isCancelled();
-                resultListenerCompleter.run();
-                cancellableTask.notifyIfCancelled(nodeFailureListeners);
-            });
-        }
-
-        final var transportRequestOptions = TransportRequestOptions.timeout(request.timeout());
-
-        try (var refs = new RefCountingRunnable(() -> {
-            resultListener.addListener(listener);
-            resultListenerCompleter.run();
-        })) {
-            for (final var entry : shardsByNodeId.entrySet()) {
+            @Override
+            protected void sendItemRequest(Map.Entry<String, List<ShardRouting>> entry, ActionListener<NodeResponse> listener) {
                 final var node = nodes.get(entry.getKey());
                 final var shards = entry.getValue();
-
-                final ActionListener<NodeResponse> nodeResponseListener = ActionListener.notifyOnce(new ActionListener<NodeResponse>() {
-                    @Override
-                    public void onResponse(NodeResponse nodeResponse) {
-                        synchronized (mutex) {
-                            shardResponses.addAll(nodeResponse.getResults());
-                        }
-                        totalShards.addAndGet(nodeResponse.getTotalShards());
-                        successfulShards.addAndGet(nodeResponse.getSuccessfulShards());
-
-                        for (BroadcastShardOperationFailedException exception : nodeResponse.getExceptions()) {
-                            if (TransportActions.isShardNotAvailableException(exception)) {
-                                assert node.getVersion().before(Version.V_8_7_0) : node; // we stopped sending these ignored exceptions
-                            } else {
-                                synchronized (mutex) {
-                                    exceptions.add(
-                                        new DefaultShardOperationFailedException(
-                                            exception.getShardId().getIndexName(),
-                                            exception.getShardId().getId(),
-                                            exception
-                                        )
-                                    );
-                                }
-                            }
-                        }
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        if (task instanceof CancellableTask cancellableTask && cancellableTask.isCancelled()) {
-                            return;
-                        }
-
-                        logger.debug(() -> format("failed to execute [%s] on node [%s]", actionName, node), e);
-
-                        final var failedNodeException = new FailedNodeException(node.getId(), "Failed node [" + node.getId() + "]", e);
-                        synchronized (mutex) {
-                            for (ShardRouting shard : shards) {
-                                exceptions.add(
-                                    new DefaultShardOperationFailedException(shard.getIndexName(), shard.getId(), failedNodeException)
-                                );
-                            }
-                        }
-
-                        totalShards.addAndGet(shards.size());
-                    }
-
-                    @Override
-                    public String toString() {
-                        return "[" + actionName + "][" + node.descriptionWithoutAttributes() + "]";
-                    }
-                });
-
-                if (task instanceof CancellableTask) {
-                    nodeFailureListeners.addListener(nodeResponseListener);
-                }
 
                 final var nodeRequest = new NodeRequest(request, shards, node.getId());
                 if (task != null) {
@@ -384,14 +299,73 @@ public abstract class TransportBroadcastByNodeAction<
                     transportNodeBroadcastAction,
                     nodeRequest,
                     transportRequestOptions,
-                    new ActionListenerResponseHandler<>(
-                        ActionListener.releaseAfter(nodeResponseListener, refs.acquire()),
-                        NodeResponse::new
-                    )
+                    new ActionListenerResponseHandler<>(listener, nodeResponseReader)
                 );
             }
-        }
+
+            @Override
+            protected void onItemResponse(Map.Entry<String, List<ShardRouting>> entry, NodeResponse nodeResponse) {
+                final var node = nodes.get(entry.getKey());
+                synchronized (this) {
+                    shardResponses.addAll(nodeResponse.getResults());
+                }
+                totalShards.addAndGet(nodeResponse.getTotalShards());
+                successfulShards.addAndGet(nodeResponse.getSuccessfulShards());
+
+                for (BroadcastShardOperationFailedException exception : nodeResponse.getExceptions()) {
+                    if (TransportActions.isShardNotAvailableException(exception)) {
+                        assert node.getVersion().before(Version.V_8_7_0) : node; // we stopped sending these ignored exceptions
+                    } else {
+                        synchronized (this) {
+                            exceptions.add(
+                                new DefaultShardOperationFailedException(
+                                    exception.getShardId().getIndexName(),
+                                    exception.getShardId().getId(),
+                                    exception
+                                )
+                            );
+                        }
+                    }
+                }
+            }
+
+            @Override
+            protected void onItemFailure(Map.Entry<String, List<ShardRouting>> entry, Exception e) {
+                final var node = nodes.get(entry.getKey());
+                final var shards = entry.getValue();
+                logger.debug(() -> format("failed to execute [%s] on node [%s]", actionName, node), e);
+
+                final var failedNodeException = new FailedNodeException(node.getId(), "Failed node [" + node.getId() + "]", e);
+                synchronized (this) {
+                    for (ShardRouting shard : shards) {
+                        exceptions.add(new DefaultShardOperationFailedException(shard.getIndexName(), shard.getId(), failedNodeException));
+                    }
+                }
+
+                totalShards.addAndGet(shards.size());
+            }
+
+            @Override
+            protected Response onCompletion() {
+                // ref releases all happen-before here so no need to be synchronized
+                return responseFactory.newResponse(
+                    totalShards.get(),
+                    successfulShards.get(),
+                    exceptions.size(),
+                    shardResponses,
+                    exceptions
+                );
+            }
+
+            @Override
+            public String toString() {
+                return actionName;
+            }
+        }.run(task, shardsByNodeId.entrySet().iterator(), listener);
     }
+
+    // not an inline method reference to avoid capturing CancellableFanOut.this.
+    private final Writeable.Reader<NodeResponse> nodeResponseReader = NodeResponse::new;
 
     class BroadcastByNodeTransportRequestHandler implements TransportRequestHandler<NodeRequest> {
         @Override
@@ -415,87 +389,51 @@ public abstract class TransportBroadcastByNodeAction<
     ) {
         logger.trace("[{}] executing operation on [{}] shards", actionName, shards.size());
 
-        final var results = new ArrayList<ShardOperationResult>(shards.size());
-        final var exceptions = new ArrayList<BroadcastShardOperationFailedException>(0);
+        new CancellableFanOut<ShardRouting, ShardOperationResult, NodeResponse>() {
 
-        final var resultListener = new ListenableFuture<NodeResponse>();
-        final var resultListenerCompleter = new RunOnce(() -> {
-            if (task instanceof CancellableTask cancellableTask) {
-                if (cancellableTask.notifyIfCancelled(resultListener)) {
-                    return;
-                }
-            }
-            // ref releases all happen-before here so no need to be synchronized
-            resultListener.onResponse(new NodeResponse(nodeId, shards.size(), results, exceptions));
-        });
+            final ArrayList<ShardOperationResult> results = new ArrayList<>(shards.size());
+            final ArrayList<BroadcastShardOperationFailedException> exceptions = new ArrayList<>(0);
 
-        final var shardFailureListeners = new ListenableFuture<ShardOperationResult>();
-        if (task instanceof CancellableTask cancellableTask) {
-            cancellableTask.addListener(() -> {
-                assert cancellableTask.isCancelled();
-                resultListenerCompleter.run();
-                cancellableTask.notifyIfCancelled(shardFailureListeners);
-            });
-        }
-
-        try (var refs = new RefCountingRunnable(() -> {
-            resultListener.addListener(listener);
-            resultListenerCompleter.run();
-        })) {
-            for (final var shardRouting : shards) {
-                if (task instanceof CancellableTask cancellableTask && cancellableTask.isCancelled()) {
-                    return;
-                }
-
-                final ActionListener<ShardOperationResult> shardListener = ActionListener.notifyOnce(new ActionListener<>() {
-                    @Override
-                    public void onResponse(ShardOperationResult shardOperationResult) {
-                        logger.trace(() -> format("[%s] completed operation for shard [%s]", actionName, shardRouting.shortSummary()));
-                        synchronized (results) {
-                            results.add(shardOperationResult);
-                        }
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        if (task instanceof CancellableTask cancellableTask && cancellableTask.isCancelled()) {
-                            return;
-                        }
-                        logger.log(
-                            TransportActions.isShardNotAvailableException(e) ? Level.TRACE : Level.DEBUG,
-                            () -> format("[%s] failed to execute operation for shard [%s]", actionName, shardRouting.shortSummary()),
-                            e
-                        );
-                        if (TransportActions.isShardNotAvailableException(e) == false) {
-                            synchronized (exceptions) {
-                                exceptions.add(
-                                    new BroadcastShardOperationFailedException(
-                                        shardRouting.shardId(),
-                                        "operation " + actionName + " failed",
-                                        e
-                                    )
-                                );
-                            }
-                        }
-                    }
-
-                    @Override
-                    public String toString() {
-                        return "[" + actionName + "][" + shardRouting + "]";
-                    }
-                });
-
-                if (task instanceof CancellableTask) {
-                    shardFailureListeners.addListener(shardListener);
-                }
-
+            @Override
+            protected void sendItemRequest(ShardRouting shardRouting, ActionListener<ShardOperationResult> listener) {
                 logger.trace(() -> format("[%s] executing operation for shard [%s]", actionName, shardRouting.shortSummary()));
-                ActionRunnable.wrap(
-                    ActionListener.releaseAfter(shardListener, refs.acquire()),
-                    l -> shardOperation(request, shardRouting, task, l)
-                ).run();
+                ActionRunnable.wrap(listener, l -> shardOperation(request, shardRouting, task, l)).run();
             }
-        }
+
+            @Override
+            protected void onItemResponse(ShardRouting shardRouting, ShardOperationResult shardOperationResult) {
+                synchronized (results) {
+                    results.add(shardOperationResult);
+                }
+            }
+
+            @Override
+            protected void onItemFailure(ShardRouting shardRouting, Exception e) {
+                logger.log(
+                    TransportActions.isShardNotAvailableException(e) ? Level.TRACE : Level.DEBUG,
+                    () -> format("[%s] failed to execute operation for shard [%s]", actionName, shardRouting.shortSummary()),
+                    e
+                );
+                if (TransportActions.isShardNotAvailableException(e) == false) {
+                    synchronized (exceptions) {
+                        exceptions.add(
+                            new BroadcastShardOperationFailedException(shardRouting.shardId(), "operation " + actionName + " failed", e)
+                        );
+                    }
+                }
+            }
+
+            @Override
+            protected NodeResponse onCompletion() {
+                // ref releases all happen-before here so no need to be synchronized
+                return new NodeResponse(nodeId, shards.size(), results, exceptions);
+            }
+
+            @Override
+            public String toString() {
+                return actionName;
+            }
+        }.run(task, shards.iterator(), listener);
     }
 
     class NodeRequest extends TransportRequest implements IndicesRequest {

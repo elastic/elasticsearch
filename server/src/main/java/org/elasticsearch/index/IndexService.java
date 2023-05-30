@@ -55,6 +55,7 @@ import org.elasticsearch.index.mapper.NodeMappingStats;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.SearchIndexNameMatcher;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
+import org.elasticsearch.index.shard.GlobalCheckpointSyncer;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardClosedException;
@@ -412,7 +413,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
 
     public synchronized IndexShard createShard(
         final ShardRouting routing,
-        final Consumer<ShardId> globalCheckpointSyncer,
+        final GlobalCheckpointSyncer globalCheckpointSyncer,
         final RetentionLeaseSyncer retentionLeaseSyncer
     ) throws IOException {
         Objects.requireNonNull(retentionLeaseSyncer);
@@ -520,7 +521,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 engineWarmer,
                 searchOperationListeners,
                 indexingOperationListeners,
-                () -> globalCheckpointSyncer.accept(shardId),
+                globalCheckpointSyncer,
                 retentionLeaseSyncer,
                 circuitBreakerService,
                 snapshotCommitSupplier,

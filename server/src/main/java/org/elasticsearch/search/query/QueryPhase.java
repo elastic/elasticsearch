@@ -234,9 +234,9 @@ public class QueryPhase {
                     collector
                 );
             }
-            if (searchContext.getAggsCollectorManager() != null) {
+            if (searchContext.aggregations() != null) {
                 final TwoPhaseCollector collector = collectorManager.newCollector();
-                final TwoPhaseCollector aggsCollector = searchContext.getAggsCollectorManager().newCollector();
+                final TwoPhaseCollector aggsCollector = searchContext.aggregations().getAggsCollectorManager().newCollector();
                 collectorManager = wrapWithProfilerCollectorManagerIfNeeded(
                     searchContext.getProfilers(),
                     new SingleThreadCollectorManager(TwoPhaseCollector.wrapCollection(collector, aggsCollector)),

@@ -75,7 +75,8 @@ public class AuthorizationServiceIntegTests extends SecurityIntegTestCase {
                             .privileges(shuffledList(List.of("read", "write")))
                             .build(),
                         randomNonEmptySubsetOf(List.of(concreteClusterAlias, "*")).toArray(new String[0])
-                    ) }
+                    ) },
+                null
             )
         );
         final String nodeName = internalCluster().getRandomNodeName();

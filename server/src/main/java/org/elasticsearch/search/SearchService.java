@@ -1248,6 +1248,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             context.addQuerySearchResultReleasable(aggContext);
             try {
                 AggregatorFactories factories = source.aggregations().build(aggContext, null);
+                Supplier<AggregationReduceContext.Builder> supplier = () -> aggReduceContextBuilder(
+                    context::isCancelled,
+                    source.aggregations()
+                );
                 context.aggregations(new SearchContextAggregations(factories));
             } catch (IOException e) {
                 throw new AggregationInitializationException("Failed to create aggregators", e);

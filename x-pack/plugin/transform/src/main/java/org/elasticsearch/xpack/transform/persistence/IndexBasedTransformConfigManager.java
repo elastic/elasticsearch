@@ -319,14 +319,16 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
 
     private void putTransformConfiguration(
         TransformConfig transformConfig,
-        DocWriteRequest.OpType optType,
+        DocWriteRequest.OpType opType,
         SeqNoPrimaryTermAndIndex seqNoPrimaryTermAndIndex,
         ActionListener<Boolean> listener
     ) {
+        assert DocWriteRequest.OpType.CREATE.equals(opType) || DocWriteRequest.OpType.INDEX.equals(opType);
+
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             XContentBuilder source = transformConfig.toXContent(builder, new ToXContent.MapParams(TO_XCONTENT_PARAMS));
 
-            IndexRequest indexRequest = new IndexRequest(TransformInternalIndexConstants.LATEST_INDEX_NAME).opType(optType)
+            IndexRequest indexRequest = new IndexRequest(TransformInternalIndexConstants.LATEST_INDEX_NAME).opType(opType)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .id(TransformConfig.documentId(transformConfig.getId()))
                 .source(source);
@@ -340,12 +342,20 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
                 indexRequest,
                 ActionListener.wrap(r -> { listener.onResponse(true); }, e -> {
                     if (e instanceof VersionConflictEngineException) {
-                        // the transform already exists
-                        listener.onFailure(
-                            new ResourceAlreadyExistsException(
-                                TransformMessages.getMessage(TransformMessages.REST_PUT_TRANSFORM_EXISTS, transformConfig.getId())
-                            )
-                        );
+                        if (DocWriteRequest.OpType.CREATE.equals(opType)) {  // we want to create the transform but it already exists
+                            listener.onFailure(
+                                new ResourceAlreadyExistsException(
+                                    TransformMessages.getMessage(TransformMessages.REST_PUT_TRANSFORM_EXISTS, transformConfig.getId())
+                                )
+                            );
+                        } else {  // we want to update the transform but it got updated in the meantime, report version conflict
+                            listener.onFailure(
+                                new ElasticsearchStatusException(
+                                    TransformMessages.getMessage(TransformMessages.REST_UPDATE_TRANSFORM_CONFLICT, transformConfig.getId()),
+                                    RestStatus.CONFLICT
+                                )
+                            );
+                        }
                     } else {
                         listener.onFailure(new RuntimeException(TransformMessages.REST_PUT_FAILED_PERSIST_TRANSFORM_CONFIGURATION, e));
                     }

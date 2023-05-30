@@ -112,6 +112,8 @@ public abstract class IndexShardTestCase extends ESTestCase {
     public static final IndexEventListener EMPTY_EVENT_LISTENER = new IndexEventListener() {
     };
 
+    public static final GlobalCheckpointSyncer NOOP_GCP_SYNCER = shardId -> {};
+
     private static final AtomicBoolean failOnShardFailures = new AtomicBoolean(true);
 
     private static final Consumer<IndexShard.ShardFailure> DEFAULT_SHARD_FAILURE_HANDLER = failure -> {
@@ -265,7 +267,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
             .settings(indexSettings)
             .primaryTerm(0, primaryTerm)
             .putMapping("{ \"properties\": {} }");
-        return newShard(shardRouting, metadata.build(), null, engineFactory, () -> {}, RetentionLeaseSyncer.EMPTY, listeners);
+        return newShard(shardRouting, metadata.build(), null, engineFactory, NOOP_GCP_SYNCER, RetentionLeaseSyncer.EMPTY, listeners);
     }
 
     /**
@@ -302,7 +304,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
         IndexMetadata indexMetadata,
         @Nullable CheckedFunction<DirectoryReader, DirectoryReader, IOException> readerWrapper
     ) throws IOException {
-        return newShard(shardId, primary, nodeId, indexMetadata, readerWrapper, () -> {});
+        return newShard(shardId, primary, nodeId, indexMetadata, readerWrapper, NOOP_GCP_SYNCER);
     }
 
     /**
@@ -319,7 +321,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
         String nodeId,
         IndexMetadata indexMetadata,
         @Nullable CheckedFunction<DirectoryReader, DirectoryReader, IOException> readerWrapper,
-        Runnable globalCheckpointSyncer
+        GlobalCheckpointSyncer globalCheckpointSyncer
     ) throws IOException {
         ShardRouting shardRouting = TestShardRouting.newShardRouting(
             shardId,
@@ -353,7 +355,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
         EngineFactory engineFactory,
         IndexingOperationListener... listeners
     ) throws IOException {
-        return newShard(routing, indexMetadata, indexReaderWrapper, engineFactory, () -> {}, RetentionLeaseSyncer.EMPTY, listeners);
+        return newShard(routing, indexMetadata, indexReaderWrapper, engineFactory, NOOP_GCP_SYNCER, RetentionLeaseSyncer.EMPTY, listeners);
     }
 
     /**
@@ -370,7 +372,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
         IndexMetadata indexMetadata,
         @Nullable CheckedFunction<DirectoryReader, DirectoryReader, IOException> indexReaderWrapper,
         @Nullable EngineFactory engineFactory,
-        Runnable globalCheckpointSyncer,
+        GlobalCheckpointSyncer globalCheckpointSyncer,
         RetentionLeaseSyncer retentionLeaseSyncer,
         IndexingOperationListener... listeners
     ) throws IOException {
@@ -410,7 +412,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
         @Nullable CheckedFunction<IndexSettings, Store, IOException> storeProvider,
         @Nullable CheckedFunction<DirectoryReader, DirectoryReader, IOException> indexReaderWrapper,
         @Nullable EngineFactory engineFactory,
-        Runnable globalCheckpointSyncer,
+        GlobalCheckpointSyncer globalCheckpointSyncer,
         RetentionLeaseSyncer retentionLeaseSyncer,
         IndexEventListener indexEventListener,
         IndexingOperationListener... listeners
@@ -449,7 +451,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
         @Nullable CheckedFunction<IndexSettings, Store, IOException> storeProvider,
         @Nullable CheckedFunction<DirectoryReader, DirectoryReader, IOException> indexReaderWrapper,
         @Nullable EngineFactory engineFactory,
-        Runnable globalCheckpointSyncer,
+        GlobalCheckpointSyncer globalCheckpointSyncer,
         RetentionLeaseSyncer retentionLeaseSyncer,
         IndexEventListener indexEventListener,
         LongSupplier relativeTimeSupplier,

@@ -10,13 +10,11 @@ package org.elasticsearch.dlm;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
-import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
-import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequest;
-import org.elasticsearch.action.admin.indices.segments.ShardSegments;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -30,7 +28,9 @@ import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataLifecycle;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamAction;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
@@ -39,23 +39,23 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.dlm.action.PutDataLifecycleAction;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.test.transport.StubbableTransport;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.backingIndexEqualTo;
@@ -66,7 +66,6 @@ import static org.elasticsearch.indices.ShardLimitValidator.SETTING_CLUSTER_MAX_
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
@@ -260,15 +259,15 @@ public class DataLifecycleServiceIT extends ESIntegTestCase {
         });
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/96084")
     public void testAutomaticForceMerge() throws Exception {
         /*
          * This test makes sure that (1) DLM does _not_ call forcemerge on an index in the same DLM pass when it rolls over the index and
          * that (2) it _does_ call forcemerge on an index that was rolled over in a previous DLM pass.
          * It's harder than you would think to detect through the REST API that forcemerge has been called. The reason is that segment
          * merging happens automatically during indexing, and when forcemerge is called it likely does nothing because all nececssary
-         * merging has already happened automatically. In order to force forcemerge to merge segments, we change
-         * "index.merge.policy.merge_factor" on the index to a value lower than the default. If the number of segments goes down, that is
-         *  proof that DLM called forcemerge.
+         * merging has already happened automatically. So in order to detect whether forcemerge has been called, we use a
+         * SendRequestBehavior in the MockTransportService to detect it.
          */
         DataLifecycle lifecycle = new DataLifecycle();
         disableDLM();
@@ -281,6 +280,33 @@ public class DataLifecycleServiceIT extends ESIntegTestCase {
             null,
             lifecycle
         );
+        // This is the set of all indices against which a ForceMergeAction has been run:
+        final Set<String> forceMergedIndices = new HashSet<>();
+        {
+            // This creates a SendRequestBehavior to add the name of any index that has been forcemerged to the forceMergedIndices set.
+            final StubbableTransport.SendRequestBehavior sendBehavior = (connection, requestId, action, request, options) -> {
+                if (action.startsWith(ForceMergeAction.NAME)) {
+                    String index = ((IndicesRequest) request).indices()[0];
+                    forceMergedIndices.add(index);
+                    logger.info("Force merging {}", index);
+                }
+                connection.sendRequest(requestId, action, request, options);
+            };
+            String masterNode = internalCluster().getMasterName();
+            final MockTransportService targetTransportService = (MockTransportService) internalCluster().getInstance(
+                TransportService.class,
+                masterNode
+            );
+
+            for (DiscoveryNode node : internalCluster().getInstance(ClusterService.class, internalCluster().getMasterName())
+                .state()
+                .getNodes()) {
+                if (node.canContainData() && node.getName().equals(masterNode) == false) {
+                    final TransportService sourceTransportService = internalCluster().getInstance(TransportService.class, node.getName());
+                    targetTransportService.addSendBehavior(sourceTransportService, sendBehavior);
+                }
+            }
+        }
 
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
         client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
@@ -296,27 +322,11 @@ public class DataLifecycleServiceIT extends ESIntegTestCase {
             }
 
             final String toBeForceMergedIndex;
-            final int preDlmSegmentsForceMergedIndex;
-
             if (currentGeneration == 1) {
                 toBeForceMergedIndex = null; // Not going to be used
-                preDlmSegmentsForceMergedIndex = -1; // Not going to be used
             } else {
                 toBeForceMergedIndex = DataStream.getDefaultBackingIndexName(dataStreamName, currentGeneration - 1);
-                preDlmSegmentsForceMergedIndex = getSegmentCount(toBeForceMergedIndex);
-                logger.info("preDlmSegmentsForceMergedIndex: {}", preDlmSegmentsForceMergedIndex);
             }
-            final int preDlmSegmentsAboutToBeRolledOverIndex = getSegmentCount(toBeRolledOverIndex);
-            logger.info("preDlmSegmentsAboutToBeRolledOverIndex: {}", preDlmSegmentsAboutToBeRolledOverIndex);
-            /*
-             * Without the following, calls to forcemerge are essentially a no-op since it has already done automatic merging. Setting
-             * merge_factor on its own does not do anything, but it results in calls to forcemerge making observable changes to the
-             * number of segments. So we're doing this just so that we can check that DLM did actually call forcemerge.
-             */
-            updateIndexSettings(
-                Settings.builder().put(MergePolicyConfig.INDEX_MERGE_POLICY_MERGE_FACTOR_SETTING.getKey(), 5),
-                toBeRolledOverIndex
-            );
             int currentBackingIndexCount = currentGeneration;
             DataLifecycleService dataLifecycleService = internalCluster().getInstance(
                 DataLifecycleService.class,
@@ -336,25 +346,22 @@ public class DataLifecycleServiceIT extends ESIntegTestCase {
                 assertThat(backingIndices.size(), equalTo(currentBackingIndexCount + 1));
                 String writeIndex = dataStream.getWriteIndex().getName();
                 assertThat(writeIndex, backingIndexEqualTo(dataStreamName, currentBackingIndexCount + 1));
-                int postDlmSegmentsNewlyRolledOverIndex = getSegmentCount(toBeRolledOverIndex);
                 /*
                  * We only expect forcemerge to happen on the 2nd DLM run and later, since on the first there's only the single write
                  * index to be rolled over.
                  */
                 if (currentBackingIndexCount > 1) {
-                    int postDlmSegmentsForceMergedIndex = getSegmentCount(toBeForceMergedIndex);
                     assertThat(
                         "The segments for " + toBeForceMergedIndex + " were not merged",
-                        postDlmSegmentsForceMergedIndex,
-                        lessThan(preDlmSegmentsForceMergedIndex)
+                        forceMergedIndices.contains(toBeForceMergedIndex),
+                        equalTo(true)
                     );
-                    logger.info("postDlmSegmentsForceMergedIndex: {}", postDlmSegmentsForceMergedIndex);
                 }
                 // We want to assert that when DLM rolls over the write index it, it doesn't forcemerge it on that iteration:
                 assertThat(
                     "The segments for " + toBeRolledOverIndex + " were unexpectedly merged",
-                    postDlmSegmentsNewlyRolledOverIndex,
-                    equalTo(preDlmSegmentsAboutToBeRolledOverIndex)
+                    forceMergedIndices.contains(toBeRolledOverIndex),
+                    equalTo(false)
                 );
             });
         }
@@ -364,28 +371,21 @@ public class DataLifecycleServiceIT extends ESIntegTestCase {
         updateClusterSettings(Settings.builder().put(DataLifecycleService.DLM_POLL_INTERVAL, TimeValue.MAX_VALUE));
     }
 
-    private int getSegmentCount(String indexName) throws ExecutionException, InterruptedException {
-        IndicesSegmentResponse segmentResponse = client().admin().indices().segments(new IndicesSegmentsRequest(indexName)).get();
-        return (int) segmentResponse.getIndices()
-            .get(indexName)
-            .getShards()
-            .values()
-            .stream()
-            .map(IndexShardSegments::shards)
-            .flatMap(Arrays::stream)
-            .filter(shard -> shard.getShardRouting().primary())
-            .map(ShardSegments::getSegments)
-            .flatMap(List::stream)
-            .filter(segment -> segment.search) // in case there hasn't been a flush
-            .count();
-    }
-
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/96070")
     public void testErrorRecordingOnRollover() throws Exception {
         // empty lifecycle contains the default rollover
         DataLifecycle lifecycle = new DataLifecycle();
-
-        putComposableIndexTemplate("id1", null, List.of("metrics-foo*"), null, null, lifecycle);
+        /*
+         * We set index.auto_expand_replicas to 0-1 so that if we get a single-node cluster it is not yellow. The cluster being yellow
+         * could result in DLM's automatic forcemerge failing, which would result in an unexpected error in the error store.
+         */
+        putComposableIndexTemplate(
+            "id1",
+            null,
+            List.of("metrics-foo*"),
+            Settings.builder().put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1").build(),
+            null,
+            lifecycle
+        );
         Iterable<DataLifecycleService> dataLifecycleServices = internalCluster().getInstances(DataLifecycleService.class);
 
         String dataStreamName = "metrics-foo";
@@ -461,7 +461,18 @@ public class DataLifecycleServiceIT extends ESIntegTestCase {
         // that its retention execution fails
         DataLifecycle lifecycle = new DataLifecycle();
 
-        putComposableIndexTemplate("id1", null, List.of("metrics-foo*"), null, null, lifecycle);
+        /*
+         * We set index.auto_expand_replicas to 0-1 so that if we get a single-node cluster it is not yellow. The cluster being yellow
+         * could result in DLM's automatic forcemerge failing, which would result in an unexpected error in the error store.
+         */
+        putComposableIndexTemplate(
+            "id1",
+            null,
+            List.of("metrics-foo*"),
+            Settings.builder().put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1").build(),
+            null,
+            lifecycle
+        );
         Iterable<DataLifecycleService> dataLifecycleServices = internalCluster().getInstances(DataLifecycleService.class);
 
         String dataStreamName = "metrics-foo";

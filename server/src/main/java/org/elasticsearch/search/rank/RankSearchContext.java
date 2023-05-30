@@ -8,7 +8,6 @@
 
 package org.elasticsearch.search.rank;
 
-import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TotalHits;
@@ -42,7 +41,6 @@ import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QuerySearchResult;
-import org.elasticsearch.search.query.TwoPhaseCollector;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
@@ -202,14 +200,6 @@ public class RankSearchContext extends SearchContext {
     @Override
     public long getRelativeTimeInMillis() {
         return parent.getRelativeTimeInMillis();
-    }
-
-    /**
-     * Aggregations are run as a separate query, so do not add any aggregations collectors.
-     */
-    @Override
-    public CollectorManager<TwoPhaseCollector, Void> getAggsCollectorManager() {
-        return null;
     }
 
     /* ---- ALL METHODS ARE UNSUPPORTED BEYOND HERE ---- */
@@ -541,11 +531,6 @@ public class RankSearchContext extends SearchContext {
 
     @Override
     public void addFetchResult() {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public void registerAggsCollectorManager(CollectorManager<TwoPhaseCollector, Void> collectorManager) {
         throw new UnsupportedOperationException();
     }
 

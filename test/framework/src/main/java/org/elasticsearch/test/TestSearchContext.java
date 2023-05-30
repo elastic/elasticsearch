@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.test;
 
-import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TotalHits;
@@ -43,7 +42,6 @@ import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QuerySearchResult;
-import org.elasticsearch.search.query.TwoPhaseCollector;
 import org.elasticsearch.search.rank.RankShardContext;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.sort.SortAndFormats;
@@ -73,7 +71,6 @@ public class TestSearchContext extends SearchContext {
     boolean trackScores = false;
     int trackTotalHitsUpTo = SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO;
     RankShardContext rankShardContext;
-    CollectorManager<TwoPhaseCollector, Void> aggCollectorManager;
     ContextIndexSearcher searcher;
     int from;
     int size;
@@ -524,16 +521,6 @@ public class TestSearchContext extends SearchContext {
     @Override
     public Profilers getProfilers() {
         return null; // no profiling
-    }
-
-    @Override
-    public CollectorManager<TwoPhaseCollector, Void> getAggsCollectorManager() {
-        return aggCollectorManager;
-    }
-
-    @Override
-    public void registerAggsCollectorManager(CollectorManager<TwoPhaseCollector, Void> collector) {
-        this.aggCollectorManager = collector;
     }
 
     @Override

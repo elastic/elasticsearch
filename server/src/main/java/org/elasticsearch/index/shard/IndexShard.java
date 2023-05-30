@@ -231,11 +231,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     final EngineFactory engineFactory;
 
     private final IndexingOperationListener indexingOperationListeners;
-    private final Runnable globalCheckpointSyncer;
-
-    Runnable getGlobalCheckpointSyncer() {
-        return globalCheckpointSyncer;
-    }
+    private final GlobalCheckpointSyncer globalCheckpointSyncer;
 
     private final RetentionLeaseSyncer retentionLeaseSyncer;
 
@@ -307,7 +303,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final Engine.Warmer warmer,
         final List<SearchOperationListener> searchOperationListener,
         final List<IndexingOperationListener> listeners,
-        final Runnable globalCheckpointSyncer,
+        final GlobalCheckpointSyncer globalCheckpointSyncer,
         final RetentionLeaseSyncer retentionLeaseSyncer,
         final CircuitBreakerService circuitBreakerService,
         final IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier,
@@ -2749,10 +2745,19 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 || trackedGlobalCheckpointsNeedSync;
             // only sync if index is not closed and there is a shard lagging the primary
             if (syncNeeded && indexSettings.getIndexMetadata().getState() == IndexMetadata.State.OPEN) {
-                logger.trace("syncing global checkpoint for [{}]", reason);
-                globalCheckpointSyncer.run();
+                syncGlobalCheckpoints(reason);
             }
         }
+    }
+
+    private void syncGlobalCheckpoints(String reason) {
+        logger.trace("syncing global checkpoint for [{}]", reason);
+        globalCheckpointSyncer.syncGlobalCheckpoints(shardId);
+    }
+
+    // exposed for tests
+    GlobalCheckpointSyncer getGlobalCheckpointSyncer() {
+        return globalCheckpointSyncer;
     }
 
     /**
@@ -3608,6 +3613,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public final void sync(Translog.Location location, Consumer<Exception> syncListener) {
         verifyNotClosed();
         getEngine().asyncEnsureTranslogSynced(location, syncListener);
+    }
+
+    /**
+     * This method provides the same behavior as #sync but for persisting the global checkpoint. It will initiate a sync
+     * if the request global checkpoint is greater than the currently persisted global checkpoint. However, same as #sync it
+     * will not ensure that the request global checkpoint is available to be synced. It is the caller's duty to only call this
+     * method with a valid processed global checkpoint that is available to sync.
+     */
+    public void syncGlobalCheckpoint(long globalCheckpoint, Consumer<Exception> syncListener) {
+        verifyNotClosed();
+        getEngine().asyncEnsureGlobalCheckpointSynced(globalCheckpoint, syncListener);
     }
 
     public void sync() throws IOException {

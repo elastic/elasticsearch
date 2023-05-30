@@ -40,12 +40,11 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.XPackSettings;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
-
-import static java.util.Collections.singletonList;
 
 public class ProfilingPlugin extends Plugin implements ActionPlugin {
     private static final Logger logger = LogManager.getLogger(ProfilingPlugin.class);
@@ -117,11 +116,12 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
         final IndexNameExpressionResolver indexNameExpressionResolver,
         final Supplier<DiscoveryNodes> nodesInCluster
     ) {
+        List<RestHandler> handlers = new ArrayList<>();
+        handlers.add(new RestGetStatusAction());
         if (enabled) {
-            return singletonList(new RestGetProfilingAction());
-        } else {
-            return Collections.emptyList();
+            handlers.add(new RestGetProfilingAction());
         }
+        return Collections.unmodifiableList(handlers);
     }
 
     @Override
@@ -150,7 +150,10 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        return List.of(new ActionHandler<>(GetProfilingAction.INSTANCE, TransportGetProfilingAction.class));
+        return List.of(
+            new ActionHandler<>(GetProfilingAction.INSTANCE, TransportGetProfilingAction.class),
+            new ActionHandler<>(GetStatusAction.INSTANCE, TransportGetStatusAction.class)
+        );
     }
 
     @Override

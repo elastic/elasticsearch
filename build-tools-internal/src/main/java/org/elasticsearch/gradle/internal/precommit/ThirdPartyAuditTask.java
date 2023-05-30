@@ -368,10 +368,13 @@ public abstract class ThirdPartyAuditTask extends DefaultTask {
             throw new IllegalStateException("JDK missing release file, for: " + javaHome.get());
         }
         try {
-            Runtime.Version version = Files.readAllLines(releaseFile).stream()
+            Runtime.Version version = Files.readAllLines(releaseFile)
+                .stream()
                 .filter(l -> l.startsWith("JAVA_VERSION="))
                 .map(l -> l.substring("JAVA_VERSION=".length(), l.length()))
-                .peek(l -> { assert l.length() > 2 && l.startsWith("\"") && l.endsWith("\""); } )
+                .peek(l -> {
+                    assert l.length() > 2 && l.startsWith("\"") && l.endsWith("\"");
+                })
                 .map(l -> l.substring(1, l.length() - 1)) // remove quotes
                 .map(Runtime.Version::parse)
                 .findFirst()

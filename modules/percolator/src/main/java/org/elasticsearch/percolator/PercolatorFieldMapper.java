@@ -393,15 +393,13 @@ public class PercolatorFieldMapper extends FieldMapper {
 
     @Override
     public void parse(DocumentParserContext context) throws IOException {
-        SearchExecutionContext executionContext = this.searchExecutionContext.get();
+        SearchExecutionContext executionContext = configureContext(this.searchExecutionContext.get(), isMapUnmappedFieldAsText());
         if (context.doc().getField(queryBuilderField.name()) != null) {
             // If a percolator query has been defined in an array object then multiple percolator queries
             // could be provided. In order to prevent this we fail if we try to parse more than one query
             // for the current document.
             throw new IllegalArgumentException("a document can only contain one percolator query");
         }
-
-        executionContext = configureContext(executionContext, isMapUnmappedFieldAsText());
 
         QueryBuilder queryBuilder = parseQueryBuilder(context);
         // Fetching of terms, shapes and indexed scripts happen during this rewrite:

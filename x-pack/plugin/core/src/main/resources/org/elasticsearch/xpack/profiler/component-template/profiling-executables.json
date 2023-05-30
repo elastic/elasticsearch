@@ -31,7 +31,7 @@
         "Symbolization.next_time": {
           "type": "date",
           "format": "epoch_second",
-          "index": false
+          "index": true
         }
       }
     }

@@ -21,6 +21,7 @@ import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.FeatureFlag;
+import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
@@ -54,8 +55,7 @@ public class DlmPermissionsRestIT extends ESRestTestCase {
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .feature(FeatureFlag.DLM_ENABLED)
-        .module("data-streams")
-        .module("dlm")
+        .distribution(DistributionType.DEFAULT)
         .setting("xpack.watcher.enabled", "false")
         .setting("xpack.ml.enabled", "false")
         .setting("xpack.security.enabled", "true")

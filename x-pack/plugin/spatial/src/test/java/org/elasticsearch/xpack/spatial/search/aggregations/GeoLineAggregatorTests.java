@@ -66,6 +66,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -316,58 +317,90 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
     }
 
     public void testGeoLine_TSDB() throws IOException {
-        for (SortOrder sortOrder : new SortOrder[] { SortOrder.ASC, SortOrder.DESC }) {
-            assertGeoLine_TSDB(100, 100, 3, 7, sortOrder, gl -> new TimeSeriesAggregationBuilder("ts").subAggregation(gl), tsx -> {
-                assertThat("Number of time-series buckets", tsx.ts.getBuckets().size(), equalTo(1));
-                InternalGeoLine geoLine = tsx.ts.getBuckets().get(0).getAggregations().get("track");
-                assertGeoLine(sortOrder, tsx.expectedAggPoints, geoLine, true);
-                assertSortValues(sortOrder, tsx.expectedAggSortValues, geoLine.sortVals());
-            });
+        for (int g : new int[] { 1, 3 }) {
+            for (SortOrder sortOrder : new SortOrder[] { SortOrder.ASC, SortOrder.DESC }) {
+                assertGeoLine_TSDB(100, 100, 3, 7, g, sortOrder, gl -> new TimeSeriesAggregationBuilder("ts").subAggregation(gl), tsx -> {
+                    assertThat("Number of groups matches number of buckets", tsx.ts.getBuckets().size(), equalTo(tsx.groups.length));
+                    assertThat("Number of time-series buckets", tsx.ts.getBuckets().size(), equalTo(g));
+                    for (int i = 0; i < tsx.groups.length; i++) {
+                        String group = tsx.groups[i];
+                        InternalGeoLine geoLine = tsx.ts.getBuckets().get(i).getAggregations().get("track");
+                        long[] expectedAggPoints = tsx.expectedAggPoints.get(group);
+                        double[] expectedAggSortValues = tsx.expectedAggSortValues.get(group);
+                        assertGeoLine(sortOrder, expectedAggPoints, geoLine, true);
+                        assertSortValues(sortOrder, expectedAggSortValues, geoLine.sortVals());
+                    }
+                });
+            }
         }
     }
 
     public void testGeoLine_Terms_TSDB() throws IOException {
-        for (SortOrder sortOrder : new SortOrder[] { SortOrder.ASC, SortOrder.DESC }) {
-            assertGeoLine_TSDB(80, 80, 7, 3, sortOrder, gl -> {
-                var termsAggBuilder = new TermsAggregationBuilder("groups").field("group_id").subAggregation(gl);
-                return new TimeSeriesAggregationBuilder("ts").subAggregation(termsAggBuilder);
-            }, tsx -> {
-                assertThat("Number of time-series buckets", tsx.ts.getBuckets().size(), equalTo(1));
-                StringTerms terms = tsx.ts.getBuckets().get(0).getAggregations().get("groups");
-                assertThat("Number of terms buckets", terms.getBuckets().size(), equalTo(1));
-                InternalGeoLine geoLine = terms.getBuckets().get(0).getAggregations().get("track");
-                assertGeoLine(sortOrder, tsx.expectedAggPoints, geoLine, true);
-                assertSortValues(sortOrder, tsx.expectedAggSortValues, geoLine.sortVals());
-            });
+        for (int g : new int[] { 1, 3 }) {
+            for (SortOrder sortOrder : new SortOrder[] { SortOrder.ASC, SortOrder.DESC }) {
+                assertGeoLine_TSDB(80, 80, 7, 3, g, sortOrder, gl -> {
+                    var termsAggBuilder = new TermsAggregationBuilder("groups").field("group_id").subAggregation(gl);
+                    return new TimeSeriesAggregationBuilder("ts").subAggregation(termsAggBuilder);
+                }, tsx -> {
+                    assertThat("Number of groups matches number of buckets", tsx.ts.getBuckets().size(), equalTo(tsx.groups.length));
+                    assertThat("Number of time-series buckets", tsx.ts.getBuckets().size(), equalTo(g));
+                    for (int i = 0; i < tsx.groups.length; i++) {
+                        String group = tsx.groups[i];
+                        assertThat("Number of time-series buckets", tsx.ts.getBuckets().size(), equalTo(g));
+                        StringTerms terms = tsx.ts.getBuckets().get(i).getAggregations().get("groups");
+                        assertThat("Number of terms buckets", terms.getBuckets().size(), equalTo(1));
+                        long[] expectedAggPoints = tsx.expectedAggPoints.get(group);
+                        double[] expectedAggSortValues = tsx.expectedAggSortValues.get(group);
+                        InternalGeoLine geoLine = terms.getBuckets().get(0).getAggregations().get("track");
+                        assertGeoLine(sortOrder, expectedAggPoints, geoLine, true);
+                        assertSortValues(sortOrder, expectedAggSortValues, geoLine.sortVals());
+                    }
+                });
+            }
         }
     }
 
     public void testGeoLine_TSDB_simplified() throws IOException {
-        for (SortOrder sortOrder : new SortOrder[] { SortOrder.ASC, SortOrder.DESC }) {
-            assertGeoLine_TSDB(100, 10, 3, 7, sortOrder, gl -> new TimeSeriesAggregationBuilder("ts").subAggregation(gl), tsx -> {
-                assertThat("Number of time-series buckets", tsx.ts.getBuckets().size(), equalTo(1));
-                InternalGeoLine geoLine = tsx.ts.getBuckets().get(0).getAggregations().get("track");
-                assertThat("Length of GeoLine", geoLine.length(), equalTo(10));
-                assertGeoLine(sortOrder, tsx.expectedAggPoints, geoLine, false);
-                assertSortValues(sortOrder, tsx.expectedAggSortValues, geoLine.sortVals());
-            });
+        for (int g : new int[] { 1, 3 }) {
+            for (SortOrder sortOrder : new SortOrder[] { SortOrder.ASC, SortOrder.DESC }) {
+                assertGeoLine_TSDB(100, 10, 3, 7, g, sortOrder, gl -> new TimeSeriesAggregationBuilder("ts").subAggregation(gl), tsx -> {
+                    assertThat("Number of groups matches number of buckets", tsx.ts.getBuckets().size(), equalTo(tsx.groups.length));
+                    assertThat("Number of time-series buckets", tsx.ts.getBuckets().size(), equalTo(g));
+                    for (int i = 0; i < tsx.groups.length; i++) {
+                        String group = tsx.groups[i];
+                        InternalGeoLine geoLine = tsx.ts.getBuckets().get(i).getAggregations().get("track");
+                        long[] expectedAggPoints = tsx.expectedAggPoints.get(group);
+                        double[] expectedAggSortValues = tsx.expectedAggSortValues.get(group);
+                        assertGeoLine(sortOrder, expectedAggPoints, geoLine, false);
+                        assertSortValues(sortOrder, expectedAggSortValues, geoLine.sortVals());
+                    }
+                });
+            }
         }
     }
 
     public void testGeoLine_Terms_TSDB_simplified() throws IOException {
-        for (SortOrder sortOrder : new SortOrder[] { SortOrder.ASC, SortOrder.DESC }) {
-            assertGeoLine_TSDB(80, 10, 7, 3, sortOrder, gl -> {
-                var termsAggBuilder = new TermsAggregationBuilder("groups").field("group_id").subAggregation(gl);
-                return new TimeSeriesAggregationBuilder("ts").subAggregation(termsAggBuilder);
-            }, tsx -> {
-                assertThat("Number of time-series buckets", tsx.ts.getBuckets().size(), equalTo(1));
-                StringTerms terms = tsx.ts.getBuckets().get(0).getAggregations().get("groups");
-                assertThat("Number of terms buckets", terms.getBuckets().size(), equalTo(1));
-                InternalGeoLine geoLine = terms.getBuckets().get(0).getAggregations().get("track");
-                assertThat("Length of GeoLine", geoLine.length(), equalTo(10));
-                assertGeoLine(sortOrder, tsx.expectedAggPoints, geoLine, false);
-                assertSortValues(sortOrder, tsx.expectedAggSortValues, geoLine.sortVals());
-            });
+        for (int g : new int[] { 1, 3 }) {
+            for (SortOrder sortOrder : new SortOrder[] { SortOrder.ASC, SortOrder.DESC }) {
+                assertGeoLine_TSDB(80, 10, 7, 3, g, sortOrder, gl -> {
+                    var termsAggBuilder = new TermsAggregationBuilder("groups").field("group_id").subAggregation(gl);
+                    return new TimeSeriesAggregationBuilder("ts").subAggregation(termsAggBuilder);
+                }, tsx -> {
+                    assertThat("Number of groups matches number of buckets", tsx.ts.getBuckets().size(), equalTo(tsx.groups.length));
+                    assertThat("Number of time-series buckets", tsx.ts.getBuckets().size(), equalTo(g));
+                    for (int i = 0; i < tsx.groups.length; i++) {
+                        String group = tsx.groups[i];
+                        assertThat("Number of time-series buckets", tsx.ts.getBuckets().size(), equalTo(g));
+                        StringTerms terms = tsx.ts.getBuckets().get(i).getAggregations().get("groups");
+                        assertThat("Number of terms buckets", terms.getBuckets().size(), equalTo(1));
+                        long[] expectedAggPoints = tsx.expectedAggPoints.get(group);
+                        double[] expectedAggSortValues = tsx.expectedAggSortValues.get(group);
+                        InternalGeoLine geoLine = terms.getBuckets().get(0).getAggregations().get("track");
+                        assertGeoLine(sortOrder, expectedAggPoints, geoLine, false);
+                        assertSortValues(sortOrder, expectedAggSortValues, geoLine.sortVals());
+                    }
+                });
+            }
         }
     }
 
@@ -447,7 +480,12 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
         }
     }
 
-    private record TestTSAssertionResults(MultiBucketsAggregation ts, long[] expectedAggPoints, double[] expectedAggSortValues) {}
+    private record TestTSAssertionResults(
+        MultiBucketsAggregation ts,
+        String[] groups,
+        Map<String, long[]> expectedAggPoints,
+        Map<String, double[]> expectedAggSortValues
+    ) {}
 
     /**
      * Wrapper for points and sort fields that is also usable in the GeometrySimplifier library,
@@ -582,6 +620,7 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
         int maxPoints,
         int missingPointFactor,
         int missingTimestampFactor,
+        int groupCount,
         SortOrder sortOrder,
         Function<GeoLineAggregationBuilder, TimeSeriesAggregationBuilder> makeTSAggBuilder,
         Consumer<TestTSAssertionResults> verifyTSResults
@@ -597,88 +636,102 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
         long startTime = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-01-01T00:00:00Z");
         double startLat = 45.0;
         double startLon = 90;
-        ArrayList<GeoPoint> points = new ArrayList<>();
-        ArrayList<Long> timestamps = new ArrayList<>();
-        ArrayList<TestSimplifiablePoint> expectedAggPointsList = new ArrayList<>();
-        // TSDB provides docs in DESC time order, so we generate the data that way to simplify assertions
-        for (int i = docCount - 1; i >= 0; i--) {
-            double lat = startLat + i * 0.1 + randomDoubleBetween(-0.1, 0.1, false);
-            double lon = startLon + i * 0.1 + randomDoubleBetween(-0.1, 0.1, false);
-            GeoPoint point = (missingPointFactor > 0 && i % missingPointFactor == 0) ? null : new GeoPoint(lat, lon);
-            Long timestamp = (missingTimestampFactor > 0 && i % missingTimestampFactor == 0) ? null : startTime + 1000L * i;
-            points.add(point);
-            timestamps.add(timestamp);
-            if (point != null && timestamp != null) {
-                expectedAggPointsList.add(new TestSimplifiablePoint(expectedAggPointsList.size(), lon, lat, (double) timestamp));
+        String[] groups = new String[groupCount];
+        HashMap<String, ArrayList<GeoPoint>> allPoints = new HashMap<>();
+        HashMap<String, ArrayList<Long>> allTimestamps = new HashMap<>();
+        HashMap<String, long[]> expectedAggPoints = new HashMap<>();
+        HashMap<String, double[]> expectedAggSortValues = new HashMap<>();
+        for (int g = 0; g < groupCount; g++) {
+            groups[g] = "group_" + g;
+            ArrayList<GeoPoint> points = new ArrayList<>();
+            ArrayList<Long> timestamps = new ArrayList<>();
+            ArrayList<TestSimplifiablePoint> expectedAggPointsList = new ArrayList<>();
+            // TSDB provides docs in DESC time order, so we generate the data that way to simplify assertions
+            for (int i = docCount - 1; i >= 0; i--) {
+                double lat = startLat + i * 0.1 + randomDoubleBetween(-0.1, 0.1, false);
+                double lon = startLon + i * 0.1 + randomDoubleBetween(-0.1, 0.1, false);
+                GeoPoint point = (missingPointFactor > 0 && i % missingPointFactor == 0) ? null : new GeoPoint(lat, lon);
+                Long timestamp = (missingTimestampFactor > 0 && i % missingTimestampFactor == 0) ? null : startTime + 1000L * i;
+                points.add(point);
+                timestamps.add(timestamp);
+                if (point != null && timestamp != null) {
+                    expectedAggPointsList.add(new TestSimplifiablePoint(expectedAggPointsList.size(), lon, lat, (double) timestamp));
+                }
             }
-        }
-        if (missingPointFactor > 0) {
-            int deletedAtLeast = points.size() / missingPointFactor;
-            assertThat(
-                "Valid points less than total/" + missingPointFactor,
-                expectedAggPointsList.size(),
-                lessThanOrEqualTo(points.size() - deletedAtLeast)
-            );
-        }
-        if (missingTimestampFactor > 0) {
-            int deletedAtLeast = points.size() / missingTimestampFactor;
-            assertThat(
-                "Valid points less than total/" + missingTimestampFactor,
-                expectedAggPointsList.size(),
-                lessThanOrEqualTo(points.size() - deletedAtLeast)
-            );
-        }
-        long[] expectedAggPoints;
-        double[] expectedAggSortValues;
-        if (maxPoints < docCount) {
-            // The aggregation will simplify the line in reverse order, so we need to anticipate the same simplification in the tests
-            TestGeometrySimplifierMonitor monitor = new TestGeometrySimplifierMonitor();
-            var simplifier = new TestGeometrySimplifier(maxPoints, monitor);
-            for (TestSimplifiablePoint p : expectedAggPointsList) {
-                simplifier.consume(p);
+            if (missingPointFactor > 0) {
+                int deletedAtLeast = points.size() / missingPointFactor;
+                assertThat(
+                    "Valid points less than total/" + missingPointFactor,
+                    expectedAggPointsList.size(),
+                    lessThanOrEqualTo(points.size() - deletedAtLeast)
+                );
             }
-            TestLine line = simplifier.produce();
-            assertThat("Simplifier added points", monitor.addedCount, equalTo(expectedAggPointsList.size()));
-            assertThat("Simplifier Removed points", monitor.removedCount, equalTo(expectedAggPointsList.size() - maxPoints));
-            expectedAggPoints = line.encodedPoints;
-            expectedAggSortValues = line.sortValues;
-        } else {
-            // The aggregation will NOT simplify the line, so we should only anticipate the removal of invalid documents
-            expectedAggPoints = new long[expectedAggPointsList.size()];
-            expectedAggSortValues = new double[expectedAggPointsList.size()];
-            for (int i = 0; i < expectedAggPoints.length; i++) {
-                expectedAggPoints[i] = expectedAggPointsList.get(i).encoded;
-                expectedAggSortValues[i] = expectedAggPointsList.get(i).sortField;
+            if (missingTimestampFactor > 0) {
+                int deletedAtLeast = points.size() / missingTimestampFactor;
+                assertThat(
+                    "Valid points less than total/" + missingTimestampFactor,
+                    expectedAggPointsList.size(),
+                    lessThanOrEqualTo(points.size() - deletedAtLeast)
+                );
             }
-        }
-        // TSDB orders in time-descending
-        if (sortOrder == SortOrder.ASC) {
-            ArrayUtils.reverseSubArray(expectedAggPoints, 0, expectedAggPoints.length);
-            ArrayUtils.reverseSubArray(expectedAggSortValues, 0, expectedAggSortValues.length);
+            if (maxPoints < docCount) {
+                // The aggregation will simplify the line in reverse order, so we need to anticipate the same simplification in the tests
+                TestGeometrySimplifierMonitor monitor = new TestGeometrySimplifierMonitor();
+                var simplifier = new TestGeometrySimplifier(maxPoints, monitor);
+                for (TestSimplifiablePoint p : expectedAggPointsList) {
+                    simplifier.consume(p);
+                }
+                TestLine line = simplifier.produce();
+                assertThat("Simplifier added points", monitor.addedCount, equalTo(expectedAggPointsList.size()));
+                assertThat("Simplifier Removed points", monitor.removedCount, equalTo(expectedAggPointsList.size() - maxPoints));
+                expectedAggPoints.put(groups[g], line.encodedPoints);
+                expectedAggSortValues.put(groups[g], line.sortValues);
+            } else {
+                // The aggregation will NOT simplify the line, so we should only anticipate the removal of invalid documents
+                long[] xp = new long[expectedAggPointsList.size()];
+                double[] xv = new double[expectedAggPointsList.size()];
+                for (int i = 0; i < xp.length; i++) {
+                    xp[i] = expectedAggPointsList.get(i).encoded;
+                    xv[i] = expectedAggPointsList.get(i).sortField;
+                }
+                expectedAggPoints.put(groups[g], xp);
+                expectedAggSortValues.put(groups[g], xv);
+            }
+            // TSDB orders in time-descending
+            if (sortOrder == SortOrder.ASC) {
+                ArrayUtils.reverseSubArray(expectedAggPoints.get(groups[g]), 0, expectedAggPoints.get(groups[g]).length);
+                ArrayUtils.reverseSubArray(expectedAggSortValues.get(groups[g]), 0, expectedAggSortValues.get(groups[g]).length);
+            }
+            allPoints.put(groups[g], points);
+            allTimestamps.put(groups[g], timestamps);
         }
         testCase(aggregationBuilder, iw -> {
-            for (int i = 0; i < points.size(); i++) {
-                final TimeSeriesIdFieldMapper.TimeSeriesIdBuilder builder = new TimeSeriesIdFieldMapper.TimeSeriesIdBuilder(null);
-                builder.addString("group_id", "group");
-                ArrayList<Field> fields = new ArrayList<>(
-                    Arrays.asList(
-                        new SortedDocValuesField("group_id", new BytesRef("group")),
-                        new SortedDocValuesField(TimeSeriesIdFieldMapper.NAME, builder.build().toBytesRef())
-                    )
-                );
-                GeoPoint point = points.get(i);
-                if (point != null) {
-                    fields.add(new LatLonDocValuesField("value_field", point.lat(), point.lon()));
+            for (int g = 0; g < groupCount; g++) {
+                ArrayList<GeoPoint> points = allPoints.get(groups[g]);
+                ArrayList<Long> timestamps = allTimestamps.get(groups[g]);
+                for (int i = 0; i < points.size(); i++) {
+                    final TimeSeriesIdFieldMapper.TimeSeriesIdBuilder builder = new TimeSeriesIdFieldMapper.TimeSeriesIdBuilder(null);
+                    builder.addString("group_id", groups[g]);
+                    ArrayList<Field> fields = new ArrayList<>(
+                        Arrays.asList(
+                            new SortedDocValuesField("group_id", new BytesRef(groups[g])),
+                            new SortedDocValuesField(TimeSeriesIdFieldMapper.NAME, builder.build().toBytesRef())
+                        )
+                    );
+                    GeoPoint point = points.get(i);
+                    if (point != null) {
+                        fields.add(new LatLonDocValuesField("value_field", point.lat(), point.lon()));
+                    }
+                    Long timestamp = timestamps.get(i);
+                    if (timestamp != null) {
+                        // TODO: Do we need both?
+                        fields.add(new SortedNumericDocValuesField(DataStreamTimestampFieldMapper.DEFAULT_PATH, timestamp));
+                        fields.add(new LongPoint(DataStreamTimestampFieldMapper.DEFAULT_PATH, timestamp));
+                    }
+                    iw.addDocument(fields);
                 }
-                Long timestamp = timestamps.get(i);
-                if (timestamp != null) {
-                    // TODO: Do we need both?
-                    fields.add(new SortedNumericDocValuesField(DataStreamTimestampFieldMapper.DEFAULT_PATH, timestamp));
-                    fields.add(new LongPoint(DataStreamTimestampFieldMapper.DEFAULT_PATH, timestamp));
-                }
-                iw.addDocument(fields);
             }
-        }, ts -> verifyTSResults.accept(new TestTSAssertionResults(ts, expectedAggPoints, expectedAggSortValues)));
+        }, ts -> verifyTSResults.accept(new TestTSAssertionResults(ts, groups, expectedAggPoints, expectedAggSortValues)));
     }
 
     private void testAggregator(SortOrder sortOrder) throws IOException {

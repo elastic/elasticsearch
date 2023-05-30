@@ -301,9 +301,9 @@ class TimeSeriesGeoLineBuckets {
             return false;
         }
 
-        private boolean loadPointField(int doc) throws IOException {
+        private void loadPointField(int doc) throws IOException {
             if (false == docGeoPointValues.advanceExact(doc)) {
-                return false;
+                return;
             }
 
             if (docGeoPointValues.docValueCount() > 1) {
@@ -316,14 +316,12 @@ class TimeSeriesGeoLineBuckets {
             final GeoPoint point = docGeoPointValues.nextValue();
             // The consume method will rely on the newPoint and resetPoint methods to capture the sort-field value
             simplifier.consume(point.getX(), point.getY());
-            return true;
         }
 
         public void collect(int doc, long bucket) throws IOException {
+            flushBucket(bucket);
             if (loadSortField(doc)) {
-                if (loadPointField(doc)) {
-                    flushBucket(bucket);
-                }
+                loadPointField(doc);
             }
         }
     }

@@ -36,12 +36,15 @@ import org.gradle.api.tasks.SkipWhenEmpty;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.process.ExecOperations;
 import org.gradle.process.ExecResult;
+import org.gradle.process.JavaExecSpec;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -333,6 +336,7 @@ public abstract class ThirdPartyAuditTask extends DefaultTask {
                 spec.setExecutable(javaHome.get() + "/bin/java");
             }
             spec.classpath(getForbiddenAPIsClasspath(), classpath);
+            maybeAddIncubatorModule(spec);
             spec.jvmArgs("-Xmx1g");
             spec.getMainClass().set("de.thetaphi.forbiddenapis.cli.CliMain");
             spec.args("-f", getSignatureFile().getAbsolutePath(), "-d", getJarExpandDir(), "--debug", "--allowmissingclasses");
@@ -353,6 +357,33 @@ public abstract class ThirdPartyAuditTask extends DefaultTask {
             throw new IllegalStateException("Forbidden APIs cli failed: " + forbiddenApisOutput);
         }
         return forbiddenApisOutput;
+    }
+
+    void maybeAddIncubatorModule(JavaExecSpec spec) {
+        if (javaHome.isPresent() == false) {
+            return;
+        }
+        Path releaseFile = Path.of(javaHome.get() + "/release");
+        if (Files.notExists(releaseFile)) {
+            throw new IllegalStateException("JDK missing release file, for: " + javaHome.get());
+        }
+        try {
+            Runtime.Version version = Files.readAllLines(releaseFile).stream()
+                .filter(l -> l.startsWith("JAVA_VERSION="))
+                .map(l -> l.substring("JAVA_VERSION=".length(), l.length()))
+                .peek(l -> { assert l.length() > 2 && l.startsWith("\"") && l.endsWith("\""); } )
+                .map(l -> l.substring(1, l.length() - 1)) // remove quotes
+                .map(Runtime.Version::parse)
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException("JDK release file missing JAVA_VERSION entry, for: " + releaseFile));
+
+            // Enable explicitly for each release as appropriate. Just JDK 20 for now.
+            if (version.feature() == 20) {
+                spec.jvmArgs("--add-modules", "jdk.incubator.vector");
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     private Set<String> runJdkJarHellCheck() throws IOException {

@@ -40,7 +40,6 @@ public final class KeyedLock<T> {
                     return newLock;
                 }
             } else {
-                assert perNodeLock != null;
                 int i = perNodeLock.count.get();
                 if (i > 0 && perNodeLock.count.compareAndSet(i, i + 1)) {
                     perNodeLock.lock();
@@ -104,10 +103,9 @@ public final class KeyedLock<T> {
         assert decrementAndGet >= 0 : decrementAndGet + " must be >= 0 but wasn't";
     }
 
-    private final class ReleasableLock implements Releasable {
+    private final class ReleasableLock extends AtomicBoolean implements Releasable {
         final T key;
         final KeyLock lock;
-        final AtomicBoolean closed = new AtomicBoolean();
 
         private ReleasableLock(T key, KeyLock lock) {
             this.key = key;
@@ -116,7 +114,7 @@ public final class KeyedLock<T> {
 
         @Override
         public void close() {
-            if (closed.compareAndSet(false, true)) {
+            if (compareAndSet(false, true)) {
                 release(key, lock);
             }
         }

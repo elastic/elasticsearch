@@ -277,7 +277,7 @@ public class Constants {
         "cluster:monitor/ccr/follow_info",
         "cluster:monitor/ccr/follow_stats",
         "cluster:monitor/ccr/stats",
-        "cluster:monitor/xpack/usage/data_lifecycle",
+        DataLifecycle.isEnabled() ? "cluster:monitor/xpack/usage/data_lifecycle" : null,
         "cluster:monitor/eql/async/status",
         "cluster:monitor/fetch/health/info",
         "cluster:monitor/health",

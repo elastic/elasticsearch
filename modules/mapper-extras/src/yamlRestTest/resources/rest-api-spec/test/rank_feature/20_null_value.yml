@@ -1,12 +1,12 @@
 ---
-"Non positive null_vallue":
+"Non positive null_value":
 
   - skip:
       version: " - 8.8.99"
       reason: "null_value parameter was added in 8.9.0"
 
   - do:
-      catch: bad_request
+      catch: /\[null_value\] must be a positive normal float for field of type \[rank_feature\]/
       indices.create:
         index: test2
         body:
@@ -16,7 +16,7 @@
             properties:
               pagerank:
                 type: rank_feature
-                null_vallue: -3
+                null_value: -3
 
 ---
 "Search rank_feature with and without null_value":
@@ -35,7 +35,7 @@
             properties:
               pagerank:
                 type: rank_feature
-                null_value: 15
+                null_value: 100
               url_length:
                 type: rank_feature
 
@@ -55,9 +55,19 @@
           pagerank: null
           url_length: null
 
+  # can't index a field value equal to an empty string
+  - do:
+      catch: /failed to parse field \[pagerank\] of type \[rank_feature\] in document/
+      index:
+        index: test1
+        id: "wrong_document1"
+        body:
+          pagerank: ""
+
   - do:
       indices.refresh: {}
 
+  # docs with null values are absent in search results
   - do:
       search:
         index: test1
@@ -72,6 +82,7 @@
   - match:
       hits.hits.0._id: "1"
 
+  # docs with null values are present in search results
   - do:
       search:
         index: test1
@@ -79,6 +90,9 @@
           query:
             rank_feature:
               field: pagerank
+          fields:
+            - field: 'pagerank'
+            - field: 'url_length'
 
   - match:
       hits.total.value: 2
@@ -88,3 +102,8 @@
 
   - match:
       hits.hits.1._id: "1"
+
+  - match: { hits.hits.0._source.pagerank: null }
+  - match: { hits.hits.0.fields.pagerank.0: 100 }
+  - match: { hits.hits.0._source.url_length: null }
+  - is_false: hits.hits.0.fields.url_length

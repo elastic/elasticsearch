@@ -30,8 +30,10 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser.Token;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * A {@link FieldMapper} that exposes Lucene's {@link FeatureField}.
@@ -152,12 +154,13 @@ public class RankFeatureFieldMapper extends FieldMapper {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
-            return new SourceValueFetcher(name(), context) {
+            return sourceValueFetcher(context.isSourceEnabled() ? context.sourcePath(name()) : Collections.emptySet());
+        }
+
+        private SourceValueFetcher sourceValueFetcher(Set<String> sourcePaths) {
+            return new SourceValueFetcher(sourcePaths, nullValue) {
                 @Override
-                protected Float parseSourceValue(Object value) {
-                    if (value.equals("")) {
-                        return nullValue;
-                    }
+                protected Object parseSourceValue(Object value) {
                     return objectToFloat(value);
                 }
             };

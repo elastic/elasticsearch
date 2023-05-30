@@ -499,7 +499,7 @@ public class PercolatorFieldMapper extends FieldMapper {
         doc.add(new NumericDocValuesField(minimumShouldMatchFieldMapper.name(), result.minimumShouldMatch));
     }
 
-    static PercolatorExecutionContext configureContext(SearchExecutionContext context, boolean mapUnmappedFieldsAsString) {
+    static SearchExecutionContext configureContext(SearchExecutionContext context, boolean mapUnmappedFieldsAsString) {
         // This means that fields in the query need to exist in the mapping prior to registering this query
         // The reason that this is required, is that if a field doesn't exist then the query assumes defaults, which may be undesired.
         //

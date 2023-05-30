@@ -47,12 +47,4 @@ public class PercolatorExecutionContext extends SearchExecutionContext {
         this.namedQueries.clear();
         this.nestedScope = new NestedScope();
     }
-
-    public boolean isAllowUnmappedFields() {
-        return allowUnmappedFields;
-    }
-
-    public boolean isMapUnmappedFieldAsString() {
-        return mapUnmappedFieldAsString;
-    }
 }

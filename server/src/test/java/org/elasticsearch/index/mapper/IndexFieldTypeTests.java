@@ -67,7 +67,7 @@ public class IndexFieldTypeTests extends ESTestCase {
             null,
             null,
             null,
-            MappingLookup.EMPTY,
+            null,
             null,
             null,
             parserConfig(),

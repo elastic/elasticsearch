@@ -94,7 +94,6 @@ public class OperatorPrivilegesIT extends ESRestTestCase {
         client().performRequest(mainRequest);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/96105")
     @SuppressWarnings("unchecked")
     public void testEveryActionIsEitherOperatorOnlyOrNonOperator() throws IOException {
         final String message = "An action should be declared to be either operator-only in ["

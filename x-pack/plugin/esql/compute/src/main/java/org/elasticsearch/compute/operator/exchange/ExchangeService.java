@@ -33,7 +33,6 @@ import org.elasticsearch.transport.TransportService;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Queue;
-import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -115,9 +114,8 @@ public final class ExchangeService extends AbstractLifecycleComponent {
      *
      * @throws IllegalStateException if a source handler for the given id already exists
      */
-    public ExchangeSourceHandler createSourceHandler(String exchangeId, int maxBufferSize) {
-        Executor fetchExecutor = threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION);
-        ExchangeSourceHandler sourceHandler = new ExchangeSourceHandler(maxBufferSize, fetchExecutor);
+    public ExchangeSourceHandler createSourceHandler(String exchangeId, int maxBufferSize, String fetchExecutor) {
+        ExchangeSourceHandler sourceHandler = new ExchangeSourceHandler(maxBufferSize, threadPool.executor(fetchExecutor));
         if (sources.putIfAbsent(exchangeId, sourceHandler) != null) {
             throw new IllegalStateException("source exchanger for id [" + exchangeId + "] already exists");
         }

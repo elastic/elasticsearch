@@ -22,6 +22,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.CsvTestUtils.ActualResults;
@@ -84,6 +85,7 @@ import static org.elasticsearch.xpack.esql.CsvTestUtils.loadCsvSpecValues;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.loadPageFromCsv;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET_MAP;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
+import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.ql.CsvSpecReader.specParser;
 import static org.elasticsearch.xpack.ql.TestUtils.classpathResources;
 
@@ -149,7 +151,11 @@ public class CsvTests extends ESTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        threadPool = new TestThreadPool("CsvTests");
+        int numThreads = randomBoolean() ? 1 : between(2, 16);
+        threadPool = new TestThreadPool(
+            "CsvTests",
+            new FixedExecutorBuilder(Settings.EMPTY, ESQL_THREAD_POOL_NAME, numThreads, 1024, "esql", false)
+        );
     }
 
     @After
@@ -280,7 +286,11 @@ public class CsvTests extends ESTestCase {
 
         // replace fragment inside the coordinator plan
         try {
-            ExchangeSourceHandler sourceHandler = exchangeService.createSourceHandler(sessionId, randomIntBetween(1, 64));
+            ExchangeSourceHandler sourceHandler = exchangeService.createSourceHandler(
+                sessionId,
+                randomIntBetween(1, 64),
+                ESQL_THREAD_POOL_NAME
+            );
             LocalExecutionPlan coordinatorNodeExecutionPlan = executionPlanner.plan(new OutputExec(coordinatorPlan, collectedPages::add));
             drivers.addAll(coordinatorNodeExecutionPlan.createDrivers(sessionId));
             if (dataNodePlan != null) {
@@ -290,7 +300,7 @@ public class CsvTests extends ESTestCase {
                 LocalExecutionPlan dataNodeExecutionPlan = executionPlanner.plan(csvDataNodePhysicalPlan);
                 drivers.addAll(dataNodeExecutionPlan.createDrivers(sessionId));
             }
-            runToCompletion(threadPool.executor(ThreadPool.Names.SEARCH), drivers);
+            runToCompletion(threadPool.executor(ESQL_THREAD_POOL_NAME), drivers);
         } finally {
             Releasables.close(
                 () -> Releasables.close(drivers),

@@ -19,6 +19,7 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
@@ -36,6 +37,8 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.threadpool.ExecutorBuilder;
+import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -57,6 +60,8 @@ import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 public class EsqlPlugin extends Plugin implements ActionPlugin {
+
+    public static final String ESQL_THREAD_POOL_NAME = "esql";
 
     public static final Setting<Integer> QUERY_RESULT_TRUNCATION_MAX_SIZE = Setting.intSetting(
         "esql.query.result_truncation_max_size",
@@ -135,5 +140,20 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
             ).stream(),
             Block.getNamedWriteables().stream()
         ).toList();
+    }
+
+    @Override
+    public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
+        final int allocatedProcessors = EsExecutors.allocatedProcessors(settings);
+        return List.of(
+            new FixedExecutorBuilder(
+                settings,
+                ESQL_THREAD_POOL_NAME,
+                ThreadPool.searchOrGetThreadPoolSize(allocatedProcessors),
+                1000,
+                "esql",
+                true
+            )
+        );
     }
 }

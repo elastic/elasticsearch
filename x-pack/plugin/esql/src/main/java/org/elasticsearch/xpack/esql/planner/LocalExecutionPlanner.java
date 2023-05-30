@@ -62,6 +62,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.RowExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
+import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
@@ -275,7 +276,7 @@ public class LocalExecutionPlanner {
 
                 var pragmas = configuration.pragmas();
                 var sinkHandler = new ExchangeSinkHandler(pragmas.exchangeBufferSize());
-                var executor = threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION);
+                var executor = threadPool.executor(EsqlPlugin.ESQL_THREAD_POOL_NAME);
                 var sourceHandler = new ExchangeSourceHandler(pragmas.exchangeBufferSize(), executor);
                 sourceHandler.addRemoteSink(sinkHandler::fetchPageAsync, pragmas.concurrentExchangeClients());
                 PhysicalOperation sinkOperator = source.withSink(

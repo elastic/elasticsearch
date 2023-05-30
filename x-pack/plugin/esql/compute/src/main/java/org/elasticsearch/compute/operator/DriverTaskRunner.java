@@ -38,14 +38,9 @@ public class DriverTaskRunner {
     public static final String ACTION_NAME = "internal:data/read/esql/compute";
     private final TransportService transportService;
 
-    public DriverTaskRunner(TransportService transportService, ThreadPool threadPool) {
+    public DriverTaskRunner(TransportService transportService, Executor executor) {
         this.transportService = transportService;
-        transportService.registerRequestHandler(
-            ACTION_NAME,
-            ThreadPool.Names.SAME,
-            DriverRequest::new,
-            new DriverRequestHandler(threadPool.executor(ThreadPool.Names.SEARCH))
-        );
+        transportService.registerRequestHandler(ACTION_NAME, ThreadPool.Names.SAME, DriverRequest::new, new DriverRequestHandler(executor));
     }
 
     public void executeDrivers(Task parentTask, List<Driver> drivers, ActionListener<Void> listener) {

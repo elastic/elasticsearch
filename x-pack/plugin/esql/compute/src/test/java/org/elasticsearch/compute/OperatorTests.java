@@ -74,6 +74,7 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ql.util.Holder;
@@ -88,7 +89,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -109,7 +109,8 @@ public class OperatorTests extends ESTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        threadPool = new TestThreadPool("OperatorTests");
+        int numThreads = randomBoolean() ? 1 : between(2, 16);
+        threadPool = new TestThreadPool("OperatorTests", new FixedExecutorBuilder(Settings.EMPTY, "esql", numThreads, 1024, "esql", false));
     }
 
     @After
@@ -226,7 +227,7 @@ public class OperatorTests extends ESTestCase {
                             )
                         );
                     }
-                    runToCompletion(threadPool.executor(ThreadPool.Names.SEARCH), drivers);
+                    runToCompletion(threadPool.executor("esql"), drivers);
                 } finally {
                     Releasables.close(drivers);
                 }
@@ -283,7 +284,7 @@ public class OperatorTests extends ESTestCase {
                     });
                     drivers.add(new Driver(queryOperator, List.of(), docCollector, () -> {}));
                 }
-                runToCompletion(threadPool.executor(ThreadPool.Names.SEARCH), drivers);
+                runToCompletion(threadPool.executor("esql"), drivers);
                 Set<Integer> expectedDocIds = searchForDocIds(reader, query);
                 assertThat("query=" + query + ", partition=" + partition, actualDocIds, equalTo(expectedDocIds));
             } finally {
@@ -316,10 +317,6 @@ public class OperatorTests extends ESTestCase {
             List.of(),
             () -> BlockHash.build(List.of(new HashAggregationOperator.GroupSpec(channel, ElementType.LONG)), bigArrays)
         );
-    }
-
-    private Executor randomExecutor() {
-        return threadPool.executor(randomFrom(ThreadPool.Names.SAME, ThreadPool.Names.GENERIC, ThreadPool.Names.SEARCH));
     }
 
     public void testOperatorsWithLuceneGroupingCount() throws IOException {

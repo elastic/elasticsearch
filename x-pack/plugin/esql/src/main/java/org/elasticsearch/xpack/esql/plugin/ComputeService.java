@@ -62,6 +62,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_THREAD_POOL_NAME;
+
 /**
  * Computes the result of a {@link PhysicalPlan}.
  */
@@ -90,11 +92,11 @@ public class ComputeService {
         this.bigArrays = bigArrays.withCircuitBreaking();
         transportService.registerRequestHandler(
             DATA_ACTION_NAME,
-            ThreadPool.Names.SEARCH,
+            ESQL_THREAD_POOL_NAME,
             DataNodeRequest::new,
             new DataNodeRequestHandler()
         );
-        this.driverRunner = new DriverTaskRunner(transportService, threadPool);
+        this.driverRunner = new DriverTaskRunner(transportService, threadPool.executor(ESQL_THREAD_POOL_NAME));
         this.exchangeService = exchangeService;
     }
 
@@ -125,7 +127,11 @@ public class ComputeService {
         ClusterState clusterState = clusterService.state();
         Map<String, List<ShardId>> targetNodes = computeTargetNodes(clusterState, indexNames);
 
-        final ExchangeSourceHandler sourceHandler = exchangeService.createSourceHandler(sessionId, queryPragmas.exchangeBufferSize());
+        final ExchangeSourceHandler sourceHandler = exchangeService.createSourceHandler(
+            sessionId,
+            queryPragmas.exchangeBufferSize(),
+            ESQL_THREAD_POOL_NAME
+        );
         final ActionListener<Void> listener = ActionListener.releaseAfter(
             outListener.map(unused -> collectedPages),
             () -> exchangeService.completeSourceHandler(sessionId)

@@ -231,7 +231,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
         }
 
         Settings getIndexSettings() {
-            logger.info("--> numShards={}, numReplicas={}", numShards, numReplicas);
+            logger.info("--> numShards={}, numIndexingCopies={}, numReplicas={}", numShards, numIndexingCopies, numReplicas);
             return indexSettings(numShards, numReplicas).build();
         }
     }
@@ -302,8 +302,11 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
             }
             assertThat(stateAsString, not(containsString("[" + ShardRouting.Role.DEFAULT + "]")));
             if (routingTableWatcher.numReplicas + 1 > routingTableWatcher.numIndexingCopies) {
-                assertThat(stateAsString, containsString("[" + ShardRouting.Role.SEARCH_ONLY + "]"));
-                if (routingTableWatcher.numIndexingCopies > 1) {
+                int nonIndexReplicaShards = routingTableWatcher.numReplicas + 1 - routingTableWatcher.numIndexingCopies;
+                if (nonIndexReplicaShards >= 2 || routingTableWatcher.numIndexingCopies % 2 == 0) {
+                    assertThat(stateAsString, containsString("[" + ShardRouting.Role.SEARCH_ONLY + "]"));
+                }
+                if (nonIndexReplicaShards >= 2 || routingTableWatcher.numIndexingCopies % 2 == 1) {
                     assertThat(stateAsString, containsString("[" + ShardRouting.Role.GETS_ONLY + "]"));
                 }
             }

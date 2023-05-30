@@ -21,36 +21,29 @@ import java.util.Map;
 import java.util.Objects;
 
 // This class is deprecated in favor of ScriptStats and ScriptContextStats
-public class ScriptCacheStats implements Writeable, ToXContentFragment {
-    private final Map<String, ScriptStats> context;
-    private final ScriptStats general;
+public record ScriptCacheStats(Map<String, ScriptStats> context, ScriptStats general) implements Writeable, ToXContentFragment {
 
     public ScriptCacheStats(Map<String, ScriptStats> context) {
-        this.context = Collections.unmodifiableMap(context);
-        this.general = null;
+        this(Collections.unmodifiableMap(context), null);
     }
 
     public ScriptCacheStats(ScriptStats general) {
-        this.general = Objects.requireNonNull(general);
-        this.context = null;
+        this(null, Objects.requireNonNull(general));
     }
 
-    public ScriptCacheStats(StreamInput in) throws IOException {
+    public static ScriptCacheStats of(StreamInput in) throws IOException {
         boolean isContext = in.readBoolean();
         if (isContext == false) {
-            general = ScriptStats.of(in);
-            context = null;
-            return;
+            return new ScriptCacheStats(ScriptStats.of(in));
         }
 
-        general = null;
         int size = in.readInt();
         Map<String, ScriptStats> context = Maps.newMapWithExpectedSize(size);
         for (int i = 0; i < size; i++) {
             String name = in.readString();
             context.put(name, ScriptStats.of(in));
         }
-        this.context = Collections.unmodifiableMap(context);
+        return new ScriptCacheStats(context);
     }
 
     @Override

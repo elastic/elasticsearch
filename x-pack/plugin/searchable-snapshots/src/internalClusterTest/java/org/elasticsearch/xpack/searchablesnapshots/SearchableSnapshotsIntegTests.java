@@ -451,7 +451,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
             true,
             false,
             IntStream.range(0, nbDocs)
-                .mapToObj(i -> client().prepareIndex(indexName).setSource("foo", randomBoolean() ? "bar" : "baz"))
+                .mapToObj(i -> client().prepareIndex(indexName).setSource("foo", randomAlphaOfLength(1048)))
                 .collect(Collectors.toList())
         );
         refresh(indexName);
@@ -463,7 +463,9 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
             // we compute the min across all the max shard sizes by node in order to
             // trigger the rate limiter in all nodes. We could just use the min shard size
             // but that would make this test too slow.
-            long rateLimitInBytes = getMaxShardSizeByNodeInBytes(indexName).values().stream().min(Long::compareTo).get();
+            // Update: setting rate limit at a 90% of minimax value above
+            long minimax = getMaxShardSizeByNodeInBytes(indexName).values().stream().min(Long::compareTo).get();
+            long rateLimitInBytes = (long) (0.9 * minimax);
             repositorySettings.put("max_restore_bytes_per_sec", ByteSizeValue.ofBytes(rateLimitInBytes));
         } else {
             repositorySettings.put("max_restore_bytes_per_sec", ByteSizeValue.ZERO);

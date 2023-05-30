@@ -11,6 +11,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.application.rules.QueryRule;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 
 import java.util.Collections;
@@ -26,6 +27,7 @@ import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.test.ESTestCase.randomLongBetween;
 import static org.elasticsearch.test.ESTestCase.randomMap;
 
+// TODO - move this one package up and rename to EnterpriseSearchModuleTestUtils
 public final class SearchApplicationTestUtils {
 
     private SearchApplicationTestUtils() {
@@ -35,8 +37,7 @@ public final class SearchApplicationTestUtils {
     public static PageParams randomPageParams() {
         int from = randomIntBetween(0, 10000);
         int size = randomIntBetween(0, 10000);
-        PageParams pageParams = new PageParams(from, size);
-        return pageParams;
+        return new PageParams(from, size);
     }
 
     public static SearchApplication randomSearchApplication() {
@@ -71,6 +72,12 @@ public final class SearchApplicationTestUtils {
 
     public static Map<String, Object> randomSearchApplicationQueryParams() {
         return randomMap(0, 10, () -> Tuple.tuple(randomIdentifier(), randomAlphaOfLengthBetween(0, 10)));
+    }
+
+    public static QueryRule randomQueryRule() {
+        String id = randomIdentifier();
+        QueryRule.QueryRuleType type = randomFrom(QueryRule.QueryRuleType.values());
+        return new QueryRule(id, type);
     }
 
 }

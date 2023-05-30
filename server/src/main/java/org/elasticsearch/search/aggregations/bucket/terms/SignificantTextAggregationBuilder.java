@@ -118,6 +118,11 @@ public class SignificantTextAggregationBuilder extends AbstractAggregationBuilde
     }
 
     @Override
+    public boolean supportsConcurrentExecution() {
+        return false;
+    }
+
+    @Override
     protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
         return new SignificantTextAggregationBuilder(this, factoriesBuilder, metadata);
     }

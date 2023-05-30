@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.profiler;
 
-import org.elasticsearch.rest.RestStatus;
-
 import java.util.List;
 
 public class GetProfilingActionIT extends ProfilingTestCase {
@@ -20,7 +18,6 @@ public class GetProfilingActionIT extends ProfilingTestCase {
     public void testGetProfilingDataUnfiltered() throws Exception {
         GetProfilingRequest request = new GetProfilingRequest(1, null);
         GetProfilingResponse response = client().execute(GetProfilingAction.INSTANCE, request).get();
-        assertEquals(RestStatus.OK, response.status());
         assertEquals(1, response.getTotalFrames());
         assertNotNull(response.getStackTraces());
         StackTrace stackTrace = response.getStackTraces().get("QjoLteG7HX3VUUXr-J4kHQ");

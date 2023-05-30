@@ -61,7 +61,7 @@ public class PreConfiguredCharFilter extends PreConfiguredAnalysisComponent<Char
             name,
             CachingStrategy.LUCENE,
             useFilterForMultitermQueries,
-            (reader, version) -> create.apply(reader, version.luceneVersion)
+            (reader, version) -> create.apply(reader, version.luceneVersion())
         );
     }
 

@@ -569,7 +569,7 @@ instead. A regular flush has the same effect as a synced flush in 7.6 and later.
 
 [role="exclude",id="_repositories"]
 === Snapshot repositories
-See <<snapshots-repositories>>.
+See <<snapshots-register-repository>>.
 
 [role="exclude",id="_snapshot"]
 === Snapshot

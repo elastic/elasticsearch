@@ -1,0 +1,5 @@
+pr: 96251
+summary: Avoiding running IO on scheduler thread in `ResourceWatcherService`
+area: Watcher
+type: bug
+issues: []

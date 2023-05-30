@@ -31,8 +31,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class FileInfoTests extends ESTestCase {
-    private static final org.apache.lucene.util.Version MIN_SUPPORTED_LUCENE_VERSION = org.elasticsearch.Version.CURRENT
-        .minimumIndexCompatibilityVersion().luceneVersion;
+    private static final Version MIN_SUPPORTED_LUCENE_VERSION = org.elasticsearch.Version.CURRENT.minimumIndexCompatibilityVersion()
+        .luceneVersion();
 
     public void testToFromXContent() throws IOException {
         final int iters = scaledRandomIntBetween(1, 10);

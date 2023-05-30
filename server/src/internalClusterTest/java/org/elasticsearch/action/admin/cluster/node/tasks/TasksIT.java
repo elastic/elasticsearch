@@ -132,20 +132,24 @@ public class TasksIT extends ESIntegTestCase {
         assertThat(response.getTasks().size(), greaterThanOrEqualTo(cluster().numDataNodes()));
     }
 
-    public void testMasterNodeOperationTasks() {
+    public void testMasterNodeOperationTasks() throws Exception {
         registerTaskManagerListeners(ClusterHealthAction.NAME);
 
         // First run the health on the master node - should produce only one task on the master node
         internalCluster().masterClient().admin().cluster().prepareHealth().get();
         assertEquals(1, numberOfEvents(ClusterHealthAction.NAME, Tuple::v1)); // counting only registration events
-        assertEquals(1, numberOfEvents(ClusterHealthAction.NAME, event -> event.v1() == false)); // counting only unregistration events
+        // counting only unregistration events
+        // When checking unregistration events there might be some delay since receiving the response from the cluster doesn't
+        // guarantee that the task has been unregistered.
+        assertBusy(() -> assertEquals(1, numberOfEvents(ClusterHealthAction.NAME, event -> event.v1() == false)));
 
         resetTaskManagerListeners(ClusterHealthAction.NAME);
 
         // Now run the health on a non-master node - should produce one task on master and one task on another node
         internalCluster().nonMasterClient().admin().cluster().prepareHealth().get();
         assertEquals(2, numberOfEvents(ClusterHealthAction.NAME, Tuple::v1)); // counting only registration events
-        assertEquals(2, numberOfEvents(ClusterHealthAction.NAME, event -> event.v1() == false)); // counting only unregistration events
+        // counting only unregistration events
+        assertBusy(() -> assertEquals(2, numberOfEvents(ClusterHealthAction.NAME, event -> event.v1() == false)));
         List<TaskInfo> tasks = findEvents(ClusterHealthAction.NAME, Tuple::v1);
 
         // Verify that one of these tasks is a parent of another task
@@ -163,7 +167,7 @@ public class TasksIT extends ESIntegTestCase {
         // tasks
         createIndex("test");
         ensureGreen("test"); // Make sure all shards are allocated
-        client().admin().indices().prepareValidateQuery("test").setAllShards(true).get();
+        indicesAdmin().prepareValidateQuery("test").setAllShards(true).get();
 
         // the field stats operation should produce one main task
         NumShards numberOfShards = getNumShards("test");
@@ -180,7 +184,7 @@ public class TasksIT extends ESIntegTestCase {
         registerTaskManagerListeners(ForceMergeAction.NAME + "[n]"); // node level tasks
         createIndex("test");
         ensureGreen("test"); // Make sure all shards are allocated
-        client().admin().indices().prepareForceMerge("test").get();
+        indicesAdmin().prepareForceMerge("test").get();
 
         // the percolate operation should produce one main task
         assertEquals(1, numberOfEvents(ForceMergeAction.NAME, Tuple::v1));
@@ -196,7 +200,7 @@ public class TasksIT extends ESIntegTestCase {
         registerTaskManagerListeners(ValidateQueryAction.NAME + "[s]"); // shard level tasks
         createIndex("test");
         ensureGreen("test"); // Make sure all shards are allocated
-        client().admin().indices().prepareValidateQuery("test").get();
+        indicesAdmin().prepareValidateQuery("test").get();
 
         // the validate operation should produce one main task
         assertEquals(1, numberOfEvents(ValidateQueryAction.NAME, Tuple::v1));
@@ -212,7 +216,7 @@ public class TasksIT extends ESIntegTestCase {
         registerTaskManagerListeners(RefreshAction.NAME + "[s][*]"); // primary and replica shard tasks
         createIndex("test");
         ensureGreen("test"); // Make sure all shards are allocated
-        client().admin().indices().prepareRefresh("test").get();
+        indicesAdmin().prepareRefresh("test").get();
 
         // the refresh operation should produce one main task
         NumShards numberOfShards = getNumShards("test");
@@ -296,7 +300,7 @@ public class TasksIT extends ESIntegTestCase {
         createIndex("test");
         ensureGreen("test"); // Make sure all shards are allocated to catch replication tasks
         // ensures the mapping is available on all nodes so we won't retry the request (in case replicas don't have the right mapping).
-        client().admin().indices().preparePutMapping("test").setSource("foo", "type=keyword").get();
+        indicesAdmin().preparePutMapping("test").setSource("foo", "type=keyword").get();
         client().prepareBulk().add(client().prepareIndex("test").setId("test_id").setSource("{\"foo\": \"bar\"}", XContentType.JSON)).get();
 
         // the bulk operation should produce one main task
@@ -785,7 +789,7 @@ public class TasksIT extends ESIntegTestCase {
         Map<?, ?> result = taskResult.getResponseAsMap();
         assertEquals("0", result.get("failure_count").toString());
 
-        assertNoFailures(client().admin().indices().prepareRefresh(TaskResultsService.TASK_INDEX).get());
+        assertNoFailures(indicesAdmin().prepareRefresh(TaskResultsService.TASK_INDEX).get());
 
         SearchResponse searchResponse = client().prepareSearch(TaskResultsService.TASK_INDEX)
             .setSource(SearchSourceBuilder.searchSource().query(QueryBuilders.termQuery("task.action", taskInfo.action())))

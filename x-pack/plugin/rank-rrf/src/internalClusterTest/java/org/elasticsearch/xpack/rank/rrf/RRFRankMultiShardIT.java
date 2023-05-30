@@ -700,4 +700,272 @@ public class RRFRankMultiShardIT extends ESIntegTestCase {
             }
         }
     }
+
+    public void testMultiBM25AndSingleKnn() {
+        float[] queryVector = { 500.0f };
+        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector_asc", queryVector, 101, 1001, null);
+        SearchResponse response = client().prepareSearch("nrd_index")
+            .setRankBuilder(new RRFRankBuilder(101, 1))
+            .setTrackTotalHits(false)
+            .setKnnSearch(List.of(knnSearch))
+            .setQueries(
+                List.of(
+                    new SearchQueryWrapperBuilder(
+                        QueryBuilders.boolQuery()
+                            .should(QueryBuilders.termQuery("text0", "500").boost(10.0f))
+                            .should(QueryBuilders.termQuery("text0", "499").boost(9.0f))
+                            .should(QueryBuilders.termQuery("text0", "498").boost(8.0f))
+                            .should(QueryBuilders.termQuery("text0", "497").boost(7.0f))
+                            .should(QueryBuilders.termQuery("text0", "496").boost(6.0f))
+                            .should(QueryBuilders.termQuery("text0", "495").boost(5.0f))
+                            .should(QueryBuilders.termQuery("text0", "494").boost(4.0f))
+                            .should(QueryBuilders.termQuery("text0", "492").boost(3.0f))
+                            .should(QueryBuilders.termQuery("text0", "491").boost(2.0f))
+                            .should(QueryBuilders.termQuery("text0", "490").boost(1.0f))
+                    ),
+                    new SearchQueryWrapperBuilder(
+                        QueryBuilders.boolQuery()
+                            .should(QueryBuilders.termQuery("text1", "508").boost(9.0f))
+                            .should(QueryBuilders.termQuery("text1", "304").boost(8.0f))
+                            .should(QueryBuilders.termQuery("text1", "501").boost(7.0f))
+                            .should(QueryBuilders.termQuery("text1", "504").boost(6.0f))
+                            .should(QueryBuilders.termQuery("text1", "492").boost(5.0f))
+                            .should(QueryBuilders.termQuery("text1", "502").boost(4.0f))
+                            .should(QueryBuilders.termQuery("text1", "499").boost(3.0f))
+                            .should(QueryBuilders.termQuery("text1", "800").boost(2.0f))
+                            .should(QueryBuilders.termQuery("text1", "201").boost(1.0f))
+                    )
+                )
+            )
+            .addFetchField("text0")
+            .addFetchField("text1")
+            .addFetchField("vector_asc")
+            .setSize(5)
+            .get();
+
+        assertNull(response.getHits().getTotalHits());
+        assertEquals(5, response.getHits().getHits().length);
+
+        SearchHit hit = response.getHits().getAt(0);
+        assertEquals(1, hit.getRank());
+        assertEquals("term 500", hit.field("text0").getValue());
+        assertEquals("term 500", hit.field("text1").getValue());
+        assertEquals(500.0, ((Number) hit.field("vector_asc").getValue()).doubleValue(), 0.0);
+
+        Set<Double> vectors = Arrays.stream(response.getHits().getHits())
+            .map(h -> ((Number) h.field("vector_asc").getValue()).doubleValue())
+            .collect(Collectors.toSet());
+        assertEquals(Set.of(492.0, 496.0, 498.0, 499.0, 500.0), vectors);
+    }
+
+    public void testMultiBM25AndSingleKnnWithAggregation() {
+        float[] queryVector = { 500.0f };
+        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector_asc", queryVector, 101, 1001, null);
+        SearchResponse response = client().prepareSearch("nrd_index")
+            .setRankBuilder(new RRFRankBuilder(101, 1))
+            .setTrackTotalHits(false)
+            .setKnnSearch(List.of(knnSearch))
+            .setQueries(
+                List.of(
+                    new SearchQueryWrapperBuilder(
+                        QueryBuilders.boolQuery()
+                            .should(QueryBuilders.termQuery("text0", "500").boost(10.0f))
+                            .should(QueryBuilders.termQuery("text0", "499").boost(9.0f))
+                            .should(QueryBuilders.termQuery("text0", "498").boost(8.0f))
+                            .should(QueryBuilders.termQuery("text0", "497").boost(7.0f))
+                            .should(QueryBuilders.termQuery("text0", "496").boost(6.0f))
+                            .should(QueryBuilders.termQuery("text0", "495").boost(5.0f))
+                            .should(QueryBuilders.termQuery("text0", "494").boost(4.0f))
+                            .should(QueryBuilders.termQuery("text0", "492").boost(3.0f))
+                            .should(QueryBuilders.termQuery("text0", "491").boost(2.0f))
+                            .should(QueryBuilders.termQuery("text0", "490").boost(1.0f))
+                    ),
+                    new SearchQueryWrapperBuilder(
+                        QueryBuilders.boolQuery()
+                            .should(QueryBuilders.termQuery("text1", "508").boost(9.0f))
+                            .should(QueryBuilders.termQuery("text1", "304").boost(8.0f))
+                            .should(QueryBuilders.termQuery("text1", "501").boost(7.0f))
+                            .should(QueryBuilders.termQuery("text1", "504").boost(6.0f))
+                            .should(QueryBuilders.termQuery("text1", "492").boost(5.0f))
+                            .should(QueryBuilders.termQuery("text1", "502").boost(4.0f))
+                            .should(QueryBuilders.termQuery("text1", "499").boost(3.0f))
+                            .should(QueryBuilders.termQuery("text1", "800").boost(2.0f))
+                            .should(QueryBuilders.termQuery("text1", "201").boost(1.0f))
+                    )
+                )
+            )
+            .addFetchField("text0")
+            .addFetchField("text1")
+            .addFetchField("vector_asc")
+            .setSize(5)
+            .addAggregation(AggregationBuilders.terms("sums").field("int"))
+            .get();
+
+        assertNull(response.getHits().getTotalHits());
+        assertEquals(5, response.getHits().getHits().length);
+
+        SearchHit hit = response.getHits().getAt(0);
+        assertEquals(1, hit.getRank());
+        assertEquals("term 500", hit.field("text0").getValue());
+        assertEquals("term 500", hit.field("text1").getValue());
+        assertEquals(500.0, ((Number) hit.field("vector_asc").getValue()).doubleValue(), 0.0);
+
+        Set<Double> vectors = Arrays.stream(response.getHits().getHits())
+            .map(h -> ((Number) h.field("vector_asc").getValue()).doubleValue())
+            .collect(Collectors.toSet());
+        assertEquals(Set.of(492.0, 496.0, 498.0, 499.0, 500.0), vectors);
+
+        LongTerms aggregation = response.getAggregations().get("sums");
+        assertEquals(3, aggregation.getBuckets().size());
+
+        for (LongTerms.Bucket bucket : aggregation.getBuckets()) {
+            if (0L == (long) bucket.getKey()) {
+                assertEquals(35, bucket.getDocCount());
+            } else if (1L == (long) bucket.getKey()) {
+                assertEquals(35, bucket.getDocCount());
+            } else if (2L == (long) bucket.getKey()) {
+                assertEquals(34, bucket.getDocCount());
+            } else {
+                throw new IllegalArgumentException("unexpected bucket key [" + bucket.getKey() + "]");
+            }
+        }
+    }
+
+    public void testMultiBM25AndMultipleKnn() {
+        float[] queryVectorAsc = { 500.0f };
+        float[] queryVectorDesc = { 500.0f };
+        KnnSearchBuilder knnSearchAsc = new KnnSearchBuilder("vector_asc", queryVectorAsc, 101, 1001, null);
+        KnnSearchBuilder knnSearchDesc = new KnnSearchBuilder("vector_desc", queryVectorDesc, 101, 1001, null);
+        SearchResponse response = client().prepareSearch("nrd_index")
+            .setRankBuilder(new RRFRankBuilder(101, 1))
+            .setTrackTotalHits(false)
+            .setKnnSearch(List.of(knnSearchAsc, knnSearchDesc))
+            .setQueries(
+                List.of(
+                    new SearchQueryWrapperBuilder(
+                        QueryBuilders.boolQuery()
+                            .should(QueryBuilders.termQuery("text0", "500").boost(10.0f))
+                            .should(QueryBuilders.termQuery("text0", "499").boost(9.0f))
+                            .should(QueryBuilders.termQuery("text0", "498").boost(8.0f))
+                            .should(QueryBuilders.termQuery("text0", "497").boost(7.0f))
+                            .should(QueryBuilders.termQuery("text0", "496").boost(6.0f))
+                            .should(QueryBuilders.termQuery("text0", "495").boost(5.0f))
+                            .should(QueryBuilders.termQuery("text0", "494").boost(4.0f))
+                            .should(QueryBuilders.termQuery("text0", "492").boost(3.0f))
+                            .should(QueryBuilders.termQuery("text0", "491").boost(2.0f))
+                            .should(QueryBuilders.termQuery("text0", "490").boost(1.0f))
+                    ),
+                    new SearchQueryWrapperBuilder(
+                        QueryBuilders.boolQuery()
+                            .should(QueryBuilders.termQuery("text1", "508").boost(9.0f))
+                            .should(QueryBuilders.termQuery("text1", "304").boost(8.0f))
+                            .should(QueryBuilders.termQuery("text1", "501").boost(7.0f))
+                            .should(QueryBuilders.termQuery("text1", "504").boost(6.0f))
+                            .should(QueryBuilders.termQuery("text1", "492").boost(5.0f))
+                            .should(QueryBuilders.termQuery("text1", "502").boost(4.0f))
+                            .should(QueryBuilders.termQuery("text1", "499").boost(3.0f))
+                            .should(QueryBuilders.termQuery("text1", "800").boost(2.0f))
+                            .should(QueryBuilders.termQuery("text1", "201").boost(1.0f))
+                    )
+                )
+            )
+            .addFetchField("text0")
+            .addFetchField("text1")
+            .addFetchField("vector_asc")
+            .addFetchField("vector_desc")
+            .setSize(5)
+            .get();
+
+        assertNull(response.getHits().getTotalHits());
+        assertEquals(5, response.getHits().getHits().length);
+
+        SearchHit hit = response.getHits().getAt(0);
+        assertEquals(1, hit.getRank());
+        assertEquals("term 500", hit.field("text0").getValue());
+        assertEquals("term 500", hit.field("text1").getValue());
+        assertEquals(500.0, ((Number) hit.field("vector_asc").getValue()).doubleValue(), 0.0);
+        assertEquals(500.0, ((Number) hit.field("vector_desc").getValue()).doubleValue(), 0.0);
+
+        Set<Double> vectors = Arrays.stream(response.getHits().getHits())
+            .map(h -> ((Number) h.field("vector_asc").getValue()).doubleValue())
+            .collect(Collectors.toSet());
+        assertEquals(Set.of(492.0, 498.0, 499.0, 500.0, 501.0), vectors);
+    }
+
+    public void testMultiBM25AndMultipleKnnWithAggregation() {
+        float[] queryVectorAsc = { 500.0f };
+        float[] queryVectorDesc = { 500.0f };
+        KnnSearchBuilder knnSearchAsc = new KnnSearchBuilder("vector_asc", queryVectorAsc, 101, 1001, null);
+        KnnSearchBuilder knnSearchDesc = new KnnSearchBuilder("vector_desc", queryVectorDesc, 101, 1001, null);
+        SearchResponse response = client().prepareSearch("nrd_index")
+            .setRankBuilder(new RRFRankBuilder(101, 1))
+            .setTrackTotalHits(false)
+            .setKnnSearch(List.of(knnSearchAsc, knnSearchDesc))
+            .setQueries(
+                List.of(
+                    new SearchQueryWrapperBuilder(
+                        QueryBuilders.boolQuery()
+                            .should(QueryBuilders.termQuery("text0", "500").boost(10.0f))
+                            .should(QueryBuilders.termQuery("text0", "499").boost(9.0f))
+                            .should(QueryBuilders.termQuery("text0", "498").boost(8.0f))
+                            .should(QueryBuilders.termQuery("text0", "497").boost(7.0f))
+                            .should(QueryBuilders.termQuery("text0", "496").boost(6.0f))
+                            .should(QueryBuilders.termQuery("text0", "495").boost(5.0f))
+                            .should(QueryBuilders.termQuery("text0", "494").boost(4.0f))
+                            .should(QueryBuilders.termQuery("text0", "492").boost(3.0f))
+                            .should(QueryBuilders.termQuery("text0", "491").boost(2.0f))
+                            .should(QueryBuilders.termQuery("text0", "490").boost(1.0f))
+                    ),
+                    new SearchQueryWrapperBuilder(
+                        QueryBuilders.boolQuery()
+                            .should(QueryBuilders.termQuery("text1", "508").boost(9.0f))
+                            .should(QueryBuilders.termQuery("text1", "304").boost(8.0f))
+                            .should(QueryBuilders.termQuery("text1", "501").boost(7.0f))
+                            .should(QueryBuilders.termQuery("text1", "504").boost(6.0f))
+                            .should(QueryBuilders.termQuery("text1", "492").boost(5.0f))
+                            .should(QueryBuilders.termQuery("text1", "502").boost(4.0f))
+                            .should(QueryBuilders.termQuery("text1", "499").boost(3.0f))
+                            .should(QueryBuilders.termQuery("text1", "800").boost(2.0f))
+                            .should(QueryBuilders.termQuery("text1", "201").boost(1.0f))
+                    )
+                )
+            )
+            .addFetchField("text0")
+            .addFetchField("text1")
+            .addFetchField("vector_asc")
+            .addFetchField("vector_desc")
+            .setSize(5)
+            .addAggregation(AggregationBuilders.terms("sums").field("int"))
+            .get();
+
+        assertNull(response.getHits().getTotalHits());
+        assertEquals(5, response.getHits().getHits().length);
+
+        SearchHit hit = response.getHits().getAt(0);
+        assertEquals(1, hit.getRank());
+        assertEquals("term 500", hit.field("text0").getValue());
+        assertEquals("term 500", hit.field("text1").getValue());
+        assertEquals(500.0, ((Number) hit.field("vector_asc").getValue()).doubleValue(), 0.0);
+        assertEquals(500.0, ((Number) hit.field("vector_desc").getValue()).doubleValue(), 0.0);
+
+        Set<Double> vectors = Arrays.stream(response.getHits().getHits())
+            .map(h -> ((Number) h.field("vector_asc").getValue()).doubleValue())
+            .collect(Collectors.toSet());
+        assertEquals(Set.of(492.0, 498.0, 499.0, 500.0, 501.0), vectors);
+
+        LongTerms aggregation = response.getAggregations().get("sums");
+        assertEquals(3, aggregation.getBuckets().size());
+
+        for (LongTerms.Bucket bucket : aggregation.getBuckets()) {
+            if (0L == (long) bucket.getKey()) {
+                assertEquals(35, bucket.getDocCount());
+            } else if (1L == (long) bucket.getKey()) {
+                assertEquals(35, bucket.getDocCount());
+            } else if (2L == (long) bucket.getKey()) {
+                assertEquals(34, bucket.getDocCount());
+            } else {
+                throw new IllegalArgumentException("unexpected bucket key [" + bucket.getKey() + "]");
+            }
+        }
+    }
 }

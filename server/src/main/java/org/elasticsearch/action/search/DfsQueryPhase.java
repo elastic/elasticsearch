@@ -151,7 +151,7 @@ final class DfsQueryPhase extends SearchPhase {
 
         if (hasQueries) {
             boolQueryBuilder = (BoolQueryBuilder) source.query();
-            searchQueryWrapperBuilders = source.queries();
+            searchQueryWrapperBuilders = new ArrayList<>(source.queries());
         } else {
             boolQueryBuilder = new BoolQueryBuilder();
             searchQueryWrapperBuilders = new ArrayList<>();
@@ -163,12 +163,12 @@ final class DfsQueryPhase extends SearchPhase {
                     searchQueryWrapperBuilders.add(new SearchQueryWrapperBuilder(source.query()));
                 }
             }
-
-            source = source.shallowCopy();
-            source.query(boolQueryBuilder);
-            source.queries(searchQueryWrapperBuilders);
-            request.source(source);
         }
+
+        source = source.shallowCopy();
+        source.query(boolQueryBuilder);
+        source.queries(searchQueryWrapperBuilders);
+        request.source(source);
 
         for (DfsKnnResults dfsKnnResults : knnResults) {
             List<ScoreDoc> scoreDocs = new ArrayList<>();

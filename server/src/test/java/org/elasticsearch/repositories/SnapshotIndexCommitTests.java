@@ -71,13 +71,12 @@ public class SnapshotIndexCommitTests extends ESTestCase {
     }
 
     private SnapshotIndexCommit getSnapshotIndexCommit(boolean throwOnClose, AtomicBoolean isClosed) {
-        return new SnapshotIndexCommit(
-            new Engine.IndexCommitRef(null, () -> {
-                assertTrue(isClosed.compareAndSet(false, true));
-                if (throwOnClose) {
-                    throw new IOException("simulated");
-                }
-            }));
+        return new SnapshotIndexCommit(new Engine.IndexCommitRef(null, () -> {
+            assertTrue(isClosed.compareAndSet(false, true));
+            if (throwOnClose) {
+                throw new IOException("simulated");
+            }
+        }));
     }
 
     private void assertOnCompletionBehaviour(boolean throwOnClose, SnapshotIndexCommit indexCommitRef) throws Exception {

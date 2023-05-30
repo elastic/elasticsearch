@@ -18,8 +18,12 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.FeatureFlag;
+import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.util.List;
@@ -27,7 +31,28 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class PermissionsIT extends ESRestTestCase {
+public class DlmPermissionsRestIT extends ESRestTestCase {
+
+    @ClassRule
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .feature(FeatureFlag.DLM_ENABLED)
+        .nodes(2)
+        .module("data-streams")
+        .module("dlm")
+        .setting("xpack.watcher.enabled", "false")
+        .setting("xpack.ml.enabled", "false")
+        .setting("xpack.security.enabled", "true")
+        .setting("xpack.license.self_generated.type", "trial")
+        .user("x_pack_rest_user", "x-pack-test-password", "superuser")
+        .user("test_dlm", "x-pack-test-password", "manage_dlm")
+        .user("test_non_privileged", "x-pack-test-password", "not_privileged")
+        .rolesFile(Resource.fromClasspath("roles.yml"))
+        .build();
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
 
     @Override
     protected Settings restClientSettings() {
@@ -38,7 +63,7 @@ public class PermissionsIT extends ESRestTestCase {
 
     @Override
     protected Settings restAdminSettings() {
-        String token = basicAuthHeaderValue("test_admin", new SecureString("x-pack-test-password".toCharArray()));
+        String token = basicAuthHeaderValue("x_pack_rest_user", new SecureString("x-pack-test-password".toCharArray()));
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
@@ -126,9 +151,6 @@ public class PermissionsIT extends ESRestTestCase {
                     "@timestamp": {
                       "type": "date",
                       "format": "date_optional_time||epoch_millis"
-                    },
-                    "message": {
-                      "type": "wildcard"
                     }
                   }
                 }
@@ -161,5 +183,4 @@ public class PermissionsIT extends ESRestTestCase {
         Request request = new Request("PUT", "/_data_stream/" + name);
         assertOK(adminClient().performRequest(request));
     }
-
 }

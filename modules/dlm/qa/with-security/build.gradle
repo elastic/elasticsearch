@@ -1,19 +1,16 @@
-import org.elasticsearch.gradle.Version
+import org.elasticsearch.gradle.internal.info.BuildParams
 
-apply plugin: 'elasticsearch.legacy-java-rest-test'
-apply plugin: 'elasticsearch.authenticated-testclusters'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 
 dependencies {
   javaRestTestImplementation project(":client:rest-high-level")
+  clusterModules(project(":modules:data-streams"))
+  clusterModules(project(":modules:dlm"))
 }
 
-testClusters.configureEach {
-  testDistribution = 'DEFAULT'
-  setting 'xpack.watcher.enabled', 'false'
-  setting 'xpack.ml.enabled', 'false'
-  setting 'xpack.license.self_generated.type', 'trial'
-  rolesFile file('roles.yml')
-  user username: "test_dlm", password: "x-pack-test-password", role: "manage_dlm"
-  user username: "test_non_privileged", password: "x-pack-test-password", role: "not_privileged"
-  requiresFeature 'es.dlm_feature_flag_enabled', Version.fromString("8.9.0")
+if (BuildParams.isSnapshotBuild() == false) {
+  tasks.named("javaRestTest").configure {
+    systemProperty 'es.dlm_feature_flag_enabled', 'true'
+  }
 }
+

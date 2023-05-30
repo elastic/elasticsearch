@@ -45,7 +45,7 @@ import static org.elasticsearch.xpack.spatial.search.aggregations.GeoLineAggrega
  * Whenever the bucket id changes, the simplifier memory is copied into a new InternalGeoLine aggregation object
  * and the memory re-used for the next bucket. The last bucket is compied into InternalGeoLine in the doPostCollection
  */
-class TimeSeriesGeoLineBucketedSort {
+class TimeSeriesGeoLineBuckets {
     private static final long NO_BUCKET = -1;
     private final GeoLineMultiValuesSource valuesSources;
     private final int bucketSize;
@@ -62,7 +62,7 @@ class TimeSeriesGeoLineBucketedSort {
      * @param geoLineBuilder A function to create the InternalGeoLine with appropriate metadata (and sort order)
      * @param circuitBreaker A function to request memory for each geo_line created
      */
-    TimeSeriesGeoLineBucketedSort(
+    TimeSeriesGeoLineBuckets(
         int bucketSize,
         GeoLineMultiValuesSource valuesSources,
         Function<Long, InternalGeoLine> geoLineBuilder,
@@ -72,7 +72,7 @@ class TimeSeriesGeoLineBucketedSort {
         this.bucketSize = bucketSize;
         this.geoLineBuilder = geoLineBuilder;
         this.currentBucket = NO_BUCKET;
-        this.simplifier = new TimeSeriesGeoLineBucketedSort.Simplifier(bucketSize, circuitBreaker);
+        this.simplifier = new TimeSeriesGeoLineBuckets.Simplifier(bucketSize, circuitBreaker);
     }
 
     /**

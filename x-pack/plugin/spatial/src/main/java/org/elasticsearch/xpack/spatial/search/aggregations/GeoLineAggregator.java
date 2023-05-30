@@ -149,7 +149,7 @@ abstract class GeoLineAggregator extends MetricsAggregator {
     }
 
     static class TimeSeries extends GeoLineAggregator {
-        private final TimeSeriesGeoLineBucketedSort geolineBuckets;
+        private final TimeSeriesGeoLineBuckets geolineBuckets;
 
         TimeSeries(
             String name,
@@ -162,7 +162,7 @@ abstract class GeoLineAggregator extends MetricsAggregator {
             int size
         ) throws IOException {
             super(name, valuesSources, context, parent, metaData, includeSorts, sortOrder, size);
-            this.geolineBuckets = new TimeSeriesGeoLineBucketedSort(
+            this.geolineBuckets = new TimeSeriesGeoLineBuckets(
                 size,
                 valuesSources,
                 this::buildGeolineForBucket,
@@ -172,7 +172,7 @@ abstract class GeoLineAggregator extends MetricsAggregator {
 
         @Override
         public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, final LeafBucketCollector sub) throws IOException {
-            TimeSeriesGeoLineBucketedSort.Leaf leaf = geolineBuckets.forLeaf(aggCtx);
+            TimeSeriesGeoLineBuckets.Leaf leaf = geolineBuckets.forLeaf(aggCtx);
 
             return new LeafBucketCollector() {
                 @Override

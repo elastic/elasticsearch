@@ -179,7 +179,8 @@ final class DefaultSearchContext extends SearchContext {
 
     private static boolean concurrentSearch(SearchSourceBuilder builder) {
 
-        if (builder.size() != 0
+        if (builder == null
+            || builder.size() != 0
             || builder.terminateAfter() != SearchContext.DEFAULT_TERMINATE_AFTER
             || builder.postFilter() != null
             || builder.minScore() != null

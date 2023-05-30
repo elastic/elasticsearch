@@ -45,10 +45,6 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
 
     private static final FeatureFlag DLM_FEATURE_FLAG = new FeatureFlag("dlm");
 
-    // This represents a lifecycle with infinite retention that will overwrite other retention periods during composition
-    public static final DataLifecycle EXPLICIT_INFINITE_RETENTION = new DataLifecycle(Retention.NULL);
-    // This represents a lifecycle with infinite retention that will inherit other retention periods during composition
-    public static final DataLifecycle IMPLICIT_INFINITE_RETENTION = new DataLifecycle((TimeValue) null);
     public static final String DLM_ORIGIN = "data_lifecycle";
 
     public static final ParseField DATA_RETENTION_FIELD = new ParseField("data_retention");
@@ -133,7 +129,7 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_006)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_007)) {
             out.writeOptionalWriteable(dataRetention);
         } else {
             out.writeOptionalTimeValue(getEffectiveDataRetention());
@@ -141,7 +137,7 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
     }
 
     public DataLifecycle(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_006)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_007)) {
             dataRetention = in.readOptionalWriteable(Retention::read);
         } else {
             var value = in.readOptionalTimeValue();

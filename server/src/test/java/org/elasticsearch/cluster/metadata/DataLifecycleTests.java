@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
@@ -32,6 +33,9 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class DataLifecycleTests extends AbstractXContentSerializingTestCase<DataLifecycle> {
 
+    public static final DataLifecycle EXPLICIT_INFINITE_RETENTION = new DataLifecycle(DataLifecycle.Retention.NULL);
+    public static final DataLifecycle IMPLICIT_INFINITE_RETENTION = new DataLifecycle((TimeValue) null);
+
     @Override
     protected Writeable.Reader<DataLifecycle> instanceReader() {
         return DataLifecycle::new;
@@ -40,23 +44,23 @@ public class DataLifecycleTests extends AbstractXContentSerializingTestCase<Data
     @Override
     protected DataLifecycle createTestInstance() {
         return switch (randomInt(2)) {
-            case 0 -> DataLifecycle.IMPLICIT_INFINITE_RETENTION;
-            case 1 -> DataLifecycle.EXPLICIT_INFINITE_RETENTION;
+            case 0 -> IMPLICIT_INFINITE_RETENTION;
+            case 1 -> EXPLICIT_INFINITE_RETENTION;
             default -> new DataLifecycle(randomMillisUpToYear9999());
         };
     }
 
     @Override
     protected DataLifecycle mutateInstance(DataLifecycle instance) throws IOException {
-        if (DataLifecycle.IMPLICIT_INFINITE_RETENTION.equals(instance)) {
-            return randomBoolean() ? DataLifecycle.EXPLICIT_INFINITE_RETENTION : new DataLifecycle(randomMillisUpToYear9999());
+        if (IMPLICIT_INFINITE_RETENTION.equals(instance)) {
+            return randomBoolean() ? EXPLICIT_INFINITE_RETENTION : new DataLifecycle(randomMillisUpToYear9999());
         }
-        if (DataLifecycle.EXPLICIT_INFINITE_RETENTION.equals(instance)) {
-            return randomBoolean() ? DataLifecycle.IMPLICIT_INFINITE_RETENTION : new DataLifecycle(randomMillisUpToYear9999());
+        if (EXPLICIT_INFINITE_RETENTION.equals(instance)) {
+            return randomBoolean() ? IMPLICIT_INFINITE_RETENTION : new DataLifecycle(randomMillisUpToYear9999());
         }
         return switch (randomInt(2)) {
-            case 0 -> DataLifecycle.IMPLICIT_INFINITE_RETENTION;
-            case 1 -> DataLifecycle.EXPLICIT_INFINITE_RETENTION;
+            case 0 -> IMPLICIT_INFINITE_RETENTION;
+            case 1 -> EXPLICIT_INFINITE_RETENTION;
             default -> new DataLifecycle(
                 randomValueOtherThan(instance.getEffectiveDataRetention().millis(), ESTestCase::randomMillisUpToYear9999)
             );

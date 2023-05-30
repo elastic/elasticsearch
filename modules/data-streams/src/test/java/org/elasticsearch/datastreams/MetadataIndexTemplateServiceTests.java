@@ -152,8 +152,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         // One lifecycle results to this lifecycle as the final
         {
             DataLifecycle lifecycle = switch (randomInt(2)) {
-                case 0 -> DataLifecycle.IMPLICIT_INFINITE_RETENTION;
-                case 1 -> DataLifecycle.EXPLICIT_INFINITE_RETENTION;
+                case 0 -> new DataLifecycle();
+                case 1 -> new DataLifecycle(DataLifecycle.Retention.NULL);
                 default -> new DataLifecycle(randomMillisUpToYear9999());
             };
             List<DataLifecycle> lifecycles = List.of(lifecycle);

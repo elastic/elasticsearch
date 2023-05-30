@@ -1508,7 +1508,7 @@ public class MetadataIndexTemplateService {
     public static DataLifecycle composeDataLifecycles(List<DataLifecycle> lifecycles) {
         DataLifecycle.Builder builder = null;
         for (DataLifecycle current : lifecycles) {
-            if (current.equals(Template.NO_LIFECYCLE)) {
+            if (current == Template.NO_LIFECYCLE) {
                 builder = null;
             } else if (builder == null) {
                 builder = DataLifecycle.Builder.newBuilder(current);

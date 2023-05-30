@@ -57,6 +57,7 @@ import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.PercolatorExecutionContext;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardException;
@@ -625,7 +626,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
     }
 
     static PercolatorExecutionContext wrap(PercolatorExecutionContext delegate) {
-        return new PercolatorExecutionContext(delegate, delegate.isMapUnmappedFieldAsString()) {
+        return new PercolatorExecutionContext(delegate, delegate.isAllowUnmappedFields(), delegate.isMapUnmappedFieldAsString()) {
 
             @Override
             public IndexReader getIndexReader() {

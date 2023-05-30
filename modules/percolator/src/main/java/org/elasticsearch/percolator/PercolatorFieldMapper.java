@@ -55,6 +55,7 @@ import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.query.PercolatorExecutionContext;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.Rewriteable;
@@ -511,7 +512,7 @@ public class PercolatorFieldMapper extends FieldMapper {
         //
         // if index.percolator.map_unmapped_fields_as_string is set to true, query can contain unmapped fields which will be mapped
         // as an analyzed string.
-        return new PercolatorExecutionContext(context, mapUnmappedFieldsAsString);
+        return new PercolatorExecutionContext(context, false, mapUnmappedFieldsAsString);
     }
 
     @Override

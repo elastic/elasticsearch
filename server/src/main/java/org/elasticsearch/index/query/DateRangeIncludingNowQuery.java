@@ -8,7 +8,6 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;

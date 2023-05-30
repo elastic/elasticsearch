@@ -8,7 +8,6 @@
 
 package org.elasticsearch.search.vectors;
 
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.FilterWeight;

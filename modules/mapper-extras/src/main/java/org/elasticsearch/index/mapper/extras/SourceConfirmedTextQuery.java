@@ -10,7 +10,6 @@ package org.elasticsearch.index.mapper.extras;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.FieldInvertState;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermStates;

@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.searchbusinessrules;
 
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BoostQuery;

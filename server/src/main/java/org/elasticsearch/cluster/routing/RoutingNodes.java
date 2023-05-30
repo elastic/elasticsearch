@@ -465,11 +465,13 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         long expectedShardSize,
         RoutingChangesObserver changes
     ) {
-        if (startedShard.isPromotableThatCanHaveUnpromotables()) {
+        if (startedShard.canRelocate()) {
+            relocateShard(startedShard, nodeId, expectedShardSize, changes);
+        } else {
             remove(startedShard);
             var unassignedInfo = new UnassignedInfo(
                 UnassignedInfo.Reason.REINITIALIZED,
-                "relocating promotable shard that can have unpromotable shards"
+                "unassigning and then initializing a shard that cannot be relocated"
             );
             var assignedShards = assignedShards(startedShard.shardId());
             var promotableShard = assignedShards.stream().filter(ShardRouting::isPromotableToPrimary).findAny();
@@ -481,8 +483,6 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                 unassignedShards.ignoreShard(replica.moveToUnassigned(unassignedInfo), AllocationStatus.NO_ATTEMPT, changes);
             }
             initializeShard(startedShard.moveToUnassigned(unassignedInfo), nodeId, null, expectedShardSize, changes);
-        } else {
-            relocateShard(startedShard, nodeId, expectedShardSize, changes);
         }
     }
 

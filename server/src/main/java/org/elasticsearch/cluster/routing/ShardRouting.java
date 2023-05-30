@@ -937,8 +937,12 @@ public final class ShardRouting implements Writeable, ToXContentObject {
         return role.canHandleGets();
     }
 
-    public boolean isPromotableThatCanHaveUnpromotables() {
-        return role.isPromotableThatCanHaveUnpromotables();
+    public boolean canHaveUnpromotables() {
+        return role.canHaveUnpromotables();
+    }
+
+    public boolean canRelocate() {
+        return role.canRelocate();
     }
 
     public enum Role implements Writeable, ToXContentFragment {
@@ -983,10 +987,18 @@ public final class ShardRouting implements Writeable, ToXContentObject {
         }
 
         /**
-         * @return whether a shard copy with this role is promotable to primary and can be associated with unpromotable shard copies.
+         * @return whether a shard copy with this role is promotable and can be associated with unpromotable shard copies. Can be used to
+         * do decide whether to do operations on the unpromotable shards, such as refreshing them.
          */
-        public boolean isPromotableThatCanHaveUnpromotables() {
+        public boolean canHaveUnpromotables() {
             return gets == false;
+        }
+
+        /**
+         * @return whether a shard copy with this role can be relocated.
+         */
+        public boolean canRelocate() {
+            return gets;
         }
 
         @Override

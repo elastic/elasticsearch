@@ -606,8 +606,7 @@ public class IndexShardRoutingTable {
             assert distinctNodes(shards) : "more than one shard with same id assigned to same node (shards: " + shards + ")";
             assert noDuplicatePrimary(shards) : "expected but did not find unique primary in shard routing table: " + shards;
             assert noAssignedReplicaWithoutActivePrimary(shards) : "unexpected assigned replica with no active primary: " + shards;
-            assert noRelocatingPromotableShardsThatCanHaveUnpromotables(shards)
-                : "unexpected RELOCATING promotable shard that can have unpromotables: " + shards;
+            assert noRelocatingShardsThatCannotRelocate(shards) : "unexpected RELOCATING shard that cannot relocate: " + shards;
             return new IndexShardRoutingTable(shardId, shards);
         }
 
@@ -658,11 +657,10 @@ public class IndexShardRoutingTable {
             return seenAssignedReplica == false;
         }
 
-        static boolean noRelocatingPromotableShardsThatCanHaveUnpromotables(List<ShardRouting> shards) {
+        static boolean noRelocatingShardsThatCannotRelocate(List<ShardRouting> shards) {
             // this is unsupported until ES-4677 is implemented
             for (var shard : shards) {
-                assert shard.isPromotableThatCanHaveUnpromotables() == false || shard.relocating() == false
-                    : "unexpected RELOCATING promotable shard that can have unpromotables: " + shard;
+                assert shard.canRelocate() || shard.relocating() == false : "unexpected RELOCATING shard that cannot relocate: " + shard;
             }
             return true;
         }

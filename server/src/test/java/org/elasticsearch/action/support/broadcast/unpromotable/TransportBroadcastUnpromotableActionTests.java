@@ -188,8 +188,7 @@ public class TransportBroadcastUnpromotableActionTests extends ESTestCase {
         ShardRoutingState state;
         do {
             state = randomFrom(possibleStates);
-            // relocation is not possible for promotable shards that can have unpromotables until ES-4677 is implemented
-        } while (role.isPromotableThatCanHaveUnpromotables() && state == ShardRoutingState.RELOCATING);
+        } while (role.canRelocate() == false && state == ShardRoutingState.RELOCATING); // until ES-4677 is implemented
         return state;
     }
 

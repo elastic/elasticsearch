@@ -47,7 +47,7 @@ public class PostWriteRefresh {
             case WAIT_UNTIL -> waitUntil(indexShard, location, new ActionListener<>() {
                 @Override
                 public void onResponse(Boolean forced) {
-                    if (indexShard.routingEntry().isPromotableThatCanHaveUnpromotables() && location != null) {
+                    if (indexShard.routingEntry().canHaveUnpromotables() && location != null) {
                         refreshUnpromotables(indexShard, location, listener, forced, postWriteRefreshTimeout);
                     } else {
                         listener.onResponse(forced);

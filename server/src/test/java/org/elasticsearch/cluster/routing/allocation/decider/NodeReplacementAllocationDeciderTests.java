@@ -28,7 +28,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.Arrays;
@@ -86,7 +85,7 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
     }
 
     public void testCanForceAllocate() {
-        ClusterState state = prepareState(NODE_A.getId(), NODE_B.getName());
+        ClusterState state = prepareState(ClusterState.EMPTY_STATE, NODE_A.getId(), NODE_B.getName());
         RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state, null, null, 0);
         RoutingNode routingNode = RoutingNodesHelper.routingNode(NODE_A.getId(), NODE_A, shard);
         allocation.debugDecision(true);
@@ -125,7 +124,7 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
     }
 
     public void testCannotRemainOnReplacedNode() {
-        ClusterState state = prepareState(NODE_A.getId(), NODE_B.getName());
+        ClusterState state = prepareState(ClusterState.EMPTY_STATE, NODE_A.getId(), NODE_B.getName());
         RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state, null, null, 0);
         RoutingNode routingNode = RoutingNodesHelper.routingNode(NODE_A.getId(), NODE_A, shard);
         allocation.debugDecision(true);
@@ -152,7 +151,7 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
     }
 
     public void testCanAllocateToNeitherSourceNorTarget() {
-        ClusterState state = prepareState(NODE_A.getId(), NODE_B.getName());
+        ClusterState state = prepareState(ClusterState.EMPTY_STATE, NODE_A.getId(), NODE_B.getName());
         RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state, null, null, 0);
         RoutingNode routingNode = RoutingNodesHelper.routingNode(NODE_A.getId(), NODE_A, shard);
         allocation.debugDecision(true);
@@ -221,17 +220,18 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
         assertThatDecision(
             decider.shouldAutoExpandToNode(indexMetadata, NODE_A, allocation),
             Decision.Type.NO,
-            Strings.format("node [%s] is being replaced by [%s], shards cannot auto expand to be on it", NODE_A.getId(), NODE_B.getId())
+            "node [" + NODE_A.getId() + "] is being replaced by [" + NODE_B.getId() + "], shards cannot auto expand to be on it"
         );
         assertThatDecision(
             decider.shouldAutoExpandToNode(indexMetadata, NODE_B, allocation),
             Decision.Type.NO,
-            Strings.format(
-                "node [%s] is a node replacement target for node [%s], "
-                    + "shards cannot auto expand to be on it until the replacement is complete",
-                NODE_B.getId(),
-                NODE_A.getId()
-            )
+            "node ["
+                + NODE_B.getId()
+                + "] is a node replacement target for node ["
+                + NODE_A.getId()
+                + "], "
+                + "shards cannot auto expand to be on it until the replacement is complete"
+
         );
         assertThat(
             decider.shouldAutoExpandToNode(indexMetadata, NODE_C, allocation),
@@ -315,7 +315,7 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
                     allocation
                 ),
                 Decision.Type.YES,
-                Strings.format("node [%s] is replacing node [%s], and may receive shards from it", NODE_B.getId(), NODE_A.getId())
+                "node [" + NODE_B.getId() + "] is replacing node [" + NODE_A.getId() + "], and may receive shards from it"
             );
             assertThatAutoExpandReplicasDidNotContract(indexMetadata, allocation);
         }
@@ -360,17 +360,17 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
         assertThatDecision(
             decider.shouldAutoExpandToNode(indexMetadata, NODE_A, allocation),
             Decision.Type.NO,
-            Strings.format("node [%s] is being replaced by [%s], shards cannot auto expand to be on it", NODE_A.getId(), NODE_B.getId())
+            "node [" + NODE_A.getId() + "] is being replaced by [" + NODE_B.getId() + "], shards cannot auto expand to be on it"
         );
         assertThatDecision(
             decider.shouldAutoExpandToNode(indexMetadata, NODE_B, allocation),
             Decision.Type.YES,
-            Strings.format(
-                "node [%s] is a node replacement target for node [%s], "
-                    + "shards can auto expand to it as they were already present of the source node",
-                NODE_B.getId(),
-                NODE_A.getId()
-            )
+            "node ["
+                + NODE_B.getId()
+                + "] is a node replacement target for node ["
+                + NODE_A.getId()
+                + "], "
+                + "shards can auto expand to it as they were already present of the source node"
         );
         assertThatDecision(
             decider.shouldAutoExpandToNode(indexMetadata, NODE_C, allocation),
@@ -379,8 +379,8 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
         );
     }
 
-    private ClusterState prepareState(String sourceNodeId, String targetNodeName) {
-        return ClusterState.builder(ClusterName.DEFAULT)
+    private ClusterState prepareState(ClusterState initial, String sourceNodeId, String targetNodeName) {
+        return ClusterState.builder(initial)
             .nodes(DiscoveryNodes.builder().add(NODE_A).add(NODE_B).add(NODE_C).build())
             .metadata(
                 Metadata.builder()

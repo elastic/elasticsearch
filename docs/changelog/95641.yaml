@@ -1,5 +1,0 @@
-pr: 95641
-summary: Upgrade Jackson xml to 2.15.0
-area: Infra/Core
-type: upgrade
-issues: []

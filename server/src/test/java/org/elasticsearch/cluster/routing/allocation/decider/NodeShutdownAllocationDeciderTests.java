@@ -199,7 +199,7 @@ public class NodeShutdownAllocationDeciderTests extends ESAllocationTestCase {
         );
 
         // should not auto-expand when only to replacement node when joined
-        var replacementName = shutdown.getAllNodeMetadataMap().values().iterator().next().getTargetNodeName();
+        var replacementName = shutdown.get(DATA_NODE.getId()).getTargetNodeName();
         var replacementNode = newNode(replacementName, "node-data-1", Set.of(DiscoveryNodeRole.DATA_ROLE));
         state = ClusterState.builder(state).nodes(DiscoveryNodes.builder(state.getNodes()).add(replacementNode).build()).build();
 

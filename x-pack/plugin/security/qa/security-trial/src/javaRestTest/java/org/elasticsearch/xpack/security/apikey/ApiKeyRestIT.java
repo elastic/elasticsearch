@@ -824,7 +824,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
         assertThat(
             e.getMessage(),
-            containsString("authentication via API key not supported: only non-API key users can create a cross-cluster API key")
+            containsString("authentication via API key not supported: An API key cannot be used to create a cross-cluster API key")
         );
     }
 

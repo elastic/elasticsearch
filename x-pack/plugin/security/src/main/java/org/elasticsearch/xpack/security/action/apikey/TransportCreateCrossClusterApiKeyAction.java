@@ -52,7 +52,7 @@ public final class TransportCreateCrossClusterApiKeyAction extends HandledTransp
         } else if (authentication.isApiKey()) {
             listener.onFailure(
                 new IllegalArgumentException(
-                    "authentication via API key not supported: only non-API key users can create a cross-cluster API key"
+                    "authentication via API key not supported: An API key cannot be used to create a cross-cluster API key"
                 )
             );
         } else {

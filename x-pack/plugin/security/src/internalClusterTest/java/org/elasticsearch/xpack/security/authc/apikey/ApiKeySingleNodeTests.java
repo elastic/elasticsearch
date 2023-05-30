@@ -650,7 +650,7 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, future::actionGet);
         assertThat(
             e.getMessage(),
-            containsString("authentication via API key not supported: only non-API key users can create a cross-cluster API key")
+            containsString("authentication via API key not supported: An API key cannot be used to create a cross-cluster API key")
         );
     }
 

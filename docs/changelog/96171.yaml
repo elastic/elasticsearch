@@ -1,5 +1,5 @@
 pr: 96171
-summary: "[Logs+] Adding ECS dynamic templates"
+summary: "Adding ECS dynamic mappings component and applying it to logs data streams by default"
 area: Data streams
 type: enhancement
 issues:

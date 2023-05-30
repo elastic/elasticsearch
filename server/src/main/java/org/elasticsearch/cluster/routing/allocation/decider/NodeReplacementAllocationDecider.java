@@ -136,20 +136,37 @@ public class NodeReplacementAllocationDecider extends AllocationDecider {
                 );
             }
         } else if (isReplacementSource(allocation, node.getId())) {
-            return Decision.single(
-                Decision.Type.NO,
-                NAME,
-                "node [%s] is being replaced by [%s], shards cannot auto expand to be on it",
-                node.getId(),
-                getReplacementName(allocation, node.getId())
-            );
+            final SingleNodeShutdownMetadata shutdown = allocation.getClusterState().metadata().nodeShutdowns().get(node.getId());
+            final boolean hasShardThatCanNotMigrate = hasShardOnNode(indexMetadata, node.getId(), allocation)
+                && shutdown != null
+                && allocation.getClusterState().getNodes().findByName(shutdown.getTargetNodeName()) == null;
+
+            if (hasShardThatCanNotMigrate) {
+                return Decision.single(
+                    Decision.Type.YES,
+                    NAME,
+                    "node [%s] is being replaced by [%s], shards can auto expand to be on it "
+                        + "while replacement node has not joined the cluster",
+                    node.getId(),
+                    getReplacementName(allocation, node.getId())
+                );
+            } else {
+                return Decision.single(
+                    Decision.Type.NO,
+                    NAME,
+                    "node [%s] is being replaced by [%s], shards cannot auto expand to be on it",
+                    node.getId(),
+                    getReplacementName(allocation, node.getId())
+                );
+            }
         } else {
             return YES__NO_APPLICABLE_REPLACEMENTS;
         }
     }
 
     private static boolean hasShardOnNode(IndexMetadata indexMetadata, String nodeId, RoutingAllocation allocation) {
-        return allocation.routingNodes().node(nodeId).numberOfOwningShardsForIndex(indexMetadata.getIndex()) >= 1;
+        RoutingNode node = allocation.routingNodes().node(nodeId);
+        return node != null && node.numberOfOwningShardsForIndex(indexMetadata.getIndex()) >= 1;
     }
 
     @Override

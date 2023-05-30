@@ -41,6 +41,7 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
 import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase {
     private static final DiscoveryNode NODE_A = newNode("node-a", "node-a", Collections.singleton(DiscoveryNodeRole.DATA_ROLE));
@@ -260,40 +261,64 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
             )
             .build();
 
-        var allocation = new RoutingAllocation(allocationDeciders, state, null, null, 0);
-
         // index is already allocated on both nodes
-        assertThat(
-            decider.shouldAutoExpandToNode(indexMetadata, NODE_A, allocation),
-            equalTo(NodeReplacementAllocationDecider.YES__NO_REPLACEMENTS)
-        );
-        assertThat(
-            decider.shouldAutoExpandToNode(indexMetadata, NODE_C, allocation),
-            equalTo(NodeReplacementAllocationDecider.YES__NO_REPLACEMENTS)
-        );
+        {
+            var allocation = new RoutingAllocation(allocationDeciders, state, null, null, 0);
+            assertThat(indexMetadata.getAutoExpandReplicas().getDesiredNumberOfReplicas(indexMetadata, allocation), equalTo(1));
+            assertThat(
+                decider.shouldAutoExpandToNode(indexMetadata, NODE_A, allocation),
+                equalTo(NodeReplacementAllocationDecider.YES__NO_REPLACEMENTS)
+            );
+            assertThat("node-b has not joined yet", allocation.getClusterState().nodes().findByName(NODE_B.getName()), nullValue());
+            assertThat(
+                decider.shouldAutoExpandToNode(indexMetadata, NODE_C, allocation),
+                equalTo(NodeReplacementAllocationDecider.YES__NO_REPLACEMENTS)
+            );
+        }
 
-        // when replacing NODE_A with NODE_B
+        // when registering node replacement
         state = ClusterState.builder(state)
-            .nodes(DiscoveryNodes.builder().add(NODE_A).add(NODE_B).add(NODE_C).build())
             .metadata(
                 Metadata.builder(state.metadata())
                     .putCustom(NodesShutdownMetadata.TYPE, createNodeShutdownReplacementMetadata(NODE_A.getId(), NODE_B.getName()))
                     .build()
             )
             .build();
-        allocation = new RoutingAllocation(allocationDeciders, state, null, null, 0);
+        {
+            var allocation = new RoutingAllocation(allocationDeciders, state, null, null, 0);
+            assertThat(indexMetadata.getAutoExpandReplicas().getDesiredNumberOfReplicas(indexMetadata, allocation), equalTo(1));
+            assertThatDecision(
+                decider.shouldAutoExpandToNode(indexMetadata, NODE_A, allocation),
+                Decision.Type.YES,
+                "node ["
+                    + NODE_A.getId()
+                    + "] is being replaced by ["
+                    + NODE_B.getId()
+                    + "], shards can auto expand to be on it "
+                    + "while replacement node has not joined the cluster"
+            );
+            assertThat("node-b has not joined yet", allocation.getClusterState().nodes().findByName(NODE_B.getName()), nullValue());
+            assertThat(
+                decider.shouldAutoExpandToNode(indexMetadata, NODE_C, allocation),
+                equalTo(NodeReplacementAllocationDecider.YES__NO_APPLICABLE_REPLACEMENTS)
+            );
+        }
 
-        // index should not contract
-        assertThatDecision(
-            decider.canAllocate(
-                allocation.routingNodes().node(NODE_A.getId()).getByShardId(shardId),
-                allocation.routingNodes().node(NODE_B.getId()),
-                allocation
-            ),
-            Decision.Type.YES,
-            Strings.format("node [%s] is replacing node [%s], and may receive shards from it", NODE_B.getId(), NODE_A.getId())
-        );
-        assertThatAutoExpandReplicasDidNotContract(indexMetadata, allocation);
+        // when starting node replacement
+        state = ClusterState.builder(state).nodes(DiscoveryNodes.builder().add(NODE_A).add(NODE_B).add(NODE_C).build()).build();
+        {
+            var allocation = new RoutingAllocation(allocationDeciders, state, null, null, 0);
+            assertThatDecision(
+                decider.canAllocate(
+                    allocation.routingNodes().node(NODE_A.getId()).getByShardId(shardId),
+                    allocation.routingNodes().node(NODE_B.getId()),
+                    allocation
+                ),
+                Decision.Type.YES,
+                Strings.format("node [%s] is replacing node [%s], and may receive shards from it", NODE_B.getId(), NODE_A.getId())
+            );
+            assertThatAutoExpandReplicasDidNotContract(indexMetadata, allocation);
+        }
 
         // when index is relocating
         state = ClusterState.builder(state)
@@ -308,8 +333,7 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
                     .build()
             )
             .build();
-        allocation = new RoutingAllocation(allocationDeciders, state, null, null, 0);
-        assertThatAutoExpandReplicasDidNotContract(indexMetadata, allocation);
+        assertThatAutoExpandReplicasDidNotContract(indexMetadata, new RoutingAllocation(allocationDeciders, state, null, null, 0));
 
         // when index is relocated
         state = ClusterState.builder(state)
@@ -324,8 +348,11 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
                     .build()
             )
             .build();
-        allocation = new RoutingAllocation(allocationDeciders, state, null, null, 0);
-        assertThatAutoExpandReplicasDidNotContract(indexMetadata, allocation);
+        assertThatAutoExpandReplicasDidNotContract(indexMetadata, new RoutingAllocation(allocationDeciders, state, null, null, 0));
+
+        // when source node is removed
+        state = ClusterState.builder(state).nodes(DiscoveryNodes.builder().add(NODE_B).add(NODE_C).build()).build();
+        assertThatAutoExpandReplicasDidNotContract(indexMetadata, new RoutingAllocation(allocationDeciders, state, null, null, 0));
     }
 
     private void assertThatAutoExpandReplicasDidNotContract(IndexMetadata indexMetadata, RoutingAllocation allocation) {
@@ -352,6 +379,17 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
         );
     }
 
+    private ClusterState prepareState(String sourceNodeId, String targetNodeName) {
+        return ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(NODE_A).add(NODE_B).add(NODE_C).build())
+            .metadata(
+                Metadata.builder()
+                    .put(IndexMetadata.builder(indexMetadata))
+                    .putCustom(NodesShutdownMetadata.TYPE, createNodeShutdownReplacementMetadata(sourceNodeId, targetNodeName))
+            )
+            .build();
+    }
+
     private NodesShutdownMetadata createNodeShutdownReplacementMetadata(String sourceNodeId, String targetNodeName) {
         return new NodesShutdownMetadata(new HashMap<>()).putSingleNodeMetadata(
             SingleNodeShutdownMetadata.builder()
@@ -362,17 +400,6 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
                 .setStartedAtMillis(1L)
                 .build()
         );
-    }
-
-    private ClusterState prepareState(String sourceNodeId, String targetNodeName) {
-        return ClusterState.builder(ClusterName.DEFAULT)
-            .nodes(DiscoveryNodes.builder().add(NODE_A).add(NODE_B).add(NODE_C).build())
-            .metadata(
-                Metadata.builder()
-                    .put(IndexMetadata.builder(indexMetadata))
-                    .putCustom(NodesShutdownMetadata.TYPE, createNodeShutdownReplacementMetadata(sourceNodeId, targetNodeName))
-            )
-            .build();
     }
 
     private static void assertThatDecision(Decision decision, Decision.Type type, String explanation) {

@@ -389,7 +389,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         putNodeShutdown(nodeIdToReplace, SingleNodeShutdownMetadata.Type.REPLACE, replacementNodeName);
 
         var nodeName3 = internalCluster().startNode();
-        assertThat(nodeName3, equalTo(replacementNodeName));
+        assertThat("started node name did not match registered replacement", nodeName3, equalTo(replacementNodeName));
 
         ensureGreen("index");
         assertNodeShutdownStatus(nodeIdToReplace, COMPLETE);

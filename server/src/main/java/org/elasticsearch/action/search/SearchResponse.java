@@ -487,13 +487,13 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         private final transient boolean ccsMinimizeRoundtrips;
 
         /**
-         * An Clusters object meant for use with CCS holding additional information about
+         * A Clusters object meant for use with CCS holding additional information about
          * the number of remote clusters and whether ccsMinimizeRoundtrips is being used.
-         * @param total
-         * @param successful
-         * @param skipped
-         * @param remoteClusters
-         * @param ccsMinimizeRoundtrips
+         * @param total total number of clusters in the search
+         * @param successful number of clusters that have successfully completed the search
+         * @param skipped number of clusters that were skipped (e.g., unavailable or other error)
+         * @param remoteClusters number of remote clusters in the search
+         * @param ccsMinimizeRoundtrips specifies whether a CCS search is using minimizeRoundtrips feature
          */
         public Clusters(int total, int successful, int skipped, int remoteClusters, boolean ccsMinimizeRoundtrips) {
             assert total >= 0 && successful >= 0 && skipped >= 0 && remoteClusters >= 0
@@ -511,6 +511,10 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             this.ccsMinimizeRoundtrips = ccsMinimizeRoundtrips;
         }
 
+        /**
+         * Assumes ccsMinimizeRoundtrips=false.
+         * We are not tracking number of remote clusters in this search.
+         */
         public Clusters(int total, int successful, int skipped) {
             assert total >= 0 && successful >= 0 && skipped >= 0
                 : "total: " + total + " successful: " + successful + " skipped: " + skipped;

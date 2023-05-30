@@ -5,9 +5,9 @@
 <titleabbrev>Source commands</titleabbrev>
 ++++
 :keywords: {es}, ESQL, {es} query language, source commands
-:description: An ESQL source command produces a table, typically with data from {es}. 
+:description: An ESQL source command produces a table, typically with data from {es}.
 
-An ESQL source command produces a table, typically with data from {es}. 
+An ESQL source command produces a table, typically with data from {es}.
 
 image::images/esql/source-command.svg[A source command producing a table from {es},align="center"]
 
@@ -17,67 +17,6 @@ ESQL supports these source commands:
 * <<esql-row>>
 * <<esql-show>>
 
-[[esql-from]]
-=== `FROM`
-
-The `FROM` source command returns a table with up to 10,000 documents from a
-data stream, index, or alias. Each row in the resulting table represents a
-document. Each column corresponds to a field, and can be accessed by the name
-of that field.
-
-[source,esql]
-----
-FROM employees
-----
-
-You can use <<api-date-math-index-names,date math>> to refer to indices, aliases
-and data streams. This can be useful for time series data, for example to access
-today's index:
-
-[source,esql]
-----
-FROM <logs-{now/d}>
-----
-
-Use comma-separated lists or wildcards to query multiple data streams, indices,
-or aliases:
-
-[source,esql]
-----
-FROM employees-00001,employees-*
-----
-
-[[esql-row]]
-=== `ROW`
-
-The `ROW` source command produces a row with one or more columns with values
-that you specify. This can be useful for testing.
-
-[source,esql]
-----
-ROW a = 1, b = "two", c = null
-----
-
-Use angle brackets to create multi-value columns:
-
-[source,esql]
-----
-ROW a = [2, 1]
-----
-
-`ROW` supports the use of <<esql-functions,functions>>:
-
-[source,esql]
-----
-ROW a = ROUND(1.23, 0)
-----
-
-[[esql-show]]
-=== `SHOW <item>`
-
-The `SHOW <item>` source command returns information about the deployment and
-its capabilities:
-
-* Use `SHOW INFO` to return the deployment's version, build date and hash.
-* Use `SHOW FUNCTIONS` to return a list of all supported functions and a 
-synopsis of each function.
+include::source-commands/from.asciidoc[]
+include::source-commands/row.asciidoc[]
+include::source-commands/show.asciidoc[]

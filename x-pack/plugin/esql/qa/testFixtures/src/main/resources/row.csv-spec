@@ -6,10 +6,15 @@ a:integer
 ;
 
 multipleFields
-row a = 1, b = 10, c = 100;
+// tag::example[]
+ROW a = 1, b = "two", c = null
+// end::example[]
+;
 
-a:integer | b:integer  | c:integer
-1 | 10 | 100
+// tag::example-result[]
+a:integer | b:keyword  | c:null
+1         | "two"      | null
+// end::example-result[]
 ;
 
 implicitNames
@@ -19,11 +24,28 @@ row 100, 10, c = 1;
 100 | 10 | 1
 ;
 
-fieldFromFunctionEvaluation
-row a = round(1.23, 0);
+multivalue
+// tag::multivalue[]
+ROW a = [2, 1]
+// end::multivalue[]
+;
 
+// tag::multivalue-result[]
+a:integer
+[2, 1]
+// end::multivalue-result[]
+;
+
+fieldFromFunctionEvaluation
+// tag::function[]
+ROW a = ROUND(1.23, 0)
+// end::function[]
+;
+
+// tag::function-result[]
 a:double
 1.0
+// end::function-result[]
 ;
 
 evalRow

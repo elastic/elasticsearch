@@ -1,0 +1,29 @@
+[[esql-from]]
+=== `FROM`
+
+The `FROM` source command returns a table with up to 10,000 documents from a
+data stream, index, or alias. Each row in the resulting table represents a
+document. Each column corresponds to a field, and can be accessed by the name
+of that field.
+
+[source,esql]
+----
+FROM employees
+----
+
+You can use <<api-date-math-index-names,date math>> to refer to indices, aliases
+and data streams. This can be useful for time series data, for example to access
+today's index:
+
+[source,esql]
+----
+FROM <logs-{now/d}>
+----
+
+Use comma-separated lists or wildcards to query multiple data streams, indices,
+or aliases:
+
+[source,esql]
+----
+FROM employees-00001,employees-*
+----

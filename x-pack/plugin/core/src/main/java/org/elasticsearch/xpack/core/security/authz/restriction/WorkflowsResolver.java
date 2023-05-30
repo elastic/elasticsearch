@@ -101,6 +101,13 @@ public final class WorkflowsResolver {
         throw new IllegalArgumentException(errorMessage);
     }
 
+    /**
+     * Resolves a workflow based on the given REST handler name.
+     *
+     * @param restHandler a unique REST handler name
+     * @return a {@link Workflow} to which the given REST handler belongs
+     *         or {@code null} if the REST handler does not belong to any workflows
+     */
     public static Workflow resolveWorkflowForRestHandler(String restHandler) {
         return WORKFLOW_LOOKUP_MAP_BY_REST_HANDLER.get(restHandler);
     }

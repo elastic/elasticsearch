@@ -103,7 +103,7 @@ public class QueryRewriteContext {
     }
 
     public MappedFieldType getFieldType(String name) {
-        return failIfFieldMappingNotFound(name, fieldType(name));
+        return getMappedFieldType(name, fieldType(name));
     }
 
     protected MappedFieldType fieldType(String name) {
@@ -122,7 +122,7 @@ public class QueryRewriteContext {
         return mapperService.getIndexAnalyzers();
     }
 
-    MappedFieldType failIfFieldMappingNotFound(String name, MappedFieldType fieldMapping) {
+    public MappedFieldType getMappedFieldType(String name, MappedFieldType fieldMapping) {
         return fieldMapping;
     }
 

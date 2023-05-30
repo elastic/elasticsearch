@@ -6,11 +6,13 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.index.query;
+package org.elasticsearch.percolator;
 
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.TextFieldMapper;
+import org.elasticsearch.index.query.QueryShardException;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.support.NestedScope;
 
 public class PercolatorExecutionContext extends SearchExecutionContext {
@@ -18,7 +20,7 @@ public class PercolatorExecutionContext extends SearchExecutionContext {
     private boolean allowUnmappedFields;
     private final boolean mapUnmappedFieldAsString;
 
-    public PercolatorExecutionContext(
+    private PercolatorExecutionContext(
         final SearchExecutionContext searchExecutionContext,
         boolean allowUnmappedFields,
         boolean mapUnmappedFieldAsString
@@ -28,8 +30,16 @@ public class PercolatorExecutionContext extends SearchExecutionContext {
         this.mapUnmappedFieldAsString = mapUnmappedFieldAsString;
     }
 
+    public PercolatorExecutionContext(final SearchExecutionContext searchExecutionContext, boolean mapUnmappedFieldAsString) {
+        this(searchExecutionContext, false, mapUnmappedFieldAsString);
+    }
+
     @Override
-    MappedFieldType failIfFieldMappingNotFound(String name, MappedFieldType fieldMapping) {
+    public MappedFieldType getMappedFieldType(String name, MappedFieldType fieldMapping) {
+        return failIfFieldMappingNotFound(name, fieldMapping);
+    }
+
+    private MappedFieldType failIfFieldMappingNotFound(String name, MappedFieldType fieldMapping) {
         if (fieldMapping != null || allowUnmappedFields) {
             return fieldMapping;
         } else if (mapUnmappedFieldAsString) {
@@ -46,10 +56,6 @@ public class PercolatorExecutionContext extends SearchExecutionContext {
         this.lookup = null;
         this.namedQueries.clear();
         this.nestedScope = new NestedScope();
-    }
-
-    public boolean isAllowUnmappedFields() {
-        return allowUnmappedFields;
     }
 
     public boolean isMapUnmappedFieldAsString() {

@@ -42,7 +42,6 @@ import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.plain.AbstractLeafOrdinalsFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
-import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.KeywordScriptFieldType;
 import org.elasticsearch.index.mapper.LongScriptFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -55,13 +54,11 @@ import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.MockFieldMapper;
-import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.RootObjectMapper;
 import org.elasticsearch.index.mapper.RuntimeField;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TestRuntimeField;
-import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.field.DelegateDocValuesField;
@@ -99,50 +96,11 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
-import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class SearchExecutionContextTests extends ESTestCase {
-
-    public void testFailIfFieldMappingNotFound() {
-        SearchExecutionContext context = new PercolatorExecutionContext(
-            createSearchExecutionContext(IndexMetadata.INDEX_UUID_NA_VALUE, null),
-            false,
-            false
-        );
-        MappedFieldType fieldType = new TextFieldMapper.TextFieldType("text", randomBoolean());
-        MappedFieldType result = context.failIfFieldMappingNotFound("name", fieldType);
-        assertThat(result, sameInstance(fieldType));
-        SearchExecutionContext finalContext = context;
-        QueryShardException e = expectThrows(QueryShardException.class, () -> finalContext.failIfFieldMappingNotFound("name", null));
-        assertEquals("No field mapping can be found for the field with name [name]", e.getMessage());
-
-        context = new PercolatorExecutionContext(context, true, false);
-        result = context.failIfFieldMappingNotFound("name", fieldType);
-        assertThat(result, sameInstance(fieldType));
-        result = context.failIfFieldMappingNotFound("name", null);
-        assertThat(result, nullValue());
-
-        context = new PercolatorExecutionContext(context, false, true);
-        context = new PercolatorExecutionContext(context, false, true);
-        result = context.failIfFieldMappingNotFound("name", fieldType);
-        assertThat(result, sameInstance(fieldType));
-        result = context.failIfFieldMappingNotFound("name", null);
-        assertThat(result, notNullValue());
-        assertThat(result, instanceOf(TextFieldMapper.TextFieldType.class));
-        assertThat(result.name(), equalTo("name"));
-    }
-
-    public void testBuildAnonymousFieldType() {
-        SearchExecutionContext context = createSearchExecutionContext("uuid", null);
-        assertThat(context.buildAnonymousFieldType("keyword"), instanceOf(KeywordFieldMapper.KeywordFieldType.class));
-        assertThat(context.buildAnonymousFieldType("long"), instanceOf(NumberFieldMapper.NumberFieldType.class));
-    }
-
     public void testToQueryFails() {
         SearchExecutionContext context = createSearchExecutionContext(IndexMetadata.INDEX_UUID_NA_VALUE, null);
         Exception exc = expectThrows(Exception.class, () -> context.toQuery(new DummyQueryBuilder() {

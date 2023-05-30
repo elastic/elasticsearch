@@ -3834,14 +3834,18 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public final void makeShardSearchActive() {
-        final Translog.Location location = pendingRefreshLocation.get();
-        if (location != null) {
-            // force refresh, even if other refresh is in progress (see expected behaviour in
-            // SearchIdleIT#testPendingRefreshWithIntervalChange(...) line 157)
-            getEngine().refresh("schedule");
+        try {
+            verifyNotClosed();
+            boolean listenerNeedsRefresh = refreshListeners.refreshNeeded();
+            if (isReadAllowed() && (listenerNeedsRefresh || getEngine().refreshNeeded())) {
+                // force refresh, even if other refresh is in progress (see expected behaviour in
+                // SearchIdleIT#testPendingRefreshWithIntervalChange(...) line 157)
+                getEngine().refresh("schedule");
+            }
+        } finally {
+            // After refresh mark search as accessed and no longer search idle
+            markSearcherAccessed();
         }
-        // After refresh mark search as accessed and no longer search idle
-        markSearcherAccessed();
     }
 
     /**

@@ -363,8 +363,11 @@ public abstract class ThirdPartyAuditTask extends DefaultTask {
 
     void maybeAddIncubatorModule(JavaExecSpec spec) {
         // Enable explicitly for each release as appropriate. Just JDK 20 for now, and just the vector module.
-        if ((BuildParams.getIsRuntimeJavaHomeSet() && VERSION_20.equals(BuildParams.getRuntimeJavaVersion())
-            || "20".equals(VersionProperties.getBundledJdkMajorVersion()))) {
+        if (BuildParams.getIsRuntimeJavaHomeSet()) {
+            if (VERSION_20.equals(BuildParams.getRuntimeJavaVersion())) {
+                spec.jvmArgs("--add-modules", "jdk.incubator.vector");
+            }
+        } else if ("20".equals(VersionProperties.getBundledJdkMajorVersion())) {
             spec.jvmArgs("--add-modules", "jdk.incubator.vector");
         }
     }

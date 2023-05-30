@@ -56,11 +56,34 @@ basic:
 
 
 ---
+basic - approximate:
+  - skip:
+      features: close_to
+  - do:
+      search:
+        body:
+          size: 0
+          aggs:
+            percentile_ranks_int:
+              percentile_ranks:
+                field: int
+                values: [50, 99]
+            percentile_ranks_double:
+              percentile_ranks:
+                field: double
+                values: [50, 99]
+
+  - match: { hits.total.value: 4 }
+  - close_to: { aggregations.percentile_ranks_int.values.50\\.0: { value: 30.0, error: 10.0 } }
+  - close_to: { aggregations.percentile_ranks_int.values.99\\.0: { value: 55.0, error: 10.0 } }
+  - close_to: { aggregations.percentile_ranks_double.values.50\\.0: { value: 30.0, error: 10.0 } }
+  - close_to: { aggregations.percentile_ranks_double.values.99\\.0: { value: 55.0, error: 10.0 } }
+
+
+---
 filtered:
   - skip:
       features: close_to
-      version: " - 8.8.99"
-      reason: t-digest forked in 8.9.0
   - do:
       search:
         body:
@@ -162,8 +185,7 @@ invalid params:
 ---
 non-keyed test:
   - skip:
-      version: " - 8.8.99"
-      reason: t-digest forked in 8.9.0
+      features: close_to
   - do:
       search:
         body:
@@ -177,7 +199,7 @@ non-keyed test:
 
   - match: { hits.total.value: 4 }
   - match: { aggregations.percentile_ranks_int.values.0.key: 50}
-  - match: { aggregations.percentile_ranks_int.values.0.value: 25.0}
+  - close_to: { aggregations.percentile_ranks_int.values.0.value: { value: 30.0, error: 10.0 } }
   - match: { aggregations.percentile_ranks_int.values.1.key: 99}
-  - match: { aggregations.percentile_ranks_int.values.1.value: 50.0}
+  - close_to: { aggregations.percentile_ranks_int.values.1.value: { value: 55.0, error: 10.0 } }
 

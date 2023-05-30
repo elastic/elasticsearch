@@ -33,7 +33,7 @@ public class SpanMatchNoDocsQueryTests extends ESTestCase {
     public void testSimple() throws Exception {
         SpanMatchNoDocsQuery query = new SpanMatchNoDocsQuery("field", "a good reason");
         assertEquals(query.toString(), "SpanMatchNoDocsQuery(\"a good reason\")");
-        Query rewrite = query.rewrite(null);
+        Query rewrite = query.rewrite((IndexSearcher) null);
         assertTrue(rewrite instanceof SpanMatchNoDocsQuery);
         assertEquals(rewrite.toString(), "SpanMatchNoDocsQuery(\"a good reason\")");
     }

@@ -59,8 +59,8 @@ public class VectorSimilarityQuery extends Query {
     }
 
     @Override
-    public Query rewrite(IndexReader reader) throws IOException {
-        Query rewrittenInnerQuery = innerKnnQuery.rewrite(reader);
+    public Query rewrite(IndexSearcher searcher) throws IOException {
+        Query rewrittenInnerQuery = innerKnnQuery.rewrite(searcher);
         if (rewrittenInnerQuery instanceof MatchNoDocsQuery) {
             return rewrittenInnerQuery;
         }

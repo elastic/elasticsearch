@@ -56,8 +56,8 @@ public final class CappedScoreQuery extends Query {
     }
 
     @Override
-    public Query rewrite(IndexReader reader) throws IOException {
-        Query rewritten = query.rewrite(reader);
+    public Query rewrite(IndexSearcher searcher) throws IOException {
+        Query rewritten = query.rewrite(searcher);
 
         if (rewritten != query) {
             return new CappedScoreQuery(rewritten, maxScore);
@@ -71,7 +71,7 @@ public final class CappedScoreQuery extends Query {
             return new CappedScoreQuery(((BoostQuery) rewritten).getQuery(), maxScore);
         }
 
-        return super.rewrite(reader);
+        return super.rewrite(searcher);
     }
 
     /**

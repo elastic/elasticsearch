@@ -59,7 +59,7 @@ public class KnnScoreDocQuery extends Query {
     }
 
     @Override
-    public Query rewrite(IndexReader reader) throws IOException {
+    public Query rewrite(IndexSearcher searcher) throws IOException {
         if (docs.length == 0) {
             return new MatchNoDocsQuery();
         }

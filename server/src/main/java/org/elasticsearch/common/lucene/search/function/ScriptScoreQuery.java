@@ -69,12 +69,12 @@ public class ScriptScoreQuery extends Query {
     }
 
     @Override
-    public Query rewrite(IndexReader reader) throws IOException {
-        Query newQ = subQuery.rewrite(reader);
+    public Query rewrite(IndexSearcher searcher) throws IOException {
+        Query newQ = subQuery.rewrite(searcher);
         if (newQ != subQuery) {
             return new ScriptScoreQuery(newQ, script, scriptBuilder, lookup, minScore, indexName, shardId, indexVersion);
         }
-        return super.rewrite(reader);
+        return super.rewrite(searcher);
     }
 
     @Override

@@ -54,8 +54,8 @@ public final class ESToParentBlockJoinQuery extends Query {
     }
 
     @Override
-    public Query rewrite(IndexReader reader) throws IOException {
-        Query innerRewrite = query.rewrite(reader);
+    public Query rewrite(IndexSearcher searcher) throws IOException {
+        Query innerRewrite = query.rewrite(searcher);
         if (innerRewrite != query) {
             // Right now ToParentBlockJoinQuery always rewrites to a ToParentBlockJoinQuery
             // so the else block will never be used. It is useful in the case that
@@ -69,7 +69,7 @@ public final class ESToParentBlockJoinQuery extends Query {
                 return innerRewrite;
             }
         }
-        return super.rewrite(reader);
+        return super.rewrite(searcher);
     }
 
     @Override

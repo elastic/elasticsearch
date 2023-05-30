@@ -10,6 +10,7 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 
@@ -34,7 +35,7 @@ public class DateRangeIncludingNowQuery extends Query {
     }
 
     @Override
-    public Query rewrite(IndexReader reader) throws IOException {
+    public Query rewrite(IndexSearcher searcher) throws IOException {
         return in;
     }
 

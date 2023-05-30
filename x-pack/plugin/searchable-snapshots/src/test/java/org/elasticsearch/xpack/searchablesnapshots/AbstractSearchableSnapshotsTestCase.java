@@ -254,8 +254,8 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
     protected static void assertThreadPoolNotBusy(ThreadPool threadPool) throws Exception {
         assertBusy(() -> {
             for (ThreadPoolStats.Stats stat : threadPool.stats()) {
-                assertEquals(stat.getActive(), 0);
-                assertEquals(stat.getQueue(), 0);
+                assertEquals(stat.active(), 0);
+                assertEquals(stat.queue(), 0);
             }
         }, 30L, TimeUnit.SECONDS);
     }

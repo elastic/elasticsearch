@@ -84,7 +84,7 @@ This is the maximum size of the primary shards in the index. As with `max_size`,
 replicas are ignored.
 +
 TIP: To see the current shard size, use the <<cat-shards, _cat shards>> API.
-The `store` value shows the size each shard, and `prirep` indicates whether a
+The `store` value shows the size each shard, and `pri` `rep` indicates whether a
 shard is a primary (`p`) or a replica (`r`).
 
 `max_primary_shard_docs`::

@@ -3615,6 +3615,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         getEngine().asyncEnsureTranslogSynced(location, syncListener);
     }
 
+    /**
+     * This method provides the same behavior as #sync but for persisting the global checkpoint. It will initiate a sync
+     * if the request global checkpoint is greater than the currently persisted global checkpoint. However, same as #sync it
+     * will not ensure that the request global checkpoint is available to be synced. It is the caller's duty to only call this
+     * method with a valid processed global checkpoint that is available to sync.
+     */
+    public void syncGlobalCheckpoint(long globalCheckpoint, Consumer<Exception> syncListener) {
+        verifyNotClosed();
+        getEngine().asyncEnsureGlobalCheckpointSynced(globalCheckpoint, syncListener);
+    }
+
     public void sync() throws IOException {
         verifyNotClosed();
         getEngine().syncTranslog();

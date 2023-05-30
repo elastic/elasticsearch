@@ -405,9 +405,9 @@ public class MonitoringIT extends ESSingleNodeTestCase {
                     boolean foundBulkThreads = false;
 
                     for (final ThreadPoolStats.Stats threadPoolStats : nodeStats.getThreadPool()) {
-                        if (WRITE.equals(threadPoolStats.getName())) {
+                        if (WRITE.equals(threadPoolStats.name())) {
                             foundBulkThreads = true;
-                            assertThat("Still some active _bulk threads!", threadPoolStats.getActive(), equalTo(0));
+                            assertThat("Still some active _bulk threads!", threadPoolStats.active(), equalTo(0));
                             break;
                         }
                     }

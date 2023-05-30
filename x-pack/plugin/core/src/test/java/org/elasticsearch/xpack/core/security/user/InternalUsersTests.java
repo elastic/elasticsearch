@@ -17,12 +17,16 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.TransportUnpromotableShardRefreshAction;
+import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.template.put.PutComponentTemplateAction;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.get.GetAction;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
@@ -33,11 +37,13 @@ import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authz.permission.ApplicationPermission;
+import org.elasticsearch.xpack.core.security.authz.permission.ClusterPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.RemoteIndicesPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.permission.RunAsPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.SimpleRole;
+import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 import org.elasticsearch.xpack.core.security.test.TestRestrictedIndices;
 
 import java.util.List;
@@ -46,6 +52,8 @@ import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.I
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.INTERNAL_SECURITY_TOKENS_INDEX_7;
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.SECURITY_MAIN_ALIAS;
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.SECURITY_TOKENS_ALIAS;
+import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
@@ -208,6 +216,54 @@ public class InternalUsersTests extends ESTestCase {
         checkIndexAccess(role, randomFrom(sampleDeniedActions), randomAlphaOfLengthBetween(4, 8), false);
         checkIndexAccess(role, randomFrom(sampleDeniedActions), ".ds-" + randomAlphaOfLengthBetween(4, 8), false);
         checkIndexAccess(role, randomFrom(sampleDeniedActions), INTERNAL_SECURITY_MAIN_INDEX_7, false);
+    }
+
+    public void testDlmUser() {
+        assertThat(InternalUsers.getUser("_dlm"), is(InternalUsers.DLM_USER));
+        assertThat(
+            InternalUsers.DLM_USER.getLocalClusterRoleDescriptor().get().getMetadata(),
+            equalTo(MetadataUtils.DEFAULT_RESERVED_METADATA)
+        );
+
+        final SimpleRole role = getLocalClusterRole(InternalUsers.DLM_USER);
+
+        assertThat(role.cluster(), is(ClusterPermission.NONE));
+        assertThat(role.runAs(), is(RunAsPermission.NONE));
+        assertThat(role.application(), is(ApplicationPermission.NONE));
+        assertThat(role.remoteIndices(), is(RemoteIndicesPermission.NONE));
+
+        final String allowedSystemDataStream = ".fleet-actions-results";
+        for (var group : role.indices().groups()) {
+            if (group.allowRestrictedIndices()) {
+                assertThat(group.indices(), arrayContaining(allowedSystemDataStream));
+            }
+        }
+
+        final List<String> sampleIndexActions = List.of(
+            RolloverAction.NAME,
+            DeleteIndexAction.NAME,
+            ForceMergeAction.NAME,
+            IndicesStatsAction.NAME
+        );
+        final String dataStream = randomAlphaOfLengthBetween(3, 12);
+        checkIndexAccess(role, randomFrom(sampleIndexActions), dataStream, true);
+        // Also check backing index access
+        checkIndexAccess(
+            role,
+            randomFrom(sampleIndexActions),
+            DataStream.BACKING_INDEX_PREFIX + dataStream + randomAlphaOfLengthBetween(4, 8),
+            true
+        );
+
+        checkIndexAccess(role, randomFrom(sampleIndexActions), allowedSystemDataStream, true);
+        checkIndexAccess(
+            role,
+            randomFrom(sampleIndexActions),
+            DataStream.BACKING_INDEX_PREFIX + allowedSystemDataStream + randomAlphaOfLengthBetween(4, 8),
+            true
+        );
+
+        checkIndexAccess(role, randomFrom(sampleIndexActions), randomFrom(TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES), false);
     }
 
     public void testRegularUser() {

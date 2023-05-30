@@ -15,11 +15,11 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.profile.query.CollectorResult;
 import org.elasticsearch.search.profile.query.InternalProfileCollector;
 import org.elasticsearch.search.profile.query.InternalProfileCollectorManager;
+import org.elasticsearch.search.query.BaseCollectorManager;
 import org.elasticsearch.search.query.QueryPhase;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 
 /**
@@ -56,7 +56,7 @@ public class AggregationPhase {
     }
 
     private static CollectorManager<Collector, Void> buildCollector(SearchContext context) {
-        return new CollectorManager<>() {
+        return new BaseCollectorManager() {
             @Override
             public Collector newCollector() throws IOException {
                 Aggregator[] aggregators = context.aggregations().factories().createTopLevelAggregators();
@@ -64,11 +64,6 @@ public class AggregationPhase {
                 BucketCollector bucketCollector = MultiBucketCollector.wrap(true, List.of(aggregators));
                 bucketCollector.preCollection();
                 return bucketCollector.asCollector();
-            }
-
-            @Override
-            public Void reduce(Collection<Collector> collectors) {
-                return null;
             }
         };
     }
@@ -92,15 +87,10 @@ public class AggregationPhase {
             throw new AggregationExecutionException("Could not perform time series aggregation", e);
         }
 
-        return new CollectorManager<>() {
+        return new BaseCollectorManager() {
             @Override
             public Collector newCollector() {
                 return BucketCollector.NO_OP_COLLECTOR;
-            }
-
-            @Override
-            public Void reduce(Collection<Collector> collectors) {
-                return null;
             }
         };
     }

@@ -15,10 +15,10 @@ import java.io.IOException;
 import java.util.Collection;
 
 /** {@link CollectorManager} that runs in a concurrent search. */
-abstract class BaseCollectorManager implements CollectorManager<Collector, Void> {
+public abstract class BaseCollectorManager implements CollectorManager<Collector, Void> {
 
     @Override
-    public Void reduce(Collection<Collector> collectors) throws IOException {
+    public final Void reduce(Collection<Collector> collectors) throws IOException {
         return null;
     }
 }

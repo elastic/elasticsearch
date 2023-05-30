@@ -9,12 +9,11 @@
 package org.elasticsearch.common.util.concurrent;
 
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Releasables;
 
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantLock;
-import java.util.function.BiFunction;
 
 /**
  * This class manages locks. Locks can be accessed with an identifier and are
@@ -33,30 +32,54 @@ public final class KeyedLock<T> {
      * by the same thread multiple times. The lock is released by closing the returned {@link Releasable}.
      */
     public Releasable acquire(T key) {
-        KeyLock perNodeLock = map.compute(key, computeLock());
-        perNodeLock.lock();
-        return releasableLock(key, perNodeLock);
+        while (true) {
+            KeyLock perNodeLock = map.get(key);
+            if (perNodeLock == null) {
+                ReleasableLock newLock = tryCreateNewLock(key);
+                if (newLock != null) {
+                    return newLock;
+                }
+            } else {
+                int i = perNodeLock.count.get();
+                if (i > 0 && perNodeLock.count.compareAndSet(i, i + 1)) {
+                    perNodeLock.lock();
+                    return new ReleasableLock(key, perNodeLock);
+                }
+            }
+        }
     }
 
     /**
      * Tries to acquire the lock for the given key and returns it. If the lock can't be acquired null is returned.
      */
     public Releasable tryAcquire(T key) {
-        KeyLock perNodeLock = map.compute(key, computeLock());
-        if (perNodeLock.tryLock()) {
-            return releasableLock(key, perNodeLock);
+        final KeyLock perNodeLock = map.get(key);
+        if (perNodeLock == null) {
+            return tryCreateNewLock(key);
         }
-        // failed to get the lock, but we incremented its count when acquiring it above, so we decrement the count and potentially remove
-        // it from the map
-        if (perNodeLock.count.decrementAndGet() == 0) {
-            map.remove(key, perNodeLock);
+        if (perNodeLock.tryLock()) { // ok we got it - make sure we increment it accordingly otherwise release it again
+            int i;
+            while ((i = perNodeLock.count.get()) > 0) {
+                // we have to do this in a loop here since even if the count is > 0
+                // there could be a concurrent blocking acquire that changes the count and then this CAS fails. Since we already got
+                // the lock we should retry and see if we can still get it or if the count is 0. If that is the case and we give up.
+                if (perNodeLock.count.compareAndSet(i, i + 1)) {
+                    return new ReleasableLock(key, perNodeLock);
+                }
+            }
+            perNodeLock.unlock(); // make sure we unlock and don't leave the lock in a locked state
         }
         return null;
     }
 
-    private static <S> BiFunction<S, KeyLock, KeyLock> computeLock() {
-        // duplicate lambdas a little to save capturing lambda instantiation from capturing the 'fair' flag
-        return (k, existing) -> existing != null && existing.count.updateAndGet(i -> i == 0 ? 0 : i + 1) > 0 ? existing : new KeyLock();
+    private ReleasableLock tryCreateNewLock(T key) {
+        KeyLock newLock = new KeyLock();
+        newLock.lock();
+        KeyLock keyLock = map.putIfAbsent(key, newLock);
+        if (keyLock == null) {
+            return new ReleasableLock(key, newLock);
+        }
+        return null;
     }
 
     /**
@@ -80,8 +103,21 @@ public final class KeyedLock<T> {
         assert decrementAndGet >= 0 : decrementAndGet + " must be >= 0 but wasn't";
     }
 
-    private Releasable releasableLock(T key, KeyLock lock) {
-        return Releasables.releaseOnce(() -> release(key, lock));
+    private final class ReleasableLock extends AtomicBoolean implements Releasable {
+        final T key;
+        final KeyLock lock;
+
+        private ReleasableLock(T key, KeyLock lock) {
+            this.key = key;
+            this.lock = lock;
+        }
+
+        @Override
+        public void close() {
+            if (compareAndSet(false, true)) {
+                release(key, lock);
+            }
+        }
     }
 
     @SuppressWarnings("serial")

@@ -22,64 +22,136 @@ import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoLineMultiValuesSource;
 
 import java.io.IOException;
-import java.util.List;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.spatial.search.aggregations.GeoLineAggregationBuilder.SORT_FIELD;
 
 /**
- * A bigArrays sorter of both a geo_line's sort-values and points.
+ * Time-series aware geo_line aggregation relies on TSID and time-ordered data.
+ * It does no sorting, and is therefor also able to maintain a single collector of fixed memory size,
+ * and re-use this over and over for each bucket collected. The total memory used will be the max bucket size
+ * multiplied by the memory cost of the internal SimplifiablePoint class, and the memory required by the underlying
+ * geometry simplifier to maintain two collections of this data, one array pre-sized to the max bucket size and ordered
+ * by the native time-series order (timestamp descending), and another PriorityQueue ordered by increasing cost/consequence
+ * of removing a point from the collection (we remove points that have the least impact on the resulting geo_line).
  * <p>
- * This class accumulates geo_points within buckets and heapifies the
- * bucket based on whether there are too many items in the bucket that
- * need to be dropped based on their sort value.
+ * Whenever the bucket id changes, the simplifier memory is copied into a new InternalGeoLine aggregation object
+ * and the memory re-used for the next bucket. The last bucket is compied into InternalGeoLine in the doPostCollection
  */
 class TimeSeriesGeoLineBucketedSort {
+    private static final long NO_BUCKET = -1;
     private final GeoLineMultiValuesSource valuesSources;
-    private final SortOrder sortOrder;
     private final int bucketSize;
-    private int tsidOrd;
-    private Simplifier simplifier;
+    private final Function<Long, InternalGeoLine> geoLineBuilder;
+    private long currentBucket;
+    private final Simplifier simplifier;
+    private final HashMap<Long, InternalAggregation> geoLines = new HashMap<>();
 
+    /**
+     * The time-series geo_line aggregation does not need to know of the sort order, because it relies entirely upon
+     * the TSDB time-order (descending), and re-ordering to ascending (if required) is only needed at InternalGeoLine creation time.
+     * @param bucketSize The maximum geo_line length to create, passed into the StreamingGeometrySimplifier
+     * @param valuesSources For reading the geo_point and timestamp fields from each document
+     * @param geoLineBuilder A function to create the InternalGeoLine with appropriate metadata (and sort order)
+     * @param circuitBreaker A function to request memory for each geo_line created
+     */
     TimeSeriesGeoLineBucketedSort(
-        SortOrder sortOrder,
         int bucketSize,
         GeoLineMultiValuesSource valuesSources,
-        int tsidOrd,
-        Simplifier simplifier
+        Function<Long, InternalGeoLine> geoLineBuilder,
+        Function<Long, Long> circuitBreaker
     ) {
         this.valuesSources = valuesSources;
-        this.sortOrder = sortOrder;
         this.bucketSize = bucketSize;
-        this.tsidOrd = tsidOrd;
-        this.simplifier = simplifier;
-    }
-
-    int length() {
-        return simplifier.length();
-    }
-
-    void reset() {
-        simplifier.reset();
-    }
-
-    public Leaf forLeaf(AggregationExecutionContext aggCtx) throws IOException {
-        this.tsidOrd = aggCtx.getTsidOrd();
-        return new Leaf(aggCtx.getLeafReaderContext());
-    }
-
-    public int getTsidOrd() {
-        return tsidOrd;
+        this.geoLineBuilder = geoLineBuilder;
+        this.currentBucket = NO_BUCKET;
+        this.simplifier = new TimeSeriesGeoLineBucketedSort.Simplifier(bucketSize, circuitBreaker);
     }
 
     /**
-     * Wrapper for points and sort fields that it also usable in the GeometrySimplifier library,
-     * allowing us to track which points will survive geometry simplification during geo_line aggregations.
+     * Produce the leaf collector for collecting the timestamp (sort field) and geo_point for each document.
+     * Each lucene segment will have its own leaf collector, but it is still possible to have multiple buckets per-leaf.
+     */
+    Leaf forLeaf(AggregationExecutionContext aggCtx) throws IOException {
+        return new Leaf(aggCtx.getLeafReaderContext());
+    }
+
+    void doPostCollection() {
+        // Ensure any last bucket is completed
+        flushBucket(NO_BUCKET);
+    }
+
+    void doClose() {
+        simplifier.reset();
+    }
+
+    /**
+     * Since there is a different instance of the leaf collector for each segment, and within a segment
+     * the bucket id can change (or tsid can change), we need to copy the streaming geometry simplifier memory
+     * into an InternalGeoLine object before collecting the next bucket. This is handled by the Leaf.collect(doc,bucket)
+     * method calling flushBucket(bucket) and any change in bucket id will copy the memory and prepare the simplifier
+     * for the next bucket.
+     */
+    private void flushBucket(long bucket) {
+        if (bucket != currentBucket) {
+            if (currentBucket != NO_BUCKET) {
+                if (geoLines.containsKey(currentBucket)) {
+                    throw new IllegalStateException("Geoline already exists for bucket " + currentBucket);
+                }
+                geoLines.put(currentBucket, geoLineBuilder.apply(currentBucket));
+                simplifier.reset();
+            }
+            currentBucket = bucket;
+        }
+    }
+
+    /**
+     * Build the aggregation based on saved state from the collector phase.
+     * Note that the collector phase does not know about sort-order, so if the order is not the native time-series
+     * order of 'descending', this is where we can do an efficient in-place reverse ordering.
+     * Also note that the collector phase will re-use the same memory (in the StreamingGeometrySimplifier) for each bucket,
+     * so it is important that this method is called to copy that 'scratch' memory into the final InternalGeoLine aggregation
+     * objects between each bucket collection phase.
+     */
+    InternalGeoLine buildAggregation(long bucket, String name, Map<String, Object> metadata, boolean includeSorts, SortOrder sortOrder) {
+        LineStream line = simplifier.produce();
+        boolean complete = simplifier.length() < bucketSize;
+        if (line.isEmpty()) {
+            // TODO: Perhaps we should return an empty geo_line here?
+            throw new IllegalStateException("Invalid bucket " + bucket + " for geo_line");
+        }
+        // TODO: For TSID perhaps we should save sortValues as longs
+        double[] sortVals = line.sortValues;
+        long[] bucketLine = line.encodedPoints;
+        if (sortOrder == SortOrder.ASC) {
+            // time-series is natively sorted DESC, so we need to reverse the order
+            ArrayUtils.reverseSubArray(sortVals, 0, sortVals.length);
+            ArrayUtils.reverseSubArray(bucketLine, 0, bucketLine.length);
+        }
+        return new InternalGeoLine(name, bucketLine, sortVals, metadata, complete, includeSorts, sortOrder, bucketSize);
+    }
+
+    /**
+     * In the aggregation phase we need to return the InternalGeoLine aggregation objects for each bucket.
+     * Since the collect phase was re-using the same memory for each bucket during collection, the construction
+     * of all InternalGeoLine aggregations was done at the end of each bucket collection, and here we merely
+     * return the results.
+     */
+    public InternalAggregation getGeolineForBucket(long bucket) {
+        return geoLines.get(bucket);
+    }
+
+    /**
+     * Wrapper for points and sort-fields that are also usable in the GeometrySimplifier library.
+     * Since that library has no knowledge of timestamps or sort-fields, we need to use these custom objects
+     * to maintain the geo_point-timestamp correlation through the simplification process.
      */
     private static class SimplifiablePoint extends StreamingGeometrySimplifier.PointError {
         private double sortValue;
@@ -91,7 +163,10 @@ class TimeSeriesGeoLineBucketedSort {
             setEncoded(x, y);
         }
 
-        public StreamingGeometrySimplifier.PointError reset(int index, double x, double y, double sortValue) {
+        /**
+         * The streaming geometry simplifier needs to be able to re-use objects to save memory.
+         */
+        private StreamingGeometrySimplifier.PointError reset(int index, double x, double y, double sortValue) {
             super.reset(index, x, y);
             this.sortValue = sortValue;
             setEncoded(x, y);
@@ -103,7 +178,12 @@ class TimeSeriesGeoLineBucketedSort {
         }
     }
 
-    /** Controlled memory version of Line from streaming data */
+    /**
+     * Controlled memory version of Line from streaming data.
+     * The points array is a re-used array sized to the maximum allowed geo_line length. The length field is the actual
+     * length of the geo_line, which could be much shorter. This class allocates the two arrays used internally in
+     * the InternalGeoLine aggregation object, and copies the reusable memory into these arrays.
+     */
     private static class LineStream implements Geometry {
         private final long[] encodedPoints;
         private final double[] sortValues;
@@ -152,69 +232,25 @@ class TimeSeriesGeoLineBucketedSort {
         public String toString() {
             return WellKnownText.toWKT(this);
         }
-
-        public int length() {
-            return encodedPoints.length;
-        }
-    }
-
-    private static class TestGeometrySimplifierMonitor implements StreamingGeometrySimplifier.Monitor {
-        private int addedCount;
-        private int removedCount;
-
-        public void reset() {
-            addedCount = 0;
-            removedCount = 0;
-        }
-
-        @Override
-        public void pointAdded(String status, List<SimplificationErrorCalculator.PointLike> points) {
-            addedCount++;
-            System.out.println("Adding point " + points.get(points.size() - 1));
-        }
-
-        @Override
-        public void pointRemoved(
-            String status,
-            List<SimplificationErrorCalculator.PointLike> points,
-            SimplificationErrorCalculator.PointLike removed,
-            double error,
-            SimplificationErrorCalculator.PointLike previous,
-            SimplificationErrorCalculator.PointLike next
-        ) {
-            addedCount++;
-            removedCount++;
-            System.out.println("Adding point " + points.get(points.size() - 1) + " and removing point " + removed);
-        }
-
-        @Override
-        public void startSimplification(String description, int maxPoints) {}
-
-        @Override
-        public void endSimplification(String description, List<SimplificationErrorCalculator.PointLike> points) {}
     }
 
     /**
-     * Wrapping the Streaming GeometrySimplifier allowing the aggregation to extract
-     * expected points and their sort fields after simplification
+     * Wrapping the Streaming GeometrySimplifier allowing the aggregation to extract expected points
+     * and their sort fields after simplification. This class works with the SimplifiablePoint instances
+     * to maintain the correlation between geo_point and the timestamp field.
      */
     static class Simplifier extends StreamingGeometrySimplifier<LineStream>
         implements
             StreamingGeometrySimplifier.PointConstructor,
             StreamingGeometrySimplifier.PointResetter {
         double currentSortValue;
+        private final Function<Long, Long> circuitBreaker;
 
-        Simplifier(int maxPoints) {
-            super("GeoLineTSDB", maxPoints, SimplificationErrorCalculator.TRIANGLE_AREA, new TestGeometrySimplifierMonitor());
+        Simplifier(int maxPoints, Function<Long, Long> circuitBreaker) {
+            super("GeoLineTSDB", maxPoints, SimplificationErrorCalculator.TRIANGLE_AREA, null);
             this.pointConstructor = this;
             this.pointResetter = this;
-        }
-
-        @Override
-        public void reset() {
-            System.out.println("Resetting!");
-            new Exception("Stack trace").printStackTrace(System.out);
-            super.reset();
+            this.circuitBreaker = circuitBreaker;
         }
 
         @Override
@@ -229,6 +265,7 @@ class TimeSeriesGeoLineBucketedSort {
 
         @Override
         public LineStream produce() {
+            circuitBreaker.apply((Double.SIZE + Long.SIZE) * (long) length());
             return new LineStream(this.length, this.points);
         }
 
@@ -237,47 +274,17 @@ class TimeSeriesGeoLineBucketedSort {
         }
     }
 
-    /** Build the aggregation based on saved state from the collector phase */
-    InternalGeoLine buildAggregation(
-        long bucket,
-        String name,
-        Map<String, Object> metadata,
-        boolean complete,
-        boolean includeSorts,
-        int size,
-        Function<Long, Long> circuitBreaker
-    ) {
-        circuitBreaker.apply((Double.SIZE + Long.SIZE) * (long) size);
-        LineStream line = simplifier.produce();
-        if (line.isEmpty()) {
-            // TODO: Perhaps we should return an empty geo_line here?
-            throw new IllegalStateException("Invalid bucket " + bucket + " for geo_line");
-        }
-        double[] sortVals = line.sortValues;
-        long[] bucketLine = line.encodedPoints;
-        if (sortOrder == SortOrder.ASC) {
-            // time-series is natively sorted DESC, so we need to reverse the order
-            ArrayUtils.reverseSubArray(sortVals, 0, sortVals.length);
-            ArrayUtils.reverseSubArray(bucketLine, 0, bucketLine.length);
-        }
-        return new InternalGeoLine(name, bucketLine, sortVals, metadata, complete, includeSorts, sortOrder, size);
-    }
-
     protected class Leaf {
         private final SortedNumericDoubleValues docSortValues;
         private final MultiGeoPointValues docGeoPointValues;
-        private final int leafReaderOrd;
 
         protected Leaf(LeafReaderContext ctx) throws IOException {
-            System.out.println("\n\n**** Constructing new Leaf " + ctx.ord);
-            this.leafReaderOrd = ctx.ord;
             // TODO: Should the sort field be hard-coded for time-series? Or just validated earlier on?
             docSortValues = valuesSources.getNumericField(SORT_FIELD.getPreferredName(), ctx);
             docGeoPointValues = valuesSources.getGeoPointField(GeoLineAggregationBuilder.POINT_FIELD.getPreferredName(), ctx);
         }
 
         private boolean loadSortField(int doc) throws IOException {
-            System.out.println("Collecting for ctx.ord " + leafReaderOrd);
             simplifier.currentSortValue = Long.MIN_VALUE;
             if (docSortValues.advanceExact(doc)) {
                 // If we get here from TSDB `position` metric, this assertion should have been made during indexing
@@ -294,9 +301,9 @@ class TimeSeriesGeoLineBucketedSort {
             return false;
         }
 
-        private void loadPointField(int doc) throws IOException {
+        private boolean loadPointField(int doc) throws IOException {
             if (false == docGeoPointValues.advanceExact(doc)) {
-                return;
+                return false;
             }
 
             if (docGeoPointValues.docValueCount() > 1) {
@@ -307,13 +314,16 @@ class TimeSeriesGeoLineBucketedSort {
             }
 
             final GeoPoint point = docGeoPointValues.nextValue();
+            // The consume method will rely on the newPoint and resetPoint methods to capture the sort-field value
             simplifier.consume(point.getX(), point.getY());
+            return true;
         }
 
         public void collect(int doc, long bucket) throws IOException {
-            System.out.println("collect(" + doc + ", " + bucket + ") for sort-order " + sortOrder);
             if (loadSortField(doc)) {
-                loadPointField(doc);
+                if (loadPointField(doc)) {
+                    flushBucket(bucket);
+                }
             }
         }
     }

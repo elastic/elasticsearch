@@ -23,7 +23,6 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoLineMultiValuesSource;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -150,10 +149,7 @@ abstract class GeoLineAggregator extends MetricsAggregator {
     }
 
     static class TimeSeries extends GeoLineAggregator {
-        private final TimeSeriesGeoLineBucketedSort sort;
-        private final HashMap<Long, InternalAggregation> geoLines = new HashMap<>();
-        private int tsidOrd;
-        private TimeSeriesGeoLineBucketedSort.Simplifier simplifier;
+        private final TimeSeriesGeoLineBucketedSort geolineBuckets;
 
         TimeSeries(
             String name,
@@ -166,36 +162,17 @@ abstract class GeoLineAggregator extends MetricsAggregator {
             int size
         ) throws IOException {
             super(name, valuesSources, context, parent, metaData, includeSorts, sortOrder, size);
-            this.tsidOrd = -1;
-            this.simplifier = new TimeSeriesGeoLineBucketedSort.Simplifier(size);
-            this.sort = new TimeSeriesGeoLineBucketedSort(sortOrder, size, valuesSources, tsidOrd, simplifier);
-        }
-
-        private void postCollectLastCollector() {
-            System.out.println(
-                "\n**** post-collection (last collector) - previous TsidOrd=" + sort.getTsidOrd() + " new TsidOrd=" + tsidOrd + " ***\n"
+            this.geolineBuckets = new TimeSeriesGeoLineBucketedSort(
+                size,
+                valuesSources,
+                this::buildGeolineForBucket,
+                this::addRequestCircuitBreakerBytes
             );
-            if (sort.getTsidOrd() != tsidOrd && sort.getTsidOrd() != -1) {
-                flushBucket();
-            }
-        }
-
-        @Override
-        protected void doPostCollection() {
-            System.out.println("\n**** post-collection ***\n");
-            this.tsidOrd = -1;
-            postCollectLastCollector();
         }
 
         @Override
         public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, final LeafBucketCollector sub) throws IOException {
-            // TODO: We should use bucket id not tsid for nested aggregations
-            this.tsidOrd = aggCtx.getTsidOrd();
-            postCollectLastCollector();
-            TimeSeriesGeoLineBucketedSort.Leaf leaf = sort.forLeaf(aggCtx);
-            System.out.println("Agg context: " + aggCtx);
-            System.out.println("Leaf reader context ord: " + aggCtx.getLeafReaderContext().ord);
-            System.out.println("TSID ord: " + aggCtx.getTsidOrd());
+            TimeSeriesGeoLineBucketedSort.Leaf leaf = geolineBuckets.forLeaf(aggCtx);
 
             return new LeafBucketCollector() {
                 @Override
@@ -205,35 +182,26 @@ abstract class GeoLineAggregator extends MetricsAggregator {
             };
         }
 
-        private InternalGeoLine makeAggregation(long bucket) {
-            boolean complete = sort.length() < size;
-            return sort.buildAggregation(bucket, name, metadata(), complete, includeSorts, size, this::addRequestCircuitBreakerBytes);
-        }
-
-        private void flushBucket() {
-            // TODO use bucket not TsidOrd
-            System.out.println("Flushing geoline to bucket " + sort.getTsidOrd());
-            geoLines.put((long) sort.getTsidOrd(), makeAggregation(sort.getTsidOrd()));
-            sort.reset();
+        private InternalGeoLine buildGeolineForBucket(long bucket) {
+            // The time-series geo_line does not need to know about sortOrder or other fields until creation of the InternalGeoLine
+            return geolineBuckets.buildAggregation(bucket, name, metadata(), includeSorts, sortOrder);
         }
 
         @Override
         public InternalAggregation buildAggregation(long bucket) {
-            if (geoLines.containsKey(bucket)) {
-                return geoLines.get(bucket);
-            }
-            // TODO: remove this as it is already done in doPostCollection
-            if (sort.getTsidOrd() == bucket) {
-                flushBucket();
-                return geoLines.get(bucket);
-            }
-            return buildEmptyAggregation();
+            return geolineBuckets.getGeolineForBucket(bucket);
+        }
+
+        @Override
+        protected void doPostCollection() {
+            // Ensure any last bucket is completed
+            geolineBuckets.doPostCollection();
         }
 
         @Override
         public void doClose() {
             super.doClose();
-            simplifier.reset();
+            geolineBuckets.doClose();
         }
     }
 }

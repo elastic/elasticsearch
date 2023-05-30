@@ -349,7 +349,6 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
                 InternalGeoLine geoLine = tsx.ts.getBuckets().get(0).getAggregations().get("track");
                 assertThat("Length of GeoLine", geoLine.length(), equalTo(10));
                 assertGeoLine(sortOrder, tsx.expectedAggPoints, geoLine, false);
-                // TODO: We get failure on multi-segments here due to incorrect sort values for -Dtests.seed=CBF396D20D08C7C1
                 assertSortValues(sortOrder, tsx.expectedAggSortValues, geoLine.sortVals());
             });
         }
@@ -384,9 +383,6 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
                 case ASC -> Matchers.greaterThan(sortValues[i - 1]);
                 case DESC -> Matchers.lessThan(sortValues[i - 1]);
             };
-            if (sortMatcher.matches(sortValues[i]) == false) {
-                System.out.println("Failed");
-            }
             assertThat("Expect ordered '" + sortOrder + "' sort values", sortValues[i], sortMatcher);
         }
         assertArrayEquals("GeoLine sort values", expected, sortValues, 0d);
@@ -454,7 +450,7 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
     private record TestTSAssertionResults(MultiBucketsAggregation ts, long[] expectedAggPoints, double[] expectedAggSortValues) {}
 
     /**
-     * Wrapper for points and sort fields that it also usable in the GeometrySimplifier library,
+     * Wrapper for points and sort fields that is also usable in the GeometrySimplifier library,
      * allowing us to track which points will survive geometry simplification during geo_line aggregations.
      */
     private static class TestSimplifiablePoint extends StreamingGeometrySimplifier.PointError {
@@ -547,7 +543,6 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
         @Override
         public void pointAdded(String status, List<SimplificationErrorCalculator.PointLike> points) {
             addedCount++;
-            System.out.println("Adding point " + points.get(points.size() - 1));
         }
 
         @Override
@@ -561,7 +556,6 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
         ) {
             addedCount++;
             removedCount++;
-            System.out.println("Adding point " + points.get(points.size() - 1) + " and removing point " + removed);
         }
 
         @Override
@@ -592,7 +586,6 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
         Function<GeoLineAggregationBuilder, TimeSeriesAggregationBuilder> makeTSAggBuilder,
         Consumer<TestTSAssertionResults> verifyTSResults
     ) throws IOException {
-        System.out.println("\n\nMaking test data for sort-order "+sortOrder);
         MultiValuesSourceFieldConfig valueConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName("value_field").build();
         MultiValuesSourceFieldConfig sortConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName("@timestamp").build();
         GeoLineAggregationBuilder lineAggregationBuilder = new GeoLineAggregationBuilder("track").point(valueConfig)
@@ -663,7 +656,6 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
             ArrayUtils.reverseSubArray(expectedAggPoints, 0, expectedAggPoints.length);
             ArrayUtils.reverseSubArray(expectedAggSortValues, 0, expectedAggSortValues.length);
         }
-        System.out.println("\n\nStarting test for sort-order "+sortOrder);
         testCase(aggregationBuilder, iw -> {
             for (int i = 0; i < points.size(); i++) {
                 final TimeSeriesIdFieldMapper.TimeSeriesIdBuilder builder = new TimeSeriesIdFieldMapper.TimeSeriesIdBuilder(null);
@@ -687,7 +679,6 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
                 iw.addDocument(fields);
             }
         }, ts -> verifyTSResults.accept(new TestTSAssertionResults(ts, expectedAggPoints, expectedAggSortValues)));
-        System.out.println("\n\nFinished test for sort-order " + sortOrder + "\n\n");
     }
 
     private void testAggregator(SortOrder sortOrder) throws IOException {

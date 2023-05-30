@@ -598,7 +598,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
                     }
                 }
                 for (C agg : aggregators) {
-                    System.out.println("\n\nBuilding top level for aggregator " + agg.name());
                     agg.postCollection();
                     internalAggs.add(agg.buildTopLevel());
                 }

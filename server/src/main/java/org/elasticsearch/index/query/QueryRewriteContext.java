@@ -103,7 +103,7 @@ public class QueryRewriteContext {
     }
 
     public MappedFieldType getFieldType(String name) {
-        return getMappedFieldType(name, fieldType(name));
+        return fieldType(name);
     }
 
     protected MappedFieldType fieldType(String name) {

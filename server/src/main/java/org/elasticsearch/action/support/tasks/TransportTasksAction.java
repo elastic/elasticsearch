@@ -198,7 +198,7 @@ public abstract class TransportTasksAction<
         }
     }
 
-    protected void processTasks(TasksRequest request, ActionListener<List<OperationTask>> nodeOperation) {
+    protected void processTasks(CancellableTask nodeTask, TasksRequest request, ActionListener<List<OperationTask>> nodeOperation) {
         nodeOperation.onResponse(processTasks(request));
     }
 
@@ -255,6 +255,7 @@ public abstract class TransportTasksAction<
             assert task instanceof CancellableTask;
             TasksRequest tasksRequest = request.tasksRequest;
             processTasks(
+                (CancellableTask) task,
                 tasksRequest,
                 new ChannelActionListener<NodeTasksResponse>(channel).delegateFailure(
                     (l, tasks) -> nodeOperation((CancellableTask) task, l, tasksRequest, tasks)

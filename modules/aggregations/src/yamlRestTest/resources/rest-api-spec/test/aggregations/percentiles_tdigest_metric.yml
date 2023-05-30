@@ -249,7 +249,7 @@ setup:
   - length: { hits.hits: 3 }
 
   - close_to:  { aggregations.percentiles_int.values.1\.0: { value: 52.0, error: 1.0 } }
-  - close_to:  { aggregations.percentiles_int.values.5\.0: { value: 55.0, error: 3.0 } }
+  - close_to:  { aggregations.percentiles_int.values.5\.0: { value: 54.0, error: 3.0 } }
   - close_to:  { aggregations.percentiles_int.values.25\.0: { value: 70.0, error: 10.0 } }
   - close_to:  { aggregations.percentiles_int.values.50\.0: { value: 101.0, error: 1.0 } }
   - close_to:  { aggregations.percentiles_int.values.75\.0: { value: 130.0, error: 10.0 } }
@@ -257,7 +257,7 @@ setup:
   - close_to:  { aggregations.percentiles_int.values.99\.0: { value: 150.0, error: 1.0 } }
 
   - close_to: { aggregations.percentiles_double.values.1\.0: { value: 52.0, error: 1.0 } }
-  - close_to: { aggregations.percentiles_double.values.5\.0: { value: 55.0, error: 3.0 } }
+  - close_to: { aggregations.percentiles_double.values.5\.0: { value: 54.0, error: 3.0 } }
   - close_to: { aggregations.percentiles_double.values.25\.0: { value: 70.0, error: 10.0 } }
   - close_to: { aggregations.percentiles_double.values.50\.0: { value: 101.0, error: 1.0 } }
   - close_to: { aggregations.percentiles_double.values.75\.0: { value: 130.0, error: 10.0 } }

@@ -3839,6 +3839,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 pendingRefreshLocation.compareAndSet(location, null);
                 listener.accept(true);
             });
+            scheduledRefresh();
         } else {
             listener.accept(false);
         }
@@ -3846,12 +3847,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public final void makeShardSearchActive() {
         try {
-            verifyNotClosed();
-            boolean listenerNeedsRefresh = refreshListeners.refreshNeeded();
-            if (isReadAllowed() && (listenerNeedsRefresh || getEngine().refreshNeeded())) {
-                // force refresh, even if other refresh is in progress (see expected behaviour in
-                // SearchIdleIT#testPendingRefreshWithIntervalChange(...) line 157)
-                getEngine().refresh("schedule");
+            if (hasRefreshPending()) {
+                verifyNotClosed();
+                boolean listenerNeedsRefresh = refreshListeners.refreshNeeded();
+                if (isReadAllowed() && (listenerNeedsRefresh || getEngine().refreshNeeded())) {
+                    // force refresh, even if other refresh is in progress (see expected behaviour in
+                    // SearchIdleIT#testPendingRefreshWithIntervalChange(...) line 157)
+                    // (alternatively, use maybeRefresh and add refresh listeners)
+                    getEngine().refresh("make-shard-search-active");
+                }
             }
         } finally {
             // After refresh mark search as accessed and no longer search idle

@@ -465,11 +465,11 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         long expectedShardSize,
         RoutingChangesObserver changes
     ) {
-        if (startedShard.canHaveUnpromotables()) {
+        if (startedShard.isPromotableThatCanHaveUnpromotables()) {
             remove(startedShard);
             var unassignedInfo = new UnassignedInfo(
                 UnassignedInfo.Reason.REINITIALIZED,
-                "relocating shard that can have unpromotable shards"
+                "relocating promotable shard that can have unpromotable shards"
             );
             var assignedShards = assignedShards(startedShard.shardId());
             var promotableShard = assignedShards.stream().filter(ShardRouting::isPromotableToPrimary).findAny();

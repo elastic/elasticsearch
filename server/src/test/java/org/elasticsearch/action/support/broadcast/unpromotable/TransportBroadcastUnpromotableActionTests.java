@@ -159,9 +159,7 @@ public class TransportBroadcastUnpromotableActionTests extends ESTestCase {
         List<ShardRouting.Role> replicaRoles = Stream.concat(
             Collections.nCopies(
                 numPromotableReplicas,
-                randomBoolean() ? ShardRouting.Role.DEFAULT
-                    : randomBoolean() ? ShardRouting.Role.INDEX_ONLY
-                    : ShardRouting.Role.INDEX_SEARCH
+                randomFrom(ShardRouting.Role.DEFAULT, ShardRouting.Role.INDEX_ONLY, ShardRouting.Role.INDEX_SEARCH)
             ).stream(),
             Collections.nCopies(numUnpromotableReplicas, randomFrom(ShardRouting.Role.SEARCH_ONLY, ShardRouting.Role.GETS_ONLY)).stream()
         ).collect(Collectors.toList());
@@ -190,8 +188,8 @@ public class TransportBroadcastUnpromotableActionTests extends ESTestCase {
         ShardRoutingState state;
         do {
             state = randomFrom(possibleStates);
-            // relocation is not possible for shards that can have unpromotables until ES-4677 is implemented
-        } while (role.canHaveUnpromotables() && state == ShardRoutingState.RELOCATING);
+            // relocation is not possible for promotable shards that can have unpromotables until ES-4677 is implemented
+        } while (role.isPromotableThatCanHaveUnpromotables() && state == ShardRoutingState.RELOCATING);
         return state;
     }
 

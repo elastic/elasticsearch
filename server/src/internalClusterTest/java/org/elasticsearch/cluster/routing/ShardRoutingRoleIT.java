@@ -78,7 +78,6 @@ import static org.elasticsearch.cluster.routing.ShardRoutingRoleStrategyHelper.c
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -297,20 +296,16 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
 
             // verify non-DEFAULT roles reported in cluster state string representation
             var stateAsString = clusterState.toString();
-            assertThat(
-                stateAsString,
-                either(containsString("[" + ShardRouting.Role.INDEX_ONLY + "]")).or(
-                    containsString("[" + ShardRouting.Role.INDEX_SEARCH + "]")
-                )
-            );
+            assertThat(stateAsString, containsString("[" + ShardRouting.Role.INDEX_ONLY + "]"));
+            if (routingTableWatcher.numIndexingCopies > 1) {
+                assertThat(stateAsString, containsString("[" + ShardRouting.Role.INDEX_SEARCH + "]"));
+            }
             assertThat(stateAsString, not(containsString("[" + ShardRouting.Role.DEFAULT + "]")));
             if (routingTableWatcher.numReplicas + 1 > routingTableWatcher.numIndexingCopies) {
-                assertThat(
-                    stateAsString,
-                    either(containsString("[" + ShardRouting.Role.SEARCH_ONLY + "]")).or(
-                        containsString("[" + ShardRouting.Role.GETS_ONLY + "]")
-                    )
-                );
+                assertThat(stateAsString, containsString("[" + ShardRouting.Role.SEARCH_ONLY + "]"));
+                if (routingTableWatcher.numIndexingCopies > 1) {
+                    assertThat(stateAsString, containsString("[" + ShardRouting.Role.GETS_ONLY + "]"));
+                }
             }
 
             ensureGreen(INDEX_NAME);

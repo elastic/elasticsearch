@@ -1,0 +1,6 @@
+pr: 96171
+summary: "[Logs+] Adding ECS dynamic templates"
+area: Data streams
+type: enhancement
+issues:
+ - 95538

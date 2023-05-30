@@ -33,19 +33,20 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class DlmPermissionsRestIT extends ESRestTestCase {
 
+    private static final String PASSWORD = "secret-test-password";
+
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .feature(FeatureFlag.DLM_ENABLED)
-        .nodes(2)
         .module("data-streams")
         .module("dlm")
         .setting("xpack.watcher.enabled", "false")
         .setting("xpack.ml.enabled", "false")
         .setting("xpack.security.enabled", "true")
         .setting("xpack.license.self_generated.type", "trial")
-        .user("x_pack_rest_user", "x-pack-test-password", "superuser")
-        .user("test_dlm", "x-pack-test-password", "manage_dlm")
-        .user("test_non_privileged", "x-pack-test-password", "not_privileged")
+        .user("test_admin", PASSWORD, "superuser")
+        .user("test_dlm", PASSWORD, "manage_dlm")
+        .user("test_non_privileged", PASSWORD, "not_privileged")
         .rolesFile(Resource.fromClasspath("roles.yml"))
         .build();
 
@@ -56,20 +57,20 @@ public class DlmPermissionsRestIT extends ESRestTestCase {
 
     @Override
     protected Settings restClientSettings() {
-        // Note: This user is defined in build.gradle, and assigned the role "manage_dlm". That role is defined in roles.yml.
-        String token = basicAuthHeaderValue("test_dlm", new SecureString("x-pack-test-password".toCharArray()));
+        // Note: This user is assigned the role "manage_dlm". That role is defined in roles.yml.
+        String token = basicAuthHeaderValue("test_dlm", new SecureString(PASSWORD.toCharArray()));
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
     @Override
     protected Settings restAdminSettings() {
-        String token = basicAuthHeaderValue("x_pack_rest_user", new SecureString("x-pack-test-password".toCharArray()));
+        String token = basicAuthHeaderValue("test_admin", new SecureString(PASSWORD.toCharArray()));
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
     private Settings restUnprivilegedClientSettings() {
-        // Note: This user is defined in build.gradle, and assigned the role "not_privileged". That role is defined in roles.yml.
-        String token = basicAuthHeaderValue("test_non_privileged", new SecureString("x-pack-test-password".toCharArray()));
+        // Note: This user is assigned the role "not_privileged". That role is defined in roles.yml.
+        String token = basicAuthHeaderValue("test_non_privileged", new SecureString(PASSWORD.toCharArray()));
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
@@ -83,8 +84,8 @@ public class DlmPermissionsRestIT extends ESRestTestCase {
              */
             String dataStreamName = "dlm-test"; // Needs to match the pattern of the names in roles.yml
             createDataStreamAsAdmin(dataStreamName);
-            Response getDatastreamRepsonse = adminClient().performRequest(new Request("GET", "/_data_stream/" + dataStreamName));
-            final List<Map<String, Object>> nodes = ObjectPath.createFromResponse(getDatastreamRepsonse).evaluate("data_streams");
+            Response getDataStreamResponse = adminClient().performRequest(new Request("GET", "/_data_stream/" + dataStreamName));
+            final List<Map<String, Object>> nodes = ObjectPath.createFromResponse(getDataStreamResponse).evaluate("data_streams");
             String index = (String) ((List<Map<String, Object>>) nodes.get(0).get("indices")).get(0).get("index_name");
 
             Request explainLifecycleRequest = new Request("GET", "/" + randomFrom("_all", "*", index) + "/_lifecycle/explain");

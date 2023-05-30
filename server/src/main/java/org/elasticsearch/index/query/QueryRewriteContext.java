@@ -58,8 +58,8 @@ public class QueryRewriteContext {
         this.client = client;
         this.nowInMillis = nowInMillis;
         this.mapperService = mapperService;
-        this.mappingLookup = mappingLookup == null ? MappingLookup.EMPTY : mappingLookup;
-        this.runtimeMappings = runtimeMappings == null ? Collections.emptyMap() : runtimeMappings;
+        this.mappingLookup = mappingLookup;
+        this.runtimeMappings = runtimeMappings;
         this.allowedFields = allowedFields;
         this.indexSettings = indexSettings;
         this.fullyQualifiedIndex = fullyQualifiedIndex;

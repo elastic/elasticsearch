@@ -981,6 +981,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
     @Override
     public void testMustRewrite() throws IOException {
         SearchExecutionContext context = createSearchExecutionContext();
+        context.setAllowUnmappedFields(true);
         TermQueryBuilder termQueryBuilder = new TermQueryBuilder("unmapped_field", "foo");
 
         // main query needs rewriting

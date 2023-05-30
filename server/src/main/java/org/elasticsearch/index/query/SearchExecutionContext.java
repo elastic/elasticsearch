@@ -90,7 +90,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
     private final BitsetFilterCache bitsetFilterCache;
     private final NamedWriteableRegistry writeableRegistry;
     private final BiFunction<MappedFieldType, FieldDataContext, IndexFieldData<?>> indexFieldDataLookup;
-    protected SearchLookup lookup = null;
+    private SearchLookup lookup = null;
 
     private final int shardId;
     private final int shardRequestIndex;
@@ -102,8 +102,8 @@ public class SearchExecutionContext extends QueryRewriteContext {
     private final Predicate<String> indexNameMatcher;
     private final BooleanSupplier allowExpensiveQueries;
 
-    protected final Map<String, Query> namedQueries = new HashMap<>();
-    protected NestedScope nestedScope;
+    private final Map<String, Query> namedQueries = new HashMap<>();
+    private NestedScope nestedScope;
     private final ValuesSourceRegistry valuesSourceRegistry;
 
     /**
@@ -229,7 +229,8 @@ public class SearchExecutionContext extends QueryRewriteContext {
         this.valuesSourceRegistry = valuesSourceRegistry;
     }
 
-    protected void reset() {
+    private void reset() {
+        setAllowUnmappedFields(indexSettings.isDefaultAllowUnmappedFields());
         this.lookup = null;
         this.namedQueries.clear();
         this.nestedScope = new NestedScope();

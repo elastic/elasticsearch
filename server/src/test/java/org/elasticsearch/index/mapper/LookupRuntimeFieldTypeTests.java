@@ -10,7 +10,6 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
-import org.elasticsearch.index.query.PercolatorExecutionContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
@@ -140,7 +139,7 @@ public class LookupRuntimeFieldTypeTests extends MapperServiceTestCase {
         // fails if unmapped_fields is not
         QueryShardException error = expectThrows(QueryShardException.class, () -> {
             SearchExecutionContext context = createSearchExecutionContext(mapperService);
-            context = new PercolatorExecutionContext(context, randomBoolean(), false);
+            context.setAllowUnmappedFields(randomBoolean());
             fieldType.valueFetcher(context, null);
         });
         assertThat(error.getMessage(), containsString("No field mapping can be found for the field with name [barbaz]"));

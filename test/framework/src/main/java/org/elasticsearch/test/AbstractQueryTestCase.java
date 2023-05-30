@@ -28,7 +28,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
-import org.elasticsearch.index.query.PercolatorExecutionContext;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
@@ -452,8 +451,9 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
      */
     public void testToQuery() throws IOException {
         for (int runs = 0; runs < NUMBER_OF_TESTQUERIES; runs++) {
-            SearchExecutionContext context = new PercolatorExecutionContext(createSearchExecutionContext(), true, false);
+            SearchExecutionContext context = createSearchExecutionContext();
             assert context.isCacheable();
+            context.setAllowUnmappedFields(true);
             QB firstQuery = createTestQueryBuilder();
             QB controlQuery = copyQuery(firstQuery);
             /* we use a private rewrite context here since we want the most realistic way of asserting that we are cacheable or not.
@@ -854,7 +854,8 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
      * These queries must override this method accordingly.
      */
     public void testMustRewrite() throws IOException {
-        SearchExecutionContext context = new PercolatorExecutionContext(createSearchExecutionContext(), true, false);
+        SearchExecutionContext context = createSearchExecutionContext();
+        context.setAllowUnmappedFields(true);
         QB queryBuilder = createTestQueryBuilder();
         queryBuilder.toQuery(context);
     }

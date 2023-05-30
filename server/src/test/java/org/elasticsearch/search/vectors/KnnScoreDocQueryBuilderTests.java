@@ -136,6 +136,7 @@ public class KnnScoreDocQueryBuilderTests extends AbstractQueryTestCase<KnnScore
             iw.addDocument(new Document());
             try (IndexReader reader = iw.getReader()) {
                 SearchExecutionContext context = createSearchExecutionContext(new IndexSearcher(reader));
+                context.setAllowUnmappedFields(true);
                 KnnScoreDocQueryBuilder queryBuilder = createTestQueryBuilder();
                 queryBuilder.toQuery(context);
             }

@@ -29,7 +29,6 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MockFieldMapper.FakeFieldType;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
-import org.elasticsearch.index.query.PercolatorExecutionContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.search.MultiMatchQueryParser.FieldAndBoost;
 import org.elasticsearch.lucene.queries.BlendedTermQuery;
@@ -113,7 +112,7 @@ public class MultiMatchQueryParserTests extends ESSingleNodeTestCase {
         SearchExecutionContext searchExecutionContext = indexService.newSearchExecutionContext(randomInt(20), 0, null, () -> {
             throw new UnsupportedOperationException();
         }, null, emptyMap());
-        searchExecutionContext = new PercolatorExecutionContext(searchExecutionContext, true, false);
+        searchExecutionContext.setAllowUnmappedFields(true);
         MultiMatchQueryBuilder multiMatchQueryBuilder = new MultiMatchQueryBuilder("Har", "name.first", "name.last", "name.nickname");
         multiMatchQueryBuilder.type(MultiMatchQueryBuilder.Type.PHRASE_PREFIX);
         Query query = multiMatchQueryBuilder.toQuery(searchExecutionContext);
@@ -140,7 +139,7 @@ public class MultiMatchQueryParserTests extends ESSingleNodeTestCase {
         SearchExecutionContext searchExecutionContext = indexService.newSearchExecutionContext(randomInt(20), 0, null, () -> {
             throw new UnsupportedOperationException();
         }, null, emptyMap());
-        searchExecutionContext = new PercolatorExecutionContext(searchExecutionContext, true, false);
+        searchExecutionContext.setAllowUnmappedFields(true);
         for (float tieBreaker : new float[] { 0.0f, 0.5f }) {
             Query parsedQuery = multiMatchQuery("banon").field("name.first", 2)
                 .field("name.last", 3)

@@ -109,26 +109,22 @@ import static org.mockito.Mockito.when;
 public class SearchExecutionContextTests extends ESTestCase {
 
     public void testFailIfFieldMappingNotFound() {
-        SearchExecutionContext context = new PercolatorExecutionContext(
-            createSearchExecutionContext(IndexMetadata.INDEX_UUID_NA_VALUE, null),
-            false,
-            false
-        );
+        SearchExecutionContext context = createSearchExecutionContext(IndexMetadata.INDEX_UUID_NA_VALUE, null);
+        context.setAllowUnmappedFields(false);
         MappedFieldType fieldType = new TextFieldMapper.TextFieldType("text", randomBoolean());
         MappedFieldType result = context.failIfFieldMappingNotFound("name", fieldType);
         assertThat(result, sameInstance(fieldType));
-        SearchExecutionContext finalContext = context;
-        QueryShardException e = expectThrows(QueryShardException.class, () -> finalContext.failIfFieldMappingNotFound("name", null));
+        QueryShardException e = expectThrows(QueryShardException.class, () -> context.failIfFieldMappingNotFound("name", null));
         assertEquals("No field mapping can be found for the field with name [name]", e.getMessage());
 
-        context = new PercolatorExecutionContext(context, true, false);
+        context.setAllowUnmappedFields(true);
         result = context.failIfFieldMappingNotFound("name", fieldType);
         assertThat(result, sameInstance(fieldType));
         result = context.failIfFieldMappingNotFound("name", null);
         assertThat(result, nullValue());
 
-        context = new PercolatorExecutionContext(context, false, true);
-        context = new PercolatorExecutionContext(context, false, true);
+        context.setAllowUnmappedFields(false);
+        context.setMapUnmappedFieldAsString(true);
         result = context.failIfFieldMappingNotFound("name", fieldType);
         assertThat(result, sameInstance(fieldType));
         result = context.failIfFieldMappingNotFound("name", null);

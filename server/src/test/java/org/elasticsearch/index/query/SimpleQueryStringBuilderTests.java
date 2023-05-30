@@ -190,7 +190,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
     public void testDefaultOperatorHandling() throws IOException {
         SimpleQueryStringBuilder qb = new SimpleQueryStringBuilder("The quick brown fox.").field(TEXT_FIELD_NAME);
         SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
-        searchExecutionContext = new PercolatorExecutionContext(searchExecutionContext, true, false);
+        searchExecutionContext.setAllowUnmappedFields(true); // to avoid occasional cases
         // in setup where we didn't
         // add types but strict field
         // resolution

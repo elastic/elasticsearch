@@ -38,7 +38,6 @@ import org.gradle.api.tasks.SkipWhenEmpty;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.process.ExecOperations;
 import org.gradle.process.ExecResult;
-import org.gradle.process.JavaExecSpec;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -338,7 +337,10 @@ public abstract class ThirdPartyAuditTask extends DefaultTask {
                 spec.setExecutable(javaHome.get() + "/bin/java");
             }
             spec.classpath(getForbiddenAPIsClasspath(), classpath);
-            maybeAddIncubatorModule(spec);
+            // Enable explicitly for each release as appropriate. Just JDK 20 for now, and just the vector module.
+            if (isJava20()) {
+                spec.jvmArgs("--add-modules", "jdk.incubator.vector");
+            }
             spec.jvmArgs("-Xmx1g");
             spec.getMainClass().set("de.thetaphi.forbiddenapis.cli.CliMain");
             spec.args("-f", getSignatureFile().getAbsolutePath(), "-d", getJarExpandDir(), "--debug", "--allowmissingclasses");
@@ -361,16 +363,18 @@ public abstract class ThirdPartyAuditTask extends DefaultTask {
         return forbiddenApisOutput;
     }
 
-    void maybeAddIncubatorModule(JavaExecSpec spec) {
-        // Enable explicitly for each release as appropriate. Just JDK 20 for now, and just the vector module.
+    /** Returns true iff the Java version is 20. */
+    private boolean isJava20() {
         if (BuildParams.getIsRuntimeJavaHomeSet()) {
             if (VERSION_20.equals(BuildParams.getRuntimeJavaVersion())) {
-                spec.jvmArgs("--add-modules", "jdk.incubator.vector");
+                return true;
             }
         } else if ("20".equals(VersionProperties.getBundledJdkMajorVersion())) {
-            spec.jvmArgs("--add-modules", "jdk.incubator.vector");
+            return true;
         }
+        return false;
     }
+
 
     private Set<String> runJdkJarHellCheck() throws IOException {
         ByteArrayOutputStream standardOut = new ByteArrayOutputStream();

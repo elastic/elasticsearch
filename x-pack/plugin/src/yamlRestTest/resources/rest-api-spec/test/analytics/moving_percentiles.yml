@@ -63,9 +63,6 @@ setup:
 
 ---
 shift:
-  - skip:
-      version: " - 8.8.99"
-      reason: t-digest forked in 8.9.0
   - do:
       search:
         index: "foo"
@@ -105,9 +102,6 @@ shift:
 
 ---
 default choses tdigest:
-  - skip:
-      version: " - 8.8.99"
-      reason: t-digest forked in 8.9.0
   - do:
       search:
         index: "foo"
@@ -146,9 +140,6 @@ default choses tdigest:
 
 ---
 tdigest explicitly:
-  - skip:
-      version: " - 8.8.99"
-      reason: t-digest forked in 8.9.0
   - do:
       search:
         index: "foo"

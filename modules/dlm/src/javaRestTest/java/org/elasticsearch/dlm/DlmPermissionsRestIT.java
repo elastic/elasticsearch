@@ -189,6 +189,9 @@ public class DlmPermissionsRestIT extends ESRestTestCase {
                     "@timestamp": {
                       "type": "date",
                       "format": "date_optional_time||epoch_millis"
+                    },
+                    "message": {
+                      "type": "wildcard"
                     }
                   }
                 }

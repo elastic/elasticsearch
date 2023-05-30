@@ -46,6 +46,9 @@ import static org.elasticsearch.indices.recovery.RecoverySettings.NODE_BANDWIDTH
 import static org.elasticsearch.indices.recovery.RecoverySettings.NODE_BANDWIDTH_RECOVERY_SETTINGS;
 import static org.elasticsearch.indices.recovery.RecoverySettings.TOTAL_PHYSICAL_MEMORY_OVERRIDING_TEST_SETTING;
 import static org.elasticsearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
+import static org.elasticsearch.test.MockLogAppender.LoggingExpectation;
+import static org.elasticsearch.test.MockLogAppender.SeenEventExpectation;
+import static org.elasticsearch.test.MockLogAppender.assertThatLogger;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -125,16 +128,14 @@ public class RecoverySettingsTests extends ESTestCase {
             CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey()
         );
 
-        final Logger logger = LogManager.getLogger(RecoverySettings.class);
-        final MockLogAppender warnCaptureAppender = new MockLogAppender();
-        warnCaptureAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation("WARN-Capture", RecoverySettings.class.getCanonicalName(), Level.WARN, expectedMessage)
+        final LoggingExpectation expectation = new SeenEventExpectation(
+            "WARN-Capture",
+            RecoverySettings.class.getCanonicalName(),
+            Level.WARN,
+            expectedMessage
         );
 
-        try {
-            warnCaptureAppender.start();
-            Loggers.addAppender(logger, warnCaptureAppender);
-
+        assertThatLogger(() -> {
             // Allow the first recovery to obtain a permit
             Releasable permit = recoverySettings.tryAcquireSnapshotDownloadPermits();
             assertThat(permit, is(notNullValue()));
@@ -142,13 +143,7 @@ public class RecoverySettingsTests extends ESTestCase {
             // Deny the second recovery to get the permit
             assertThat(recoverySettings.tryAcquireSnapshotDownloadPermits(), is(nullValue()));
 
-            // assert that WARN message was logged
-            warnCaptureAppender.assertAllExpectationsMatched();
-
-        } finally {
-            Loggers.removeAppender(logger, warnCaptureAppender);
-            warnCaptureAppender.stop();
-        }
+        }, RecoverySettings.class, expectation);
     }
 
     public void testToManyRecoveriesSettingsMessage() {
@@ -173,16 +168,14 @@ public class RecoverySettingsTests extends ESTestCase {
             INDICES_RECOVERY_USE_SNAPSHOTS_SETTING.getKey()
         );
 
-        final Logger logger = LogManager.getLogger(RecoverySettings.class);
-        final MockLogAppender warnCaptureAppender = new MockLogAppender();
-        warnCaptureAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation("WARN-Capture", RecoverySettings.class.getCanonicalName(), Level.WARN, expectedMessage)
+        final LoggingExpectation expectation = new SeenEventExpectation(
+            "WARN-Capture",
+            RecoverySettings.class.getCanonicalName(),
+            Level.WARN,
+            expectedMessage
         );
 
-        try {
-            warnCaptureAppender.start();
-            Loggers.addAppender(logger, warnCaptureAppender);
-
+        assertThatLogger(() -> {
             // Allow the first recovery to obtain a permit
             Releasable permit = recoverySettings.tryAcquireSnapshotDownloadPermits();
             assertThat(permit, is(notNullValue()));
@@ -190,13 +183,7 @@ public class RecoverySettingsTests extends ESTestCase {
             // Deny the second recovery to get the permit
             assertThat(recoverySettings.tryAcquireSnapshotDownloadPermits(), is(nullValue()));
 
-            // assert that WARN message was logged
-            warnCaptureAppender.assertAllExpectationsMatched();
-
-        } finally {
-            Loggers.removeAppender(logger, warnCaptureAppender);
-            warnCaptureAppender.stop();
-        }
+        }, RecoverySettings.class, expectation);
     }
 
     public void testMaxConcurrentSnapshotFileDownloadsPerNodeIsValidated() {

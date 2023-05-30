@@ -17,15 +17,21 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
+import org.junit.BeforeClass;
 import org.junit.ClassRule;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.net.URISyntaxException;
+import java.net.URL;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 
@@ -34,6 +40,16 @@ import static org.hamcrest.Matchers.equalTo;
 public class DlmPermissionsRestIT extends ESRestTestCase {
 
     private static final String PASSWORD = "secret-test-password";
+    private static Path caPath;
+
+    @BeforeClass
+    public static void init() throws URISyntaxException, FileNotFoundException {
+        URL resource = DlmPermissionsRestIT.class.getResource("/ssl/ca.crt");
+        if (resource == null) {
+            throw new FileNotFoundException("Cannot find classpath resource /ssl/ca.crt");
+        }
+        caPath = PathUtils.get(resource.toURI());
+    }
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
@@ -44,12 +60,17 @@ public class DlmPermissionsRestIT extends ESRestTestCase {
         .setting("xpack.ml.enabled", "false")
         .setting("xpack.security.enabled", "true")
         .setting("xpack.license.self_generated.type", "trial")
+        .setting("xpack.security.http.ssl.enabled", "true")
+        .setting("xpack.security.http.ssl.certificate", "node.crt")
+        .setting("xpack.security.http.ssl.key", "node.key")
+        .setting("xpack.security.http.ssl.certificate_authorities", "ca.crt")
         .setting("xpack.security.transport.ssl.enabled", "true")
         .setting("xpack.security.transport.ssl.certificate", "node.crt")
         .setting("xpack.security.transport.ssl.key", "node.key")
         .setting("xpack.security.transport.ssl.certificate_authorities", "ca.crt")
         .setting("xpack.security.transport.ssl.verification_mode", "certificate")
         .keystore("xpack.security.transport.ssl.secure_key_passphrase", "node-password")
+        .keystore("xpack.security.http.ssl.secure_key_passphrase", "node-password")
         .keystore("bootstrap.password", PASSWORD)
         .configFile("node.key", Resource.fromClasspath("ssl/node.key"))
         .configFile("node.crt", Resource.fromClasspath("ssl/node.crt"))
@@ -69,19 +90,25 @@ public class DlmPermissionsRestIT extends ESRestTestCase {
     protected Settings restClientSettings() {
         // Note: This user is assigned the role "manage_dlm". That role is defined in roles.yml.
         String token = basicAuthHeaderValue("test_dlm", new SecureString(PASSWORD.toCharArray()));
-        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).put(CERTIFICATE_AUTHORITIES, caPath).build();
     }
 
     @Override
     protected Settings restAdminSettings() {
         String token = basicAuthHeaderValue("test_admin", new SecureString(PASSWORD.toCharArray()));
-        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).put(CERTIFICATE_AUTHORITIES, caPath).build();
     }
 
     private Settings restUnprivilegedClientSettings() {
         // Note: This user is assigned the role "not_privileged". That role is defined in roles.yml.
         String token = basicAuthHeaderValue("test_non_privileged", new SecureString(PASSWORD.toCharArray()));
-        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).put(CERTIFICATE_AUTHORITIES, caPath).build();
+    }
+
+    @Override
+    protected String getProtocol() {
+        // Because http.ssl.enabled = true
+        return "https";
     }
 
     @SuppressWarnings("unchecked")

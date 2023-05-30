@@ -28,12 +28,15 @@ To update an API key, the owner user's credentials are required.
 [[security-api-update-cross-cluster-api-key-desc]]
 ==== {api-description-title}
 
-Use this API to update API keys created by the <<security-api-create-cross-cluster-api-key,Create Cross-Cluster API key API>>.
+Use this API to update cross-cluster API keys created by the <<security-api-create-cross-cluster-api-key,Create Cross-Cluster API key API>>.
 It's not possible to update expired API keys, or API keys that have been invalidated by
 <<security-api-invalidate-api-key,invalidate API Key>>.
 
 This API supports updates to an API key's access scope and metadata.
 The owner user's information, e.g. `username`, `realm`, is also updated automatically on every call.
+
+NOTE: This API cannot update <<security-api-create-api-key,REST API keys>>, which should be updated by
+either <<security-api-update-api-key>> or <<security-api-bulk-update-api-keys>> API.
 
 [[security-api-update-cross-cluster-api-key-path-params]]
 ==== {api-path-parms-title}
@@ -52,7 +55,7 @@ You can specify the following parameters in the request body. The parameters are
 composed of permissions for cross cluster search and cross cluster replication.
 At least one of them must be specified.
 When specified, the new access assignment fully replaces the previously assigned access.
-Refer to the <<cross-cluster-api-key-access,same field>> of the Create Cross-Cluster API key API
+Refer to the <<cross-cluster-api-key-access,parameter of the same of the Create Cross-Cluster API key API>>
 for the field's structure.
 
 `metadata`::
@@ -71,7 +74,7 @@ If `false`, the API key didn't change because no change was detected.
 [[security-api-update-cross-cluster-api-key-example]]
 ==== {api-examples-title}
 
-If you create an API key as follows:
+If you create a cross-cluster API key as follows:
 
 [source,console]
 ------------------------------------------------------------
@@ -165,6 +168,7 @@ A successful call returns a JSON structure that contains the information of the 
 --------------------------------------------------
 // NOTCONSOLE
 <1> Role descriptor corresponding to the specified `access` scope at creation time.
+In this example, it grants cross cluster search permission for the `logs*` index pattern.
 
 
 The following example updates the API key created above, assigning it new access scope and metadata:
@@ -197,8 +201,8 @@ A successful call returns a JSON structure indicating that the API key was updat
 }
 ----
 
-The API key's permissions after the update can be inspected with the <<security-api-get-api-key,Get API key API>>
-again and it will be:
+The API key's permissions after the update can be inspected again with the <<security-api-get-api-key,Get API key API>>
+and it will be:
 
 [source,js]
 --------------------------------------------------
@@ -246,3 +250,5 @@ again and it will be:
 --------------------------------------------------
 // NOTCONSOLE
 <1> Role descriptor is updated to be the `access` scope specified at update time.
+In this example, it is updated to grant the cross cluster replication permission
+for the `archive*` index pattern.

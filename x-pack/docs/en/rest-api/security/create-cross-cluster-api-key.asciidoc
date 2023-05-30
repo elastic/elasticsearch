@@ -6,10 +6,10 @@
 <titleabbrev>Create Cross-Cluster API key API</titleabbrev>
 ++++
 
-Creates an API key of the `cross_cluster` type for API key based remote cluster access.
+Creates an API key of the `cross_cluster` type for the API key based remote cluster access.
 A `cross_cluster` API key cannot be used to authenticate via the REST interface.
-On the contrary, a <<security-api-create-api-key,`rest` API key>> is meant to be used via the REST interface
-and cannot be used for API key based remote cluster access.
+On the contrary, a <<security-api-create-api-key,REST API key>> is meant to be used via the REST interface
+and cannot be used for the API key based remote cluster access.
 
 [[security-api-create-cross-cluster-api-key-request]]
 ==== {api-request-title}
@@ -23,7 +23,7 @@ and cannot be used for API key based remote cluster access.
 
 IMPORTANT: The request must be made with a credential that is *not* itself an API key.
 If the credential that is used to authenticate this request is an API key,
-the API returns an error even if the API key has sufficient privilege.
+the API returns an error even if the API key has required privilege.
 
 [[security-api-create-cross-cluster-api-key-desc]]
 ==== {api-description-title}
@@ -64,18 +64,18 @@ The following parameters can be specified in the body of a POST request:
 composed of permissions for cross cluster search and cross cluster replication.
 At least one of them must be specified.
 `search`::: (optional, list) A list of indices permission entries for cross cluster search.
-`names`:::: (required, list) A list of indices or index patterns to which the
+`names`:::: (required, list) A list of indices or name patterns to which the
 permissions in this entry apply.
 `field_security`:::: (optional, object) The document fields that the owners of the role have
-read access to. For more information, see
-<<field-and-document-access-control>>.
+read access to. For more information, see <<field-and-document-access-control>>.
 `query`:::: (optional) A search query that defines the documents the owners of the role have
 read access to. A document within the specified indices must match this query in
-order for it to be accessible by the owners of the role.
+order for it to be accessible by the owners of the role. For more information, see
+<<field-and-document-access-control>>.
 `allow_restricted_indices`:::: (optional, boolean) This needs to be set to `true` (default
-is `false`) if the patterns in the `names` field should cover <<system-indices,System indices>>.
+is `false`) if the patterns in the `names` field should cover <<system-indices,system indices>>.
 `replication`::: (optional, list) A list of indices permission entries for cross cluster replication.
-`names`:::: (required, list) A list of indices (or index name patterns) to which the
+`names`:::: (required, list) A list of indices or name patterns to which the
 permissions in this entry apply.
 
 NOTE: No explicit <<security-privileges,privileges>> should be specified for either search
@@ -130,7 +130,7 @@ POST /_security/cross_cluster/api_key
 }
 ----
 <1> Optional expiration for the API key being generated. If expiration is not
-provided then the API keys do not expire.
+provided then the API key does not expire.
 <2> Cross cluster search access to be granted to the API key.
 <3> Cross cluster replication access to be granted to the API key.
 
@@ -229,7 +229,7 @@ A successful call returns a JSON structure that contains the information of the 
 <1> ID for the API key
 <2> Name of the API key
 <3> Type of the API key
-<4> The role descriptors associated to the cross-cluster API key. It always
+<4> The role descriptors generated for the cross-cluster API key. It always
 contains exactly one role descriptor named `cross_cluster`.
 A cross-cluster API key has no limited-by role descriptors.
 <5> The cluster privileges necessary for the required cross-cluster access.

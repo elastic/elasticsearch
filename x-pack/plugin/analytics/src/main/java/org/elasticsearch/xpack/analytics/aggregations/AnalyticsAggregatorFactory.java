@@ -37,12 +37,12 @@ public class AnalyticsAggregatorFactory {
         builder.register(
             PercentilesAggregationBuilder.REGISTRY_KEY,
             AnalyticsValuesSourceType.HISTOGRAM,
-            (name, valuesSource, context, parent, percents, percentilesConfig, keyed, formatter, metadata) -> {
+            (name, config, context, parent, percents, percentilesConfig, keyed, formatter, metadata) -> {
                 if (percentilesConfig.getMethod().equals(PercentilesMethod.TDIGEST)) {
                     double compression = ((PercentilesConfig.TDigest) percentilesConfig).getCompression();
                     return new HistoBackedTDigestPercentilesAggregator(
                         name,
-                        valuesSource,
+                        config,
                         context,
                         parent,
                         percents,
@@ -56,7 +56,7 @@ public class AnalyticsAggregatorFactory {
                     int numSigFig = ((PercentilesConfig.Hdr) percentilesConfig).getNumberOfSignificantValueDigits();
                     return new HistoBackedHDRPercentilesAggregator(
                         name,
-                        valuesSource,
+                        config,
                         context,
                         parent,
                         percents,
@@ -79,12 +79,12 @@ public class AnalyticsAggregatorFactory {
         builder.register(
             PercentileRanksAggregationBuilder.REGISTRY_KEY,
             AnalyticsValuesSourceType.HISTOGRAM,
-            (name, valuesSource, context, parent, percents, percentilesConfig, keyed, formatter, metadata) -> {
+            (name, config, context, parent, percents, percentilesConfig, keyed, formatter, metadata) -> {
                 if (percentilesConfig.getMethod().equals(PercentilesMethod.TDIGEST)) {
                     double compression = ((PercentilesConfig.TDigest) percentilesConfig).getCompression();
                     return new HistoBackedTDigestPercentileRanksAggregator(
                         name,
-                        valuesSource,
+                        config,
                         context,
                         parent,
                         percents,
@@ -98,7 +98,7 @@ public class AnalyticsAggregatorFactory {
                     int numSigFig = ((PercentilesConfig.Hdr) percentilesConfig).getNumberOfSignificantValueDigits();
                     return new HistoBackedHDRPercentileRanksAggregator(
                         name,
-                        valuesSource,
+                        config,
                         context,
                         parent,
                         percents,

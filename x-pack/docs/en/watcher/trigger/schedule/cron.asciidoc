@@ -4,8 +4,10 @@
 <titleabbrev>Cron schedule</titleabbrev>
 ++++
 
-Defines a <<trigger-schedule, `schedule`>> using a <<cron-expressions, cron expression>> 
-that specifies when to execute a watch.
+
+Defines a <<trigger-schedule, `schedule`>> using a <<api-cron-expressions, cron expression>> 
+that specifiues when to execute a watch.
+
 
 TIP:  While cron expressions are powerful, a regularly occurring schedule 
 is easier to configure with the other schedule types. 

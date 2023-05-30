@@ -77,7 +77,7 @@ public class FunctionScoreQuery extends Query {
 
         @Override
         protected ScoreFunction rewrite(IndexReader reader) throws IOException {
-            Query newFilter = filter.rewrite(reader);
+            Query newFilter = filter.rewrite(new IndexSearcher(reader));
             if (newFilter == filter) {
                 return this;
             }

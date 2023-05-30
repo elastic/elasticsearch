@@ -234,7 +234,8 @@ Test general mockup ECS mappings:
               }
             },
             "error": {
-              "stack_trace": "co.elastic.test.TestClass error:\n at co.elastic.test.BaseTestClass"
+              "stack_trace": "co.elastic.test.TestClass error:\n at co.elastic.test.BaseTestClass",
+              "message": "Error occurred"
             },
             "file": {
               "path": "/path/to/my/file",
@@ -311,6 +312,7 @@ Test general mockup ECS mappings:
   - do:
       indices.get_mapping:
         index: logs-generic-default
+  - match: { .$idx0name.mappings.properties.error.properties.message.type: "match_only_text" }
   - match: { .$idx0name.mappings.properties.registry.properties.data.properties.strings.type: "wildcard" }
   - match: { .$idx0name.mappings.properties.process.properties.io.properties.text.type: "wildcard" }
   - match: { .$idx0name.mappings.properties.url.properties.path.type: "wildcard" }

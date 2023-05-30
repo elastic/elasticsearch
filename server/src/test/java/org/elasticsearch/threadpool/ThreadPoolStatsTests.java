@@ -14,6 +14,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 
 import static org.elasticsearch.threadpool.ThreadPool.THREAD_POOL_TYPES;
 import static org.hamcrest.Matchers.contains;
@@ -22,15 +23,15 @@ import static org.hamcrest.Matchers.hasSize;
 
 public class ThreadPoolStatsTests extends ESTestCase {
     public void testThreadPoolStatsSort() {
-        var unorderedStats = new ArrayList<ThreadPoolStats.Stats>();
-
-        unorderedStats.add(new ThreadPoolStats.Stats("z", 7, 0, 0, 0, 0, 0L));
-        unorderedStats.add(new ThreadPoolStats.Stats("m", 5, 0, 0, 0, 0, 0L));
-        unorderedStats.add(new ThreadPoolStats.Stats("m", -3, 0, 0, 0, 0, 0L));
-        unorderedStats.add(new ThreadPoolStats.Stats("d", 2, 0, 0, 0, 0, 0L));
-        unorderedStats.add(new ThreadPoolStats.Stats("m", 4, 0, 0, 0, 0, 0L));
-        unorderedStats.add(new ThreadPoolStats.Stats("t", 6, 0, 0, 0, 0, 0L));
-        unorderedStats.add(new ThreadPoolStats.Stats("a", -1, 0, 0, 0, 0, 0L));
+        var unorderedStats = List.of(
+            new ThreadPoolStats.Stats("z", 7, 0, 0, 0, 0, 0L),
+            new ThreadPoolStats.Stats("m", 5, 0, 0, 0, 0, 0L),
+            new ThreadPoolStats.Stats("m", -3, 0, 0, 0, 0, 0L),
+            new ThreadPoolStats.Stats("d", 2, 0, 0, 0, 0, 0L),
+            new ThreadPoolStats.Stats("m", 4, 0, 0, 0, 0, 0L),
+            new ThreadPoolStats.Stats("t", 6, 0, 0, 0, 0, 0L),
+            new ThreadPoolStats.Stats("a", -1, 0, 0, 0, 0, 0L)
+        );
 
         var copy = new ArrayList<>(unorderedStats);
         Collections.sort(copy);
@@ -45,16 +46,8 @@ public class ThreadPoolStatsTests extends ESTestCase {
     }
 
     public void testMergeThreadPoolStats() {
-        var firstStats = new ArrayList<ThreadPoolStats.Stats>();
-        firstStats.add(randomStats("name-1"));
-        firstStats.add(randomStats("name-2"));
-        firstStats.add(randomStats("name-3"));
-
-        var secondStats = new ArrayList<ThreadPoolStats.Stats>();
-        secondStats.add(randomStats("name-4"));
-        secondStats.add(randomStats("name-5"));
-        secondStats.add(randomStats("name-2"));
-        secondStats.add(randomStats("name-3"));
+        var firstStats = List.of(randomStats("name-1"), randomStats("name-2"), randomStats("name-3"));
+        var secondStats = List.of(randomStats("name-4"), randomStats("name-5"), randomStats("name-2"), randomStats("name-3"));
 
         var tps1 = new ThreadPoolStats(firstStats);
         var tps2 = new ThreadPoolStats(secondStats);

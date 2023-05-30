@@ -284,7 +284,11 @@ Test general mockup ECS mappings:
                 "key": "value"
               }
             },
-            "numeric_as_string": "42"
+            "numeric_as_string": "42",
+            "socket": {
+              "ip": "127.0.0.1",
+              "remote_ip": "187.8.8.8"
+            }
           }
   - match: {result: "created"}
 
@@ -369,4 +373,6 @@ Test general mockup ECS mappings:
   - match: { .$idx0name.mappings.properties.nested.properties.imports.type: "flattened" }
   # verifying the default mapping for strings into keyword, overriding the automatic numeric string detection
   - match: { .$idx0name.mappings.properties.numeric_as_string.type: "keyword" }
+  - match: { .$idx0name.mappings.properties.socket.properties.ip.type: "ip" }
+  - match: { .$idx0name.mappings.properties.socket.properties.remote_ip.type: "ip" }
 

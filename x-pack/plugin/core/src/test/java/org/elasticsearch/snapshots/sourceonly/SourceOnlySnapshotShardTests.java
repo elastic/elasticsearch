@@ -370,7 +370,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
             metadata,
             null,
             SourceOnlySnapshotRepository.getEngineFactory(),
-            () -> {},
+            NOOP_GCP_SYNCER,
             RetentionLeaseSyncer.EMPTY
         );
         DiscoveryNode discoveryNode = TestDiscoveryNode.create("node_g");

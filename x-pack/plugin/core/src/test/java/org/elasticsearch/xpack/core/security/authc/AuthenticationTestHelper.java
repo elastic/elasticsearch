@@ -240,7 +240,8 @@ public class AuthenticationTestHelper {
             UsernamesField.ASYNC_SEARCH_ROLE,
             UsernamesField.XPACK_SECURITY_ROLE,
             UsernamesField.SECURITY_PROFILE_ROLE,
-            UsernamesField.CROSS_CLUSTER_ACCESS_ROLE
+            UsernamesField.CROSS_CLUSTER_ACCESS_ROLE,
+            UsernamesField.DLM_ROLE
         );
     }
 
@@ -307,6 +308,7 @@ public class AuthenticationTestHelper {
                         null,
                         new RoleDescriptor.IndicesPrivileges[] {
                             RoleDescriptor.IndicesPrivileges.builder().indices("index1").privileges("read", "read_cross_cluster").build() },
+                        null,
                         null,
                         null,
                         null,

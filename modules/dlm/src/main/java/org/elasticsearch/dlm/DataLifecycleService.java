@@ -605,8 +605,8 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
         scheduler.get().add(scheduledJob);
     }
 
-    // package visibility for testing
-    DataLifecycleErrorStore getErrorStore() {
+    // public visibility for testing
+    public DataLifecycleErrorStore getErrorStore() {
         return errorStore;
     }
 

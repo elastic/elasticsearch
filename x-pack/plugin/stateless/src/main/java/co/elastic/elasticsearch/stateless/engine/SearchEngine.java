@@ -364,6 +364,11 @@ public class SearchEngine extends Engine {
     }
 
     @Override
+    public void asyncEnsureGlobalCheckpointSynced(long globalCheckpoint, Consumer<Exception> listener) {
+        listener.accept(null);
+    }
+
+    @Override
     public void syncTranslog() throws IOException {
 
     }

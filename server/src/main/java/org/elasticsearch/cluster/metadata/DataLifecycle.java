@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
@@ -132,11 +133,24 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalWriteable(dataRetention);
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_006)) {
+            out.writeOptionalWriteable(dataRetention);
+        } else {
+            out.writeOptionalTimeValue(getEffectiveDataRetention());
+        }
     }
 
     public DataLifecycle(StreamInput in) throws IOException {
-        this(in.readOptionalWriteable(Retention::read));
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_006)) {
+            dataRetention = in.readOptionalWriteable(Retention::read);
+        } else {
+            var value = in.readOptionalTimeValue();
+            if (value == null) {
+                dataRetention = null;
+            } else {
+                dataRetention = new Retention(value);
+            }
+        }
     }
 
     public static Diff<DataLifecycle> readDiffFrom(StreamInput in) throws IOException {

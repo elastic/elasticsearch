@@ -115,6 +115,11 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
         return true;
     }
 
+    @Override
+    public boolean supportsConcurrentExecution() {
+        return false;
+    }
+
     /**
      * Set the {@code init} script.
      */

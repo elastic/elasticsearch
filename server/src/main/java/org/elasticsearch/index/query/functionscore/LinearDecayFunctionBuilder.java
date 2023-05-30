@@ -65,7 +65,6 @@ public class LinearDecayFunctionBuilder extends DecayFunctionBuilder<LinearDecay
 
         @Override
         public double evaluate(double value, double scale) {
-            // throw new IllegalArgumentException("HELLO: [" + value + "] [" + scale + "]");
             return Math.max(0.0, (scale - value) / scale);
         }
 

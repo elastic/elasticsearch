@@ -109,16 +109,20 @@ abstract class TopDocsCollectorManagerFactory {
             super(REASON_SEARCH_COUNT, null);
             this.sort = sortAndFormats == null ? null : sortAndFormats.sort;
             if (trackTotalHitsUpTo == SearchContext.TRACK_TOTAL_HITS_DISABLED) {
-                this.collector = new EarlyTerminatingCollector(new TotalHitCountCollector(), 0, false);
+                this.collector = new ConcurrentEarlyTerminatingCollector(new TotalHitCountCollector(), 0, false);
                 // for bwc hit count is set to 0, it will be converted to -1 by the coordinating node
                 this.hitCountSupplier = () -> new TotalHits(0, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO);
             } else {
-                TotalHitCountCollector hitCountCollector = new TotalHitCountCollector();
+                ConcurrentTotalHitCountCollector hitCountCollector = new ConcurrentTotalHitCountCollector();
                 if (trackTotalHitsUpTo == SearchContext.TRACK_TOTAL_HITS_ACCURATE) {
                     this.collector = hitCountCollector;
                     this.hitCountSupplier = () -> new TotalHits(hitCountCollector.getTotalHits(), TotalHits.Relation.EQUAL_TO);
                 } else {
-                    EarlyTerminatingCollector col = new EarlyTerminatingCollector(hitCountCollector, trackTotalHitsUpTo, false);
+                    ConcurrentEarlyTerminatingCollector col = new ConcurrentEarlyTerminatingCollector(
+                        hitCountCollector,
+                        trackTotalHitsUpTo,
+                        false
+                    );
                     this.collector = col;
                     this.hitCountSupplier = () -> new TotalHits(
                         hitCountCollector.getTotalHits(),
@@ -131,6 +135,16 @@ abstract class TopDocsCollectorManagerFactory {
         @Override
         Collector collector() {
             return collector;
+        }
+
+        @Override
+        CollectorManager<Collector, Void> collectorManager() {
+            return new BaseCollectorManager() {
+                @Override
+                public Collector newCollector() {
+                    return collector();
+                }
+            };
         }
 
         @Override

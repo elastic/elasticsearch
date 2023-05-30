@@ -34,6 +34,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.search.NestedHelper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseContext;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.FetchPhase;
@@ -57,6 +58,7 @@ import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -64,6 +66,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.function.LongSupplier;
 
 final class DefaultSearchContext extends SearchContext {
@@ -153,7 +156,10 @@ final class DefaultSearchContext extends SearchContext {
             engineSearcher.getSimilarity(),
             engineSearcher.getQueryCache(),
             engineSearcher.getQueryCachingPolicy(),
-            lowLevelCancellation
+            lowLevelCancellation,
+            concurrentSearch(request.source())
+                ? (ThreadPoolExecutor) indexShard.getThreadPool().executor(ThreadPool.Names.SEGMENT_SEARCH)
+                : null
         );
         releasables.addAll(List.of(engineSearcher, searcher));
 
@@ -169,6 +175,18 @@ final class DefaultSearchContext extends SearchContext {
         );
         queryBoost = request.indexBoost();
         this.lowLevelCancellation = lowLevelCancellation;
+    }
+
+    private static boolean concurrentSearch(SearchSourceBuilder builder) {
+
+        if (builder.size() != 0
+            || builder.terminateAfter() != SearchContext.DEFAULT_TERMINATE_AFTER
+            || builder.postFilter() != null
+            || builder.minScore() != null
+            || builder.profile()) {
+            return false;
+        }
+        return builder.aggregations() == null || builder.aggregations().supportsConcurrentExecution();
     }
 
     @Override

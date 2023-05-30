@@ -238,15 +238,21 @@ public class QueryPhase {
                 );
             }
             if (searchContext.aggregations() != null) {
-                final Collector collector = collectorManager.newCollector();
-                final Collector aggsCollector = searchContext.aggregations().getAggsCollectorManager().newCollector();
-                collectorManager = wrapWithProfilerCollectorManagerIfNeeded(
-                    searchContext.getProfilers(),
-                    new SingleThreadCollectorManager(MultiCollector.wrap(collector, aggsCollector)),
-                    REASON_SEARCH_MULTI,
-                    collector,
-                    aggsCollector
-                );
+                if (searchContext.getProfilers() != null) {
+                    final Collector collector = collectorManager.newCollector();
+                    final Collector aggsCollector = searchContext.aggregations().getAggsCollectorManager().newCollector();
+                    collectorManager = wrapWithProfilerCollectorManagerIfNeeded(
+                        searchContext.getProfilers(),
+                        new SingleThreadCollectorManager(MultiCollector.wrap(collector, aggsCollector)),
+                        REASON_SEARCH_MULTI,
+                        collector,
+                        aggsCollector
+                    );
+                } else {
+                    collectorManager = new MultiCollectorManager(
+                        List.of(collectorManager, searchContext.aggregations().getAggsCollectorManager())
+                    );
+                }
             }
             if (searchContext.minimumScore() != null) {
                 final Collector collector = collectorManager.newCollector();

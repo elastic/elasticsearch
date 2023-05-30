@@ -333,6 +333,15 @@ public class AggregatorFactories {
             return false;
         }
 
+        public boolean supportsConcurrentExecution() {
+            for (AggregationBuilder builder : aggregationBuilders) {
+                if (builder.supportsConcurrentExecution() == false) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
         public Builder addAggregator(AggregationBuilder factory) {
             if (names.add(factory.name) == false) {
                 throw new IllegalArgumentException("Two sibling aggregations cannot have the same name: [" + factory.name + "]");

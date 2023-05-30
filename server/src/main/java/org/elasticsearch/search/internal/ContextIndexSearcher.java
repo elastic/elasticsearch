@@ -193,6 +193,13 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     }
 
     @Override
+    protected LeafSlice[] slices(List<LeafReaderContext> leaves) {
+        int docs = leaves.stream().mapToInt(l -> l.reader().numDocs()).sum();
+        // 4 threads per search
+        return slices(leaves, docs / 4, leaves.size());
+    }
+
+    @Override
     public <C extends Collector, T> T search(Query query, CollectorManager<C, T> collectorManager) throws IOException {
         final C firstCollector = collectorManager.newCollector();
         // Take advantage of the few extra rewrite rules of ConstantScoreQuery when score are not needed.

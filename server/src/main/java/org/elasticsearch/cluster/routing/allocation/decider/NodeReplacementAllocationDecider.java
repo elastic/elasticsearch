@@ -110,7 +110,7 @@ public class NodeReplacementAllocationDecider extends AllocationDecider {
             return YES__NO_REPLACEMENTS;
         } else if (isReplacementTargetName(allocation, node.getName())) {
             final SingleNodeShutdownMetadata shutdown = allocation.replacementTargetShutdowns().get(node.getName());
-            final String sourceNodeId = shutdown == null ? null : shutdown.getNodeId();
+            final String sourceNodeId = shutdown != null ? shutdown.getNodeId() : null;
             final boolean hasShardsAllocatedOnSourceOrTarget = hasShardOnNode(indexMetadata, node.getId(), allocation)
                 || (sourceNodeId != null && hasShardOnNode(indexMetadata, sourceNodeId, allocation));
 
@@ -135,6 +135,7 @@ public class NodeReplacementAllocationDecider extends AllocationDecider {
             }
         } else if (isReplacementSource(allocation, node.getId())) {
             final SingleNodeShutdownMetadata shutdown = allocation.getClusterState().metadata().nodeShutdowns().get(node.getId());
+            final String replacementNodeName = shutdown != null ? shutdown.getTargetNodeName() : null;
             final boolean hasShardThatCanNotMigrate = hasShardOnNode(indexMetadata, node.getId(), allocation)
                 && shutdown != null
                 && allocation.getClusterState().getNodes().findByName(shutdown.getTargetNodeName()) == null;
@@ -146,7 +147,7 @@ public class NodeReplacementAllocationDecider extends AllocationDecider {
                     "node [%s] is being replaced by [%s], shards can auto expand to be on it "
                         + "while replacement node has not joined the cluster",
                     node.getId(),
-                    getReplacementName(allocation, node.getId())
+                    replacementNodeName
                 );
             } else {
                 return Decision.single(
@@ -154,7 +155,7 @@ public class NodeReplacementAllocationDecider extends AllocationDecider {
                     NAME,
                     "node [%s] is being replaced by [%s], shards cannot auto expand to be on it",
                     node.getId(),
-                    getReplacementName(allocation, node.getId())
+                    replacementNodeName
                 );
             }
         } else {

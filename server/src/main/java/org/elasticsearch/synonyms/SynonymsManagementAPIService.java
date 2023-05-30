@@ -21,6 +21,7 @@ import org.elasticsearch.action.synonyms.PutSynonymsAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
@@ -101,7 +102,7 @@ public class SynonymsManagementAPIService {
         }
     }
 
-    public void putSynonymsset(String resourceName, SynonymsSet synonymsset, ActionListener<PutSynonymsAction.Response> listener) {
+    public void putSynonymsSet(String resourceName, SynonymsSet synonymsset, ActionListener<PutSynonymsAction.Response> listener) {
 
         // TODO Add synonym rules validation
 
@@ -140,10 +141,11 @@ public class SynonymsManagementAPIService {
 
                             final IndexRequest indexRequest = new IndexRequest(SYNONYMS_ALIAS_NAME).opType(DocWriteRequest.OpType.INDEX)
                                 .source(builder);
-                            final String synonymRuleId = synonymRule.id();
-                            if (synonymRuleId != null) {
-                                indexRequest.id(synonymRuleId);
+                            String synonymRuleId = synonymRule.id();
+                            if (synonymRuleId == null) {
+                                synonymRuleId = UUIDs.base64UUID();
                             }
+                            indexRequest.id(resourceName + "_" + synonymRuleId);
 
                             bulkRequestBuilder.add(indexRequest);
                         }

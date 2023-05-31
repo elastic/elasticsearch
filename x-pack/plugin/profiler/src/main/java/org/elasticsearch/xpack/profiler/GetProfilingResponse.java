@@ -32,6 +32,8 @@ public class GetProfilingResponse extends ActionResponse implements StatusToXCon
     @Nullable
     private final Map<String, Integer> stackTraceEvents;
     private final int totalFrames;
+    private final boolean isSampled;
+    private final int samplingExponent;
     @Nullable
     private final Exception error;
 
@@ -62,6 +64,8 @@ public class GetProfilingResponse extends ActionResponse implements StatusToXCon
         this.executables = in.readBoolean() ? in.readMap(StreamInput::readString, StreamInput::readString) : null;
         this.stackTraceEvents = in.readBoolean() ? in.readMap(StreamInput::readString, StreamInput::readInt) : null;
         this.totalFrames = in.readInt();
+        this.isSampled = in.readBoolean();
+        this.samplingExponent = in.readInt();
         this.error = in.readBoolean() ? in.readException() : null;
     }
 
@@ -70,13 +74,15 @@ public class GetProfilingResponse extends ActionResponse implements StatusToXCon
         Map<String, StackFrame> stackFrames,
         Map<String, String> executables,
         Map<String, Integer> stackTraceEvents,
-        int totalFrames
+        int totalFrames,
+        boolean isSampled,
+        int samplingExponent
     ) {
-        this(stackTraces, stackFrames, executables, stackTraceEvents, totalFrames, null);
+        this(stackTraces, stackFrames, executables, stackTraceEvents, totalFrames, isSampled, samplingExponent, null);
     }
 
     public GetProfilingResponse(Exception error) {
-        this(null, null, null, null, 0, error);
+        this(null, null, null, null, 0, false, 0, error);
     }
 
     private GetProfilingResponse(
@@ -85,6 +91,8 @@ public class GetProfilingResponse extends ActionResponse implements StatusToXCon
         Map<String, String> executables,
         Map<String, Integer> stackTraceEvents,
         int totalFrames,
+        boolean isSampled,
+        int samplingExponent,
         Exception error
     ) {
         this.stackTraces = stackTraces;
@@ -92,6 +100,8 @@ public class GetProfilingResponse extends ActionResponse implements StatusToXCon
         this.executables = executables;
         this.stackTraceEvents = stackTraceEvents;
         this.totalFrames = totalFrames;
+        this.isSampled = isSampled;
+        this.samplingExponent = samplingExponent;
         this.error = error;
     }
 
@@ -133,6 +143,8 @@ public class GetProfilingResponse extends ActionResponse implements StatusToXCon
             out.writeBoolean(false);
         }
         out.writeInt(totalFrames);
+        out.writeBoolean(isSampled);
+        out.writeInt(samplingExponent);
         if (error != null) {
             out.writeBoolean(true);
             out.writeException(error);
@@ -194,6 +206,8 @@ public class GetProfilingResponse extends ActionResponse implements StatusToXCon
             builder.endObject();
         }
         builder.field("total_frames", totalFrames);
+        builder.field("is_sampled", isSampled);
+        builder.field("sampling_exponent", samplingExponent);
         if (error != null) {
             builder.startObject("error");
             ElasticsearchException.generateThrowableXContent(builder, params, error);
@@ -213,6 +227,8 @@ public class GetProfilingResponse extends ActionResponse implements StatusToXCon
         }
         GetProfilingResponse response = (GetProfilingResponse) o;
         return totalFrames == response.totalFrames
+            && isSampled == response.isSampled
+            && samplingExponent == response.samplingExponent
             && Objects.equals(stackTraces, response.stackTraces)
             && Objects.equals(stackFrames, response.stackFrames)
             && Objects.equals(executables, response.executables)
@@ -222,6 +238,6 @@ public class GetProfilingResponse extends ActionResponse implements StatusToXCon
 
     @Override
     public int hashCode() {
-        return Objects.hash(stackTraces, stackFrames, executables, stackTraceEvents, totalFrames, error);
+        return Objects.hash(stackTraces, stackFrames, executables, stackTraceEvents, totalFrames, isSampled, samplingExponent, error);
     }
 }

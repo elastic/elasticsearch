@@ -47,6 +47,8 @@ public class RestGetProfilingActionTests extends RestActionTestCase {
                 Collections.emptyMap(),
                 Collections.emptyMap(),
                 Collections.emptyMap(),
+                0,
+                false,
                 0
             );
         });
@@ -71,6 +73,8 @@ public class RestGetProfilingActionTests extends RestActionTestCase {
                 Collections.emptyMap(),
                 Collections.emptyMap(),
                 Collections.emptyMap(),
+                0,
+                false,
                 0
             );
         });

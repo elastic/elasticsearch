@@ -83,13 +83,12 @@ public class DesiredNodesSettingsValidator {
             return;
         }
 
-        var nodeSettings = node.settings();
-        var settingsToValidate = Settings.builder().put(nodeSettings);
+        Settings settings = node.settings();
 
         // node.processors rely on the environment to define its ranges, in this case
         // we create a new setting just to run the validations using the desired node
         // number of available processors
-        if (nodeSettings.hasValue(NODE_PROCESSORS_SETTING.getKey())) {
+        if (settings.hasValue(NODE_PROCESSORS_SETTING.getKey())) {
             int minProcessors = node.roundedDownMinProcessors();
             Integer roundedUpMaxProcessors = node.roundedUpMaxProcessors();
             int maxProcessors = roundedUpMaxProcessors == null ? minProcessors : roundedUpMaxProcessors;
@@ -99,11 +98,13 @@ public class DesiredNodesSettingsValidator {
                 Double.MIN_VALUE,
                 maxProcessors,
                 Setting.Property.NodeScope
-            ).get(nodeSettings);
-            settingsToValidate.remove(NODE_PROCESSORS_SETTING.getKey());
+            ).get(settings);
+            final Settings.Builder updatedSettings = Settings.builder().put(settings);
+            updatedSettings.remove(NODE_PROCESSORS_SETTING.getKey());
+            settings = updatedSettings.build();
         }
 
-        clusterSettings.validate(settingsToValidate.build(), true, false, false, false, false);
+        clusterSettings.validate(settings, true, false, false, false, false);
     }
 
 }

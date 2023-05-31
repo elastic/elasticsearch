@@ -94,7 +94,7 @@ final class PerThreadIDVersionAndSeqNoLookup {
         this.readerKey = readerKey;
 
         this.loadedTimestampRange = loadTimestampRange;
-        if (loadTimestampRange && reader.numDocs() != 0) {
+        if (loadTimestampRange && reader.getFieldInfos().fieldInfo(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD) != null) {
             PointValues tsPointValues = reader.getPointValues(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD);
             assert tsPointValues != null : "no timestamp field for reader:" + reader + " and parent:" + reader.getContext().parent.reader();
             minTimestamp = LongPoint.decodeDimension(tsPointValues.getMinPackedValue(), 0);

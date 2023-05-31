@@ -164,5 +164,8 @@ public class VersionLookupTests extends ESTestCase {
         assertTrue(lookup.loadedTimestampRange);
         assertEquals(lookup.minTimestamp, 0L);
         assertEquals(lookup.maxTimestamp, Long.MAX_VALUE);
+        reader.close();
+        writer.close();
+        dir.close();
     }
 }

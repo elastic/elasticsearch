@@ -29,7 +29,7 @@ public class KeyedFilter extends UnaryPlan {
     private final List<? extends NamedExpression> keys;
     private final Attribute timestamp;
     private final Attribute tiebreaker;
-    private final boolean missingEvent;
+    private final boolean isMissingEventFilter;
 
     public KeyedFilter(
         Source source,
@@ -37,23 +37,23 @@ public class KeyedFilter extends UnaryPlan {
         List<? extends NamedExpression> keys,
         Attribute timestamp,
         Attribute tiebreaker,
-        boolean missingEvent
+        boolean isMissingEventFilter
     ) {
         super(source, child);
         this.keys = keys;
         this.timestamp = timestamp;
         this.tiebreaker = tiebreaker;
-        this.missingEvent = missingEvent;
+        this.isMissingEventFilter = isMissingEventFilter;
     }
 
     @Override
     protected NodeInfo<KeyedFilter> info() {
-        return NodeInfo.create(this, KeyedFilter::new, child(), keys, timestamp, tiebreaker, missingEvent);
+        return NodeInfo.create(this, KeyedFilter::new, child(), keys, timestamp, tiebreaker, isMissingEventFilter);
     }
 
     @Override
     public KeyedFilter replaceChild(LogicalPlan newChild) {
-        return new KeyedFilter(source(), newChild, keys, timestamp, tiebreaker, missingEvent);
+        return new KeyedFilter(source(), newChild, keys, timestamp, tiebreaker, isMissingEventFilter);
     }
 
     public List<? extends NamedExpression> keys() {
@@ -89,13 +89,13 @@ public class KeyedFilter extends UnaryPlan {
         return Resolvables.resolved(keys) && timestamp.resolved() && tiebreaker.resolved();
     }
 
-    public boolean missingEvent() {
-        return missingEvent;
+    public boolean isMissingEventFilter() {
+        return isMissingEventFilter;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(keys, timestamp, tiebreaker, child(), missingEvent);
+        return Objects.hash(keys, timestamp, tiebreaker, child(), isMissingEventFilter);
     }
 
     @Override
@@ -113,6 +113,6 @@ public class KeyedFilter extends UnaryPlan {
             && Objects.equals(timestamp, other.timestamp)
             && Objects.equals(tiebreaker, other.tiebreaker)
             && Objects.equals(child(), other.child())
-            && missingEvent == missingEvent;
+            && isMissingEventFilter == isMissingEventFilter;
     }
 }

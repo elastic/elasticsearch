@@ -222,7 +222,7 @@ public class TumblingWindow implements Executable {
         }
     }
 
-    public void doCheckMissingEvents(List<Sequence> batchToCheck, MultiSearchResponse p, ActionListener<Payload> listener, Runnable next) {
+    private void doCheckMissingEvents(List<Sequence> batchToCheck, MultiSearchResponse p, ActionListener<Payload> listener, Runnable next) {
         MultiSearchResponse.Item[] responses = p.getResponses();
         int nextResponse = 0;
         for (Sequence sequence : batchToCheck) {
@@ -243,13 +243,17 @@ public class TumblingWindow implements Executable {
                             continue;
                         }
                         Timestamp hitTimestamp = criterion.timestamp(hits[0]);
-                        lastLeading = lastLeading == null || lastLeading.delta(hitTimestamp) < 0 ? hitTimestamp : lastLeading;
+                        lastLeading = lastLeading == null || lastLeading.instant().compareTo(hitTimestamp.instant()) < 0
+                            ? hitTimestamp
+                            : lastLeading;
                     } else if (trailing(i)) {
                         if (hits.length == 0) {
                             continue;
                         }
                         Timestamp hitTimestamp = criterion.timestamp(hits[0]);
-                        firstTrailing = firstTrailing == null || firstTrailing.delta(hitTimestamp) > 0 ? hitTimestamp : firstTrailing;
+                        firstTrailing = firstTrailing == null || firstTrailing.instant().compareTo(hitTimestamp.instant()) > 0
+                            ? hitTimestamp
+                            : firstTrailing;
                     } else {
                         if (hits.length > 0) {
                             discarded = true;
@@ -565,7 +569,7 @@ public class TumblingWindow implements Executable {
 
             log.trace("Found [{}] hits", hits.size());
 
-            int nextStage = nextPositiveStage(currentStage);
+            int nextPositiveStage = nextPositiveStage(currentStage);
 
             // if there is at least one result, process it
             if (hits.isEmpty() == false) {
@@ -595,8 +599,8 @@ public class TumblingWindow implements Executable {
 
                 // any subsequence query will be ASC - initialize its starting point if not set
                 // this is the case during the headOrdinal run for HEAD queries or for each window for TAIL ones
-                if (nextStage < maxStages && nextStage > 0) {
-                    BoxedQueryRequest nextRequest = criteria.get(nextStage).queryRequest();
+                if (nextPositiveStage > 0) {
+                    BoxedQueryRequest nextRequest = criteria.get(nextPositiveStage).queryRequest();
                     if (nextRequest.from() == null || nextRequest.after() == null) {
                         nextRequest.from(headOrdinal);
                         nextRequest.nextAfter(headOrdinal);
@@ -612,18 +616,14 @@ public class TumblingWindow implements Executable {
             // looks like this stage is done, move on
             else {
                 // but first check is there are still candidates within the current window
-                if (morePositiveStagesAfter(currentStage) && matcher.hasFollowingCandidates(criterion.stage())) {
-                    secondaryCriterion(window, nextPositiveStage(currentStage), listener);
+                if (nextPositiveStage > 0 && matcher.hasFollowingCandidates(criterion.stage())) {
+                    secondaryCriterion(window, nextPositiveStage, listener);
                 } else {
                     // otherwise, advance it
                     tumbleWindow(window.baseStage, listener);
                 }
             }
         }, listener::onFailure));
-    }
-
-    private boolean morePositiveStagesAfter(int stage) {
-        return nextPositiveStage(stage) > 0;
     }
 
     /**
@@ -793,7 +793,7 @@ public class TumblingWindow implements Executable {
 
     Iterable<List<HitReference>> hits(List<Sequence> sequences) {
         return () -> {
-            Iterator<Sequence> delegate = criteria.get(0).descending() != criteria.get(1).descending()
+            Iterator<Sequence> delegate = criteria.get(matcher.firstPositiveStage).descending()
                 ? new ReversedIterator<>(sequences)
                 : sequences.iterator();
 

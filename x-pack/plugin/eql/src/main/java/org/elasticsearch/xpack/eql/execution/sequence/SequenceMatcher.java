@@ -79,10 +79,10 @@ public class SequenceMatcher {
     private final boolean descending;
 
     private final Limit limit;
-    private final boolean[] missingEvents;
+    private final boolean[] missingEventStages;
     protected final int firstPositiveStage;
     protected final int lastPositiveStage;
-    private final boolean missingEventsExist;
+    private final boolean missingEventStagesExist;
     private final CircuitBreaker circuitBreaker;
 
     private final Stats stats = new Stats();
@@ -99,7 +99,7 @@ public class SequenceMatcher {
         boolean descending,
         TimeValue maxSpan,
         Limit limit,
-        boolean[] missingEvents,
+        boolean[] missingEventStages,
         CircuitBreaker circuitBreaker
     ) {
         this.numberOfStages = stages;
@@ -114,16 +114,16 @@ public class SequenceMatcher {
         this.maxSpanInNanos = maxSpan.nanos();
 
         this.limit = limit;
-        this.missingEvents = missingEvents;
+        this.missingEventStages = missingEventStages;
         this.firstPositiveStage = calculateFirstPositiveStage();
         this.lastPositiveStage = calculateLastPositiveStage();
-        this.missingEventsExist = calculateMissingEventsExist();
+        this.missingEventStagesExist = calculateMissingEventStagesExist();
         this.circuitBreaker = circuitBreaker;
     }
 
     private int calculateFirstPositiveStage() {
-        for (int i = 0; i < missingEvents.length; i++) {
-            if (missingEvents[i] == false) {
+        for (int i = 0; i < missingEventStages.length; i++) {
+            if (missingEventStages[i] == false) {
                 return i;
             }
         }
@@ -131,17 +131,17 @@ public class SequenceMatcher {
     }
 
     private int calculateLastPositiveStage() {
-        for (int i = missingEvents.length - 1; i >= 0; i--) {
-            if (missingEvents[i] == false) {
+        for (int i = missingEventStages.length - 1; i >= 0; i--) {
+            if (missingEventStages[i] == false) {
                 return i;
             }
         }
         return -1;
     }
 
-    private boolean calculateMissingEventsExist() {
-        for (int i = 0; i < missingEvents.length; i++) {
-            if (missingEvents[i]) {
+    private boolean calculateMissingEventStagesExist() {
+        for (int i = 0; i < missingEventStages.length; i++) {
+            if (missingEventStages[i]) {
                 return true;
             }
         }
@@ -286,7 +286,7 @@ public class SequenceMatcher {
     }
 
     public void tryComplete(Sequence sequence) {
-        if (missingEventsExist) {
+        if (missingEventStagesExist) {
             toCheckForMissing.add(sequence);
         } else {
             completed.add(sequence);
@@ -299,7 +299,7 @@ public class SequenceMatcher {
 
     int previousPositiveStage(int stage) {
         for (int i = stage - 1; i >= 0; i--) {
-            if (missingEvents[i] == false) {
+            if (missingEventStages[i] == false) {
                 return i;
             }
         }
@@ -311,13 +311,9 @@ public class SequenceMatcher {
         return headLimit;
     }
 
-    public long maxSpanInNanos() {
-        return maxSpanInNanos;
-    }
-
     int nextPositiveStage(int stage) {
-        for (int i = stage + 1; i < missingEvents.length; i++) {
-            if (missingEvents[i] == false) {
+        for (int i = stage + 1; i < missingEventStages.length; i++) {
+            if (missingEventStages[i] == false) {
                 return i;
             }
         }
@@ -325,10 +321,10 @@ public class SequenceMatcher {
     }
 
     public boolean isMissingEvent(int stage) {
-        if (stage < 0 || stage >= missingEvents.length) {
+        if (stage < 0 || stage >= missingEventStages.length) {
             return false;
         }
-        return missingEvents[stage];
+        return missingEventStages[stage];
     }
 
     private boolean isFirstPositiveStage(int stage) {

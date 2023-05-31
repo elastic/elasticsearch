@@ -334,16 +334,12 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
             until = defaultUntil(source);
         }
 
-        if (maxSpan.duration() < 0 && queries.stream().anyMatch(x -> x.missingEvent())) {
-            throw new ParsingException(
-                source,
-                "No maxspan defined. Maxspan is mandatory for sequences with missing events",
-                queries.size()
-            );
+        if (maxSpan.duration() < 0 && queries.stream().anyMatch(x -> x.isMissingEventFilter())) {
+            throw new ParsingException(source, "[maxspan] is required for sequences with missing events queries; found none");
         }
 
-        if (queries.stream().allMatch(KeyedFilter::missingEvent)) {
-            throw new IllegalStateException("Invalid sequence query: at least one event has to be positive");
+        if (queries.stream().allMatch(KeyedFilter::isMissingEventFilter)) {
+            throw new IllegalStateException("A sequence requires at least one positive event query; found none");
         }
 
         return new Sequence(source, queries, until, maxSpan, fieldTimestamp(), fieldTiebreaker(), resultPosition());

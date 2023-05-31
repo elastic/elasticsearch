@@ -222,7 +222,10 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                         mandatoryKeys.stream().map(m -> new IsNotNull(m.source(), m)).collect(toList())
                     );
                     Filter joinKeyNotNull = new Filter(join.source(), k.child(), constraint);
-                    filters.set(i, new KeyedFilter(k.source(), joinKeyNotNull, k.keys(), k.timestamp(), k.tiebreaker(), k.missingEvent()));
+                    filters.set(
+                        i,
+                        new KeyedFilter(k.source(), joinKeyNotNull, k.keys(), k.timestamp(), k.tiebreaker(), k.isMissingEventFilter())
+                    );
                 }
             }
             if (changed) {
@@ -439,7 +442,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                     k.keys(),
                     k.timestamp(),
                     k.tiebreaker(),
-                    k.missingEvent()
+                    k.isMissingEventFilter()
                 )
                 : k;
         }
@@ -496,10 +499,10 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                     boolean baseFilter = true;
                     for (KeyedFilter filter : queries) {
                         // preserve the order for the base query, everything else needs to be ascending
-                        List<Order> pushedOrder = baseFilter && filter.missingEvent() == false ? orderBy.order() : ascendingOrders;
+                        List<Order> pushedOrder = baseFilter && filter.isMissingEventFilter() == false ? orderBy.order() : ascendingOrders;
                         OrderBy order = new OrderBy(filter.source(), filter.child(), pushedOrder);
                         orderedQueries.add(filter.replaceChild(order));
-                        if (filter.missingEvent() == false) {
+                        if (filter.isMissingEventFilter() == false) {
                             baseFilter = false;
                         }
                     }

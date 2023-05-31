@@ -73,7 +73,7 @@ class Mapper extends RuleExecutor<PhysicalPlan> {
                     KeyedFilter keyed = join.queries().get(i);
                     keys.add(Expressions.asAttributes(keyed.keys()));
                     matches.add(map(keyed.child()));
-                    missing[i] = keyed.missingEvent();
+                    missing[i] = keyed.isMissingEventFilter();
                 }
 
                 if (p instanceof Sample sample) {

@@ -459,7 +459,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
     }
 
     public void onClose(CacheFileRegion chunk) {
-        // we held the "this" lock when this was evicted, hence if sharedBytesPos is not filled in, this will never be registered.
+        // we held the "this" lock when this was evicted, hence if sharedBytesPos is not filled in, chunk will never be registered.
         if (chunk.sharedBytesPos != -1) {
             assert regionOwners[chunk.sharedBytesPos].compareAndSet(chunk, null);
             freeRegions.add(chunk.sharedBytesPos);

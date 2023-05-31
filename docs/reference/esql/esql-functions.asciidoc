@@ -11,6 +11,7 @@
 these functions:
 
 * <<esql-abs>>
+* <<esql-auto_bucket>>
 * <<esql-case>>
 * <<esql-cidr_match>>
 * <<esql-concat>>
@@ -36,6 +37,7 @@ these functions:
 * <<esql-to_string>>
 
 include::functions/abs.asciidoc[]
+include::functions/auto_bucket.asciidoc[]
 include::functions/case.asciidoc[]
 include::functions/cidr_match.asciidoc[]
 include::functions/concat.asciidoc[]

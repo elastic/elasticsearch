@@ -46,6 +46,8 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
  * </p>
  */
 public class AutoBucket extends ScalarFunction implements Mappable {
+    // TODO maybe we should just cover the whole of representable dates here - like ten years, 100 years, 1000 years, all the way up.
+    // That way you never end up with more than the target number of buckets.
     private static final Rounding LARGEST_HUMAN_DATE_ROUNDING = Rounding.builder(Rounding.DateTimeUnit.YEAR_OF_CENTURY).build();
     private static final Rounding[] HUMAN_DATE_ROUNDINGS = new Rounding[] {
         Rounding.builder(Rounding.DateTimeUnit.MONTH_OF_YEAR).build(),

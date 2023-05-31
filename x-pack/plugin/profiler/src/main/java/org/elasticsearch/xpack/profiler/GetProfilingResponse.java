@@ -178,6 +178,9 @@ public class GetProfilingResponse extends ActionResponse implements ChunkedToXCo
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+        // The sampling exponent as we use it in the code starts at 1, but "1" actually means
+        // "all the data", so logically it is exponent 0.
+        double samplingRate = Math.pow(0.2, samplingExponent - 1);
         if (error != null) {
             return Iterators.concat(
                 ChunkedToXContentHelper.startObject(),
@@ -192,8 +195,7 @@ public class GetProfilingResponse extends ActionResponse implements ChunkedToXCo
                 optional("executables", executables, ChunkedToXContentHelper::map),
                 optional("stack_trace_events", stackTraceEvents, ChunkedToXContentHelper::map),
                 Iterators.single((b, p) -> b.field("total_frames", totalFrames)),
-                Iterators.single((b, p) -> b.field("is_sampled", isSampled)),
-                Iterators.single((b, p) -> b.field("sampling_exponent", samplingExponent)),
+                Iterators.single((b, p) -> b.field("sampling_rate", samplingRate)),
                 ChunkedToXContentHelper.endObject()
             );
         }

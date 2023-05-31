@@ -178,7 +178,7 @@ public class GetProfilingResponse extends ActionResponse implements ChunkedToXCo
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-       if (error != null) {
+        if (error != null) {
             return Iterators.concat(
                 ChunkedToXContentHelper.startObject(),
                 Iterators.single((b, p) -> ElasticsearchException.generateFailureXContent(b, params, error, true)),
@@ -196,7 +196,7 @@ public class GetProfilingResponse extends ActionResponse implements ChunkedToXCo
                 Iterators.single((b, p) -> b.field("sampling_exponent", samplingExponent)),
                 ChunkedToXContentHelper.endObject()
             );
-       }
+        }
     }
 
     private <T> Iterator<? extends ToXContent> optional(
@@ -205,7 +205,7 @@ public class GetProfilingResponse extends ActionResponse implements ChunkedToXCo
         BiFunction<String, Map<String, T>, Iterator<? extends ToXContent>> supplier
     ) {
         return (values != null) ? supplier.apply(name, values) : Collections.emptyIterator();
-   }
+    }
 
     @Override
     public boolean equals(Object o) {

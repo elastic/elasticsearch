@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.core.security.authz.restriction;
 
 import org.elasticsearch.test.ESTestCase;
-import org.hamcrest.Matchers;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;

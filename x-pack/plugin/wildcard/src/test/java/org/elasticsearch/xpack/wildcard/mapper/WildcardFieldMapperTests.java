@@ -259,7 +259,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         iw.close();
 
         // Test wildcard query
-        String queryString = randomABString((BooleanQuery.getMaxClauseCount() * 2) + 1);
+        String queryString = randomABString((IndexSearcher.getMaxClauseCount() * 2) + 1);
         Query wildcardFieldQuery = wildcardFieldType.fieldType().wildcardQuery(queryString, null, null);
         TopDocs wildcardFieldTopDocs = searcher.search(wildcardFieldQuery, 10, Sort.INDEXORDER);
         assertThat(wildcardFieldTopDocs.totalHits.value, equalTo(0L));
@@ -898,7 +898,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         int numRewrites = 0;
         int maxNumRewrites = 100;
         for (; numRewrites < maxNumRewrites; numRewrites++) {
-            Query newApprox = approximationQuery.rewrite(rewriteReader);
+            Query newApprox = approximationQuery.rewrite(new IndexSearcher(rewriteReader));
             if (newApprox == approximationQuery) {
                 break;
             }

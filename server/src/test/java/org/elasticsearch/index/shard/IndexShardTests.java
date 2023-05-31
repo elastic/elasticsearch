@@ -1185,7 +1185,7 @@ public class IndexShardTests extends IndexShardTestCase {
             indexMetadata.build(),
             null,
             new InternalEngineFactory(),
-            () -> synced.set(true),
+            ignoredShardId -> synced.set(true),
             RetentionLeaseSyncer.EMPTY
         );
         // add a replica
@@ -1254,7 +1254,7 @@ public class IndexShardTests extends IndexShardTestCase {
             indexMetadata.build(),
             null,
             new InternalEngineFactory(),
-            () -> synced.set(true),
+            ignoredShardId -> synced.set(true),
             RetentionLeaseSyncer.EMPTY
         );
         recoverShardFromStore(primaryShard);
@@ -1534,6 +1534,69 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(shard);
     }
 
+    public void testAsyncPersistGlobalCheckpointSync() throws InterruptedException, IOException {
+        final ShardId shardId = new ShardId("index", "_na_", 0);
+        final ShardRouting shardRouting = TestShardRouting.newShardRouting(
+            shardId,
+            randomAlphaOfLength(8),
+            true,
+            ShardRoutingState.INITIALIZING,
+            RecoverySource.EmptyStoreRecoverySource.INSTANCE
+        );
+        final Settings settings = indexSettings(Version.CURRENT, 1, 2).build();
+        final IndexMetadata.Builder indexMetadata = IndexMetadata.builder(shardRouting.getIndexName()).settings(settings).primaryTerm(0, 1);
+        IndexShard shard = newShard(
+            shardRouting,
+            indexMetadata.build(),
+            null,
+            new InternalEngineFactory(),
+            ignoredShardId -> {},
+            RetentionLeaseSyncer.EMPTY
+        );
+        recoverShardFromStore(shard);
+
+        final int maxSeqNo = randomIntBetween(0, 128);
+        for (int i = 0; i <= maxSeqNo; i++) {
+            EngineTestCase.generateNewSeqNo(shard.getEngine());
+        }
+        final long checkpoint = rarely() ? maxSeqNo - scaledRandomIntBetween(0, maxSeqNo) : maxSeqNo;
+        shard.updateLocalCheckpointForShard(shardRouting.allocationId().getId(), checkpoint);
+        shard.updateGlobalCheckpointForShard(shard.routingEntry().allocationId().getId(), shard.getLocalCheckpoint());
+
+        Semaphore semaphore = new Semaphore(Integer.MAX_VALUE);
+        Thread[] thread = new Thread[randomIntBetween(3, 5)];
+        CountDownLatch latch = new CountDownLatch(thread.length);
+        for (int i = 0; i < thread.length; i++) {
+            thread[i] = new Thread() {
+                @Override
+                public void run() {
+                    try {
+                        latch.countDown();
+                        latch.await();
+                        for (int i = 0; i < 10000; i++) {
+                            semaphore.acquire();
+                            shard.syncGlobalCheckpoint(
+                                randomLongBetween(0, shard.getLastKnownGlobalCheckpoint()),
+                                (ex) -> semaphore.release()
+                            );
+                        }
+                    } catch (Exception ex) {
+                        throw new RuntimeException(ex);
+                    }
+                }
+            };
+            thread[i].start();
+        }
+
+        for (int i = 0; i < thread.length; i++) {
+            thread[i].join();
+        }
+        assertTrue(semaphore.tryAcquire(Integer.MAX_VALUE, 10, TimeUnit.SECONDS));
+        assertEquals(shard.getLastKnownGlobalCheckpoint(), shard.getLastSyncedGlobalCheckpoint());
+
+        closeShards(shard);
+    }
+
     public void testShardStats() throws IOException {
 
         IndexShard shard = newStartedShard();
@@ -1630,7 +1693,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 i -> store,
                 null,
                 new InternalEngineFactory(),
-                () -> {},
+                NOOP_GCP_SYNCER,
                 RetentionLeaseSyncer.EMPTY,
                 EMPTY_EVENT_LISTENER
             );
@@ -2622,7 +2685,7 @@ public class IndexShardTests extends IndexShardTestCase {
             null,
             wrapper,
             new InternalEngineFactory(),
-            () -> {},
+            NOOP_GCP_SYNCER,
             RetentionLeaseSyncer.EMPTY,
             EMPTY_EVENT_LISTENER
         );
@@ -2757,7 +2820,7 @@ public class IndexShardTests extends IndexShardTestCase {
             null,
             wrapper,
             new InternalEngineFactory(),
-            () -> {},
+            NOOP_GCP_SYNCER,
             RetentionLeaseSyncer.EMPTY,
             EMPTY_EVENT_LISTENER
         );
@@ -4538,7 +4601,7 @@ public class IndexShardTests extends IndexShardTestCase {
             null,
             null,
             new InternalEngineFactory(),
-            () -> {},
+            NOOP_GCP_SYNCER,
             RetentionLeaseSyncer.EMPTY,
             EMPTY_EVENT_LISTENER,
             fakeClock

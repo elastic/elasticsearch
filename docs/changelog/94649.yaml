@@ -1,5 +1,0 @@
-pr: 94649
-summary: Don't create many Rounding.Prepared instances when checking for empty buckets in date_histogram aggregator.
-area: Aggregations
-type: enhancement
-issues: []

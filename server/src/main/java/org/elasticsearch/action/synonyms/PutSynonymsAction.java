@@ -151,6 +151,5 @@ public class PutSynonymsAction extends ActionType<PutSynonymsAction.Response> {
         public int hashCode() {
             return Objects.hash(result);
         }
-
     }
 }

@@ -92,7 +92,9 @@ public abstract class ProfilingTestCase extends ESIntegTestCase {
                 state.metadata()
                     .indices()
                     .keySet()
-                    .containsAll(ProfilingIndexManager.MANAGED_INDICES.stream().map(ProfilingIndexManager.ManagedIndex::toString).toList())
+                    .containsAll(
+                        ProfilingIndexManager.PROFILING_INDICES.stream().map(ProfilingIndexManager.ProfilingIndex::toString).toList()
+                    )
             );
         });
     }

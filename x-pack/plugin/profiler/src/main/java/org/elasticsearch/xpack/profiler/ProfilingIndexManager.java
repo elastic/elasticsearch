@@ -41,15 +41,15 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 public class ProfilingIndexManager implements ClusterStateListener, Closeable {
     private static final Logger logger = LogManager.getLogger(ProfilingIndexManager.class);
     // For testing
-    public static final List<ManagedIndex> MANAGED_INDICES = List.of(
-        ManagedIndex.regular("profiling-returnpads-private"),
-        ManagedIndex.regular("profiling-sq-executables"),
-        ManagedIndex.regular("profiling-sq-leafframes"),
-        ManagedIndex.regular("profiling-symbols-private"),
-        ManagedIndex.kv("profiling-executables"),
-        ManagedIndex.kv("profiling-stackframes"),
-        ManagedIndex.kv("profiling-stacktraces"),
-        ManagedIndex.kv("profiling-symbols-global")
+    public static final List<ProfilingIndex> PROFILING_INDICES = List.of(
+        ProfilingIndex.regular("profiling-returnpads-private"),
+        ProfilingIndex.regular("profiling-sq-executables"),
+        ProfilingIndex.regular("profiling-sq-leafframes"),
+        ProfilingIndex.regular("profiling-symbols-private"),
+        ProfilingIndex.kv("profiling-executables"),
+        ProfilingIndex.kv("profiling-stackframes"),
+        ProfilingIndex.kv("profiling-stacktraces"),
+        ProfilingIndex.kv("profiling-symbols-global")
     );
 
     private final ThreadPool threadPool;
@@ -112,20 +112,20 @@ public class ProfilingIndexManager implements ClusterStateListener, Closeable {
 
     private void addIndicesIfMissing(ClusterState state) {
         Map<String, IndexMetadata> indicesMetadata = state.metadata().indices();
-        for (ManagedIndex managedIndex : MANAGED_INDICES) {
-            String index = managedIndex.toString();
+        for (ProfilingIndex profilingIndex : PROFILING_INDICES) {
+            String index = profilingIndex.toString();
             final AtomicBoolean creationInProgress = creationInProgressPerIndex.computeIfAbsent(index, key -> new AtomicBoolean(false));
             if (creationInProgress.compareAndSet(false, true)) {
                 // Do a quick (exact) check first
                 boolean indexNeedsToBeCreated = indicesMetadata == null || indicesMetadata.get(index) == null;
                 // for K/V indices we must not create the index if a newer generation exists
-                if (indexNeedsToBeCreated && managedIndex.isKvIndex()) {
+                if (indexNeedsToBeCreated && profilingIndex.isKvIndex()) {
                     indexNeedsToBeCreated = indicesMetadata != null
-                        && indicesMetadata.keySet().stream().anyMatch(managedIndex::isMatchWithoutGeneration) == false;
+                        && indicesMetadata.keySet().stream().anyMatch(profilingIndex::isMatchWithoutGeneration) == false;
                 }
                 if (indexNeedsToBeCreated) {
                     logger.debug("adding index [{}], because it doesn't exist", index);
-                    putIndex(index, managedIndex.getAlias(), creationInProgress);
+                    putIndex(index, profilingIndex.getAlias(), creationInProgress);
                 } else {
                     logger.trace("not adding index [{}], because it already exists", index);
                     creationInProgress.set(false);
@@ -183,19 +183,22 @@ public class ProfilingIndexManager implements ClusterStateListener, Closeable {
         });
     }
 
-    static class ManagedIndex {
+    /**
+     * An index that is used by Universal Profiling.
+     */
+    static class ProfilingIndex {
         private final String name;
         private final String generation;
 
-        public static ManagedIndex regular(String name) {
-            return new ManagedIndex(name, null);
+        public static ProfilingIndex regular(String name) {
+            return new ProfilingIndex(name, null);
         }
 
-        public static ManagedIndex kv(String name) {
-            return new ManagedIndex(name, "000001");
+        public static ProfilingIndex kv(String name) {
+            return new ProfilingIndex(name, "000001");
         }
 
-        private ManagedIndex(String namePrefix, String generation) {
+        private ProfilingIndex(String namePrefix, String generation) {
             this.name = namePrefix;
             this.generation = generation;
         }

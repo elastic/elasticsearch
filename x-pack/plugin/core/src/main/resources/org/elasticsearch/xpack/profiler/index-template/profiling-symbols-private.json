@@ -5,13 +5,6 @@
   "composed_of": [
     "profiling-symbols"
   ],
-  "template": {
-    "settings": {
-      "index": {
-        "lifecycle.rollover_alias": "profiling-symbols-private"
-      }
-    }
-  },
   "priority": 100,
   "_meta": {
     "description": "Index template for .profiling-symbols-private"

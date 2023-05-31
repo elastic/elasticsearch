@@ -26,10 +26,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+/**
+ * Resolves aliases that point to multiple key/value indices.
+ */
 public class KvIndexResolver {
     private static final Logger log = LogManager.getLogger(KvIndexResolver.class);
 
     private final IndexNameExpressionResolver resolver;
+    /**
+     * Specifies the time period for which K/V indices should be considered to overlap. See
+     * also @{@link TransportGetProfilingAction#PROFILING_KV_INDEX_OVERLAP}.
+     */
     private final TimeValue kvIndexOverlapPeriod;
 
     public KvIndexResolver(IndexNameExpressionResolver resolver, TimeValue kvIndexOverlapPeriod) {
@@ -38,6 +45,11 @@ public class KvIndexResolver {
     }
 
     /**
+     *
+     * Resolves aliases that point to multiple K/V indices. When resolving indices it sorts indices by their creation timestamp (or
+     * lifecycle origination date, if specified) and assumes that an index contains data from its creation until the creation of the next
+     * index plus an overlap that is controlled by <code>kvIndexOverlapPeriod</code>. It will only return matching indices within the
+     * specified time range.
      *
      * @param clusterState The current cluster state.
      * @param indexPattern An index pattern to match.

@@ -258,6 +258,11 @@ Test general mockup ECS mappings:
               },
               "textual_score": "bad"
             },
+            "host": {
+              "cpu": {
+                "usage": 0.68
+              }
+            },
             "geo": {
               "location": {
                 "lon": -73.614830,
@@ -364,6 +369,8 @@ Test general mockup ECS mappings:
   - match: { .$idx0name.mappings.properties.vulnerability.properties.score.properties.temporal.type: "float" }
   - match: { .$idx0name.mappings.properties.vulnerability.properties.score.properties.version.type: "keyword" }
   - match: { .$idx0name.mappings.properties.vulnerability.properties.textual_score.type: "float" }
+  - match: { .$idx0name.mappings.properties.host.properties.cpu.properties.usage.type: "scaled_float" }
+  - match: { .$idx0name.mappings.properties.host.properties.cpu.properties.usage.scaling_factor: 1000 }
   - match: { .$idx0name.mappings.properties.geo.properties.location.type: "geo_point" }
   - match: { .$idx0name.mappings.properties.data_stream.properties.dataset.type: "constant_keyword" }
   - match: { .$idx0name.mappings.properties.data_stream.properties.namespace.type: "constant_keyword" }

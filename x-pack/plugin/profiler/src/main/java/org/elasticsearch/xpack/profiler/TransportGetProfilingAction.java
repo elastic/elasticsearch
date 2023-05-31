@@ -127,7 +127,7 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
         long start = System.nanoTime();
         GetProfilingResponseBuilder responseBuilder = new GetProfilingResponseBuilder();
         int exp = eventsIndex.getExponent();
-        responseBuilder.setIsSampled(exp != 1);
+        responseBuilder.setIsSampled(exp != 0);
         responseBuilder.setSamplingExponent(exp);
         client.prepareSearch(eventsIndex.getName())
             .setTrackTotalHits(false)

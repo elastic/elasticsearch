@@ -397,7 +397,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                     final Integer freeSlot = freeRegions.poll();
                     if (freeSlot != null) {
                         // no need to evict an item, just add
-                        assignToSlot(freeSlot, entry, "evicted during free region allocation");
+                        assignToSlot(entry, freeSlot);
                     } else {
                         // need to evict something
                         synchronized (this) {
@@ -405,7 +405,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                         }
                         final Integer freeSlotRetry = freeRegions.poll();
                         if (freeSlotRetry != null) {
-                            assignToSlot(freeSlotRetry, entry, "evicted during free region allocation (retry)");
+                            assignToSlot(entry, freeSlotRetry);
                         } else {
                             boolean removed = keyMapping.remove(regionKey, entry);
                             assert removed;
@@ -432,14 +432,14 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         return entry.chunk;
     }
 
-    private void assignToSlot(Integer freeSlot, Entry<CacheFileRegion> entry, String evicted_during_free_region_allocation) {
+    private void assignToSlot(Entry<CacheFileRegion> entry, Integer freeSlot) {
         assert regionOwners[freeSlot].compareAndSet(null, entry.chunk);
         synchronized (this) {
             if (entry.chunk.isEvicted()) {
                 assert regionOwners[freeSlot].compareAndSet(entry.chunk, null);
                 freeRegions.add(freeSlot);
                 keyMapping.remove(entry.chunk.regionKey, entry);
-                throw new AlreadyClosedException(evicted_during_free_region_allocation);
+                throw new AlreadyClosedException("evicted during free region allocation");
             }
             pushEntryToBack(entry);
             // assign sharedBytesPos only when chunk is ready for use. Under lock to avoid concurrent tryEvict.

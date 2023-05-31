@@ -490,7 +490,8 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
     private static final ParseField PARSE_FILES = new ParseField(FILES);
 
     // pre-8.9.0 versions included this (unused) field so we must accept its existence
-    private static final ParseField PARSE_INDEX_VERSION = new ParseField("index_version", "index-version");
+    private static final String INDEX_VERSION = "index_version";
+    private static final ParseField PARSE_INDEX_VERSION = new ParseField(INDEX_VERSION, "index-version");
 
     /**
      * Serializes shard snapshot metadata info into JSON
@@ -501,6 +502,7 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field(NAME, snapshot);
+        builder.field(INDEX_VERSION, 0); // pre-8.9.0 versions require this field to be present and non-negative
         builder.field(START_TIME, startTime);
         builder.field(TIME, time);
         builder.field(INCREMENTAL_FILE_COUNT, incrementalFileCount);

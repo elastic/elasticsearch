@@ -23,6 +23,8 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 
+import static co.elastic.elasticsearch.stateless.engine.RefreshThrottlingService.THROTTLING_INTERVAL;
+
 /**
  * A refresh throttler that allows accumulating unused refreshes (here referred to as credit) to be used for handling
  * a burst of refresh requests. Credit and bursting is defined based on throttling intervals. For each throttling
@@ -33,17 +35,11 @@ import java.util.function.LongSupplier;
 public class RefreshBurstableThrottler implements RefreshThrottler {
     private static final Logger logger = LogManager.getLogger(RefreshBurstableThrottler.class);
 
-    public static final TimeValue BUDGET_INTERVAL = TimeValue.timeValueHours(1);
-    // TODO: probably we should move throttling_interval to a node setting.
-    public static final TimeValue THROTTLING_INTERVAL = TimeValue.timeValueSeconds(5);
-    public static final long CREDITS_PER_THROTTLING_INTERVAL = 1;
-
     private final Object mutex = new Object();
-    private final long throttlingIntervalMillis;
     private final long maxCredit;
     private final Consumer<Request> refresh;
     private final ThreadPool threadPool;
-    private final long creditPerInterval;
+    private final RefreshNodeCreditManager nodeCreditManager;
     private final LongSupplier relativeTimeSupplier;
     private final long firstIntervalStartMillis;
     private long credit;
@@ -57,23 +53,20 @@ public class RefreshBurstableThrottler implements RefreshThrottler {
 
     public RefreshBurstableThrottler(
         Consumer<Request> refresh,
-        TimeValue throttlingInterval,
-        long creditPerInterval,
         long initialCredit,
         long maxCredit,
-        LongSupplier relativeTimeSupplierInMillis,
+        RefreshNodeCreditManager nodeCreditManager,
         ThreadPool threadPool
     ) {
         this.refresh = refresh;
-        this.throttlingIntervalMillis = throttlingInterval.millis();
-        this.creditPerInterval = creditPerInterval;
-        this.relativeTimeSupplier = relativeTimeSupplierInMillis;
+        this.nodeCreditManager = nodeCreditManager;
+        this.relativeTimeSupplier = nodeCreditManager.getRelativeTimeSupplier();
         this.threadPool = threadPool;
         this.maxCredit = maxCredit;
-        credit = Math.min(maxCredit, initialCredit + creditPerInterval);
-        firstIntervalStartMillis = relativeTimeSupplierInMillis.getAsLong();
+        credit = Math.min(maxCredit, initialCredit + 1);
+        firstIntervalStartMillis = relativeTimeSupplier.getAsLong();
         // we will calculate accumulated credit since last refresh
-        lastRefreshMillis = relativeTimeSupplierInMillis.getAsLong();
+        lastRefreshMillis = relativeTimeSupplier.getAsLong();
     }
 
     @Override
@@ -118,7 +111,7 @@ public class RefreshBurstableThrottler implements RefreshThrottler {
         // refresh requests. We could however reduce this worst case by calculating a smaller delay, e.g. based on the
         // last refresh timestamp.
         threadPool.scheduleUnlessShuttingDown(
-            TimeValue.timeValueMillis(throttlingIntervalMillis),
+            TimeValue.timeValueMillis(THROTTLING_INTERVAL.millis()),
             ThreadPool.Names.REFRESH,
             this::runPendingRequests
         );
@@ -127,7 +120,10 @@ public class RefreshBurstableThrottler implements RefreshThrottler {
     private List<Request> getRefreshRequestsToRun(long relativeTimeMillis) {
         assert Thread.holdsLock(mutex);
         List<Request> requestsToAccept = List.of();
-        if (credit > 0 && pendingRequests.isEmpty() == false) {
+        // we always consume a node credit, either because the refresh will go through without throttling, or because it will be scheduled,
+        // and thus we consume the credit (node credits can go negative) for the scheduled refresh beforehand.
+        boolean nodeHasCredits = nodeCreditManager.consumeCredit();
+        if (credit > 0 && pendingRequests.isEmpty() == false && nodeHasCredits) {
             credit--;
             requestsToAccept = pendingRequests;
             pendingRequests = new ArrayList<>();
@@ -148,7 +144,7 @@ public class RefreshBurstableThrottler implements RefreshThrottler {
         }
         lastCreditUpdate = curIntervalNo;
         long lastRefreshIntervalNo = getIntervalNo(lastRefreshMillis);
-        long unusedCredit = (curIntervalNo - lastRefreshIntervalNo) * creditPerInterval;
+        long unusedCredit = (curIntervalNo - lastRefreshIntervalNo);
         incrementCredit(unusedCredit);
     }
 
@@ -212,11 +208,16 @@ public class RefreshBurstableThrottler implements RefreshThrottler {
     // package private for testing
     long getIntervalNo(long timeMillis) {
         assert timeMillis - firstIntervalStartMillis >= 0;
-        return (timeMillis - firstIntervalStartMillis) / throttlingIntervalMillis;
+        return (timeMillis - firstIntervalStartMillis) / THROTTLING_INTERVAL.getMillis();
     }
 
     // package private for testing
     long getCredit() {
         return credit;
+    }
+
+    // package private for testing
+    void setCredit(long credit) {
+        this.credit = credit;
     }
 }

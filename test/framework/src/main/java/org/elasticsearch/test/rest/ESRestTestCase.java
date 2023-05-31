@@ -1840,6 +1840,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             case "security-index-template":
             case "data-streams-mappings":
             case "ecs-dynamic-mappings":
+            case "string-to-keyword-dynamic-mapping":
                 return true;
             default:
                 return false;

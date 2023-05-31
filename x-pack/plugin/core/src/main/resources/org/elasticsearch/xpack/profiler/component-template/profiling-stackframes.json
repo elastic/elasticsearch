@@ -9,6 +9,13 @@
       }
     },
     "mappings": {
+      /*
+      For the inline chain the profiling-stackframes index needs '_source' to be enabled.
+      Also, doc_values for the fields below are disabled to not store the values twice.
+      Using synthetic source reduces storage size by ~50% but requires "concatenation"
+      of arrays and adds latency when _source is reconstructed at query time.
+      This last point is why we don't want to use synthetic source right now.
+      */
       "_source": {
         "enabled": true
       },

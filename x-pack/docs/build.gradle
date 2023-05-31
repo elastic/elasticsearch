@@ -1,4 +1,3 @@
-import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.internal.info.BuildParams
 
 apply plugin: 'elasticsearch.docs-test'
@@ -30,9 +29,11 @@ restResources {
   }
 }
 
-// TODO: Remove the following when RCS feature is released
-// The get-builtin-privileges doc test does not include the new cluster privilege for RCS
-// So we disable the test if the build is a snapshot where unreleased feature is enabled by default
+// TODO: Remove the following when the following features are released. These tests include new privileges only available under feature flags
+//  which require snapshot builds:
+// * RCS 2.0. cross_cluster_search is only available with untrusted_remote_cluster_feature_flag_registered set
+// * DLM. manage_dlm privilege is only available with dlm_feature_flag_enabled set
+// We disable these tests for snapshot builds to maintain release build coverage.
 tasks.named("yamlRestTest").configure {
   if (BuildParams.isSnapshotBuild()) {
     systemProperty 'tests.rest.blacklist', '*/get-builtin-privileges/*'

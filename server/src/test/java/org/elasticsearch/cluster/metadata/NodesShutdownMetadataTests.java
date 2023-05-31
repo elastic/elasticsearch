@@ -46,8 +46,8 @@ public class NodesShutdownMetadataTests extends ChunkedToXContentDiffableSeriali
 
         nodesShutdownMetadata = nodesShutdownMetadata.putSingleNodeMetadata(newNodeMetadata);
 
-        assertThat(nodesShutdownMetadata.getAllNodeMetadataMap().get(newNodeMetadata.getNodeId()), equalTo(newNodeMetadata));
-        assertThat(nodesShutdownMetadata.getAllNodeMetadataMap().values(), contains(newNodeMetadata));
+        assertThat(nodesShutdownMetadata.get(newNodeMetadata.getNodeId()), equalTo(newNodeMetadata));
+        assertThat(nodesShutdownMetadata.getAll().values(), contains(newNodeMetadata));
     }
 
     public void testRemoveShutdownMetadata() {
@@ -61,9 +61,9 @@ public class NodesShutdownMetadataTests extends ChunkedToXContentDiffableSeriali
         SingleNodeShutdownMetadata nodeToRemove = randomFrom(nodes);
         nodesShutdownMetadata = nodesShutdownMetadata.removeSingleNodeMetadata(nodeToRemove.getNodeId());
 
-        assertThat(nodesShutdownMetadata.getAllNodeMetadataMap().get(nodeToRemove.getNodeId()), nullValue());
-        assertThat(nodesShutdownMetadata.getAllNodeMetadataMap().values(), hasSize(nodes.size() - 1));
-        assertThat(nodesShutdownMetadata.getAllNodeMetadataMap().values(), not(hasItem(nodeToRemove)));
+        assertThat(nodesShutdownMetadata.get(nodeToRemove.getNodeId()), nullValue());
+        assertThat(nodesShutdownMetadata.getAll().values(), hasSize(nodes.size() - 1));
+        assertThat(nodesShutdownMetadata.getAll().values(), not(hasItem(nodeToRemove)));
     }
 
     public void testIsNodeShuttingDown() {
@@ -101,8 +101,8 @@ public class NodesShutdownMetadataTests extends ChunkedToXContentDiffableSeriali
                 .nodes(DiscoveryNodes.builder(state.nodes()).add(TestDiscoveryNode.create("_node_1")).build())
                 .build();
 
-            assertThat(NodesShutdownMetadata.isNodeShuttingDown(state, "this_node"), equalTo(true));
-            assertThat(NodesShutdownMetadata.isNodeShuttingDown(state, "_node_1"), equalTo(false));
+            assertThat(state.metadata().nodeShutdowns().contains("this_node"), equalTo(true));
+            assertThat(state.metadata().nodeShutdowns().contains("_node_1"), equalTo(false));
         }
     }
 

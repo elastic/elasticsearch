@@ -7,8 +7,6 @@
  */
 package org.elasticsearch.search.internal;
 
-import org.apache.lucene.search.Collector;
-import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TotalHits;
@@ -374,16 +372,6 @@ public abstract class SearchContext implements Releasable {
      * WARN: This is not the epoch time.
      */
     public abstract long getRelativeTimeInMillis();
-
-    /**
-     * Registers the collector to be run for the aggregations phase
-     */
-    public abstract void registerAggsCollectorManager(CollectorManager<Collector, Void> collectorManager);
-
-    /**
-     * Returns the collector to be run for the aggregations phase
-     */
-    public abstract CollectorManager<Collector, Void> getAggsCollectorManager();
 
     public abstract SearchExecutionContext getSearchExecutionContext();
 

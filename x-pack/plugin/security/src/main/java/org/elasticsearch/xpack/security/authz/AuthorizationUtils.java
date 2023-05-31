@@ -24,6 +24,7 @@ import static org.elasticsearch.action.support.replication.PostWriteRefresh.POST
 import static org.elasticsearch.cluster.metadata.DataLifecycle.DLM_ORIGIN;
 import static org.elasticsearch.ingest.IngestService.INGEST_ORIGIN;
 import static org.elasticsearch.persistent.PersistentTasksService.PERSISTENT_TASK_ORIGIN;
+import static org.elasticsearch.synonyms.SynonymsManagementAPIService.SYNONYMS_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.DEPRECATION_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.ENRICH_ORIGIN;
@@ -127,6 +128,9 @@ public final class AuthorizationUtils {
             case POST_WRITE_REFRESH_ORIGIN:
                 securityContext.executeAsInternalUser(InternalUsers.STORAGE_USER, version, consumer);
                 break;
+            case DLM_ORIGIN:
+                securityContext.executeAsInternalUser(InternalUsers.DLM_USER, version, consumer);
+                break;
             case WATCHER_ORIGIN:
             case ML_ORIGIN:
             case MONITORING_ORIGIN:
@@ -135,7 +139,6 @@ public final class AuthorizationUtils {
             case PERSISTENT_TASK_ORIGIN:
             case ROLLUP_ORIGIN:
             case INDEX_LIFECYCLE_ORIGIN:
-            case DLM_ORIGIN:
             case ENRICH_ORIGIN:
             case IDP_ORIGIN:
             case INGEST_ORIGIN:
@@ -150,6 +153,9 @@ public final class AuthorizationUtils {
                 break;
             case ASYNC_SEARCH_ORIGIN:
                 securityContext.executeAsInternalUser(InternalUsers.ASYNC_SEARCH_USER, version, consumer);
+                break;
+            case SYNONYMS_ORIGIN:
+                securityContext.executeAsInternalUser(InternalUsers.SYNONYMS_USER, version, consumer);
                 break;
             default:
                 assert false : "action.origin [" + actionOrigin + "] is unknown!";

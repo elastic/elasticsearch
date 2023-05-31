@@ -7,7 +7,10 @@
 
 package org.elasticsearch.xpack.core.security.user;
 
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
+import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
@@ -122,6 +125,66 @@ public class InternalUsers {
         )
     );
 
+    /**
+     * Internal user that manages DLM. Has all indices permissions to perform DLM runtime tasks.
+     */
+    public static final InternalUser DLM_USER = new InternalUser(
+        UsernamesField.DLM_NAME,
+        new RoleDescriptor(
+            UsernamesField.DLM_ROLE,
+            new String[] {},
+            new RoleDescriptor.IndicesPrivileges[] {
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices("*")
+                    .privileges(
+                        "delete_index",
+                        RolloverAction.NAME,
+                        ForceMergeAction.NAME + "*",
+                        // indices stats is used by rollover, so we need to grant it here
+                        IndicesStatsAction.NAME + "*"
+                    )
+                    .allowRestrictedIndices(false)
+                    .build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(
+                        // System data stream for result history of fleet actions (see Fleet#fleetActionsResultsDescriptor)
+                        ".fleet-actions-results"
+                    )
+                    .privileges(
+                        "delete_index",
+                        RolloverAction.NAME,
+                        ForceMergeAction.NAME + "*",
+                        // indices stats is used by rollover, so we need to grant it here
+                        IndicesStatsAction.NAME + "*"
+                    )
+                    .allowRestrictedIndices(true)
+                    .build() },
+            null,
+            null,
+            new String[] {},
+            MetadataUtils.DEFAULT_RESERVED_METADATA,
+            Map.of()
+        )
+    );
+
+    /**
+     * internal user that manages synonyms via the Synonyms API. Operates on the synonyms system index
+     */
+    public static final InternalUser SYNONYMS_USER = new InternalUser(
+        UsernamesField.SYNONYMS_USER_NAME,
+        new RoleDescriptor(
+            UsernamesField.SYNONYMS_ROLE_NAME,
+            null,
+            new RoleDescriptor.IndicesPrivileges[] {
+                RoleDescriptor.IndicesPrivileges.builder().indices(".synonyms*").privileges("all").allowRestrictedIndices(true).build() },
+            null,
+            null,
+            null,
+            MetadataUtils.DEFAULT_RESERVED_METADATA,
+            Map.of()
+        )
+    );
+
     public static final SystemUser SYSTEM_USER = SystemUser.INSTANCE;
     public static final InternalUser CROSS_CLUSTER_ACCESS_USER = CrossClusterAccessUser.INSTANCE;
 
@@ -135,7 +198,9 @@ public class InternalUsers {
             SECURITY_PROFILE_USER,
             ASYNC_SEARCH_USER,
             CROSS_CLUSTER_ACCESS_USER,
-            STORAGE_USER
+            STORAGE_USER,
+            DLM_USER,
+            SYNONYMS_USER
         ).collect(Collectors.toUnmodifiableMap(InternalUser::principal, Function.identity()));
     }
 

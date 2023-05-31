@@ -62,8 +62,6 @@ to include in the statistics.
 The response body reports the per-shard usage count of the data structures that back the fields in the index.
 A given request will increment each count by a maximum value of 1, even if the request accesses the same field multiple times.
 
-Note that there are multiple _field data types_ that are stored in the same underlying data structures (e.g. see `terms` below).
-
 `any`::
 (integer)
 Denotes any kind of use of the field (e.g. via the _inverted index_, _stored fields_, _doc values_, etc.)

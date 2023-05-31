@@ -36,4 +36,10 @@ public @interface Evaluator {
      * when there are multiple ways to evaluate a function.
      */
     String extraName() default "";
+
+    /**
+     * Exceptions thrown by the process method to catch and convert
+     * into a warning and turn into a null value.
+     */
+    Class<? extends Exception>[] warnExceptions() default {};
 }

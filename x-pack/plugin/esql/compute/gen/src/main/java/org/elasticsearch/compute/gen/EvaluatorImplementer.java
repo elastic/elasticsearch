@@ -44,9 +44,9 @@ public class EvaluatorImplementer {
     private final ProcessFunction processFunction;
     private final ClassName implementation;
 
-    public EvaluatorImplementer(Elements elements, ExecutableElement processFunction, String extraName) {
+    public EvaluatorImplementer(Elements elements, ExecutableElement processFunction, String extraName, List<TypeMirror> warnExceptions) {
         this.declarationType = (TypeElement) processFunction.getEnclosingElement();
-        this.processFunction = new ProcessFunction(processFunction);
+        this.processFunction = new ProcessFunction(processFunction, warnExceptions);
 
         this.implementation = ClassName.get(
             elements.getPackageOf(declarationType).toString(),
@@ -143,7 +143,6 @@ public class EvaluatorImplementer {
                 a.buildInvocation(pattern, args, blockStyle);
             });
             pattern.append(")");
-
             String builtPattern;
             if (processFunction.builderArg == null) {
                 builtPattern = "result.$L(" + pattern + ")";
@@ -152,7 +151,18 @@ public class EvaluatorImplementer {
                 builtPattern = pattern.toString();
             }
 
+            if (processFunction.warnExceptions.isEmpty() == false) {
+                builder.beginControlFlow("try");
+            }
             builder.addStatement(builtPattern, args.toArray());
+            if (processFunction.warnExceptions.isEmpty() == false) {
+                String catchPattern = "catch ("
+                    + processFunction.warnExceptions.stream().map(m -> "$T").collect(Collectors.joining(" | "))
+                    + " e)";
+                builder.nextControlFlow(catchPattern, processFunction.warnExceptions.stream().map(m -> TypeName.get(m)).toArray());
+                builder.addStatement("result.appendNull()");
+                builder.endControlFlow();
+            }
         }
         builder.endControlFlow();
         builder.addStatement("return result.build()");
@@ -563,8 +573,9 @@ public class EvaluatorImplementer {
         private final ExecutableElement function;
         private final List<ProcessFunctionArg> args;
         private final BuilderProcessFunctionArg builderArg;
+        private final List<TypeMirror> warnExceptions;
 
-        private ProcessFunction(ExecutableElement function) {
+        private ProcessFunction(ExecutableElement function, List<TypeMirror> warnExceptions) {
             this.function = function;
             args = new ArrayList<>();
             BuilderProcessFunctionArg builderArg = null;
@@ -595,13 +606,15 @@ public class EvaluatorImplementer {
                 args.add(new StandardProcessFunctionArg(type, name));
             }
             this.builderArg = builderArg;
+            this.warnExceptions = warnExceptions;
         }
 
         private ClassName resultDataType(boolean blockStyle) {
             if (builderArg != null) {
                 return builderArg.type.enclosingClassName();
             }
-            return blockStyle ? blockType(TypeName.get(function.getReturnType())) : vectorType(TypeName.get(function.getReturnType()));
+            boolean useBlockStyle = blockStyle || warnExceptions.isEmpty() == false;
+            return useBlockStyle ? blockType(TypeName.get(function.getReturnType())) : vectorType(TypeName.get(function.getReturnType()));
         }
     }
 }

@@ -11,6 +11,7 @@ import org.elasticsearch.compute.ann.ConvertEvaluator;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.MvEvaluator;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
@@ -20,9 +21,11 @@ import javax.annotation.processing.Processor;
 import javax.annotation.processing.RoundEnvironment;
 import javax.lang.model.SourceVersion;
 import javax.lang.model.element.AnnotationMirror;
+import javax.lang.model.element.AnnotationValue;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.TypeElement;
+import javax.lang.model.type.TypeMirror;
 
 /**
  * Glues the {@link EvaluatorImplementer} into the jdk's annotation
@@ -70,8 +73,12 @@ public class EvaluatorProcessor implements Processor {
                     AggregatorProcessor.write(
                         evaluatorMethod,
                         "evaluator",
-                        new EvaluatorImplementer(env.getElementUtils(), (ExecutableElement) evaluatorMethod, evaluatorAnn.extraName())
-                            .sourceFile(),
+                        new EvaluatorImplementer(
+                            env.getElementUtils(),
+                            (ExecutableElement) evaluatorMethod,
+                            evaluatorAnn.extraName(),
+                            warnExceptions(evaluatorMethod)
+                        ).sourceFile(),
                         env
                     );
                 }
@@ -105,5 +112,23 @@ public class EvaluatorProcessor implements Processor {
             }
         }
         return true;
+    }
+
+    private List<TypeMirror> warnExceptions(Element evaluatorMethod) {
+        List<TypeMirror> result = new ArrayList<>();
+        for (var mirror : evaluatorMethod.getAnnotationMirrors()) {
+            if (false == mirror.getAnnotationType().toString().equals(Evaluator.class.getName())) {
+                continue;
+            }
+            for (var e : mirror.getElementValues().entrySet()) {
+                if (false == e.getKey().getSimpleName().toString().equals("warnExceptions")) {
+                    continue;
+                }
+                for (var v : (List<?>) e.getValue().getValue()) {
+                    result.add((TypeMirror) ((AnnotationValue) v).getValue());
+                }
+            }
+        }
+        return result;
     }
 }

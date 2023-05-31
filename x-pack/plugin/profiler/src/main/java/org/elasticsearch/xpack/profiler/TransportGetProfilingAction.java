@@ -290,7 +290,6 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
                         StackTrace stacktrace = StackTrace.fromSource(trace.getResponse().getSource());
                         // Guard against concurrent access and ensure we only handle each item once
                         if (stackTracePerId.putIfAbsent(id, stacktrace) == null) {
-                            stackTracePerId.put(id, stacktrace);
                             totalFrames.addAndGet(stacktrace.frameIds.size());
                             stackFrameIds.addAll(stacktrace.frameIds);
                             executableIds.addAll(stacktrace.fileIds);

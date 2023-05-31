@@ -255,7 +255,13 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             if (longValue == null) {
                 return new MatchNoDocsQuery();
             }
-            return LongPoint.newExactQuery(name(), unsignedToSortableSignedLong(longValue));
+            long lValue = unsignedToSortableSignedLong(longValue);
+            Query query = LongPoint.newExactQuery(name(), lValue);
+            if (hasDocValues()) {
+                Query dvQuery = SortedNumericDocValuesField.newSlowExactQuery(name(), lValue);
+                query = new IndexOrDocValuesQuery(query, dvQuery);
+            }
+            return query;
         }
 
         @Override
@@ -263,10 +269,19 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             failIfNotIndexed();
             long[] lvalues = new long[values.size()];
             int upTo = 0;
+            long lowerValue = Long.MAX_VALUE;
+            long upperValue = Long.MIN_VALUE;
             for (Object value : values) {
                 Long longValue = parseTerm(value);
                 if (longValue != null) {
-                    lvalues[upTo++] = unsignedToSortableSignedLong(longValue);
+                    long currentValue = unsignedToSortableSignedLong(longValue);
+                    lvalues[upTo++] = currentValue;
+                    if (currentValue > upperValue) {
+                        upperValue = currentValue;
+                    }
+                    if (currentValue < lowerValue) {
+                        lowerValue = currentValue;
+                    }
                 }
             }
             if (upTo == 0) {
@@ -275,7 +290,15 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             if (upTo != lvalues.length) {
                 lvalues = Arrays.copyOf(lvalues, upTo);
             }
-            return LongPoint.newSetQuery(name(), lvalues);
+            Query query = LongPoint.newSetQuery(name(), lvalues);
+            if (hasDocValues()) {
+                Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(name(), lowerValue, upperValue);
+                query = new IndexOrDocValuesQuery(query, dvQuery);
+                if (context.indexSortedOnField(name())) {
+                    query = new IndexSortSortedNumericDocValuesRangeQuery(name(), lowerValue, upperValue, query);
+                }
+            }
+            return query;
         }
 
         @Override

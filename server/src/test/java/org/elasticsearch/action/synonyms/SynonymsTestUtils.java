@@ -9,10 +9,6 @@
 package org.elasticsearch.action.synonyms;
 
 import org.elasticsearch.synonyms.SynonymRule;
-import org.elasticsearch.synonyms.SynonymsSet;
-
-import java.util.Arrays;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
 import static org.elasticsearch.test.ESTestCase.randomArray;
@@ -25,14 +21,14 @@ class SynonymsTestUtils {
         throw new UnsupportedOperationException();
     }
 
-    static SynonymsSet randomSynonymsSet() {
-        return new SynonymsSet(randomArray(10, SynonymRule[]::new, SynonymsTestUtils::randomSynonymRule));
+    static SynonymRule[] randomSynonymsSet() {
+        return randomArray(10, SynonymRule[]::new, SynonymsTestUtils::randomSynonymRule);
     }
 
     static SynonymRule randomSynonymRule() {
         return new SynonymRule(
             randomBoolean() ? null : randomIdentifier(),
-            Arrays.stream(randomArray(1, 10, String[]::new, () -> randomAlphaOfLengthBetween(1, 10))).collect(Collectors.joining(", "))
+            String.join(", ", randomArray(1, 10, String[]::new, () -> randomAlphaOfLengthBetween(1, 10)))
         );
     }
 }

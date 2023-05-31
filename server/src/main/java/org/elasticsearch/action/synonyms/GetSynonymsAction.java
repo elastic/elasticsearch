@@ -14,8 +14,8 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.synonyms.SynonymRule;
 import org.elasticsearch.synonyms.SynonymsManagementAPIService;
-import org.elasticsearch.synonyms.SynonymsSet;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -104,7 +104,10 @@ public class GetSynonymsAction extends ActionType<GetSynonymsAction.Response> {
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            this.synonymsSetResults = new SynonymsManagementAPIService.SynonymsSetResult(in.readLong(), new SynonymsSet(in));
+            this.synonymsSetResults = new SynonymsManagementAPIService.SynonymsSetResult(
+                in.readLong(),
+                in.readArray(SynonymRule::new, SynonymRule[]::new)
+            );
         }
 
         public Response(SynonymsManagementAPIService.SynonymsSetResult synonymsSetResult) {
@@ -118,7 +121,7 @@ public class GetSynonymsAction extends ActionType<GetSynonymsAction.Response> {
             builder.startObject();
             {
                 builder.field("count", synonymsSetResults.totalSynonymRules());
-                synonymsSetResults.synonymsSet().toXContent(builder, params);
+                builder.array(SynonymsManagementAPIService.SYNONYMS_SET_FIELD, (Object[]) synonymsSetResults.synonymRules());
             }
             builder.endObject();
 
@@ -128,7 +131,7 @@ public class GetSynonymsAction extends ActionType<GetSynonymsAction.Response> {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeLong(synonymsSetResults.totalSynonymRules());
-            synonymsSetResults.synonymsSet().writeTo(out);
+            out.writeArray(synonymsSetResults.synonymRules());
         }
 
         @Override

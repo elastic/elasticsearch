@@ -32,7 +32,7 @@ public class TransportPutSynonymsAction extends HandledTransportAction<PutSynony
     protected void doExecute(Task task, PutSynonymsAction.Request request, ActionListener<PutSynonymsAction.Response> listener) {
         synonymsManagementAPIService.putSynonymsSet(
             request.synonymsSetId(),
-            request.synonymsset(),
+            request.synonymRules(),
             listener.map(PutSynonymsAction.Response::new)
         );
     }

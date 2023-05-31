@@ -119,7 +119,7 @@ public class SynonymsManagementAPIService {
                 final SynonymRule[] synonymRules = Arrays.stream(searchResponse.getHits().getHits())
                     .map(SynonymsManagementAPIService::hitToSynonymRule)
                     .toArray(SynonymRule[]::new);
-                listener.onResponse(new SynonymsSetResult(totalSynonymRules, new SynonymsSet(synonymRules)));
+                listener.onResponse(new SynonymsSetResult(totalSynonymRules, synonymRules));
             }));
     }
 
@@ -147,7 +147,7 @@ public class SynonymsManagementAPIService {
         return id;
     }
 
-    public void putSynonymsSet(String resourceName, SynonymsSet synonymsset, ActionListener<UpdateSynonymsResult> listener) {
+    public void putSynonymsSet(String resourceName, SynonymRule[] synonymsSet, ActionListener<UpdateSynonymsResult> listener) {
 
         // TODO Add synonym rules validation
 
@@ -174,7 +174,7 @@ public class SynonymsManagementAPIService {
                 // Insert as bulk requests
                 BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
                 try {
-                    for (SynonymRule synonymRule : synonymsset.synonyms()) {
+                    for (SynonymRule synonymRule : synonymsSet) {
 
                         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
                             builder.startObject();
@@ -223,6 +223,6 @@ public class SynonymsManagementAPIService {
         UPDATED
     }
 
-    public record SynonymsSetResult(long totalSynonymRules, SynonymsSet synonymsSet) {}
+    public record SynonymsSetResult(long totalSynonymRules, SynonymRule[] synonymRules) {}
 
 }

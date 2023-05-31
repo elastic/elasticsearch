@@ -432,7 +432,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         return entry.chunk;
     }
 
-    private void assignToSlot(Entry<CacheFileRegion> entry, Integer freeSlot) {
+    private void assignToSlot(Entry<CacheFileRegion> entry, int freeSlot) {
         assert regionOwners[freeSlot].compareAndSet(null, entry.chunk);
         synchronized (this) {
             if (entry.chunk.isEvicted()) {

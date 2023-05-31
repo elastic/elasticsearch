@@ -20,9 +20,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-public final class WorkflowsResolver {
+public final class WorkflowResolver {
 
-    private static final Logger logger = LogManager.getLogger(WorkflowsResolver.class);
+    private static final Logger logger = LogManager.getLogger(WorkflowResolver.class);
 
     /**
      * Allows access to Search Application query REST API.
@@ -43,7 +43,7 @@ public final class WorkflowsResolver {
     private static final Map<String, Workflow> WORKFLOW_LOOKUP_MAP_BY_REST_HANDLER;
     private static final Map<String, Workflow> WORKFLOW_LOOKUP_MAP_BY_NAME;
     static {
-        final Set<Workflow> workflows = readStaticFields(WorkflowsResolver.class, Workflow.class);
+        final Set<Workflow> workflows = readStaticFields(WorkflowResolver.class, Workflow.class);
         if (workflows.isEmpty()) {
             WORKFLOW_LOOKUP_MAP_BY_NAME = Map.of();
             WORKFLOW_LOOKUP_MAP_BY_REST_HANDLER = Map.of();
@@ -147,7 +147,7 @@ public final class WorkflowsResolver {
         return result;
     }
 
-    private WorkflowsResolver() {
+    private WorkflowResolver() {
         throw new IllegalAccessError("not permitted");
     }
 }

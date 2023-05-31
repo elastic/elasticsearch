@@ -13,28 +13,28 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-public class WorkflowsResolverTests extends ESTestCase {
+public class WorkflowResolverTests extends ESTestCase {
 
     public void testResolveWorkflowByName() {
         String invalidWorkflowName = randomValueOtherThanMany(
-            name -> WorkflowsResolver.names().contains(name),
+            name -> WorkflowResolver.names().contains(name),
             () -> randomAlphaOfLengthBetween(5, 10)
         );
-        var e = expectThrows(IllegalArgumentException.class, () -> WorkflowsResolver.resolveWorkflowByName(invalidWorkflowName));
+        var e = expectThrows(IllegalArgumentException.class, () -> WorkflowResolver.resolveWorkflowByName(invalidWorkflowName));
         assertThat(e.getMessage(), containsString("Unknown workflow [" + invalidWorkflowName + "]"));
 
-        String validWorkflowName = randomFrom(WorkflowsResolver.names());
-        Workflow resolvedWorkflow = WorkflowsResolver.resolveWorkflowByName(validWorkflowName);
+        String validWorkflowName = randomFrom(WorkflowResolver.names());
+        Workflow resolvedWorkflow = WorkflowResolver.resolveWorkflowByName(validWorkflowName);
         assertThat(resolvedWorkflow.name(), equalTo(validWorkflowName));
     }
 
     public void testResolveWorkflowForRestHandler() {
-        Workflow actual = WorkflowsResolver.resolveWorkflowForRestHandler("search_application_query_action");
-        assertThat(actual, equalTo(WorkflowsResolver.SEARCH_APPLICATION_QUERY_WORKFLOW));
+        Workflow actual = WorkflowResolver.resolveWorkflowForRestHandler("search_application_query_action");
+        assertThat(actual, equalTo(WorkflowResolver.SEARCH_APPLICATION_QUERY_WORKFLOW));
 
-        actual = WorkflowsResolver.resolveWorkflowForRestHandler("analytics_post_event_action");
-        assertThat(actual, equalTo(WorkflowsResolver.SEARCH_APPLICATION_ANALYTICS_WORKFLOW));
+        actual = WorkflowResolver.resolveWorkflowForRestHandler("analytics_post_event_action");
+        assertThat(actual, equalTo(WorkflowResolver.SEARCH_APPLICATION_ANALYTICS_WORKFLOW));
 
-        assertThat(WorkflowsResolver.resolveWorkflowForRestHandler(randomAlphaOfLengthBetween(3, 5)), nullValue());
+        assertThat(WorkflowResolver.resolveWorkflowForRestHandler(randomAlphaOfLengthBetween(3, 5)), nullValue());
     }
 }

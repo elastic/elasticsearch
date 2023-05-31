@@ -230,6 +230,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 ByteSizeValue.ofBytes(size(between(1, 20) * 100L)).getStringRep()
             )
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_MIN_TIME_DELTA_SETTING.getKey(), randomFrom("0", "1ms", "10s"))
             .put("path.home", createTempDir())
             .build();
         long fileLength = size(500);
@@ -245,6 +246,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 String[] cacheKeys = IntStream.range(0, iterations).mapToObj(ignore -> randomFrom(files)).toArray(String[]::new);
                 int[] regions = IntStream.range(0, iterations).map(ignore -> between(0, 4)).toArray();
                 int[] yield = IntStream.range(0, iterations).map(ignore -> between(0, 9)).toArray();
+                int[] evict = IntStream.range(0, iterations).map(ignore -> between(0, 99)).toArray();
                 return new Thread(() -> {
                     try {
                         ready.await();
@@ -260,6 +262,9 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                                         Thread.yield();
                                     }
                                     cacheFileRegion.decRef();
+                                }
+                                if (evict[i] == 0) {
+                                    cacheService.forceEvict(x -> true);
                                 }
                             } catch (AlreadyClosedException e) {
                                 // ignore

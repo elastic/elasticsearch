@@ -48,8 +48,7 @@ public class RestGetProfilingActionTests extends RestActionTestCase {
                 Collections.emptyMap(),
                 Collections.emptyMap(),
                 0,
-                false,
-                0
+                1.0
             );
         });
         RestRequest profilingRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
@@ -74,8 +73,7 @@ public class RestGetProfilingActionTests extends RestActionTestCase {
                 Collections.emptyMap(),
                 Collections.emptyMap(),
                 0,
-                false,
-                0
+                0.0
             );
         });
         RestRequest profilingRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)

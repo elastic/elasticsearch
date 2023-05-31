@@ -33,8 +33,7 @@ public class GetProfilingResponse extends ActionResponse implements ChunkedToXCo
     @Nullable
     private final Map<String, Integer> stackTraceEvents;
     private final int totalFrames;
-    private final boolean isSampled;
-    private final int samplingExponent;
+    private final double samplingRate;
     @Nullable
     private final Exception error;
 
@@ -64,8 +63,7 @@ public class GetProfilingResponse extends ActionResponse implements ChunkedToXCo
         this.executables = in.readBoolean() ? in.readMap(StreamInput::readString, StreamInput::readString) : null;
         this.stackTraceEvents = in.readBoolean() ? in.readMap(StreamInput::readString, StreamInput::readInt) : null;
         this.totalFrames = in.readInt();
-        this.isSampled = in.readBoolean();
-        this.samplingExponent = in.readInt();
+        this.samplingRate = in.readDouble();
         this.error = in.readBoolean() ? in.readException() : null;
     }
 
@@ -75,14 +73,13 @@ public class GetProfilingResponse extends ActionResponse implements ChunkedToXCo
         Map<String, String> executables,
         Map<String, Integer> stackTraceEvents,
         int totalFrames,
-        boolean isSampled,
-        int samplingExponent
+        double samplingRate
     ) {
-        this(stackTraces, stackFrames, executables, stackTraceEvents, totalFrames, isSampled, samplingExponent, null);
+        this(stackTraces, stackFrames, executables, stackTraceEvents, totalFrames, samplingRate, null);
     }
 
     public GetProfilingResponse(Exception error) {
-        this(null, null, null, null, 0, false, 0, error);
+        this(null, null, null, null, 0, 0.0, error);
     }
 
     private GetProfilingResponse(
@@ -91,8 +88,7 @@ public class GetProfilingResponse extends ActionResponse implements ChunkedToXCo
         Map<String, String> executables,
         Map<String, Integer> stackTraceEvents,
         int totalFrames,
-        boolean isSampled,
-        int samplingExponent,
+        double samplingRate,
         Exception error
     ) {
         this.stackTraces = stackTraces;
@@ -100,8 +96,7 @@ public class GetProfilingResponse extends ActionResponse implements ChunkedToXCo
         this.executables = executables;
         this.stackTraceEvents = stackTraceEvents;
         this.totalFrames = totalFrames;
-        this.isSampled = isSampled;
-        this.samplingExponent = samplingExponent;
+        this.samplingRate = samplingRate;
         this.error = error;
     }
 
@@ -142,8 +137,7 @@ public class GetProfilingResponse extends ActionResponse implements ChunkedToXCo
             out.writeBoolean(false);
         }
         out.writeInt(totalFrames);
-        out.writeBoolean(isSampled);
-        out.writeInt(samplingExponent);
+        out.writeDouble(samplingRate);
         if (error != null) {
             out.writeBoolean(true);
             out.writeException(error);
@@ -179,7 +173,6 @@ public class GetProfilingResponse extends ActionResponse implements ChunkedToXCo
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         // Calculate the sample rate.
-        final double samplingRate = samplingExponent == 0 ? 1.0 : Math.pow(0.2, samplingExponent);
         if (error != null) {
             return Iterators.concat(
                 ChunkedToXContentHelper.startObject(),
@@ -218,8 +211,7 @@ public class GetProfilingResponse extends ActionResponse implements ChunkedToXCo
         }
         GetProfilingResponse response = (GetProfilingResponse) o;
         return totalFrames == response.totalFrames
-            && isSampled == response.isSampled
-            && samplingExponent == response.samplingExponent
+            && samplingRate == response.samplingRate
             && Objects.equals(stackTraces, response.stackTraces)
             && Objects.equals(stackFrames, response.stackFrames)
             && Objects.equals(executables, response.executables)
@@ -229,6 +221,6 @@ public class GetProfilingResponse extends ActionResponse implements ChunkedToXCo
 
     @Override
     public int hashCode() {
-        return Objects.hash(stackTraces, stackFrames, executables, stackTraceEvents, totalFrames, isSampled, samplingExponent, error);
+        return Objects.hash(stackTraces, stackFrames, executables, stackTraceEvents, totalFrames, samplingRate, error);
     }
 }

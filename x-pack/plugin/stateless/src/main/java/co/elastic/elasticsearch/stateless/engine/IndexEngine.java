@@ -320,4 +320,9 @@ public class IndexEngine extends InternalEngine {
             statelessCommitService.addOrNotify(shardId, generation, listener);
         }
     }
+
+    // package private for testing
+    RefreshThrottler getRefreshThrottler() {
+        return refreshThrottler;
+    }
 }

@@ -31,8 +31,7 @@ import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessPersiste
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
-import co.elastic.elasticsearch.stateless.engine.RefreshBurstableThrottler;
-import co.elastic.elasticsearch.stateless.engine.RefreshThrottler;
+import co.elastic.elasticsearch.stateless.engine.RefreshThrottlingService;
 import co.elastic.elasticsearch.stateless.engine.SearchEngine;
 import co.elastic.elasticsearch.stateless.engine.TranslogReplicator;
 import co.elastic.elasticsearch.stateless.lucene.FileCacheKey;
@@ -96,6 +95,7 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.monitor.os.OsProbe;
 import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ClusterCoordinationPlugin;
@@ -125,9 +125,6 @@ import java.util.function.LongFunction;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import static co.elastic.elasticsearch.stateless.engine.RefreshBurstableThrottler.BUDGET_INTERVAL;
-import static co.elastic.elasticsearch.stateless.engine.RefreshBurstableThrottler.CREDITS_PER_THROTTLING_INTERVAL;
-import static co.elastic.elasticsearch.stateless.engine.RefreshBurstableThrottler.THROTTLING_INTERVAL;
 import static org.elasticsearch.cluster.ClusterModule.DESIRED_BALANCE_ALLOCATOR;
 import static org.elasticsearch.cluster.ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING;
 import static org.elasticsearch.core.Strings.format;
@@ -154,6 +151,7 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
     private final SetOnce<TranslogReplicator> translogReplicator = new SetOnce<>();
     private final SetOnce<StatelessElectionStrategy> electionStrategy = new SetOnce<>();
     private final SetOnce<StoreHeartbeatService> storeHeartbeatService = new SetOnce<>();
+    private final SetOnce<RefreshThrottlingService> refreshThrottlingService = new SetOnce<>();
     private final boolean sharedCachedSettingExplicitlySet;
     private final boolean hasSearchRole;
     private final boolean hasIndexRole;
@@ -217,6 +215,13 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
             }
         }
 
+        String nodeMemoryAttrName = "node.attr." + RefreshThrottlingService.MEMORY_NODE_ATTR;
+        if (settings.get(nodeMemoryAttrName) == null) {
+            settings.put(nodeMemoryAttrName, Long.toString(OsProbe.getInstance().osStats().getMem().getAdjustedTotal().getBytes()));
+        } else {
+            throw new IllegalArgumentException("Directly setting [" + nodeMemoryAttrName + "] is not permitted - it is reserved.");
+        }
+
         return settings.build();
     }
 
@@ -258,7 +263,8 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
                 statelessElectionStrategy::getCurrentLeaseTerm
             )
         );
-        return List.of(objectStoreService, translogReplicator, sharedBlobCache);
+        var refreshThrottlingService = setAndGet(this.refreshThrottlingService, new RefreshThrottlingService(settings, clusterService));
+        return List.of(objectStoreService, translogReplicator, sharedBlobCache, refreshThrottlingService);
     }
 
     protected StatelessCommitService createStatelessCommitService(
@@ -482,7 +488,7 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
                     translogReplicator.get(),
                     getObjectStoreService()::getTranslogBlobContainer,
                     getCommitService(),
-                    getRefreshThrottlerFactory(indexSettings, config)
+                    refreshThrottlingService.get().createRefreshThrottlerFactory(indexSettings)
                 );
             } else {
                 return new SearchEngine(config);
@@ -628,21 +634,5 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
             assert false : e; // should never happen, none of the Lucene implementations throw this.
             throw new UncheckedIOException(e);
         }
-    }
-
-    private RefreshThrottler.Factory getRefreshThrottlerFactory(IndexSettings indexSettings, EngineConfig engineConfig) {
-        if (indexSettings.getIndexMetadata().isSystem()) {
-            return RefreshThrottler.Noop::new;
-        }
-        long maxCredit = (BUDGET_INTERVAL.seconds() / THROTTLING_INTERVAL.seconds()) * CREDITS_PER_THROTTLING_INTERVAL;
-        return refresh -> new RefreshBurstableThrottler(
-            refresh,
-            THROTTLING_INTERVAL,
-            CREDITS_PER_THROTTLING_INTERVAL,
-            maxCredit,
-            maxCredit,
-            engineConfig.getThreadPool()::relativeTimeInMillis,
-            engineConfig.getThreadPool()
-        );
     }
 }

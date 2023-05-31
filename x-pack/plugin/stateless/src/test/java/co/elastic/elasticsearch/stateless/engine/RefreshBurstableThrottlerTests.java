@@ -11,7 +11,6 @@ package co.elastic.elasticsearch.stateless.engine;
 import co.elastic.elasticsearch.stateless.engine.RefreshThrottler.Request;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -19,7 +18,9 @@ import org.mockito.ArgumentCaptor;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.LongSupplier;
 
+import static co.elastic.elasticsearch.stateless.engine.RefreshThrottlingService.THROTTLING_INTERVAL;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -28,12 +29,20 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class RefreshBurstableThrottlerTests extends ESTestCase {
 
+    private RefreshNodeCreditManager mockRefreshNodeCreditManager(LongSupplier relativeTimeSupplier) {
+        RefreshNodeCreditManager nodeCreditManager = mock(RefreshNodeCreditManager.class);
+        when(nodeCreditManager.getRelativeTimeSupplier()).thenReturn(relativeTimeSupplier);
+        when(nodeCreditManager.consumeCredit()).thenReturn(true);
+        return nodeCreditManager;
+    }
+
     public void testGetIntervalNo() {
         var now = randomNonNegativeLong(); // Millis
-        var throttler = new RefreshBurstableThrottler(request -> {}, TimeValue.timeValueSeconds(5), 1, 0, 10, () -> now, null);
+        var throttler = new RefreshBurstableThrottler(request -> {}, 1, 10, mockRefreshNodeCreditManager(() -> now), null);
         assertThat(throttler.getIntervalNo(now + randomLongBetween(0, 4999)), equalTo(0L));
         assertThat(throttler.getIntervalNo(now + randomLongBetween(5000, 9999)), equalTo(1L));
         assertThat(throttler.getIntervalNo(now + randomLongBetween(25000, 25999)), equalTo(5L));
@@ -46,11 +55,9 @@ public class RefreshBurstableThrottlerTests extends ESTestCase {
         AtomicLong refreshCalls = new AtomicLong();
         var throttler = new RefreshBurstableThrottler(
             request -> refreshCalls.incrementAndGet(),
-            TimeValue.timeValueSeconds(5),
-            1,
             1,
             25,
-            timeMillis::get,
+            mockRefreshNodeCreditManager(timeMillis::get),
             threadPool
         );
         assertThat(throttler.getCredit(), equalTo(2L));  // the initial credit + 1
@@ -79,12 +86,11 @@ public class RefreshBurstableThrottlerTests extends ESTestCase {
         long startTimeMillis = randomNonNegativeLong();
         AtomicLong timeMillis = new AtomicLong(startTimeMillis);
         AtomicLong refreshCalls = new AtomicLong();
-        TimeValue throttlingInterval = TimeValue.timeValueSeconds(5);
         AtomicBoolean shouldRefresh = new AtomicBoolean(true);
         var throttler = new RefreshBurstableThrottler(request -> {
             refreshCalls.incrementAndGet();
             request.listener().onResponse(new Engine.RefreshResult(shouldRefresh.get()));
-        }, throttlingInterval, 1, 0, 25, timeMillis::get, threadPool);
+        }, 0, 25, mockRefreshNodeCreditManager(timeMillis::get), threadPool);
         timeMillis.addAndGet(randomLongBetween(0, 1000));
         // First one uses the only credit of the interval
         assertFalse(throttler.maybeThrottle(new Request("api", ActionListener.noop())));
@@ -105,13 +111,13 @@ public class RefreshBurstableThrottlerTests extends ESTestCase {
         ArgumentCaptor<Runnable> executorCaptor = ArgumentCaptor.forClass(Runnable.class);
         // There should only be one scheduled call to handle pending throttled reqeuests
         verify(threadPool, times(1)).scheduleUnlessShuttingDown(
-            eq(throttlingInterval),
+            eq(THROTTLING_INTERVAL),
             matches(ThreadPool.Names.REFRESH),
             executorCaptor.capture()
         );
         // Manually call the schedule Runnable
         shouldRefresh.set(randomBoolean());
-        timeMillis.addAndGet(throttlingInterval.millis());
+        timeMillis.addAndGet(THROTTLING_INTERVAL.millis());
         executorCaptor.getValue().run();
         assertThat(refreshCalls.get(), equalTo(2L));
         if (shouldRefresh.get()) {
@@ -124,5 +130,51 @@ public class RefreshBurstableThrottlerTests extends ESTestCase {
         assertThat(throttler.getThrottledPerSourceStats().size(), equalTo(2));
         assertThat(throttler.getThrottledPerSourceStats().get("api"), equalTo(2L));
         assertThat(throttler.getThrottledPerSourceStats().get("get"), equalTo(1L));
+    }
+
+    public void testThrottleIfNodeDoesNotHaveCredits() {
+        ThreadPool threadPool = mock(ThreadPool.class);
+        long startTimeMillis = randomNonNegativeLong();
+        AtomicLong timeMillis = new AtomicLong(startTimeMillis);
+        AtomicBoolean nodeHasCredits = new AtomicBoolean(false);
+
+        RefreshNodeCreditManager nodeCreditManager = mock(RefreshNodeCreditManager.class);
+        when(nodeCreditManager.getRelativeTimeSupplier()).thenReturn(timeMillis::get);
+        when(nodeCreditManager.consumeCredit()).thenAnswer((ignored) -> nodeHasCredits.get());
+
+        AtomicLong refreshCalls = new AtomicLong();
+        var throttler = new RefreshBurstableThrottler(request -> refreshCalls.incrementAndGet(), 0, 25, nodeCreditManager, threadPool);
+
+        timeMillis.addAndGet(randomLongBetween(0, 1000));
+        // The following requests should throttle since there is no credit at the node level, even if there is shard-level credit
+        int totalRequests = randomIntBetween(2, 5);
+        for (int i = 0; i < totalRequests; i++) {
+            assertTrue(throttler.maybeThrottle(new Request("api", ActionListener.noop())));
+        }
+        assertThat(refreshCalls.get(), equalTo(0L));
+        assertThat(throttler.getCredit(), equalTo(1L));
+
+        ArgumentCaptor<Runnable> executorCaptor = ArgumentCaptor.forClass(Runnable.class);
+        // There should only be one scheduled call to handle pending throttled requests
+        verify(threadPool, times(1)).scheduleUnlessShuttingDown(
+            eq(THROTTLING_INTERVAL),
+            matches(ThreadPool.Names.REFRESH),
+            executorCaptor.capture()
+        );
+
+        if (randomBoolean()) {
+            timeMillis.addAndGet(randomLongBetween(0, 1000));
+        }
+        nodeHasCredits.set(true);
+        // The following requests are in the same throttled interval, but will wait for the scheduled refresh, even if there is node credit.
+        for (int i = 0; i < totalRequests; i++) {
+            assertTrue(throttler.maybeThrottle(new Request("api", ActionListener.noop())));
+        }
+
+        // Manually call the schedule Runnable
+        timeMillis.addAndGet(THROTTLING_INTERVAL.millis());
+        executorCaptor.getValue().run();
+        assertThat(refreshCalls.get(), equalTo(1L));
+        assertThat(throttler.getThrottledPerSourceStats().get("api"), equalTo(totalRequests * 2L));
     }
 }

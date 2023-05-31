@@ -179,10 +179,7 @@ public class GetProfilingResponse extends ActionResponse implements ChunkedToXCo
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         // Calculate the sample rate.
-        double samplingRate = 0.0;
-        if (samplingExponent != 0) {
-            samplingRate = Math.pow(0.2, samplingExponent);
-        }
+        final double samplingRate = samplingExponent == 0 ? 1.0 : Math.pow(0.2, samplingExponent);
         if (error != null) {
             return Iterators.concat(
                 ChunkedToXContentHelper.startObject(),

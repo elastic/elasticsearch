@@ -461,6 +461,14 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         throw storageException;
     }
 
+    // possible options for #writeBlobMultipart uploads
+    private static final Storage.BlobTargetOption[] NO_OVERWRITE_NO_COMPRESSION = {
+        Storage.BlobTargetOption.doesNotExist(),
+        Storage.BlobTargetOption.disableGzipContent() };
+    private static final Storage.BlobTargetOption[] OVERWRITE_NO_COMPRESSION = { Storage.BlobTargetOption.disableGzipContent() };
+    private static final Storage.BlobTargetOption[] NO_OVERWRITE_COMPRESSION = { Storage.BlobTargetOption.doesNotExist() };
+    private static final Storage.BlobTargetOption[] OVERWRITE_COMPRESSION = new Storage.BlobTargetOption[0];
+
     /**
      * Uploads a blob using the "multipart upload" method (a single
      * 'multipart/related' request containing both data and metadata. see:
@@ -475,21 +483,14 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         throws IOException {
         assert blobSize <= getLargeBlobThresholdInBytes() : "large blob uploads should use the resumable upload method";
         try {
-            // By default GCS will gzip compress uploads. We disable this unless the system property to re-enable this has been configured
             final Storage.BlobTargetOption[] targetOptions;
-            if (ENABLE_DEFAULT_GCP_COMPRESSION) {
-                targetOptions = failIfAlreadyExists
-                    ? new Storage.BlobTargetOption[] {
-                        Storage.BlobTargetOption.doesNotExist(),
-                        Storage.BlobTargetOption.disableGzipContent() }
-                    : new Storage.BlobTargetOption[] { Storage.BlobTargetOption.disableGzipContent() };
-                SocketAccess.doPrivilegedVoidIOException(() -> client().create(blobInfo, buffer, offset, blobSize, targetOptions));
+            // By default GCS will gzip compress uploads. We disable this unless the system property to re-enable this has been configured
+            if (ENABLE_DEFAULT_GCP_COMPRESSION == false) {
+                targetOptions = failIfAlreadyExists ? NO_OVERWRITE_NO_COMPRESSION : OVERWRITE_NO_COMPRESSION;
             } else {
-                targetOptions = failIfAlreadyExists
-                    ? new Storage.BlobTargetOption[] { Storage.BlobTargetOption.doesNotExist() }
-                    : new Storage.BlobTargetOption[0];
-                SocketAccess.doPrivilegedVoidIOException(() -> client().create(blobInfo, buffer, offset, blobSize, targetOptions));
+                targetOptions = failIfAlreadyExists ? NO_OVERWRITE_COMPRESSION : OVERWRITE_COMPRESSION;
             }
+            SocketAccess.doPrivilegedVoidIOException(() -> client().create(blobInfo, buffer, offset, blobSize, targetOptions));
             // We don't track this operation on the http layer as
             // we do with the GET/LIST operations since this operations
             // can trigger multiple underlying http requests but only one

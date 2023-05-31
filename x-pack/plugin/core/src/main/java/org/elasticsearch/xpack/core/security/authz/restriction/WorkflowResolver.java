@@ -75,6 +75,10 @@ public final class WorkflowResolver {
         return Set.copyOf(WORKFLOW_LOOKUP_MAP_BY_NAME.keySet());
     }
 
+    public static Set<Workflow> allWorkflows() {
+        return Set.copyOf(WORKFLOW_LOOKUP_MAP_BY_NAME.values());
+    }
+
     /**
      * Resolves a {@link Workflow} from a given {@code name}.
      * Workflow names are unique, hence there can be only one {@link Workflow} for a given name.

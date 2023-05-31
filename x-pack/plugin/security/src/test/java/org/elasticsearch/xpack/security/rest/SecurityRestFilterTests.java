@@ -16,6 +16,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpRequest;
+import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestChannel;
@@ -40,6 +41,7 @@ import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator;
+import org.elasticsearch.xpack.security.authz.restriction.WorkflowService;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
@@ -81,7 +83,14 @@ public class SecurityRestFilterTests extends ESTestCase {
         restHandler = mock(RestHandler.class);
         threadContext = new ThreadContext(Settings.EMPTY);
         secondaryAuthenticator = new SecondaryAuthenticator(Settings.EMPTY, threadContext, authcService, new AuditTrailService(null, null));
-        filter = new SecurityRestFilter(true, threadContext, secondaryAuthenticator, new AuditTrailService(null, null), restHandler);
+        filter = new SecurityRestFilter(
+            true,
+            threadContext,
+            secondaryAuthenticator,
+            new AuditTrailService(null, null),
+            new WorkflowService(MockLicenseState.createMock()),
+            restHandler
+        );
     }
 
     public void testProcess() throws Exception {
@@ -147,7 +156,14 @@ public class SecurityRestFilterTests extends ESTestCase {
     }
 
     public void testProcessWithSecurityDisabled() throws Exception {
-        filter = new SecurityRestFilter(false, threadContext, secondaryAuthenticator, mock(AuditTrailService.class), restHandler);
+        filter = new SecurityRestFilter(
+            false,
+            threadContext,
+            secondaryAuthenticator,
+            mock(AuditTrailService.class),
+            mock(WorkflowService.class),
+            restHandler
+        );
         RestRequest request = mock(RestRequest.class);
         filter.handleRequest(request, channel, null);
         verify(restHandler).handleRequest(request, channel, null);
@@ -198,6 +214,7 @@ public class SecurityRestFilterTests extends ESTestCase {
             threadContext,
             secondaryAuthenticator,
             new AuditTrailService(auditTrail, licenseState),
+            new WorkflowService(licenseState),
             restHandler
         );
 

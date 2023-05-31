@@ -797,6 +797,37 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         assertThat(e.getMessage(), containsString("action [cluster:admin/xpack/security/cross_cluster/api_key/create] is unauthorized"));
     }
 
+    public void testCannotCreateDerivedCrossClusterApiKey() throws IOException {
+        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
+
+        final Request createRestApiKeyRequest = new Request("POST", "_security/api_key");
+        setUserForRequest(createRestApiKeyRequest, MANAGE_SECURITY_USER, END_USER_PASSWORD);
+        createRestApiKeyRequest.setJsonEntity("{\"name\":\"rest-key\"}");
+        final ObjectPath createRestApiKeyResponse = assertOKAndCreateObjectPath(client().performRequest(createRestApiKeyRequest));
+
+        final Request createDerivedRequest = new Request("POST", "/_security/cross_cluster/api_key");
+        createDerivedRequest.setJsonEntity("""
+            {
+              "name": "derived-cross-cluster-key",
+              "access": {
+                "replication": [
+                  {
+                    "names": [ "logs" ]
+                  }
+                ]
+              }
+            }""");
+        createDerivedRequest.setOptions(
+            RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "ApiKey " + createRestApiKeyResponse.evaluate("encoded"))
+        );
+        final ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(createDerivedRequest));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(
+            e.getMessage(),
+            containsString("authentication via API key not supported: An API key cannot be used to create a cross-cluster API key")
+        );
+    }
+
     public void testCrossClusterApiKeyDoesNotAllowEmptyAccess() throws IOException {
         assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
 
@@ -1105,41 +1136,6 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         final ResponseException e8 = expectThrows(ResponseException.class, () -> client().performRequest(anotherUpdateRequest));
         assertThat(e8.getResponse().getStatusLine().getStatusCode(), equalTo(403));
         assertThat(e8.getMessage(), containsString("action [cluster:admin/xpack/security/cross_cluster/api_key/update] is unauthorized"));
-
-        // Cross-cluster API key created by another API key cannot be updated
-        // This isn't the desired behaviour and more like a bug because we don't yet have a full story about API key's identity.
-        // Since we actively block it, we are checking it here. But it should be removed once we solve the issue of API key identity.
-        final Request createDerivedRequest = new Request("POST", "/_security/cross_cluster/api_key");
-        createDerivedRequest.setJsonEntity("""
-            {
-              "name": "derived-cross-cluster-key",
-              "access": {
-                "replication": [
-                  {
-                    "names": [ "logs" ]
-                  }
-                ]
-              }
-            }""");
-        createDerivedRequest.setOptions(
-            RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "ApiKey " + createRestApiKeyResponse.evaluate("encoded"))
-        );
-        final ObjectPath createDerivedResponse = assertOKAndCreateObjectPath(client().performRequest(createDerivedRequest));
-        final String derivedApiKey = createDerivedResponse.evaluate("id");
-        // cannot be updated by the original creator user
-        final Request updateDerivedRequest = new Request("PUT", "/_security/cross_cluster/api_key/" + derivedApiKey);
-        setUserForRequest(updateDerivedRequest, MANAGE_SECURITY_USER, END_USER_PASSWORD);
-        updateDerivedRequest.setJsonEntity("{\"metadata\":{}}");
-        final ResponseException e9 = expectThrows(ResponseException.class, () -> client().performRequest(updateDerivedRequest));
-        assertThat(e9.getResponse().getStatusLine().getStatusCode(), equalTo(404));
-        assertThat(e9.getMessage(), containsString("no API key owned by requesting user found"));
-        // cannot be updated by the original API key either
-        updateDerivedRequest.setOptions(
-            RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "ApiKey " + createRestApiKeyResponse.evaluate("encoded"))
-        );
-        final ResponseException e10 = expectThrows(ResponseException.class, () -> client().performRequest(updateDerivedRequest));
-        assertThat(e10.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-        assertThat(e10.getMessage(), containsString("authentication via API key not supported: only the owner user can update an API key"));
     }
 
     public void testWorkflowsRestrictionSupportForApiKeys() throws IOException {

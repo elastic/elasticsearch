@@ -26,7 +26,7 @@ public class SynonymRule implements Writeable, ToXContentObject {
 
     public static final ParseField SYNONYMS_FIELD = new ParseField("synonyms");
     public static final ParseField ID_FIELD = new ParseField("id");
-    public static final String SYNONYMS_SET_FIELD = "synonyms_set";
+
     private static final ConstructingObjectParser<SynonymRule, Void> PARSER = new ConstructingObjectParser<>("synonym_rule", args -> {
         @SuppressWarnings("unchecked")
         final String id = (String) args[0];

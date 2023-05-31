@@ -48,6 +48,7 @@ public class SynonymsManagementAPIService {
     public static final String SYNONYMS_FEATURE_NAME = "synonyms";
     public static final String SYNONYMS_SET_FIELD = "synonyms_set";
     public static final String SYNONYMS_FIELD = "synonyms";
+    public static final String SYNONYM_RULE_ID_SEPARATOR = "|";
 
     private final Client client;
 
@@ -104,10 +105,6 @@ public class SynonymsManagementAPIService {
         }
     }
 
-    private static SynonymRule hitToSynonymRule(SearchHit hit) {
-        return new SynonymRule(hit.getId(), (String) hit.getSourceAsMap().get(SynonymRule.SYNONYMS_FIELD.getPreferredName()));
-    }
-
     public void getSynonymsSet(String resourceName, int from, int size, ActionListener<SynonymsSetResult> listener) {
         client.prepareSearch(SYNONYMS_ALIAS_NAME)
             .setQuery(QueryBuilders.termQuery(SYNONYMS_SET_FIELD, resourceName))
@@ -124,6 +121,30 @@ public class SynonymsManagementAPIService {
                     .toArray(SynonymRule[]::new);
                 listener.onResponse(new SynonymsSetResult(totalSynonymRules, new SynonymsSet(synonymRules)));
             }));
+    }
+
+    private static SynonymRule hitToSynonymRule(SearchHit hit) {
+        return new SynonymRule(
+            externalSynonymRuleId(hit.getId()),
+            (String) hit.getSourceAsMap().get(SynonymRule.SYNONYMS_FIELD.getPreferredName())
+        );
+    }
+
+    private static String externalSynonymRuleId(String internalId) {
+        int index = internalId.indexOf(SYNONYM_RULE_ID_SEPARATOR);
+        if (index == -1) {
+            throw new IllegalStateException("Synonym Rule ID [" + internalId + "] is incorrect");
+        }
+        return internalId.substring(index + 1);
+    }
+
+    private static String internalSynonymRuleId(String resourceName, SynonymRule synonymRule) {
+        String synonymRuleId = synonymRule.id();
+        if (synonymRuleId == null) {
+            synonymRuleId = UUIDs.base64UUID();
+        }
+        final String id = resourceName + SYNONYM_RULE_ID_SEPARATOR + synonymRuleId;
+        return id;
     }
 
     public void putSynonymsSet(String resourceName, SynonymsSet synonymsset, ActionListener<UpdateSynonymsResult> listener) {
@@ -165,11 +186,7 @@ public class SynonymsManagementAPIService {
 
                             final IndexRequest indexRequest = new IndexRequest(SYNONYMS_ALIAS_NAME).opType(DocWriteRequest.OpType.INDEX)
                                 .source(builder);
-                            String synonymRuleId = synonymRule.id();
-                            if (synonymRuleId == null) {
-                                synonymRuleId = UUIDs.base64UUID();
-                            }
-                            indexRequest.id(resourceName + "_" + synonymRuleId);
+                            indexRequest.id(internalSynonymRuleId(resourceName, synonymRule));
 
                             bulkRequestBuilder.add(indexRequest);
                         }

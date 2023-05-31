@@ -54,6 +54,7 @@ public class OperationRouting {
 
     /**
      * Shards to use for a {@code GET} operation.
+     * @return A shard iterator that can be used for GETs, or null if e.g. due to preferences no match is found.
      */
     public ShardIterator getShards(
         ClusterState clusterState,

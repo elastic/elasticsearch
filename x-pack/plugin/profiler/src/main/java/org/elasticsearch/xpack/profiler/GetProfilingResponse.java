@@ -7,22 +7,23 @@
 package org.elasticsearch.xpack.profiler;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.StatusToXContentObject;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
+import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BiFunction;
 
-import static org.elasticsearch.rest.RestStatus.OK;
-
-public class GetProfilingResponse extends ActionResponse implements StatusToXContentObject {
+public class GetProfilingResponse extends ActionResponse implements ChunkedToXContentObject {
     @Nullable
     private final Map<String, StackTrace> stackTraces;
     @Nullable
@@ -53,7 +54,6 @@ public class GetProfilingResponse extends ActionResponse implements StatusToXCon
                 i -> new StackFrame(
                     i.readList(StreamInput::readString),
                     i.readList(StreamInput::readString),
-                    i.readList(StreamInput::readInt),
                     i.readList(StreamInput::readInt),
                     i.readList(StreamInput::readInt)
                 )
@@ -115,7 +115,6 @@ public class GetProfilingResponse extends ActionResponse implements StatusToXCon
                 o.writeCollection(v.functionName, StreamOutput::writeString);
                 o.writeCollection(v.functionOffset, StreamOutput::writeInt);
                 o.writeCollection(v.lineNumber, StreamOutput::writeInt);
-                o.writeCollection(v.sourceType, StreamOutput::writeInt);
             });
         } else {
             out.writeBoolean(false);
@@ -139,11 +138,6 @@ public class GetProfilingResponse extends ActionResponse implements StatusToXCon
         } else {
             out.writeBoolean(false);
         }
-    }
-
-    @Override
-    public RestStatus status() {
-        return error != null ? ExceptionsHelper.status(ExceptionsHelper.unwrapCause(error)) : OK;
     }
 
     public Map<String, StackTrace> getStackTraces() {
@@ -171,36 +165,32 @@ public class GetProfilingResponse extends ActionResponse implements StatusToXCon
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        if (stackTraces != null) {
-            builder.startObject("stack_traces");
-            builder.mapContents(stackTraces);
-            builder.endObject();
-        }
-        if (stackFrames != null) {
-            builder.startObject("stack_frames");
-            builder.mapContents(stackFrames);
-            builder.endObject();
-        }
-        if (executables != null) {
-            builder.startObject("executables");
-            builder.mapContents(executables);
-            builder.endObject();
-        }
-        if (stackTraceEvents != null) {
-            builder.startObject("stack_trace_events");
-            builder.mapContents(stackTraceEvents);
-            builder.endObject();
-        }
-        builder.field("total_frames", totalFrames);
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         if (error != null) {
-            builder.startObject("error");
-            ElasticsearchException.generateThrowableXContent(builder, params, error);
-            builder.endObject();
+            return Iterators.concat(
+                ChunkedToXContentHelper.startObject(),
+                Iterators.single((b, p) -> ElasticsearchException.generateFailureXContent(b, params, error, true)),
+                ChunkedToXContentHelper.endObject()
+            );
+        } else {
+            return Iterators.concat(
+                ChunkedToXContentHelper.startObject(),
+                optional("stack_traces", stackTraces, ChunkedToXContentHelper::xContentValuesMap),
+                optional("stack_frames", stackFrames, ChunkedToXContentHelper::xContentValuesMap),
+                optional("executables", executables, ChunkedToXContentHelper::map),
+                optional("stack_trace_events", stackTraceEvents, ChunkedToXContentHelper::map),
+                Iterators.single((b, p) -> b.field("total_frames", totalFrames)),
+                ChunkedToXContentHelper.endObject()
+            );
         }
-        builder.endObject();
-        return builder;
+    }
+
+    private <T> Iterator<? extends ToXContent> optional(
+        String name,
+        Map<String, T> values,
+        BiFunction<String, Map<String, T>, Iterator<? extends ToXContent>> supplier
+    ) {
+        return (values != null) ? supplier.apply(name, values) : Collections.emptyIterator();
     }
 
     @Override

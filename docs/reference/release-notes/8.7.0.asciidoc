@@ -3,6 +3,12 @@
 
 Also see <<breaking-changes-8.7,Breaking changes in 8.7>>.
 
+[[known-issues-8.7.0]]
+[float]
+=== Known issues
+
+include::8.6.0.asciidoc[tag=reconciliation-imbalance-known-issue]
+
 [[breaking-8.7.0]]
 [float]
 === Breaking changes

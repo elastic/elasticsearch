@@ -85,10 +85,8 @@ import java.util.function.Predicate;
  */
 public class SearchExecutionContext extends QueryRewriteContext {
 
-    private final ScriptService scriptService;
     private final SimilarityService similarityService;
     private final BitsetFilterCache bitsetFilterCache;
-    private final NamedWriteableRegistry writeableRegistry;
     private final BiFunction<MappedFieldType, FieldDataContext, IndexFieldData<?>> indexFieldDataLookup;
     private SearchLookup lookup = null;
 
@@ -99,12 +97,8 @@ public class SearchExecutionContext extends QueryRewriteContext {
     private final SetOnce<Boolean> frozen = new SetOnce<>();
     private Set<String> fieldsInIndex = null;
 
-    private final Predicate<String> indexNameMatcher;
-    private final BooleanSupplier allowExpensiveQueries;
-
     private final Map<String, Query> namedQueries = new HashMap<>();
     private NestedScope nestedScope;
-    private final ValuesSourceRegistry valuesSourceRegistry;
 
     /**
      * Build a {@linkplain SearchExecutionContext}.
@@ -176,7 +170,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
             source.indexNameMatcher,
             source.getFullyQualifiedIndex(),
             source.allowExpensiveQueries,
-            source.valuesSourceRegistry,
+            source.getValuesSourceRegistry(),
             source.runtimeMappings,
             source.allowedFields
         );
@@ -213,20 +207,20 @@ public class SearchExecutionContext extends QueryRewriteContext {
             runtimeMappings,
             allowedFields,
             indexSettings,
-            fullyQualifiedIndex
+            fullyQualifiedIndex,
+            indexNameMatcher,
+            namedWriteableRegistry,
+            valuesSourceRegistry,
+            allowExpensiveQueries,
+            scriptService
         );
-        this.writeableRegistry = namedWriteableRegistry;
         this.shardId = shardId;
         this.shardRequestIndex = shardRequestIndex;
         this.similarityService = similarityService;
         this.bitsetFilterCache = bitsetFilterCache;
         this.indexFieldDataLookup = indexFieldDataLookup;
         this.nestedScope = new NestedScope();
-        this.scriptService = scriptService;
         this.searcher = searcher;
-        this.indexNameMatcher = indexNameMatcher;
-        this.allowExpensiveQueries = allowExpensiveQueries;
-        this.valuesSourceRegistry = valuesSourceRegistry;
     }
 
     private void reset() {
@@ -250,10 +244,6 @@ public class SearchExecutionContext extends QueryRewriteContext {
         return similarityService != null ? similarityService.getDefaultSimilarity() : null;
     }
 
-    public NamedWriteableRegistry getWriteableRegistry() {
-        return writeableRegistry;
-    }
-
     public List<String> defaultFields() {
         return indexSettings.getDefaultFields();
     }
@@ -272,10 +262,6 @@ public class SearchExecutionContext extends QueryRewriteContext {
 
     public BitSetProducer bitsetFilter(Query filter) {
         return bitsetFilterCache.getBitSetProducer(filter);
-    }
-
-    public boolean allowExpensiveQueries() {
-        return allowExpensiveQueries.getAsBoolean();
     }
 
     @SuppressWarnings("unchecked")
@@ -424,10 +410,6 @@ public class SearchExecutionContext extends QueryRewriteContext {
         };
     }
 
-    public ValuesSourceRegistry getValuesSourceRegistry() {
-        return valuesSourceRegistry;
-    }
-
     public void setAllowedFields(Predicate<String> allowedFields) {
         this.allowedFields = allowedFields;
     }
@@ -490,6 +472,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
      *  may represent a fully qualified index name if the search targets remote shards.
      */
     public boolean indexMatches(String pattern) {
+        assert indexNameMatcher != null;
         return indexNameMatcher.test(pattern);
     }
 
@@ -528,6 +511,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
 
     /** Compile script using script service */
     public <FactoryType> FactoryType compile(Script script, ScriptContext<FactoryType> context) {
+        assert scriptService != null;
         FactoryType factory = scriptService.compile(script, context);
         if (factory instanceof ScriptFactory && ((ScriptFactory) factory).isResultDeterministic() == false) {
             failIfFrozen();

@@ -37,7 +37,22 @@ public class CoordinatorRewriteContext extends QueryRewriteContext {
         IndexLongFieldRange indexLongFieldRange,
         DateFieldMapper.DateFieldType timestampFieldType
     ) {
-        super(parserConfig, client, nowInMillis, null, MappingLookup.EMPTY, Collections.emptyMap(), null, null, null);
+        super(
+            parserConfig,
+            client,
+            nowInMillis,
+            null,
+            MappingLookup.EMPTY,
+            Collections.emptyMap(),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
         this.indexLongFieldRange = indexLongFieldRange;
         this.timestampFieldType = timestampFieldType;
     }

@@ -9,6 +9,7 @@ package org.elasticsearch.index.query;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
@@ -18,6 +19,8 @@ import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.TextFieldMapper;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
@@ -27,6 +30,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiConsumer;
+import java.util.function.BooleanSupplier;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 
@@ -39,6 +43,11 @@ public class QueryRewriteContext {
     protected final Map<String, MappedFieldType> runtimeMappings;
     protected final IndexSettings indexSettings;
     protected final Index fullyQualifiedIndex;
+    protected final Predicate<String> indexNameMatcher;
+    protected final NamedWriteableRegistry writeableRegistry;
+    protected final ValuesSourceRegistry valuesSourceRegistry;
+    protected final BooleanSupplier allowExpensiveQueries;
+    protected final ScriptService scriptService;
     private final XContentParserConfiguration parserConfiguration;
     protected final Client client;
     protected final LongSupplier nowInMillis;
@@ -56,7 +65,12 @@ public class QueryRewriteContext {
         final Map<String, MappedFieldType> runtimeMappings,
         final Predicate<String> allowedFields,
         final IndexSettings indexSettings,
-        final Index fullyQualifiedIndex
+        final Index fullyQualifiedIndex,
+        final Predicate<String> indexNameMatcher,
+        final NamedWriteableRegistry namedWriteableRegistry,
+        final ValuesSourceRegistry valuesSourceRegistry,
+        final BooleanSupplier allowExpensiveQueries,
+        final ScriptService scriptService
     ) {
 
         this.parserConfiguration = parserConfiguration;
@@ -69,10 +83,30 @@ public class QueryRewriteContext {
         this.allowedFields = allowedFields;
         this.indexSettings = indexSettings;
         this.fullyQualifiedIndex = fullyQualifiedIndex;
+        this.indexNameMatcher = indexNameMatcher;
+        this.writeableRegistry = namedWriteableRegistry;
+        this.valuesSourceRegistry = valuesSourceRegistry;
+        this.allowExpensiveQueries = allowExpensiveQueries;
+        this.scriptService = scriptService;
     }
 
     public QueryRewriteContext(final XContentParserConfiguration parserConfiguration, final Client client, final LongSupplier nowInMillis) {
-        this(parserConfiguration, client, nowInMillis, null, MappingLookup.EMPTY, Collections.emptyMap(), null, null, null);
+        this(
+            parserConfiguration,
+            client,
+            nowInMillis,
+            null,
+            MappingLookup.EMPTY,
+            Collections.emptyMap(),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
     }
 
     /**
@@ -153,6 +187,19 @@ public class QueryRewriteContext {
 
     public void setMapUnmappedFieldAsString(boolean mapUnmappedFieldAsString) {
         this.mapUnmappedFieldAsString = mapUnmappedFieldAsString;
+    }
+
+    public NamedWriteableRegistry getWriteableRegistry() {
+        return writeableRegistry;
+    }
+
+    public ValuesSourceRegistry getValuesSourceRegistry() {
+        return valuesSourceRegistry;
+    }
+
+    public boolean allowExpensiveQueries() {
+        assert allowExpensiveQueries != null;
+        return allowExpensiveQueries.getAsBoolean();
     }
 
     /**

@@ -41,7 +41,8 @@ public class HeaderWarning {
         "Elasticsearch-" + // warn agent
         "\\d+\\.\\d+\\.\\d+(?:-(?:alpha|beta|rc)\\d+)?(?:-SNAPSHOT)?-" + // warn agent
         "(?:[a-f0-9]{7}(?:[a-f0-9]{33})?|unknown) " + // warn agent
-        "\"(?<quotedStringValue>.*)\"( " + // quoted warning value, captured
+        // quoted warning value, captured. Do not add more greedy qualifiers later to avoid excessive backtracking
+        "\"(?<quotedStringValue>.*)\"( " +
         // quoted RFC 1123 date format
         "\"" + // opening quote
         "(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun), " + // weekday

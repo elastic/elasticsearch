@@ -22,7 +22,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasSize;
 
 public class ThreadPoolStatsTests extends ESTestCase {
-    public void testThreadPoolStatsSort() {
+    public void testThreadPoolStatsConstructorSortTheStats() {
         var unorderedStats = List.of(
             new ThreadPoolStats.Stats("z", 7, 0, 0, 0, 0, 0L),
             new ThreadPoolStats.Stats("m", 5, 0, 0, 0, 0, 0L),
@@ -36,10 +36,6 @@ public class ThreadPoolStatsTests extends ESTestCase {
         var copy = new ArrayList<>(unorderedStats);
         Collections.sort(copy);
 
-        assertThat(copy.stream().map(ThreadPoolStats.Stats::name).toList(), contains("a", "d", "m", "m", "m", "t", "z"));
-        assertThat(copy.stream().map(ThreadPoolStats.Stats::threads).toList(), contains(-1, 2, -3, 4, 5, 6, 7));
-
-        // assert that the ThreadPoolStats constructor sorts the stat list
         var threadPoolStats = new ThreadPoolStats(unorderedStats);
         assertThat(threadPoolStats.stats().stream().map(ThreadPoolStats.Stats::name).toList(), contains("a", "d", "m", "m", "m", "t", "z"));
         assertThat(threadPoolStats.stats().stream().map(ThreadPoolStats.Stats::threads).toList(), contains(-1, 2, -3, 4, 5, 6, 7));

@@ -28,7 +28,7 @@ import static org.elasticsearch.common.collect.Iterators.single;
 
 public record ThreadPoolStats(List<Stats> stats) implements Writeable, ChunkedToXContent, Iterable<ThreadPoolStats.Stats> {
 
-    public static final ThreadPoolStats IDENTITY = new ThreadPoolStats(new ArrayList<>());
+    public static final ThreadPoolStats IDENTITY = new ThreadPoolStats(List.of());
 
     public static ThreadPoolStats merge(ThreadPoolStats first, ThreadPoolStats second) {
         var mergedThreadPools = new HashMap<String, Stats>();
@@ -36,7 +36,7 @@ public record ThreadPoolStats(List<Stats> stats) implements Writeable, ChunkedTo
         first.forEach(stats -> mergedThreadPools.merge(stats.name, stats, Stats::merge));
         second.forEach(stats -> mergedThreadPools.merge(stats.name, stats, Stats::merge));
 
-        return new ThreadPoolStats(new ArrayList<>(mergedThreadPools.values()));
+        return new ThreadPoolStats(mergedThreadPools.values().stream().toList());
     }
 
     public record Stats(String name, int threads, int queue, int active, long rejected, int largest, long completed)

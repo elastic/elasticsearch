@@ -201,6 +201,17 @@ public class RestRequestTests extends ESTestCase {
         assertThat(e.getMessage(), equalTo("Invalid media-type value on headers [Content-Type]"));
     }
 
+    public void testInvalidMediaTypeCharacter() {
+        List<String> headers = List.of("a/b[", "a/b]", "a/b\\");
+        for (String header : headers) {
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> RestRequest.parseContentType(Collections.singletonList(header))
+            );
+            assertThat(e.getMessage(), equalTo("invalid Content-Type header [" + header + "]"));
+        }
+    }
+
     public void testNoContentTypeHeader() {
         RestRequest contentRestRequest = contentRestRequest("", Collections.emptyMap(), Collections.emptyMap());
         assertNull(contentRestRequest.getXContentType());

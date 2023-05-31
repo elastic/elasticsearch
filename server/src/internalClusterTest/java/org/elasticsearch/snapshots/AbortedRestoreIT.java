@@ -97,6 +97,6 @@ public class AbortedRestoreIT extends AbstractSnapshotIntegTestCase {
     }
 
     private static void waitForMaxActiveSnapshotThreads(final String node, final Matcher<Integer> matcher) throws Exception {
-        assertBusy(() -> assertThat(snapshotThreadPoolStats(node).getActive(), matcher), 30L, TimeUnit.SECONDS);
+        assertBusy(() -> assertThat(snapshotThreadPoolStats(node).active(), matcher), 30L, TimeUnit.SECONDS);
     }
 }

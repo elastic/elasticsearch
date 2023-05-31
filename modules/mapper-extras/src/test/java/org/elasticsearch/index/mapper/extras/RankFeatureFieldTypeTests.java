@@ -30,6 +30,6 @@ public class RankFeatureFieldTypeTests extends FieldTypeTestCase {
 
         assertEquals(List.of(3.14f), fetchSourceValue(mapper, 3.14));
         assertEquals(List.of(42.9f), fetchSourceValue(mapper, "42.9"));
-        assertEquals(List.of(2.0f), fetchSourceValue(mapper, ""));
+        assertEquals(List.of(2.0f), fetchSourceValue(mapper, null));
     }
 }

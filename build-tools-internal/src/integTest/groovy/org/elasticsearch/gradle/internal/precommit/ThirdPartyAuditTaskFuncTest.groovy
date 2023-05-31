@@ -97,7 +97,6 @@ class ThirdPartyAuditTaskFuncTest extends AbstractGradleInternalPluginFuncTest {
 
         def output = normalized(result.getOutput())
         assertOutputContains(output, """\
-            Forbidden APIs output:
             DEBUG: Classpath: [file:./build/precommit/thirdPartyAudit/thirdPartyAudit/]
             DEBUG: Detected Java 9 or later with module system.
             ERROR: Forbidden class/interface use: java.io.File [non-public internal runtime class]
@@ -135,7 +134,6 @@ class ThirdPartyAuditTaskFuncTest extends AbstractGradleInternalPluginFuncTest {
 
         def output = normalized(result.getOutput())
         assertOutputContains(output, """\
-            Forbidden APIs output:
             DEBUG: Classpath: [file:./build/precommit/thirdPartyAudit/thirdPartyAudit/]
             DEBUG: Detected Java 9 or later with module system.
             DEBUG: Class 'org.apache.logging.log4j.LogManager' cannot be loaded (while looking up details about referenced class 'org.apache.logging.log4j.LogManager').

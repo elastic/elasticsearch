@@ -10,6 +10,7 @@ package org.elasticsearch.analysis.common;
 
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.analysis.common.synonyms.SynonymsManagementAPIService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
@@ -37,6 +38,7 @@ public class SynonymAnalyzerIT extends ESIntegTestCase {
     // TODO: update this test when loading from index is ready
     // currently "synonyms_set" option provides only 1 fake synonym rule: "synonym1 => synonym"
     public void testSynonymsLoadedFromIndex() {
+        assumeTrue("This test should only run with enabled synonyms feature flag", SynonymsManagementAPIService.isEnabled());
         String indexName = "test_index";
         String filterType = randomBoolean() ? "synonym" : "synonym_graph";
         CreateIndexRequestBuilder createIndexRequest = prepareCreate(indexName).setSettings(

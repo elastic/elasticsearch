@@ -2391,7 +2391,10 @@ public class ApiKeyServiceTests extends ESTestCase {
     }
 
     public void testCreateCrossClusterApiKeyMinVersionConstraint() {
-        final Authentication authentication = AuthenticationTestHelper.builder().build();
+        final Authentication authentication = randomValueOtherThanMany(
+            Authentication::isApiKey,
+            () -> AuthenticationTestHelper.builder().build()
+        );
         final AbstractCreateApiKeyRequest request = mock(AbstractCreateApiKeyRequest.class);
         when(request.getType()).thenReturn(ApiKey.Type.CROSS_CLUSTER);
 

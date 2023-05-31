@@ -43,7 +43,7 @@ HTTP connection information.
 Ingest information.
 
 `thread_pool`::
-Statistics about each thread pool, including current size, queue and rejected tasks.
+Statistics about each thread pool, including current size, queue size and rejected tasks.
 --
 
 [role="child_attributes"]
@@ -244,14 +244,14 @@ Number of failed operations for the processor.
 [[cluster-info-api-response-body-threadpool]]
 `thread_pool`::
 (object)
-Contains thread pool information of the cluster.
+Contains information about the thread pools of the cluster.
 +
 .Properties of `thread_pool`
 [%collapsible%open]
 ======
 `<thread_pool_name>`::
 (object)
-Contains information about the thread pool of the cluster.
+Contains information about the thread pool of the cluster with name `<thread_pool_name>`.
 +
 .Properties of `<thread_pool_name>`
 [%collapsible%open]

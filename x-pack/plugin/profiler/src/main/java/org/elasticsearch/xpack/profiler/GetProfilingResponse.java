@@ -205,7 +205,7 @@ public class GetProfilingResponse extends ActionResponse implements ChunkedToXCo
         BiFunction<String, Map<String, T>, Iterator<? extends ToXContent>> supplier
     ) {
         return (values != null) ? supplier.apply(name, values) : Collections.emptyIterator();
-    }
+   }
 
     @Override
     public boolean equals(Object o) {

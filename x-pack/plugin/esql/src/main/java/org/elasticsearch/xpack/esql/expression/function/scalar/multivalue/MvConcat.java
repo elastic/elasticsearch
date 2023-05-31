@@ -30,8 +30,8 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
 /**
  * Reduce a multivalued string field to a single valued field by concatenating all values.
  */
-public class MvJoin extends BinaryScalarFunction implements Mappable {
-    public MvJoin(Source source, Expression field, Expression delim) {
+public class MvConcat extends BinaryScalarFunction implements Mappable {
+    public MvConcat(Source source, Expression field, Expression delim) {
         super(source, field, delim);
     }
 
@@ -60,7 +60,7 @@ public class MvJoin extends BinaryScalarFunction implements Mappable {
     ) {
         Supplier<EvalOperator.ExpressionEvaluator> fieldEval = toEvaluator.apply(left());
         Supplier<EvalOperator.ExpressionEvaluator> delimEval = toEvaluator.apply(right());
-        return () -> new MvJoinEvaluator(fieldEval.get(), delimEval.get());
+        return () -> new MvConcatEvaluator(fieldEval.get(), delimEval.get());
     }
 
     @Override
@@ -70,16 +70,16 @@ public class MvJoin extends BinaryScalarFunction implements Mappable {
 
     @Override
     protected BinaryScalarFunction replaceChildren(Expression newLeft, Expression newRight) {
-        return new MvJoin(source(), newLeft, newRight);
+        return new MvConcat(source(), newLeft, newRight);
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, MvJoin::new, left(), right());
+        return NodeInfo.create(this, MvConcat::new, left(), right());
     }
 
     /**
-     * Evaluator for {@link MvJoin}. Not generated and doesn't extend from
+     * Evaluator for {@link MvConcat}. Not generated and doesn't extend from
      * {@link AbstractMultivalueFunction.AbstractEvaluator} because it's just
      * too different from all the other mv operators:
      * <ul>
@@ -88,11 +88,11 @@ public class MvJoin extends BinaryScalarFunction implements Mappable {
      *     <li>The actual joining process needs init step per row - {@link BytesRefBuilder#clear()}</li>
      * </ul>
      */
-    private class MvJoinEvaluator implements EvalOperator.ExpressionEvaluator {
+    private class MvConcatEvaluator implements EvalOperator.ExpressionEvaluator {
         private final EvalOperator.ExpressionEvaluator field;
         private final EvalOperator.ExpressionEvaluator delim;
 
-        MvJoinEvaluator(EvalOperator.ExpressionEvaluator field, EvalOperator.ExpressionEvaluator delim) {
+        MvConcatEvaluator(EvalOperator.ExpressionEvaluator field, EvalOperator.ExpressionEvaluator delim) {
             this.field = field;
             this.delim = delim;
         }
@@ -142,7 +142,7 @@ public class MvJoin extends BinaryScalarFunction implements Mappable {
 
         @Override
         public final String toString() {
-            return "MvJoin[field=" + field + ", delim=" + delim + "]";
+            return "MvConcat[field=" + field + ", delim=" + delim + "]";
         }
     }
 }

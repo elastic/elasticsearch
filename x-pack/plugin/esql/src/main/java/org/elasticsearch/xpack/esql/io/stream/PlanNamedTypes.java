@@ -45,8 +45,8 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pow;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.AbstractMultivalueFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAvg;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvConcat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCount;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvJoin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMedian;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
@@ -289,7 +289,7 @@ public final class PlanNamedTypes {
             // Multivalue functions
             of(ScalarFunction.class, MvAvg.class, PlanNamedTypes::writeMvFunction, PlanNamedTypes::readMvFunction),
             of(ScalarFunction.class, MvCount.class, PlanNamedTypes::writeMvFunction, PlanNamedTypes::readMvFunction),
-            of(ScalarFunction.class, MvJoin.class, PlanNamedTypes::writeMvJoin, PlanNamedTypes::readMvJoin),
+            of(ScalarFunction.class, MvConcat.class, PlanNamedTypes::writeMvJoin, PlanNamedTypes::readMvJoin),
             of(ScalarFunction.class, MvMax.class, PlanNamedTypes::writeMvFunction, PlanNamedTypes::readMvFunction),
             of(ScalarFunction.class, MvMedian.class, PlanNamedTypes::writeMvFunction, PlanNamedTypes::readMvFunction),
             of(ScalarFunction.class, MvMin.class, PlanNamedTypes::writeMvFunction, PlanNamedTypes::readMvFunction),
@@ -1093,11 +1093,11 @@ public final class PlanNamedTypes {
         out.writeExpression(fn.field());
     }
 
-    static MvJoin readMvJoin(PlanStreamInput in) throws IOException {
-        return new MvJoin(Source.EMPTY, in.readExpression(), in.readExpression());
+    static MvConcat readMvJoin(PlanStreamInput in) throws IOException {
+        return new MvConcat(Source.EMPTY, in.readExpression(), in.readExpression());
     }
 
-    static void writeMvJoin(PlanStreamOutput out, MvJoin fn) throws IOException {
+    static void writeMvJoin(PlanStreamOutput out, MvConcat fn) throws IOException {
         out.writeExpression(fn.left());
         out.writeExpression(fn.right());
     }

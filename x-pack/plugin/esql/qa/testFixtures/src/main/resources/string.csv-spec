@@ -233,16 +233,16 @@ ROW a=["foo", "zoo", "bar"]
 ;
 
 mvJoin
-// tag::mv_join[]
+// tag::mv_concat[]
 ROW a=["foo", "zoo", "bar"]
-| EVAL j = MV_JOIN(a, ", ")
-// end::mv_join[]
+| EVAL j = MV_CONCAT(a, ", ")
+// end::mv_concat[]
 ;
 
-// tag::mv_join-result[]
+// tag::mv_concat-result[]
             a:keyword | j:keyword
 ["foo", "zoo", "bar"] | "foo, zoo, bar"
-// end::mv_join-result[]
+// end::mv_concat-result[]
 ;
 
 mvMax

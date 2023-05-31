@@ -154,14 +154,14 @@ ROW a=[10, 9, 8]
 ;
 
 mvJoin
-// tag::mv_join[]
+// tag::mv_concat[]
 ROW a=[10, 9, 8]
-| EVAL j = MV_JOIN(TO_STRING(a), ", ")
-// end::mv_join[]
+| EVAL j = MV_CONCAT(TO_STRING(a), ", ")
+// end::mv_concat[]
 ;
 
-// tag::mv_join-result[]
+// tag::mv_concat-result[]
  a:integer | j:keyword
 [10, 9, 8] | "10, 9, 8"
-// end::mv_join-result[]
+// end::mv_concat-result[]
 ;

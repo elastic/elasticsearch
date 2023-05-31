@@ -375,7 +375,6 @@ public abstract class ThirdPartyAuditTask extends DefaultTask {
         return false;
     }
 
-
     private Set<String> runJdkJarHellCheck() throws IOException {
         ByteArrayOutputStream standardOut = new ByteArrayOutputStream();
         ExecResult execResult = execOperations.javaexec(spec -> {

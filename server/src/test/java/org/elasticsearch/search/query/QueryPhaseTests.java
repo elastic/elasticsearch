@@ -50,7 +50,6 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.join.BitSetProducer;
@@ -409,14 +408,10 @@ public class QueryPhaseTests extends IndexShardTestCase {
         context.terminateAfter(numDocs);
         {
             context.setSize(10);
-            TotalHitCountCollector collector = new TotalHitCountCollector();
-            context.registerAggsCollectorManager(new SingleThreadCollectorManager(collector));
             QueryPhase.executeQuery(context);
             assertFalse(context.queryResult().terminatedEarly());
             assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo((long) numDocs));
             assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(10));
-            assertThat(collector.getTotalHits(), equalTo(numDocs));
-            context.registerAggsCollectorManager(null);
         }
 
         context.terminateAfter(1);
@@ -447,21 +442,14 @@ public class QueryPhaseTests extends IndexShardTestCase {
         }
         {
             context.setSize(1);
-            TotalHitCountCollector collector = new TotalHitCountCollector();
-            context.registerAggsCollectorManager(new SingleThreadCollectorManager(collector));
             QueryPhase.executeQuery(context);
             assertTrue(context.queryResult().terminatedEarly());
             assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo((long) numDocs));
             assertThat(context.queryResult().topDocs().topDocs.totalHits.relation, equalTo(TotalHits.Relation.EQUAL_TO));
             assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(1));
-            // TotalHitCountCollector counts num docs in the first leaf
-            assertThat(collector.getTotalHits(), equalTo(reader.leaves().get(0).reader().numDocs()));
-            context.registerAggsCollectorManager(null);
         }
         {
             context.setSize(0);
-            TotalHitCountCollector collector = new TotalHitCountCollector();
-            context.registerAggsCollectorManager(new SingleThreadCollectorManager(collector));
             QueryPhase.executeQuery(context);
             assertTrue(context.queryResult().terminatedEarly());
             // TotalHitCountCollector counts num docs in the first leaf
@@ -469,8 +457,6 @@ public class QueryPhaseTests extends IndexShardTestCase {
             assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo((long) numDocsInFirstLeaf));
             assertThat(context.queryResult().topDocs().topDocs.totalHits.relation, equalTo(TotalHits.Relation.EQUAL_TO));
             assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(0));
-            assertThat(collector.getTotalHits(), equalTo(numDocsInFirstLeaf));
-            context.registerAggsCollectorManager(null);
         }
 
         // tests with trackTotalHits and terminateAfter
@@ -478,8 +464,6 @@ public class QueryPhaseTests extends IndexShardTestCase {
         context.setSize(0);
         for (int trackTotalHits : new int[] { -1, 3, 76, 100 }) {
             context.trackTotalHitsUpTo(trackTotalHits);
-            TotalHitCountCollector collector = new TotalHitCountCollector();
-            context.registerAggsCollectorManager(new SingleThreadCollectorManager(collector));
             QueryPhase.executeQuery(context);
             assertTrue(context.queryResult().terminatedEarly());
             if (trackTotalHits == -1) {
@@ -493,16 +477,12 @@ public class QueryPhaseTests extends IndexShardTestCase {
                 assertThat(context.queryResult().topDocs().topDocs.totalHits.relation, equalTo(TotalHits.Relation.EQUAL_TO));
             }
             assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(0));
-            assertThat(collector.getTotalHits(), equalTo(countDocUpTo.applyAsInt(10)));
-            context.registerAggsCollectorManager(null);
         }
 
         context.terminateAfter(7);
         context.setSize(10);
         for (int trackTotalHits : new int[] { -1, 3, 75, 100 }) {
             context.trackTotalHitsUpTo(trackTotalHits);
-            EarlyTerminatingCollector collector = new EarlyTerminatingCollector(new TotalHitCountCollector(), 1, false);
-            context.registerAggsCollectorManager(new SingleThreadCollectorManager(collector));
             QueryPhase.executeQuery(context);
             assertTrue(context.queryResult().terminatedEarly());
             if (trackTotalHits == -1) {
@@ -516,7 +496,6 @@ public class QueryPhaseTests extends IndexShardTestCase {
                 assertThat(context.queryResult().topDocs().topDocs.totalHits.relation, equalTo(TotalHits.Relation.EQUAL_TO));
             }
             assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(7));
-            context.registerAggsCollectorManager(null);
         }
         reader.close();
         dir.close();
@@ -566,16 +545,12 @@ public class QueryPhaseTests extends IndexShardTestCase {
             assertThat(fieldDoc.fields[0], anyOf(equalTo(1), equalTo(2)));
             context.parsedPostFilter(null);
 
-            final TotalHitCountCollector totalHitCountCollector = new TotalHitCountCollector();
-            context.registerAggsCollectorManager(new SingleThreadCollectorManager(totalHitCountCollector));
             QueryPhase.executeQuery(context);
             assertNull(context.queryResult().terminatedEarly());
             assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo((long) numDocs));
             assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(1));
             assertThat(context.queryResult().topDocs().topDocs.scoreDocs[0], instanceOf(FieldDoc.class));
             assertThat(fieldDoc.fields[0], anyOf(equalTo(1), equalTo(2)));
-            assertThat(totalHitCountCollector.getTotalHits(), equalTo(numDocs));
-            context.registerAggsCollectorManager(null);
         }
 
         {

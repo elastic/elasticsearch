@@ -122,21 +122,7 @@ public enum Releasables {
      * Wraps a {@link Releasable} such that its {@link Releasable#close()} method can be called multiple times without double-releasing.
      */
     public static Releasable releaseOnce(final Releasable releasable) {
-        final var ref = new AtomicReference<>(releasable);
-        return new Releasable() {
-            @Override
-            public void close() {
-                final var acquired = ref.getAndSet(null);
-                if (acquired != null) {
-                    acquired.close();
-                }
-            }
-
-            @Override
-            public String toString() {
-                return "releaseOnce[" + ref.get() + "]";
-            }
-        };
+        return new ReleaseOnce(releasable);
     }
 
     public static Releasable assertOnce(final Releasable delegate) {
@@ -163,6 +149,25 @@ public enum Releasables {
             };
         } else {
             return delegate;
+        }
+    }
+
+    private static class ReleaseOnce extends AtomicReference<Releasable> implements Releasable {
+        ReleaseOnce(Releasable releasable) {
+            super(releasable);
+        }
+
+        @Override
+        public void close() {
+            final var acquired = getAndSet(null);
+            if (acquired != null) {
+                acquired.close();
+            }
+        }
+
+        @Override
+        public String toString() {
+            return "releaseOnce[" + get() + "]";
         }
     }
 }

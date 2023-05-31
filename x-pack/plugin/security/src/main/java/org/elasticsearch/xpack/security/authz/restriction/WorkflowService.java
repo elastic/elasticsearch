@@ -23,7 +23,7 @@ public class WorkflowService {
 
     private static final Logger logger = LogManager.getLogger(WorkflowService.class);
 
-    public static final String WORKFLOW_THREAD_CONTEXT_KEY = "_xpack_security_workflow";
+    public static final String WORKFLOW_HEADER = "_xpack_security_workflow";
 
     private final XPackLicenseState licenseState;
 
@@ -44,12 +44,9 @@ public class WorkflowService {
 
     private static void maybeStoreWorkflowInThreadContext(Workflow workflow, ThreadContext threadContext) {
         if (workflow != null) {
-            assert threadContext.getHeader(WORKFLOW_THREAD_CONTEXT_KEY) == null
-                : "thread context should not have workflow set. "
-                    + "existing workflow ["
-                    + threadContext.getHeader(WORKFLOW_THREAD_CONTEXT_KEY)
-                    + "]";
-            threadContext.putHeader(WORKFLOW_THREAD_CONTEXT_KEY, workflow.name());
+            assert threadContext.getHeader(WORKFLOW_HEADER) == null
+                : "thread context should not have workflow set. existing workflow [" + threadContext.getHeader(WORKFLOW_HEADER) + "]";
+            threadContext.putHeader(WORKFLOW_HEADER, workflow.name());
         }
     }
 

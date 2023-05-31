@@ -21,13 +21,13 @@ import org.elasticsearch.xpack.core.security.authz.restriction.WorkflowResolver;
 import org.mockito.Mockito;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Mockito.when;
 
 public class WorkflowServiceTests extends ESTestCase {
 
@@ -37,11 +37,12 @@ public class WorkflowServiceTests extends ESTestCase {
         final Workflow expectedWorkflow = randomFrom(WorkflowResolver.allWorkflows());
         final RestHandler restHandler;
         if (randomBoolean()) {
-            restHandler = createBaseHandler(randomFrom(expectedWorkflow.allowedRestHandlers()));
+            restHandler = new TestBaseRestHandler(randomFrom(expectedWorkflow.allowedRestHandlers()));
         } else {
             restHandler = Mockito.mock(RestHandler.class);
-            Mockito.when(restHandler.getConcreteRestHandler())
-                .thenReturn(createBaseHandler(randomFrom(expectedWorkflow.allowedRestHandlers())));
+            when(restHandler.getConcreteRestHandler()).thenReturn(
+                new TestBaseRestHandler(randomFrom(expectedWorkflow.allowedRestHandlers()))
+            );
         }
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
 
@@ -66,7 +67,7 @@ public class WorkflowServiceTests extends ESTestCase {
 
         assertThat(calledListener.get(), equalTo(true));
         assertThat(workflowReference.get(), equalTo(expectedWorkflow));
-        assertThat(threadContext.getHeader(WorkflowService.WORKFLOW_THREAD_CONTEXT_KEY), equalTo(expectedWorkflow.name()));
+        assertThat(threadContext.getHeader(WorkflowService.WORKFLOW_HEADER), equalTo(expectedWorkflow.name()));
     }
 
     public void testResolveWorkflowAndStoreInThreadContextWithUnknownRestHandler() {
@@ -76,7 +77,7 @@ public class WorkflowServiceTests extends ESTestCase {
                 name -> WorkflowResolver.resolveWorkflowForRestHandler(name) != null,
                 () -> randomAlphaOfLengthBetween(3, 6)
             );
-            restHandler = createBaseHandler(restHandlerName);
+            restHandler = new TestBaseRestHandler(restHandlerName);
         } else {
             restHandler = Mockito.mock(RestHandler.class);
         }
@@ -103,28 +104,36 @@ public class WorkflowServiceTests extends ESTestCase {
 
         assertThat(calledListener.get(), equalTo(true));
         assertThat(workflowReference.get(), nullValue());
-        assertThat(threadContext.getHeader(WorkflowService.WORKFLOW_THREAD_CONTEXT_KEY), nullValue());
+        assertThat(threadContext.getHeader(WorkflowService.WORKFLOW_HEADER), nullValue());
     }
 
-    private BaseRestHandler createBaseHandler(String name) {
-        return new BaseRestHandler() {
+    public static class TestBaseRestHandler extends BaseRestHandler {
 
-            @Override
-            public String getName() {
-                return name;
-            }
+        final AtomicBoolean executed = new AtomicBoolean();
+        private final String name;
 
-            @Override
-            public List<Route> routes() {
-                return Collections.emptyList();
-            }
+        public TestBaseRestHandler(String name) {
+            this.name = name;
+        }
 
-            @Override
-            protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-                throw new UnsupportedOperationException("not implemented!");
-            }
+        @Override
+        public String getName() {
+            return name;
+        }
 
-        };
+        @Override
+        public List<Route> routes() {
+            return List.of();
+        }
+
+        @Override
+        protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+            return channel -> executed.set(true);
+        }
+
+        public boolean isExecuted() {
+            return executed.get();
+        }
     }
 
 }

@@ -59,8 +59,8 @@ public class GetProfilingResponseTests extends AbstractWireSerializingTestCase<G
 
     public void testChunking() {
         AbstractChunkedSerializingTestCase.assertChunkCount(createTestInstance(), instance -> {
-            // start, end, total_frames
-            int chunks = 3;
+            // start, end, total_frames, isSampling, exponent
+            int chunks = 5;
             chunks += size(instance.getExecutables());
             chunks += size(instance.getStackFrames());
             chunks += size(instance.getStackTraces());

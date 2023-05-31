@@ -104,7 +104,9 @@ public class CreateApiKeyRequestTests extends ESTestCase {
                     null,
                     null,
                     Map.of("_key", "value"),
-                    null
+                    null,
+                    null,
+                    new RoleDescriptor.Restriction(new String[] { "_non_existing_workflow_" })
                 )
             ),
             null
@@ -116,6 +118,7 @@ public class CreateApiKeyRequestTests extends ESTestCase {
         assertThat(ve1.validationErrors().get(2), containsStringIgnoringCase("application name"));
         assertThat(ve1.validationErrors().get(3), containsStringIgnoringCase("Application privilege names"));
         assertThat(ve1.validationErrors().get(4), containsStringIgnoringCase("role descriptor metadata keys may not start with "));
+        assertThat(ve1.validationErrors().get(5), containsStringIgnoringCase("unknown workflow [_non_existing_workflow_]"));
     }
 
     public void testSerialization() throws IOException {

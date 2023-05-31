@@ -1150,7 +1150,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
                 "role_descriptors":{
                     "r1": {
                         "restriction": {
-                            "workflows": ["search_application"]
+                            "workflows": ["search_application_query"]
                         }
                     }
                 }
@@ -1158,7 +1158,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         Response response = performRequestWithManageOwnApiKeyUser(createApiKeyRequest);
         String apiKeyId = assertOKAndCreateObjectPath(response).evaluate("id");
         assertThat(apiKeyId, notNullValue());
-        fetchAndAssertApiKeyContainsWorkflows(apiKeyId, "r1", "search_application");
+        fetchAndAssertApiKeyContainsWorkflows(apiKeyId, "r1", "search_application_query");
 
         final Request grantApiKeyRequest = new Request("POST", "_security/api_key/grant");
         grantApiKeyRequest.setJsonEntity(Strings.format("""
@@ -1171,7 +1171,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
                   "role_descriptors":{
                      "r1":{
                         "restriction": {
-                            "workflows": ["search_application"]
+                            "workflows": ["search_application_query"]
                         }
                      }
                   }
@@ -1179,7 +1179,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
             }""", MANAGE_OWN_API_KEY_USER));
         response = adminClient().performRequest(grantApiKeyRequest);
         String grantedApiKeyId = assertOKAndCreateObjectPath(response).evaluate("id");
-        fetchAndAssertApiKeyContainsWorkflows(grantedApiKeyId, "r1", "search_application");
+        fetchAndAssertApiKeyContainsWorkflows(grantedApiKeyId, "r1", "search_application_query");
 
         final Request updateApiKeyRequest = new Request("PUT", "_security/api_key/" + apiKeyId);
         updateApiKeyRequest.setJsonEntity("""
@@ -1187,14 +1187,14 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
               "role_descriptors": {
                 "r1": {
                   "restriction": {
-                   "workflows": ["search_application", "search_analytics"]
+                   "workflows": ["search_application_query", "search_application_analytics"]
                   }
                 }
               }
             }""");
         response = performRequestWithManageOwnApiKeyUser(updateApiKeyRequest);
         assertThat(assertOKAndCreateObjectPath(response).evaluate("updated"), equalTo(true));
-        fetchAndAssertApiKeyContainsWorkflows(apiKeyId, "r1", "search_application", "search_analytics");
+        fetchAndAssertApiKeyContainsWorkflows(apiKeyId, "r1", "search_application_query", "search_application_analytics");
 
         final Request bulkUpdateApiKeyRequest = new Request("POST", "_security/api_key/_bulk_update");
         bulkUpdateApiKeyRequest.setJsonEntity(Strings.format("""
@@ -1203,14 +1203,14 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
               "role_descriptors": {
                 "r1": {
                   "restriction": {
-                     "workflows": ["search_application"]
+                     "workflows": ["search_application_query"]
                   }
                 }
               }
             }""", apiKeyId));
         response = performRequestWithManageOwnApiKeyUser(bulkUpdateApiKeyRequest);
         assertThat(assertOKAndCreateObjectPath(response).evaluate("updated"), contains(apiKeyId));
-        fetchAndAssertApiKeyContainsWorkflows(apiKeyId, "r1", "search_application");
+        fetchAndAssertApiKeyContainsWorkflows(apiKeyId, "r1", "search_application_query");
 
         final Request removeRestrictionRequest = new Request("PUT", "_security/api_key/" + apiKeyId);
         removeRestrictionRequest.setJsonEntity("""
@@ -1231,14 +1231,14 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         final String r1 = """
                 "r1": {
                     "restriction": {
-                        "workflows": ["search_application"]
+                        "workflows": ["search_application_query"]
                     }
                 }
             """;
         final String r2 = secondRoleWithWorkflowsRestriction ? """
             "r2": {
                 "restriction": {
-                    "workflows": ["search_analytics"]
+                    "workflows": ["search_application_analytics"]
                 }
             }
             """ : """
@@ -1287,7 +1287,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
                 "role_descriptors":{
                     "r1": {
                         "restriction": {
-                            "workflows": ["search_application"]
+                            "workflows": ["search_application_query"]
                         }
                     }
                 }

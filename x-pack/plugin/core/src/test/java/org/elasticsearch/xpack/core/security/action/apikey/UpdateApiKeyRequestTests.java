@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.restriction.WorkflowResolver;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -88,7 +89,11 @@ public class UpdateApiKeyRequestTests extends ESTestCase {
                     null,
                     null,
                     Map.of("_key", "value"),
-                    null
+                    null,
+                    null,
+                    new RoleDescriptor.Restriction(
+                        new String[] { "_invalid_workflow_name_", WorkflowResolver.SEARCH_APPLICATION_QUERY_WORKFLOW.name() }
+                    )
                 )
             ),
             null
@@ -100,5 +105,6 @@ public class UpdateApiKeyRequestTests extends ESTestCase {
         assertThat(ve1.validationErrors().get(2), containsStringIgnoringCase("application name"));
         assertThat(ve1.validationErrors().get(3), containsStringIgnoringCase("Application privilege names"));
         assertThat(ve1.validationErrors().get(4), containsStringIgnoringCase("role descriptor metadata keys may not start with "));
+        assertThat(ve1.validationErrors().get(5), containsStringIgnoringCase("unknown workflow [_invalid_workflow_name_]"));
     }
 }

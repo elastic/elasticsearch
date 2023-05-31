@@ -18,6 +18,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.Restriction;
+import org.elasticsearch.xpack.core.security.authz.restriction.WorkflowResolver;
 
 import java.io.IOException;
 
@@ -108,7 +109,6 @@ public class RoleRestrictionTests extends ESTestCase {
     }
 
     public static String[] randomWorkflowNames(int min, int max) {
-        // TODO: Change this to use actual workflow names instead of random ones.
-        return randomArray(min, max, String[]::new, () -> randomAlphaOfLengthBetween(3, 6));
+        return randomArray(min, max, String[]::new, () -> randomFrom(WorkflowResolver.names()));
     }
 }

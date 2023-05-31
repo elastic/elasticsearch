@@ -20,6 +20,7 @@ import org.elasticsearch.health.SimpleHealthIndicatorDetails;
 import org.elasticsearch.health.node.HealthInfo;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.ilm.AllocateAction;
+import org.elasticsearch.xpack.core.ilm.DeleteAction;
 import org.elasticsearch.xpack.core.ilm.DeleteStep;
 import org.elasticsearch.xpack.core.ilm.DownsampleAction;
 import org.elasticsearch.xpack.core.ilm.ForceMergeAction;
@@ -34,6 +35,7 @@ import org.elasticsearch.xpack.core.ilm.WaitForDataTierStep;
 import org.elasticsearch.xpack.core.ilm.WaitForIndexColorStep;
 import org.elasticsearch.xpack.core.ilm.WaitForNoFollowersStep;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -48,6 +50,8 @@ import static java.util.stream.Collectors.groupingBy;
 import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
 import static org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata.currentILMMode;
+import static org.elasticsearch.xpack.ilm.IlmHealthIndicatorService.RuleConfig.Builder.actionRule;
+import static org.elasticsearch.xpack.ilm.IlmHealthIndicatorService.StepRule.stepRule;
 
 /**
  * This indicator reports health for index lifecycle management component.
@@ -100,32 +104,29 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
 
     static final Map<String, RuleConfig> RULES_BY_ACTION_CONFIG = Map.of(
         RolloverAction.NAME,
-        new ActionRule(RolloverAction.NAME).and(new StepRule(WaitForActiveShardsStep.NAME, ONE_DAY, 100)),
+        actionRule(RolloverAction.NAME).stepRules(stepRule(WaitForActiveShardsStep.NAME)),
         //
         MigrateAction.NAME,
-        new ActionRule(MigrateAction.NAME, ONE_DAY),
+        actionRule(MigrateAction.NAME).maxTimeOnAction(ONE_DAY).noStepRules(),
         //
         SearchableSnapshotAction.NAME,
-        new ActionRule(SearchableSnapshotAction.NAME, ONE_DAY).and(
-            new StepRule(WaitForDataTierStep.NAME, ONE_DAY, 100) //
-                .or(new StepRule(WaitForIndexColorStep.NAME, ONE_DAY, 100)) //
-                .or(new StepRule(WaitForNoFollowersStep.NAME, ONE_DAY, 100))
-        ),
+        actionRule(SearchableSnapshotAction.NAME).maxTimeOnAction(ONE_DAY)
+            .stepRules(stepRule(WaitForDataTierStep.NAME), stepRule(WaitForIndexColorStep.NAME), stepRule(WaitForNoFollowersStep.NAME)),
         //
-        DeleteStep.NAME,
-        new ActionRule(DeleteStep.NAME, ONE_DAY),
+        DeleteAction.NAME,
+        actionRule(DeleteAction.NAME).maxTimeOnAction(ONE_DAY).stepRules(stepRule(DeleteStep.NAME)),
         //
         ShrinkAction.NAME,
-        new ActionRule(ShrinkAction.NAME, ONE_DAY).and(new StepRule(WaitForNoFollowersStep.NAME, ONE_DAY, 100)),
+        actionRule(ShrinkAction.NAME).maxTimeOnAction(ONE_DAY).stepRules(stepRule(WaitForNoFollowersStep.NAME)),
         //
         AllocateAction.NAME,
-        new ActionRule(AllocateAction.NAME, ONE_DAY),
+        actionRule(AllocateAction.NAME).maxTimeOnAction(ONE_DAY).noStepRules(),
         //
         ForceMergeAction.NAME,
-        new ActionRule(ForceMergeAction.NAME, ONE_DAY).and(new StepRule(WaitForIndexColorStep.NAME, ONE_DAY, 100)),
+        actionRule(ForceMergeAction.NAME).maxTimeOnAction(ONE_DAY).stepRules(stepRule(WaitForIndexColorStep.NAME)),
         //
         DownsampleAction.NAME,
-        new ActionRule(DownsampleAction.NAME, ONE_DAY).and(new StepRule(WaitForNoFollowersStep.NAME, ONE_DAY, 100))
+        actionRule(DownsampleAction.NAME).maxTimeOnAction(ONE_DAY).stepRules(stepRule(WaitForNoFollowersStep.NAME))
     );
 
     public static final StagnatingIndicesRuleEvaluator ILM_RULE_EVALUATOR = new StagnatingIndicesRuleEvaluator(
@@ -314,12 +315,34 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
         default RuleConfig and(BiPredicate<? super Long, ? super IndexMetadata> other) {
             return (RuleConfig) BiPredicate.super.and(other);
         }
+
+        class Builder {
+            private String action;
+            private TimeValue maxTimeOn = null;
+
+            static Builder actionRule(String action) {
+                var builder = new Builder();
+                builder.action = action;
+                return builder;
+            }
+
+            Builder maxTimeOnAction(TimeValue maxTimeOn) {
+                this.maxTimeOn = maxTimeOn;
+                return this;
+            }
+
+            RuleConfig stepRules(StepRule... stepRules) {
+                var reduce = Arrays.stream(stepRules).reduce(new StepRule("", null, 0), StepRule::or);
+                return new ActionRule(action, maxTimeOn).and(reduce);
+            }
+
+            RuleConfig noStepRules() {
+                return new ActionRule(action, maxTimeOn);
+            }
+        }
     }
 
-    private record ActionRule(String action, TimeValue maxTimeOn) implements RuleConfig {
-        ActionRule(String action) {
-            this(action, null);
-        }
+    record ActionRule(String action, TimeValue maxTimeOn) implements RuleConfig {
 
         @Override
         public boolean test(Long now, IndexMetadata indexMetadata) {
@@ -333,13 +356,22 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
         }
     }
 
-    private record StepRule(String step, TimeValue maxTimeOn, long maxRetries) implements RuleConfig {
+    record StepRule(String step, TimeValue maxTimeOn, long maxRetries) implements RuleConfig {
+        static StepRule stepRule(String name) {
+            return new StepRule(name, ONE_DAY, 100);
+        }
+
         @Override
         public boolean test(Long now, IndexMetadata indexMetadata) {
             var currentStep = indexMetadata.getLifecycleExecutionState().step();
             var currentStepRetries = indexMetadata.getLifecycleExecutionState().failedStepRetryCount();
             var currentTimeOnAction = safelyGetTimeValue(now, indexMetadata.getLifecycleExecutionState().actionTime());
-            return step.contains(currentStep) && (maxTimeOn.compareTo(currentTimeOnAction) < 0 || currentStepRetries > maxRetries);
+            return step.equals(currentStep) && (maxTimeOn.compareTo(currentTimeOnAction) < 0 || currentStepRetries > maxRetries);
+        }
+
+        @Override
+        public StepRule or(BiPredicate<? super Long, ? super IndexMetadata> other) {
+            return (StepRule) RuleConfig.super.or(other);
         }
     }
 }

@@ -73,9 +73,13 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             assertEquals(size(50), region2.tracker.getLength());
             assertEquals(2, cacheService.freeRegionCount());
 
-            assertTrue(region1.tryEvict());
+            synchronized (cacheService) {
+                assertTrue(region1.tryEvict());
+            }
             assertEquals(3, cacheService.freeRegionCount());
-            assertFalse(region1.tryEvict());
+            synchronized (cacheService) {
+                assertFalse(region1.tryEvict());
+            }
             assertEquals(3, cacheService.freeRegionCount());
             final var bytesReadFuture = new PlainActionFuture<Integer>();
             region0.populateAndRead(
@@ -86,13 +90,19 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
                 bytesReadFuture
             );
-            assertFalse(region0.tryEvict());
+            synchronized (cacheService) {
+                assertFalse(region0.tryEvict());
+            }
             assertEquals(3, cacheService.freeRegionCount());
             assertFalse(bytesReadFuture.isDone());
             taskQueue.runAllRunnableTasks();
-            assertTrue(region0.tryEvict());
+            synchronized (cacheService) {
+                assertTrue(region0.tryEvict());
+            }
             assertEquals(4, cacheService.freeRegionCount());
-            assertTrue(region2.tryEvict());
+            synchronized (cacheService) {
+                assertTrue(region2.tryEvict());
+            }
             assertEquals(5, cacheService.freeRegionCount());
             assertTrue(bytesReadFuture.isDone());
             assertEquals(Integer.valueOf(1), bytesReadFuture.actionGet());
@@ -130,7 +140,9 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             assertFalse(region1.isEvicted());
 
             // explicitly evict region 1
-            assertTrue(region1.tryEvict());
+            synchronized (cacheService) {
+                assertTrue(region1.tryEvict());
+            }
             assertEquals(1, cacheService.freeRegionCount());
         }
     }

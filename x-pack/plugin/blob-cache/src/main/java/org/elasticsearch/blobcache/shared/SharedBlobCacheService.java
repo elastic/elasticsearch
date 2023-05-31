@@ -701,7 +701,8 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         private final AtomicBoolean evicted = new AtomicBoolean(false);
 
         // tries to evict this chunk if noone is holding onto its resources anymore
-        public boolean tryEvict() {
+        // visible for tests.
+        boolean tryEvict() {
             assert Thread.holdsLock(SharedBlobCacheService.this) : "must hold lock when evicting";
             if (refCount() <= 1 && evicted.compareAndSet(false, true)) {
                 logger.trace("evicted {} with channel offset {}", regionKey, physicalStartOffset());

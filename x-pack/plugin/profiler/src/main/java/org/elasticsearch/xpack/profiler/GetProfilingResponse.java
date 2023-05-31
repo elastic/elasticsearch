@@ -196,7 +196,7 @@ public class GetProfilingResponse extends ActionResponse implements ChunkedToXCo
                 Iterators.single((b, p) -> b.field("sampling_exponent", samplingExponent)),
                 ChunkedToXContentHelper.endObject()
             );
-        }
+       }
     }
 
     private <T> Iterator<? extends ToXContent> optional(

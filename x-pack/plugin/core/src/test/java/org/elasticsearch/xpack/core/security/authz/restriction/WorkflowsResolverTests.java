@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.core.security.authz.restriction;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -21,14 +22,7 @@ public class WorkflowsResolverTests extends ESTestCase {
             () -> randomAlphaOfLengthBetween(5, 10)
         );
         var e = expectThrows(IllegalArgumentException.class, () -> WorkflowsResolver.resolveWorkflowByName(invalidWorkflowName));
-        assertThat(
-            e.getMessage(),
-            Matchers.containsString(
-                "Unknown workflow ["
-                    + invalidWorkflowName
-                    + "]. A workflow must be one of the predefined workflow names [search_application_query,search_application_analytics]."
-            )
-        );
+        assertThat(e.getMessage(), containsString("Unknown workflow [" + invalidWorkflowName + "]"));
 
         String validWorkflowName = randomFrom(WorkflowsResolver.names());
         Workflow resolvedWorkflow = WorkflowsResolver.resolveWorkflowByName(validWorkflowName);

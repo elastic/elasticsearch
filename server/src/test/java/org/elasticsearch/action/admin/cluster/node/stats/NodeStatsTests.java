@@ -481,13 +481,28 @@ public class NodeStatsTests extends ESTestCase {
     }
 
     private static int expectedChunks(NodeStats nodeStats, NodeStatsLevel level) {
-        return 6 // one per each chunkeable object
+        return 7 // one per each chunkeable object
             + expectedChunks(nodeStats.getHttp()) //
             + expectedChunks(nodeStats.getIndices(), level) //
             + expectedChunks(nodeStats.getTransport()) //
             + expectedChunks(nodeStats.getIngestStats()) //
             + expectedChunks(nodeStats.getThreadPool()) //
-            + expectedChunks(nodeStats.getScriptStats());
+            + expectedChunks(nodeStats.getScriptStats()) //
+            + expectedChunks(nodeStats.getScriptCacheStats());
+    }
+
+    private static int expectedChunks(ScriptCacheStats scriptCacheStats) {
+        if (scriptCacheStats == null) return 0;
+
+        var chunks = 4;
+        if (scriptCacheStats.general() != null) {
+            chunks += 3;
+        } else {
+            chunks += 2;
+            chunks += scriptCacheStats.context().size() * 6;
+        }
+
+        return chunks;
     }
 
     private static int expectedChunks(ScriptStats scriptStats) {

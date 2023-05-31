@@ -59,7 +59,7 @@ to include in the statistics.
 [role="child_attributes"]
 [[field-usage-stats-api-response-body]]
 ==== {api-response-body-title}
-The response body reports the usage-count of the data structures used to store <<mapping-types, _field data types_>>.
+The response body reports the per-shard usage count of the data structures that back the fields in the index.
 A given request will increment each count by a maximum value of 1, even if the request accesses the same field multiple times.
 
 Note that there are multiple _field data types_ that are stored in the same underlying data structures (e.g. see `terms` below).

@@ -49,6 +49,7 @@ import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardSnapshotResult;
+import org.elasticsearch.repositories.SnapshotIndexCommit;
 import org.elasticsearch.repositories.SnapshotShardContext;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.snapshots.Snapshot;
@@ -108,7 +109,7 @@ public class FsRepositoryTests extends ESTestCase {
                     null,
                     snapshotId,
                     indexId,
-                    new Engine.IndexCommitRef(indexCommit, () -> {}),
+                    new SnapshotIndexCommit(new Engine.IndexCommitRef(indexCommit, () -> {})),
                     null,
                     snapshotStatus,
                     Version.CURRENT,
@@ -151,7 +152,7 @@ public class FsRepositoryTests extends ESTestCase {
                     null,
                     incSnapshotId,
                     indexId,
-                    new Engine.IndexCommitRef(incIndexCommit, () -> {}),
+                    new SnapshotIndexCommit(new Engine.IndexCommitRef(incIndexCommit, () -> {})),
                     null,
                     snapshotStatus2,
                     Version.CURRENT,

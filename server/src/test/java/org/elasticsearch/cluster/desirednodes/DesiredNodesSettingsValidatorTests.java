@@ -52,10 +52,7 @@ public class DesiredNodesSettingsValidatorTests extends ESTestCase {
         final List<DesiredNode> desiredNodes = randomList(2, 10, () -> randomDesiredNode(Version.CURRENT, settings.build()));
 
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> validator.validate(desiredNodes));
-        assertThat(exception.getMessage(), containsString("Nodes with ids"));
-        assertThat(exception.getMessage(), containsString("contain invalid settings"));
-        assertThat(exception.getSuppressed().length > 0, is(equalTo(true)));
-        assertThat(exception.getSuppressed()[0].getMessage(), containsString("Failed to parse value"));
+        assertSettingValueIsInvalid(exception);
     }
 
     public void testSecureSettingsDependencyValidation() {
@@ -82,6 +79,37 @@ public class DesiredNodesSettingsValidatorTests extends ESTestCase {
             () -> randomDesiredNode(Version.CURRENT, Settings.builder().put("my.repo.default.endpoint_suffix", "suffix_value").build())
         );
         validator.validate(desiredNodes);
+    }
+
+    public void testSecureSettingsDependencyFormatValidation() {
+        final var secureDependencySetting = Setting.affixKeySetting("my.repo.", "account", key -> SecureSetting.secureString(key, null));
+        final Set<Setting<?>> availableSettings = Set.of(
+            secureDependencySetting,
+            Setting.affixKeySetting(
+                "my.repo.",
+                "endpoint_suffix",
+                key -> Setting.intSetting(key, 1, Setting.Property.NodeScope),
+                () -> secureDependencySetting
+            ),
+            NODE_EXTERNAL_ID_SETTING,
+            NODE_NAME_SETTING
+        );
+
+        // Secure settings are not available after the node has been initialized
+        final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, availableSettings);
+        final DesiredNodesSettingsValidator validator = new DesiredNodesSettingsValidator(clusterSettings);
+
+        final List<DesiredNode> desiredNodes = randomList(
+            2,
+            10,
+            () -> randomDesiredNode(
+                Version.CURRENT,
+                Settings.builder().put("my.repo.default.endpoint_suffix", randomAlphaOfLength(10)).build()
+            )
+        );
+
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> validator.validate(desiredNodes));
+        assertSettingValueIsInvalid(exception);
     }
 
     public void testRegularSettingDependencyValidation() {
@@ -193,6 +221,12 @@ public class DesiredNodesSettingsValidatorTests extends ESTestCase {
                 containsString("Failed to parse value [129.1] for setting [node.processors] must be <= 128.0")
             );
         }
+    }
 
+    private static void assertSettingValueIsInvalid(IllegalArgumentException exception) {
+        assertThat(exception.getMessage(), containsString("Nodes with ids"));
+        assertThat(exception.getMessage(), containsString("contain invalid settings"));
+        assertThat(exception.getSuppressed().length > 0, is(equalTo(true)));
+        assertThat(exception.getSuppressed()[0].getMessage(), containsString("Failed to parse value"));
     }
 }

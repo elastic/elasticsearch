@@ -508,6 +508,28 @@ public abstract class AbstractScopedSettings {
         final boolean ignoreArchivedSettings,
         final boolean validateInternalOrPrivateIndex
     ) {
+        validate(settings, validateValues, ignorePrivateSettings, ignoreArchivedSettings, validateInternalOrPrivateIndex, true);
+    }
+
+    /**
+     * Validates that all settings are registered and valid.
+     *
+     * @param settings                       the settings
+     * @param validateValues                 true if values should be validated, otherwise only keys are validated
+     * @param ignorePrivateSettings          true if private settings should be ignored during validation
+     * @param ignoreArchivedSettings         true if archived settings should be ignored during validation
+     * @param validateInternalOrPrivateIndex true if index internal settings should be validated
+     * @param validateSecureDependencies     true if secure setting dependencies should be validated
+     * @see Setting#getSettingsDependencies(String)
+     */
+    public final void validate(
+        final Settings settings,
+        final boolean validateValues,
+        final boolean ignorePrivateSettings,
+        final boolean ignoreArchivedSettings,
+        final boolean validateInternalOrPrivateIndex,
+        final boolean validateSecureDependencies
+    ) {
         final List<RuntimeException> exceptions = new ArrayList<>();
         for (final String key : settings.keySet()) { // settings iterate in deterministic fashion
             final Setting<?> setting = getRaw(key);
@@ -518,7 +540,7 @@ public abstract class AbstractScopedSettings {
                 continue;
             }
             try {
-                validate(key, settings, validateValues, validateInternalOrPrivateIndex);
+                validate(key, settings, validateValues, validateInternalOrPrivateIndex, validateSecureDependencies);
             } catch (final RuntimeException ex) {
                 exceptions.add(ex);
             }
@@ -548,6 +570,26 @@ public abstract class AbstractScopedSettings {
      * @throws IllegalArgumentException if the setting is invalid
      */
     void validate(final String key, final Settings settings, final boolean validateValue, final boolean validateInternalOrPrivateIndex) {
+        validate(key, settings, validateValue, validateInternalOrPrivateIndex, true);
+    }
+
+    /**
+     * Validates that the settings is valid.
+     *
+     * @param key                            the key of the setting to validate
+     * @param settings                       the settings
+     * @param validateValue                  true if value should be validated, otherwise only keys are validated
+     * @param validateInternalOrPrivateIndex true if internal index settings should be validated
+     * @param validateSecureDependencies     true if secure setting dependencies should be validated
+     * @throws IllegalArgumentException if the setting is invalid
+     */
+    void validate(
+        final String key,
+        final Settings settings,
+        final boolean validateValue,
+        final boolean validateInternalOrPrivateIndex,
+        final boolean validateSecureDependencies
+    ) {
         Setting<?> setting = getRaw(key);
         if (setting == null) {
             LevenshteinDistance ld = new LevenshteinDistance();
@@ -584,6 +626,9 @@ public abstract class AbstractScopedSettings {
             if (validateValue && settingsDependencies.isEmpty() == false) {
                 for (final Setting.SettingDependency settingDependency : settingsDependencies) {
                     final Setting<?> dependency = settingDependency.getSetting();
+                    if (dependency.isSecure() && validateSecureDependencies == false) {
+                        continue;
+                    }
                     // validate the dependent setting is set
                     if (dependency.existsOrFallbackExists(settings) == false) {
                         final String message = String.format(

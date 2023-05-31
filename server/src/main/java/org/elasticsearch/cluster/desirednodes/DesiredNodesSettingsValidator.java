@@ -103,23 +103,7 @@ public class DesiredNodesSettingsValidator {
             settingsToValidate.remove(NODE_PROCESSORS_SETTING.getKey());
         }
 
-        for (String settingKey : nodeSettings.keySet()) {
-            var rawSetting = clusterSettings.getRaw(settingKey);
-            if (rawSetting == null) {
-                continue;
-            }
-            for (Setting.SettingDependency settingsDependency : rawSetting.getSettingsDependencies(settingKey)) {
-                var dependency = settingsDependency.getSetting();
-                if (dependency.isSecure()) {
-                    // we cannot access to the secure settings after the node has been initialized,
-                    // therefore we cannot validate that the dependency is present at this stage
-                    settingsToValidate.remove(settingKey);
-                    break;
-                }
-            }
-        }
-
-        clusterSettings.validate(settingsToValidate.build(), true);
+        clusterSettings.validate(settingsToValidate.build(), true, false, false, false, false);
     }
 
 }

@@ -462,14 +462,7 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
             if (error != null) {
                 return new GetProfilingResponse(error);
             } else {
-                return new GetProfilingResponse(
-                    stackTraces,
-                    stackFrames,
-                    executables,
-                    stackTraceEvents,
-                    totalFrames,
-                    samplingRate
-                );
+                return new GetProfilingResponse(stackTraces, stackFrames, executables, stackTraceEvents, totalFrames, samplingRate);
             }
         }
     }

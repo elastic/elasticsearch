@@ -202,7 +202,9 @@ public class NativePrivilegeStore {
                     ApplicationPrivilegeDescriptor.Fields.TYPE.getPreferredName(),
                     DOC_TYPE_VALUE
                 );
-                final Tuple<QueryBuilder, Predicate<String>> applicationNameQueryAndPredicate = getApplicationNameQuery(applications);
+                final Tuple<QueryBuilder, Predicate<String>> applicationNameQueryAndPredicate = getApplicationNameQueryAndPredicate(
+                    applications
+                );
                 final QueryBuilder query = QueryBuilders.boolQuery().filter(typeQuery).filter(applicationNameQueryAndPredicate.v1());
 
                 final Supplier<ThreadContext.StoredContext> supplier = client.threadPool().getThreadContext().newRestorableContext(false);
@@ -226,7 +228,7 @@ public class NativePrivilegeStore {
         }
     }
 
-    private Tuple<QueryBuilder, Predicate<String>> getApplicationNameQuery(Collection<String> applications) {
+    private Tuple<QueryBuilder, Predicate<String>> getApplicationNameQueryAndPredicate(Collection<String> applications) {
         if (applications.contains("*")) {
             return new Tuple<>(QueryBuilders.existsQuery(APPLICATION.getPreferredName()), null);
         }

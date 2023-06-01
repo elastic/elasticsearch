@@ -413,6 +413,9 @@ GET /_xpack/usage
     "enabled": true,
     "search_applications" : {
       "count": 0
+    },
+    "analytics_collections": {
+      "count": 0
     }
   }
 }

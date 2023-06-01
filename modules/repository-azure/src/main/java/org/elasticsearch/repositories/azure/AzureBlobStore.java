@@ -46,8 +46,10 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.DeleteResult;
+import org.elasticsearch.common.blobstore.OptionalBytesReference;
 import org.elasticsearch.common.blobstore.support.BlobContainerUtils;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -77,7 +79,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.OptionalLong;
 import java.util.Spliterator;
 import java.util.Spliterators;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -764,11 +765,6 @@ public class AzureBlobStore implements BlobStore {
             }
         }
 
-        @Override
-        public long skip(long n) {
-            throw new UnsupportedOperationException("skip is not supported");
-        }
-
         private void releaseByteBuf(ByteBuf buf) {
             ReferenceCountUtil.safeRelease(buf);
             this.byteBuf = null;
@@ -815,10 +811,10 @@ public class AzureBlobStore implements BlobStore {
         }
     }
 
-    OptionalLong getRegister(String blobPath, String containerPath, String blobKey) {
+    OptionalBytesReference getRegister(String blobPath, String containerPath, String blobKey) {
         try {
             return SocketAccess.doPrivilegedException(
-                () -> OptionalLong.of(
+                () -> OptionalBytesReference.of(
                     downloadRegisterBlob(
                         containerPath,
                         blobKey,
@@ -830,16 +826,23 @@ public class AzureBlobStore implements BlobStore {
         } catch (Exception e) {
             if (Throwables.getRootCause(e) instanceof BlobStorageException blobStorageException
                 && blobStorageException.getStatusCode() == RestStatus.NOT_FOUND.getStatus()) {
-                return OptionalLong.empty();
+                return OptionalBytesReference.MISSING;
             }
             throw e;
         }
     }
 
-    OptionalLong compareAndExchangeRegister(String blobPath, String containerPath, String blobKey, long expected, long updated) {
+    OptionalBytesReference compareAndExchangeRegister(
+        String blobPath,
+        String containerPath,
+        String blobKey,
+        BytesReference expected,
+        BytesReference updated
+    ) {
+        BlobContainerUtils.ensureValidRegisterContent(updated);
         try {
             return SocketAccess.doPrivilegedException(
-                () -> OptionalLong.of(
+                () -> OptionalBytesReference.of(
                     innerCompareAndExchangeRegister(
                         containerPath,
                         blobKey,
@@ -853,31 +856,31 @@ public class AzureBlobStore implements BlobStore {
             if (Throwables.getRootCause(e) instanceof BlobStorageException blobStorageException) {
                 if (blobStorageException.getStatusCode() == RestStatus.PRECONDITION_FAILED.getStatus()
                     || blobStorageException.getStatusCode() == RestStatus.CONFLICT.getStatus()) {
-                    return OptionalLong.empty();
+                    return OptionalBytesReference.MISSING;
                 }
             }
             throw e;
         }
     }
 
-    private static long innerCompareAndExchangeRegister(
+    private static BytesReference innerCompareAndExchangeRegister(
         String containerPath,
         String blobKey,
         BlobClient blobClient,
-        long expected,
-        long updated
+        BytesReference expected,
+        BytesReference updated
     ) throws IOException {
         if (blobClient.exists()) {
             final var leaseClient = new BlobLeaseClientBuilder().blobClient(blobClient).buildClient();
             final var leaseId = leaseClient.acquireLease(60);
             try {
-                final long currentValue = downloadRegisterBlob(
+                final BytesReference currentValue = downloadRegisterBlob(
                     containerPath,
                     blobKey,
                     blobClient,
                     new BlobRequestConditions().setLeaseId(leaseId)
                 );
-                if (currentValue == expected) {
+                if (currentValue.equals(expected)) {
                     uploadRegisterBlob(updated, blobClient, new BlobRequestConditions().setLeaseId(leaseId));
                 }
                 return currentValue;
@@ -885,14 +888,14 @@ public class AzureBlobStore implements BlobStore {
                 leaseClient.releaseLease();
             }
         } else {
-            if (expected == 0L) {
+            if (expected.length() == 0) {
                 uploadRegisterBlob(updated, blobClient, new BlobRequestConditions().setIfNoneMatch("*"));
             }
-            return 0L;
+            return BytesArray.EMPTY;
         }
     }
 
-    private static long downloadRegisterBlob(
+    private static BytesReference downloadRegisterBlob(
         String containerPath,
         String blobKey,
         BlobClient blobClient,
@@ -907,8 +910,8 @@ public class AzureBlobStore implements BlobStore {
         );
     }
 
-    private static void uploadRegisterBlob(long value, BlobClient blobClient, BlobRequestConditions requestConditions) throws IOException {
-        final var blobContents = BlobContainerUtils.getRegisterBlobContents(value);
+    private static void uploadRegisterBlob(BytesReference blobContents, BlobClient blobClient, BlobRequestConditions requestConditions)
+        throws IOException {
         blobClient.uploadWithResponse(
             new BlobParallelUploadOptions(BinaryData.fromStream(blobContents.streamInput(), (long) blobContents.length()))
                 .setRequestConditions(requestConditions),

@@ -47,6 +47,10 @@ public class Sum extends InternalNumericMetricsAggregation.SingleValue {
         return SumAggregationBuilder.NAME;
     }
 
+    public static Sum empty(String name, DocValueFormat format, Map<String, Object> metadata) {
+        return new Sum(name, 0.0, format, metadata);
+    }
+
     @Override
     public double value() {
         return sum;

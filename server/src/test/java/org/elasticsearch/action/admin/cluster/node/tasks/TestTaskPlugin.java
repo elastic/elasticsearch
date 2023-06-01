@@ -421,7 +421,7 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
 
         @Override
         protected void taskOperation(
-            Task actionTask,
+            CancellableTask actionTask,
             UnblockTestTasksRequest request,
             Task task,
             ActionListener<UnblockTestTaskResponse> listener

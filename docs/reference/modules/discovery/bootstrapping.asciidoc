@@ -4,11 +4,9 @@
 Starting an Elasticsearch cluster for the very first time requires the initial
 set of <<master-node,master-eligible nodes>> to be explicitly defined on one or
 more of the master-eligible nodes in the cluster. This is known as _cluster
-bootstrapping_. This is only required the first time a cluster starts up: nodes
-that have already joined a cluster store this information in their data folder
-for use in a <<restart-upgrade,full cluster restart>>, and freshly-started nodes
-that are joining a running cluster obtain this information from the cluster's
-elected master.
+bootstrapping_. This is only required the first time a cluster starts up.
+Freshly-started nodes that are joining a running cluster obtain this 
+information from the cluster's elected master.
 
 The initial set of master-eligible nodes is defined in the
 <<initial_master_nodes,`cluster.initial_master_nodes` setting>>. This should be

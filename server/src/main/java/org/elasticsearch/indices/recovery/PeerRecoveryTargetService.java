@@ -356,6 +356,11 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         return recoverySettings.tryAcquireSnapshotDownloadPermits();
     }
 
+    // Visible for testing
+    public int ongoingRecoveryCount() {
+        return onGoingRecoveries.size();
+    }
+
     /**
      * Prepare the start recovery request.
      *

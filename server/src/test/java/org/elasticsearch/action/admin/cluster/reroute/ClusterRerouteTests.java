@@ -40,7 +40,6 @@ import org.elasticsearch.test.gateway.TestGatewayAllocator;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
@@ -82,8 +81,7 @@ public class ClusterRerouteTests extends ESAllocationTestCase {
         );
         ClusterState clusterState = createInitialClusterState(allocationService);
 
-        var responseRef = new AtomicReference<ClusterRerouteResponse>();
-        var responseActionListener = ActionListener.<ClusterRerouteResponse>wrap(responseRef::set, exception -> {
+        var responseActionListener = ActionListener.<ClusterRerouteResponse>wrap(ignore -> {}, exception -> {
             throw new AssertionError("Should not fail in test", exception);
         });
 
@@ -99,7 +97,6 @@ public class ClusterRerouteTests extends ESAllocationTestCase {
         ClusterState execute = task.execute(clusterState);
         assertSame(execute, clusterState); // dry-run should keep the current cluster state
         task.onAllNodesAcked();
-        assertNotSame(responseRef.get().getState(), execute);
     }
 
     public void testClusterStateUpdateTask() {

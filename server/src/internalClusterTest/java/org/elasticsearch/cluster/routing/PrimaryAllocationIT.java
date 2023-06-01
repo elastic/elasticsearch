@@ -161,7 +161,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
             () -> assertThat(internalCluster().getInstance(GatewayAllocator.class, master).getNumberOfInFlightFetches(), equalTo(0))
         );
         // kick reroute a second time and check that all shards are unassigned
-        assertThat(client(master).admin().cluster().prepareReroute().get().getState().getRoutingNodes().unassigned().size(), equalTo(2));
+        assertThat(client(master).admin().cluster().prepareState().get().getState().getRoutingNodes().unassigned().size(), equalTo(2));
         return inSyncDataPathSettings;
     }
 

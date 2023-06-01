@@ -103,13 +103,14 @@ public class ClusterRerouteIT extends ESIntegTestCase {
         assertThat(state.getRoutingNodes().unassigned().size(), equalTo(2));
 
         logger.info("--> explicitly allocate shard 1, *under dry_run*");
-        state = clusterAdmin().prepareReroute()
+        clusterAdmin().prepareReroute()
             .setExplain(randomBoolean())
             .add(new AllocateEmptyPrimaryAllocationCommand("test", 0, node_1, true))
             .setDryRun(true)
-            .execute()
-            .actionGet()
-            .getState();
+            .get();
+
+        state = clusterAdmin().prepareState().execute().actionGet().getState();
+
         assertThat(state.getRoutingNodes().unassigned().size(), equalTo(1));
         assertThat(
             state.getRoutingNodes().node(state.nodes().resolveNode(node_1).getId()).iterator().next().state(),
@@ -121,12 +122,13 @@ public class ClusterRerouteIT extends ESIntegTestCase {
         assertThat(state.getRoutingNodes().unassigned().size(), equalTo(2));
 
         logger.info("--> explicitly allocate shard 1, actually allocating, no dry run");
-        state = clusterAdmin().prepareReroute()
+        clusterAdmin().prepareReroute()
             .setExplain(randomBoolean())
             .add(new AllocateEmptyPrimaryAllocationCommand("test", 0, node_1, true))
-            .execute()
-            .actionGet()
-            .getState();
+            .get();
+
+        state = clusterAdmin().prepareState().execute().actionGet().getState();
+
         assertThat(state.getRoutingNodes().unassigned().size(), equalTo(1));
         assertThat(
             state.getRoutingNodes().node(state.nodes().resolveNode(node_1).getId()).iterator().next().state(),
@@ -150,12 +152,9 @@ public class ClusterRerouteIT extends ESIntegTestCase {
         );
 
         logger.info("--> move shard 1 primary from node1 to node2");
-        state = clusterAdmin().prepareReroute()
-            .setExplain(randomBoolean())
-            .add(new MoveAllocationCommand("test", 0, node_1, node_2))
-            .execute()
-            .actionGet()
-            .getState();
+        clusterAdmin().prepareReroute().setExplain(randomBoolean()).add(new MoveAllocationCommand("test", 0, node_1, node_2)).get();
+
+        state = clusterAdmin().prepareState().execute().actionGet().getState();
 
         assertThat(
             state.getRoutingNodes().node(state.nodes().resolveNode(node_1).getId()).iterator().next().state(),
@@ -260,12 +259,13 @@ public class ClusterRerouteIT extends ESIntegTestCase {
         assertThat(state.getRoutingNodes().unassigned().size(), equalTo(2));
 
         logger.info("--> explicitly allocate shard 1, actually allocating, no dry run");
-        state = clusterAdmin().prepareReroute()
+        clusterAdmin().prepareReroute()
             .setExplain(randomBoolean())
             .add(new AllocateEmptyPrimaryAllocationCommand("test", 0, node_1, true))
-            .execute()
-            .actionGet()
-            .getState();
+            .get();
+
+        state = clusterAdmin().prepareState().get().getState();
+
         assertThat(state.getRoutingNodes().unassigned().size(), equalTo(1));
         assertThat(
             state.getRoutingNodes().node(state.nodes().resolveNode(node_1).getId()).iterator().next().state(),
@@ -313,12 +313,13 @@ public class ClusterRerouteIT extends ESIntegTestCase {
             equalTo(ClusterHealthStatus.RED)
         );
         logger.info("--> explicitly allocate primary");
-        state = clusterAdmin().prepareReroute()
+        clusterAdmin().prepareReroute()
             .setExplain(randomBoolean())
             .add(new AllocateEmptyPrimaryAllocationCommand("test", 0, node_1, true))
-            .execute()
-            .actionGet()
-            .getState();
+            .get();
+
+        state = clusterAdmin().prepareState().execute().actionGet().getState();
+
         assertThat(state.getRoutingNodes().unassigned().size(), equalTo(1));
         assertThat(
             state.getRoutingNodes().node(state.nodes().resolveNode(node_1).getId()).iterator().next().state(),

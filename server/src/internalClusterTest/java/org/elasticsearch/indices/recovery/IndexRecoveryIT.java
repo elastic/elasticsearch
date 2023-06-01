@@ -449,13 +449,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         slowDownRecovery(shardSize);
 
         logger.info("--> move shard from: {} to: {}", nodeA, nodeB);
-        client().admin()
-            .cluster()
-            .prepareReroute()
-            .add(new MoveAllocationCommand(INDEX_NAME, 0, nodeA, nodeB))
-            .execute()
-            .actionGet()
-            .getState();
+        client().admin().cluster().prepareReroute().add(new MoveAllocationCommand(INDEX_NAME, 0, nodeA, nodeB)).get();
 
         logger.info("--> waiting for recovery to start both on source and target");
         final Index index = resolveIndex(INDEX_NAME);
@@ -582,13 +576,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         slowDownRecovery(shardSize);
 
         logger.info("--> move replica shard from: {} to: {}", nodeA, nodeC);
-        client().admin()
-            .cluster()
-            .prepareReroute()
-            .add(new MoveAllocationCommand(INDEX_NAME, 0, nodeA, nodeC))
-            .execute()
-            .actionGet()
-            .getState();
+        client().admin().cluster().prepareReroute().add(new MoveAllocationCommand(INDEX_NAME, 0, nodeA, nodeC)).get();
 
         response = indicesAdmin().prepareRecoveries(INDEX_NAME).execute().actionGet();
         recoveryStates = response.shardRecoveryStates().get(INDEX_NAME);

@@ -190,7 +190,6 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
         private final AllocationActionListener<ClusterRerouteResponse> listener;
         private final Logger logger;
         private final AllocationService allocationService;
-        private volatile ClusterState clusterStateToSend;
         private volatile RoutingExplanations explanations;
 
         ClusterRerouteResponseAckedClusterStateUpdateTask(
@@ -219,17 +218,17 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
 
         @Override
         public void onAllNodesAcked() {
-            listener.clusterStateUpdate().onResponse(new ClusterRerouteResponse(true, clusterStateToSend, explanations));
+            listener.clusterStateUpdate().onResponse(new ClusterRerouteResponse(true, explanations));
         }
 
         @Override
         public void onAckFailure(Exception e) {
-            listener.clusterStateUpdate().onResponse(new ClusterRerouteResponse(false, clusterStateToSend, explanations));
+            listener.clusterStateUpdate().onResponse(new ClusterRerouteResponse(false, explanations));
         }
 
         @Override
         public void onAckTimeout() {
-            listener.clusterStateUpdate().onResponse(new ClusterRerouteResponse(false, clusterStateToSend, new RoutingExplanations()));
+            listener.clusterStateUpdate().onResponse(new ClusterRerouteResponse(false, new RoutingExplanations()));
         }
 
         @Override
@@ -248,7 +247,6 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
                 request.dryRun(),
                 listener.reroute()
             );
-            clusterStateToSend = result.clusterState();
             explanations = result.explanations();
             return request.dryRun() ? currentState : result.clusterState();
         }

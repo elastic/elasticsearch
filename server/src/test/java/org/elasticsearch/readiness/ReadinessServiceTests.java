@@ -16,8 +16,8 @@ import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -53,7 +53,7 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
         final DiscoveryNode node;
 
         FakeHttpTransport() {
-            node = TestDiscoveryNode.builder("local").name("local").roles(Set.of(DiscoveryNodeRole.MASTER_ROLE)).build();
+            node = DiscoveryNodeUtils.builder("local").name("local").roles(Set.of(DiscoveryNodeRole.MASTER_ROLE)).build();
         }
 
         @Override

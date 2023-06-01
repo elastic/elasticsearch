@@ -73,9 +73,13 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             assertEquals(size(50), region2.tracker.getLength());
             assertEquals(2, cacheService.freeRegionCount());
 
-            assertTrue(region1.tryEvict());
+            synchronized (cacheService) {
+                assertTrue(region1.tryEvict());
+            }
             assertEquals(3, cacheService.freeRegionCount());
-            assertFalse(region1.tryEvict());
+            synchronized (cacheService) {
+                assertFalse(region1.tryEvict());
+            }
             assertEquals(3, cacheService.freeRegionCount());
             final var bytesReadFuture = new PlainActionFuture<Integer>();
             region0.populateAndRead(
@@ -86,13 +90,19 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
                 bytesReadFuture
             );
-            assertFalse(region0.tryEvict());
+            synchronized (cacheService) {
+                assertFalse(region0.tryEvict());
+            }
             assertEquals(3, cacheService.freeRegionCount());
             assertFalse(bytesReadFuture.isDone());
             taskQueue.runAllRunnableTasks();
-            assertTrue(region0.tryEvict());
+            synchronized (cacheService) {
+                assertTrue(region0.tryEvict());
+            }
             assertEquals(4, cacheService.freeRegionCount());
-            assertTrue(region2.tryEvict());
+            synchronized (cacheService) {
+                assertTrue(region2.tryEvict());
+            }
             assertEquals(5, cacheService.freeRegionCount());
             assertTrue(bytesReadFuture.isDone());
             assertEquals(Integer.valueOf(1), bytesReadFuture.actionGet());
@@ -130,7 +140,9 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             assertFalse(region1.isEvicted());
 
             // explicitly evict region 1
-            assertTrue(region1.tryEvict());
+            synchronized (cacheService) {
+                assertTrue(region1.tryEvict());
+            }
             assertEquals(1, cacheService.freeRegionCount());
         }
     }
@@ -230,6 +242,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 ByteSizeValue.ofBytes(size(between(1, 20) * 100L)).getStringRep()
             )
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_MIN_TIME_DELTA_SETTING.getKey(), randomFrom("0", "1ms", "10s"))
             .put("path.home", createTempDir())
             .build();
         long fileLength = size(500);
@@ -245,6 +258,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 String[] cacheKeys = IntStream.range(0, iterations).mapToObj(ignore -> randomFrom(files)).toArray(String[]::new);
                 int[] regions = IntStream.range(0, iterations).map(ignore -> between(0, 4)).toArray();
                 int[] yield = IntStream.range(0, iterations).map(ignore -> between(0, 9)).toArray();
+                int[] evict = IntStream.range(0, iterations).map(ignore -> between(0, 99)).toArray();
                 return new Thread(() -> {
                     try {
                         ready.await();
@@ -260,6 +274,9 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                                         Thread.yield();
                                     }
                                     cacheFileRegion.decRef();
+                                }
+                                if (evict[i] == 0) {
+                                    cacheService.forceEvict(x -> true);
                                 }
                             } catch (AlreadyClosedException e) {
                                 // ignore

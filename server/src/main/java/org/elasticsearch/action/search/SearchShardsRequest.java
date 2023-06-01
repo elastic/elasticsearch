@@ -105,6 +105,11 @@ public final class SearchShardsRequest extends ActionRequest implements IndicesR
     }
 
     @Override
+    public boolean includeDataStreams() {
+        return true;
+    }
+
+    @Override
     public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
         return new SearchTask(id, type, action, this::description, parentTaskId, headers);
     }

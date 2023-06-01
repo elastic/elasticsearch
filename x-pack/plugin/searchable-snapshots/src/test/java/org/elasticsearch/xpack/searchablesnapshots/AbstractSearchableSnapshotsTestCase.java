@@ -18,7 +18,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -234,7 +234,7 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
                 new IndexId("some_index", UUIDs.randomBase64UUID(random()))
             )
         );
-        DiscoveryNode targetNode = TestDiscoveryNode.create("local");
+        DiscoveryNode targetNode = DiscoveryNodeUtils.create("local");
         SearchableSnapshotRecoveryState recoveryState = new SearchableSnapshotRecoveryState(shardRouting, targetNode, null);
 
         recoveryState.setStage(RecoveryState.Stage.INIT)

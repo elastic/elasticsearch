@@ -220,9 +220,6 @@ public class ServerProcess {
         // Special circumstances require some modules (not depended on by the main server module) to be explicitly added:
         command.add("--add-modules=jdk.net"); // needed to reflectively set extended socket options
         command.add("--add-modules=org.elasticsearch.preallocate"); // needed on boot layer as target to open java.io
-        if (disableIncubatorModule(jvmOptions) == false) {
-            command.add("--add-modules=jdk.incubator.vector"); // switches Lucene VectorUtil to the vectorized implementation
-        }
         command.add("-m");
         command.add("org.elasticsearch.server/org.elasticsearch.bootstrap.Elasticsearch");
 
@@ -231,18 +228,6 @@ public class ServerProcess {
         builder.redirectOutput(ProcessBuilder.Redirect.INHERIT);
 
         return processStarter.start(builder);
-    }
-
-    /** Tells whether to disable the incubating vector module - it's enabled by default on JDK 20. */
-    static boolean disableIncubatorModule(List<String> jvmOptions) {
-        if (Runtime.version().feature() != 20) {
-            // we currently only support JDK 20. Each JDK version should be enabled explicitly, as appropriate
-            return true;
-        }
-        if (jvmOptions.contains("-Des.disable.jdk.incubator.vector")) {
-            return true;
-        }
-        return false;
     }
 
     /**

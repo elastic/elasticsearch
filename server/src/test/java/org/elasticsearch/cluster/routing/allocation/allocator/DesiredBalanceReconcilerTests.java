@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -1289,12 +1288,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
     private static DiscoveryNodes discoveryNodes(int nodeCount) {
         final var discoveryNodes = DiscoveryNodes.builder();
         for (var i = 0; i < nodeCount; i++) {
-            discoveryNodes.add(
-                TestDiscoveryNode.builder("node-" + i)
-                    .name("node-" + i)
-                    .roles(Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE))
-                    .build()
-            );
+            discoveryNodes.add(newNode("node-" + i, "node-" + i, Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE)));
         }
         discoveryNodes.masterNodeId("node-0").localNodeId("node-0");
         return discoveryNodes.build();

@@ -306,34 +306,8 @@ public class NodeStatsTests extends ESTestCase {
                 if (scriptStats == null) {
                     assertNull(deserializedScriptStats);
                 } else {
-                    List<ScriptContextStats> deserialized = deserializedScriptStats.getContextStats();
-                    long evictions = 0;
-                    long limited = 0;
-                    long compilations = 0;
-                    List<ScriptContextStats> stats = scriptStats.getContextStats();
-                    for (ScriptContextStats generatedStats : stats) {
-                        List<ScriptContextStats> maybeDeserStats = deserialized.stream()
-                            .filter(s -> s.getContext().equals(generatedStats.getContext()))
-                            .toList();
-
-                        assertEquals(1, maybeDeserStats.size());
-                        ScriptContextStats deserStats = maybeDeserStats.get(0);
-
-                        evictions += generatedStats.getCacheEvictions();
-                        assertEquals(generatedStats.getCacheEvictions(), deserStats.getCacheEvictions());
-
-                        limited += generatedStats.getCompilationLimitTriggered();
-                        assertEquals(generatedStats.getCompilationLimitTriggered(), deserStats.getCompilationLimitTriggered());
-
-                        compilations += generatedStats.getCompilations();
-                        assertEquals(generatedStats.getCompilations(), deserStats.getCompilations());
-
-                        assertEquals(generatedStats.getCacheEvictions(), deserStats.getCacheEvictions());
-                        assertEquals(generatedStats.getCompilations(), deserStats.getCompilations());
-                    }
-                    assertEquals(evictions, scriptStats.getCacheEvictions());
-                    assertEquals(limited, scriptStats.getCompilationLimitTriggered());
-                    assertEquals(compilations, scriptStats.getCompilations());
+                    assertEquals(scriptStats, deserializedScriptStats);
+                    assertNotSame(scriptStats, deserializedScriptStats);
                 }
                 DiscoveryStats discoveryStats = nodeStats.getDiscoveryStats();
                 DiscoveryStats deserializedDiscoveryStats = deserializedNodeStats.getDiscoveryStats();

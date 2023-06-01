@@ -25,15 +25,18 @@ import java.util.function.Function;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ScriptStatsTests extends ESTestCase {
-    public void testXContent() throws IOException {
+    public void testXContentChunked() throws IOException {
         List<ScriptContextStats> contextStats = List.of(
             new ScriptContextStats("contextB", 302, new TimeSeries(1000, 1001, 1002, 100), new TimeSeries(2000, 2001, 2002, 201)),
             new ScriptContextStats("contextA", 3020, new TimeSeries(1000), new TimeSeries(2010))
         );
         ScriptStats stats = ScriptStats.of(contextStats);
         final XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
+
         builder.startObject();
-        stats.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        for (var it = stats.toXContentChunked(ToXContent.EMPTY_PARAMS); it.hasNext(); ) {
+            it.next().toXContent(builder, ToXContent.EMPTY_PARAMS);
+        }
         builder.endObject();
 
         String expected = """
@@ -172,7 +175,7 @@ public class ScriptStatsTests extends ESTestCase {
             stats.writeTo(out);
             try (StreamInput in = out.bytes().streamInput()) {
                 in.setTransportVersion(inVersion);
-                return new ScriptContextStats(in);
+                return ScriptContextStats.of(in);
             }
         }
     }

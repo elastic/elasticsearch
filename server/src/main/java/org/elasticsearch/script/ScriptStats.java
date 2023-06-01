@@ -9,27 +9,37 @@
 package org.elasticsearch.script;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.xcontent.ToXContentFragment;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
+import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public record ScriptStats(
+import static org.elasticsearch.common.collect.Iterators.single;
+import static org.elasticsearch.script.ScriptContextStats.Fields.COMPILATIONS_HISTORY;
+import static org.elasticsearch.script.ScriptStats.Fields.CACHE_EVICTIONS;
+import static org.elasticsearch.script.ScriptStats.Fields.COMPILATIONS;
+import static org.elasticsearch.script.ScriptStats.Fields.COMPILATION_LIMIT_TRIGGERED;
+import static org.elasticsearch.script.ScriptStats.Fields.CONTEXTS;
+import static org.elasticsearch.script.ScriptStats.Fields.SCRIPT_STATS;
 
+public record ScriptStats(
     List<ScriptContextStats> contextStats,
     long compilations,
     long cacheEvictions,
     long compilationLimitTriggered,
     TimeSeries compilationsHistory,
     TimeSeries cacheEvictionsHistory
-) implements Writeable, ToXContentFragment {
+) implements Writeable, ChunkedToXContent {
 
     public ScriptStats(
         long compilations,
@@ -94,7 +104,7 @@ public record ScriptStats(
             cacheEvictionsHistory = new TimeSeries(cacheEvictions);
         }
         var compilationLimitTriggered = in.readVLong();
-        var contextStats = in.readList(ScriptContextStats::new);
+        var contextStats = in.readList(ScriptContextStats::of);
         return new ScriptStats(
             contextStats,
             compilations,
@@ -146,28 +156,28 @@ public record ScriptStats(
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(Fields.SCRIPT_STATS);
-        builder.field(Fields.COMPILATIONS, compilations);
-        builder.field(Fields.CACHE_EVICTIONS, cacheEvictions);
-        builder.field(Fields.COMPILATION_LIMIT_TRIGGERED, compilationLimitTriggered);
-        if (compilationsHistory != null && compilationsHistory.areTimingsEmpty() == false) {
-            builder.startObject(ScriptContextStats.Fields.COMPILATIONS_HISTORY);
-            compilationsHistory.toXContent(builder, params);
-            builder.endObject();
-        }
-        if (cacheEvictionsHistory != null && cacheEvictionsHistory.areTimingsEmpty() == false) {
-            builder.startObject(ScriptContextStats.Fields.COMPILATIONS_HISTORY);
-            cacheEvictionsHistory.toXContent(builder, params);
-            builder.endObject();
-        }
-        builder.startArray(Fields.CONTEXTS);
-        for (ScriptContextStats contextStats : contextStats) {
-            contextStats.toXContent(builder, params);
-        }
-        builder.endArray();
-        builder.endObject();
-        return builder;
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params outerParams) {
+        return Iterators.concat(
+            ChunkedToXContentHelper.startObject(SCRIPT_STATS),
+            ChunkedToXContentHelper.field(COMPILATIONS, compilations),
+            ChunkedToXContentHelper.field(CACHE_EVICTIONS, cacheEvictions),
+            ChunkedToXContentHelper.field(COMPILATION_LIMIT_TRIGGERED, compilationLimitTriggered),
+            single((builder, params) -> {
+                if (compilationsHistory != null && compilationsHistory.areTimingsEmpty() == false) {
+                    builder.startObject(COMPILATIONS_HISTORY);
+                    compilationsHistory.toXContent(builder, params);
+                    builder.endObject();
+                }
+                if (cacheEvictionsHistory != null && cacheEvictionsHistory.areTimingsEmpty() == false) {
+                    builder.startObject(COMPILATIONS_HISTORY);
+                    cacheEvictionsHistory.toXContent(builder, params);
+                    builder.endObject();
+                }
+                return builder;
+            }),
+            ChunkedToXContentHelper.array(CONTEXTS, contextStats.iterator()),
+            ChunkedToXContentHelper.endObject()
+        );
     }
 
     static final class Fields {

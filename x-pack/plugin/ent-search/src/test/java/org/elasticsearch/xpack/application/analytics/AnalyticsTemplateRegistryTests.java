@@ -406,7 +406,6 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
         assertBusy(() -> assertThat(calledTimes.get(), equalTo(registry.getIngestPipelines().size())));
     }
 
-
     public void testThatNothingIsInstalledWhenAllNodesAreNotUpdated() {
         DiscoveryNode updatedNode = TestDiscoveryNode.create("updatedNode");
         DiscoveryNode outdatedNode = TestDiscoveryNode.create("outdatedNode", ESTestCase.buildNewFakeTransportAddress(), Version.V_8_7_0);
@@ -425,7 +424,6 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
         ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyMap(), Collections.emptyMap(), nodes);
         registry.clusterChanged(event);
     }
-
 
     // -------------
 

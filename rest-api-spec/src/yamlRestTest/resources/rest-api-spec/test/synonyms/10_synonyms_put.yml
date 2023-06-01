@@ -45,7 +45,7 @@
             - synonyms: "bye => => goodbye"
 
   - do:
-      catch: /None of the supplied synonyms can be empty/
+      catch: /Incorrect syntax for \[synonyms\]/
       synonyms.put:
         synonyms_set: test-update-synonyms
         body:
@@ -53,7 +53,7 @@
             - synonyms: " => goodbye"
 
   - do:
-      catch: /None of the supplied synonyms can be empty/
+      catch: /Incorrect syntax for \[synonyms\]/
       synonyms.put:
         synonyms_set: test-update-synonyms
         body:
@@ -61,7 +61,7 @@
             - synonyms: "bye => "
 
   - do:
-      catch: /None of the supplied synonyms can be empty/
+      catch: /Incorrect syntax for \[synonyms\]/
       synonyms.put:
         synonyms_set: test-update-synonyms
         body:

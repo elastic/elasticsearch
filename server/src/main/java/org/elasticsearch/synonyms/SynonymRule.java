@@ -116,20 +116,20 @@ public class SynonymRule implements Writeable, ToXContentObject {
             String[] inputs = split(sides[0], ",");
             for (String input : inputs) {
                 if (input.trim().length() == 0) {
-                    return "None of the supplied synonyms can be empty: [" + synonyms + "]";
+                    return "Incorrect syntax for [synonyms]: [" + synonyms + "]";
                 }
             }
             String[] outputs = split(sides[1], ",");
             for (String output : outputs) {
                 if (output.trim().length() == 0) {
-                    return "None of the supplied synonyms can be empty: [" + synonyms + "]";
+                    return "Incorrect syntax for [synonyms]: [" + synonyms + "]";
                 }
             }
         } else {
             String[] inputs = split(synonyms, ",");
             for (String input : inputs) {
                 if (input.trim().length() == 0) {
-                    return "None of the supplied synonyms can be empty: [" + synonyms + "]";
+                    return "Incorrect syntax for [synonyms]: [" + synonyms + "]";
                 }
             }
         }

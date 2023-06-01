@@ -302,6 +302,8 @@ public class ApiKeyService {
         Set<RoleDescriptor> userRoleDescriptors,
         ActionListener<CreateApiKeyResponse> listener
     ) {
+        assert request.getType() != ApiKey.Type.CROSS_CLUSTER || false == authentication.isApiKey()
+            : "cannot create derived cross-cluster API keys";
         assert request.getType() != ApiKey.Type.CROSS_CLUSTER || userRoleDescriptors.isEmpty()
             : "owner user role descriptor must be empty for cross-cluster API keys";
         ensureEnabled();

@@ -51,7 +51,7 @@ public class RestSubmitAsyncSearchActionTests extends RestActionTestCase {
             assertThat(submitRequest.isKeepOnCompletion(), equalTo(false));
             assertThat(submitRequest.getKeepAlive(), equalTo(TimeValue.timeValueDays(5)));
             // check parameters we implicitly set in the SubmitAsyncSearchRequest ctor
-            assertThat(submitRequest.getSearchRequest().isCcsMinimizeRoundtrips(), equalTo(false));
+            assertThat(submitRequest.getSearchRequest().isCcsMinimizeRoundtrips(), equalTo(true));
             assertThat(submitRequest.getSearchRequest().getBatchedReduceSize(), equalTo(5));
             assertThat(submitRequest.getSearchRequest().requestCache(), equalTo(true));
             assertThat(submitRequest.getSearchRequest().getPreFilterShardSize().intValue(), equalTo(1));

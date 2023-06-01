@@ -326,6 +326,81 @@ PUT _cluster/settings
 If `cluster_two` is disconnected or unavailable during a {ccs}, {es} won't
 include matching documents from that cluster in the final results.
 
+
+[discrete]
+[[ccs-async-search-minimize-roundtrips-true]]
+=== Using async search for CCS with ccs_minimize_roundtrips=true
+
+The following <<async-search,async search>> API request searches the `blogs` index on
+three clusters:
+
+* Your local cluster, with 3 shards
+* Two remote clusters, `remote1` and `remote2`, with 4 shards each
+
+[source,console]
+--------------------------------------------------
+POST /blogs,remote1:blogs,remote2:blogs/_async_search?ccs_minimize_roundtrips=true  <1>
+{
+  "query": {
+    "match": {
+      "tags.industry.keyword": "healthcare"
+    }
+  }
+}
+--------------------------------------------------
+
+<1> `ccs_minimize_roundtrips` for _async_search defaults to `true`, but we
+show it explicitly for clarity.
+
+The API returns the following response if the search takes longer than
+the `wait_for_completion_timeout` duration (see <<async-search>> for details).
+
+[source,console-result]
+--------------------------------------------------
+{
+  "id": "FklQYndoTDJ2VEFlMEVBTzFJMGhJVFEaLVlKYndBWWZSMUdicUc4WVlEaFl4ZzoxNTU=", <2>
+  "is_partial": true,
+  "is_running": true,
+  "start_time_in_millis": 1685563581380,
+  "expiration_time_in_millis": 1685995581380,
+  "response": {
+    "took": 1020,
+    "timed_out": false,
+    "terminated_early": false,
+    "num_reduce_phases": 0,
+    "_shards": {
+      "total": 3, <3>
+      "successful": 0,
+      "skipped": 0,
+      "failed": 0
+    },
+    "_clusters": { <4>
+      "total": 3,
+      "successful": 0,
+      "skipped": 0
+    },
+    "hits": {
+      "total": {
+        "value": 0,
+        "relation": "gte"
+      },
+      "max_score": null,
+      "hits": []
+    }
+  }
+}
+--------------------------------------------------
+
+<2> The async search id.
+<3> When `ccs_minimize_roundtrips` = `true` and searches on the remote clusters
+are still running, this section indicates the number of shards in scope for the
+local cluster only. This will be updated to indicate the total number of shards
+across all clusters when the search completes.
+<4> The `_clusters` section indicates that 3 clusters are in scope for the search
+and all are currently running (since `successful` and `skipped` both equal 0).
+
+
+
 [discrete]
 [[ccs-network-delays]]
 === How {ccs} handles network delays

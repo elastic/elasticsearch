@@ -3825,9 +3825,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Registers the given listener and invokes it once the shard is active again and all
-     * pending refresh translog location has been refreshed. If there is no pending refresh location registered the listener will be
-     * invoked immediately.
+     * Ensures this shard is search active before invoking the provided listener.
+     * <p>
+     * This is achieved by registering a refresh listener and invoking the provided listener from the refresh listener once the shard is
+     * active again and all pending refresh translog location has been refreshed. A refresh may be executed to avoid waiting for
+     * {@link #scheduledRefresh()} to be invoked. If there is no pending refresh location registered the provided listener will be invoked
+     * immediately.
+     *
      * @param listener the listener to invoke once the pending refresh location is visible. The listener will be called with
      *                 <code>true</code> if the listener was registered to wait for a refresh.
      */
@@ -3839,9 +3843,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 pendingRefreshLocation.compareAndSet(location, null);
                 listener.accept(true);
             });
-            // TODO: maybe just invoke getEngine().maybeRefresh(...) here?
-            // (schedule refresh does a few more things that I don't is necessary here?)
-            scheduledRefresh();
+            // trigger a refresh to avoid waiting for scheduledRefresh(...) to be invoked from index level refresh scheduler.
+            // (The if statement should avoid doing an additional refresh if scheduled refresh was invoked between getting
+            // the current refresh location and adding a refresh listener.)
+            if (location == pendingRefreshLocation.get()) {
+                getEngine().maybeRefresh("ensure-shard-search-active");
+            }
         } else {
             listener.accept(false);
         }

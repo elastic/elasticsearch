@@ -11,11 +11,16 @@ import org.apache.lucene.document.ShapeField;
 import org.apache.lucene.geo.Component2D;
 import org.apache.lucene.index.PointValues;
 
+import static org.elasticsearch.xpack.spatial.index.fielddata.TriangleTreeVisitor.TriangleTreeDecodedVisitor;
+import static org.elasticsearch.xpack.spatial.index.fielddata.TriangleTreeVisitor.abFromTriangle;
+import static org.elasticsearch.xpack.spatial.index.fielddata.TriangleTreeVisitor.bcFromTriangle;
+import static org.elasticsearch.xpack.spatial.index.fielddata.TriangleTreeVisitor.caFromTriangle;
+
 /**
- * A {@link TriangleTreeVisitor.TriangleTreeDecodedVisitor} implementation for {@link Component2D} geometries.
+ * A {@link TriangleTreeDecodedVisitor} implementation for {@link Component2D} geometries.
  * It can solve spatial relationships against a serialize triangle tree.
  */
-public abstract class Component2DVisitor extends TriangleTreeVisitor.TriangleTreeDecodedVisitor {
+public abstract class Component2DVisitor extends TriangleTreeDecodedVisitor {
 
     protected final Component2D component2D;
 
@@ -307,7 +312,7 @@ public abstract class Component2DVisitor extends TriangleTreeVisitor.TriangleTre
 
         @Override
         protected void visitDecodedLine(double aX, double aY, double bX, double bY, byte metadata) {
-            final boolean ab = (metadata & 1 << 4) == 1 << 4;
+            final boolean ab = abFromTriangle(metadata);
             final Component2D.WithinRelation rel = component2D.withinLine(aX, aY, ab, bX, bY);
             if (rel != Component2D.WithinRelation.DISJOINT) {
                 // Only override relationship if different to DISJOINT
@@ -317,9 +322,9 @@ public abstract class Component2DVisitor extends TriangleTreeVisitor.TriangleTre
 
         @Override
         protected void visitDecodedTriangle(double aX, double aY, double bX, double bY, double cX, double cY, byte metadata) {
-            final boolean ab = (metadata & 1 << 4) == 1 << 4;
-            final boolean bc = (metadata & 1 << 5) == 1 << 5;
-            final boolean ca = (metadata & 1 << 6) == 1 << 6;
+            final boolean ab = abFromTriangle(metadata);
+            final boolean bc = bcFromTriangle(metadata);
+            final boolean ca = caFromTriangle(metadata);
             final Component2D.WithinRelation rel = component2D.withinTriangle(aX, aY, ab, bX, bY, bc, cX, cY, ca);
             if (rel != Component2D.WithinRelation.DISJOINT) {
                 // Only override relationship if different to DISJOINT

@@ -35,6 +35,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
@@ -223,6 +224,21 @@ public class SynonymsManagementAPIService {
         UPDATED
     }
 
-    public record SynonymsSetResult(long totalSynonymRules, SynonymRule[] synonymRules) {}
+    public record SynonymsSetResult(long totalSynonymRules, SynonymRule[] synonymRules) {
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            SynonymsSetResult that = (SynonymsSetResult) o;
+            return totalSynonymRules == that.totalSynonymRules && Arrays.equals(synonymRules, that.synonymRules);
+        }
+
+        @Override
+        public int hashCode() {
+            int result = Objects.hash(totalSynonymRules);
+            result = 31 * result + Arrays.hashCode(synonymRules);
+            return result;
+        }
+    }
 
 }

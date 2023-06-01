@@ -139,7 +139,7 @@ public class GetSynonymsAction extends ActionType<GetSynonymsAction.Response> {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Response response = (Response) o;
-            return Objects.equals(this.synonymsSetResults, response.synonymsSetResults);
+            return Objects.equals(synonymsSetResults, response.synonymsSetResults);
         }
 
         @Override

@@ -52,7 +52,7 @@ public class DataPeriodTests extends AbstractXContentTestCase<DataPeriod> {
             assertThat(
                 error.getMessage(),
                 containsString(
-                    "Name pattern '*-logs' does not match the allowed pattern styles: \"xxx*\", \"*\" or a concrete data stream name"
+                    "Name patterns [*-logs] do not match the allowed pattern styles: \"xxx*\", \"*\" or a concrete data stream name"
                 )
             );
         }
@@ -64,7 +64,7 @@ public class DataPeriodTests extends AbstractXContentTestCase<DataPeriod> {
             assertThat(
                 error.getMessage(),
                 containsString(
-                    "Name pattern 'logs-*-suffix' does not match the allowed pattern styles: \"xxx*\", \"*\" or a concrete data stream name"
+                    "Name patterns [logs-*-suffix] do not match the allowed pattern styles: \"xxx*\", \"*\" or a concrete data stream name"
                 )
             );
         }

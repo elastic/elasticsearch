@@ -68,9 +68,9 @@ public record DataPeriod(List<String> namePatterns, @Nullable TimeValue interact
         List<String> unsupported = namePatterns.stream().filter(namePattern -> isSupportedPattern(namePattern) == false).toList();
         if (unsupported.isEmpty() == false) {
             throw new IllegalArgumentException(
-                "Name patterns '"
+                "Name patterns "
                     + unsupported
-                    + "' do not match the allowed pattern styles: \"xxx*\", \"*\" or a concrete data stream name"
+                    + " do not match the allowed pattern styles: \"xxx*\", \"*\" or a concrete data stream name"
             );
         }
         if (interactivity != null && retention != null) {
@@ -100,7 +100,7 @@ public record DataPeriod(List<String> namePatterns, @Nullable TimeValue interact
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.array(NAME_PATTERNS_FIELD.getPreferredName(), namePatterns);
+        builder.field(NAME_PATTERNS_FIELD.getPreferredName(), namePatterns);
         if (interactivity != null) {
             builder.field(INTERACTIVE_FIELD.getPreferredName(), interactivity.getStringRep());
         }

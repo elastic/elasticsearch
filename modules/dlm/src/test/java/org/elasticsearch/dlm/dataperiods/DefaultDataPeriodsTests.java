@@ -31,31 +31,41 @@ public class DefaultDataPeriodsTests extends AbstractXContentTestCase<DefaultDat
             {
               "data_periods":[
                 {
-                  "name_pattern": "my-short-lived-data-stream-*",
-                  "interactive": "7d",
-                  "retention": "14d",
+                  "name_patterns": [
+                    "my-short-lived-data-stream-*"
+                  ],
+                  "interactive_for": "7d",
+                  "retained_for": "14d",
                   "priority": 500
                 },
                 {
-                  "name_pattern": ".logs-short-*",
-                  "interactive": "7d",
-                  "retention": "7d",
+                  "name_patterns": [
+                    ".logs-short-*"
+                  ],
+                  "interactive_for": "7d",
+                  "retained_for": "7d",
                   "priority": 500
                 },
                 {
-                  "name_pattern": ".logs-*",
-                  "interactive": "7d",
-                  "retention": "90d",
+                  "name_patterns": [
+                    ".logs-*"
+                  ],
+                  "interactive_for": "7d",
+                  "retained_for": "90d",
                   "priority": 200
                 },
                 {
-                  "name_pattern": "not-interactive",
-                  "retention": "365d",
+                  "name_patterns": [
+                    "not-interactive"
+                  ],
+                  "retained_for": "365d",
                   "priority": 500
                 },
                 {
-                  "name_pattern": "*",
-                  "interactive": "7d",
+                  "name_patterns": [
+                    "*"
+                  ],
+                  "interactive_for": "7d",
                   "priority": 0
                 }
               ]

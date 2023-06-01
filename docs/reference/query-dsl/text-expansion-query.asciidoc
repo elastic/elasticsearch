@@ -1,0 +1,79 @@
+[[query-dsl-text-expansion-query]]
+== Text expansion query
+++++
+<titleabbrev>Text expansion</titleabbrev>
+++++
+
+The text expansion query uses a {nlp} model to convert the query text into a 
+list of token-weight pairs which are then used in a query against a 
+<<rank-features,rank features field>>.
+
+[discrete]
+[[text-expansion-query-ex-request]]
+=== Example request
+
+
+[source,console]
+----
+GET _search
+{
+   "query":{
+      "text_expansion":{
+         "<rank_features_field>":{
+            "model_id":"the model to produce the token weights",
+            "model_text":"the query string"
+         }
+      }
+   }
+}
+----
+// TEST[skip: TBD]
+
+[discrete]
+[[text-expansion-query-params]]
+=== Top level parameters for `text_expansion`
+
+`<rank_features_field>`:::
+(Required, object)
+The name of the field that contains the token-weight pairs the NLP model created 
+based on the input text.
+
+[discrete]
+[[text-expansion-rank-feature-field-params]]
+=== Top level parameters for `<rank_features_field>`
+
+`model_id`::::
+(Required, string)
+The ID of the model to use to convert the query text into token-weight pairs. It 
+must be the same model ID that was used to create the tokens from the input 
+text.
+
+`model_text`::::
+(Required, string)
+The query text you want to use for search. 
+
+
+[discrete]
+[[text-expansion-query-notes]]
+=== Notes
+
+The following is an example of the `text_expansion` query that references the 
+ELSER model to perform semantic search. For a more detailed description of how 
+to perform semantic search by using ELSER and the `text_expansion` query, refer 
+to <<semantic-search-elser,this tutorial>>.
+
+[source,console]
+----
+GET my-index/_search
+{
+   "query":{
+      "text_expansion":{
+         "ml.tokens":{
+            "model_id":".elser_model_1",
+            "model_text":"How is the weather in Jamaica?"
+         }
+      }
+   }
+}
+----
+// TEST[skip: TBD]

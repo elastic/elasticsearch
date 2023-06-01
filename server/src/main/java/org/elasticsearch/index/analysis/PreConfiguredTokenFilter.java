@@ -70,7 +70,7 @@ public final class PreConfiguredTokenFilter extends PreConfiguredAnalysisCompone
             useFilterForMultitermQueries,
             true,
             CachingStrategy.LUCENE,
-            (tokenStream, version) -> create.apply(tokenStream, version.luceneVersion)
+            (tokenStream, version) -> create.apply(tokenStream, version.luceneVersion())
         );
     }
 

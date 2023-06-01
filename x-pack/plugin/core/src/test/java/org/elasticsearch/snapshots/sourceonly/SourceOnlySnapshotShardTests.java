@@ -70,6 +70,7 @@ import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.ShardSnapshotResult;
+import org.elasticsearch.repositories.SnapshotIndexCommit;
 import org.elasticsearch.repositories.SnapshotShardContext;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase;
@@ -130,7 +131,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                         shard.mapperService(),
                         snapshotId,
                         indexId,
-                        snapshotRef,
+                        new SnapshotIndexCommit(snapshotRef),
                         null,
                         indexShardSnapshotStatus,
                         Version.CURRENT,
@@ -172,7 +173,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                         shard.mapperService(),
                         snapshotId,
                         indexId,
-                        snapshotRef,
+                        new SnapshotIndexCommit(snapshotRef),
                         null,
                         indexShardSnapshotStatus,
                         Version.CURRENT,
@@ -203,7 +204,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                         shard.mapperService(),
                         snapshotId,
                         indexId,
-                        snapshotRef,
+                        new SnapshotIndexCommit(snapshotRef),
                         null,
                         indexShardSnapshotStatus,
                         Version.CURRENT,
@@ -234,7 +235,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                         shard.mapperService(),
                         snapshotId,
                         indexId,
-                        snapshotRef,
+                        new SnapshotIndexCommit(snapshotRef),
                         null,
                         indexShardSnapshotStatus,
                         Version.CURRENT,
@@ -258,7 +259,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
         return "{ \"value\" : \"" + randomAlphaOfLength(10) + "\"}";
     }
 
-    public void testRestoreMinmal() throws IOException {
+    public void testRestoreMinimal() throws IOException {
         IndexShard shard = newStartedShard(true);
         int numInitialDocs = randomIntBetween(10, 100);
         for (int i = 0; i < numInitialDocs; i++) {
@@ -295,7 +296,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                         shard.mapperService(),
                         snapshotId,
                         indexId,
-                        snapshotRef,
+                        new SnapshotIndexCommit(snapshotRef),
                         null,
                         indexShardSnapshotStatus,
                         Version.CURRENT,
@@ -370,7 +371,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
             metadata,
             null,
             SourceOnlySnapshotRepository.getEngineFactory(),
-            () -> {},
+            NOOP_GCP_SYNCER,
             RetentionLeaseSyncer.EMPTY
         );
         DiscoveryNode discoveryNode = TestDiscoveryNode.create("node_g");

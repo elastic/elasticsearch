@@ -623,6 +623,11 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
                             .setReason("shutdown for a unit test")
                             .setType(type)
                             .setStartedAtMillis(randomNonNegativeLong())
+                            .setGracePeriod(
+                                type == SingleNodeShutdownMetadata.Type.SIGTERM
+                                    ? TimeValue.parseTimeValue(randomTimeValue(), this.getTestName())
+                                    : null
+                            )
                             .build()
                     )
                 );

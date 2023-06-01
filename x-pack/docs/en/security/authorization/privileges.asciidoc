@@ -200,7 +200,7 @@ on all {es} API keys.
 
 `transport_client`::
 All privileges necessary for a transport client to connect. Required by the remote
-cluster to enable <<cross-cluster-configuring,{ccs}>>.
+cluster to enable <<remote-clusters-security,{ccs}>>.
 
 [[privileges-list-indices]]
 ==== Indices privileges
@@ -303,6 +303,12 @@ All {Ilm} operations relating to managing the execution of policies of an index
 or data stream. This includes operations such as retrying policies and removing
 a policy from an index or data stream.
 
+ifeval::["{release-state}"!="released"]
+`manage_dlm`::
+All {Dlm} operations relating to reading and managing the lifecycle of a data stream.
+This includes operations such as adding and removing a lifecycle from a data stream.
+endif::[]
+
 `manage_leader_index`::
 All actions that are required to manage the lifecycle of a leader index, which
 includes <<ccr-post-forget-follower,forgetting a follower>>. This
@@ -318,7 +324,7 @@ more like this, multi percolate/search/termvector, percolate, scroll,
 clear_scroll, search, suggest, tv).
 
 `read_cross_cluster`::
-Read-only access to the search action from a <<cross-cluster-configuring,remote cluster>>.
+Read-only access to the search action from a <<remote-clusters-security,remote cluster>>.
 
 `view_index_metadata`::
 Read-only access to index and data stream metadata (aliases, exists,

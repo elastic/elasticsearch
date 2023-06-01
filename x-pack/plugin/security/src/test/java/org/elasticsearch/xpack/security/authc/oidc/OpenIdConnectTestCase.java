@@ -81,7 +81,7 @@ public abstract class OpenIdConnectTestCase extends ESTestCase {
             .issuer(issuer)
             .issueTime(Date.from(now().minusSeconds(4)))
             .notBeforeTime(Date.from(now().minusSeconds(4)))
-            .claim("nonce", new Nonce())
+            .claim("nonce", new Nonce().toString())
             .subject(subject)
             .build();
 

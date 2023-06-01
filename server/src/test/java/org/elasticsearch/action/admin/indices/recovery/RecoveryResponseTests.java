@@ -22,7 +22,6 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 
 public class RecoveryResponseTests extends ESTestCase {
@@ -30,8 +29,8 @@ public class RecoveryResponseTests extends ESTestCase {
     public void testChunkedToXContent() {
         final int failedShards = randomIntBetween(0, 50);
         final int successfulShards = randomIntBetween(0, 50);
-        DiscoveryNode sourceNode = TestDiscoveryNode.create("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet());
-        DiscoveryNode targetNode = TestDiscoveryNode.create("bar", buildNewFakeTransportAddress(), emptyMap(), emptySet());
+        DiscoveryNode sourceNode = TestDiscoveryNode.builder("foo").roles(emptySet()).build();
+        DiscoveryNode targetNode = TestDiscoveryNode.builder("bar").roles(emptySet()).build();
         final int shards = randomInt(50);
         AbstractChunkedSerializingTestCase.assertChunkCount(
             new RecoveryResponse(

@@ -45,7 +45,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.test.ClusterServiceUtils.createNoOpNodeConnectionsService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
@@ -85,7 +84,7 @@ public class ClusterApplierServiceTests extends ESTestCase {
     }
 
     private ClusterApplierService createClusterApplierService(boolean makeMaster) {
-        final DiscoveryNode localNode = TestDiscoveryNode.create("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet());
+        final DiscoveryNode localNode = TestDiscoveryNode.builder("node1").roles(emptySet()).build();
         final ClusterApplierService clusterApplierService = new ClusterApplierService(
             "test_node",
             Settings.builder().put("cluster.name", "ClusterApplierServiceTests").build(),

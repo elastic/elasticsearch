@@ -155,6 +155,8 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
     ) {
         long start = System.nanoTime();
         GetProfilingResponseBuilder responseBuilder = new GetProfilingResponseBuilder();
+        int exp = eventsIndex.getExponent();
+        responseBuilder.setSampleRate(eventsIndex.getSampleRate());
         client.prepareSearch(eventsIndex.getName())
             .setTrackTotalHits(false)
             .setSize(0)
@@ -492,6 +494,7 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
         private Map<String, StackFrame> stackFrames;
         private Map<String, String> executables;
         private Map<String, Integer> stackTraceEvents;
+        private double samplingRate;
         private Exception error;
 
         public void setStackTraces(Map<String, StackTrace> stackTraces) {
@@ -534,6 +537,10 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
             return stackTraceEvents;
         }
 
+        public void setSampleRate(double rate) {
+            this.samplingRate = rate;
+        }
+
         public void setError(Exception error) {
             this.error = error;
         }
@@ -542,7 +549,7 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
             if (error != null) {
                 return new GetProfilingResponse(error);
             } else {
-                return new GetProfilingResponse(stackTraces, stackFrames, executables, stackTraceEvents, totalFrames);
+                return new GetProfilingResponse(stackTraces, stackFrames, executables, stackTraceEvents, totalFrames, samplingRate);
             }
         }
     }

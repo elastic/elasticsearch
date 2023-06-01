@@ -422,14 +422,7 @@ public class SnapshotsServiceTests extends ESTestCase {
 
     private static DiscoveryNodes discoveryNodes(String localNodeId) {
         return DiscoveryNodes.builder()
-            .add(
-                TestDiscoveryNode.create(
-                    localNodeId,
-                    ESTestCase.buildNewFakeTransportAddress(),
-                    Collections.emptyMap(),
-                    new HashSet<>(DiscoveryNodeRole.roles())
-                )
-            )
+            .add(TestDiscoveryNode.builder(localNodeId).roles(new HashSet<>(DiscoveryNodeRole.roles())).build())
             .localNodeId(localNodeId)
             .build();
     }

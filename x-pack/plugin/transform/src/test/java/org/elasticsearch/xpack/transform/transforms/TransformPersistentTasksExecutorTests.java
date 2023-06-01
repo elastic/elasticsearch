@@ -287,18 +287,17 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
 
         if (dedicatedTransformNode) {
             nodes.add(
-                TestDiscoveryNode.create(
-                    "dedicated-transform-node",
-                    buildNewFakeTransportAddress(),
-                    Collections.emptyMap(),
-                    new HashSet<>(
-                        Arrays.asList(
-                            DiscoveryNodeRole.MASTER_ROLE,
-                            DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE,
-                            DiscoveryNodeRole.TRANSFORM_ROLE
+                TestDiscoveryNode.builder("dedicated-transform-node")
+                    .roles(
+                        new HashSet<>(
+                            Arrays.asList(
+                                DiscoveryNodeRole.MASTER_ROLE,
+                                DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE,
+                                DiscoveryNodeRole.TRANSFORM_ROLE
+                            )
                         )
                     )
-                )
+                    .build()
             );
         }
 
@@ -323,56 +322,50 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
 
         if (transformRemoteNodes) {
             nodes.add(
-                TestDiscoveryNode.create(
-                    "current-data-node-with-2-tasks",
-                    buildNewFakeTransportAddress(),
-                    Collections.emptyMap(),
-                    new HashSet<>(
-                        Arrays.asList(
-                            DiscoveryNodeRole.DATA_ROLE,
-                            DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE,
-                            DiscoveryNodeRole.TRANSFORM_ROLE
-                        )
-                    )
-                )
-            )
-                .add(
-                    TestDiscoveryNode.create(
-                        "current-data-node-with-1-tasks",
-                        buildNewFakeTransportAddress(),
-                        Collections.emptyMap(),
+                TestDiscoveryNode.builder("current-data-node-with-2-tasks")
+                    .roles(
                         new HashSet<>(
                             Arrays.asList(
-                                DiscoveryNodeRole.MASTER_ROLE,
+                                DiscoveryNodeRole.DATA_ROLE,
                                 DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE,
                                 DiscoveryNodeRole.TRANSFORM_ROLE
                             )
                         )
                     )
+                    .build()
+            )
+                .add(
+                    TestDiscoveryNode.builder("current-data-node-with-1-tasks")
+                        .roles(
+                            new HashSet<>(
+                                Arrays.asList(
+                                    DiscoveryNodeRole.MASTER_ROLE,
+                                    DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE,
+                                    DiscoveryNodeRole.TRANSFORM_ROLE
+                                )
+                            )
+                        )
+                        .build()
                 );
         }
 
         if (transformLocalOnlyNodes) {
             nodes.add(
-                TestDiscoveryNode.create(
-                    "current-data-node-with-0-tasks-transform-remote-disabled",
-                    buildNewFakeTransportAddress(),
-                    Collections.emptyMap(),
-                    new HashSet<>(
-                        Arrays.asList(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.TRANSFORM_ROLE)
+                TestDiscoveryNode.builder("current-data-node-with-0-tasks-transform-remote-disabled")
+                    .roles(
+                        new HashSet<>(
+                            Arrays.asList(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.TRANSFORM_ROLE)
+                        )
                     )
-                )
+                    .build()
             );
         }
 
         if (currentDataNode) {
             nodes.add(
-                TestDiscoveryNode.create(
-                    "current-data-node-with-transform-disabled",
-                    buildNewFakeTransportAddress(),
-                    Collections.emptyMap(),
-                    Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE)
-                )
+                TestDiscoveryNode.builder("current-data-node-with-transform-disabled")
+                    .roles(Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE))
+                    .build()
             );
         }
 

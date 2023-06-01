@@ -24,7 +24,6 @@ import org.elasticsearch.common.Strings;
 
 import java.util.Arrays;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.containsString;
 
@@ -44,7 +43,7 @@ public class ClusterStateToStringTests extends ESAllocationTestCase {
             .build();
 
         DiscoveryNodes nodes = DiscoveryNodes.builder()
-            .add(TestDiscoveryNode.create("node_foo", buildNewFakeTransportAddress(), emptyMap(), emptySet()))
+            .add(TestDiscoveryNode.builder("node_foo").roles(emptySet()).build())
             .localNodeId("node_foo")
             .masterNodeId("node_foo")
             .build();

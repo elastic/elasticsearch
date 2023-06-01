@@ -30,7 +30,6 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.DELETED;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -120,7 +119,7 @@ public class IndicesLifecycleListenerSingleNodeTests extends ESSingleNodeTestCas
             IndexShard shard = index.createShard(newRouting, IndexShardTestCase.NOOP_GCP_SYNCER, RetentionLeaseSyncer.EMPTY);
             IndexShardTestCase.updateRoutingEntry(shard, newRouting);
             assertEquals(5, counter.get());
-            final DiscoveryNode localNode = TestDiscoveryNode.create("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet());
+            final DiscoveryNode localNode = TestDiscoveryNode.builder("foo").roles(emptySet()).build();
             shard.markAsRecovering("store", new RecoveryState(newRouting, localNode, null));
             IndexShardTestCase.recoverFromStore(shard);
             newRouting = ShardRoutingHelper.moveToStarted(newRouting);

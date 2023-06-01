@@ -44,7 +44,6 @@ import java.util.Date;
 import java.util.HashSet;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.test.NodeRoles.nonRemoteClusterClientNode;
 import static org.hamcrest.Matchers.equalTo;
@@ -86,7 +85,7 @@ public class DatafeedJobBuilderTests extends ESTestCase {
                 )
             )
         );
-        final DiscoveryNode localNode = TestDiscoveryNode.create("test_node", buildNewFakeTransportAddress(), emptyMap(), emptySet());
+        final DiscoveryNode localNode = TestDiscoveryNode.builder("test_node").roles(emptySet()).build();
         clusterService = new ClusterService(
             Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "test_node").build(),
             clusterSettings,

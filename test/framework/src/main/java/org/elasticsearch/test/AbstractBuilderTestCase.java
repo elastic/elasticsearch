@@ -42,10 +42,14 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.query.CoordinatorRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.analysis.AnalysisModule;
@@ -318,6 +322,14 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
         return serviceHolder.createShardContext(searcher);
     }
 
+    protected static CoordinatorRewriteContext createCoordinatorRewriteContext(
+        DateFieldMapper.DateFieldType dateFieldType,
+        long min,
+        long max
+    ) {
+        return serviceHolder.createCoordinatorContext(dateFieldType, min, max);
+    }
+
     /**
      * @return a new {@link SearchExecutionContext} based on an index with no type registered
      */
@@ -556,6 +568,20 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 () -> true,
                 null,
                 emptyMap()
+            );
+        }
+
+        CoordinatorRewriteContext createCoordinatorContext(DateFieldMapper.DateFieldType dateFieldType, long min, long max) {
+            return new CoordinatorRewriteContext(
+                parserConfiguration,
+                this.client,
+                () -> nowInMillis,
+                IndexLongFieldRange.UNKNOWN.extendWithShardRange(
+                    randomIntBetween(0, 2),
+                    randomIntBetween(2, 5),
+                    ShardLongFieldRange.of(min, max)
+                ),
+                dateFieldType
             );
         }
 

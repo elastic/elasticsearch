@@ -26,7 +26,6 @@ import java.util.Collections;
 import java.util.Optional;
 import java.util.stream.IntStream;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -807,9 +806,7 @@ public class CoordinationStateTests extends ESTestCase {
         final CoordinationState.VoteCollection voteCollection = new CoordinationState.VoteCollection();
         assertTrue(voteCollection.isEmpty());
 
-        assertFalse(
-            voteCollection.addVote(TestDiscoveryNode.create("master-ineligible", buildNewFakeTransportAddress(), emptyMap(), emptySet()))
-        );
+        assertFalse(voteCollection.addVote(TestDiscoveryNode.builder("master-ineligible").roles(emptySet()).build()));
         assertTrue(voteCollection.isEmpty());
 
         voteCollection.addVote(node1);

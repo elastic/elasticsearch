@@ -29,7 +29,6 @@ import org.elasticsearch.xpack.core.ilm.step.info.AllocationInfo;
 import java.util.Collections;
 import java.util.Set;
 
-import static java.util.Collections.emptyMap;
 import static org.elasticsearch.cluster.routing.allocation.DataTier.TIER_PREFERENCE;
 import static org.elasticsearch.xpack.core.ilm.CheckShrinkReadyStepTests.randomUnassignedInfo;
 import static org.elasticsearch.xpack.core.ilm.step.info.AllocationInfo.waitingForActiveShardsAllocationInfo;
@@ -277,6 +276,6 @@ public class DataTierMigrationRoutedStepTests extends AbstractStepTestCase<DataT
     }
 
     private DiscoveryNode newNode(String nodeId, Set<DiscoveryNodeRole> roles) {
-        return TestDiscoveryNode.create(nodeId, buildNewFakeTransportAddress(), emptyMap(), roles);
+        return TestDiscoveryNode.builder(nodeId).roles(roles).build();
     }
 }

@@ -290,7 +290,7 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
             RolloverRequest rolloverRequest = getDefaultRolloverRequest(
                 rolloverConfiguration,
                 dataStream.getName(),
-                dataStream.getLifecycle().getDataRetention()
+                dataStream.getLifecycle().getEffectiveDataRetention()
             );
             transportActionsDeduplicator.executeOnce(
                 rolloverRequest,
@@ -525,7 +525,7 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
         if (dataStream.getLifecycle() == null) {
             return null;
         }
-        return dataStream.getLifecycle().getDataRetention();
+        return dataStream.getLifecycle().getEffectiveDataRetention();
     }
 
     /**
@@ -605,8 +605,8 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
         scheduler.get().add(scheduledJob);
     }
 
-    // package visibility for testing
-    DataLifecycleErrorStore getErrorStore() {
+    // public visibility for testing
+    public DataLifecycleErrorStore getErrorStore() {
         return errorStore;
     }
 

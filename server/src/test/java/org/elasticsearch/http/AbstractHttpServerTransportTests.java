@@ -76,6 +76,9 @@ import static org.elasticsearch.http.DefaultRestChannel.CLOSE;
 import static org.elasticsearch.http.DefaultRestChannel.CONNECTION;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_CLIENT_STATS_ENABLED;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_SERVER_SHUTDOWN_GRACE_PERIOD;
+import static org.elasticsearch.test.LambdaMatchers.transformedMatch;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -777,10 +780,16 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             transport.incomingRequest(fakeRestRequest.getHttpRequest(), fakeRestRequest.getHttpChannel());
 
             HttpStats httpStats = transport.stats();
-            assertThat(httpStats.getClientStats().size(), equalTo(1));
-            assertThat(httpStats.getClientStats().get(0).remoteAddress(), equalTo(NetworkAddress.format(remoteAddress)));
-            assertThat(httpStats.getClientStats().get(0).opaqueId(), equalTo(opaqueId));
-            assertThat(httpStats.getClientStats().get(0).lastUri(), equalTo("/internal/stats_test"));
+            assertThat(
+                httpStats.getClientStats(),
+                contains(
+                    allOf(
+                        transformedMatch(HttpStats.ClientStats::remoteAddress, equalTo(NetworkAddress.format(remoteAddress))),
+                        transformedMatch(HttpStats.ClientStats::opaqueId, equalTo(opaqueId)),
+                        transformedMatch(HttpStats.ClientStats::lastUri, equalTo("/internal/stats_test"))
+                    )
+                )
+            );
 
             remoteAddress = new InetSocketAddress(randomIp(randomBoolean()), randomIntBetween(1, 65535));
             opaqueId = UUIDs.randomBase64UUID(random());

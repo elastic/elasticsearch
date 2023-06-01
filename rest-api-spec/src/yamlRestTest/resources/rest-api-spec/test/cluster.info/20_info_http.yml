@@ -1,5 +1,5 @@
 ---
-"HTTP Stats":
+"Cluster HTTP Info":
   - skip:
       version: " - 8.8.99"
       reason: "/_info/http only available from v8.9"

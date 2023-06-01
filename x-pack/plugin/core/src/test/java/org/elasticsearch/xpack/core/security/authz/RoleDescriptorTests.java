@@ -594,6 +594,51 @@ public class RoleDescriptorTests extends ESTestCase {
         }
     }
 
+    public void testParseRoleWithRestrictionFailsWhenAllowRestrictionIsFalse() {
+        final String json = """
+            {
+              "restriction": {
+                 "workflows": ["search_application"]
+              }
+            }""";
+        final ElasticsearchParseException e = expectThrows(
+            ElasticsearchParseException.class,
+            () -> RoleDescriptor.parse(
+                "test_role_with_restriction",
+                XContentHelper.createParser(XContentParserConfiguration.EMPTY, new BytesArray(json), XContentType.JSON),
+                randomBoolean(),
+                randomBoolean(),
+                false
+            )
+        );
+        assertThat(
+            e,
+            TestMatchers.throwableWithMessage(
+                containsString("failed to parse role [test_role_with_restriction]. unexpected field [restriction]")
+            )
+        );
+    }
+
+    public void testParseRoleWithRestrictionWhenAllowRestrictionIsTrue() throws IOException {
+        final String json = """
+            {
+              "restriction": {
+                 "workflows": ["search_application"]
+              }
+            }""";
+        RoleDescriptor role = RoleDescriptor.parse(
+            "test_role_with_restriction",
+            XContentHelper.createParser(XContentParserConfiguration.EMPTY, new BytesArray(json), XContentType.JSON),
+            randomBoolean(),
+            randomBoolean(),
+            true
+        );
+        assertThat(role.getName(), equalTo("test_role_with_restriction"));
+        assertThat(role.hasRestriction(), equalTo(true));
+        assertThat(role.hasWorkflowsRestriction(), equalTo(true));
+        assertThat(role.getRestriction().getWorkflows(), arrayContaining("search_application"));
+    }
+
     public void testParseEmptyQuery() throws Exception {
         String json = """
             {
@@ -772,6 +817,7 @@ public class RoleDescriptorTests extends ESTestCase {
             () -> RoleDescriptor.parse(
                 "test",
                 XContentHelper.createParser(XContentParserConfiguration.EMPTY, new BytesArray(json), XContentType.JSON),
+                false,
                 false,
                 false
             )

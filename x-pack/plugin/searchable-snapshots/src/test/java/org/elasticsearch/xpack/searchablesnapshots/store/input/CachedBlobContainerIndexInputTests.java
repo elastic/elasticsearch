@@ -82,7 +82,6 @@ public class CachedBlobContainerIndexInputTests extends AbstractSearchableSnapsh
 
                 final BlobStoreIndexShardSnapshot snapshot = new BlobStoreIndexShardSnapshot(
                     snapshotId.getName(),
-                    0L,
                     List.of(new BlobStoreIndexShardSnapshot.FileInfo(blobName, metadata, ByteSizeValue.ofBytes(partSize))),
                     0L,
                     0L,
@@ -200,7 +199,6 @@ public class CachedBlobContainerIndexInputTests extends AbstractSearchableSnapsh
 
             final BlobStoreIndexShardSnapshot snapshot = new BlobStoreIndexShardSnapshot(
                 snapshotId.getName(),
-                0L,
                 List.of(new BlobStoreIndexShardSnapshot.FileInfo(blobName, metadata, ByteSizeValue.ofBytes(input.length + 1))),
                 0L,
                 0L,

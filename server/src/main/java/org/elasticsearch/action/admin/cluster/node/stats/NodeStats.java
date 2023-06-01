@@ -311,7 +311,12 @@ public class NodeStats extends BaseNodeResponse implements ChunkedToXContent {
                 ifPresent(getOs()).toXContent(builder, params);
                 ifPresent(getProcess()).toXContent(builder, params);
                 ifPresent(getJvm()).toXContent(builder, params);
-                ifPresent(getThreadPool()).toXContent(builder, params);
+                return builder;
+            }),
+
+            ifPresent(getThreadPool()).toXContentChunked(outerParams),
+
+            Iterators.single((builder, params) -> {
                 ifPresent(getFs()).toXContent(builder, params);
                 return builder;
             }),

@@ -18,6 +18,7 @@ import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -26,7 +27,7 @@ import java.util.List;
 import static java.util.Collections.emptyIterator;
 import static org.elasticsearch.common.collect.Iterators.single;
 
-public record ThreadPoolStats(List<Stats> stats) implements Writeable, ChunkedToXContent, Iterable<ThreadPoolStats.Stats> {
+public record ThreadPoolStats(Collection<Stats> stats) implements Writeable, ChunkedToXContent, Iterable<ThreadPoolStats.Stats> {
 
     public static final ThreadPoolStats IDENTITY = new ThreadPoolStats(List.of());
 
@@ -36,7 +37,7 @@ public record ThreadPoolStats(List<Stats> stats) implements Writeable, ChunkedTo
         first.forEach(stats -> mergedThreadPools.merge(stats.name, stats, Stats::merge));
         second.forEach(stats -> mergedThreadPools.merge(stats.name, stats, Stats::merge));
 
-        return new ThreadPoolStats(mergedThreadPools.values().stream().toList());
+        return new ThreadPoolStats(mergedThreadPools.values());
     }
 
     public record Stats(String name, int threads, int queue, int active, long rejected, int largest, long completed)
@@ -140,7 +141,7 @@ public record ThreadPoolStats(List<Stats> stats) implements Writeable, ChunkedTo
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeList(stats);
+        out.writeCollection(stats);
     }
 
     @Override

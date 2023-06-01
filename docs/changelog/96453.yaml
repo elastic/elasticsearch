@@ -2,4 +2,4 @@ pr: 96453
 summary: Leverage SIMD hardware instructions in Vector Search
 area: Vector Search
 type: enhancement
-issues: []
+issues: [96370]

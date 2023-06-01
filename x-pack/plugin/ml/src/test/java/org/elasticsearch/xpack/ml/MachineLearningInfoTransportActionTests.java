@@ -14,8 +14,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -387,7 +387,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
                                 Instant.now(),
                                 List.of(
                                     AssignmentStats.NodeStats.forStartedState(
-                                            TestDiscoveryNode.create("foo", new TransportAddress(TransportAddress.META_ADDRESS, 2)),
+                                            DiscoveryNodeUtils.create("foo", new TransportAddress(TransportAddress.META_ADDRESS, 2)),
                                             5,
                                             42.0,
                                             42.0,
@@ -406,7 +406,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
                                             1L
                                     ),
                                     AssignmentStats.NodeStats.forStartedState(
-                                            TestDiscoveryNode.create("bar", new TransportAddress(TransportAddress.META_ADDRESS, 3)),
+                                            DiscoveryNodeUtils.create("bar", new TransportAddress(TransportAddress.META_ADDRESS, 3)),
                                             4,
                                             50.0,
                                             50.0,
@@ -717,7 +717,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
                 DiscoveryNodeRole.ML_ROLE
             );
             nodesBuilder.add(
-                TestDiscoveryNode.create(
+                DiscoveryNodeUtils.create(
                     "ml-feature-set-given-ml-node-" + i,
                     new TransportAddress(TransportAddress.META_ADDRESS, 9100 + i),
                     attrs,
@@ -732,7 +732,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
             roles.add(DiscoveryNodeRole.MASTER_ROLE);
             roles.add(DiscoveryNodeRole.INGEST_ROLE);
             nodesBuilder.add(
-                TestDiscoveryNode.create(
+                DiscoveryNodeUtils.create(
                     "ml-feature-set-given-non-ml-node-" + i,
                     new TransportAddress(TransportAddress.META_ADDRESS, 9300 + i),
                     attrs,

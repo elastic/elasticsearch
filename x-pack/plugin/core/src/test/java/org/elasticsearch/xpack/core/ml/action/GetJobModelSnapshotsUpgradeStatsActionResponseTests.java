@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
@@ -49,7 +49,7 @@ public class GetJobModelSnapshotsUpgradeStatsActionResponseTests extends Abstrac
             randomAlphaOfLengthBetween(1, 20)
         ).setUpgradeState(randomFrom(SnapshotUpgradeState.values()));
         if (randomBoolean()) {
-            builder.setNode(TestDiscoveryNode.create("_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9300)));
+            builder.setNode(DiscoveryNodeUtils.create("_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9300)));
         } else {
             builder.setAssignmentExplanation(randomAlphaOfLengthBetween(20, 50));
         }

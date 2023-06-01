@@ -12,7 +12,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
@@ -88,7 +88,7 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
     }
 
     private DiscoveryNode newDiscoveryNode(String nodeName) {
-        return TestDiscoveryNode.builder(randomAlphaOfLength(10)).name(nodeName).roles(Set.of(DiscoveryNodeRole.MASTER_ROLE)).build();
+        return DiscoveryNodeUtils.builder(randomAlphaOfLength(10)).name(nodeName).roles(Set.of(DiscoveryNodeRole.MASTER_ROLE)).build();
     }
 
     public void testBootstrapsAutomaticallyWithDefaultConfiguration() {
@@ -145,7 +145,7 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
     }
 
     public void testDoesNothingByDefaultOnMasterIneligibleNodes() {
-        localNode = TestDiscoveryNode.builder(randomAlphaOfLength(10)).name("local").roles(emptySet()).build();
+        localNode = DiscoveryNodeUtils.builder(randomAlphaOfLength(10)).name("local").roles(emptySet()).build();
         testDoesNothingWithSettings(Settings.builder());
     }
 
@@ -372,7 +372,7 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
     }
 
     public void testDoesNotBootstrapsOnNonMasterNode() {
-        localNode = TestDiscoveryNode.builder(randomAlphaOfLength(10)).name("local").roles(emptySet()).build();
+        localNode = DiscoveryNodeUtils.builder(randomAlphaOfLength(10)).name("local").roles(emptySet()).build();
         ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(
             Settings.builder()
                 .putList(INITIAL_MASTER_NODES_SETTING.getKey(), localNode.getName(), otherNode1.getName(), otherNode2.getName())
@@ -485,11 +485,11 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
 
         discoveredNodes.set(
             List.of(
-                TestDiscoveryNode.builder(randomAlphaOfLength(10))
+                DiscoveryNodeUtils.builder(randomAlphaOfLength(10))
                     .name(otherNode1.getName())
                     .roles(Set.of(DiscoveryNodeRole.MASTER_ROLE))
                     .build(),
-                TestDiscoveryNode.builder(randomAlphaOfLength(10))
+                DiscoveryNodeUtils.builder(randomAlphaOfLength(10))
                     .name("yet-another-node")
                     .address(otherNode1.getAddress())
                     .roles(Set.of(DiscoveryNodeRole.MASTER_ROLE))

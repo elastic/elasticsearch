@@ -13,8 +13,8 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
@@ -30,7 +30,7 @@ public class ClusterStateResponseTests extends AbstractWireSerializingTestCase<C
         if (randomBoolean()) {
             ClusterState.Builder clusterStateBuilder = ClusterState.builder(clusterName).version(randomNonNegativeLong());
             if (randomBoolean()) {
-                final DiscoveryNode masterNode = TestDiscoveryNode.builder(randomAlphaOfLength(4))
+                final DiscoveryNode masterNode = DiscoveryNodeUtils.builder(randomAlphaOfLength(4))
                     .roles(new HashSet<>(DiscoveryNodeRole.roles()))
                     .build();
                 clusterStateBuilder.nodes(DiscoveryNodes.builder().add(masterNode).masterNodeId(masterNode.getId()).build());

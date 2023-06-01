@@ -12,7 +12,7 @@ import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.test.ESTestCase;
 
@@ -25,10 +25,10 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class HealthNodeTests extends ESTestCase {
 
-    private final DiscoveryNode node1 = TestDiscoveryNode.builder("node_1")
+    private final DiscoveryNode node1 = DiscoveryNodeUtils.builder("node_1")
         .roles(Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE))
         .build();
-    private final DiscoveryNode node2 = TestDiscoveryNode.builder("node_2")
+    private final DiscoveryNode node2 = DiscoveryNodeUtils.builder("node_2")
         .roles(Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE))
         .build();
     private final DiscoveryNode[] allNodes = new DiscoveryNode[] { node1, node2 };

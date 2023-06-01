@@ -9,7 +9,7 @@
 package org.elasticsearch.indices.store;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
@@ -38,7 +38,7 @@ public class IndicesStoreTests extends ESTestCase {
 
     @Before
     public void createLocalNode() {
-        localNode = TestDiscoveryNode.builder("abc").roles(emptySet()).build();
+        localNode = DiscoveryNodeUtils.builder("abc").roles(emptySet()).build();
     }
 
     public void testShardCanBeDeletedNoShardStarted() {

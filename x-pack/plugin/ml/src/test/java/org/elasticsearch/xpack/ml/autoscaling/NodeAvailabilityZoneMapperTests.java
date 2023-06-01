@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.ml.autoscaling;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -68,7 +68,7 @@ public class NodeAvailabilityZoneMapperTests extends ESTestCase {
 
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder()
             .add(
-                TestDiscoveryNode.create(
+                DiscoveryNodeUtils.create(
                     "node-1",
                     new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
                     Map.of(),
@@ -76,7 +76,7 @@ public class NodeAvailabilityZoneMapperTests extends ESTestCase {
                 )
             )
             .add(
-                TestDiscoveryNode.create(
+                DiscoveryNodeUtils.create(
                     "node-2",
                     new TransportAddress(InetAddress.getLoopbackAddress(), 9301),
                     Map.of(),
@@ -110,7 +110,7 @@ public class NodeAvailabilityZoneMapperTests extends ESTestCase {
             Set.of(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING)
         );
 
-        DiscoveryNode mlNode = TestDiscoveryNode.create(
+        DiscoveryNode mlNode = DiscoveryNodeUtils.create(
             "node-1",
             new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
             Map.of(),
@@ -119,7 +119,7 @@ public class NodeAvailabilityZoneMapperTests extends ESTestCase {
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder()
             .add(mlNode)
             .add(
-                TestDiscoveryNode.create(
+                DiscoveryNodeUtils.create(
                     "node-2",
                     new TransportAddress(InetAddress.getLoopbackAddress(), 9301),
                     Map.of(),
@@ -127,7 +127,7 @@ public class NodeAvailabilityZoneMapperTests extends ESTestCase {
                 )
             )
             .add(
-                TestDiscoveryNode.create(
+                DiscoveryNodeUtils.create(
                     "node-3",
                     new TransportAddress(InetAddress.getLoopbackAddress(), 9202),
                     Map.of(),
@@ -168,7 +168,7 @@ public class NodeAvailabilityZoneMapperTests extends ESTestCase {
         int numZones = randomIntBetween(1, Math.min(numNodes, 3));
         for (int nodeNum = 1; nodeNum <= numNodes; ++nodeNum) {
             discoveryNodesBuilder.add(
-                TestDiscoveryNode.create(
+                DiscoveryNodeUtils.create(
                     "node-" + nodeNum,
                     new TransportAddress(InetAddress.getLoopbackAddress(), 9299 + nodeNum),
                     Map.of("region", "unknown-region", "logical_availability_zone", "zone-" + (nodeNum % numZones)),
@@ -233,7 +233,7 @@ public class NodeAvailabilityZoneMapperTests extends ESTestCase {
         for (int nodeNum = 1; nodeNum <= numNodes; ++nodeNum) {
             int zone = nodeNum % numZones;
             DiscoveryNodeRole role = (zone < numMlZones) ? randomFrom(MASTER_ROLE, DATA_ROLE, ML_ROLE) : randomFrom(MASTER_ROLE, DATA_ROLE);
-            DiscoveryNode node = TestDiscoveryNode.create(
+            DiscoveryNode node = DiscoveryNodeUtils.create(
                 "node-" + nodeNum,
                 new TransportAddress(InetAddress.getLoopbackAddress(), 9199 + nodeNum),
                 Map.of("region", "unknown-region", "logical_availability_zone", "zone-" + zone),

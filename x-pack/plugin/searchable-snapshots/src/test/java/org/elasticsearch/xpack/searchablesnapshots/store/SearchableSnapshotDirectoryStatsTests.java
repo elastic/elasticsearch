@@ -15,7 +15,7 @@ import org.elasticsearch.blobcache.BlobCacheTestUtils;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -692,7 +692,7 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
                     new IndexId("some_index", UUIDs.randomBase64UUID(random()))
                 )
             );
-            DiscoveryNode targetNode = TestDiscoveryNode.create("local");
+            DiscoveryNode targetNode = DiscoveryNodeUtils.create("local");
             RecoveryState recoveryState = new SearchableSnapshotRecoveryState(shardRouting, targetNode, null);
             final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
             final boolean loaded = directory.loadSnapshot(recoveryState, () -> false, future);

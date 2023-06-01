@@ -19,7 +19,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.network.NetworkService;
@@ -168,7 +168,7 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
         try {
             connectToNode(
                 serviceA,
-                TestDiscoveryNode.create("C", new TransportAddress(InetAddress.getByName("localhost"), 9876), emptyMap(), emptySet())
+                DiscoveryNodeUtils.create("C", new TransportAddress(InetAddress.getByName("localhost"), 9876), emptyMap(), emptySet())
             );
             fail("Expected ConnectTransportException");
         } catch (ConnectTransportException e) {
@@ -306,7 +306,7 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
             try (MockTransportService serviceC = buildService("TS_C", version0, transportVersion0, settings)) {
                 HashMap<String, String> attributes = new HashMap<>();
                 attributes.put("server_name", sniIp);
-                DiscoveryNode node = TestDiscoveryNode.create(
+                DiscoveryNode node = DiscoveryNodeUtils.create(
                     "server_node_id",
                     new TransportAddress(serverAddress),
                     attributes,
@@ -353,7 +353,7 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
             try (MockTransportService serviceC = buildService("TS_C", version0, transportVersion0, settings)) {
                 HashMap<String, String> attributes = new HashMap<>();
                 attributes.put("server_name", sniIp);
-                DiscoveryNode node = TestDiscoveryNode.create(
+                DiscoveryNode node = DiscoveryNodeUtils.create(
                     "server_node_id",
                     new TransportAddress(serverAddress),
                     attributes,
@@ -436,7 +436,7 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
         ) {
             TcpTransport originalTransport = (TcpTransport) service.getOriginalTransport();
             TransportAddress clientAddress = originalTransport.profileBoundAddresses().get("client").publishAddress();
-            DiscoveryNode node = TestDiscoveryNode.create(
+            DiscoveryNode node = DiscoveryNodeUtils.create(
                 service.getLocalNode().getId(),
                 clientAddress,
                 service.getLocalNode().getVersion()
@@ -463,7 +463,7 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
         ) {
             TcpTransport originalTransport = (TcpTransport) service.getOriginalTransport();
             TransportAddress clientAddress = originalTransport.profileBoundAddresses().get("client").publishAddress();
-            DiscoveryNode node = TestDiscoveryNode.create(
+            DiscoveryNode node = DiscoveryNodeUtils.create(
                 service.getLocalNode().getId(),
                 clientAddress,
                 service.getLocalNode().getVersion()
@@ -495,7 +495,7 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
         ) {
             TcpTransport originalTransport = (TcpTransport) service.getOriginalTransport();
             TransportAddress clientAddress = originalTransport.profileBoundAddresses().get("client").publishAddress();
-            DiscoveryNode node = TestDiscoveryNode.create(
+            DiscoveryNode node = DiscoveryNodeUtils.create(
                 service.getLocalNode().getId(),
                 clientAddress,
                 service.getLocalNode().getVersion()
@@ -539,7 +539,7 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
         try (MockTransportService fcService = buildService("FC", Version.CURRENT, TransportVersion.CURRENT, fcSettings)) {
             final TcpTransport originalTransport = (TcpTransport) fcService.getOriginalTransport();
             final TransportAddress remoteAccessAddress = originalTransport.profileBoundAddresses().get("_remote_cluster").publishAddress();
-            final DiscoveryNode node = TestDiscoveryNode.create(
+            final DiscoveryNode node = DiscoveryNodeUtils.create(
                 fcService.getLocalNode().getId(),
                 remoteAccessAddress,
                 fcService.getLocalNode().getVersion()
@@ -659,7 +659,7 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
         try (MockTransportService fcService = buildService("FC", Version.CURRENT, TransportVersion.CURRENT, fcSettings)) {
             final TcpTransport originalTransport = (TcpTransport) fcService.getOriginalTransport();
             final TransportAddress remoteAccessAddress = originalTransport.profileBoundAddresses().get("_remote_cluster").publishAddress();
-            final DiscoveryNode node = TestDiscoveryNode.create(
+            final DiscoveryNode node = DiscoveryNodeUtils.create(
                 fcService.getLocalNode().getId(),
                 remoteAccessAddress,
                 fcService.getLocalNode().getVersion()
@@ -854,7 +854,7 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
                     IOUtils.closeWhileHandlingException(acceptedSocket);
                 }
             }).start();
-            DiscoveryNode dummy = TestDiscoveryNode.create(
+            DiscoveryNode dummy = DiscoveryNodeUtils.create(
                 "TEST",
                 new TransportAddress(socket.getInetAddress(), socket.getLocalPort()),
                 emptyMap(),
@@ -896,7 +896,7 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
                     throw new AssertionError(e);
                 }
             }).start();
-            DiscoveryNode dummy = TestDiscoveryNode.create(
+            DiscoveryNode dummy = DiscoveryNodeUtils.create(
                 "TEST",
                 new TransportAddress(socket.getInetAddress(), socket.getLocalPort()),
                 emptyMap(),
@@ -933,7 +933,7 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
         try (ServerSocket socket = serverSocketFactory.createServerSocket()) {
             socket.bind(getLocalEphemeral(), 1);
             socket.setReuseAddress(true);
-            DiscoveryNode dummy = TestDiscoveryNode.create(
+            DiscoveryNode dummy = DiscoveryNodeUtils.create(
                 "TEST",
                 new TransportAddress(socket.getInetAddress(), socket.getLocalPort()),
                 emptyMap(),

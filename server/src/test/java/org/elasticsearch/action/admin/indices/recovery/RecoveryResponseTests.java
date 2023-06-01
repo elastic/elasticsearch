@@ -9,7 +9,7 @@
 package org.elasticsearch.action.admin.indices.recovery;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -29,8 +29,8 @@ public class RecoveryResponseTests extends ESTestCase {
     public void testChunkedToXContent() {
         final int failedShards = randomIntBetween(0, 50);
         final int successfulShards = randomIntBetween(0, 50);
-        DiscoveryNode sourceNode = TestDiscoveryNode.builder("foo").roles(emptySet()).build();
-        DiscoveryNode targetNode = TestDiscoveryNode.builder("bar").roles(emptySet()).build();
+        DiscoveryNode sourceNode = DiscoveryNodeUtils.builder("foo").roles(emptySet()).build();
+        DiscoveryNode targetNode = DiscoveryNodeUtils.builder("bar").roles(emptySet()).build();
         final int shards = randomInt(50);
         AbstractChunkedSerializingTestCase.assertChunkCount(
             new RecoveryResponse(

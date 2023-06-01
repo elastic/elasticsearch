@@ -11,8 +11,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.settings.Settings;
@@ -84,7 +84,7 @@ public abstract class AbstractClusterStateLicenseServiceTestCase extends ESTestC
     }
 
     protected DiscoveryNode getLocalNode() {
-        return TestDiscoveryNode.create(
+        return DiscoveryNodeUtils.create(
             "b",
             buildNewFakeTransportAddress(),
             singletonMap(XPackPlugin.XPACK_INSTALLED_NODE_ATTR, "true"),

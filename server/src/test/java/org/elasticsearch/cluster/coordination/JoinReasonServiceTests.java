@@ -9,8 +9,8 @@
 package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.test.ESTestCase;
@@ -188,7 +188,7 @@ public class JoinReasonServiceTests extends ESTestCase {
     }
 
     private DiscoveryNode randomDiscoveryNode() {
-        return TestDiscoveryNode.builder(UUIDs.randomBase64UUID(random()))
+        return DiscoveryNodeUtils.builder(UUIDs.randomBase64UUID(random()))
             .name(randomAlphaOfLength(10))
             .ephemeralId(UUIDs.randomBase64UUID(random()))
             .build();

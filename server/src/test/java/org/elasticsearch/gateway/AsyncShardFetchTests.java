@@ -14,8 +14,8 @@ import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -35,13 +35,13 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class AsyncShardFetchTests extends ESTestCase {
-    private final DiscoveryNode node1 = TestDiscoveryNode.builder("node1")
+    private final DiscoveryNode node1 = DiscoveryNodeUtils.builder("node1")
         .roles(Collections.singleton(DiscoveryNodeRole.DATA_ROLE))
         .build();
     private final Response response1 = new Response(node1);
     private final Response response1_2 = new Response(node1);
     private final Throwable failure1 = new Throwable("simulated failure 1");
-    private final DiscoveryNode node2 = TestDiscoveryNode.builder("node2")
+    private final DiscoveryNode node2 = DiscoveryNodeUtils.builder("node2")
         .roles(Collections.singleton(DiscoveryNodeRole.DATA_ROLE))
         .build();
     private final Response response2 = new Response(node2);

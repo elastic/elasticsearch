@@ -15,7 +15,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodesHelper;
@@ -192,23 +192,23 @@ public abstract class ESAllocationTestCase extends ESTestCase {
     }
 
     protected static DiscoveryNode newNode(String nodeName, String nodeId, Map<String, String> attributes) {
-        return TestDiscoveryNode.builder(nodeId).name(nodeName).attributes(attributes).roles(MASTER_DATA_ROLES).build();
+        return DiscoveryNodeUtils.builder(nodeId).name(nodeName).attributes(attributes).roles(MASTER_DATA_ROLES).build();
     }
 
     protected static DiscoveryNode newNode(String nodeId, Map<String, String> attributes) {
-        return TestDiscoveryNode.builder(nodeId).attributes(attributes).build();
+        return DiscoveryNodeUtils.builder(nodeId).attributes(attributes).build();
     }
 
     protected static DiscoveryNode newNode(String nodeId, Set<DiscoveryNodeRole> roles) {
-        return TestDiscoveryNode.builder(nodeId).roles(roles).build();
+        return DiscoveryNodeUtils.builder(nodeId).roles(roles).build();
     }
 
     protected static DiscoveryNode newNode(String nodeName, String nodeId, Set<DiscoveryNodeRole> roles) {
-        return TestDiscoveryNode.builder(nodeId).name(nodeName).roles(roles).build();
+        return DiscoveryNodeUtils.builder(nodeId).name(nodeName).roles(roles).build();
     }
 
     protected static DiscoveryNode newNode(String nodeId, Version version) {
-        return TestDiscoveryNode.builder(nodeId).roles(MASTER_DATA_ROLES).version(version).build();
+        return DiscoveryNodeUtils.builder(nodeId).roles(MASTER_DATA_ROLES).version(version).build();
     }
 
     protected static ClusterState startRandomInitializingShard(ClusterState clusterState, AllocationService strategy) {

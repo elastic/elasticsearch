@@ -15,8 +15,8 @@ import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -422,7 +422,7 @@ public class SnapshotsServiceTests extends ESTestCase {
 
     private static DiscoveryNodes discoveryNodes(String localNodeId) {
         return DiscoveryNodes.builder()
-            .add(TestDiscoveryNode.builder(localNodeId).roles(new HashSet<>(DiscoveryNodeRole.roles())).build())
+            .add(DiscoveryNodeUtils.builder(localNodeId).roles(new HashSet<>(DiscoveryNodeRole.roles())).build())
             .localNodeId(localNodeId)
             .build();
     }

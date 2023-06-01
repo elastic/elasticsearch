@@ -19,8 +19,8 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
@@ -473,15 +473,15 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         ShardRouting shardRouting = TestShardRouting.newShardRouting(shardId, "node2", true, STARTED);
         IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index).addShard(shardRouting);
 
-        DiscoveryNode node1 = TestDiscoveryNode.builder("node_1")
+        DiscoveryNode node1 = DiscoveryNodeUtils.builder("node_1")
             .roles(new HashSet<>(Collections.singletonList(randomFrom(DiscoveryNodeRole.INGEST_ROLE, DiscoveryNodeRole.MASTER_ROLE))))
             .build();
 
-        DiscoveryNode node2 = TestDiscoveryNode.builder("node_2")
+        DiscoveryNode node2 = DiscoveryNodeUtils.builder("node_2")
             .roles(new HashSet<>(Collections.singletonList(DiscoveryNodeRole.DATA_ROLE)))
             .build();
 
-        DiscoveryNode node3 = TestDiscoveryNode.builder("node_3")
+        DiscoveryNode node3 = DiscoveryNodeUtils.builder("node_3")
             .roles(new HashSet<>(Collections.singletonList(DiscoveryNodeRole.DATA_ROLE)))
             .build();
 
@@ -731,6 +731,6 @@ public class WatcherIndexingListenerTests extends ESTestCase {
     }
 
     private static DiscoveryNode newNode(String nodeId) {
-        return TestDiscoveryNode.create(nodeId);
+        return DiscoveryNodeUtils.create(nodeId);
     }
 }

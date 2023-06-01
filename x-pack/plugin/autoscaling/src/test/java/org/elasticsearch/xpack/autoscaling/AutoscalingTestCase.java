@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.autoscaling;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -109,7 +109,7 @@ public abstract class AutoscalingTestCase extends ESTestCase {
         String prefix = randomAlphaOfLength(5);
         return IntStream.range(0, randomIntBetween(1, 10))
             .mapToObj(
-                i -> TestDiscoveryNode.create(
+                i -> DiscoveryNodeUtils.create(
                     prefix + i,
                     buildNewFakeTransportAddress(),
                     Map.of(),

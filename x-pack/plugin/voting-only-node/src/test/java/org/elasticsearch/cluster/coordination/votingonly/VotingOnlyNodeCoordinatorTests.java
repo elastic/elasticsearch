@@ -9,7 +9,7 @@ package org.elasticsearch.cluster.coordination.votingonly;
 import org.elasticsearch.cluster.coordination.AbstractCoordinatorTestCase;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -53,7 +53,7 @@ public class VotingOnlyNodeCoordinatorTests extends AbstractCoordinatorTestCase 
 
     @Override
     protected DiscoveryNode createDiscoveryNode(int nodeIndex, boolean masterEligible) {
-        return TestDiscoveryNode.builder("node" + nodeIndex)
+        return DiscoveryNodeUtils.builder("node" + nodeIndex)
             .ephemeralId(UUIDs.randomBase64UUID(random()))  // generated deterministically for repeatable tests
             .roles(
                 masterEligible ? ALL_ROLES_EXCEPT_VOTING_ONLY

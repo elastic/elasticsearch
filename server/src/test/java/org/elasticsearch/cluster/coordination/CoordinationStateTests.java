@@ -13,8 +13,8 @@ import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfigu
 import org.elasticsearch.cluster.coordination.CoordinationState.PersistedState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Assertions;
@@ -76,7 +76,7 @@ public class CoordinationStateTests extends ESTestCase {
     }
 
     public static DiscoveryNode createNode(String id) {
-        return TestDiscoveryNode.builder(id)
+        return DiscoveryNodeUtils.builder(id)
             .ephemeralId(UUIDs.randomBase64UUID(random()))  // generated deterministically for repeatable tests
             .build();
     }
@@ -806,7 +806,7 @@ public class CoordinationStateTests extends ESTestCase {
         final CoordinationState.VoteCollection voteCollection = new CoordinationState.VoteCollection();
         assertTrue(voteCollection.isEmpty());
 
-        assertFalse(voteCollection.addVote(TestDiscoveryNode.builder("master-ineligible").roles(emptySet()).build()));
+        assertFalse(voteCollection.addVote(DiscoveryNodeUtils.builder("master-ineligible").roles(emptySet()).build()));
         assertTrue(voteCollection.isEmpty());
 
         voteCollection.addVote(node1);
@@ -838,7 +838,7 @@ public class CoordinationStateTests extends ESTestCase {
 
     public void testSafety() {
         new CoordinationStateTestCluster(
-            IntStream.range(0, randomIntBetween(1, 5)).mapToObj(i -> TestDiscoveryNode.create("node_" + i)).toList(),
+            IntStream.range(0, randomIntBetween(1, 5)).mapToObj(i -> DiscoveryNodeUtils.create("node_" + i)).toList(),
             ElectionStrategy.DEFAULT_INSTANCE
         ).runRandomly();
     }

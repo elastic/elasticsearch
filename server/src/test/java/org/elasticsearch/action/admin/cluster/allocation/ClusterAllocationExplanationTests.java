@@ -31,7 +31,6 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
@@ -156,9 +155,7 @@ public final class ClusterAllocationExplanationTests extends ESTestCase {
             true,
             assignedShard ? ShardRoutingState.STARTED : ShardRoutingState.UNASSIGNED
         );
-        DiscoveryNode node = assignedShard
-            ? TestDiscoveryNode.create("node-0", buildNewFakeTransportAddress(), emptyMap(), emptySet())
-            : null;
+        DiscoveryNode node = assignedShard ? TestDiscoveryNode.builder("node-0").roles(emptySet()).build() : null;
         ShardAllocationDecision shardAllocationDecision;
         if (assignedShard) {
             MoveDecision moveDecision = MoveDecision.cannotRebalance(Decision.YES, AllocationDecision.NO, 3, null)

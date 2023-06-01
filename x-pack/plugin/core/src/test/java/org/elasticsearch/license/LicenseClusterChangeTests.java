@@ -20,7 +20,6 @@ import org.junit.After;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
@@ -64,7 +63,7 @@ public class LicenseClusterChangeTests extends AbstractClusterStateLicenseServic
     }
 
     public void testSelfGeneratedLicenseGeneration() throws Exception {
-        DiscoveryNode master = TestDiscoveryNode.create("b", buildNewFakeTransportAddress(), emptyMap(), emptySet());
+        DiscoveryNode master = TestDiscoveryNode.builder("b").roles(emptySet()).build();
         ClusterState oldState = ClusterState.builder(new ClusterName("a"))
             .nodes(DiscoveryNodes.builder().masterNodeId(master.getId()).add(master))
             .build();

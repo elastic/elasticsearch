@@ -28,7 +28,6 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -43,8 +42,8 @@ public class ReactiveReasonTests extends ESTestCase {
         String indexName = randomAlphaOfLength(10);
         SortedSet<ShardId> unassignedShardIds = new TreeSet<>(randomUnique(() -> new ShardId(indexName, indexUUID, randomInt(1000)), 600));
         SortedSet<ShardId> assignedShardIds = new TreeSet<>(randomUnique(() -> new ShardId(indexName, indexUUID, randomInt(1000)), 600));
-        DiscoveryNode discoveryNode = TestDiscoveryNode.create("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet());
-        DiscoveryNode discoveryNode2 = TestDiscoveryNode.create("node2", buildNewFakeTransportAddress(), emptyMap(), emptySet());
+        DiscoveryNode discoveryNode = TestDiscoveryNode.builder("node1").roles(emptySet()).build();
+        DiscoveryNode discoveryNode2 = TestDiscoveryNode.builder("node2").roles(emptySet()).build();
         Map<ShardId, NodeDecisions> unassignedShardAllocationDecision = Map.of(
             unassignedShardIds.first(),
             new NodeDecisions(

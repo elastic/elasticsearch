@@ -275,12 +275,7 @@ public class ClusterStateUpdatersTests extends ESTestCase {
             .put(indexMetadata, false)
             .build();
         final ClusterState initialState = ClusterState.builder(ClusterState.EMPTY_STATE).metadata(metadata).build();
-        final DiscoveryNode localNode = TestDiscoveryNode.create(
-            "node1",
-            buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            Sets.newHashSet(DiscoveryNodeRole.MASTER_ROLE)
-        );
+        final DiscoveryNode localNode = TestDiscoveryNode.builder("node1").roles(Sets.newHashSet(DiscoveryNodeRole.MASTER_ROLE)).build();
 
         final ClusterState updatedState = setLocalNode(initialState, localNode, TransportVersion.CURRENT);
 
@@ -324,12 +319,7 @@ public class ClusterStateUpdatersTests extends ESTestCase {
             .metadata(metadata)
             .blocks(ClusterBlocks.builder().addGlobalBlock(STATE_NOT_RECOVERED_BLOCK))
             .build();
-        final DiscoveryNode localNode = TestDiscoveryNode.create(
-            "node1",
-            buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            Sets.newHashSet(DiscoveryNodeRole.MASTER_ROLE)
-        );
+        final DiscoveryNode localNode = TestDiscoveryNode.builder("node1").roles(Sets.newHashSet(DiscoveryNodeRole.MASTER_ROLE)).build();
         final ClusterState updatedState = Function.<ClusterState>identity()
             .andThen(state -> setLocalNode(state, localNode, TransportVersion.CURRENT))
             .andThen(ClusterStateUpdaters::recoverClusterBlocks)

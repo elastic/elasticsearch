@@ -28,7 +28,6 @@ import org.elasticsearch.test.rest.FakeRestRequest;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.empty;
@@ -89,6 +88,6 @@ public class RestPluginsActionTests extends ESTestCase {
     }
 
     private DiscoveryNode node(final int id) {
-        return TestDiscoveryNode.create("node-" + id, Integer.toString(id), buildNewFakeTransportAddress(), Map.of(), Set.of());
+        return TestDiscoveryNode.builder(Integer.toString(id)).name("node-" + id).roles(Set.of()).build();
     }
 }

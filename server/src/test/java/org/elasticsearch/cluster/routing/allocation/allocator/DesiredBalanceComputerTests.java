@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -1019,15 +1020,7 @@ public class DesiredBalanceComputerTests extends ESTestCase {
     }
 
     private static DiscoveryNode createDiscoveryNode(String id, Set<DiscoveryNodeRole> roles) {
-        return new DiscoveryNode(
-            id,
-            id,
-            UUIDs.randomBase64UUID(random()),
-            buildNewFakeTransportAddress(),
-            Map.of(),
-            roles,
-            Version.CURRENT
-        );
+        return TestDiscoveryNode.builder(id).name(id).externalId(UUIDs.randomBase64UUID(random())).roles(roles).build();
     }
 
     /**

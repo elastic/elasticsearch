@@ -43,7 +43,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
@@ -447,13 +446,10 @@ public class NodeJoinExecutorTests extends ESTestCase {
         final var executor = new NodeJoinExecutor(allocationService, rerouteService);
 
         final var masterNode = TestDiscoveryNode.create(UUIDs.randomBase64UUID(random()));
-        final var otherNode = TestDiscoveryNode.create(
-            UUIDs.randomBase64UUID(random()),
-            UUIDs.randomBase64UUID(random()),
-            buildNewFakeTransportAddress(),
-            Map.of(),
-            Set.of(DiscoveryNodeRole.MASTER_ROLE)
-        );
+        final var otherNode = TestDiscoveryNode.builder(UUIDs.randomBase64UUID(random()))
+            .name(UUIDs.randomBase64UUID(random()))
+            .roles(Set.of(DiscoveryNodeRole.MASTER_ROLE))
+            .build();
 
         var clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(DiscoveryNodes.builder().add(masterNode).localNodeId(masterNode.getId()).build())

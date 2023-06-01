@@ -97,7 +97,6 @@ import java.util.function.Consumer;
 import java.util.stream.IntStream;
 
 import static java.util.Collections.emptyList;
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.newSetFromMap;
 import static java.util.Collections.singleton;
@@ -149,7 +148,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         testTask.setWorker(testRequest.getRequestsPerSecond(), null);
         worker = testTask.getWorkerState();
 
-        localNode = TestDiscoveryNode.create("thenode", buildNewFakeTransportAddress(), emptyMap(), emptySet());
+        localNode = TestDiscoveryNode.builder("thenode").roles(emptySet()).build();
         taskId = new TaskId(localNode.getId(), testTask.getId());
     }
 

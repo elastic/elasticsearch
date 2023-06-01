@@ -46,7 +46,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.action.DocWriteResponse.Result.CREATED;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -87,8 +86,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
                 // inject a node
                 ClusterState.Builder builder = ClusterState.builder(currentState);
                 builder.nodes(
-                    DiscoveryNodes.builder(currentState.nodes())
-                        .add(TestDiscoveryNode.create("_non_existent", buildNewFakeTransportAddress(), emptyMap(), emptySet()))
+                    DiscoveryNodes.builder(currentState.nodes()).add(TestDiscoveryNode.builder("_non_existent").roles(emptySet()).build())
                 );
 
                 // open index

@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.unsignedlong.UnsignedLongMapperPlugin;
 import org.junit.After;
 import org.junit.Before;
 
+import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -88,7 +89,12 @@ public abstract class ProfilingTestCase extends ESIntegTestCase {
             ClusterState state = client().admin().cluster().prepareState().get().getState();
             assertTrue(
                 "Timed out waiting for the indices to be created",
-                state.metadata().indices().keySet().containsAll(ProfilingIndexManager.INDICES_AND_ALIASES.keySet())
+                state.metadata()
+                    .indices()
+                    .keySet()
+                    .containsAll(
+                        ProfilingIndexManager.PROFILING_INDICES.stream().map(ProfilingIndexManager.ProfilingIndex::toString).toList()
+                    )
             );
         });
     }
@@ -113,7 +119,7 @@ public abstract class ProfilingTestCase extends ESIntegTestCase {
             indexDoc(
                 idx,
                 "QjoLteG7HX3VUUXr-J4kHQ",
-                Map.of("@timestamp", 1668761065, "Stacktrace.id", "QjoLteG7HX3VUUXr-J4kHQ", "Stacktrace.count", 1)
+                Map.of("@timestamp", Instant.now().toEpochMilli(), "Stacktrace.id", "QjoLteG7HX3VUUXr-J4kHQ", "Stacktrace.count", 1)
             );
         }
 

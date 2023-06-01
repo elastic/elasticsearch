@@ -80,7 +80,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.cluster.service.MasterService.MAX_TASK_DESCRIPTION_CHARS;
 import static org.hamcrest.Matchers.allOf;
@@ -142,7 +141,7 @@ public class MasterServiceTests extends ESTestCase {
         ThreadPool threadPool,
         ExecutorService threadPoolExecutor
     ) {
-        final DiscoveryNode localNode = TestDiscoveryNode.create("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet());
+        final DiscoveryNode localNode = TestDiscoveryNode.builder("node1").roles(emptySet()).build();
         final Settings settings = Settings.builder()
             .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), MasterServiceTests.class.getSimpleName())
             .put(Node.NODE_NAME_SETTING.getKey(), "test_node")
@@ -1198,7 +1197,7 @@ public class MasterServiceTests extends ESTestCase {
                 }
             }
         ) {
-            final DiscoveryNode localNode = TestDiscoveryNode.create("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet());
+            final DiscoveryNode localNode = TestDiscoveryNode.builder("node1").roles(emptySet()).build();
             final ClusterState initialClusterState = ClusterState.builder(new ClusterName(MasterServiceTests.class.getSimpleName()))
                 .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).masterNodeId(localNode.getId()))
                 .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK)
@@ -1356,9 +1355,9 @@ public class MasterServiceTests extends ESTestCase {
     }
 
     public void testAcking() throws InterruptedException {
-        final DiscoveryNode node1 = TestDiscoveryNode.create("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet());
-        final DiscoveryNode node2 = TestDiscoveryNode.create("node2", buildNewFakeTransportAddress(), emptyMap(), emptySet());
-        final DiscoveryNode node3 = TestDiscoveryNode.create("node3", buildNewFakeTransportAddress(), emptyMap(), emptySet());
+        final DiscoveryNode node1 = TestDiscoveryNode.builder("node1").roles(emptySet()).build();
+        final DiscoveryNode node2 = TestDiscoveryNode.builder("node2").roles(emptySet()).build();
+        final DiscoveryNode node3 = TestDiscoveryNode.builder("node3").roles(emptySet()).build();
         final Settings settings = Settings.builder()
             .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), MasterServiceTests.class.getSimpleName())
             .put(Node.NODE_NAME_SETTING.getKey(), "test_node")

@@ -23,6 +23,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Collections;
 import java.util.Map;
 import java.util.function.Predicate;
@@ -84,7 +85,11 @@ public class TemplateUtils {
      * Loads a resource from the classpath and returns it as a {@link String}
      */
     public static String load(String name) throws IOException {
-        return Streams.readFully(TemplateUtils.class.getResourceAsStream(name)).utf8ToString();
+        InputStream is = TemplateUtils.class.getResourceAsStream(name);
+        if (is == null) {
+            throw new IOException("Template [" + name + "] not found in classpath.");
+        }
+        return Streams.readFully(is).utf8ToString();
     }
 
     /**

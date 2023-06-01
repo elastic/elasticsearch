@@ -39,6 +39,7 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.query.RangeQueryBuilder;
@@ -98,7 +99,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
             null,
             null,
             null,
-            null,
+            MappingLookup.EMPTY,
             null,
             null,
             null,

@@ -39,7 +39,6 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
-import java.util.Collections;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -90,13 +89,10 @@ public class LocalHealthMonitorTests extends ESTestCase {
             HealthMetadata.ShardLimits.newBuilder().maxShardsPerNode(999).maxShardsPerNodeFrozen(100).build()
         );
         node = TestDiscoveryNode.create("node", "node");
-        frozenNode = TestDiscoveryNode.create(
-            "frozen-node",
-            "frozen-node",
-            ESTestCase.buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            Set.of(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE)
-        );
+        frozenNode = TestDiscoveryNode.builder("frozen-node")
+            .name("frozen-node")
+            .roles(Set.of(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE))
+            .build();
         clusterState = ClusterStateCreationUtils.state(node, node, node, new DiscoveryNode[] { node, frozenNode })
             .copyAndUpdate(b -> b.putCustom(HealthMetadata.TYPE, healthMetadata));
 
@@ -303,13 +299,10 @@ public class LocalHealthMonitorTests extends ESTestCase {
     }
 
     public void testYellowStatusForNonDataNode() {
-        DiscoveryNode dedicatedMasterNode = TestDiscoveryNode.create(
-            "master-node",
-            "master-node-1",
-            ESTestCase.buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            Set.of(DiscoveryNodeRole.MASTER_ROLE)
-        );
+        DiscoveryNode dedicatedMasterNode = TestDiscoveryNode.builder("master-node-1")
+            .name("master-node")
+            .roles(Set.of(DiscoveryNodeRole.MASTER_ROLE))
+            .build();
         clusterState = ClusterStateCreationUtils.state(
             dedicatedMasterNode,
             dedicatedMasterNode,
@@ -330,13 +323,10 @@ public class LocalHealthMonitorTests extends ESTestCase {
         DiscoveryNode localNode = state.nodes().getLocalNode();
         assertThat(LocalHealthMonitor.DiskCheck.hasRelocatingShards(state, localNode), is(true));
 
-        DiscoveryNode dedicatedMasterNode = TestDiscoveryNode.create(
-            "master-node",
-            "master-node-1",
-            ESTestCase.buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            Set.of(DiscoveryNodeRole.MASTER_ROLE)
-        );
+        DiscoveryNode dedicatedMasterNode = TestDiscoveryNode.builder("master-node-1")
+            .name("master-node")
+            .roles(Set.of(DiscoveryNodeRole.MASTER_ROLE))
+            .build();
         ClusterState newState = ClusterState.builder(state)
             .nodes(new DiscoveryNodes.Builder(state.nodes()).add(dedicatedMasterNode))
             .build();

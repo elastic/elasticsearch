@@ -22,7 +22,6 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 
 public class IndicesStoreTests extends ESTestCase {
@@ -39,7 +38,7 @@ public class IndicesStoreTests extends ESTestCase {
 
     @Before
     public void createLocalNode() {
-        localNode = TestDiscoveryNode.create("abc", buildNewFakeTransportAddress(), emptyMap(), emptySet());
+        localNode = TestDiscoveryNode.builder("abc").roles(emptySet()).build();
     }
 
     public void testShardCanBeDeletedNoShardStarted() {

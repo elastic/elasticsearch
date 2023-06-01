@@ -39,7 +39,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -364,7 +363,7 @@ public class IndexingMemoryControllerTests extends IndexShardTestCase {
         shard = reinitShard(shard, imc);
         shardRef.set(shard);
         assertEquals(0, imc.availableShards().size());
-        DiscoveryNode localNode = TestDiscoveryNode.create("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet());
+        DiscoveryNode localNode = TestDiscoveryNode.builder("foo").roles(emptySet()).build();
         shard.markAsRecovering("store", new RecoveryState(shard.routingEntry(), localNode, null));
 
         assertEquals(1, imc.availableShards().size());

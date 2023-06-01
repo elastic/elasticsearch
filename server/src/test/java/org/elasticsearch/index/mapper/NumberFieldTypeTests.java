@@ -618,7 +618,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
             null,
             null,
             null,
-            null,
+            MappingLookup.EMPTY,
             null,
             null,
             parserConfig(),

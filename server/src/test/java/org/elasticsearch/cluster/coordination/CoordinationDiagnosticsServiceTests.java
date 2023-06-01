@@ -1041,13 +1041,10 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
         var clusterService = mock(ClusterService.class);
         when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
         when(clusterService.state()).thenReturn(nullMasterClusterState);
-        DiscoveryNode localNode = TestDiscoveryNode.create(
-            "node4",
-            randomNodeId(),
-            buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            Set.of(DiscoveryNodeRole.DATA_ROLE)
-        );
+        DiscoveryNode localNode = TestDiscoveryNode.builder(randomNodeId())
+            .name("node4")
+            .roles(Set.of(DiscoveryNodeRole.DATA_ROLE))
+            .build();
         when(clusterService.localNode()).thenReturn(localNode);
         Coordinator coordinator = mock(Coordinator.class);
         when(coordinator.getFoundPeers()).thenReturn(List.of(node1, node2, localNode));

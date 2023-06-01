@@ -53,7 +53,6 @@ import java.util.Map;
 import java.util.OptionalDouble;
 import java.util.Set;
 
-import static java.util.Collections.emptyMap;
 import static org.elasticsearch.cluster.ClusterModule.BALANCED_ALLOCATOR;
 import static org.elasticsearch.cluster.ClusterModule.DESIRED_BALANCE_ALLOCATOR;
 import static org.elasticsearch.cluster.ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING;
@@ -193,23 +192,23 @@ public abstract class ESAllocationTestCase extends ESTestCase {
     }
 
     protected static DiscoveryNode newNode(String nodeName, String nodeId, Map<String, String> attributes) {
-        return new DiscoveryNode(nodeName, nodeId, buildNewFakeTransportAddress(), attributes, MASTER_DATA_ROLES, null);
+        return TestDiscoveryNode.builder(nodeId).name(nodeName).attributes(attributes).roles(MASTER_DATA_ROLES).build();
     }
 
     protected static DiscoveryNode newNode(String nodeId, Map<String, String> attributes) {
-        return TestDiscoveryNode.create(nodeId, buildNewFakeTransportAddress(), attributes, MASTER_DATA_ROLES);
+        return TestDiscoveryNode.builder(nodeId).attributes(attributes).build();
     }
 
     protected static DiscoveryNode newNode(String nodeId, Set<DiscoveryNodeRole> roles) {
-        return TestDiscoveryNode.create(nodeId, buildNewFakeTransportAddress(), emptyMap(), roles);
+        return TestDiscoveryNode.builder(nodeId).roles(roles).build();
     }
 
     protected static DiscoveryNode newNode(String nodeName, String nodeId, Set<DiscoveryNodeRole> roles) {
-        return new DiscoveryNode(nodeName, nodeId, buildNewFakeTransportAddress(), emptyMap(), roles, null);
+        return TestDiscoveryNode.builder(nodeId).name(nodeName).roles(roles).build();
     }
 
     protected static DiscoveryNode newNode(String nodeId, Version version) {
-        return TestDiscoveryNode.create(nodeId, buildNewFakeTransportAddress(), emptyMap(), MASTER_DATA_ROLES, version);
+        return TestDiscoveryNode.builder(nodeId).roles(MASTER_DATA_ROLES).version(version).build();
     }
 
     protected static ClusterState startRandomInitializingShard(ClusterState clusterState, AllocationService strategy) {

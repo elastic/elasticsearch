@@ -48,7 +48,9 @@ public class DefaultDataPeriodsTests extends AbstractXContentTestCase<DefaultDat
                 },
                 {
                   "name_patterns": [
-                    ".logs-*"
+                    ".logs-*",
+                    ".apm-*",
+                    ".security"
                   ],
                   "interactive_for": "7d",
                   "retained_for": "90d",
@@ -78,7 +80,7 @@ public class DefaultDataPeriodsTests extends AbstractXContentTestCase<DefaultDat
                     new DataPeriod(List.of(".logs-short-*"), TimeValue.timeValueDays(7), TimeValue.timeValueDays(7), 500),
                     new DataPeriod(List.of("my-short-lived-data-stream-*"), TimeValue.timeValueDays(7), TimeValue.timeValueDays(14), 500),
                     new DataPeriod(List.of("not-interactive"), null, TimeValue.timeValueDays(365), 500),
-                    new DataPeriod(List.of(".logs-*"), TimeValue.timeValueDays(7), TimeValue.timeValueDays(90), 200),
+                    new DataPeriod(List.of(".apm-*", ".logs-*", ".security"), TimeValue.timeValueDays(7), TimeValue.timeValueDays(90), 200),
                     new DataPeriod(List.of("*"), TimeValue.timeValueDays(7), null, 0)
                 )
             )

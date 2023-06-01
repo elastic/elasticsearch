@@ -68,9 +68,7 @@ public record DataPeriod(List<String> namePatterns, @Nullable TimeValue interact
         List<String> unsupported = namePatterns.stream().filter(namePattern -> isSupportedPattern(namePattern) == false).toList();
         if (unsupported.isEmpty() == false) {
             throw new IllegalArgumentException(
-                "Name patterns "
-                    + unsupported
-                    + " do not match the allowed pattern styles: \"xxx*\", \"*\" or a concrete data stream name"
+                "Name patterns " + unsupported + " do not match the allowed pattern styles: \"xxx*\", \"*\" or a concrete data stream name"
             );
         }
         if (interactivity != null && retention != null) {

@@ -127,7 +127,7 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
         long start = System.nanoTime();
         GetProfilingResponseBuilder responseBuilder = new GetProfilingResponseBuilder();
         int exp = eventsIndex.getExponent();
-        responseBuilder.setSamplingRate(eventsIndex.getSampleRate());
+        responseBuilder.setSampleRate(eventsIndex.getSampleRate());
         client.prepareSearch(eventsIndex.getName())
             .setTrackTotalHits(false)
             .setQuery(request.getQuery())
@@ -450,7 +450,7 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
             return stackTraceEvents;
         }
 
-        public void setSamplingRate(double rate) {
+        public void setSampleRate(double rate) {
             this.samplingRate = rate;
         }
 

@@ -38,6 +38,8 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.singleChunk;
+
 /**
  * Node statistics (dynamic, changes depending on when created).
  */
@@ -315,26 +317,16 @@ public class NodeStats extends BaseNodeResponse implements ChunkedToXContent {
             }),
 
             ifPresent(getThreadPool()).toXContentChunked(outerParams),
-
-            Iterators.single((builder, params) -> ifPresent(getFs()).toXContent(builder, params)),
-
+            singleChunk(ifPresent(getFs())),
             ifPresent(getTransport()).toXContentChunked(outerParams),
             ifPresent(getHttp()).toXContentChunked(outerParams),
-
-            Iterators.single((builder, params) -> ifPresent(getBreaker()).toXContent(builder, params)),
-
+            singleChunk(ifPresent(getBreaker())),
             ifPresent(getScriptStats()).toXContentChunked(outerParams),
-
-            Iterators.single((builder, params) -> ifPresent(getDiscoveryStats()).toXContent(builder, params)),
-
+            singleChunk(ifPresent(getDiscoveryStats())),
             ifPresent(getIngestStats()).toXContentChunked(outerParams),
-
-            Iterators.single((builder, params) -> {
-                ifPresent(getAdaptiveSelectionStats()).toXContent(builder, params);
-                ifPresent(getScriptCacheStats()).toXContent(builder, params);
-                ifPresent(getIndexingPressureStats()).toXContent(builder, params);
-                return builder;
-            })
+            singleChunk(ifPresent(getAdaptiveSelectionStats())),
+            ifPresent(getScriptCacheStats()).toXContentChunked(outerParams),
+            singleChunk(ifPresent(getIndexingPressureStats()))
         );
     }
 

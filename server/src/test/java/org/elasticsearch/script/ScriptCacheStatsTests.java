@@ -20,7 +20,7 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ScriptCacheStatsTests extends ESTestCase {
-    public void testXContentWithGeneralMode() throws IOException {
+    public void testXContentChunkedWithGeneralMode() throws IOException {
         var builder = XContentFactory.jsonBuilder().prettyPrint();
         var contextStats = List.of(
             new ScriptContextStats("context-1", 302, new TimeSeries(1000, 1001, 1002, 100), new TimeSeries(2000, 2001, 2002, 201)),
@@ -30,7 +30,9 @@ public class ScriptCacheStatsTests extends ESTestCase {
         var scriptCacheStats = new ScriptCacheStats(stats);
 
         builder.startObject();
-        scriptCacheStats.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        for (var it = scriptCacheStats.toXContentChunked(ToXContent.EMPTY_PARAMS); it.hasNext(); ) {
+            it.next().toXContent(builder, ToXContent.EMPTY_PARAMS);
+        }
         builder.endObject();
 
         String expected = """
@@ -46,7 +48,7 @@ public class ScriptCacheStatsTests extends ESTestCase {
         assertThat(Strings.toString(builder), equalTo(expected));
     }
 
-    public void testXContentWithContextMode() throws IOException {
+    public void testXContentChunkedWithContextMode() throws IOException {
         var builder = XContentFactory.jsonBuilder().prettyPrint();
         var scriptCacheStats = new ScriptCacheStats(
             Map.of(
@@ -60,7 +62,9 @@ public class ScriptCacheStatsTests extends ESTestCase {
         );
 
         builder.startObject();
-        scriptCacheStats.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        for (var it = scriptCacheStats.toXContentChunked(ToXContent.EMPTY_PARAMS); it.hasNext(); ) {
+            it.next().toXContent(builder, ToXContent.EMPTY_PARAMS);
+        }
         builder.endObject();
 
         String expected = """

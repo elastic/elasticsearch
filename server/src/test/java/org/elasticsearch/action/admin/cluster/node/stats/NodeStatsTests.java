@@ -450,33 +450,13 @@ public class NodeStatsTests extends ESTestCase {
                         assertEquals(aStats.responseTime, bStats.responseTime, 0.01);
                     });
                 }
-                ScriptCacheStats scriptCacheStats = nodeStats.getScriptCacheStats();
-                ScriptCacheStats deserializedScriptCacheStats = deserializedNodeStats.getScriptCacheStats();
+                var scriptCacheStats = nodeStats.getScriptCacheStats();
+                var deserializedScriptCacheStats = deserializedNodeStats.getScriptCacheStats();
                 if (scriptCacheStats == null) {
                     assertNull(deserializedScriptCacheStats);
                 } else if (deserializedScriptCacheStats.getContextStats() != null) {
-                    Map<String, ScriptStats> deserialized = deserializedScriptCacheStats.getContextStats();
-                    long evictions = 0;
-                    long limited = 0;
-                    long compilations = 0;
-                    Map<String, ScriptStats> stats = scriptCacheStats.getContextStats();
-                    for (String context : stats.keySet()) {
-                        ScriptStats deserStats = deserialized.get(context);
-                        ScriptStats generatedStats = stats.get(context);
-
-                        evictions += generatedStats.getCacheEvictions();
-                        assertEquals(generatedStats.getCacheEvictions(), deserStats.getCacheEvictions());
-
-                        limited += generatedStats.getCompilationLimitTriggered();
-                        assertEquals(generatedStats.getCompilationLimitTriggered(), deserStats.getCompilationLimitTriggered());
-
-                        compilations += generatedStats.getCompilations();
-                        assertEquals(generatedStats.getCompilations(), deserStats.getCompilations());
-                    }
-                    ScriptStats sum = deserializedScriptCacheStats.sum();
-                    assertEquals(evictions, sum.getCacheEvictions());
-                    assertEquals(limited, sum.getCompilationLimitTriggered());
-                    assertEquals(compilations, sum.getCompilations());
+                    assertEquals(scriptCacheStats, deserializedScriptCacheStats);
+                    assertNotSame(scriptCacheStats, deserializedScriptCacheStats);
                 }
             }
         }

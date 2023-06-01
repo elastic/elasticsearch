@@ -15,9 +15,11 @@ import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.Build;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
@@ -70,6 +72,19 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.function.LongSupplier;
 
 final class DefaultSearchContext extends SearchContext {
+
+    /**
+     * A feature flag to indicate if searches should be run in concurrent mode. Defaults to false.
+     */
+    private static final String CONCURRENT_SEARCH_SYSTEM_PROPERTY = "es.concurrent_search";
+    private static final Boolean CONCURRENT_SEARCH_FEATURE_FLAG;
+    static {
+        final Boolean useConcurrentSearch = Booleans.parseBoolean(System.getProperty(CONCURRENT_SEARCH_SYSTEM_PROPERTY), false);
+        if (useConcurrentSearch && Build.CURRENT.isSnapshot() == false) {
+            throw new IllegalArgumentException("Enabling serverless usage is only supported in snapshot builds");
+        }
+        CONCURRENT_SEARCH_FEATURE_FLAG = useConcurrentSearch;
+    }
 
     private final ReaderContext readerContext;
     private final ShardSearchRequest request;
@@ -179,7 +194,8 @@ final class DefaultSearchContext extends SearchContext {
 
     private static boolean concurrentSearch(SearchSourceBuilder builder) {
 
-        if (builder == null
+        if (CONCURRENT_SEARCH_FEATURE_FLAG == false
+            || builder == null
             || builder.size() != 0
             || builder.terminateAfter() != SearchContext.DEFAULT_TERMINATE_AFTER
             || builder.postFilter() != null

@@ -119,7 +119,7 @@ public class ExplainDataLifecycleIT extends ESIntegTestCase {
                 assertThat(explainIndex.isManagedByDLM(), is(true));
                 assertThat(explainIndex.getIndexCreationDate(), notNullValue());
                 assertThat(explainIndex.getLifecycle(), notNullValue());
-                assertThat(explainIndex.getLifecycle().getDataRetention(), nullValue());
+                assertThat(explainIndex.getLifecycle().getEffectiveDataRetention(), nullValue());
                 if (internalCluster().numDataNodes() > 1) {
                     // If the number of nodes is 1 then the cluster will be yellow so forcemerge will report an error if it has run
                     assertThat(explainIndex.getError(), nullValue());
@@ -208,7 +208,7 @@ public class ExplainDataLifecycleIT extends ESIntegTestCase {
                 assertThat(explainIndex.isManagedByDLM(), is(true));
                 assertThat(explainIndex.getIndexCreationDate(), notNullValue());
                 assertThat(explainIndex.getLifecycle(), notNullValue());
-                assertThat(explainIndex.getLifecycle().getDataRetention(), nullValue());
+                assertThat(explainIndex.getLifecycle().getEffectiveDataRetention(), nullValue());
                 assertThat(explainIndex.getRolloverDate(), nullValue());
                 assertThat(explainIndex.getTimeSinceRollover(System::currentTimeMillis), nullValue());
                 // index has not been rolled over yet

@@ -146,17 +146,17 @@ class TriangleTreeWriter {
 
         private void writeMetadata(StreamOutput out) throws IOException {
             byte metadata = 0;
-            metadata |= (left != null) ? (1 << 0) : 0;
-            metadata |= (right != null) ? (1 << 1) : 0;
+            metadata |= (byte) ((left != null) ? (1 << 0) : 0);
+            metadata |= (byte) ((right != null) ? (1 << 1) : 0);
             if (component.type == ShapeField.DecodedTriangle.TYPE.POINT) {
                 metadata |= (1 << 2);
             } else if (component.type == ShapeField.DecodedTriangle.TYPE.LINE) {
                 metadata |= (1 << 3);
-                metadata |= (component.ab) ? (1 << 4) : 0;
+                metadata |= (byte) ((component.ab) ? (1 << 4) : 0);
             } else {
-                metadata |= (component.ab) ? (1 << 4) : 0;
-                metadata |= (component.bc) ? (1 << 5) : 0;
-                metadata |= (component.ca) ? (1 << 6) : 0;
+                metadata |= (byte) ((component.ab) ? (1 << 4) : 0);
+                metadata |= (byte) ((component.bc) ? (1 << 5) : 0);
+                metadata |= (byte) ((component.ca) ? (1 << 6) : 0);
             }
             out.writeByte(metadata);
         }

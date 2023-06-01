@@ -14,8 +14,8 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
 import org.elasticsearch.common.Priority;
@@ -113,7 +113,11 @@ public class NodeLeftExecutorTests extends ESTestCase {
         final DiscoveryNode masterNode = DiscoveryNodeUtils.create("master");
         final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(
-                DiscoveryNodes.builder().add(masterNode).localNodeId("master").masterNodeId("master").add(DiscoveryNodeUtils.create("other"))
+                DiscoveryNodes.builder()
+                    .add(masterNode)
+                    .localNodeId("master")
+                    .masterNodeId("master")
+                    .add(DiscoveryNodeUtils.create("other"))
             )
             .build();
 

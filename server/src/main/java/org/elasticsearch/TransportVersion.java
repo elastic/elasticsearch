@@ -128,6 +128,7 @@ public record TransportVersion(int id) implements Comparable<TransportVersion> {
     public static final TransportVersion V_8_500_004 = registerTransportVersion(8_500_004, "6a00db6a-fd66-42a9-97ea-f6cc53169110");
     public static final TransportVersion V_8_500_005 = registerTransportVersion(8_500_005, "65370d2a-d936-4383-a2e0-8403f708129b");
     public static final TransportVersion V_8_500_006 = registerTransportVersion(8_500_006, "7BB5621A-80AC-425F-BA88-75543C442F23");
+    public static final TransportVersion V_8_500_007 = registerTransportVersion(8_500_007, "77261d43-4149-40af-89c5-7e71e0454fce");
 
     /**
      * Reference to the most recent transport version.
@@ -170,7 +171,6 @@ public record TransportVersion(int id) implements Comparable<TransportVersion> {
                 try {
                     version = (TransportVersion) declaredField.get(null);
                 } catch (IllegalAccessException e) {
-                    // should not happen, checked above
                     throw new AssertionError(e);
                 }
                 builder.put(version.id, version);

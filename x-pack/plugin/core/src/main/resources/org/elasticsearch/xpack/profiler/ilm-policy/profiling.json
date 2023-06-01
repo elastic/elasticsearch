@@ -1,11 +1,10 @@
 {
   "phases": {
     "hot": {
-      "min_age": "0ms",
       "actions": {
         "rollover": {
           "max_primary_shard_size": "50gb",
-          "max_age": "7d",
+          "max_age": "30d",
           "min_docs": 1
         },
         "set_priority": {
@@ -19,8 +18,8 @@
         "set_priority": {
           "priority": 50
         },
-        "shrink": {
-          "number_of_shards": 2
+        "forcemerge": {
+          "max_num_segments": 1
         }
       }
     },
@@ -32,7 +31,7 @@
     }
   },
   "_meta": {
-    "description": "default ILM policy for Elastic Universal Profiling",
+    "description": "default policy for Elastic Universal Profiling",
     "managed": true
   }
 }

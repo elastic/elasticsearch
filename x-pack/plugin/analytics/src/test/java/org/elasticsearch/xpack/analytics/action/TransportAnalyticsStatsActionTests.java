@@ -11,7 +11,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.test.ESTestCase;
@@ -45,7 +45,7 @@ public class TransportAnalyticsStatsActionTests extends ESTestCase {
         ThreadPool threadPool = mock(ThreadPool.class);
 
         ClusterService clusterService = mock(ClusterService.class);
-        DiscoveryNode discoveryNode = TestDiscoveryNode.create("nodeId");
+        DiscoveryNode discoveryNode = DiscoveryNodeUtils.create("nodeId");
         when(clusterService.localNode()).thenReturn(discoveryNode);
         ClusterName clusterName = new ClusterName("cluster_name");
         when(clusterService.getClusterName()).thenReturn(clusterName);

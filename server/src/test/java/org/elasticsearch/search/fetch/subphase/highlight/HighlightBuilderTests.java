@@ -22,6 +22,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -300,7 +301,7 @@ public class HighlightBuilderTests extends ESTestCase {
             null,
             null,
             null,
-            null,
+            MappingLookup.EMPTY,
             null,
             null,
             parserConfig(),

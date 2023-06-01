@@ -44,6 +44,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.InvalidAliasNameException;
@@ -120,7 +121,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             null,
             null,
             null,
-            null,
+            MappingLookup.EMPTY,
             null,
             null,
             parserConfig(),

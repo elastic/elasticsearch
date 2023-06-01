@@ -17,7 +17,7 @@ dependencies {
 
 restResources {
   restApi {
-    include '_common', 'bulk', 'cluster', 'indices', 'search'
+    include '_common', 'bulk', 'cluster', 'indices', 'search', 'ingest.put_pipeline', 'ingest.delete_pipeline'
   }
 }
 

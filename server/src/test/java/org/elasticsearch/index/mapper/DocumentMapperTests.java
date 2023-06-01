@@ -428,7 +428,7 @@ public class DocumentMapperTests extends MapperServiceTestCase {
                 builders[i].endObject().endObject().endObject();
             }
 
-            final MapperService mapperService = createMapperService(Version.CURRENT, Settings.EMPTY, () -> false);
+            final MapperService mapperService = createMapperService(IndexVersion.CURRENT, Settings.EMPTY, () -> false);
             final CountDownLatch latch = new CountDownLatch(1);
             final Thread[] threads = new Thread[numThreads];
             for (int i = 0; i < threads.length; i++) {

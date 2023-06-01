@@ -1,5 +1,6 @@
 pr: 96453
-summary: Enable the Panama Vector module
+summary: Leverage SIMD hardware instructions in Vector Search
 area: Vector Search
 type: enhancement
-issues: []
+issues:
+ - 96370

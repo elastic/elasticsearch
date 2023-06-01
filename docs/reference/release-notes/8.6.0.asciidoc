@@ -11,6 +11,22 @@ include::8.4.0.asciidoc[tag=file-based-settings-deadlock-known-issue]
 
 include::8.0.0.asciidoc[tag=jackson-filtering-bug]
 
+// tag::reconciliation-imbalance-known-issue[]
+* Shard rebalancing may temporarily unbalance cluster
++
+From 8.6.0 onwards the default shard rebalancing algorithm will compute the
+final desired balance and then make shard movements to reconcile the current
+state of the cluster with the desired state. However the order in which the
+shard movements take place may be skewed towards certain nodes, causing the
+cluster to become temporarily unbalanced while the reconciliation is ongoing.
+As always, once a node reaches a disk watermark it will not accept any
+additional shards, but this skew may result in nodes reaching their disk
+watermarks more often than expected in normal operation. Once the
+reconciliation process completes, the cluster will be balanced again.
++
+To avoid this problem, upgrade to 8.8.0 or later.
+// end::reconciliation-imbalance-known-issue[]
+
 [[bug-8.6.0]]
 [float]
 === Bug fixes

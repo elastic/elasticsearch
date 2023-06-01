@@ -316,13 +316,17 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             } else {
                 final TaskId parentTaskId = task.taskInfo(clusterService.localNode().getId(), false).taskId();
                 if (shouldMinimizeRoundtrips(rewritten)) {
+                    final AggregationReduceContext.Builder aggregationReduceContextBuilder = rewritten.source() != null
+                        && rewritten.source().aggregations() != null
+                            ? searchService.aggReduceContextBuilder(task::isCancelled, rewritten.source().aggregations())
+                            : null;
                     ccsRemoteReduce(
                         parentTaskId,
                         rewritten,
                         localIndices,
                         remoteClusterIndices,
                         timeProvider,
-                        searchService.aggReduceContextBuilder(task::isCancelled, rewritten),
+                        aggregationReduceContextBuilder,
                         remoteClusterService,
                         threadPool,
                         listener,
@@ -399,21 +403,23 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     }
 
     static void adjustSearchType(SearchRequest searchRequest, boolean singleShard) {
-        // optimize search type for cases where there is only one shard group to search on
-        if (singleShard) {
-            // if we only have one group, then we always want Q_T_F, no need for DFS, and no need to do THEN since we hit one shard
-            searchRequest.searchType(QUERY_THEN_FETCH);
+        // if there's a kNN search, always use DFS_QUERY_THEN_FETCH
+        if (searchRequest.hasKnnSearch()) {
+            searchRequest.searchType(DFS_QUERY_THEN_FETCH);
+            return;
         }
 
         // if there's only suggest, disable request cache and always use QUERY_THEN_FETCH
         if (searchRequest.isSuggestOnly()) {
             searchRequest.requestCache(false);
             searchRequest.searchType(QUERY_THEN_FETCH);
+            return;
         }
 
-        // if there's a kNN search, always use DFS_QUERY_THEN_FETCH
-        if (searchRequest.hasKnnSearch()) {
-            searchRequest.searchType(DFS_QUERY_THEN_FETCH);
+        // optimize search type for cases where there is only one shard group to search on
+        if (singleShard) {
+            // if we only have one group, then we always want Q_T_F, no need for DFS, and no need to do THEN since we hit one shard
+            searchRequest.searchType(QUERY_THEN_FETCH);
         }
     }
 

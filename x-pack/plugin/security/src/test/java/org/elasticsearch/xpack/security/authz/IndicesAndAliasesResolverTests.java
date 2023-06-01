@@ -66,10 +66,9 @@ import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCa
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
-import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
+import org.elasticsearch.xpack.core.security.user.InternalUser;
+import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
-import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.test.SecurityTestUtils;
 import org.junit.Before;
@@ -352,23 +351,18 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             User user = ((Subject) i.getArguments()[0]).getUser();
             @SuppressWarnings("unchecked")
             ActionListener<Role> listener = (ActionListener<Role>) i.getArguments()[1];
-            if (XPackUser.is(user)) {
-                listener.onResponse(Role.buildFromRoleDescriptor(XPackUser.ROLE_DESCRIPTOR, fieldPermissionsCache, RESTRICTED_INDICES));
-                return Void.TYPE;
+            if (user instanceof InternalUser internalUser) {
+                if (internalUser.getLocalClusterRoleDescriptor().isPresent()) {
+                    listener.onResponse(
+                        Role.buildFromRoleDescriptor(
+                            internalUser.getLocalClusterRoleDescriptor().get(),
+                            fieldPermissionsCache,
+                            RESTRICTED_INDICES
+                        )
+                    );
+                    return Void.TYPE;
+                }
             }
-            if (XPackSecurityUser.is(user)) {
-                listener.onResponse(
-                    Role.buildFromRoleDescriptor(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR, fieldPermissionsCache, RESTRICTED_INDICES)
-                );
-                return Void.TYPE;
-            }
-            if (AsyncSearchUser.is(user)) {
-                listener.onResponse(
-                    Role.buildFromRoleDescriptor(AsyncSearchUser.ROLE_DESCRIPTOR, fieldPermissionsCache, RESTRICTED_INDICES)
-                );
-                return Void.TYPE;
-            }
-
             i.callRealMethod();
             return Void.TYPE;
         }).when(rolesStore).getRole(any(Subject.class), anyActionListener());
@@ -1560,14 +1554,17 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
     public void testXPackSecurityUserHasAccessToSecurityIndex() {
         SearchRequest request = new SearchRequest();
         {
-            final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(XPackSecurityUser.INSTANCE, SearchAction.NAME);
+            final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(InternalUsers.XPACK_SECURITY_USER, SearchAction.NAME);
             List<String> indices = resolveIndices(request, authorizedIndices).getLocal();
             assertThat(indices, hasItem(SECURITY_MAIN_ALIAS));
         }
         {
             IndicesAliasesRequest aliasesRequest = new IndicesAliasesRequest();
             aliasesRequest.addAliasAction(AliasActions.add().alias("security_alias").index(SECURITY_MAIN_ALIAS));
-            final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(XPackSecurityUser.INSTANCE, IndicesAliasesAction.NAME);
+            final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(
+                InternalUsers.XPACK_SECURITY_USER,
+                IndicesAliasesAction.NAME
+            );
             List<String> indices = resolveIndices(aliasesRequest, authorizedIndices).getLocal();
             assertThat(indices, hasItem(SECURITY_MAIN_ALIAS));
         }
@@ -1575,7 +1572,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
     public void testXPackUserDoesNotHaveAccessToSecurityIndex() {
         SearchRequest request = new SearchRequest();
-        final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(XPackUser.INSTANCE, SearchAction.NAME);
+        final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(InternalUsers.XPACK_USER, SearchAction.NAME);
         List<String> indices = resolveIndices(request, authorizedIndices).getLocal();
         assertThat(indices, not(hasItem(SECURITY_MAIN_ALIAS)));
     }

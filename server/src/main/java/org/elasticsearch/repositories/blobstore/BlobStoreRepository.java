@@ -2712,7 +2712,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 indexCommitPointFiles = new ArrayList<>();
                 final Collection<String> fileNames;
                 final Store.MetadataSnapshot metadataFromStore;
-                try (Releasable ignored = incrementStoreRef(store, snapshotStatus, shardId)) {
+                try (Releasable ignored = context.withCommitRef()) {
                     // TODO apparently we don't use the MetadataSnapshot#.recoveryDiff(...) here but we should
                     try {
                         logger.trace("[{}] [{}] Loading store metadata using index commit [{}]", shardId, snapshotId, snapshotIndexCommit);
@@ -2866,13 +2866,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
             final StepListener<Collection<Void>> allFilesUploadedListener = new StepListener<>();
             allFilesUploadedListener.whenComplete(v -> {
-                final IndexShardSnapshotStatus.Copy lastSnapshotStatus = snapshotStatus.moveToFinalize(snapshotIndexCommit.getGeneration());
+                final IndexShardSnapshotStatus.Copy lastSnapshotStatus = snapshotStatus.moveToFinalize();
 
                 // now create and write the commit point
                 logger.trace("[{}] [{}] writing shard snapshot file", shardId, snapshotId);
                 final BlobStoreIndexShardSnapshot blobStoreIndexShardSnapshot = new BlobStoreIndexShardSnapshot(
                     snapshotId.getName(),
-                    lastSnapshotStatus.getIndexVersion(),
                     indexCommitPointFiles,
                     lastSnapshotStatus.getStartTime(),
                     threadPool.absoluteTimeInMillis() - lastSnapshotStatus.getStartTime(),
@@ -2924,15 +2923,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         for (int i = 0; i < noOfFilesToSnapshot; i++) {
             shardSnapshotTaskRunner.enqueueFileSnapshot(context, filesToSnapshot::poll, filesListener);
         }
-    }
-
-    private static Releasable incrementStoreRef(Store store, IndexShardSnapshotStatus snapshotStatus, ShardId shardId) {
-        if (store.tryIncRef() == false) {
-            snapshotStatus.ensureNotAborted();
-            assert false : "Store should not be closed concurrently unless snapshot is aborted";
-            throw new IndexShardSnapshotFailedException(shardId, "Store got closed concurrently");
-        }
-        return store::decRef;
     }
 
     private static boolean assertFileContentsMatchHash(
@@ -3439,7 +3429,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         final BlobContainer shardContainer = shardContainer(indexId, shardId);
         final String file = fileInfo.physicalName();
         try (
-            Releasable ignored = BlobStoreRepository.incrementStoreRef(store, snapshotStatus, store.shardId());
+            Releasable ignored = context.withCommitRef();
             IndexInput indexInput = store.openVerifyingInput(file, IOContext.READONCE, fileInfo.metadata())
         ) {
             for (int i = 0; i < fileInfo.numberOfParts(); i++) {

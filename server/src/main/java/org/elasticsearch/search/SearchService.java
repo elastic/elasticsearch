@@ -944,7 +944,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         final IndexShard shard = indexService.getShard(shardId.id());
         final SearchOperationListener searchOperationListener = shard.getSearchOperationListener();
-        shard.awaitShardSearchActive(ignored -> {
+        shard.makeShardSearchActive(ignored -> {
             Engine.SearcherSupplier searcherSupplier = null;
             ReaderContext readerContext = null;
             try {
@@ -1629,7 +1629,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             if (request.readerId() != null) {
                 listener.onResponse(request);
             } else {
-                shard.awaitShardSearchActive(b -> listener.onResponse(request));
+                shard.makeShardSearchActive(b -> listener.onResponse(request));
             }
         }, listener::onFailure);
         // we also do rewrite on the coordinating node (TransportSearchService) but we also need to do it here for BWC as well as

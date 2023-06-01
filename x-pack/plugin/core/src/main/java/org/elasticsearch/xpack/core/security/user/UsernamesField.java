@@ -18,8 +18,6 @@ public final class UsernamesField {
     public static final String XPACK_SECURITY_ROLE = "_xpack_security";
     public static final String DLM_NAME = "_dlm";
     public static final String DLM_ROLE = "_dlm";
-    public static final String CROSS_CLUSTER_ACCESS_NAME = "_cross_cluster_access";
-    public static final String CROSS_CLUSTER_ACCESS_ROLE = "_cross_cluster_access";
     public static final String SECURITY_PROFILE_NAME = "_security_profile";
     public static final String SECURITY_PROFILE_ROLE = "_security_profile";
     public static final String XPACK_NAME = "_xpack";

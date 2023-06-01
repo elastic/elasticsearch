@@ -30,9 +30,9 @@ import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSetting
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
-import org.elasticsearch.xpack.core.security.user.CrossClusterAccessUser;
 import org.elasticsearch.xpack.core.security.user.InternalUser;
 import org.elasticsearch.xpack.core.security.user.InternalUsers;
+import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.user.UsernamesField;
 
@@ -240,7 +240,6 @@ public class AuthenticationTestHelper {
             UsernamesField.ASYNC_SEARCH_ROLE,
             UsernamesField.XPACK_SECURITY_ROLE,
             UsernamesField.SECURITY_PROFILE_ROLE,
-            UsernamesField.CROSS_CLUSTER_ACCESS_ROLE,
             UsernamesField.DLM_ROLE
         );
     }
@@ -257,8 +256,8 @@ public class AuthenticationTestHelper {
     }
 
     public static CrossClusterAccessSubjectInfo crossClusterAccessSubjectInfoForInternalUser() {
-        final Authentication authentication = AuthenticationTestHelper.builder().internal(InternalUsers.CROSS_CLUSTER_ACCESS_USER).build();
-        return CrossClusterAccessUser.subjectInfo(
+        final Authentication authentication = AuthenticationTestHelper.builder().internal(InternalUsers.SYSTEM_USER).build();
+        return SystemUser.crossClusterAccessSubjectInfo(
             authentication.getEffectiveSubject().getTransportVersion(),
             authentication.getEffectiveSubject().getRealm().getNodeName()
         );
@@ -273,7 +272,7 @@ public class AuthenticationTestHelper {
         return switch (type) {
             case "realm" -> AuthenticationTestHelper.builder().realm().build();
             case "apikey" -> AuthenticationTestHelper.builder().apiKey().build();
-            case "internal" -> AuthenticationTestHelper.builder().internal(InternalUsers.CROSS_CLUSTER_ACCESS_USER).build();
+            case "internal" -> AuthenticationTestHelper.builder().internal(InternalUsers.SYSTEM_USER).build();
             case "service_account" -> AuthenticationTestHelper.builder().serviceAccount().build();
             default -> throw new UnsupportedOperationException("unknown type " + type);
         };
@@ -289,7 +288,7 @@ public class AuthenticationTestHelper {
     }
 
     public static CrossClusterAccessSubjectInfo randomCrossClusterAccessSubjectInfo(final Authentication authentication) {
-        if (InternalUsers.CROSS_CLUSTER_ACCESS_USER == authentication.getEffectiveSubject().getUser()) {
+        if (InternalUsers.SYSTEM_USER == authentication.getEffectiveSubject().getUser()) {
             return crossClusterAccessSubjectInfoForInternalUser();
         }
         final int numberOfRoleDescriptors;

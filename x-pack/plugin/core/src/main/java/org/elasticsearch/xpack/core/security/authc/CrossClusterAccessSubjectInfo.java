@@ -205,10 +205,10 @@ public final class CrossClusterAccessSubjectInfo {
         assert false == authentication.isCrossClusterAccess();
         authentication.checkConsistency();
         final User user = authentication.getEffectiveSubject().getUser();
-        if (user == InternalUsers.CROSS_CLUSTER_ACCESS_USER) {
+        if (user == InternalUsers.SYSTEM_USER) {
             if (false == getRoleDescriptorsBytesList().isEmpty()) {
                 logger.warn(
-                    "Received non-empty role descriptors bytes list for internal cross cluster access user. "
+                    "Received non-empty remote access role descriptors bytes list for _system user. "
                         + "These will be ignored during authorization."
                 );
                 assert false : "role descriptors bytes list for internal cross cluster access user must be empty";

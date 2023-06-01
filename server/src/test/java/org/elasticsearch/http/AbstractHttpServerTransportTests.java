@@ -66,16 +66,24 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static java.net.InetAddress.getByName;
 import static java.util.Arrays.asList;
 import static org.elasticsearch.http.AbstractHttpServerTransport.resolvePublishPort;
+import static org.elasticsearch.http.DefaultRestChannel.CLOSE;
+import static org.elasticsearch.http.DefaultRestChannel.CONNECTION;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_CLIENT_STATS_ENABLED;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_SERVER_SHUTDOWN_GRACE_PERIOD;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
@@ -891,40 +899,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testSetGracefulClose() {
-        try (
-            AbstractHttpServerTransport transport = new AbstractHttpServerTransport(
-                Settings.EMPTY,
-                networkService,
-                recycler,
-                threadPool,
-                xContentRegistry(),
-                new HttpServerTransport.Dispatcher() {
-                    @Override
-                    public void dispatchRequest(RestRequest request, RestChannel channel, ThreadContext threadContext) {
-                        channel.sendResponse(emptyResponse(RestStatus.OK));
-                    }
-
-                    @Override
-                    public void dispatchBadRequest(RestChannel channel, ThreadContext threadContext, Throwable cause) {
-                        channel.sendResponse(emptyResponse(RestStatus.BAD_REQUEST));
-                    }
-                },
-                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                Tracer.NOOP
-            ) {
-
-                @Override
-                protected HttpServerChannel bind(InetSocketAddress hostAddress) {
-                    return null;
-                }
-
-                @Override
-                protected void doStart() {}
-
-                @Override
-                protected void stopInternal() {}
-            }
-        ) {
+        try (AbstractHttpServerTransport transport = new TestHttpServerTransport(Settings.EMPTY)) {
             final TestHttpRequest httpRequest = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/");
 
             HttpChannel httpChannel = mock(HttpChannel.class);
@@ -935,7 +910,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             verify(httpChannel).sendResponse(response.capture(), listener.capture());
 
             listener.getValue().onResponse(null);
-            assertThat(response.getValue().containsHeader(DefaultRestChannel.CONNECTION), is(false));
+            assertThat(response.getValue().containsHeader(CONNECTION), is(false));
             verify(httpChannel, never()).close();
 
             httpChannel = mock(HttpChannel.class);
@@ -944,8 +919,113 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             verify(httpChannel).sendResponse(response.capture(), listener.capture());
 
             listener.getValue().onResponse(null);
-            assertThat(response.getValue().headers().get(DefaultRestChannel.CONNECTION), containsInAnyOrder(DefaultRestChannel.CLOSE));
+            assertThat(response.getValue().headers().get(CONNECTION), containsInAnyOrder(DefaultRestChannel.CLOSE));
             verify(httpChannel).close();
+        }
+    }
+
+    public void testStopDoesntWaitIfGraceIsZero() {
+        try (TestHttpServerTransport transport = new TestHttpServerTransport(Settings.EMPTY)) {
+            transport.bindServer();
+            final TestHttpRequest httpRequest = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/");
+
+            TestHttpChannel httpChannel = new TestHttpChannel(false);
+            transport.serverAcceptedChannel(httpChannel);
+            transport.incomingRequest(httpRequest, httpChannel);
+
+            transport.doStop();
+            assertThat("stop listening first", transport.stopListeningForNewConnectionsOrder(), is(1));
+            assertThat("graceful close second", transport.gracefullyCloseConnectionsOrder(), is(2));
+            assertThat("no wait", transport.waitForClientConnectionsToCloseOrder(), is(-1));
+            assertThat("close immediately third", transport.closeClientConnectionsImmediatelyOrder(), is(3));
+            assertFalse(transport.testHttpServerChannel.isOpen());
+            assertFalse(httpChannel.isOpen());
+        }
+    }
+
+    public void testStopEarlyWhenNoRequests() {
+        try (TestHttpServerTransport transport = new TestHttpServerTransport(gracePeriod(1))) {
+            transport.bindServer();
+
+            transport.doStop();
+            assertThat("stop listening first", transport.stopListeningForNewConnectionsOrder(), is(1));
+            assertThat("graceful close second", transport.gracefullyCloseConnectionsOrder(), is(2));
+            assertThat("wait third", transport.waitForClientConnectionsToCloseOrder(), is(3));
+            assertThat("no need to close immediately", transport.closeClientConnectionsImmediatelyOrder(), is(-1));
+            assertTrue(transport.waitClosedBeforeTimeout);
+            assertFalse(transport.testHttpServerChannel.isOpen());
+        }
+    }
+
+    public void testStopWaitsForTimeoutWhenRequests() {
+        try (TestHttpServerTransport transport = new TestHttpServerTransport(gracePeriod(1))) {
+            transport.bindServer();
+
+            final TestHttpRequest httpRequest = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/");
+            TestHttpChannel httpChannel = new TestHttpChannel(true);
+            transport.serverAcceptedChannel(httpChannel);
+            transport.incomingRequest(httpRequest, httpChannel);
+            transport.addForceCloser(httpChannel.delayClose::countDown);
+
+            transport.doStop();
+            assertThat("stop listening first", transport.stopListeningForNewConnectionsOrder(), is(1));
+            assertThat("graceful close second", transport.gracefullyCloseConnectionsOrder(), is(2));
+            assertThat("wait third", transport.waitForClientConnectionsToCloseOrder(), is(3));
+            assertThat("close immediately fourth", transport.closeClientConnectionsImmediatelyOrder(), is(4));
+            assertFalse(transport.waitClosedBeforeTimeout);
+            assertFalse(transport.testHttpServerChannel.isOpen());
+        }
+    }
+
+    public void testStopClosesChannelAfterRequest() {
+        try (TestHttpServerTransport transport = new TestHttpServerTransport(gracePeriod(100))) {
+            transport.bindServer();
+
+            TestHttpChannel httpChannel = new TestHttpChannel(true);
+            transport.serverAcceptedChannel(httpChannel);
+            transport.incomingRequest(new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/"), httpChannel);
+            CountDownLatch lastRequestSent = new CountDownLatch(1);
+
+            TestHttpChannel idleChannel = new TestHttpChannel(true);
+            transport.serverAcceptedChannel(idleChannel);
+            transport.incomingRequest(new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/"), idleChannel);
+
+            // going to force close the idle channel
+            transport.addForceCloser(idleChannel.delayClose::countDown);
+
+            // After graceful close, send one last request
+            transport.listeners.put(TestHttpServerTransport.State.GRACEFUL_CLOSE, () -> {
+                httpChannel.delayClose.countDown();
+                transport.incomingRequest(new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/"), httpChannel);
+                lastRequestSent.countDown();
+            });
+
+            // Latch for all reactive logic to trigger
+            CountDownLatch stopped = new CountDownLatch(1);
+            new Thread(() -> {
+                transport.doStop();
+                stopped.countDown();
+            }).start();
+
+            try {
+                assertTrue(stopped.await(100, TimeUnit.SECONDS));
+            } catch (InterruptedException e) {
+                fail("server never stopped");
+            }
+            assertThat("stop listening first", transport.stopListeningForNewConnectionsOrder(), is(1));
+            assertThat("graceful close second", transport.gracefullyCloseConnectionsOrder(), is(2));
+            assertThat("wait third", transport.waitForClientConnectionsToCloseOrder(), is(3));
+            assertThat("close immediately fourth", transport.closeClientConnectionsImmediatelyOrder(), is(4));
+            assertFalse(transport.waitClosedBeforeTimeout);
+            assertFalse(transport.testHttpServerChannel.isOpen());
+            assertFalse(httpChannel.open);
+            assertThat(httpChannel.responses, hasSize(2));
+            HttpResponse first = httpChannel.responses.get(0);
+            HttpResponse last = httpChannel.responses.get(1);
+            assertFalse(first.containsHeader(CONNECTION));
+            assertTrue(last.containsHeader(CONNECTION));
+            assertThat(last, instanceOf(TestHttpResponse.class));
+            assertThat(((TestHttpResponse) last).headers().get(CONNECTION).get(0), equalTo(CLOSE));
         }
     }
 
@@ -993,5 +1073,194 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             mock(ClusterService.class),
             List.of()
         );
+    }
+
+    private class TestHttpServerTransport extends AbstractHttpServerTransport {
+        public TestHttpChannel testHttpServerChannel = new TestHttpChannel(false);
+        List<Runnable> forceClosers = new ArrayList<>();
+
+        public TestHttpServerTransport(Settings settings) {
+            super(
+                Settings.builder().put(settings).put(SETTING_HTTP_CLIENT_STATS_ENABLED.getKey(), false).build(),
+                AbstractHttpServerTransportTests.this.networkService,
+                AbstractHttpServerTransportTests.this.recycler,
+                AbstractHttpServerTransportTests.this.threadPool,
+                xContentRegistry(),
+                new HttpServerTransport.Dispatcher() {
+                    @Override
+                    public void dispatchRequest(RestRequest request, RestChannel channel, ThreadContext threadContext) {
+                        channel.sendResponse(emptyResponse(RestStatus.OK));
+                    }
+
+                    @Override
+                    public void dispatchBadRequest(RestChannel channel, ThreadContext threadContext, Throwable cause) {
+                        channel.sendResponse(emptyResponse(RestStatus.BAD_REQUEST));
+                    }
+                },
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                Tracer.NOOP
+            );
+        }
+
+        private enum State {
+            STOP_LISTENING,
+            GRACEFUL_CLOSE,
+            WAIT_FOR_CLIENTS,
+            FORCE_CLIENTS
+        }
+
+        private int step = 1;
+
+        public Map<State, Integer> order = new HashMap<>();
+        public Map<State, Runnable> listeners = new HashMap<>();
+
+        boolean waitClosedBeforeTimeout = false;
+
+        public int stopListeningForNewConnectionsOrder() {
+            return order.getOrDefault(State.STOP_LISTENING, -1);
+        }
+
+        public int gracefullyCloseConnectionsOrder() {
+            return order.getOrDefault(State.GRACEFUL_CLOSE, -1);
+        }
+
+        public int waitForClientConnectionsToCloseOrder() {
+            return order.getOrDefault(State.WAIT_FOR_CLIENTS, -1);
+        }
+
+        public int closeClientConnectionsImmediatelyOrder() {
+            return order.getOrDefault(State.FORCE_CLIENTS, -1);
+        }
+
+        public void addForceCloser(Runnable runnable) {
+            forceClosers.add(runnable);
+        }
+
+        @Override
+        protected void stopListeningForNewConnections() {
+            State state = State.STOP_LISTENING;
+            assertThat("already stopped listening", order, not(hasKey(state)));
+            order.put(state, step++);
+            super.stopListeningForNewConnections();
+            listeners.getOrDefault(state, () -> {}).run();
+        }
+
+        @Override
+        public void gracefullyCloseConnections() {
+            State state = State.GRACEFUL_CLOSE;
+            super.gracefullyCloseConnections();
+            assertThat("already gracefully closed", order, not(hasKey(state)));
+            order.put(state, step++);
+            super.gracefullyCloseConnections();
+            listeners.getOrDefault(state, () -> {}).run();
+        }
+
+        @Override
+        protected boolean waitForClientConnectionsToClose() {
+            State state = State.WAIT_FOR_CLIENTS;
+            assertThat("already waited", order, not(hasKey(state)));
+            order.put(state, step++);
+            waitClosedBeforeTimeout = super.waitForClientConnectionsToClose();
+            listeners.getOrDefault(state, () -> {}).run();
+            return waitClosedBeforeTimeout;
+        }
+
+        @Override
+        protected void closeClientConnectionsImmediately() {
+            State state = State.FORCE_CLIENTS;
+            assertThat("already closed", order, not(hasKey(state)));
+            order.put(state, step++);
+            for (Runnable fc : forceClosers) {
+                fc.run();
+            }
+            super.closeClientConnectionsImmediately();
+            listeners.getOrDefault(state, () -> {}).run();
+        }
+
+        @Override
+        protected HttpServerChannel bind(InetSocketAddress hostAddress) {
+            testHttpServerChannel.setLocalAddress(hostAddress);
+            return testHttpServerChannel;
+        }
+
+        @Override
+        protected void doStart() {
+            bindServer();
+        }
+
+        @Override
+        protected void stopInternal() {}
+    }
+
+    private static class TestHttpChannel implements HttpChannel, HttpServerChannel {
+        private boolean open = true;
+        public final CountDownLatch delayClose = new CountDownLatch(1);
+        private ActionListener<Void> closeListener;
+        private InetSocketAddress localAddress;
+
+        public List<HttpResponse> responses = new ArrayList<>();
+
+        public TestHttpChannel(boolean waitToClose) {
+            if (waitToClose == false) {
+                delayClose.countDown();
+            }
+        }
+
+        @Override
+        public void sendResponse(HttpResponse response, ActionListener<Void> listener) {
+            responses.add(response);
+            listener.onResponse(null);
+        }
+
+        public void setLocalAddress(InetSocketAddress localAddress) {
+            this.localAddress = localAddress;
+        }
+
+        @Override
+        public InetSocketAddress getLocalAddress() {
+            return localAddress;
+        }
+
+        @Override
+        public InetSocketAddress getRemoteAddress() {
+            return null;
+        }
+
+        @Override
+        public void close() {
+            if (open == false) {
+                throw new IllegalStateException("channel already closed!");
+            }
+            open = false;
+            try {
+                delayClose.await();
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+            if (closeListener != null) {
+                closeListener.onResponse(null);
+            }
+        }
+
+        @Override
+        public boolean isOpen() {
+            return open;
+        }
+
+        @Override
+        public void addCloseListener(ActionListener<Void> listener) {
+            if (open == false) {
+                listener.onResponse(null);
+            } else {
+                if (closeListener != null) {
+                    throw new IllegalStateException("close listener already set");
+                }
+                closeListener = listener;
+            }
+        }
+    }
+
+    private Settings gracePeriod(int ms) {
+        return Settings.builder().put(SETTING_HTTP_SERVER_SHUTDOWN_GRACE_PERIOD.getKey(), new TimeValue(ms)).build();
     }
 }

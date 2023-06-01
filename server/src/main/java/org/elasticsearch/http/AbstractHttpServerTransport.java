@@ -222,8 +222,37 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
 
     protected abstract HttpServerChannel bind(InetSocketAddress hostAddress) throws Exception;
 
+    /**
+     * Gracefully shut down.  If {@link HttpTransportSettings#SETTING_HTTP_SERVER_SHUTDOWN_GRACE_PERIOD} is zero, the default, then
+     * forcefully close all open connections immediately.
+     * Serially run through the following step:
+     * 1) Stop listening for new HTTP connections, which means no new HttpChannel are added to the {@link #httpChannels} list
+     * 2) Add the {@code Connection: close} response header to all new requests on existing {@link #httpChannels} and close the HttpChannel
+     *    after the new request completes
+     * 3) If grace period is set, wait for all {@link #httpChannels} to close via 2 for up to the configured grace period,
+     *    {@link #shutdownGracePeriodMillis}.
+     *    If all connections are closed before the expiration of the grace period, stop waiting early.
+     * 4) Close all open httpChannels even if requests are in flight.
+     */
     @Override
     protected void doStop() {
+        stopListeningForNewConnections();
+        gracefullyCloseConnections();
+        refCounted.decRef();
+        boolean closed = false;
+        if (shutdownGracePeriodMillis > 0) {
+            closed = waitForClientConnectionsToClose();
+        }
+        if (closed == false) {
+            closeClientConnectionsImmediately();
+        }
+        stopInternal();
+    }
+
+    /**
+     * Close all {@link #httpServerChannels}.  Synchronized.
+     */
+    protected void stopListeningForNewConnections() {
         synchronized (httpServerChannels) {
             if (httpServerChannels.isEmpty() == false) {
                 try {
@@ -235,41 +264,51 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
                 }
             }
         }
+    }
 
-        gracefullyCloseConnections();
-        refCounted.decRef();
+    /**
+     * Close the client channel after a new request.
+     */
+    public void gracefullyCloseConnections() {
+        gracefullyCloseConnections = true;
+    }
 
-        boolean closed = false;
-        if (shutdownGracePeriodMillis > 0) {
-            try {
-                FutureUtils.get(allClientsClosedListener, shutdownGracePeriodMillis, TimeUnit.MILLISECONDS);
-                closed = true;
-            } catch (ElasticsearchTimeoutException t) {
-                logger.warn(
-                    format(
-                        "timed out while waiting [%d]ms for clients to close connections [%s]",
-                        shutdownGracePeriodMillis,
-                        t.getDetailedMessage()
-                    )
-                );
-            }
+    /**
+     * Wait at most {@link #shutdownGracePeriodMillis} for all client connections to close.
+     * Returns true if all clients connections closed before the timeout, false otherwise.
+     */
+    protected boolean waitForClientConnectionsToClose() {
+        try {
+            FutureUtils.get(allClientsClosedListener, shutdownGracePeriodMillis, TimeUnit.MILLISECONDS);
+            return true;
+        } catch (ElasticsearchTimeoutException t) {
+            logger.warn(
+                format(
+                    "timed out while waiting [%d]ms for clients to close connections [%s]",
+                    shutdownGracePeriodMillis,
+                    t.getDetailedMessage()
+                )
+            );
+        }
+        return false;
+    }
+
+    /**
+     * Close all client connections immediately, blocking until they finish closing.
+     */
+    protected void closeClientConnectionsImmediately() {
+        try {
+            CloseableChannel.closeChannels(new ArrayList<>(httpChannels), true);
+        } catch (Exception e) {
+            logger.warn("unexpected exception while closing http channels", e);
         }
 
-        if (closed == false) {
-            try {
-                CloseableChannel.closeChannels(new ArrayList<>(httpChannels), true);
-            } catch (Exception e) {
-                logger.warn("unexpected exception while closing http channels", e);
-            }
-
-            try {
-                allClientsClosedListener.get();
-            } catch (Exception e) {
-                assert false : e;
-                logger.warn("unexpected exception while waiting for http channels to close", e);
-            }
+        try {
+            allClientsClosedListener.get();
+        } catch (Exception e) {
+            assert false : e;
+            logger.warn("unexpected exception while waiting for http channels to close", e);
         }
-        stopInternal();
     }
 
     @Override
@@ -539,9 +578,5 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
 
     public ThreadPool getThreadPool() {
         return threadPool;
-    }
-
-    public void gracefullyCloseConnections() {
-        gracefullyCloseConnections = true;
     }
 }

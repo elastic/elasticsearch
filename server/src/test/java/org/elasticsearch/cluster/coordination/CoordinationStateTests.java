@@ -7,19 +7,16 @@
  */
 package org.elasticsearch.cluster.coordination;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
 import org.elasticsearch.cluster.coordination.CoordinationState.PersistedState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
@@ -80,18 +77,9 @@ public class CoordinationStateTests extends ESTestCase {
     }
 
     public static DiscoveryNode createNode(String id) {
-        final TransportAddress address = buildNewFakeTransportAddress();
-        return new DiscoveryNode(
-            "",
-            id,
-            UUIDs.randomBase64UUID(random()), // generated deterministically for repeatable tests
-            address.address().getHostString(),
-            address.getAddress(),
-            address,
-            Collections.emptyMap(),
-            DiscoveryNodeRole.roles(),
-            Version.CURRENT
-        );
+        return TestDiscoveryNode.builder(id)
+            .ephemeralId(UUIDs.randomBase64UUID(random()))  // generated deterministically for repeatable tests
+            .build();
     }
 
     public void testSetInitialState() {

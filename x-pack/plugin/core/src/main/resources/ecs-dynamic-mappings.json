@@ -38,7 +38,8 @@
             },
             "path_match": [
               "*.io.text",
-              "registry.data.strings",
+              "*.message_id",
+              "*registry.data.strings",
               "*url.path"
             ]
           }

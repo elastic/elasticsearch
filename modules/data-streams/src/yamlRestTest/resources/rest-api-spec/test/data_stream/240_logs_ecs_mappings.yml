@@ -219,6 +219,9 @@ Test general mockup ECS mappings:
               "full": "https://mydomain.com/app/page",
               "original": "https://mydomain.com/app/original"
             },
+            "email": {
+              "message_id": "81ce15$8r2j59@mail01.example.com"
+            },
             "parent": {
               "url": {
                 "path": "/page",
@@ -231,7 +234,8 @@ Test general mockup ECS mappings:
               "file": {
                 "path": "/path/to/my/file",
                 "target_path": "/path/to/my/file"
-              }
+              },
+              "registry.data.strings": ["C:\\rta\\red_ttp\\bin\\myapp.exe"]
             },
             "error": {
               "stack_trace": "co.elastic.test.TestClass error:\n at co.elastic.test.BaseTestClass",
@@ -323,7 +327,9 @@ Test general mockup ECS mappings:
         index: logs-generic-default
   - match: { .$idx0name.mappings.properties.error.properties.message.type: "match_only_text" }
   - match: { .$idx0name.mappings.properties.registry.properties.data.properties.strings.type: "wildcard" }
+  - match: { .$idx0name.mappings.properties.parent.properties.registry.properties.data.properties.strings.type: "wildcard" }
   - match: { .$idx0name.mappings.properties.process.properties.io.properties.text.type: "wildcard" }
+  - match: { .$idx0name.mappings.properties.email.properties.message_id.type: "wildcard" }
   - match: { .$idx0name.mappings.properties.url.properties.path.type: "wildcard" }
   - match: { .$idx0name.mappings.properties.parent.properties.url.properties.path.type: "wildcard" }
   - match: { .$idx0name.mappings.properties.url.properties.full.type: "wildcard" }

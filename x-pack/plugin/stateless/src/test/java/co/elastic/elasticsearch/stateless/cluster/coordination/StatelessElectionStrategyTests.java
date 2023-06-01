@@ -19,7 +19,7 @@ import org.elasticsearch.cluster.coordination.Join;
 import org.elasticsearch.cluster.coordination.StartJoinRequest;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.OptionalBytesReference;
@@ -408,7 +408,7 @@ public class StatelessElectionStrategyTests extends ESTestCase {
     }
 
     private static DiscoveryNode newDiscoveryNode(String id) {
-        return TestDiscoveryNode.create(id, buildNewFakeTransportAddress(), emptyMap(), Set.of(DiscoveryNodeRole.MASTER_ROLE));
+        return DiscoveryNodeUtils.create(id, buildNewFakeTransportAddress(), emptyMap(), Set.of(DiscoveryNodeRole.MASTER_ROLE));
     }
 
     private Join getJoin(DiscoveryNode sourceNode, DiscoveryNode targetNode) {

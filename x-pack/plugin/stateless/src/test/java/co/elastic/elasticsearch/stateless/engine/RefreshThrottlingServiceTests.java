@@ -13,8 +13,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.FakeThreadPoolMasterService;
@@ -56,7 +56,7 @@ public class RefreshThrottlingServiceTests extends ESTestCase {
 
         String nodeIdPrefix = "test";
         String masterNodeId = nodeIdPrefix + "0";
-        final DiscoveryNode masterNode = TestDiscoveryNode.create(
+        final DiscoveryNode masterNode = DiscoveryNodeUtils.create(
             null,
             masterNodeId,
             ESTestCase.buildNewFakeTransportAddress(),
@@ -119,7 +119,7 @@ public class RefreshThrottlingServiceTests extends ESTestCase {
                 });
                 activeNodes.remove(nodeAction.index());
             } else {
-                final DiscoveryNode newNode = TestDiscoveryNode.create(
+                final DiscoveryNode newNode = DiscoveryNodeUtils.create(
                     null,
                     nodeIdPrefix + nodeAction.index(),
                     ESTestCase.buildNewFakeTransportAddress(),

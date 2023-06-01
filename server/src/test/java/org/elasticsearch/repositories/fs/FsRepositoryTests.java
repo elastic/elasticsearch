@@ -28,7 +28,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingHelper;
@@ -65,7 +65,6 @@ import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 
 public class FsRepositoryTests extends ESTestCase {
@@ -122,7 +121,7 @@ public class FsRepositoryTests extends ESTestCase {
             assertEquals(snapshot1StatusCopy.getTotalFileCount(), snapshot1StatusCopy.getIncrementalFileCount());
             Lucene.cleanLuceneIndex(directory);
             expectThrows(org.apache.lucene.index.IndexNotFoundException.class, () -> Lucene.readSegmentInfos(directory));
-            DiscoveryNode localNode = TestDiscoveryNode.create("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet());
+            DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(emptySet()).build();
             ShardRouting routing = ShardRouting.newUnassigned(
                 shardId,
                 true,

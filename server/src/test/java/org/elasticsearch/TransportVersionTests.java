@@ -103,18 +103,17 @@ public class TransportVersionTests extends ESTestCase {
                     field.getModifiers()
                 );
 
-                Matcher historical = historicalVersion.matcher(field.getName());
-                Matcher transport;
-                if (historical.matches()) {
+                Matcher matcher = historicalVersion.matcher(field.getName());
+                if (matcher.matches()) {
                     // old-style version constant
-                    String idString = historical.group(1) + padNumber(historical.group(2)) + padNumber(historical.group(3)) + "99";
+                    String idString = matcher.group(1) + padNumber(matcher.group(2)) + padNumber(matcher.group(3)) + "99";
                     assertEquals(
                         "Field " + field.getName() + " does not have expected id " + idString,
                         idString,
                         field.get(null).toString()
                     );
-                } else if ((transport = transportVersion.matcher(field.getName())).matches()) {
-                    String idString = transport.group(1) + transport.group(2) + transport.group(3);
+                } else if ((matcher = transportVersion.matcher(field.getName())).matches()) {
+                    String idString = matcher.group(1) + matcher.group(2) + matcher.group(3);
                     assertEquals(
                         "Field " + field.getName() + " does not have expected id " + idString,
                         idString,

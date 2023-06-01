@@ -432,66 +432,70 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
     }
 
     // Overridable for testing only
-    protected MappedFieldType.Relation getRelation(QueryRewriteContext queryRewriteContext) throws IOException {
-        CoordinatorRewriteContext coordinatorRewriteContext = queryRewriteContext.convertToCoordinatorRewriteContext();
-        if (coordinatorRewriteContext != null) {
-            final MappedFieldType fieldType = coordinatorRewriteContext.getFieldType(fieldName);
-            if (fieldType instanceof final DateFieldMapper.DateFieldType dateFieldType) {
-                if (coordinatorRewriteContext.hasTimestampData() == false) {
-                    return MappedFieldType.Relation.DISJOINT;
-                }
-                long minTimestamp = coordinatorRewriteContext.getMinTimestamp();
-                long maxTimestamp = coordinatorRewriteContext.getMaxTimestamp();
-                DateMathParser dateMathParser = getForceDateParser();
-                return dateFieldType.isFieldWithinQuery(
-                    minTimestamp,
-                    maxTimestamp,
-                    from,
-                    to,
-                    includeLower,
-                    includeUpper,
-                    timeZone,
-                    dateMathParser,
-                    queryRewriteContext
-                );
-            }
-        }
-
-        SearchExecutionContext searchExecutionContext = queryRewriteContext.convertToSearchExecutionContext();
-        if (searchExecutionContext != null) {
-            final MappedFieldType fieldType = searchExecutionContext.getFieldType(fieldName);
-            if (fieldType == null) {
+    protected MappedFieldType.Relation getRelation(final CoordinatorRewriteContext coordinatorRewriteContext) {
+        final MappedFieldType fieldType = coordinatorRewriteContext.getFieldType(fieldName);
+        if (fieldType instanceof final DateFieldMapper.DateFieldType dateFieldType) {
+            if (coordinatorRewriteContext.hasTimestampData() == false) {
                 return MappedFieldType.Relation.DISJOINT;
             }
-            if (searchExecutionContext.getIndexReader() == null) {
-                // No reader, this may happen e.g. for percolator queries.
-                return MappedFieldType.Relation.INTERSECTS;
-            }
-
+            long minTimestamp = coordinatorRewriteContext.getMinTimestamp();
+            long maxTimestamp = coordinatorRewriteContext.getMaxTimestamp();
             DateMathParser dateMathParser = getForceDateParser();
-            return fieldType.isFieldWithinQuery(
-                searchExecutionContext.getIndexReader(),
+            return dateFieldType.isFieldWithinQuery(
+                minTimestamp,
+                maxTimestamp,
                 from,
                 to,
                 includeLower,
                 includeUpper,
                 timeZone,
                 dateMathParser,
-                queryRewriteContext
+                coordinatorRewriteContext
             );
         }
 
-        // Not on the shard, we have no way to know what the relation is.
-        return MappedFieldType.Relation.INTERSECTS;
+        return MappedFieldType.Relation.DISJOINT;
+    }
+
+    protected MappedFieldType.Relation getRelation(final SearchExecutionContext searchExecutionContext) throws IOException {
+        final MappedFieldType fieldType = searchExecutionContext.getFieldType(fieldName);
+        if (fieldType == null) {
+            return MappedFieldType.Relation.DISJOINT;
+        }
+        if (searchExecutionContext.getIndexReader() == null) {
+            // No reader, this may happen e.g. for percolator queries.
+            return MappedFieldType.Relation.INTERSECTS;
+        }
+
+        DateMathParser dateMathParser = getForceDateParser();
+        return fieldType.isFieldWithinQuery(
+            searchExecutionContext.getIndexReader(),
+            from,
+            to,
+            includeLower,
+            includeUpper,
+            timeZone,
+            dateMathParser,
+            searchExecutionContext
+        );
     }
 
     @Override
-    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
-        final MappedFieldType.Relation relation = getRelation(queryRewriteContext);
+    protected QueryBuilder doCoordinatorRewrite(final CoordinatorRewriteContext coordinatorRewriteContext) {
+        return toQueryBuilder(getRelation(coordinatorRewriteContext));
+    }
+
+    @Override
+    protected QueryBuilder doSearchRewrite(final SearchExecutionContext searchExecutionContext) throws IOException {
+        return toQueryBuilder(getRelation(searchExecutionContext));
+    }
+
+    private AbstractQueryBuilder<? extends AbstractQueryBuilder<?>> toQueryBuilder(MappedFieldType.Relation relation) {
         switch (relation) {
-            case DISJOINT:
+            case DISJOINT -> {
                 return new MatchNoneQueryBuilder();
-            case WITHIN:
+            }
+            case WITHIN -> {
                 if (from != null || to != null || format != null || timeZone != null) {
                     RangeQueryBuilder newRangeQuery = new RangeQueryBuilder(fieldName);
                     newRangeQuery.from(null);
@@ -502,10 +506,11 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
                 } else {
                     return this;
                 }
-            case INTERSECTS:
+            }
+            case INTERSECTS -> {
                 return this;
-            default:
-                throw new AssertionError();
+            }
+            default -> throw new AssertionError();
         }
     }
 

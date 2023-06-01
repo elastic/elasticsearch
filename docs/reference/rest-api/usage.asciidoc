@@ -358,14 +358,12 @@ GET /_xpack/usage
   "data_lifecycle" : {
     "available": true,
     "enabled": true,
-    "lifecycle": {
-        "count": 0,
-        "default_rollover_used": true,
-        "retention": {
-            "minimum_millis": 0,
-            "maximum_millis": 0,
-            "average_millis": 0.0
-        }
+    "count": 0,
+    "default_rollover_used": true,
+    "retention": {
+        "minimum_millis": 0,
+        "maximum_millis": 0,
+        "average_millis": 0.0
     }
   },
   "data_tiers" : {

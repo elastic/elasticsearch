@@ -42,7 +42,6 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -991,15 +990,7 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
     private Set<DiscoveryNode> createNodes(int numberOfNodes, Set<DiscoveryNodeRole> roles) {
         Set<DiscoveryNode> discoveryNodes = new HashSet<>();
         for (int i = 0; i < numberOfNodes; i++) {
-            discoveryNodes.add(
-                TestDiscoveryNode.create(
-                    randomAlphaOfLength(30),
-                    UUID.randomUUID().toString(),
-                    buildNewFakeTransportAddress(),
-                    Collections.emptyMap(),
-                    roles
-                )
-            );
+            discoveryNodes.add(TestDiscoveryNode.builder(UUID.randomUUID().toString()).name(randomAlphaOfLength(30)).roles(roles).build());
         }
         return discoveryNodes;
     }

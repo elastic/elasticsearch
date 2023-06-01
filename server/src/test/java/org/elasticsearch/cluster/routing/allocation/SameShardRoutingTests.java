@@ -81,7 +81,7 @@ public class SameShardRoutingTests extends ESAllocationTestCase {
                             buildNewFakeTransportAddress(),
                             emptyMap(),
                             MASTER_DATA_ROLES,
-                            Version.CURRENT
+                            null
                         )
                     )
                     .add(
@@ -94,7 +94,7 @@ public class SameShardRoutingTests extends ESAllocationTestCase {
                             buildNewFakeTransportAddress(),
                             emptyMap(),
                             MASTER_DATA_ROLES,
-                            Version.CURRENT
+                            null
                         )
                     )
             )
@@ -123,7 +123,7 @@ public class SameShardRoutingTests extends ESAllocationTestCase {
                             buildNewFakeTransportAddress(),
                             emptyMap(),
                             MASTER_DATA_ROLES,
-                            Version.CURRENT
+                            null
                         )
                     )
             )
@@ -173,7 +173,7 @@ public class SameShardRoutingTests extends ESAllocationTestCase {
                             buildNewFakeTransportAddress(),
                             emptyMap(),
                             MASTER_DATA_ROLES,
-                            Version.CURRENT
+                            null
                         )
                     )
                     .add(
@@ -186,7 +186,7 @@ public class SameShardRoutingTests extends ESAllocationTestCase {
                             buildNewFakeTransportAddress(),
                             emptyMap(),
                             MASTER_DATA_ROLES,
-                            Version.CURRENT
+                            null
                         )
                     )
             )
@@ -265,7 +265,7 @@ public class SameShardRoutingTests extends ESAllocationTestCase {
             buildNewFakeTransportAddress(),
             emptyMap(),
             MASTER_DATA_ROLES,
-            Version.CURRENT
+            null
         );
 
         final DiscoveryNode node2 = new DiscoveryNode(
@@ -277,7 +277,7 @@ public class SameShardRoutingTests extends ESAllocationTestCase {
             buildNewFakeTransportAddress(),
             emptyMap(),
             MASTER_DATA_ROLES,
-            Version.CURRENT
+            null
         );
 
         final ClusterState clusterState = applyStartedShardsUntilNoChange(

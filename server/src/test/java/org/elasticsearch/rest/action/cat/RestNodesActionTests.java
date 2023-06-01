@@ -21,7 +21,6 @@ import org.junit.Before;
 
 import java.util.Collections;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -38,7 +37,7 @@ public class RestNodesActionTests extends ESTestCase {
     public void testBuildTableDoesNotThrowGivenNullNodeInfoAndStats() {
         ClusterName clusterName = new ClusterName("cluster-1");
         DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
-        builder.add(TestDiscoveryNode.create("node-1", buildNewFakeTransportAddress(), emptyMap(), emptySet()));
+        builder.add(TestDiscoveryNode.builder("node-1").roles(emptySet()).build());
         DiscoveryNodes discoveryNodes = builder.build();
         ClusterState clusterState = mock(ClusterState.class);
         when(clusterState.nodes()).thenReturn(discoveryNodes);

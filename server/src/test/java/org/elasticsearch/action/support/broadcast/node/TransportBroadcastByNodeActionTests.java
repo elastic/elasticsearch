@@ -281,7 +281,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
     }
 
     static DiscoveryNode newNode(int nodeId) {
-        return TestDiscoveryNode.create("node_" + nodeId, buildNewFakeTransportAddress(), emptyMap(), emptySet());
+        return TestDiscoveryNode.builder("node_" + nodeId).roles(emptySet()).build();
     }
 
     @AfterClass

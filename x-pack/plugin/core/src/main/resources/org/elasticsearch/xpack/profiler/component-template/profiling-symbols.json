@@ -1,7 +1,4 @@
 {
-  "index_patterns": [
-    ".profiling-symbols*"
-  ],
   "template": {
     "settings": {
       "index": {
@@ -121,10 +118,6 @@
         }
       }
     }
-  },
-  "priority": 100,
-  "_meta": {
-    "description": "Index template for .profiling-symbols"
   },
   "version": ${xpack.profiling.template.version}
 }

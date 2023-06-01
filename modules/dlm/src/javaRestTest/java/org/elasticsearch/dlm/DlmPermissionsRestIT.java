@@ -17,35 +17,98 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.FeatureFlag;
+import org.elasticsearch.test.cluster.local.distribution.DistributionType;
+import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
+import org.junit.BeforeClass;
+import org.junit.ClassRule;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.net.URISyntaxException;
+import java.net.URL;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class PermissionsIT extends ESRestTestCase {
+public class DlmPermissionsRestIT extends ESRestTestCase {
+
+    private static final String PASSWORD = "secret-test-password";
+    private static Path caPath;
+
+    @BeforeClass
+    public static void init() throws URISyntaxException, FileNotFoundException {
+        URL resource = DlmPermissionsRestIT.class.getResource("/ssl/ca.crt");
+        if (resource == null) {
+            throw new FileNotFoundException("Cannot find classpath resource /ssl/ca.crt");
+        }
+        caPath = PathUtils.get(resource.toURI());
+    }
+
+    @ClassRule
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .feature(FeatureFlag.DLM_ENABLED)
+        .distribution(DistributionType.DEFAULT)
+        .setting("xpack.watcher.enabled", "false")
+        .setting("xpack.ml.enabled", "false")
+        .setting("xpack.security.enabled", "true")
+        .setting("xpack.license.self_generated.type", "trial")
+        .setting("xpack.security.http.ssl.enabled", "true")
+        .setting("xpack.security.http.ssl.certificate", "node.crt")
+        .setting("xpack.security.http.ssl.key", "node.key")
+        .setting("xpack.security.http.ssl.certificate_authorities", "ca.crt")
+        .setting("xpack.security.transport.ssl.enabled", "true")
+        .setting("xpack.security.transport.ssl.certificate", "node.crt")
+        .setting("xpack.security.transport.ssl.key", "node.key")
+        .setting("xpack.security.transport.ssl.certificate_authorities", "ca.crt")
+        .setting("xpack.security.transport.ssl.verification_mode", "certificate")
+        .keystore("xpack.security.transport.ssl.secure_key_passphrase", "node-password")
+        .keystore("xpack.security.http.ssl.secure_key_passphrase", "node-password")
+        .keystore("bootstrap.password", PASSWORD)
+        .configFile("node.key", Resource.fromClasspath("ssl/node.key"))
+        .configFile("node.crt", Resource.fromClasspath("ssl/node.crt"))
+        .configFile("ca.crt", Resource.fromClasspath("ssl/ca.crt"))
+        .user("test_admin", PASSWORD, "superuser")
+        .user("test_dlm", PASSWORD, "manage_dlm")
+        .user("test_non_privileged", PASSWORD, "not_privileged")
+        .rolesFile(Resource.fromClasspath("roles.yml"))
+        .build();
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
 
     @Override
     protected Settings restClientSettings() {
-        // Note: This user is defined in build.gradle, and assigned the role "manage_dlm". That role is defined in roles.yml.
-        String token = basicAuthHeaderValue("test_dlm", new SecureString("x-pack-test-password".toCharArray()));
-        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
+        // Note: This user is assigned the role "manage_dlm". That role is defined in roles.yml.
+        String token = basicAuthHeaderValue("test_dlm", new SecureString(PASSWORD.toCharArray()));
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).put(CERTIFICATE_AUTHORITIES, caPath).build();
     }
 
     @Override
     protected Settings restAdminSettings() {
-        String token = basicAuthHeaderValue("test_admin", new SecureString("x-pack-test-password".toCharArray()));
-        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
+        String token = basicAuthHeaderValue("test_admin", new SecureString(PASSWORD.toCharArray()));
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).put(CERTIFICATE_AUTHORITIES, caPath).build();
     }
 
     private Settings restUnprivilegedClientSettings() {
-        // Note: This user is defined in build.gradle, and assigned the role "not_privileged". That role is defined in roles.yml.
-        String token = basicAuthHeaderValue("test_non_privileged", new SecureString("x-pack-test-password".toCharArray()));
-        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
+        // Note: This user is assigned the role "not_privileged". That role is defined in roles.yml.
+        String token = basicAuthHeaderValue("test_non_privileged", new SecureString(PASSWORD.toCharArray()));
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).put(CERTIFICATE_AUTHORITIES, caPath).build();
+    }
+
+    @Override
+    protected String getProtocol() {
+        // Because http.ssl.enabled = true
+        return "https";
     }
 
     @SuppressWarnings("unchecked")
@@ -58,8 +121,8 @@ public class PermissionsIT extends ESRestTestCase {
              */
             String dataStreamName = "dlm-test"; // Needs to match the pattern of the names in roles.yml
             createDataStreamAsAdmin(dataStreamName);
-            Response getDatastreamRepsonse = adminClient().performRequest(new Request("GET", "/_data_stream/" + dataStreamName));
-            final List<Map<String, Object>> nodes = ObjectPath.createFromResponse(getDatastreamRepsonse).evaluate("data_streams");
+            Response getDataStreamResponse = adminClient().performRequest(new Request("GET", "/_data_stream/" + dataStreamName));
+            final List<Map<String, Object>> nodes = ObjectPath.createFromResponse(getDataStreamResponse).evaluate("data_streams");
             String index = (String) ((List<Map<String, Object>>) nodes.get(0).get("indices")).get(0).get("index_name");
 
             Request explainLifecycleRequest = new Request("GET", "/" + randomFrom("_all", "*", index) + "/_lifecycle/explain");
@@ -161,5 +224,4 @@ public class PermissionsIT extends ESRestTestCase {
         Request request = new Request("PUT", "/_data_stream/" + name);
         assertOK(adminClient().performRequest(request));
     }
-
 }

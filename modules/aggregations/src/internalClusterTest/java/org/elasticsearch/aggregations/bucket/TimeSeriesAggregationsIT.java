@@ -365,6 +365,7 @@ public class TimeSeriesAggregationsIT extends AggregationIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/96487")
     public void testRetrievingHits() {
         Map.Entry<String, Double> filterMetric = randomMetricAndValue(data);
         double lowerVal = filterMetric.getValue() - randomDoubleBetween(0, 100000, true);

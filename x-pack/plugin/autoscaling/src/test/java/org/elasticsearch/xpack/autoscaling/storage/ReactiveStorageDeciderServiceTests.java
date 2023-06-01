@@ -487,7 +487,7 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
     static void addNode(ClusterState.Builder stateBuilder, DiscoveryNodeRole role) {
         stateBuilder.nodes(
             DiscoveryNodes.builder(stateBuilder.nodes())
-                .add(TestDiscoveryNode.create("test", UUIDs.randomBase64UUID(), buildNewFakeTransportAddress(), Map.of(), Set.of(role)))
+                .add(TestDiscoveryNode.builder(UUIDs.randomBase64UUID()).name("test").roles(Set.of(role)).build())
         );
     }
 

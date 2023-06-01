@@ -82,7 +82,7 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
         this(dataRetention == null ? null : new Retention(dataRetention));
     }
 
-    public DataLifecycle(Retention dataRetention) {
+    public DataLifecycle(@Nullable Retention dataRetention) {
         this.dataRetention = dataRetention;
     }
 

@@ -9,10 +9,15 @@ package org.elasticsearch.xpack.application.search.action;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
@@ -24,7 +29,7 @@ import java.util.Objects;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
-public class SearchApplicationSearchRequest extends ActionRequest {
+public class SearchApplicationSearchRequest extends ActionRequest implements IndicesRequest {
 
     private static final ParseField QUERY_PARAMS_FIELD = new ParseField("params");
     private final String name;
@@ -84,6 +89,11 @@ public class SearchApplicationSearchRequest extends ActionRequest {
     }
 
     @Override
+    public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+        return new CancellableTask(id, type, action, getDescription(), parentTaskId, headers);
+    }
+
+    @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(name);
@@ -101,5 +111,15 @@ public class SearchApplicationSearchRequest extends ActionRequest {
     @Override
     public int hashCode() {
         return Objects.hash(name, queryParams);
+    }
+
+    @Override
+    public String[] indices() {
+        return new String[] { name };
+    }
+
+    @Override
+    public IndicesOptions indicesOptions() {
+        return IndicesOptions.strictNoExpandForbidClosed();
     }
 }

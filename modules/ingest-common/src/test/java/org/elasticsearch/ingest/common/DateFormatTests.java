@@ -10,6 +10,7 @@ package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateUtils;
+import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.test.ESTestCase;
 
 import java.time.ZoneId;
@@ -131,6 +132,19 @@ public class DateFormatTests extends ESTestCase {
         // this means that hour will be 00:00 (default) at -01:00 as timezone was not on a pattern, but -01:00 was an ingest param
         ZonedDateTime dateTime = javaFunction.apply("2020-01-01");
         assertThat(dateTime, equalTo(ZonedDateTime.of(2020, 01, 01, 0, 0, 0, 0, timezone)));
+    }
+
+    public void testParseAllFormatNames() {
+        ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
+        for (FormatNames formatName : FormatNames.values()) {
+            String name = formatName.getName();
+            DateFormatter formatter = DateFormatter.forPattern(name);
+            String formattedInput = formatter.format(now);
+            DateFormat dateFormat = DateFormat.fromString(name);
+            ZonedDateTime parsed = dateFormat.getFunction(name, ZoneOffset.UTC, Locale.ROOT).apply(formattedInput);
+            String formattedOutput = formatter.format(parsed);
+            assertThat(name, formattedOutput, equalTo(formattedInput));
+        }
     }
 
     public void testParseUnixMs() {

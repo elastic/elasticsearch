@@ -1225,7 +1225,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         }
 
         @Override
-        public Query rewrite(IndexReader reader) throws IOException {
+        public Query rewrite(IndexSearcher searcher) throws IOException {
             return new TermQuery(term);
         }
 

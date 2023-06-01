@@ -54,7 +54,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.RetentionLease;
@@ -106,7 +105,8 @@ public class StoreTests extends ESTestCase {
         "index",
         Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT).build()
     );
-    private static final Version MIN_SUPPORTED_LUCENE_VERSION = IndexVersion.MINIMUM_COMPATIBLE.luceneVersion();
+    private static final Version MIN_SUPPORTED_LUCENE_VERSION = org.elasticsearch.Version.CURRENT.minimumIndexCompatibilityVersion()
+        .luceneVersion();
 
     public void testRefCount() {
         final ShardId shardId = new ShardId("index", "_na_", 1);

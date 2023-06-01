@@ -1,0 +1,17 @@
+{
+  "index_patterns": [
+    "profiling-events*"
+  ],
+  "data_stream": {
+    "hidden": false
+  },
+  "composed_of": [
+    "profiling-events",
+    "profiling-ilm"
+  ],
+  "priority": 100,
+  "_meta": {
+    "description": "Index template for profiling-events"
+  },
+  "version": ${xpack.profiling.template.version}
+}

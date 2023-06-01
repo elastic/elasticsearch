@@ -62,7 +62,7 @@ include::{es-repo-dir}/snapshot-restore/apis/create-snapshot-api.asciidoc[tag=sn
 `name`::
 (Required, string)
 Name automatically assigned to each snapshot created by the policy.
-<<date-math-index-names,Date math>> is supported.
+<<api-date-math-index-names,Date math>> is supported.
 To prevent conflicting snapshot names, a UUID is automatically appended to each
 snapshot name.
 
@@ -70,7 +70,7 @@ snapshot name.
 (Required, string)
 Repository used to store snapshots created by this policy. This repository must
 exist prior to the policy's creation. You can create a repository using the
-<<modules-snapshots,snapshot repository API>>.
+<<snapshot-restore,snapshot repository API>>.
 
 [[slm-api-put-retention]]
 `retention`::
@@ -100,7 +100,7 @@ Minimum number of snapshots to retain, even if the snapshots have expired.
 ====
 
 `schedule`::
-(Required, <<cron-expressions,Cron syntax>>)
+(Required, <<api-cron-expressions,Cron syntax>>)
 Periodic or absolute schedule at which the policy creates snapshots. {slm-init}
 applies `schedule` changes immediately.
 

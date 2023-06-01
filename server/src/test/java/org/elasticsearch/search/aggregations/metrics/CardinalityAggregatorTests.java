@@ -581,6 +581,32 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
         );
     }
 
+    public void testIndexedAllDifferentValues() throws IOException {
+        // Indexing enables testing of ordinal values
+        final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("name").field("str_values");
+        final MappedFieldType mappedFieldTypes = new KeywordFieldMapper.KeywordFieldType("str_values");
+        int docs = randomIntBetween(50, 100);
+        CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> {
+
+            for (int i = 0; i < docs; i++) {
+                iw.addDocument(
+                    List.of(
+                        new StringField("str_values", "" + i, Field.Store.NO),
+                        new SortedSetDocValuesField("str_values", new BytesRef("" + i))
+                    )
+                );
+                if (rarely()) {
+                    iw.commit();
+                }
+            }
+        };
+
+        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), buildIndex, card -> {
+            assertEquals(docs, card.getValue());
+            assertTrue(AggregationInspectionHelper.hasValue(card));
+        }, mappedFieldTypes);
+    }
+
     public void testUnmappedMissingString() throws IOException {
         CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("name").field("number").missing("🍌🍌🍌");
 

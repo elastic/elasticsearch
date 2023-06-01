@@ -121,12 +121,18 @@ public record TransportVersion(int id) implements Comparable<TransportVersion> {
      * Detached transport versions added below here.
      */
     public static final TransportVersion V_8_500_000 = registerTransportVersion(8_500_000, "dc3cbf06-3ed5-4e1b-9978-ee1d04d235bc");
+    public static final TransportVersion V_8_500_001 = registerTransportVersion(8_500_001, "c943cfe5-c89d-4eae-989f-f5f4537e84e0");
+    public static final TransportVersion V_8_500_002 = registerTransportVersion(8_500_002, "055dd314-ff40-4313-b4c6-9fccddfa42a8");
+    public static final TransportVersion V_8_500_003 = registerTransportVersion(8_500_003, "30adbe0c-8614-40dd-81b5-44e9c657bb77");
+    public static final TransportVersion V_8_500_004 = registerTransportVersion(8_500_004, "6a00db6a-fd66-42a9-97ea-f6cc53169110");
+    public static final TransportVersion V_8_500_005 = registerTransportVersion(8_500_005, "65370d2a-d936-4383-a2e0-8403f708129b");
+    public static final TransportVersion V_8_500_006 = registerTransportVersion(8_500_006, "7BB5621A-80AC-425F-BA88-75543C442F23");
 
     /**
      * Reference to the most recent transport version.
      * This should be the transport version with the highest id.
      */
-    public static final TransportVersion CURRENT = V_8_500_000;
+    public static final TransportVersion CURRENT = V_8_500_006;
 
     /**
      * Reference to the earliest compatible transport version to this version of the codebase.
@@ -243,6 +249,11 @@ public record TransportVersion(int id) implements Comparable<TransportVersion> {
 
     public boolean onOrBefore(TransportVersion version) {
         return version.id >= id;
+    }
+
+    public boolean between(TransportVersion lowerInclusive, TransportVersion upperExclusive) {
+        if (upperExclusive.onOrBefore(lowerInclusive)) throw new IllegalArgumentException();
+        return onOrAfter(lowerInclusive) && before(upperExclusive);
     }
 
     public static TransportVersion fromString(String str) {

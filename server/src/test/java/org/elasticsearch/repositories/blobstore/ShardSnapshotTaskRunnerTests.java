@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
@@ -24,6 +23,7 @@ import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.repositories.SnapshotIndexCommit;
 import org.elasticsearch.repositories.SnapshotShardContext;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.DummyShardLock;
@@ -101,7 +101,7 @@ public class ShardSnapshotTaskRunnerTests extends ESTestCase {
 
     public static BlobStoreIndexShardSnapshot.FileInfo dummyFileInfo() {
         String filename = randomAlphaOfLength(10);
-        StoreFileMetadata metadata = new StoreFileMetadata(filename, 10, "CHECKSUM", IndexVersion.CURRENT.luceneVersion().toString());
+        StoreFileMetadata metadata = new StoreFileMetadata(filename, 10, "CHECKSUM", Version.CURRENT.luceneVersion().toString());
         return new BlobStoreIndexShardSnapshot.FileInfo(filename, metadata, null);
     }
 
@@ -122,7 +122,7 @@ public class ShardSnapshotTaskRunnerTests extends ESTestCase {
             null,
             snapshotId,
             indexId,
-            new Engine.IndexCommitRef(null, () -> {}),
+            new SnapshotIndexCommit(new Engine.IndexCommitRef(null, () -> {})),
             null,
             IndexShardSnapshotStatus.newInitializing(null),
             Version.CURRENT,

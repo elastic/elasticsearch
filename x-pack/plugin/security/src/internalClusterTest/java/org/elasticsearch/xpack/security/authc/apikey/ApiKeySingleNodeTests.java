@@ -27,6 +27,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.SecuritySingleNodeTestCase;
 import org.elasticsearch.test.TestSecurityClient;
@@ -35,11 +36,14 @@ import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.action.Grant;
+import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyResponse;
@@ -50,6 +54,9 @@ import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyReque
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyResponse;
+import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyResponse;
+import org.elasticsearch.xpack.core.security.action.apikey.UpdateCrossClusterApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.UpdateCrossClusterApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenAction;
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenRequest;
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenResponse;
@@ -80,6 +87,7 @@ import static org.elasticsearch.test.SecuritySettingsSourceField.TEST_PASSWORD;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyArray;
@@ -446,10 +454,10 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
             containsString("authentication expected API key type of [rest], but API key [" + apiKeyId + "] has type [cross_cluster]")
         );
 
+        // Check the API key attributes with raw document
         final Map<String, Object> document = client().execute(GetAction.INSTANCE, new GetRequest(SECURITY_MAIN_ALIAS, apiKeyId))
             .actionGet()
             .getSource();
-
         assertThat(document.get("type"), equalTo("cross_cluster"));
 
         @SuppressWarnings("unchecked")
@@ -463,22 +471,187 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
             XContentType.JSON
         );
 
+        final RoleDescriptor expectedRoleDescriptor = new RoleDescriptor(
+            "cross_cluster",
+            new String[] { "cross_cluster_search" },
+            new RoleDescriptor.IndicesPrivileges[] {
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices("logs")
+                    .privileges("read", "read_cross_cluster", "view_index_metadata")
+                    .build() },
+            null
+        );
+        assertThat(actualRoleDescriptor, equalTo(expectedRoleDescriptor));
+        assertThat((Map<?, ?>) document.get("limited_by_role_descriptors"), anEmptyMap());
+
+        // Check the API key attributes with Get API
+        final GetApiKeyResponse getApiKeyResponse = client().execute(
+            GetApiKeyAction.INSTANCE,
+            GetApiKeyRequest.builder().apiKeyId(apiKeyId).withLimitedBy(randomBoolean()).build()
+        ).actionGet();
+        assertThat(getApiKeyResponse.getApiKeyInfos(), arrayWithSize(1));
+        final ApiKey getApiKeyInfo = getApiKeyResponse.getApiKeyInfos()[0];
+        assertThat(getApiKeyInfo.getType(), is(ApiKey.Type.CROSS_CLUSTER));
+        assertThat(getApiKeyInfo.getRoleDescriptors(), contains(expectedRoleDescriptor));
+        assertThat(getApiKeyInfo.getLimitedBy(), nullValue());
+        assertThat(getApiKeyInfo.getMetadata(), anEmptyMap());
+        assertThat(getApiKeyInfo.getUsername(), equalTo("test_user"));
+        assertThat(getApiKeyInfo.getRealm(), equalTo("file"));
+
+        // Check the API key attributes with Query API
+        final QueryApiKeyRequest queryApiKeyRequest = new QueryApiKeyRequest(
+            QueryBuilders.boolQuery().filter(QueryBuilders.idsQuery().addIds(apiKeyId)),
+            null,
+            null,
+            null,
+            null,
+            randomBoolean()
+        );
+        final QueryApiKeyResponse queryApiKeyResponse = client().execute(QueryApiKeyAction.INSTANCE, queryApiKeyRequest).actionGet();
+        assertThat(queryApiKeyResponse.getItems(), arrayWithSize(1));
+        final ApiKey queryApiKeyInfo = queryApiKeyResponse.getItems()[0].getApiKey();
+        assertThat(queryApiKeyInfo.getType(), is(ApiKey.Type.CROSS_CLUSTER));
+        assertThat(queryApiKeyInfo.getRoleDescriptors(), contains(expectedRoleDescriptor));
+        assertThat(queryApiKeyInfo.getLimitedBy(), nullValue());
+        assertThat(queryApiKeyInfo.getMetadata(), anEmptyMap());
+        assertThat(queryApiKeyInfo.getUsername(), equalTo("test_user"));
+        assertThat(queryApiKeyInfo.getRealm(), equalTo("file"));
+    }
+
+    public void testUpdateCrossClusterApiKey() throws IOException {
+        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
+
+        final RoleDescriptor originalRoleDescriptor = new RoleDescriptor(
+            "cross_cluster",
+            new String[] { "cross_cluster_search" },
+            new RoleDescriptor.IndicesPrivileges[] {
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices("logs")
+                    .privileges("read", "read_cross_cluster", "view_index_metadata")
+                    .build() },
+            null
+        );
+        final var createApiKeyRequest = CreateCrossClusterApiKeyRequest.withNameAndAccess(randomAlphaOfLengthBetween(3, 8), """
+            {
+              "search": [ {"names": ["logs"]} ]
+            }""");
+        final CreateApiKeyResponse createApiKeyResponse = client().execute(CreateCrossClusterApiKeyAction.INSTANCE, createApiKeyRequest)
+            .actionGet();
+        final String apiKeyId = createApiKeyResponse.getId();
+
+        final GetApiKeyResponse getApiKeyResponse = client().execute(
+            GetApiKeyAction.INSTANCE,
+            GetApiKeyRequest.builder().apiKeyId(apiKeyId).withLimitedBy(randomBoolean()).build()
+        ).actionGet();
+        assertThat(getApiKeyResponse.getApiKeyInfos(), arrayWithSize(1));
+        final ApiKey getApiKeyInfo = getApiKeyResponse.getApiKeyInfos()[0];
+        assertThat(getApiKeyInfo.getType(), is(ApiKey.Type.CROSS_CLUSTER));
+        assertThat(getApiKeyInfo.getRoleDescriptors(), contains(originalRoleDescriptor));
+        assertThat(getApiKeyInfo.getLimitedBy(), nullValue());
+        assertThat(getApiKeyInfo.getMetadata(), anEmptyMap());
+        assertThat(getApiKeyInfo.getUsername(), equalTo("test_user"));
+        assertThat(getApiKeyInfo.getRealm(), equalTo("file"));
+
+        final CrossClusterApiKeyRoleDescriptorBuilder roleDescriptorBuilder;
+        final boolean shouldUpdateAccess = randomBoolean();
+        if (shouldUpdateAccess) {
+            roleDescriptorBuilder = CrossClusterApiKeyRoleDescriptorBuilder.parse(randomFrom("""
+                {
+                  "search": [ {"names": ["logs"]} ]
+                }""", """
+                {
+                  "search": [ {"names": ["metrics"]} ]
+                }""", """
+                {
+                  "replication": [ {"names": ["archive"]} ]
+                }""", """
+                {
+                  "search": [ {"names": ["logs"]} ],
+                  "replication": [ {"names": ["archive"]} ]
+                }"""));
+        } else {
+            roleDescriptorBuilder = null;
+        }
+
+        final Map<String, Object> updateMetadata;
+        final boolean shouldUpdateMetadata = shouldUpdateAccess == false || randomBoolean();
+        if (shouldUpdateMetadata) {
+            updateMetadata = randomFrom(
+                randomMap(
+                    0,
+                    5,
+                    () -> new Tuple<>(randomAlphaOfLengthBetween(8, 12), randomFrom(randomAlphaOfLengthBetween(3, 8), 42, randomBoolean()))
+                )
+            );
+        } else {
+            updateMetadata = null;
+        }
+
+        final var updateApiKeyRequest = new UpdateCrossClusterApiKeyRequest(apiKeyId, roleDescriptorBuilder, updateMetadata);
+        final UpdateApiKeyResponse updateApiKeyResponse = client().execute(UpdateCrossClusterApiKeyAction.INSTANCE, updateApiKeyRequest)
+            .actionGet();
+
+        if ((roleDescriptorBuilder == null || roleDescriptorBuilder.build().equals(originalRoleDescriptor)) && (updateMetadata == null)) {
+            assertThat(updateApiKeyResponse.isUpdated(), is(false));
+        } else {
+            assertThat(updateApiKeyResponse.isUpdated(), is(true));
+        }
+
+        final QueryApiKeyRequest queryApiKeyRequest = new QueryApiKeyRequest(
+            QueryBuilders.boolQuery().filter(QueryBuilders.idsQuery().addIds(apiKeyId)),
+            null,
+            null,
+            null,
+            null,
+            randomBoolean()
+        );
+        final QueryApiKeyResponse queryApiKeyResponse = client().execute(QueryApiKeyAction.INSTANCE, queryApiKeyRequest).actionGet();
+        assertThat(queryApiKeyResponse.getItems(), arrayWithSize(1));
+        final ApiKey queryApiKeyInfo = queryApiKeyResponse.getItems()[0].getApiKey();
+        assertThat(queryApiKeyInfo.getType(), is(ApiKey.Type.CROSS_CLUSTER));
         assertThat(
-            actualRoleDescriptor,
-            equalTo(
-                new RoleDescriptor(
-                    "cross_cluster",
-                    new String[] { "cross_cluster_search" },
-                    new RoleDescriptor.IndicesPrivileges[] {
-                        RoleDescriptor.IndicesPrivileges.builder()
-                            .indices("logs")
-                            .privileges("read", "read_cross_cluster", "view_index_metadata")
-                            .build() },
+            queryApiKeyInfo.getRoleDescriptors(),
+            contains(roleDescriptorBuilder == null ? originalRoleDescriptor : roleDescriptorBuilder.build())
+        );
+        assertThat(queryApiKeyInfo.getLimitedBy(), nullValue());
+        assertThat(queryApiKeyInfo.getMetadata(), equalTo(updateMetadata == null ? Map.of() : updateMetadata));
+        assertThat(queryApiKeyInfo.getUsername(), equalTo("test_user"));
+        assertThat(queryApiKeyInfo.getRealm(), equalTo("file"));
+    }
+
+    // Cross-cluster API keys cannot be created by an API key even if it has manage_security privilege
+    // This is intentional until we solve the issue of derived API key ownership
+    public void testCannotCreateDerivedCrossClusterApiKey() throws IOException {
+        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
+
+        final CreateApiKeyResponse createAdminKeyResponse = new CreateApiKeyRequestBuilder(client()).setName("admin-key")
+            .setRoleDescriptors(
+                randomFrom(
+                    List.of(new RoleDescriptor(randomAlphaOfLengthBetween(3, 8), new String[] { "manage_security" }, null, null)),
                     null
                 )
             )
+            .execute()
+            .actionGet();
+        final String encoded = Base64.getEncoder()
+            .encodeToString(
+                (createAdminKeyResponse.getId() + ":" + createAdminKeyResponse.getKey().toString()).getBytes(StandardCharsets.UTF_8)
+            );
+
+        final var request = CreateCrossClusterApiKeyRequest.withNameAndAccess(randomAlphaOfLengthBetween(3, 8), """
+            {
+              "search": [ {"names": ["logs"]} ]
+            }""");
+
+        final PlainActionFuture<CreateApiKeyResponse> future = new PlainActionFuture<>();
+        client().filterWithHeader(Map.of("Authorization", "ApiKey " + encoded))
+            .execute(CreateCrossClusterApiKeyAction.INSTANCE, request, future);
+
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, future::actionGet);
+        assertThat(
+            e.getMessage(),
+            containsString("authentication via API key not supported: An API key cannot be used to create a cross-cluster API key")
         );
-        assertThat((Map<?, ?>) document.get("limited_by_role_descriptors"), anEmptyMap());
     }
 
     private GrantApiKeyRequest buildGrantApiKeyRequest(String username, SecureString password, String runAsUsername) throws IOException {

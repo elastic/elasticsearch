@@ -27,6 +27,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.function.Supplier;
 
 public class MappingParserTests extends MapperServiceTestCase {
 
@@ -40,7 +41,7 @@ public class MappingParserTests extends MapperServiceTestCase {
         IndexAnalyzers indexAnalyzers = createIndexAnalyzers();
         SimilarityService similarityService = new SimilarityService(indexSettings, scriptService, Collections.emptyMap());
         MapperRegistry mapperRegistry = new IndicesModule(Collections.emptyList()).getMapperRegistry();
-        MappingParserContext mappingParserContext = new MappingParserContext(
+        Supplier<MappingParserContext> mappingParserContextSupplier = () -> new MappingParserContext(
             similarityService::getSimilarity,
             type -> mapperRegistry.getMapperParser(type, indexSettings.getIndexVersionCreated()),
             mapperRegistry.getRuntimeFieldParsers()::get,
@@ -54,17 +55,18 @@ public class MappingParserTests extends MapperServiceTestCase {
             indexSettings,
             indexSettings.getMode().idFieldMapperWithoutFieldData()
         );
+
         Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers = mapperRegistry.getMetadataMapperParsers(
             indexSettings.getIndexVersionCreated()
         );
         Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers = new LinkedHashMap<>();
-        metadataMapperParsers.values().stream().map(parser -> parser.getDefault(mappingParserContext)).forEach(m -> {
+        metadataMapperParsers.values().stream().map(parser -> parser.getDefault(mappingParserContextSupplier.get())).forEach(m -> {
             if (m != null) {
                 metadataMappers.put(m.getClass(), m);
             }
         });
         return new MappingParser(
-            mappingParserContext,
+            mappingParserContextSupplier,
             metadataMapperParsers,
             () -> metadataMappers,
             type -> MapperService.SINGLE_MAPPING_NAME

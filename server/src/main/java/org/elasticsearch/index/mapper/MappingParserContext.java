@@ -37,6 +37,8 @@ public class MappingParserContext {
     private final IndexAnalyzers indexAnalyzers;
     private final IndexSettings indexSettings;
     private final IdFieldMapper idFieldMapper;
+    private final long mappingObjectDepthLimit;
+    private long mappingObjectDepth = 0;
 
     public MappingParserContext(
         Function<String, SimilarityProvider> similarityLookupService,
@@ -60,6 +62,7 @@ public class MappingParserContext {
         this.indexAnalyzers = indexAnalyzers;
         this.indexSettings = indexSettings;
         this.idFieldMapper = idFieldMapper;
+        this.mappingObjectDepthLimit = indexSettings.getMappingDepthLimit();
     }
 
     public IndexAnalyzers getIndexAnalyzers() {
@@ -127,6 +130,17 @@ public class MappingParserContext {
      */
     public ScriptCompiler scriptCompiler() {
         return scriptCompiler;
+    }
+
+    void incrementMappingObjectDepth() throws MapperParsingException {
+        mappingObjectDepth++;
+        if (mappingObjectDepth > mappingObjectDepthLimit) {
+            throw new MapperParsingException("Limit of mapping depth [" + mappingObjectDepthLimit + "] has been exceeded");
+        }
+    }
+
+    void decrementMappingObjectDepth() throws MapperParsingException {
+        mappingObjectDepth--;
     }
 
     public MappingParserContext createMultiFieldContext() {

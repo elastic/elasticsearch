@@ -461,6 +461,7 @@ public class SparseFileTracker {
     private void maybeUpdateCompletePointer(Range gapRange) {
         assert Thread.holdsLock(mutex);
         if (gapRange.start == 0) {
+            assert complete <= gapRange.end;
             complete = gapRange.end;
         }
     }

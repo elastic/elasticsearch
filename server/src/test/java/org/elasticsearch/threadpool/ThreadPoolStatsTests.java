@@ -10,102 +10,68 @@ package org.elasticsearch.threadpool;
 
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import static org.elasticsearch.threadpool.ThreadPool.THREAD_POOL_TYPES;
 import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.equalTo;
 
 public class ThreadPoolStatsTests extends ESTestCase {
-    public void testThreadPoolStatsSort() throws IOException {
-        List<ThreadPoolStats.Stats> stats = new ArrayList<>();
-        stats.add(new ThreadPoolStats.Stats("z", -1, 0, 0, 0, 0, 0L));
-        stats.add(new ThreadPoolStats.Stats("m", 3, 0, 0, 0, 0, 0L));
-        stats.add(new ThreadPoolStats.Stats("m", 1, 0, 0, 0, 0, 0L));
-        stats.add(new ThreadPoolStats.Stats("d", -1, 0, 0, 0, 0, 0L));
-        stats.add(new ThreadPoolStats.Stats("m", 2, 0, 0, 0, 0, 0L));
-        stats.add(new ThreadPoolStats.Stats("t", -1, 0, 0, 0, 0, 0L));
-        stats.add(new ThreadPoolStats.Stats("a", -1, 0, 0, 0, 0, 0L));
+    public void testThreadPoolStatsSort() {
+        var stats = List.of(
+            new ThreadPoolStats.Stats("z", -1, 0, 0, 0, 0, 0L),
+            new ThreadPoolStats.Stats("m", 3, 0, 0, 0, 0, 0L),
+            new ThreadPoolStats.Stats("m", 1, 0, 0, 0, 0, 0L),
+            new ThreadPoolStats.Stats("d", -1, 0, 0, 0, 0, 0L),
+            new ThreadPoolStats.Stats("m", 2, 0, 0, 0, 0, 0L),
+            new ThreadPoolStats.Stats("t", -1, 0, 0, 0, 0, 0L),
+            new ThreadPoolStats.Stats("a", -1, 0, 0, 0, 0, 0L)
+        );
 
-        List<ThreadPoolStats.Stats> copy = new ArrayList<>(stats);
+        var copy = new ArrayList<>(stats);
         Collections.sort(copy);
 
-        List<String> names = new ArrayList<>(copy.size());
-        for (ThreadPoolStats.Stats stat : copy) {
-            names.add(stat.getName());
-        }
+        var names = copy.stream().map(ThreadPoolStats.Stats::name).toList();
         assertThat(names, contains("a", "d", "m", "m", "m", "t", "z"));
 
-        List<Integer> threads = new ArrayList<>(copy.size());
-        for (ThreadPoolStats.Stats stat : copy) {
-            threads.add(stat.getThreads());
-        }
+        var threads = copy.stream().map(ThreadPoolStats.Stats::threads).toList();
         assertThat(threads, contains(-1, -1, 1, 2, 3, -1, -1));
     }
 
-    public void testThreadPoolStatsToXContent() throws IOException {
-        try (BytesStreamOutput os = new BytesStreamOutput()) {
+    public void testSerialization() throws IOException {
+        var original = new ThreadPoolStats(randomList(2, ThreadPoolStatsTests::randomStats));
+        var other = serialize(original);
 
-            List<ThreadPoolStats.Stats> stats = new ArrayList<>();
-            stats.add(new ThreadPoolStats.Stats(ThreadPool.Names.SEARCH, -1, 0, 0, 0, 0, 0L));
-            stats.add(new ThreadPoolStats.Stats(ThreadPool.Names.WARMER, -1, 0, 0, 0, 0, 0L));
-            stats.add(new ThreadPoolStats.Stats(ThreadPool.Names.GENERIC, -1, 0, 0, 0, 0, 0L));
-            stats.add(new ThreadPoolStats.Stats(ThreadPool.Names.FORCE_MERGE, -1, 0, 0, 0, 0, 0L));
-            stats.add(new ThreadPoolStats.Stats(ThreadPool.Names.SAME, -1, 0, 0, 0, 0, 0L));
+        assertNotSame(original, other);
+        assertEquals(original, other);
+    }
 
-            ThreadPoolStats threadPoolStats = new ThreadPoolStats(stats);
-            try (XContentBuilder builder = new XContentBuilder(XContentType.JSON.xContent(), os)) {
-                builder.startObject();
-                threadPoolStats.toXContent(builder, ToXContent.EMPTY_PARAMS);
-                builder.endObject();
-            }
+    private static ThreadPoolStats serialize(ThreadPoolStats stats) throws IOException {
+        var out = new BytesStreamOutput();
+        stats.writeTo(out);
+        return new ThreadPoolStats(out.bytes().streamInput());
+    }
 
-            try (XContentParser parser = createParser(JsonXContent.jsonXContent, os.bytes())) {
-                XContentParser.Token token = parser.currentToken();
-                assertNull(token);
+    public static ThreadPoolStats.Stats randomStats() {
+        return randomStats(randomFrom(THREAD_POOL_TYPES.keySet()));
+    }
 
-                token = parser.nextToken();
-                assertThat(token, equalTo(XContentParser.Token.START_OBJECT));
+    public static ThreadPoolStats.Stats randomStats(String name) {
+        return new ThreadPoolStats.Stats(
+            name,
+            randomMinusOneOrOther(),
+            randomMinusOneOrOther(),
+            randomMinusOneOrOther(),
+            randomMinusOneOrOther(),
+            randomMinusOneOrOther(),
+            randomMinusOneOrOther()
+        );
+    }
 
-                token = parser.nextToken();
-                assertThat(token, equalTo(XContentParser.Token.FIELD_NAME));
-                assertThat(parser.currentName(), equalTo(ThreadPoolStats.Fields.THREAD_POOL));
-
-                token = parser.nextToken();
-                assertThat(token, equalTo(XContentParser.Token.START_OBJECT));
-
-                token = parser.nextToken();
-                assertThat(token, equalTo(XContentParser.Token.FIELD_NAME));
-
-                List<String> names = new ArrayList<>();
-                while (token == XContentParser.Token.FIELD_NAME) {
-                    names.add(parser.currentName());
-
-                    token = parser.nextToken();
-                    assertThat(token, equalTo(XContentParser.Token.START_OBJECT));
-
-                    parser.skipChildren();
-                    token = parser.nextToken();
-                }
-                assertThat(
-                    names,
-                    contains(
-                        ThreadPool.Names.FORCE_MERGE,
-                        ThreadPool.Names.GENERIC,
-                        ThreadPool.Names.SAME,
-                        ThreadPool.Names.SEARCH,
-                        ThreadPool.Names.WARMER
-                    )
-                );
-            }
-        }
+    private static int randomMinusOneOrOther() {
+        return randomBoolean() ? -1 : randomIntBetween(0, Integer.MAX_VALUE);
     }
 }

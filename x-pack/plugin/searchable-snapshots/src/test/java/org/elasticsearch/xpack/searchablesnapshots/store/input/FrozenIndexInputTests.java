@@ -138,7 +138,7 @@ public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
         ) {
             super(
                 () -> TestUtils.singleBlobContainer(fileInfo.partName(0), fileData),
-                () -> new BlobStoreIndexShardSnapshot("_snapshot_id", 0L, List.of(fileInfo), 0L, 0L, 0, 0L),
+                () -> new BlobStoreIndexShardSnapshot("_snapshot_id", List.of(fileInfo), 0L, 0L, 0, 0L),
                 new TestUtils.SimpleBlobStoreCacheService(),
                 "_repository",
                 snapshotId,

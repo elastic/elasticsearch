@@ -16,7 +16,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -187,8 +186,8 @@ public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<Health
     }
 
     private boolean isNodeShuttingDown(ClusterChangedEvent event, String nodeId) {
-        return NodesShutdownMetadata.isNodeShuttingDown(event.previousState(), nodeId) == false
-            && NodesShutdownMetadata.isNodeShuttingDown(event.state(), nodeId);
+        return event.previousState().metadata().nodeShutdowns().contains(nodeId) == false
+            && event.state().metadata().nodeShutdowns().contains(nodeId);
     }
 
     public static List<NamedXContentRegistry.Entry> getNamedXContentParsers() {

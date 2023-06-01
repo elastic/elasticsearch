@@ -49,6 +49,12 @@ public final class TransportCreateCrossClusterApiKeyAction extends HandledTransp
         final Authentication authentication = securityContext.getAuthentication();
         if (authentication == null) {
             listener.onFailure(new IllegalStateException("authentication is required"));
+        } else if (authentication.isApiKey()) {
+            listener.onFailure(
+                new IllegalArgumentException(
+                    "authentication via API key not supported: An API key cannot be used to create a cross-cluster API key"
+                )
+            );
         } else {
             apiKeyService.createApiKey(authentication, request, Set.of(), listener);
         }

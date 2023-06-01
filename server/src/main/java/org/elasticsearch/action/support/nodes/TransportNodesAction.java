@@ -15,16 +15,15 @@ import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.CancellableFanOut;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.util.concurrent.ListenableFuture;
-import org.elasticsearch.common.util.concurrent.RunOnce;
-import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportChannel;
@@ -131,84 +130,64 @@ public abstract class TransportNodesAction<
             assert request.concreteNodes() != null;
         }
 
-        final var responses = new ArrayList<NodeResponse>(request.concreteNodes().length);
-        final var exceptions = new ArrayList<FailedNodeException>(0);
+        new CancellableFanOut<DiscoveryNode, NodeResponse, CheckedConsumer<ActionListener<NodesResponse>, Exception>>() {
 
-        final var resultListener = new ListenableFuture<NodesResponse>();
-        final var resultListenerCompleter = new RunOnce(() -> {
-            if (task instanceof CancellableTask cancellableTask) {
-                if (cancellableTask.notifyIfCancelled(resultListener)) {
-                    return;
-                }
-            }
-            // ref releases all happen-before here so no need to be synchronized
-            threadPool.executor(finalExecutor)
-                .execute(ActionRunnable.wrap(resultListener, l -> newResponseAsync(task, request, responses, exceptions, l)));
-        });
+            final ArrayList<NodeResponse> responses = new ArrayList<>(request.concreteNodes().length);
+            final ArrayList<FailedNodeException> exceptions = new ArrayList<>(0);
 
-        final var nodeCancellationListener = new ListenableFuture<NodeResponse>(); // collects node listeners & completes them if cancelled
-        if (task instanceof CancellableTask cancellableTask) {
-            cancellableTask.addListener(() -> {
-                assert cancellableTask.isCancelled();
-                resultListenerCompleter.run();
-                cancellableTask.notifyIfCancelled(nodeCancellationListener);
-            });
-        }
+            final TransportRequestOptions transportRequestOptions = TransportRequestOptions.timeout(request.timeout());
 
-        final var transportRequestOptions = TransportRequestOptions.timeout(request.timeout());
-
-        try (var refs = new RefCountingRunnable(() -> {
-            resultListener.addListener(listener);
-            resultListenerCompleter.run();
-        })) {
-            for (final var node : request.concreteNodes()) {
-                final ActionListener<NodeResponse> nodeResponseListener = ActionListener.notifyOnce(new ActionListener<>() {
-                    @Override
-                    public void onResponse(NodeResponse nodeResponse) {
-                        synchronized (responses) {
-                            responses.add(nodeResponse);
-                        }
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        if (task instanceof CancellableTask cancellableTask && cancellableTask.isCancelled()) {
-                            return;
-                        }
-
-                        logger.debug(() -> format("failed to execute [%s] on node [%s]", actionName, node), e);
-                        synchronized (exceptions) {
-                            exceptions.add(new FailedNodeException(node.getId(), "Failed node [" + node.getId() + "]", e));
-                        }
-                    }
-
-                    @Override
-                    public String toString() {
-                        return "[" + actionName + "][" + node.descriptionWithoutAttributes() + "]";
-                    }
-                });
-
-                if (task instanceof CancellableTask) {
-                    nodeCancellationListener.addListener(nodeResponseListener);
-                }
-
+            @Override
+            protected void sendItemRequest(DiscoveryNode discoveryNode, ActionListener<NodeResponse> listener) {
                 final var nodeRequest = newNodeRequest(request);
                 if (task != null) {
                     nodeRequest.setParentTask(clusterService.localNode().getId(), task.getId());
                 }
 
                 transportService.sendRequest(
-                    node,
+                    discoveryNode,
                     transportNodeAction,
                     nodeRequest,
                     transportRequestOptions,
-                    new ActionListenerResponseHandler<>(
-                        ActionListener.releaseAfter(nodeResponseListener, refs.acquire()),
-                        in -> newNodeResponse(in, node)
-                    )
+                    new ActionListenerResponseHandler<>(listener, nodeResponseReader(discoveryNode))
                 );
             }
-        }
+
+            @Override
+            protected void onItemResponse(DiscoveryNode discoveryNode, NodeResponse nodeResponse) {
+                synchronized (responses) {
+                    responses.add(nodeResponse);
+                }
+            }
+
+            @Override
+            protected void onItemFailure(DiscoveryNode discoveryNode, Exception e) {
+                logger.debug(() -> format("failed to execute [%s] on node [%s]", actionName, discoveryNode), e);
+                synchronized (exceptions) {
+                    exceptions.add(new FailedNodeException(discoveryNode.getId(), "Failed node [" + discoveryNode.getId() + "]", e));
+                }
+            }
+
+            @Override
+            protected CheckedConsumer<ActionListener<NodesResponse>, Exception> onCompletion() {
+                // ref releases all happen-before here so no need to be synchronized
+                return l -> newResponseAsync(task, request, responses, exceptions, l);
+            }
+
+            @Override
+            public String toString() {
+                return actionName;
+            }
+        }.run(
+            task,
+            Iterators.forArray(request.concreteNodes()),
+            listener.delegateFailure((l, r) -> threadPool.executor(finalExecutor).execute(ActionRunnable.wrap(l, r)))
+        );
+    }
+
+    private Writeable.Reader<NodeResponse> nodeResponseReader(DiscoveryNode discoveryNode) {
+        // not an inline lambda to avoid capturing CancellableFanOut.this.
+        return in -> TransportNodesAction.this.newNodeResponse(in, discoveryNode);
     }
 
     /**

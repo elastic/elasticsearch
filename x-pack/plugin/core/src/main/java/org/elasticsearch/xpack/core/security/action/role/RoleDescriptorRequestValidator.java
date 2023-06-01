@@ -85,6 +85,9 @@ public class RoleDescriptorRequestValidator {
                 validationException
             );
         }
+        if (roleDescriptor.hasWorkflowsRestriction()) {
+            // TODO: Validate workflow names here!
+        }
         return validationException;
     }
 }

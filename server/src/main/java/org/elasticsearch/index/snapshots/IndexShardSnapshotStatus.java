@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.snapshots;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.snapshots.AbortedSnapshotException;
@@ -61,7 +62,6 @@ public class IndexShardSnapshotStatus {
     private long totalSize;
     private long incrementalSize;
     private long processedSize;
-    private long indexVersion;
     private String failure;
 
     private IndexShardSnapshotStatus(
@@ -115,18 +115,20 @@ public class IndexShardSnapshotStatus {
         return asCopy();
     }
 
-    public synchronized Copy moveToFinalize(final long indexVersion) {
-        if (stage.compareAndSet(Stage.STARTED, Stage.FINALIZE)) {
-            this.indexVersion = indexVersion;
-        } else if (isAborted()) {
-            throw new AbortedSnapshotException();
-        } else {
-            assert false : "Should not try to move stage [" + stage.get() + "] to [FINALIZE]";
-            throw new IllegalStateException(
-                "Unable to move the shard snapshot status to [FINALIZE]: " + "expecting [STARTED] but got [" + stage.get() + "]"
-            );
-        }
-        return asCopy();
+    public synchronized Copy moveToFinalize() {
+        final var prevStage = stage.compareAndExchange(Stage.STARTED, Stage.FINALIZE);
+        return switch (prevStage) {
+            case STARTED -> asCopy();
+            case ABORTED -> throw new AbortedSnapshotException();
+            default -> {
+                final var message = Strings.format(
+                    "Unable to move the shard snapshot status to [FINALIZE]: expecting [STARTED] but got [%s]",
+                    prevStage
+                );
+                assert false : message;
+                throw new IllegalStateException(message);
+            }
+        };
     }
 
     public synchronized void moveToDone(final long endTime, final ShardSnapshotResult shardSnapshotResult) {
@@ -206,7 +208,6 @@ public class IndexShardSnapshotStatus {
             incrementalSize,
             totalSize,
             processedSize,
-            indexVersion,
             failure
         );
     }
@@ -262,7 +263,6 @@ public class IndexShardSnapshotStatus {
         private final long totalSize;
         private final long processedSize;
         private final long incrementalSize;
-        private final long indexVersion;
         private final String failure;
 
         public Copy(
@@ -275,7 +275,6 @@ public class IndexShardSnapshotStatus {
             final long incrementalSize,
             final long totalSize,
             final long processedSize,
-            final long indexVersion,
             final String failure
         ) {
             this.stage = stage;
@@ -287,7 +286,6 @@ public class IndexShardSnapshotStatus {
             this.totalSize = totalSize;
             this.processedSize = processedSize;
             this.incrementalSize = incrementalSize;
-            this.indexVersion = indexVersion;
             this.failure = failure;
         }
 
@@ -327,10 +325,6 @@ public class IndexShardSnapshotStatus {
             return processedSize;
         }
 
-        public long getIndexVersion() {
-            return indexVersion;
-        }
-
         public String getFailure() {
             return failure;
         }
@@ -356,8 +350,6 @@ public class IndexShardSnapshotStatus {
                 + totalSize
                 + ", processedSize="
                 + processedSize
-                + ", indexVersion="
-                + indexVersion
                 + ", failure='"
                 + failure
                 + '\''

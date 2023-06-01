@@ -1264,8 +1264,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
         return this.custom(DataStreamMetadata.TYPE, DataStreamMetadata.EMPTY).getDataStreamAliases();
     }
 
-    public Map<String, SingleNodeShutdownMetadata> nodeShutdowns() {
-        return this.custom(NodesShutdownMetadata.TYPE, NodesShutdownMetadata.EMPTY).getAllNodeMetadataMap();
+    public NodesShutdownMetadata nodeShutdowns() {
+        return custom(NodesShutdownMetadata.TYPE, NodesShutdownMetadata.EMPTY);
     }
 
     /**

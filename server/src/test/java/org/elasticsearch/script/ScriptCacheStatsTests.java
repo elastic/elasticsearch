@@ -26,7 +26,7 @@ public class ScriptCacheStatsTests extends ESTestCase {
             new ScriptContextStats("context-1", 302, new TimeSeries(1000, 1001, 1002, 100), new TimeSeries(2000, 2001, 2002, 201)),
             new ScriptContextStats("context-2", 3020, new TimeSeries(1000), new TimeSeries(2010))
         );
-        var stats = new ScriptStats(contextStats);
+        var stats = ScriptStats.of(contextStats);
         var scriptCacheStats = new ScriptCacheStats(stats);
 
         builder.startObject();
@@ -51,11 +51,11 @@ public class ScriptCacheStatsTests extends ESTestCase {
         var scriptCacheStats = new ScriptCacheStats(
             Map.of(
                 "context-1",
-                new ScriptStats(
+                ScriptStats.of(
                     new ScriptContextStats("context-1", 302, new TimeSeries(1000, 1001, 1002, 100), new TimeSeries(2000, 2001, 2002, 201))
                 ),
                 "context-2",
-                new ScriptStats(new ScriptContextStats("context-2", 3020, new TimeSeries(1000), new TimeSeries(2010)))
+                ScriptStats.of(new ScriptContextStats("context-2", 3020, new TimeSeries(1000), new TimeSeries(2010)))
             )
         );
 

@@ -17,38 +17,19 @@ import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
-public class ScriptStats implements Writeable, ToXContentFragment {
-    private final List<ScriptContextStats> contextStats;
-    private final long compilations;
-    private final long cacheEvictions;
-    private final long compilationLimitTriggered;
-    private final TimeSeries compilationsHistory;
-    private final TimeSeries cacheEvictionsHistory;
+public record ScriptStats(
 
-    public ScriptStats(List<ScriptContextStats> contextStats) {
-        ArrayList<ScriptContextStats> ctxStats = new ArrayList<>(contextStats.size());
-        ctxStats.addAll(contextStats);
-        ctxStats.sort(ScriptContextStats::compareTo);
-        this.contextStats = Collections.unmodifiableList(ctxStats);
-        long compilations = 0;
-        long cacheEvictions = 0;
-        long compilationLimitTriggered = 0;
-        for (ScriptContextStats stats : contextStats) {
-            compilations += stats.getCompilations();
-            cacheEvictions += stats.getCacheEvictions();
-            compilationLimitTriggered += stats.getCompilationLimitTriggered();
-        }
-        this.compilations = compilations;
-        this.cacheEvictions = cacheEvictions;
-        this.compilationLimitTriggered = compilationLimitTriggered;
-        this.compilationsHistory = new TimeSeries(compilations);
-        this.cacheEvictionsHistory = new TimeSeries(cacheEvictions);
-    }
+    List<ScriptContextStats> contextStats,
+    long compilations,
+    long cacheEvictions,
+    long compilationLimitTriggered,
+    TimeSeries compilationsHistory,
+    TimeSeries cacheEvictionsHistory
+) implements Writeable, ToXContentFragment {
 
     public ScriptStats(
         long compilations,
@@ -57,16 +38,37 @@ public class ScriptStats implements Writeable, ToXContentFragment {
         TimeSeries compilationsHistory,
         TimeSeries cacheEvictionsHistory
     ) {
-        this.contextStats = Collections.emptyList();
-        this.compilations = compilations;
-        this.cacheEvictions = cacheEvictions;
-        this.compilationLimitTriggered = compilationLimitTriggered;
-        this.compilationsHistory = compilationsHistory == null ? new TimeSeries(compilations) : compilationsHistory;
-        this.cacheEvictionsHistory = cacheEvictionsHistory == null ? new TimeSeries(cacheEvictions) : cacheEvictionsHistory;
+        this(
+            List.of(),
+            compilations,
+            cacheEvictions,
+            compilationLimitTriggered,
+            Objects.requireNonNullElseGet(compilationsHistory, () -> new TimeSeries(compilations)),
+            Objects.requireNonNullElseGet(cacheEvictionsHistory, () -> new TimeSeries(cacheEvictions))
+        );
     }
 
-    public ScriptStats(ScriptContextStats context) {
-        this(
+    public static ScriptStats of(List<ScriptContextStats> contextStats) {
+        long compilations = 0;
+        long cacheEvictions = 0;
+        long compilationLimitTriggered = 0;
+        for (var stats : contextStats) {
+            compilations += stats.getCompilations();
+            cacheEvictions += stats.getCacheEvictions();
+            compilationLimitTriggered += stats.getCompilationLimitTriggered();
+        }
+        return new ScriptStats(
+            contextStats.stream().sorted(ScriptContextStats::compareTo).toList(),
+            compilations,
+            cacheEvictions,
+            compilationLimitTriggered,
+            new TimeSeries(compilations),
+            new TimeSeries(cacheEvictions)
+        );
+    }
+
+    public static ScriptStats of(ScriptContextStats context) {
+        return new ScriptStats(
             context.getCompilations(),
             context.getCacheEvictions(),
             context.getCompilationLimitTriggered(),
@@ -75,7 +77,11 @@ public class ScriptStats implements Writeable, ToXContentFragment {
         );
     }
 
-    public ScriptStats(StreamInput in) throws IOException {
+    public static ScriptStats of(StreamInput in) throws IOException {
+        TimeSeries compilationsHistory;
+        TimeSeries cacheEvictionsHistory;
+        long compilations;
+        long cacheEvictions;
         if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_1_0)) {
             compilationsHistory = new TimeSeries(in);
             cacheEvictionsHistory = new TimeSeries(in);
@@ -87,8 +93,16 @@ public class ScriptStats implements Writeable, ToXContentFragment {
             compilationsHistory = new TimeSeries(compilations);
             cacheEvictionsHistory = new TimeSeries(cacheEvictions);
         }
-        compilationLimitTriggered = in.readVLong();
-        contextStats = in.readList(ScriptContextStats::new);
+        var compilationLimitTriggered = in.readVLong();
+        var contextStats = in.readList(ScriptContextStats::new);
+        return new ScriptStats(
+            contextStats,
+            compilations,
+            cacheEvictions,
+            compilationLimitTriggered,
+            compilationsHistory,
+            cacheEvictionsHistory
+        );
     }
 
     @Override
@@ -126,7 +140,7 @@ public class ScriptStats implements Writeable, ToXContentFragment {
         }
         Map<String, ScriptStats> contexts = Maps.newMapWithExpectedSize(contextStats.size());
         for (ScriptContextStats contextStats : contextStats) {
-            contexts.put(contextStats.getContext(), new ScriptStats(contextStats));
+            contexts.put(contextStats.getContext(), ScriptStats.of(contextStats));
         }
         return new ScriptCacheStats(contexts);
     }

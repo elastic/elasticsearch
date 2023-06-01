@@ -30,7 +30,7 @@ public class ScriptStatsTests extends ESTestCase {
             new ScriptContextStats("contextB", 302, new TimeSeries(1000, 1001, 1002, 100), new TimeSeries(2000, 2001, 2002, 201)),
             new ScriptContextStats("contextA", 3020, new TimeSeries(1000), new TimeSeries(2010))
         );
-        ScriptStats stats = new ScriptStats(contextStats);
+        ScriptStats stats = ScriptStats.of(contextStats);
         final XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
         builder.startObject();
         stats.toXContent(builder, ToXContent.EMPTY_PARAMS);

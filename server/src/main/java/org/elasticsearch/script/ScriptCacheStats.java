@@ -38,7 +38,7 @@ public class ScriptCacheStats implements Writeable, ToXContentFragment {
     public ScriptCacheStats(StreamInput in) throws IOException {
         boolean isContext = in.readBoolean();
         if (isContext == false) {
-            general = new ScriptStats(in);
+            general = ScriptStats.of(in);
             context = null;
             return;
         }
@@ -48,7 +48,7 @@ public class ScriptCacheStats implements Writeable, ToXContentFragment {
         Map<String, ScriptStats> context = Maps.newMapWithExpectedSize(size);
         for (int i = 0; i < size; i++) {
             String name = in.readString();
-            context.put(name, new ScriptStats(in));
+            context.put(name, ScriptStats.of(in));
         }
         this.context = Collections.unmodifiableMap(context);
     }

@@ -751,7 +751,7 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
                     case 3 -> {
                         final var newBytes = randomByteArrayOfLength(scaledRandomIntBetween(0, expectedBuffer.length));
                         final var startPos = between(0, newBytes.length);
-                        final var len = Math.min(newBytes.length - startPos, expectedBuffer.length - currentPos);
+                        final var len = between(0, Math.min(newBytes.length - startPos, expectedBuffer.length - currentPos));
                         out.write(newBytes, startPos, len);
                         System.arraycopy(newBytes, startPos, expectedBuffer, currentPos, len);
                         currentPos += len;
@@ -759,7 +759,7 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
                 }
             }
 
-            final var expected = new byte[currentPos];
+            final byte[] expected = new byte[currentPos];
             System.arraycopy(expectedBuffer, 0, expected, 0, currentPos);
             assertArrayEquals(expected, BytesReference.toBytes(out.bytes()));
         }

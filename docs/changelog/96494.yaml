@@ -1,0 +1,6 @@
+pr: 96494
+summary: Do not copy `index.default_pipeline` and `index.final_pipeline`
+area: Rollup
+type: bug
+issues:
+ - 96478

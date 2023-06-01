@@ -59,7 +59,7 @@ public class ByteArrayStreamInput extends StreamInput {
     }
 
     public void skipBytes(long count) {
-        pos += count;
+        pos += (int) count;
     }
 
     @Override

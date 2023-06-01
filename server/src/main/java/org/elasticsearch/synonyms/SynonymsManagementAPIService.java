@@ -41,6 +41,9 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
+/**
+ * Manages synonyms performing operations on the system index
+ */
 public class SynonymsManagementAPIService {
     public static final String SYNONYMS_INDEX_NAME_PATTERN = ".synonyms-*";
     public static final String SYNONYMS_INDEX_CONCRETE_NAME = ".synonyms-1";
@@ -131,6 +134,7 @@ public class SynonymsManagementAPIService {
         );
     }
 
+    // Retrieves the external synonym rule ID from the internal one for displaying to users
     private static String externalSynonymRuleId(String internalId) {
         int index = internalId.indexOf(SYNONYM_RULE_ID_SEPARATOR);
         if (index == -1) {
@@ -139,6 +143,8 @@ public class SynonymsManagementAPIService {
         return internalId.substring(index + 1);
     }
 
+    // Retrieves the internal synonym rule ID to store it in the index. As the same synonym rule ID
+    // can be used in different synonym sets, we prefix the ID with the synonym set to avoid collisions
     private static String internalSynonymRuleId(String resourceName, SynonymRule synonymRule) {
         String synonymRuleId = synonymRule.id();
         if (synonymRuleId == null) {

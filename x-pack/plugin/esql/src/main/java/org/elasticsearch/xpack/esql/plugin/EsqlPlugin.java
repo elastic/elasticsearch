@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.internal.Client;
@@ -50,6 +51,7 @@ import org.elasticsearch.xpack.esql.EsqlUsageTransportAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlQueryAction;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
+import org.elasticsearch.xpack.esql.optimizer.SingleValueQuery;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
 
@@ -60,6 +62,11 @@ import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 public class EsqlPlugin extends Plugin implements ActionPlugin {
+    /**
+     * The first version for ESQL. It's actual value is certainly wrong and will need to be
+     * updated when we merge.
+     */
+    public static final TransportVersion TRANSPORT_MINIMUM_VERSION = TransportVersion.V_8_8_0;
 
     public static final String ESQL_THREAD_POOL_NAME = "esql";
 
@@ -136,7 +143,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
                 ExchangeSourceOperator.Status.ENTRY,
                 LuceneSourceOperator.Status.ENTRY,
                 MvExpandOperator.Status.ENTRY,
-                ValuesSourceReaderOperator.Status.ENTRY
+                ValuesSourceReaderOperator.Status.ENTRY,
+                SingleValueQuery.ENTRY
             ).stream(),
             Block.getNamedWriteables().stream()
         ).toList();

@@ -79,6 +79,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer:TRACE", reason = "debug")
 public class PhysicalPlanOptimizerTests extends ESTestCase {
@@ -485,20 +486,18 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var fieldExtract = as(project.child(), FieldExtractExec.class);
         var source = source(fieldExtract.child());
 
-        QueryBuilder query = source.query();
-        assertTrue(query instanceof BoolQueryBuilder);
-        List<QueryBuilder> mustClauses = ((BoolQueryBuilder) query).must();
-        assertEquals(2, mustClauses.size());
-        assertTrue(mustClauses.get(0) instanceof RangeQueryBuilder);
-        assertThat(mustClauses.get(0).toString(), containsString("""
-                "emp_no" : {
-                  "gt" : -1,
-            """));
-        assertTrue(mustClauses.get(1) instanceof RangeQueryBuilder);
-        assertThat(mustClauses.get(1).toString(), containsString("""
-                "salary" : {
-                  "lt" : 10,
-            """));
+        var bq = as(source.query(), BoolQueryBuilder.class);
+        assertThat(bq.must(), hasSize(2));
+        var first = as(sv(bq.must().get(0), "emp_no"), RangeQueryBuilder.class);
+        assertThat(first.fieldName(), equalTo("emp_no"));
+        assertThat(first.from(), equalTo(-1));
+        assertThat(first.includeLower(), equalTo(false));
+        assertThat(first.to(), nullValue());
+        var second = as(sv(bq.must().get(1), "salary"), RangeQueryBuilder.class);
+        assertThat(second.fieldName(), equalTo("salary"));
+        assertThat(second.from(), nullValue());
+        assertThat(second.to(), equalTo(10));
+        assertThat(second.includeUpper(), equalTo(false));
     }
 
     public void testOnlyPushTranslatableConditionsInFilter() {
@@ -521,9 +520,11 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var gt = as(filter.condition(), GreaterThan.class);
         as(gt.left(), Round.class);
 
-        QueryBuilder query = source.query();
-        assertTrue(query instanceof RangeQueryBuilder);
-        assertEquals(10, ((RangeQueryBuilder) query).to());
+        var rq = as(sv(source.query(), "salary"), RangeQueryBuilder.class);
+        assertThat(rq.fieldName(), equalTo("salary"));
+        assertThat(rq.to(), equalTo(10));
+        assertThat(rq.includeLower(), equalTo(false));
+        assertThat(rq.from(), nullValue());
     }
 
     public void testNoPushDownNonFoldableInComparisonFilter() {
@@ -568,46 +569,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertNull(source.query());
     }
 
-    /**
-     * Expected
-     *
-     * LimitExec[10000[INTEGER]]
-     * \_ExchangeExec[GATHER,SINGLE_DISTRIBUTION]
-     *   \_ProjectExec[[_meta_field{f}#417, emp_no{f}#418, first_name{f}#419, languages{f}#420, last_name{f}#421, salary{f}#422]]
-     *     \_FieldExtractExec[_meta_field{f}#417, emp_no{f}#418, first_name{f}#41..]
-     *       \_EsQueryExec[test], query[{...}][_doc{f}#423], limit[10000]
-     */
-    public void testCombineUserAndPhysicalFilters() {
-        var plan = physicalPlan("""
-            from test
-            | where salary < 10
-            """);
-        // var userFilter = new RangeQueryBuilder("emp_no").gt(-1);
-        // plan = plan.transformUp(EsSourceExec.class, node -> new EsSourceExec(node.source(), node.index(), node.output(), userFilter));
-
-        var optimized = optimizedPlan(plan);
-
-        var topLimit = as(optimized, LimitExec.class);
-        var exchange = asRemoteExchange(topLimit.child());
-        var project = as(exchange.child(), ProjectExec.class);
-        var fieldExtract = as(project.child(), FieldExtractExec.class);
-        var source = source(fieldExtract.child());
-
-        // var query = as(source.query(), BoolQueryBuilder.class);
-        // List<QueryBuilder> mustClauses = query.must();
-        // assertEquals(2, mustClauses.size());
-        // var mustClause = as(mustClauses.get(0), RangeQueryBuilder.class);
-        // assertThat(mustClause.toString(), containsString("""
-        // "emp_no" : {
-        // "gt" : -1,
-        // """));
-        // mustClause = as(mustClauses.get(1), RangeQueryBuilder.class);
-        // assertThat(mustClause.toString(), containsString("""
-        // "salary" : {
-        // "lt" : 10,
-        // """));
-    }
-
     public void testPushBinaryLogicFilters() {
         var plan = physicalPlan("""
             from test
@@ -621,20 +582,18 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var fieldExtract = as(project.child(), FieldExtractExec.class);
         var source = source(fieldExtract.child());
 
-        QueryBuilder query = source.query();
-        assertTrue(query instanceof BoolQueryBuilder);
-        List<QueryBuilder> shouldClauses = ((BoolQueryBuilder) query).should();
-        assertEquals(2, shouldClauses.size());
-        assertTrue(shouldClauses.get(0) instanceof RangeQueryBuilder);
-        assertThat(shouldClauses.get(0).toString(), containsString("""
-                "emp_no" : {
-                  "gt" : -1,
-            """));
-        assertTrue(shouldClauses.get(1) instanceof RangeQueryBuilder);
-        assertThat(shouldClauses.get(1).toString(), containsString("""
-                "salary" : {
-                  "lt" : 10,
-            """));
+        BoolQueryBuilder bq = as(source.query(), BoolQueryBuilder.class);
+        assertThat(bq.should(), hasSize(2));
+        var rq = as(sv(bq.should().get(0), "emp_no"), RangeQueryBuilder.class);
+        assertThat(rq.fieldName(), equalTo("emp_no"));
+        assertThat(rq.from(), equalTo(-1));
+        assertThat(rq.includeLower(), equalTo(false));
+        assertThat(rq.to(), nullValue());
+        rq = as(sv(bq.should().get(1), "salary"), RangeQueryBuilder.class);
+        assertThat(rq.fieldName(), equalTo("salary"));
+        assertThat(rq.from(), nullValue());
+        assertThat(rq.to(), equalTo(10));
+        assertThat(rq.includeUpper(), equalTo(false));
     }
 
     public void testPushMultipleBinaryLogicFilters() {
@@ -651,26 +610,32 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var fieldExtract = as(project.child(), FieldExtractExec.class);
         var source = source(fieldExtract.child());
 
-        QueryBuilder query = source.query();
-        assertTrue(query instanceof BoolQueryBuilder);
-        List<QueryBuilder> mustClauses = ((BoolQueryBuilder) query).must();
-        assertEquals(2, mustClauses.size());
+        var top = as(source.query(), BoolQueryBuilder.class);
+        assertThat(top.must(), hasSize(2));
 
-        assertTrue(mustClauses.get(0) instanceof BoolQueryBuilder);
-        assertThat(mustClauses.get(0).toString(), containsString("""
-            "emp_no" : {
-                        "gt" : -1"""));
-        assertThat(mustClauses.get(0).toString(), containsString("""
-            "salary" : {
-                        "lt" : 10"""));
+        var first = as(top.must().get(0), BoolQueryBuilder.class);
+        var rq = as(sv(first.should().get(0), "emp_no"), RangeQueryBuilder.class);
+        assertThat(rq.fieldName(), equalTo("emp_no"));
+        assertThat(rq.from(), equalTo(-1));
+        assertThat(rq.includeLower(), equalTo(false));
+        assertThat(rq.to(), nullValue());
+        rq = as(sv(first.should().get(1), "salary"), RangeQueryBuilder.class);
+        assertThat(rq.fieldName(), equalTo("salary"));
+        assertThat(rq.from(), nullValue());
+        assertThat(rq.to(), equalTo(10));
+        assertThat(rq.includeUpper(), equalTo(false));
 
-        assertTrue(mustClauses.get(1) instanceof BoolQueryBuilder);
-        assertThat(mustClauses.get(1).toString(), containsString("""
-            "salary" : {
-                        "lte" : 10000"""));
-        assertThat(mustClauses.get(1).toString(), containsString("""
-            "salary" : {
-                        "gte" : 50000"""));
+        var second = as(top.must().get(1), BoolQueryBuilder.class);
+        rq = as(sv(second.should().get(0), "salary"), RangeQueryBuilder.class);
+        assertThat(rq.fieldName(), equalTo("salary"));
+        assertThat(rq.from(), nullValue());
+        assertThat(rq.to(), equalTo(10000));
+        assertThat(rq.includeUpper(), equalTo(true));
+        rq = as(sv(second.should().get(1), "salary"), RangeQueryBuilder.class);
+        assertThat(rq.fieldName(), equalTo("salary"));
+        assertThat(rq.from(), equalTo(50000));
+        assertThat(rq.includeLower(), equalTo(true));
+        assertThat(rq.to(), nullValue());
     }
 
     public void testLimit() {
@@ -791,12 +756,11 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         var source = source(extract.child());
         assertThat(source.limit().fold(), is(10));
-        assertTrue(source.query() instanceof RangeQueryBuilder);
-        assertThat(source.query().toString(), containsString("""
-              "range" : {
-                "emp_no" : {
-                  "gt" : 0,
-            """));
+        var rq = as(sv(source.query(), "emp_no"), RangeQueryBuilder.class);
+        assertThat(rq.fieldName(), equalTo("emp_no"));
+        assertThat(rq.from(), equalTo(0));
+        assertThat(rq.includeLower(), equalTo(false));
+        assertThat(rq.to(), nullValue());
     }
 
     /**
@@ -979,9 +943,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var extractRest = as(project.child(), FieldExtractExec.class);
         var source = source(extractRest.child());
 
-        QueryBuilder query = source.query();
-        assertThat(query, instanceOf(TermsQueryBuilder.class));
-        var tqb = (TermsQueryBuilder) query;
+        var tqb = as(sv(source.query(), "emp_no"), TermsQueryBuilder.class);
         assertThat(tqb.fieldName(), is("emp_no"));
         assertThat(tqb.values(), is(List.of(10010, 10011)));
     }
@@ -1000,19 +962,16 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var extractRest = as(project.child(), FieldExtractExec.class);
         var source = source(extractRest.child());
 
-        QueryBuilder query = source.query();
-        assertNotNull(query);
-        assertThat(query, instanceOf(BoolQueryBuilder.class));
-        List<QueryBuilder> must = ((BoolQueryBuilder) query).must();
-        assertThat(must.size(), is(2));
-        assertThat(must.get(0), instanceOf(TermsQueryBuilder.class));
-        var tqb = (TermsQueryBuilder) must.get(0);
-        assertThat(tqb.fieldName(), is("first_name"));
-        assertThat(tqb.values(), is(List.of("Bezalel", "Suzette")));
-        assertThat(must.get(1), instanceOf(RangeQueryBuilder.class));
-        var rqb = (RangeQueryBuilder) must.get(1);
+        BoolQueryBuilder query = as(source.query(), BoolQueryBuilder.class);
+        assertThat(query.must(), hasSize(2));
+        var tq = as(sv(query.must().get(0), "first_name"), TermsQueryBuilder.class);
+        assertThat(tq.fieldName(), is("first_name"));
+        assertThat(tq.values(), is(List.of("Bezalel", "Suzette")));
+        var rqb = as(sv(query.must().get(1), "salary"), RangeQueryBuilder.class);
         assertThat(rqb.fieldName(), is("salary"));
         assertThat(rqb.from(), is(50_000));
+        assertThat(rqb.includeLower(), is(false));
+        assertThat(rqb.to(), nullValue());
     }
 
     public void testPushDownIn() {
@@ -1028,9 +987,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var extractRest = as(project.child(), FieldExtractExec.class);
         var source = source(extractRest.child());
 
-        QueryBuilder query = source.query();
-        assertThat(query, instanceOf(TermsQueryBuilder.class));
-        var tqb = (TermsQueryBuilder) query;
+        var tqb = as(sv(source.query(), "emp_no"), TermsQueryBuilder.class);
         assertThat(tqb.fieldName(), is("emp_no"));
         assertThat(tqb.values(), is(List.of(10020, 10040)));
     }
@@ -1049,17 +1006,12 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var extractRest = as(project.child(), FieldExtractExec.class);
         var source = source(extractRest.child());
 
-        QueryBuilder query = source.query();
-        assertNotNull(query);
-        assertThat(query, instanceOf(BoolQueryBuilder.class));
-        List<QueryBuilder> must = ((BoolQueryBuilder) query).must();
-        assertThat(must.size(), is(2));
-        assertThat(must.get(0), instanceOf(TermsQueryBuilder.class));
-        var tqb = (TermsQueryBuilder) must.get(0);
+        BoolQueryBuilder bq = as(source.query(), BoolQueryBuilder.class);
+        assertThat(bq.must(), hasSize(2));
+        var tqb = as(sv(bq.must().get(0), "last_name"), TermsQueryBuilder.class);
         assertThat(tqb.fieldName(), is("last_name"));
         assertThat(tqb.values(), is(List.of("Simmel", "Pettey")));
-        assertThat(must.get(1), instanceOf(RangeQueryBuilder.class));
-        var rqb = (RangeQueryBuilder) must.get(1);
+        var rqb = as(sv(bq.must().get(1), "salary"), RangeQueryBuilder.class);
         assertThat(rqb.fieldName(), is("salary"));
         assertThat(rqb.from(), is(60_000));
     }
@@ -1086,14 +1038,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var extractRest = as(project.child(), FieldExtractExec.class);
         var source = source(extractRest.child());
 
-        QueryBuilder query = source.query();
-        assertNotNull(query);
-        assertThat(query, instanceOf(BoolQueryBuilder.class));
-        var boolQuery = (BoolQueryBuilder) query;
-        List<QueryBuilder> mustNot = boolQuery.mustNot();
-        assertThat(mustNot.size(), is(1));
-        assertThat(mustNot.get(0), instanceOf(TermsQueryBuilder.class));
-        var termsQuery = (TermsQueryBuilder) mustNot.get(0);
+        var boolQuery = as(source.query(), BoolQueryBuilder.class);
+        assertThat(boolQuery.mustNot(), hasSize(1));
+        var termsQuery = as(sv(boolQuery.mustNot().get(0), "emp_no"), TermsQueryBuilder.class);
         assertThat(termsQuery.fieldName(), is("emp_no"));
         assertThat(termsQuery.values(), is(List.of(10010, 10011)));
     }
@@ -1120,27 +1067,16 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var extractRest = as(project.child(), FieldExtractExec.class);
         var source = source(extractRest.child());
 
-        QueryBuilder query = source.query();
-        assertNotNull(query);
-        assertThat(query, instanceOf(BoolQueryBuilder.class));
-        var boolQuery = (BoolQueryBuilder) query;
-        List<QueryBuilder> mustNot = boolQuery.mustNot();
-        assertThat(mustNot.size(), is(1));
-        assertThat(mustNot.get(0), instanceOf(BoolQueryBuilder.class));
-        query = mustNot.get(0);
-
-        List<QueryBuilder> mustClauses = ((BoolQueryBuilder) query).must();
-        assertEquals(2, mustClauses.size());
-        assertTrue(mustClauses.get(0) instanceof TermQueryBuilder);
-        assertThat(mustClauses.get(0).toString(), containsString("""
-                "emp_no" : {
-                  "value" : 10010
-            """));
-        assertTrue(mustClauses.get(1) instanceof TermQueryBuilder);
-        assertThat(mustClauses.get(1).toString(), containsString("""
-                "first_name" : {
-                  "value" : "Parto"
-            """));
+        var bq = as(source.query(), BoolQueryBuilder.class);
+        assertThat(bq.mustNot(), hasSize(1));
+        bq = as(bq.mustNot().get(0), BoolQueryBuilder.class);
+        assertThat(bq.must(), hasSize(2));
+        var tq = as(sv(bq.must().get(0), "emp_no"), TermQueryBuilder.class);
+        assertThat(tq.fieldName(), equalTo("emp_no"));
+        assertThat(tq.value(), equalTo(10010));
+        tq = as(sv(bq.must().get(1), "first_name"), TermQueryBuilder.class);
+        assertThat(tq.fieldName(), equalTo("first_name"));
+        assertThat(tq.value(), equalTo("Parto"));
     }
 
     /* Expected:
@@ -1166,16 +1102,11 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var extractRest = as(project.child(), FieldExtractExec.class);
         var source = source(extractRest.child());
 
-        QueryBuilder query = source.query();
-        assertNotNull(query);
-        assertThat(query, instanceOf(BoolQueryBuilder.class));
-        var boolQuery = (BoolQueryBuilder) query;
-        List<QueryBuilder> mustNot = boolQuery.mustNot();
-        assertThat(mustNot.size(), is(1));
-        assertThat(mustNot.get(0), instanceOf(TermQueryBuilder.class));
-        var termQuery = (TermQueryBuilder) mustNot.get(0);
+        var boolQuery = as(source.query(), BoolQueryBuilder.class);
+        assertThat(boolQuery.mustNot(), hasSize(1));
+        var termQuery = as(sv(boolQuery.mustNot().get(0), "emp_no"), TermQueryBuilder.class);
         assertThat(termQuery.fieldName(), is("emp_no"));
-        assertThat(termQuery.value(), is(10010));
+        assertThat(termQuery.value(), is(10010));  // TODO this will match multivalued fields and we don't want that
     }
 
     /* Expected:
@@ -1261,16 +1192,11 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var extractRest = as(project.child(), FieldExtractExec.class);
         var source = source(extractRest.child());
 
-        QueryBuilder query = source.query();
-        assertNotNull(query);
-        assertThat(query, instanceOf(BoolQueryBuilder.class));
-        var boolQuery = (BoolQueryBuilder) query;
-        List<QueryBuilder> mustNot = boolQuery.mustNot();
-        assertThat(mustNot.size(), is(1));
-        assertThat(mustNot.get(0), instanceOf(TermQueryBuilder.class));
-        var termQuery = (TermQueryBuilder) mustNot.get(0);
-        assertThat(termQuery.fieldName(), is("first_name"));
-        assertThat(termQuery.value(), is("%foo%"));
+        var boolQuery = as(source.query(), BoolQueryBuilder.class);
+        assertThat(boolQuery.mustNot(), hasSize(1));
+        var tq = as(sv(boolQuery.mustNot().get(0), "first_name"), TermQueryBuilder.class);
+        assertThat(tq.fieldName(), is("first_name"));
+        assertThat(tq.value(), is("%foo%"));
     }
 
     public void testEvalRLike() {
@@ -1416,5 +1342,16 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 "Need to add field extractor for [[emp_no]] but cannot detect source attributes from node [EsSourceExec[test][]]"
             )
         );
+    }
+
+    /**
+     * Asserts that a {@link QueryBuilder} is a {@link SingleValueQuery} that
+     * acting on the provided field name and returns the {@link QueryBuilder}
+     * that it wraps.
+     */
+    private QueryBuilder sv(QueryBuilder builder, String fieldName) {
+        SingleValueQuery.Builder sv = as(builder, SingleValueQuery.Builder.class);
+        assertThat(sv.field(), equalTo(fieldName));
+        return sv.next();
     }
 }

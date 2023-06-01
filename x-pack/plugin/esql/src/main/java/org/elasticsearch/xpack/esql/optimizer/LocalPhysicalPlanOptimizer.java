@@ -29,12 +29,15 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Order;
+import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.RegexMatch;
+import org.elasticsearch.xpack.ql.planner.ExpressionTranslator;
 import org.elasticsearch.xpack.ql.planner.QlTranslatorHandler;
+import org.elasticsearch.xpack.ql.querydsl.query.Query;
 import org.elasticsearch.xpack.ql.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.ql.rule.Rule;
 import org.elasticsearch.xpack.ql.util.Holder;
@@ -45,6 +48,7 @@ import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Supplier;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
@@ -52,8 +56,7 @@ import static org.elasticsearch.xpack.ql.expression.predicate.Predicates.splitAn
 import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.TransformDirection.UP;
 
 public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPlan, LocalPhysicalOptimizerContext> {
-
-    private static final QlTranslatorHandler TRANSLATOR_HANDLER = new QlTranslatorHandler();
+    private static final QlTranslatorHandler TRANSLATOR_HANDLER = new EsqlTranslatorHandler();
 
     private final PhysicalVerifier verifier = new PhysicalVerifier();
 
@@ -269,6 +272,16 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
                 sorts.add(new EsQueryExec.FieldSort(((FieldAttribute) o.child()), o.direction(), o.nullsPosition()));
             }
             return sorts;
+        }
+    }
+
+    private static final class EsqlTranslatorHandler extends QlTranslatorHandler {
+        @Override
+        public Query wrapFunctionQuery(ScalarFunction sf, Expression field, Supplier<Query> querySupplier) {
+            if (field instanceof FieldAttribute fa) {
+                return ExpressionTranslator.wrapIfNested(new SingleValueQuery(querySupplier.get(), fa.name()), field);
+            }
+            throw new IllegalStateException("Should always be field attributes");
         }
     }
 }

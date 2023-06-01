@@ -165,3 +165,56 @@ ROW a=[10, 9, 8]
 [10, 9, 8] | "10, 9, 8"
 // end::mv_concat-result[]
 ;
+
+lessThanMultivalue
+from employees | where salary_change.int < 1 | project emp_no, salary_change.int | sort emp_no | limit 5;
+
+// Note that multivalued salaries aren't less than 1 - they are null - so they aren't included
+emp_no:integer |salary_change.int:integer
+10006          |-3
+10012          | 0
+10017          |-6
+10020          |-5
+10030          | 0
+;
+
+greaterThanMultivalue
+from employees | where salary_change.int > 1 | project emp_no, salary_change.int | sort emp_no | limit 5;
+
+// Note that multivalued salaries aren't greater than 1 - they are null - so they aren't included
+emp_no:integer |salary_change.int:integer
+10044          | 8
+10046          | 2
+10066          | 5
+10079          | 7
+10086          |13
+;
+
+equalToMultivalue
+from employees | where salary_change.int == 0 | project emp_no, salary_change.int | sort emp_no;
+
+// Note that multivalued salaries aren't greater than 1 - they are null - so they aren't included
+emp_no:integer |salary_change.int:integer
+10012          | 0
+10030          | 0
+10077          | 0
+10093          | 0
+;
+
+equalToOrEqualToMultivalue
+from employees | where salary_change.int == 1 or salary_change.int == 8 | project emp_no, salary_change.int | sort emp_no;
+
+// Note that multivalued salaries are filtered out
+emp_no:integer |salary_change.int:integer
+10001          |1
+10044          |8
+;
+
+inMultivalue
+from employees | where salary_change.int in (1, 7) | project emp_no, salary_change.int | sort emp_no;
+
+// Note that multivalued salaries are filtered out
+emp_no:integer |salary_change.int:integer
+10001          |1
+10079          |7
+;

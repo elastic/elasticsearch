@@ -18,7 +18,7 @@ import org.elasticsearch.xpack.ql.tree.Source;
 public abstract class Query {
     private final Source source;
 
-    Query(Source source) {
+    protected Query(Source source) {
         if (source == null) {
             throw new IllegalArgumentException("location must be specified");
         }

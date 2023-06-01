@@ -34,7 +34,7 @@ public class ScriptStatsTests extends ESTestCase {
         final XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
 
         builder.startObject();
-        for (var it = stats.toXContentChunked(ToXContent.EMPTY_PARAMS); it.hasNext(); ) {
+        for (var it = stats.toXContentChunked(ToXContent.EMPTY_PARAMS); it.hasNext();) {
             it.next().toXContent(builder, ToXContent.EMPTY_PARAMS);
         }
         builder.endObject();

@@ -207,7 +207,7 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
         }
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0) && DataLifecycle.isEnabled()) {
             if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_007)) {
-                boolean isExplicitNull = NO_LIFECYCLE.equals(lifecycle);
+                boolean isExplicitNull = lifecycle == NO_LIFECYCLE;
                 out.writeBoolean(isExplicitNull);
                 if (isExplicitNull == false) {
                     out.writeOptionalWriteable(lifecycle);

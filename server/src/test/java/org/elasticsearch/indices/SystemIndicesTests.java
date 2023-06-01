@@ -8,6 +8,7 @@
 
 package org.elasticsearch.indices;
 
+import org.elasticsearch.synonyms.SynonymsAPI;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
@@ -107,6 +108,7 @@ public class SystemIndicesTests extends ESTestCase {
         assertTrue(systemIndices.isSystemIndex(".tasks"));
         assertTrue(systemIndices.isSystemIndex(".tasks1"));
         assertTrue(systemIndices.isSystemIndex(".tasks-old"));
+        assertEquals(SynonymsAPI.isEnabled(), systemIndices.isSystemIndex(".synonyms"));
     }
 
     public void testPluginCannotOverrideBuiltInSystemIndex() {

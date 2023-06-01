@@ -32,7 +32,9 @@ public class TransformAuditor extends AbstractAuditor<TransformAuditMessage> {
 
     private volatile boolean isResetMode = false;
 
-    public TransformAuditor(Client client, String nodeName, ClusterService clusterService) {
+    private final boolean includeNodeInfo;
+
+    public TransformAuditor(Client client, String nodeName, ClusterService clusterService, boolean includeNodeInfo) {
         super(
             new OriginSettingClient(client, TRANSFORM_ORIGIN),
             TransformInternalIndexConstants.AUDIT_INDEX,
@@ -59,6 +61,11 @@ public class TransformAuditor extends AbstractAuditor<TransformAuditMessage> {
                 isResetMode = TransformMetadata.getTransformMetadata(event.state()).isResetMode();
             }
         });
+        this.includeNodeInfo = includeNodeInfo;
+    }
+
+    public boolean isIncludeNodeInfo() {
+        return includeNodeInfo;
     }
 
     @Override

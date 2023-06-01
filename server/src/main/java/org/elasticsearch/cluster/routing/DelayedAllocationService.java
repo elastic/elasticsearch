@@ -41,7 +41,7 @@ import static org.elasticsearch.cluster.routing.allocation.allocator.AllocationA
  * This class is responsible for choosing the next (closest) delay expiration of a
  * delayed shard to schedule a reroute to remove the delay marker.
  * The actual removal of the delay marker happens in
- * {@link AllocationService#removeDelayMarkers(RoutingAllocation)}, triggering yet
+ * {@link AllocationService.RerouteStrategy#removeDelayMarkers(RoutingAllocation)}, triggering yet
  * another cluster change event.
  */
 public class DelayedAllocationService extends AbstractLifecycleComponent implements ClusterStateListener {

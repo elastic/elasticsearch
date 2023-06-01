@@ -765,12 +765,7 @@ public class SimpleVersioningIT extends ESIntegTestCase {
     public void testDeleteNotLost() throws Exception {
 
         // We require only one shard for this test, so that the 2nd delete provokes pruning the deletes map:
-        client().admin()
-            .indices()
-            .prepareCreate("test")
-            .setSettings(Settings.builder().put("index.number_of_shards", 1))
-            .execute()
-            .actionGet();
+        indicesAdmin().prepareCreate("test").setSettings(Settings.builder().put("index.number_of_shards", 1)).execute().actionGet();
 
         ensureGreen();
 

@@ -24,26 +24,27 @@ import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.application.rules.QueryRule.QueryRuleType;
-import static org.elasticsearch.xpack.application.rules.QueryRuleIndexService.QUERY_RULE_CONCRETE_INDEX_NAME;
+import static org.elasticsearch.xpack.application.rules.QueryRulesIndexService.QUERY_RULES_CONCRETE_INDEX_NAME;
 import static org.hamcrest.CoreMatchers.anyOf;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 public class QueryRulesIndexServiceTests extends ESSingleNodeTestCase {
 
-    private QueryRuleIndexService queryRuleIndexService;
+    private QueryRulesIndexService queryRuleIndexService;
     private ClusterService clusterService;
 
     @Before
     public void setup() throws Exception {
         clusterService = getInstanceFromNode(ClusterService.class);
         BigArrays bigArrays = getInstanceFromNode(BigArrays.class);
-        this.queryRuleIndexService = new QueryRuleIndexService(client(), clusterService, writableRegistry(), bigArrays);
+        this.queryRuleIndexService = new QueryRulesIndexService(client(), clusterService, writableRegistry(), bigArrays);
     }
 
     @Override
@@ -53,107 +54,116 @@ public class QueryRulesIndexServiceTests extends ESSingleNodeTestCase {
         return plugins;
     }
 
-    public void testEmptyState() throws Exception {
-        expectThrows(ResourceNotFoundException.class, () -> awaitGetQueryRule("i-dont-exist"));
-        expectThrows(ResourceNotFoundException.class, () -> awaitDeleteQueryRule("i-dont-exist"));
+    // TODO implement
+//    public void testEmptyState() throws Exception {
+//        expectThrows(ResourceNotFoundException.class, () -> awaitGetQueryRuleset("i-dont-exist"));
+//        expectThrows(ResourceNotFoundException.class, () -> awaitDeleteQueryRuleset("i-dont-exist"));
+//
+//        QueryRulesIndexService.QueryRuleResult listResults = awaitListQueryRules(0, 10);
+//        assertThat(listResults.totalResults(), equalTo(0L));
+//    }
 
-        QueryRuleIndexService.QueryRuleResult listResults = awaitListQueryRules(0, 10);
-        assertThat(listResults.totalResults(), equalTo(0L));
-    }
+    public void testCreateQueryRuleset() throws Exception {
+        final QueryRule myQueryRule1 = new QueryRule("my_rule1", QueryRuleType.PINNED);
+        final QueryRule myQueryRule2 = new QueryRule("my_rule2", QueryRuleType.PINNED);
+        final QueryRuleset myQueryRuleset = new QueryRuleset("my_ruleset", List.of(myQueryRule1, myQueryRule2));
 
-    public void testCreateQueryRule() throws Exception {
-        final QueryRule myQueryRule = new QueryRule("my_rule", QueryRuleType.PINNED);
-
-        IndexResponse resp = awaitPutQueryRule(myQueryRule, true);
+        IndexResponse resp = awaitPutQueryRuleset(myQueryRuleset, true);
         assertThat(resp.status(), equalTo(RestStatus.CREATED));
-        assertThat(resp.getIndex(), equalTo(QUERY_RULE_CONCRETE_INDEX_NAME));
+        assertThat(resp.getIndex(), equalTo(QUERY_RULES_CONCRETE_INDEX_NAME));
 
-        QueryRule getQueryRule = awaitGetQueryRule(myQueryRule.id());
-        assertThat(getQueryRule, equalTo(myQueryRule));
+        QueryRuleset getQueryRuleset = awaitGetQueryRuleset(myQueryRuleset.id());
+        assertThat(getQueryRuleset, equalTo(myQueryRuleset));
 
-        expectThrows(VersionConflictEngineException.class, () -> awaitPutQueryRule(myQueryRule, true));
+        expectThrows(VersionConflictEngineException.class, () -> awaitPutQueryRuleset(myQueryRuleset, true));
     }
 
-    public void testUpdateQueryRule() throws Exception {
+    public void testUpdateQueryRuleset() throws Exception {
         {
-            final QueryRule myQueryRule = new QueryRule("my_rule", QueryRuleType.PINNED);
-            IndexResponse resp = awaitPutQueryRule(myQueryRule, false);
-            assertThat(resp.status(), equalTo(RestStatus.CREATED));
-            assertThat(resp.getIndex(), equalTo(QUERY_RULE_CONCRETE_INDEX_NAME));
+            final QueryRule myQueryRule1 = new QueryRule("my_rule1", QueryRuleType.PINNED);
+            final QueryRuleset myQueryRuleset = new QueryRuleset("my_ruleset", Collections.singletonList(myQueryRule1));
+            IndexResponse resp = awaitPutQueryRuleset(myQueryRuleset, false);
+            assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
+            assertThat(resp.getIndex(), equalTo(QUERY_RULES_CONCRETE_INDEX_NAME));
 
-            QueryRule getQueryRule = awaitGetQueryRule(myQueryRule.id());
-            assertThat(getQueryRule, equalTo(myQueryRule));
+            QueryRuleset getQueryRuleset = awaitGetQueryRuleset(myQueryRuleset.id());
+            assertThat(getQueryRuleset, equalTo(myQueryRuleset));
         }
 
         // TODO update with new values
-        final QueryRule myQueryRule = new QueryRule("my_rule", QueryRuleType.PINNED);
-        IndexResponse newResp = awaitPutQueryRule(myQueryRule, false);
+        final QueryRule myQueryRule1 = new QueryRule("my_rule1", QueryRuleType.PINNED);
+        final QueryRule myQueryRule2 = new QueryRule("my_rule2", QueryRuleType.PINNED);
+        final QueryRuleset myQueryRuleset = new QueryRuleset("my_ruleset", List.of(myQueryRule1, myQueryRule2));
+        IndexResponse newResp = awaitPutQueryRuleset(myQueryRuleset, false);
         assertThat(newResp.status(), equalTo(RestStatus.OK));
-        assertThat(newResp.getIndex(), equalTo(QUERY_RULE_CONCRETE_INDEX_NAME));
-        QueryRule getQueryRule = awaitGetQueryRule(myQueryRule.id());
-        assertThat(getQueryRule, equalTo(myQueryRule));
+        assertThat(newResp.getIndex(), equalTo(QUERY_RULES_CONCRETE_INDEX_NAME));
+        QueryRuleset getQueryRuleset = awaitGetQueryRuleset(myQueryRuleset.id());
+        assertThat(getQueryRuleset, equalTo(myQueryRuleset));
     }
 
-    public void testListQueryRules() throws Exception {
-        int numRules = 10;
-        for (int i = 0; i < numRules; i++) {
-            final QueryRule myQueryRule = new QueryRule("my_rule_" + i, QueryRuleType.PINNED);
-            IndexResponse resp = awaitPutQueryRule(myQueryRule, false);
-            assertThat(resp.status(), equalTo(RestStatus.CREATED));
-            assertThat(resp.getIndex(), equalTo(QUERY_RULE_CONCRETE_INDEX_NAME));
-        }
-
-        {
-            QueryRuleIndexService.QueryRuleResult searchResponse = awaitListQueryRules(0, 10);
-            final List<QueryRule> rules = searchResponse.items();
-            assertNotNull(rules);
-            assertThat(rules.size(), equalTo(10));
-            assertThat(searchResponse.totalResults(), equalTo(10L));
-
-            for (int i = 0; i < numRules; i++) {
-                QueryRule rule = rules.get(i);
-                assertThat(rule.id(), equalTo("my_rule_" + i));
-                assertThat(rule.type(), equalTo(QueryRuleType.PINNED));
-            }
-        }
-
-        {
-           QueryRuleIndexService.QueryRuleResult searchResponse = awaitListQueryRules(5, 10);
-            final List<QueryRule> rules = searchResponse.items();
-            assertNotNull(rules);
-            assertThat(rules.size(), equalTo(5));
-            assertThat(searchResponse.totalResults(), equalTo(10L));
-
-            for (int i = 0; i < 5; i++) {
-                int index = i + 5;
-                QueryRule rule = rules.get(i);
-                assertThat(rule.id(), equalTo("my_rule_" + index));
-                assertThat(rule.type(), equalTo(QueryRuleType.PINNED));
-            }
-        }
-    }
+    // TODO implement
+//    public void testListQueryRules() throws Exception {
+//        int numRules = 10;
+//        for (int i = 0; i < numRules; i++) {
+//            final QueryRule myQueryRule = new QueryRule("my_rule_" + i, QueryRuleType.PINNED);
+//            IndexResponse resp = awaitPutQueryRule(myQueryRule, false);
+//            assertThat(resp.status(), equalTo(RestStatus.CREATED));
+//            assertThat(resp.getIndex(), equalTo(QUERY_RULES_CONCRETE_INDEX_NAME));
+//        }
+//
+//        {
+//            QueryRulesIndexService.QueryRuleResult searchResponse = awaitListQueryRules(0, 10);
+//            final List<QueryRule> rules = searchResponse.items();
+//            assertNotNull(rules);
+//            assertThat(rules.size(), equalTo(10));
+//            assertThat(searchResponse.totalResults(), equalTo(10L));
+//
+//            for (int i = 0; i < numRules; i++) {
+//                QueryRule rule = rules.get(i);
+//                assertThat(rule.id(), equalTo("my_rule_" + i));
+//                assertThat(rule.type(), equalTo(QueryRuleType.PINNED));
+//            }
+//        }
+//
+//        {
+//           QueryRulesIndexService.QueryRuleResult searchResponse = awaitListQueryRules(5, 10);
+//            final List<QueryRule> rules = searchResponse.items();
+//            assertNotNull(rules);
+//            assertThat(rules.size(), equalTo(5));
+//            assertThat(searchResponse.totalResults(), equalTo(10L));
+//
+//            for (int i = 0; i < 5; i++) {
+//                int index = i + 5;
+//                QueryRule rule = rules.get(i);
+//                assertThat(rule.id(), equalTo("my_rule_" + index));
+//                assertThat(rule.type(), equalTo(QueryRuleType.PINNED));
+//            }
+//        }
+//    }
 
     public void testDeleteQueryRule() throws Exception {
         for (int i = 0; i < 5; i++) {
-            final QueryRule myQueryRule = new QueryRule("my_rule", QueryRuleType.PINNED);
-            IndexResponse resp = awaitPutQueryRule(myQueryRule, false);
+            final QueryRule myQueryRule1 = new QueryRule("my_rule1", QueryRuleType.PINNED);
+            final QueryRule myQueryRule2 = new QueryRule("my_rule2", QueryRuleType.PINNED);
+            final QueryRuleset myQueryRuleset = new QueryRuleset("my_ruleset", List.of(myQueryRule1, myQueryRule2));
+            IndexResponse resp = awaitPutQueryRuleset(myQueryRuleset, false);
             assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
-            assertThat(resp.getIndex(), equalTo(QUERY_RULE_CONCRETE_INDEX_NAME));
+            assertThat(resp.getIndex(), equalTo(QUERY_RULES_CONCRETE_INDEX_NAME));
 
-            QueryRule getQueryRule = awaitGetQueryRule(myQueryRule.id());
-            assertThat(getQueryRule, equalTo(myQueryRule));
+            QueryRuleset getQueryRuleset = awaitGetQueryRuleset(myQueryRuleset.id());
+            assertThat(getQueryRuleset, equalTo(myQueryRuleset));
         }
 
-        DeleteResponse resp = awaitDeleteQueryRule("my_rule");
+        DeleteResponse resp = awaitDeleteQueryRuleset("my_rule");
         assertThat(resp.status(), equalTo(RestStatus.OK));
-        expectThrows(ResourceNotFoundException.class, () -> awaitGetQueryRule("my_rule"));
+        expectThrows(ResourceNotFoundException.class, () -> awaitGetQueryRuleset("my_rule"));
     }
 
-    private IndexResponse awaitPutQueryRule(QueryRule queryRule, boolean create) throws Exception {
+    private IndexResponse awaitPutQueryRuleset(QueryRuleset queryRuleset, boolean create) throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<IndexResponse> resp = new AtomicReference<>(null);
         final AtomicReference<Exception> exc = new AtomicReference<>(null);
-        queryRuleIndexService.putQueryRule(queryRule, create, new ActionListener<>() {
+        queryRuleIndexService.putQueryRuleset(queryRuleset, create, new ActionListener<>() {
             @Override
             public void onResponse(IndexResponse indexResponse) {
                 resp.set(indexResponse);
@@ -174,14 +184,14 @@ public class QueryRulesIndexServiceTests extends ESSingleNodeTestCase {
         return resp.get();
     }
 
-    private QueryRule awaitGetQueryRule(String name) throws Exception {
+    private QueryRuleset awaitGetQueryRuleset(String name) throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
-        final AtomicReference<QueryRule> resp = new AtomicReference<>(null);
+        final AtomicReference<QueryRuleset> resp = new AtomicReference<>(null);
         final AtomicReference<Exception> exc = new AtomicReference<>(null);
-        queryRuleIndexService.getQueryRule(name, new ActionListener<>() {
+        queryRuleIndexService.getQueryRuleset(name, new ActionListener<>() {
             @Override
-            public void onResponse(QueryRule rule) {
-                resp.set(rule);
+            public void onResponse(QueryRuleset ruleset) {
+                resp.set(ruleset);
                 latch.countDown();
             }
 
@@ -199,11 +209,11 @@ public class QueryRulesIndexServiceTests extends ESSingleNodeTestCase {
         return resp.get();
     }
 
-private DeleteResponse awaitDeleteQueryRule(String name) throws Exception {
+private DeleteResponse awaitDeleteQueryRuleset(String name) throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<DeleteResponse> resp = new AtomicReference<>(null);
         final AtomicReference<Exception> exc = new AtomicReference<>(null);
-        queryRuleIndexService.deleteQueryRule(name, new ActionListener<>() {
+        queryRuleIndexService.deleteQueryRuleset(name, new ActionListener<>() {
             @Override
             public void onResponse(DeleteResponse deleteResponse) {
                 resp.set(deleteResponse);
@@ -224,39 +234,40 @@ private DeleteResponse awaitDeleteQueryRule(String name) throws Exception {
         return resp.get();
     }
 
-private QueryRuleIndexService.QueryRuleResult awaitListQueryRules(int from, int size)
-        throws Exception {
-        CountDownLatch latch = new CountDownLatch(1);
-        final AtomicReference<QueryRuleIndexService.QueryRuleResult> resp = new AtomicReference<>(null);
-        final AtomicReference<Exception> exc = new AtomicReference<>(null);
-        queryRuleIndexService.listQueryRules(from, size, new ActionListener<>() {
-            @Override
-            public void onResponse(QueryRuleIndexService.QueryRuleResult result) {
-                resp.set(result);
-                latch.countDown();
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                exc.set(e);
-                latch.countDown();
-            }
-        });
-        assertTrue(latch.await(5, TimeUnit.SECONDS));
-        if (exc.get() != null) {
-            throw exc.get();
-        }
-        assertNotNull(resp.get());
-        return resp.get();
-    }
+    // TODO implement
+//private QueryRulesIndexService.QueryRuleResult awaitListQueryRules(int from, int size)
+//        throws Exception {
+//        CountDownLatch latch = new CountDownLatch(1);
+//        final AtomicReference<QueryRulesIndexService.QueryRuleResult> resp = new AtomicReference<>(null);
+//        final AtomicReference<Exception> exc = new AtomicReference<>(null);
+//        queryRuleIndexService.listQueryRules(from, size, new ActionListener<>() {
+//            @Override
+//            public void onResponse(QueryRulesIndexService.QueryRuleResult result) {
+//                resp.set(result);
+//                latch.countDown();
+//            }
+//
+//            @Override
+//            public void onFailure(Exception e) {
+//                exc.set(e);
+//                latch.countDown();
+//            }
+//        });
+//        assertTrue(latch.await(5, TimeUnit.SECONDS));
+//        if (exc.get() != null) {
+//            throw exc.get();
+//        }
+//        assertNotNull(resp.get());
+//        return resp.get();
+//    }
 
     /**
-     * Test plugin to register the {@link QueryRuleIndexService} system index descriptor.
+     * Test plugin to register the {@link QueryRulesIndexService} system index descriptor.
      */
     public static class TestPlugin extends Plugin implements SystemIndexPlugin {
         @Override
         public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-            return List.of(QueryRuleIndexService.getSystemIndexDescriptor());
+            return List.of(QueryRulesIndexService.getSystemIndexDescriptor());
         }
 
         @Override

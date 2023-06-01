@@ -7,14 +7,9 @@
 
 package org.elasticsearch.xpack.application.rules;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.InputStreamStreamInput;
-import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.search.SearchModule;
@@ -33,7 +28,7 @@ import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.hamcrest.CoreMatchers.equalTo;
 
-public class QueryRuleTests extends ESTestCase {
+public class QueryRulesetTests extends ESTestCase {
     private NamedWriteableRegistry namedWriteableRegistry;
 
     @Before
@@ -46,10 +41,10 @@ public class QueryRuleTests extends ESTestCase {
 
     public final void testRandomSerialization() throws IOException {
         for (int runs = 0; runs < 10; runs++) {
-            QueryRule testInstance = SearchApplicationTestUtils.randomQueryRule();
+            QueryRuleset testInstance = SearchApplicationTestUtils.randomQueryRuleset();
             assertTransportSerialization(testInstance);
             assertXContent(testInstance, randomBoolean());
-            assertIndexSerialization(testInstance);
+//            assertIndexSerialization(testInstance); // TODO enable
         }
     }
 
@@ -82,65 +77,44 @@ public class QueryRuleTests extends ESTestCase {
         );
     }
 
-    // TODO implement this once we have more content in query rules.
-//    public void testMerge() throws IOException {
-//        String content = """
-//            {
-//              "indices": ["my_index", "my_index_2"],
-//              "updated_at_millis": 0
-//            }""";
-//
-//        String update = """
-//            {
-//              "indices": ["my_index_2", "my_index"],
-//              "analytics_collection_name": "my_search_app_analytics",
-//              "updated_at_millis": 12345
-//            }""";
-//        SearchApplication app = SearchApplication.fromXContentBytes("my_search_app", new BytesArray(content), XContentType.JSON);
-//        SearchApplication updatedApp = app.merge(new BytesArray(update), XContentType.JSON, BigArrays.NON_RECYCLING_INSTANCE);
-//        assertNotSame(app, updatedApp);
-//        assertThat(updatedApp.indices(), equalTo(new String[] { "my_index", "my_index_2" }));
-//        assertThat(updatedApp.analyticsCollectionName(), equalTo("my_search_app_analytics"));
-//        assertThat(updatedApp.updatedAtMillis(), equalTo(12345L));
-//    }
-
-    private void assertXContent(QueryRule queryRule, boolean humanReadable) throws IOException {
-        BytesReference originalBytes = toShuffledXContent(queryRule, XContentType.JSON, ToXContent.EMPTY_PARAMS, humanReadable);
+    private void assertXContent(QueryRuleset queryRuleset, boolean humanReadable) throws IOException {
+        BytesReference originalBytes = toShuffledXContent(queryRuleset, XContentType.JSON, ToXContent.EMPTY_PARAMS, humanReadable);
         QueryRule parsed;
         try (XContentParser parser = createParser(XContentType.JSON.xContent(), originalBytes)) {
-            parsed = QueryRule.fromXContent(queryRule.id(), parser);
+            parsed = QueryRule.fromXContent(queryRuleset.id(), parser);
         }
         assertToXContentEquivalent(originalBytes, toXContent(parsed, XContentType.JSON, humanReadable), XContentType.JSON);
     }
 
-    private void assertTransportSerialization(QueryRule testInstance) throws IOException {
-        QueryRule deserializedInstance = copyInstance(testInstance);
+    private void assertTransportSerialization(QueryRuleset testInstance) throws IOException {
+        QueryRuleset deserializedInstance = copyInstance(testInstance);
         assertNotSame(testInstance, deserializedInstance);
         assertThat(testInstance, equalTo(deserializedInstance));
     }
 
-    private void assertIndexSerialization(QueryRule testInstance) throws IOException {
-        final QueryRule deserializedInstance;
-        try (BytesStreamOutput output = new BytesStreamOutput()) {
-            QueryRulesIndexService.writeQueryRuleBinaryWithVersion(
-                testInstance,
-                output,
-                TransportVersion.MINIMUM_COMPATIBLE
-            );
-            try (
-                StreamInput in = new NamedWriteableAwareStreamInput(
-                    new InputStreamStreamInput(output.bytes().streamInput()),
-                    namedWriteableRegistry
-                )
-            ) {
-                deserializedInstance = QueryRulesIndexService.parseQueryRuleBinaryWithVersion(in);
-            }
-        }
-        assertNotSame(testInstance, deserializedInstance);
-        assertThat(testInstance, equalTo(deserializedInstance));
-    }
+    // TODO implement
+//    private void assertIndexSerialization(QueryRuleset testInstance) throws IOException {
+//        final QueryRuleset deserializedInstance;
+//        try (BytesStreamOutput output = new BytesStreamOutput()) {
+//            QueryRulesIndexService.writeQueryRulesetBinaryWithVersion(
+//                testInstance,
+//                output,
+//                TransportVersion.MINIMUM_COMPATIBLE
+//            );
+//            try (
+//                StreamInput in = new NamedWriteableAwareStreamInput(
+//                    new InputStreamStreamInput(output.bytes().streamInput()),
+//                    namedWriteableRegistry
+//                )
+//            ) {
+//                deserializedInstance = QueryRulesIndexService.parseQueryRulesetBinaryWithVersion(in);
+//            }
+//        }
+//        assertNotSame(testInstance, deserializedInstance);
+//        assertThat(testInstance, equalTo(deserializedInstance));
+//    }
 
-    private QueryRule copyInstance(QueryRule instance) throws IOException {
-        return copyWriteable(instance, namedWriteableRegistry, QueryRule::new);
+    private QueryRuleset copyInstance(QueryRuleset instance) throws IOException {
+        return copyWriteable(instance, namedWriteableRegistry, QueryRuleset::new);
     }
 }

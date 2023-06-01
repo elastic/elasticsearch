@@ -42,9 +42,8 @@ public class QueryRule implements Writeable, ToXContentObject {
 
     private final String id;
     private final QueryRuleType type;
-    // TODO Criteria
-    // TODO Actions
-    // TODO Tags
+
+    // TODO add criteria, actions
 
 
     public enum QueryRuleType {
@@ -90,31 +89,25 @@ public class QueryRule implements Writeable, ToXContentObject {
         out.writeString(type.toString());
     }
 
+    // TODO - I don't think we need to do validation on resourcename for query rule anymore. Think about this a bit more.
     private static final ConstructingObjectParser<QueryRule, String> PARSER = new ConstructingObjectParser<>(
         "query_rule",
         false,
         (params, resourceName) -> {
             final String id = (String) params[0];
-            // If id is provided, check that it matches the resource name. We don't want it to be updatable
-            if (id != null) {
-                if (id.equals(resourceName) == false) {
-                    throw new IllegalArgumentException(
-                        "Query rule identifier [" + id + "] does not match the resource name: [" + resourceName + "]"
-                    );
-                }
-            }
             final QueryRuleType type = QueryRuleType.queryRuleType((String) params[1]);
-
             return new QueryRule(resourceName, type);
         }
     );
 
     public static final ParseField ID_FIELD = new ParseField("id");
     public static final ParseField TYPE_FIELD = new ParseField("type");
+    public static final ParseField TAGS_FIELD = new ParseField("tags");
 
     static {
         PARSER.declareStringOrNull(optionalConstructorArg(), ID_FIELD);
         PARSER.declareStringOrNull(constructorArg(), TYPE_FIELD);
+        PARSER.declareStringArray(optionalConstructorArg(), TAGS_FIELD);
     }
 
     /**
@@ -154,8 +147,10 @@ public class QueryRule implements Writeable, ToXContentObject {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(ID_FIELD.getPreferredName(), id);
-        builder.field(TYPE_FIELD.getPreferredName(), type);
+        {
+            builder.field(ID_FIELD.getPreferredName(), id);
+            builder.field(TYPE_FIELD.getPreferredName(), type);
+        }
         builder.endObject();
         return builder;
     }
@@ -195,39 +190,4 @@ public class QueryRule implements Writeable, ToXContentObject {
     public String toString() {
         return Strings.toString(this);
     }
-
-//    /**
-//     * Returns the merged {@link QueryRule} from the current state and the provided {@param update}.
-//     * This function returns the current instance if the update is a noop.
-//     *
-//     * @param update The source of the update represented in bytes.
-//     * @param xContentType The format of the bytes.
-//     * @param bigArrays The {@link BigArrays} to use to recycle bytes array.
-//     *
-//     * @return The merged {@link QueryRule}.
-//     */
-//    QueryRule merge(BytesReference update, XContentType xContentType, BigArrays bigArrays) throws IOException {
-//        final Tuple<XContentType, Map<String, Object>> sourceAndContent;
-//        try (ReleasableBytesStreamOutput sourceBuffer = new ReleasableBytesStreamOutput(0, bigArrays.withCircuitBreaking())) {
-//            try (XContentBuilder builder = XContentFactory.jsonBuilder(sourceBuffer)) {
-//                toXContent(builder, EMPTY_PARAMS);
-//            }
-//            sourceAndContent = XContentHelper.convertToMap(sourceBuffer.bytes(), true, XContentType.JSON);
-//        } catch (IOException e) {
-//            throw new UncheckedIOException(e);
-//        }
-//        final Tuple<XContentType, Map<String, Object>> updateAndContent = XContentHelper.convertToMap(update, true, xContentType);
-//        final Map<String, Object> newSourceAsMap = new HashMap<>(sourceAndContent.v2());
-//        final boolean noop = XContentHelper.update(newSourceAsMap, updateAndContent.v2(), true) == false;
-//        if (noop) {
-//            return this;
-//        }
-//
-//        try (ReleasableBytesStreamOutput newSourceBuffer = new ReleasableBytesStreamOutput(0, bigArrays.withCircuitBreaking())) {
-//            try (XContentBuilder builder = XContentFactory.jsonBuilder(newSourceBuffer)) {
-//                builder.value(newSourceAsMap);
-//            }
-//            return QueryRule.fromXContentBytes(name, newSourceBuffer.bytes(), XContentType.JSON);
-//        }
-//    }
 }

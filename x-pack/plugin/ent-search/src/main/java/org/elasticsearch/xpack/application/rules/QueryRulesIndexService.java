@@ -46,7 +46,6 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.application.search.SearchApplication;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -58,17 +57,17 @@ import java.util.Map;
 import java.util.function.BiConsumer;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.xpack.core.ClientHelper.ENT_SEARCH_ORIGIN;
 import static org.elasticsearch.xpack.application.rules.QueryRule.QueryRuleType;
+import static org.elasticsearch.xpack.core.ClientHelper.ENT_SEARCH_ORIGIN;
 
 /**
- * A service that manages persistent {@link QueryRule} configurations.
+ * A service that manages persistent {@link QueryRuleset} configurations.
  */
-public class QueryRuleIndexService {
-    private static final Logger logger = LogManager.getLogger(QueryRuleIndexService.class);
-    public static final String QUERY_RULE_ALIAS_NAME = ".query-rule";
-    public static final String QUERY_RULE_CONCRETE_INDEX_NAME = ".query-rule-1";
-    public static final String QUERY_RULE_INDEX_NAME_PATTERN = ".query-rule-*";
+public class QueryRulesIndexService {
+    private static final Logger logger = LogManager.getLogger(QueryRulesIndexService.class);
+    public static final String QUERY_RULES_ALIAS_NAME = ".query-rules";
+    public static final String QUERY_RULES_CONCRETE_INDEX_NAME = ".query-rules-1";
+    public static final String QUERY_RULES_INDEX_NAME_PATTERN = ".query-rules-*";
 
 //    // The client to perform any operations on user indices (alias, ...).
 //    private final Client client;
@@ -78,7 +77,7 @@ public class QueryRuleIndexService {
     public final NamedWriteableRegistry namedWriteableRegistry;
     private final BigArrays bigArrays;
 
-    public QueryRuleIndexService(
+    public QueryRulesIndexService(
         Client client,
         ClusterService clusterService,
         NamedWriteableRegistry namedWriteableRegistry,
@@ -98,12 +97,12 @@ public class QueryRuleIndexService {
      */
     public static SystemIndexDescriptor getSystemIndexDescriptor() {
         return SystemIndexDescriptor.builder()
-            .setIndexPattern(QUERY_RULE_INDEX_NAME_PATTERN)
-            .setPrimaryIndex(QUERY_RULE_CONCRETE_INDEX_NAME)
-            .setDescription("Contains query rule configuration")
+            .setIndexPattern(QUERY_RULES_INDEX_NAME_PATTERN)
+            .setPrimaryIndex(QUERY_RULES_CONCRETE_INDEX_NAME)
+            .setDescription("Contains query ruleset configuration")
             .setMappings(getIndexMappings())
             .setSettings(getIndexSettings())
-            .setAliasName(QUERY_RULE_ALIAS_NAME)
+            .setAliasName(QUERY_RULES_ALIAS_NAME)
             .setVersionMetaKey("version")
             .setOrigin(ENT_SEARCH_ORIGIN)
             .setThreadPools(ExecutorNames.DEFAULT_SYSTEM_INDEX_THREAD_POOLS)
@@ -132,33 +131,42 @@ public class QueryRuleIndexService {
                 builder.field("dynamic", "strict");
                 builder.startObject("properties");
                 {
-                    builder.startObject(QueryRule.ID_FIELD.getPreferredName());
+                    builder.startObject(QueryRuleset.ID_FIELD.getPreferredName());
                     builder.field("type", "keyword");
                     builder.endObject();
 
-                    builder.startObject(QueryRule.TYPE_FIELD.getPreferredName());
-                    builder.field("type", "keyword");
+                    builder.startObject(QueryRuleset.RULES_FIELD.getPreferredName());
+                    {
+                        builder.startObject(QueryRule.ID_FIELD.getPreferredName());
+                        builder.field("type", "keyword");
+                        builder.endObject();
+
+                        builder.startObject(QueryRule.TYPE_FIELD.getPreferredName());
+                        builder.field("type", "keyword");
+                        builder.endObject();
+                    }
                     builder.endObject();
+
                 }
                 builder.endObject();
             }
             builder.endObject();
             return builder;
         } catch (IOException e) {
-            logger.fatal("Failed to build " + QUERY_RULE_CONCRETE_INDEX_NAME + " index mappings", e);
-            throw new UncheckedIOException("Failed to build " + QUERY_RULE_CONCRETE_INDEX_NAME + " index mappings", e);
+            logger.fatal("Failed to build " + QUERY_RULES_CONCRETE_INDEX_NAME + " index mappings", e);
+            throw new UncheckedIOException("Failed to build " + QUERY_RULES_CONCRETE_INDEX_NAME + " index mappings", e);
         }
     }
 
     /**
-     * Gets the {@link QueryRule} from the index if present, or delegate a {@link ResourceNotFoundException} failure to the provided
+     * Gets the {@link QueryRuleset} from the index if present, or delegate a {@link ResourceNotFoundException} failure to the provided
      * listener if not.
      *
      * @param resourceName The resource name.
      * @param listener The action listener to invoke on response/failure.
      */
-    public void getQueryRule(String resourceName, ActionListener<QueryRule> listener) {
-        final GetRequest getRequest = new GetRequest(QUERY_RULE_ALIAS_NAME).id(resourceName).realtime(true);
+    public void getQueryRuleset(String resourceName, ActionListener<QueryRuleset> listener) {
+        final GetRequest getRequest = new GetRequest(QUERY_RULES_ALIAS_NAME).id(resourceName).realtime(true);
         clientWithOrigin.get(getRequest, new DelegatingIndexNotFoundActionListener<>(resourceName, listener, (l, getResponse) -> {
             if (getResponse.isExists() == false) {
                 l.onFailure(new ResourceNotFoundException(resourceName));
@@ -167,30 +175,31 @@ public class QueryRuleIndexService {
             final Map<String,Object> source = getResponse.getSource();
 
             final String id = getResponse.getId();
-            final QueryRuleType type = QueryRuleType.queryRuleType(source.get(QueryRule.TYPE_FIELD.getPreferredName()).toString());
-            final QueryRule res = new QueryRule(id, type);
+            final List<QueryRule> rules = Collections.emptyList(); // TODO implement
+
+            final QueryRuleset res = new QueryRuleset(id, rules);
             l.onResponse(res);
         }));
     }
 
     /**
-     * Creates or updates the {@link QueryRule} in the underlying index.
+     * Creates or updates the {@link QueryRuleset} in the underlying index.
      *
-     * @param queryRule The query rule object.
-     * @param create If true, a query rule with the specified unique identifier must not already exist
+     * @param queryRuleset The query ruleset object.
+     * @param create If true, a query ruleset with the specified unique identifier must not already exist
      * @param listener The action listener to invoke on response/failure.
      */
-    public void putQueryRule(QueryRule queryRule, boolean create, ActionListener<IndexResponse> listener) {
+    public void putQueryRuleset(QueryRuleset queryRuleset, boolean create, ActionListener<IndexResponse> listener) {
         try (ReleasableBytesStreamOutput buffer = new ReleasableBytesStreamOutput(0, bigArrays.withCircuitBreaking())) {
             try (XContentBuilder source = XContentFactory.jsonBuilder(buffer)) {
                 source.startObject()
-                    .field(QueryRule.ID_FIELD.getPreferredName(), queryRule.id())
-                    .field(QueryRule.TYPE_FIELD.getPreferredName(), queryRule.type().toString())
+                    .field(QueryRuleset.ID_FIELD.getPreferredName(), queryRuleset.id())
+                    .field(QueryRuleset.RULES_FIELD.getPreferredName(), queryRuleset.rules()) // TODO make this work
                     .endObject();
             }
             DocWriteRequest.OpType opType = (create ? DocWriteRequest.OpType.CREATE : DocWriteRequest.OpType.INDEX);
-            final IndexRequest indexRequest = new IndexRequest(QUERY_RULE_ALIAS_NAME).opType(DocWriteRequest.OpType.INDEX)
-                .id(queryRule.id())
+            final IndexRequest indexRequest = new IndexRequest(QUERY_RULES_ALIAS_NAME).opType(DocWriteRequest.OpType.INDEX)
+                .id(queryRuleset.id())
                 .opType(opType)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .source(buffer.bytes(), XContentType.JSON);
@@ -200,10 +209,10 @@ public class QueryRuleIndexService {
         }
     }
 
-    public void deleteQueryRule(String resourceName, ActionListener<DeleteResponse> listener) {
+    public void deleteQueryRuleset(String resourceName, ActionListener<DeleteResponse> listener) {
 
         try {
-            final DeleteRequest deleteRequest = new DeleteRequest(QUERY_RULE_ALIAS_NAME).id(resourceName)
+            final DeleteRequest deleteRequest = new DeleteRequest(QUERY_RULES_ALIAS_NAME).id(resourceName)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             clientWithOrigin.delete(
                 deleteRequest,
@@ -221,32 +230,33 @@ public class QueryRuleIndexService {
     }
 
     /**
-     * List the {@link QueryRule} in ascending order of their ids.
+     * List the {@link QueryRuleset} in ascending order of their ids.
      *
      * @param from From index to start the search from.
-     * @param size The maximum number of {@link SearchApplication} to return.
+     * @param size The maximum number of {@link QueryRuleset}s to return.
      * @param listener The action listener to invoke on response/failure.
+     *
+     * TODO add total number of rules per ruleset
      */
-    public void listQueryRules(int from, int size, ActionListener<QueryRuleResult> listener) {
+    public void listQueryRulesets(int from, int size, ActionListener<QueryRulesetResult> listener) {
         try {
             final SearchSourceBuilder source = new SearchSourceBuilder().from(from)
                 .size(size)
                 .query(new MatchAllQueryBuilder())
                 .docValueField(QueryRule.ID_FIELD.getPreferredName())
-                .docValueField(QueryRule.TYPE_FIELD.getPreferredName())
                 .storedFields(Collections.singletonList("_none_"))
                 .sort(QueryRule.ID_FIELD.getPreferredName(), SortOrder.ASC);
-            final SearchRequest req = new SearchRequest(QUERY_RULE_ALIAS_NAME).source(source);
+            final SearchRequest req = new SearchRequest(QUERY_RULES_ALIAS_NAME).source(source);
             clientWithOrigin.search(req, new ActionListener<>() {
                 @Override
                 public void onResponse(SearchResponse searchResponse) {
-                    listener.onResponse(mapSearchResponse(searchResponse));
+                    listener.onResponse(mapSearchResponseToQueryRulesetList(searchResponse));
                 }
 
                 @Override
                 public void onFailure(Exception e) {
                     if (e instanceof IndexNotFoundException) {
-                        listener.onResponse(new QueryRuleResult(Collections.emptyList(), 0L));
+                        listener.onResponse(new QueryRulesetResult(Collections.emptyList(), 0L));
                         return;
                     }
                     listener.onFailure(e);
@@ -257,9 +267,16 @@ public class QueryRuleIndexService {
         }
     }
 
+    private static QueryRulesetResult mapSearchResponseToQueryRulesetList(SearchResponse response) {
+        final List<String> rulesetIds = Arrays.stream(response.getHits().getHits())
+            .map(hit -> (String) hit.getDocumentFields().get(QueryRuleset.ID_FIELD.getPreferredName()).getValue())
+            .toList();
+        return new QueryRulesetResult(rulesetIds, (int) response.getHits().getTotalHits().value);
+    }
+
     private static QueryRuleResult mapSearchResponse(SearchResponse response) {
         final List<QueryRule> queryRules = Arrays.stream(response.getHits().getHits())
-            .map(QueryRuleIndexService::hitToQueryRule)
+            .map(QueryRulesIndexService::hitToQueryRule)
             .toList();
         return new QueryRuleResult(queryRules, (int) response.getHits().getTotalHits().value);
     }
@@ -317,5 +334,6 @@ public class QueryRuleIndexService {
         }
     }
 
+    public record QueryRulesetResult(List<String> rulesetIds, long totalResults) {}
     public record QueryRuleResult(List<QueryRule> items, long totalResults) {}
 }

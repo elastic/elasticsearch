@@ -51,7 +51,7 @@ import org.elasticsearch.xpack.application.analytics.action.TransportGetAnalytic
 import org.elasticsearch.xpack.application.analytics.action.TransportPostAnalyticsEventAction;
 import org.elasticsearch.xpack.application.analytics.action.TransportPutAnalyticsCollectionAction;
 import org.elasticsearch.xpack.application.analytics.ingest.AnalyticsEventIngestConfig;
-import org.elasticsearch.xpack.application.rules.QueryRuleIndexService;
+import org.elasticsearch.xpack.application.rules.QueryRulesIndexService;
 import org.elasticsearch.xpack.application.search.SearchApplicationIndexService;
 import org.elasticsearch.xpack.application.search.action.DeleteSearchApplicationAction;
 import org.elasticsearch.xpack.application.search.action.GetSearchApplicationAction;
@@ -195,7 +195,7 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
         if (queryRulesEnabled) {
             return Arrays.asList(
                 SearchApplicationIndexService.getSystemIndexDescriptor(),
-                QueryRuleIndexService.getSystemIndexDescriptor()
+                QueryRulesIndexService.getSystemIndexDescriptor()
             );
         } else {
             return Collections.singletonList(SearchApplicationIndexService.getSystemIndexDescriptor());

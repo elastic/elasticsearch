@@ -12,9 +12,12 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.application.rules.QueryRule;
+import org.elasticsearch.xpack.application.rules.QueryRuleset;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
@@ -78,6 +81,16 @@ public final class SearchApplicationTestUtils {
         String id = randomIdentifier();
         QueryRule.QueryRuleType type = randomFrom(QueryRule.QueryRuleType.values());
         return new QueryRule(id, type);
+    }
+
+    public static QueryRuleset randomQueryRuleset() {
+        String id = randomAlphaOfLengthBetween(1, 10);
+        int numRules = randomIntBetween(0, 10);
+        List<QueryRule> rules = new ArrayList<>(numRules);
+        for (int i = 0; i < numRules; i++) {
+            rules.add(randomQueryRule());
+        }
+        return new QueryRuleset(id, rules);
     }
 
 }

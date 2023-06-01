@@ -118,7 +118,7 @@ public record DataPeriod(List<String> namePatterns, @Nullable TimeValue interact
     }
 
     public boolean match(String name) {
-        return namePatterns.stream().anyMatch(this::match);
+        return namePatterns.stream().anyMatch(pattern -> match(pattern, name));
     }
 
     public boolean match(String pattern, String name) {

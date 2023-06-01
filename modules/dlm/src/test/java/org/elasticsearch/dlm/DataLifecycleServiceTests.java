@@ -855,7 +855,7 @@ public class DataLifecycleServiceTests extends ESTestCase {
             );
             TimeValue retentionPeriod = DataLifecycleService.getRetentionConfiguration(
                 dataStream,
-                new DefaultDataPeriods(List.of(new DataPeriod("has-retention*", null, TimeValue.timeValueDays(1), 1)))
+                new DefaultDataPeriods(List.of(new DataPeriod(List.of("has-retention*"), null, TimeValue.timeValueDays(1), 1)))
             );
             assertThat(retentionPeriod, equalTo(TimeValue.timeValueDays(10)));
         }
@@ -865,7 +865,7 @@ public class DataLifecycleServiceTests extends ESTestCase {
             DataStream dataStream = createDataStream(builder, "has-no-retention", 1, settings(Version.CURRENT), new DataLifecycle(), now);
             TimeValue retentionPeriod = DataLifecycleService.getRetentionConfiguration(
                 dataStream,
-                new DefaultDataPeriods(List.of(new DataPeriod("has-retention*", null, TimeValue.timeValueDays(1), 1)))
+                new DefaultDataPeriods(List.of(new DataPeriod(List.of("has-retention*"), null, TimeValue.timeValueDays(1), 1)))
             );
             assertThat(retentionPeriod, nullValue());
         }
@@ -874,7 +874,7 @@ public class DataLifecycleServiceTests extends ESTestCase {
             DataStream dataStream = createDataStream(builder, "has-no-retention", 1, settings(Version.CURRENT), new DataLifecycle(), now);
             TimeValue retentionPeriod = DataLifecycleService.getRetentionConfiguration(
                 dataStream,
-                new DefaultDataPeriods(List.of(new DataPeriod("*", null, TimeValue.timeValueDays(1), 1)))
+                new DefaultDataPeriods(List.of(new DataPeriod(List.of("*"), null, TimeValue.timeValueDays(1), 1)))
             );
             assertThat(retentionPeriod, equalTo(TimeValue.timeValueDays(1)));
         }

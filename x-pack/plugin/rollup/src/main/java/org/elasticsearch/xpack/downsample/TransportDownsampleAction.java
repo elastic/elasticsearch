@@ -591,12 +591,11 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                 // the same rules with resize apply
                 continue;
             }
+            // Do not copy index settings which are valid for the source index but not for the target index
             if (FORBIDDEN_SETTINGS.contains(key)) {
                 continue;
             }
             // Do not override settings that have already been set in the rollup index.
-            // Also, we don't want to copy the `index.block.write` setting that we know
-            // it is set in the source index settings.
             if (targetSettings.keys().contains(key)) {
                 continue;
             }

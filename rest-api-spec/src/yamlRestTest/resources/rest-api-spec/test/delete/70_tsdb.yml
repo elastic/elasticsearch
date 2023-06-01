@@ -1,0 +1,73 @@
+---
+"basic tsdb delete":
+  - skip:
+      version: " - 8.8.0"
+      reason: fixed in 8.8.1
+
+  - do:
+      indices.create:
+        index: weather_sensors
+        body:
+          settings:
+            index:
+              mode: time_series
+              routing_path: [sensor_id, location]
+              time_series:
+                start_time: 2000-01-01T00:00:00.000Z
+                end_time: 2099-12-31T23:59:59.999Z
+              number_of_replicas: 0
+              number_of_shards: 1
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              humidity:
+                type: half_float
+                time_series_metric: gauge
+              location:
+                type: keyword
+                time_series_dimension: true
+              sensor_id:
+                type: keyword
+                time_series_dimension: true
+              temperature:
+                type: half_float
+                time_series_metric: gauge
+
+  - do:
+      index:
+        index: weather_sensors
+        body:
+          "@timestamp": 2023-05-31T08:41:15.000Z
+          sensor_id: SYKENET-000001
+          location: swamp
+          temperature: 32.4
+          humidity: 88.9
+  - match:   { _id: crxuhC8WO3aVdhvtAAABiHD35_g }
+  - match:   { result: created }
+  - match:   { _version: 1 }
+
+  - do:
+      delete:
+        index: weather_sensors
+        id: crxuhC8WO3aVdhvtAAABiHD35_g
+  - match:   { _id: crxuhC8WO3aVdhvtAAABiHD35_g }
+  - match:   { result: deleted }
+  - match:   { _version: 2 }
+
+  - do:
+      indices.flush:
+        index: weather_sensors
+
+  - do:
+      index:
+        index: weather_sensors
+        body:
+          "@timestamp": 2023-05-31T08:41:15.000Z
+          sensor_id: SYKENET-000001
+          location: swamp
+          temperature: 32.4
+          humidity: 88.9
+  - match:   { _id: crxuhC8WO3aVdhvtAAABiHD35_g }
+  - match:   { result: created }
+  - match:   { _version: 3 }

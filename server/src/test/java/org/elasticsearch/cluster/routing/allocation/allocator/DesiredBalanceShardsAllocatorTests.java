@@ -332,11 +332,12 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
 
         var gatewayAllocator = createGatewayAllocator();
         var shardsAllocator = createShardsAllocator();
+        var clusterSettings = createBuiltInClusterSettings();
         var desiredBalanceShardsAllocator = new DesiredBalanceShardsAllocator(
             shardsAllocator,
             threadPool,
             clusterService,
-            new DesiredBalanceComputer(createBuiltInClusterSettings(), threadPool, shardsAllocator) {
+            new DesiredBalanceComputer(clusterSettings, threadPool, shardsAllocator) {
                 @Override
                 public DesiredBalance compute(
                     DesiredBalance previousDesiredBalance,
@@ -433,11 +434,12 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
 
         var gatewayAllocator = createGatewayAllocator();
         var shardsAllocator = createShardsAllocator();
+        var clusterSettings = createBuiltInClusterSettings();
         var desiredBalanceShardsAllocator = new DesiredBalanceShardsAllocator(
             shardsAllocator,
             threadPool,
             clusterService,
-            new DesiredBalanceComputer(createBuiltInClusterSettings(), threadPool, shardsAllocator) {
+            new DesiredBalanceComputer(clusterSettings, threadPool, shardsAllocator) {
                 @Override
                 public DesiredBalance compute(
                     DesiredBalance previousDesiredBalance,
@@ -520,10 +522,10 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
 
         var threadPool = new TestThreadPool(getTestName());
         var clusterService = ClusterServiceUtils.createClusterService(clusterState, threadPool);
-
         var delegateAllocator = createShardsAllocator();
+        var clusterSettings = createBuiltInClusterSettings();
 
-        var desiredBalanceComputer = new DesiredBalanceComputer(createBuiltInClusterSettings(), threadPool, delegateAllocator) {
+        var desiredBalanceComputer = new DesiredBalanceComputer(clusterSettings, threadPool, delegateAllocator) {
 
             final AtomicReference<DesiredBalance> lastComputationInput = new AtomicReference<>();
 

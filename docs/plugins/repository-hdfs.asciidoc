@@ -2,7 +2,7 @@
 === Hadoop HDFS repository plugin
 
 The HDFS repository plugin adds support for using HDFS File System as a repository for
-{ref}/modules-snapshots.html[Snapshot/Restore].
+{ref}/snapshot-restore.html[Snapshot/Restore].
 
 :plugin_name: repository-hdfs
 include::install_remove.asciidoc[]
@@ -23,7 +23,7 @@ plugin folder and point `HADOOP_HOME` variable to it; this should minimize the a
 ==== Configuration properties
 
 Once installed, define the configuration for the `hdfs` repository through the
-{ref}/modules-snapshots.html[REST API]:
+{ref}/snapshot-restore.html[REST API]:
 
 [source,console]
 ----

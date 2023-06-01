@@ -10,7 +10,6 @@ package org.elasticsearch.index.mapper.extras;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.FieldInvertState;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermStates;
@@ -189,8 +188,8 @@ public final class SourceConfirmedTextQuery extends Query {
     }
 
     @Override
-    public Query rewrite(IndexReader reader) throws IOException {
-        Query inRewritten = in.rewrite(reader);
+    public Query rewrite(IndexSearcher searcher) throws IOException {
+        Query inRewritten = in.rewrite(searcher);
         if (inRewritten != in) {
             return new SourceConfirmedTextQuery(inRewritten, valueFetcherProvider, indexAnalyzer);
         } else if (in instanceof ConstantScoreQuery) {
@@ -203,7 +202,7 @@ public final class SourceConfirmedTextQuery extends Query {
         } else if (in instanceof MatchNoDocsQuery) {
             return in; // e.g. empty phrase query
         }
-        return super.rewrite(reader);
+        return super.rewrite(searcher);
     }
 
     @Override

@@ -240,7 +240,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.Future;
+import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
@@ -1700,15 +1700,17 @@ public class Node implements Closeable {
      * logic should use Node Shutdown, see {@link org.elasticsearch.cluster.metadata.NodesShutdownMetadata}.
      */
     public void prepareForClose() {
-        ThreadPool threadPool = injector.getInstance(ThreadPool.class);
         HttpServerTransport httpServerTransport = injector.getInstance(HttpServerTransport.class);
-
-        Future<?> httpServerStopped = threadPool.generic().submit(httpServerTransport::stop);
+        FutureTask<Void> stopper = new FutureTask<>(() -> {
+            httpServerTransport.stop();
+            return null;
+        });
+        new Thread(stopper).start();
 
         Optional.ofNullable(terminationHandler.get()).ifPresent(TerminationHandler::handleTermination);
 
         try {
-            httpServerStopped.get();
+            stopper.get();
         } catch (Exception e) {
             logger.warn("unexpected exception while waiting for http server to close", e);
         }

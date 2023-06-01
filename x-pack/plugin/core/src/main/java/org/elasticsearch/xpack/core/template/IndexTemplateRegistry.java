@@ -185,6 +185,10 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
             return;
         }
 
+        if (isClusterReady(event) == false) {
+            return;
+        }
+
         // if this node is newer than the master node, we probably need to add the template, which might be newer than the
         // template the master node has, so we need potentially add new templates despite being not the master node
         DiscoveryNode localNode = event.state().getNodes().getLocalNode();
@@ -195,6 +199,14 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
             addTemplatesIfMissing(state);
             addIndexLifecyclePoliciesIfMissing(state);
         }
+    }
+
+    /**
+     * A method that can be overridden to add additional conditions to be satisfied
+     * before installing the template registry components.
+     */
+    protected boolean isClusterReady(ClusterChangedEvent event) {
+        return true;
     }
 
     /**

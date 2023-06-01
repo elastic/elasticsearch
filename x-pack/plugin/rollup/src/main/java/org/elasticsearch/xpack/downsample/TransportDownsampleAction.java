@@ -74,8 +74,6 @@ import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessCo
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -100,12 +98,10 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
     private final IndexScopedSettings indexScopedSettings;
     private final ThreadContext threadContext;
 
-    private static final Set<String> FORBIDDEN_SETTINGS = new HashSet<>(
-        Arrays.asList(
-            IndexSettings.DEFAULT_PIPELINE.getKey(),
-            IndexSettings.FINAL_PIPELINE.getKey(),
-            IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey()
-        )
+    private static final Set<String> FORBIDDEN_SETTINGS = Set.of(
+        IndexSettings.DEFAULT_PIPELINE.getKey(),
+        IndexSettings.FINAL_PIPELINE.getKey(),
+        IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey()
     );
 
     /**

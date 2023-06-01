@@ -55,9 +55,12 @@ public class DesiredNodesSettingsValidator {
             IllegalArgumentException invalidSettingsException = new IllegalArgumentException(
                 format(
                     Locale.ROOT,
-                    "Nodes with ids [%s] in positions [%s] contain invalid settings",
+                    "Nodes with ids [%s] in positions [%s] contain invalid settings: [%s]",
                     nodeIdsWithFailures,
-                    nodeIndicesWithFailures
+                    nodeIndicesWithFailures,
+                    validationErrors.stream()
+                        .map(error -> format(Locale.ROOT, "'%s': '%s'", error.externalId, error.exception.getMessage()))
+                        .collect(Collectors.joining(", "))
                 )
             );
             for (DesiredNodeValidationError exceptionTuple : validationErrors) {

@@ -18,8 +18,10 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 
+import static java.lang.String.format;
 import static org.elasticsearch.cluster.metadata.DesiredNodesTestCase.randomDesiredNode;
 import static org.elasticsearch.common.util.concurrent.EsExecutors.NODE_PROCESSORS_SETTING;
 import static org.elasticsearch.node.Node.NODE_EXTERNAL_ID_SETTING;
@@ -53,6 +55,12 @@ public class DesiredNodesSettingsValidatorTests extends ESTestCase {
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> validator.validate(desiredNodes));
         assertThat(exception.getMessage(), containsString("Nodes with ids"));
         assertThat(exception.getMessage(), containsString("contain invalid settings"));
+        for (DesiredNode desiredNode : desiredNodes) {
+            assertThat(
+                exception.getMessage(),
+                containsString(format(Locale.ROOT, "'%s': 'Failed to parse value", desiredNode.externalId()))
+            );
+        }
         assertThat(exception.getSuppressed().length > 0, is(equalTo(true)));
         assertThat(exception.getSuppressed()[0].getMessage(), containsString("Failed to parse value"));
     }

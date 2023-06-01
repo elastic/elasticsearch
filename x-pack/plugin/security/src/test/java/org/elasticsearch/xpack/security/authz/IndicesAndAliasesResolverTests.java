@@ -29,6 +29,8 @@ import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchShardsAction;
+import org.elasticsearch.action.search.SearchShardsRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
@@ -2285,6 +2287,52 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         );
         assertThat(resolvedIndices.getLocal(), not(hasItem("logs-foobar")));
         assertThat(resolvedIndices.getLocal(), contains(DataStream.getDefaultBackingIndexName("logs-foobar", 1)));
+    }
+
+    public void testResolveSearchShardRequestAgainstDataStream() {
+        {
+            final User user = new User("data-stream-tester1", "data_stream_test1");
+            final SearchShardsRequest request = new SearchShardsRequest(
+                new String[] { "logs-*" },
+                IndicesOptions.fromOptions(false, false, true, false, false, true, true, true, true),
+                null,
+                null,
+                null,
+                randomBoolean(),
+                null
+            );
+            final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(user, SearchShardsAction.NAME, request);
+            final ResolvedIndices resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(
+                SearchShardsAction.NAME,
+                request,
+                metadata,
+                authorizedIndices
+            );
+            assertThat(resolvedIndices.getLocal(), contains("logs-foobar"));
+            assertThat(resolvedIndices.getRemote(), emptyIterable());
+        }
+        {
+            final User user = new User("data-stream-tester2", "data_stream_test2");
+            // Resolve *all* data streams:
+            final SearchShardsRequest request = new SearchShardsRequest(
+                new String[] { "logs-*" },
+                IndicesOptions.fromOptions(false, false, true, false, false, true, true, true, true),
+                null,
+                null,
+                null,
+                randomBoolean(),
+                null
+            );
+            final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(user, SearchAction.NAME, request);
+            final ResolvedIndices resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(
+                SearchShardsAction.NAME,
+                request,
+                metadata,
+                authorizedIndices
+            );
+            assertThat(resolvedIndices.getLocal(), containsInAnyOrder("logs-foo", "logs-foobar"));
+            assertThat(resolvedIndices.getRemote(), emptyIterable());
+        }
     }
 
     private AuthorizedIndices buildAuthorizedIndices(User user, String action) {

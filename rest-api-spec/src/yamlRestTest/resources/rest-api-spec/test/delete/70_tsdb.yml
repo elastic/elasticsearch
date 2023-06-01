@@ -6,7 +6,7 @@
 
   - do:
       indices.create:
-        index: weather_sensors-dev
+        index: weather_sensors
         body:
           settings:
             index:
@@ -36,7 +36,7 @@
 
   - do:
       index:
-        index: weather_sensors-dev
+        index: weather_sensors
         body:
           "@timestamp": 2023-05-31T08:41:15.000Z
           sensor_id: SYKENET-000001
@@ -49,7 +49,7 @@
 
   - do:
       delete:
-        index: weather_sensors-dev
+        index: weather_sensors
         id: crxuhC8WO3aVdhvtAAABiHD35_g
   - match:   { _id: crxuhC8WO3aVdhvtAAABiHD35_g }
   - match:   { result: deleted }
@@ -57,11 +57,11 @@
 
   - do:
       indices.flush:
-        index: weather_sensors-dev
+        index: weather_sensors
 
   - do:
       index:
-        index: weather_sensors-dev
+        index: weather_sensors
         body:
           "@timestamp": 2023-05-31T08:41:15.000Z
           sensor_id: SYKENET-000001

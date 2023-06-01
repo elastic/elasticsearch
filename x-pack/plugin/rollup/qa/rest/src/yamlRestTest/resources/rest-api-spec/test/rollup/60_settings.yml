@@ -53,6 +53,16 @@
           - '{"@timestamp": "2021-04-28T18:50:04.467Z", "metricset": "pod", "value": 10}'
 
   - do:
+      search:
+        index: test
+        body:
+          query:
+            match_all: {}
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source.field: 42 }
+
+  - do:
       indices.put_settings:
         index: test
         body:

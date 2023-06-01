@@ -6,10 +6,11 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch;
+package org.elasticsearch.index;
 
+import org.apache.lucene.util.Version;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.TransportVersionUtils;
+import org.elasticsearch.test.index.IndexVersionUtils;
 
 import java.lang.reflect.Modifier;
 import java.util.Collections;
@@ -25,11 +26,11 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.sameInstance;
 
-public class TransportVersionTests extends ESTestCase {
+public class IndexVersionTests extends ESTestCase {
 
     public void testVersionComparison() {
-        TransportVersion V_7_2_0 = TransportVersion.V_7_2_0;
-        TransportVersion V_8_0_0 = TransportVersion.V_8_0_0;
+        IndexVersion V_7_2_0 = IndexVersion.V_7_2_0;
+        IndexVersion V_8_0_0 = IndexVersion.V_8_0_0;
         assertThat(V_7_2_0.before(V_8_0_0), is(true));
         assertThat(V_7_2_0.before(V_7_2_0), is(false));
         assertThat(V_8_0_0.before(V_7_2_0), is(false));
@@ -52,35 +53,35 @@ public class TransportVersionTests extends ESTestCase {
     }
 
     public static class CorrectFakeVersion {
-        public static final TransportVersion V_0_00_01 = new TransportVersion(199);
-        public static final TransportVersion V_0_000_002 = new TransportVersion(2);
-        public static final TransportVersion V_0_000_003 = new TransportVersion(3);
-        public static final TransportVersion V_0_000_004 = new TransportVersion(4);
+        public static final IndexVersion V_0_00_01 = new IndexVersion(199, Version.LATEST);
+        public static final IndexVersion V_0_000_002 = new IndexVersion(2, Version.LATEST);
+        public static final IndexVersion V_0_000_003 = new IndexVersion(3, Version.LATEST);
+        public static final IndexVersion V_0_000_004 = new IndexVersion(4, Version.LATEST);
     }
 
     public static class DuplicatedIdFakeVersion {
-        public static final TransportVersion V_0_000_001 = new TransportVersion(1);
-        public static final TransportVersion V_0_000_002 = new TransportVersion(2);
-        public static final TransportVersion V_0_000_003 = new TransportVersion(2);
+        public static final IndexVersion V_0_000_001 = new IndexVersion(1, Version.LATEST);
+        public static final IndexVersion V_0_000_002 = new IndexVersion(2, Version.LATEST);
+        public static final IndexVersion V_0_000_003 = new IndexVersion(2, Version.LATEST);
     }
 
-    public void testStaticTransportVersionChecks() {
+    public void testStaticIndexVersionChecks() {
         assertThat(
-            TransportVersion.getAllVersionIds(CorrectFakeVersion.class),
+            IndexVersion.getAllVersionIds(IndexVersionTests.CorrectFakeVersion.class),
             equalTo(
                 Map.of(
                     199,
-                    CorrectFakeVersion.V_0_00_01,
+                    IndexVersionTests.CorrectFakeVersion.V_0_00_01,
                     2,
-                    CorrectFakeVersion.V_0_000_002,
+                    IndexVersionTests.CorrectFakeVersion.V_0_000_002,
                     3,
-                    CorrectFakeVersion.V_0_000_003,
+                    IndexVersionTests.CorrectFakeVersion.V_0_000_003,
                     4,
-                    CorrectFakeVersion.V_0_000_004
+                    IndexVersionTests.CorrectFakeVersion.V_0_000_004
                 )
             )
         );
-        AssertionError e = expectThrows(AssertionError.class, () -> TransportVersion.getAllVersionIds(DuplicatedIdFakeVersion.class));
+        AssertionError e = expectThrows(AssertionError.class, () -> IndexVersion.getAllVersionIds(DuplicatedIdFakeVersion.class));
         assertThat(e.getMessage(), containsString("have the same version number"));
     }
 
@@ -90,11 +91,11 @@ public class TransportVersionTests extends ESTestCase {
 
     public void testDefinedConstants() throws IllegalAccessException {
         Pattern historicalVersion = Pattern.compile("^V_(\\d{1,2})_(\\d{1,2})_(\\d{1,2})$");
-        Pattern transportVersion = Pattern.compile("^V_(\\d+)_(\\d{3})_(\\d{3})$");
-        Set<String> ignore = Set.of("ZERO", "CURRENT", "MINIMUM_COMPATIBLE", "MINIMUM_CCS_VERSION");
+        Pattern IndexVersion = Pattern.compile("^V_(\\d+)_(\\d{3})_(\\d{3})$");
+        Set<String> ignore = Set.of("ZERO", "CURRENT", "MINIMUM_COMPATIBLE");
 
-        for (java.lang.reflect.Field field : TransportVersion.class.getFields()) {
-            if (field.getType() == TransportVersion.class && ignore.contains(field.getName()) == false) {
+        for (java.lang.reflect.Field field : IndexVersion.class.getFields()) {
+            if (field.getType() == IndexVersion.class && ignore.contains(field.getName()) == false) {
 
                 // check the field modifiers
                 assertEquals(
@@ -112,7 +113,7 @@ public class TransportVersionTests extends ESTestCase {
                         idString,
                         field.get(null).toString()
                     );
-                } else if ((matcher = transportVersion.matcher(field.getName())).matches()) {
+                } else if ((matcher = IndexVersion.matcher(field.getName())).matches()) {
                     String idString = matcher.group(1) + matcher.group(2) + matcher.group(3);
                     assertEquals(
                         "Field " + field.getName() + " does not have expected id " + idString,
@@ -128,54 +129,51 @@ public class TransportVersionTests extends ESTestCase {
 
     public void testMin() {
         assertEquals(
-            TransportVersionUtils.getPreviousVersion(),
-            TransportVersion.min(TransportVersion.CURRENT, TransportVersionUtils.getPreviousVersion())
+            IndexVersionUtils.getPreviousVersion(),
+            IndexVersion.min(IndexVersion.CURRENT, IndexVersionUtils.getPreviousVersion())
         );
-        assertEquals(
-            TransportVersion.fromId(1_01_01_99),
-            TransportVersion.min(TransportVersion.fromId(1_01_01_99), TransportVersion.CURRENT)
-        );
-        TransportVersion version = TransportVersionUtils.randomVersion();
-        TransportVersion version1 = TransportVersionUtils.randomVersion();
+        assertEquals(IndexVersion.fromId(1_01_01_99), IndexVersion.min(IndexVersion.fromId(1_01_01_99), IndexVersion.CURRENT));
+        IndexVersion version = IndexVersionUtils.randomVersion();
+        IndexVersion version1 = IndexVersionUtils.randomVersion();
         if (version.id() <= version1.id()) {
-            assertEquals(version, TransportVersion.min(version1, version));
+            assertEquals(version, IndexVersion.min(version1, version));
         } else {
-            assertEquals(version1, TransportVersion.min(version1, version));
+            assertEquals(version1, IndexVersion.min(version1, version));
         }
     }
 
     public void testMax() {
-        assertEquals(TransportVersion.CURRENT, TransportVersion.max(TransportVersion.CURRENT, TransportVersionUtils.getPreviousVersion()));
-        assertEquals(TransportVersion.CURRENT, TransportVersion.max(TransportVersion.fromId(1_01_01_99), TransportVersion.CURRENT));
-        TransportVersion version = TransportVersionUtils.randomVersion();
-        TransportVersion version1 = TransportVersionUtils.randomVersion();
+        assertEquals(IndexVersion.CURRENT, IndexVersion.max(IndexVersion.CURRENT, IndexVersionUtils.getPreviousVersion()));
+        assertEquals(IndexVersion.CURRENT, IndexVersion.max(IndexVersion.fromId(1_01_01_99), IndexVersion.CURRENT));
+        IndexVersion version = IndexVersionUtils.randomVersion();
+        IndexVersion version1 = IndexVersionUtils.randomVersion();
         if (version.id() >= version1.id()) {
-            assertEquals(version, TransportVersion.max(version1, version));
+            assertEquals(version, IndexVersion.max(version1, version));
         } else {
-            assertEquals(version1, TransportVersion.max(version1, version));
+            assertEquals(version1, IndexVersion.max(version1, version));
         }
     }
 
     public void testVersionConstantPresent() {
-        Set<TransportVersion> ignore = Set.of(TransportVersion.ZERO, TransportVersion.CURRENT, TransportVersion.MINIMUM_COMPATIBLE);
-        assertThat(TransportVersion.CURRENT, sameInstance(TransportVersion.fromId(TransportVersion.CURRENT.id())));
+        Set<IndexVersion> ignore = Set.of(IndexVersion.ZERO, IndexVersion.CURRENT, IndexVersion.MINIMUM_COMPATIBLE);
+        assertThat(IndexVersion.CURRENT, sameInstance(IndexVersion.fromId(IndexVersion.CURRENT.id())));
         final int iters = scaledRandomIntBetween(20, 100);
         for (int i = 0; i < iters; i++) {
-            TransportVersion version = TransportVersionUtils.randomVersion(ignore);
+            IndexVersion version = IndexVersionUtils.randomVersion(ignore);
 
-            assertThat(version, sameInstance(TransportVersion.fromId(version.id())));
+            assertThat(version, sameInstance(IndexVersion.fromId(version.id())));
         }
     }
 
     public void testCURRENTIsLatest() {
-        assertThat(Collections.max(TransportVersion.getAllVersions()), is(TransportVersion.CURRENT));
+        assertThat(Collections.max(IndexVersion.getAllVersions()), is(IndexVersion.CURRENT));
     }
 
     public void testToString() {
-        assertEquals("5000099", TransportVersion.fromId(5_00_00_99).toString());
-        assertEquals("2030099", TransportVersion.fromId(2_03_00_99).toString());
-        assertEquals("1000099", TransportVersion.fromId(1_00_00_99).toString());
-        assertEquals("2000099", TransportVersion.fromId(2_00_00_99).toString());
-        assertEquals("5000099", TransportVersion.fromId(5_00_00_99).toString());
+        assertEquals("5000099", IndexVersion.fromId(5_00_00_99).toString());
+        assertEquals("2030099", IndexVersion.fromId(2_03_00_99).toString());
+        assertEquals("1000099", IndexVersion.fromId(1_00_00_99).toString());
+        assertEquals("2000099", IndexVersion.fromId(2_00_00_99).toString());
+        assertEquals("5000099", IndexVersion.fromId(5_00_00_99).toString());
     }
 }

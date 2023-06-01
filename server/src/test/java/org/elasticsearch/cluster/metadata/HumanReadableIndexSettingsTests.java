@@ -8,8 +8,8 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 
 import java.time.Instant;
@@ -21,10 +21,10 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class HumanReadableIndexSettingsTests extends ESTestCase {
     public void testHumanReadableSettings() {
-        Version versionCreated = randomVersion(random());
+        IndexVersion versionCreated = randomVersion(random()).indexVersion;
         long created = System.currentTimeMillis();
         Settings testSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, versionCreated)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, versionCreated.id())
             .put(IndexMetadata.SETTING_CREATION_DATE, created)
             .build();
 

@@ -169,7 +169,6 @@ public record TransportVersion(int id) implements Comparable<TransportVersion> {
                 try {
                     version = (TransportVersion) declaredField.get(null);
                 } catch (IllegalAccessException e) {
-                    // should not happen, checked above
                     throw new AssertionError(e);
                 }
                 builder.put(version.id, version);

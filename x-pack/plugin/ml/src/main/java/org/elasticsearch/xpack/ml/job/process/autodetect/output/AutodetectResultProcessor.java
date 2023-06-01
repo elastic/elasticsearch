@@ -35,7 +35,7 @@ import org.elasticsearch.xpack.core.ml.job.results.Forecast;
 import org.elasticsearch.xpack.core.ml.job.results.ForecastRequestStats;
 import org.elasticsearch.xpack.core.ml.job.results.Influencer;
 import org.elasticsearch.xpack.core.ml.job.results.ModelPlot;
-import org.elasticsearch.xpack.core.security.user.XPackUser;
+import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.TimingStatsReporter;
@@ -425,12 +425,12 @@ public class AutodetectResultProcessor {
             Messages.getMessage(Messages.JOB_AUDIT_SNAPSHOT_STORED, modelSnapshot.getSnapshotId())
         )
             .setCreateTime(currentTime)
-            .setCreateUsername(XPackUser.NAME)
+            .setCreateUsername(InternalUsers.XPACK_USER.principal())
             .setTimestamp(modelSnapshot.getLatestResultTimeStamp())
             .setEndTimestamp(modelSnapshot.getLatestResultTimeStamp())
             .setJobId(jobId)
             .setModifiedTime(currentTime)
-            .setModifiedUsername(XPackUser.NAME)
+            .setModifiedUsername(InternalUsers.XPACK_USER.principal())
             .setType(Annotation.Type.ANNOTATION)
             .setEvent(Annotation.Event.MODEL_SNAPSHOT_STORED)
             .build();

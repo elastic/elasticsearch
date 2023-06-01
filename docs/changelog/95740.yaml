@@ -1,0 +1,6 @@
+pr: 95740
+summary: Include search idle info to shard stats
+area: "Search"
+type: enhancement
+issues:
+ - 95727

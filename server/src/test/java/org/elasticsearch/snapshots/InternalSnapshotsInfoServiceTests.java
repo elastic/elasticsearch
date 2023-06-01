@@ -398,12 +398,12 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
             final ThreadPoolStats threadPoolStats = clusterService.getClusterApplierService().threadPool().stats();
             ThreadPoolStats.Stats generic = null;
             for (ThreadPoolStats.Stats threadPoolStat : threadPoolStats) {
-                if (ThreadPool.Names.GENERIC.equals(threadPoolStat.getName())) {
+                if (ThreadPool.Names.GENERIC.equals(threadPoolStat.name())) {
                     generic = threadPoolStat;
                 }
             }
             assertThat(generic, notNullValue());
-            assertThat(generic.getActive(), equalTo(nbActive));
+            assertThat(generic.active(), equalTo(nbActive));
         }, 30L, TimeUnit.SECONDS);
     }
 

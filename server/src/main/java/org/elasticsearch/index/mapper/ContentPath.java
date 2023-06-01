@@ -61,8 +61,4 @@ public final class ContentPath {
     public int length() {
         return index;
     }
-
-    public boolean atRoot() {
-        return index == 0;
-    }
 }

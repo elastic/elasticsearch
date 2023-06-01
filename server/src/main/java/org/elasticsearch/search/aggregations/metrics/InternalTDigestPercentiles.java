@@ -40,6 +40,16 @@ public class InternalTDigestPercentiles extends AbstractInternalTDigestPercentil
         return NAME;
     }
 
+    public static InternalTDigestPercentiles empty(
+        String name,
+        double[] keys,
+        boolean keyed,
+        DocValueFormat format,
+        Map<String, Object> metadata
+    ) {
+        return new InternalTDigestPercentiles(name, keys, null, keyed, format, metadata);
+    }
+
     @Override
     public Iterator<Percentile> iterator() {
         return new Iter(keys, state);

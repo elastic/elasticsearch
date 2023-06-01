@@ -21,7 +21,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.search.CanMatchNodeRequest;
 import org.elasticsearch.action.search.CanMatchNodeResponse;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.TransportActions;
@@ -515,6 +514,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             }
 
             final AtomicBoolean isDone = new AtomicBoolean(false);
+            // TODO: this logic should be improved, the timeout should be handled in a way that removes the listener from the logic in the
+            // index shard on timeout so that a timed-out listener does not use up any listener slots.
             final TimeValue timeout = request.getWaitForCheckpointsTimeout();
             final Scheduler.ScheduledCancellable timeoutTask = NO_TIMEOUT.equals(timeout) ? null : threadPool.schedule(() -> {
                 if (isDone.compareAndSet(false, true)) {
@@ -523,7 +524,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     );
                 }
             }, timeout, Names.SAME);
-            shard.addRefreshListener(waitForCheckpoint, new ActionListener<>() {
+
+            // allow waiting for not-yet-issued sequence number if shard isn't promotable to primary and the timeout is less than or equal
+            // to 30s
+            final boolean allowWaitForNotYetIssued = shard.routingEntry().isPromotableToPrimary() == false
+                && NO_TIMEOUT.equals(timeout) == false
+                && timeout.getSeconds() <= 30L;
+            shard.addRefreshListener(waitForCheckpoint, allowWaitForNotYetIssued, new ActionListener<>() {
                 @Override
                 public void onResponse(Void unused) {
                     // We must check that the sequence number is smaller than or equal to the global checkpoint. If it is not,
@@ -1648,14 +1655,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     /**
-     * Returns a builder for {@link AggregationReduceContext}. This
-     * builder retains a reference to the provided {@link SearchRequest}.
+     * Returns a builder for {@link AggregationReduceContext}.
      */
-    public AggregationReduceContext.Builder aggReduceContextBuilder(Supplier<Boolean> isCanceled, SearchRequest request) {
+    public AggregationReduceContext.Builder aggReduceContextBuilder(Supplier<Boolean> isCanceled, AggregatorFactories.Builder aggs) {
         return new AggregationReduceContext.Builder() {
             @Override
             public AggregationReduceContext forPartialReduction() {
-                return new AggregationReduceContext.ForPartial(bigArrays, scriptService, isCanceled, request.source().aggregations());
+                return new AggregationReduceContext.ForPartial(bigArrays, scriptService, isCanceled, aggs);
             }
 
             @Override
@@ -1664,7 +1670,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     bigArrays,
                     scriptService,
                     isCanceled,
-                    request.source().aggregations(),
+                    aggs,
                     multiBucketConsumerService.create()
                 );
             }

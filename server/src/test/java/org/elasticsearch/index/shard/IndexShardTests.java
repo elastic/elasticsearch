@@ -1185,7 +1185,7 @@ public class IndexShardTests extends IndexShardTestCase {
             indexMetadata.build(),
             null,
             new InternalEngineFactory(),
-            () -> synced.set(true),
+            ignoredShardId -> synced.set(true),
             RetentionLeaseSyncer.EMPTY
         );
         // add a replica
@@ -1254,7 +1254,7 @@ public class IndexShardTests extends IndexShardTestCase {
             indexMetadata.build(),
             null,
             new InternalEngineFactory(),
-            () -> synced.set(true),
+            ignoredShardId -> synced.set(true),
             RetentionLeaseSyncer.EMPTY
         );
         recoverShardFromStore(primaryShard);
@@ -1534,6 +1534,69 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(shard);
     }
 
+    public void testAsyncPersistGlobalCheckpointSync() throws InterruptedException, IOException {
+        final ShardId shardId = new ShardId("index", "_na_", 0);
+        final ShardRouting shardRouting = TestShardRouting.newShardRouting(
+            shardId,
+            randomAlphaOfLength(8),
+            true,
+            ShardRoutingState.INITIALIZING,
+            RecoverySource.EmptyStoreRecoverySource.INSTANCE
+        );
+        final Settings settings = indexSettings(Version.CURRENT, 1, 2).build();
+        final IndexMetadata.Builder indexMetadata = IndexMetadata.builder(shardRouting.getIndexName()).settings(settings).primaryTerm(0, 1);
+        IndexShard shard = newShard(
+            shardRouting,
+            indexMetadata.build(),
+            null,
+            new InternalEngineFactory(),
+            ignoredShardId -> {},
+            RetentionLeaseSyncer.EMPTY
+        );
+        recoverShardFromStore(shard);
+
+        final int maxSeqNo = randomIntBetween(0, 128);
+        for (int i = 0; i <= maxSeqNo; i++) {
+            EngineTestCase.generateNewSeqNo(shard.getEngine());
+        }
+        final long checkpoint = rarely() ? maxSeqNo - scaledRandomIntBetween(0, maxSeqNo) : maxSeqNo;
+        shard.updateLocalCheckpointForShard(shardRouting.allocationId().getId(), checkpoint);
+        shard.updateGlobalCheckpointForShard(shard.routingEntry().allocationId().getId(), shard.getLocalCheckpoint());
+
+        Semaphore semaphore = new Semaphore(Integer.MAX_VALUE);
+        Thread[] thread = new Thread[randomIntBetween(3, 5)];
+        CountDownLatch latch = new CountDownLatch(thread.length);
+        for (int i = 0; i < thread.length; i++) {
+            thread[i] = new Thread() {
+                @Override
+                public void run() {
+                    try {
+                        latch.countDown();
+                        latch.await();
+                        for (int i = 0; i < 10000; i++) {
+                            semaphore.acquire();
+                            shard.syncGlobalCheckpoint(
+                                randomLongBetween(0, shard.getLastKnownGlobalCheckpoint()),
+                                (ex) -> semaphore.release()
+                            );
+                        }
+                    } catch (Exception ex) {
+                        throw new RuntimeException(ex);
+                    }
+                }
+            };
+            thread[i].start();
+        }
+
+        for (int i = 0; i < thread.length; i++) {
+            thread[i].join();
+        }
+        assertTrue(semaphore.tryAcquire(Integer.MAX_VALUE, 10, TimeUnit.SECONDS));
+        assertEquals(shard.getLastKnownGlobalCheckpoint(), shard.getLastSyncedGlobalCheckpoint());
+
+        closeShards(shard);
+    }
+
     public void testShardStats() throws IOException {
 
         IndexShard shard = newStartedShard();
@@ -1543,7 +1606,9 @@ public class IndexShardTests extends IndexShardTestCase {
             CommonStats.getShardLevelStats(new IndicesQueryCache(Settings.EMPTY), shard, new CommonStatsFlags()),
             shard.commitStats(),
             shard.seqNoStats(),
-            shard.getRetentionLeaseStats()
+            shard.getRetentionLeaseStats(),
+            shard.isSearchIdle(),
+            shard.searchIdleTime()
         );
         assertEquals(shard.shardPath().getRootDataPath().toString(), stats.getDataPath());
         assertEquals(shard.shardPath().getRootStatePath().toString(), stats.getStatePath());
@@ -1628,7 +1693,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 i -> store,
                 null,
                 new InternalEngineFactory(),
-                () -> {},
+                NOOP_GCP_SYNCER,
                 RetentionLeaseSyncer.EMPTY,
                 EMPTY_EVENT_LISTENER
             );
@@ -2620,7 +2685,7 @@ public class IndexShardTests extends IndexShardTestCase {
             null,
             wrapper,
             new InternalEngineFactory(),
-            () -> {},
+            NOOP_GCP_SYNCER,
             RetentionLeaseSyncer.EMPTY,
             EMPTY_EVENT_LISTENER
         );
@@ -2755,7 +2820,7 @@ public class IndexShardTests extends IndexShardTestCase {
             null,
             wrapper,
             new InternalEngineFactory(),
-            () -> {},
+            NOOP_GCP_SYNCER,
             RetentionLeaseSyncer.EMPTY,
             EMPTY_EVENT_LISTENER
         );
@@ -2952,7 +3017,7 @@ public class IndexShardTests extends IndexShardTestCase {
             });
 
             PlainActionFuture<Void> listener = PlainActionFuture.newFuture();
-            shard.addRefreshListener(10, listener);
+            shard.addRefreshListener(10, randomBoolean(), listener);
             expectThrows(IllegalIndexShardStateException.class, listener::actionGet);
         };
         IndexShard replica = newShard(primary.shardId(), false, "n2", metadata, null);
@@ -3693,22 +3758,26 @@ public class IndexShardTests extends IndexShardTestCase {
         scopedSettings.applySettings(settings);
         assertFalse(primary.isSearchIdle());
 
-        settings = Settings.builder()
-            .put(settings)
-            .put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), TimeValue.timeValueMillis(10))
-            .build();
+        TimeValue tenMillis = TimeValue.timeValueMillis(10);
+        settings = Settings.builder().put(settings).put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), tenMillis).build();
         scopedSettings.applySettings(settings);
 
         assertBusy(() -> assertTrue(primary.isSearchIdle()));
         do {
             // now loop until we are fast enough... shouldn't take long
             primary.awaitShardSearchActive(aBoolean -> {});
+            if (primary.isSearchIdle()) {
+                assertTrue(primary.searchIdleTime() >= tenMillis.millis());
+            }
         } while (primary.isSearchIdle());
 
         assertBusy(() -> assertTrue(primary.isSearchIdle()));
         do {
             // now loop until we are fast enough... shouldn't take long
             primary.acquireSearcher("test").close();
+            if (primary.isSearchIdle()) {
+                assertTrue(primary.searchIdleTime() >= tenMillis.millis());
+            }
         } while (primary.isSearchIdle());
         closeShards(primary);
     }
@@ -3772,6 +3841,7 @@ public class IndexShardTests extends IndexShardTestCase {
         indexDoc(primary, "_doc", "2", "{\"foo\" : \"bar\"}");
         assertFalse(primary.scheduledRefresh());
         assertTrue(primary.isSearchIdle());
+        assertTrue(primary.searchIdleTime() >= TimeValue.ZERO.millis());
         primary.flushOnIdle(0);
         assertTrue(primary.scheduledRefresh()); // make sure we refresh once the shard is inactive
         try (Engine.Searcher searcher = primary.acquireSearcher("test")) {
@@ -3794,7 +3864,7 @@ public class IndexShardTests extends IndexShardTestCase {
         if (randomBoolean()) {
             primary.addRefreshListener(doc.getTranslogLocation(), r -> latch.countDown());
         } else {
-            primary.addRefreshListener(doc.getSeqNo(), new ActionListener<Void>() {
+            primary.addRefreshListener(doc.getSeqNo(), randomBoolean(), new ActionListener<Void>() {
                 @Override
                 public void onResponse(Void unused) {
                     latch.countDown();
@@ -3820,7 +3890,7 @@ public class IndexShardTests extends IndexShardTestCase {
         if (randomBoolean()) {
             primary.addRefreshListener(doc.getTranslogLocation(), r -> latch1.countDown());
         } else {
-            primary.addRefreshListener(doc.getSeqNo(), ActionListener.running(latch1::countDown));
+            primary.addRefreshListener(doc.getSeqNo(), randomBoolean(), ActionListener.running(latch1::countDown));
         }
         assertEquals(1, latch1.getCount());
         assertTrue(primary.getEngine().refreshNeeded());
@@ -4531,7 +4601,7 @@ public class IndexShardTests extends IndexShardTestCase {
             null,
             null,
             new InternalEngineFactory(),
-            () -> {},
+            NOOP_GCP_SYNCER,
             RetentionLeaseSyncer.EMPTY,
             EMPTY_EVENT_LISTENER,
             fakeClock

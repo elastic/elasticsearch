@@ -1,0 +1,21 @@
+{
+  "template": {
+    "mappings": {
+      "dynamic_templates": [
+        {
+          "ecs_data_stream_to_constant": {
+            "mapping": {
+              "type": "constant_keyword"
+            },
+            "path_match": "data_stream.*"
+          }
+        }
+      ]
+    }
+  },
+  "_meta": {
+    "description": "Reusable dynamic mappings for the `data_stream` ECS fields that cannot be included within the general ECS template",
+    "managed": true
+  },
+  "version": ${xpack.stack.template.version}
+}

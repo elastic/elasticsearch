@@ -57,6 +57,9 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
     // ECS dynamic mappings
     public static final String ECS_DYNAMIC_MAPPINGS_COMPONENT_TEMPLATE_NAME = "ecs-dynamic-mappings";
 
+    // ECS dynamic mappings for the data_stream fields
+    public static final String ECS_DATA_STREAM_MAPPINGS_COMPONENT_TEMPLATE_NAME = "ecs-data-stream-mappings";
+
     // Default mapping of input string fields to keyword
     public static final String STRING_TO_KEYWORD_DYNAMIC_TEMPLATE_NAME = "string-to-keyword-dynamic-mapping";
 
@@ -164,6 +167,12 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
             new IndexTemplateConfig(
                 ECS_DYNAMIC_MAPPINGS_COMPONENT_TEMPLATE_NAME,
                 "/ecs-dynamic-mappings.json",
+                REGISTRY_VERSION,
+                TEMPLATE_VERSION_VARIABLE
+            ),
+            new IndexTemplateConfig(
+                ECS_DATA_STREAM_MAPPINGS_COMPONENT_TEMPLATE_NAME,
+                "/ecs-data-stream-mappings.json",
                 REGISTRY_VERSION,
                 TEMPLATE_VERSION_VARIABLE
             ),

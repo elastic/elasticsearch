@@ -166,14 +166,6 @@
           }
         },
         {
-          "ecs_data_stream_to_constant": {
-            "mapping": {
-              "type": "constant_keyword"
-            },
-            "path_match": "data_stream.*"
-          }
-        },
-        {
           "ecs_flattened": {
             "mapping": {
               "type": "flattened"

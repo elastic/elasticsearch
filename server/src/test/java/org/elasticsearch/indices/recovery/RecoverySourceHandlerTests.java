@@ -27,7 +27,7 @@ import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.StopWatch;
@@ -236,8 +236,8 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
         return new StartRecoveryRequest(
             shardId,
             null,
-            TestDiscoveryNode.create("b", buildNewFakeTransportAddress(), emptyMap(), emptySet()),
-            TestDiscoveryNode.create("b", buildNewFakeTransportAddress(), emptyMap(), emptySet()),
+            DiscoveryNodeUtils.builder("b").roles(emptySet()).build(),
+            DiscoveryNodeUtils.builder("b").roles(emptySet()).build(),
             metadataSnapshot,
             randomBoolean(),
             randomNonNegativeLong(),

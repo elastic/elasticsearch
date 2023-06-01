@@ -22,8 +22,8 @@ import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.ClusterStatePublisher;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterApplier;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -111,7 +111,7 @@ public class ClusterServiceUtils {
     }
 
     public static ClusterService createClusterService(ThreadPool threadPool, ClusterSettings clusterSettings) {
-        DiscoveryNode discoveryNode = TestDiscoveryNode.create("node", "node");
+        DiscoveryNode discoveryNode = DiscoveryNodeUtils.create("node", "node");
         return createClusterService(threadPool, discoveryNode, clusterSettings);
     }
 

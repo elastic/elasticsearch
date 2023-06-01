@@ -16,8 +16,8 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
@@ -84,7 +84,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder();
         nodes.add(DiscoveryNode.createLocal(settings, buildNewFakeTransportAddress(), "this_node"));
         for (int i = 0; i < nonLocalNodesCount; i++) {
-            nodes.add(TestDiscoveryNode.create("other_node_" + i));
+            nodes.add(DiscoveryNodeUtils.create("other_node_" + i));
         }
         nodes.localNodeId("this_node");
         state.nodes(nodes);

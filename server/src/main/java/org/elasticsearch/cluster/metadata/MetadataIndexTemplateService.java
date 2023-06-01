@@ -1468,7 +1468,57 @@ public class MetadataIndexTemplateService {
         if (template.template() != null && template.template().lifecycle() != null) {
             lifecycles.add(template.template().lifecycle());
         }
-        return DataLifecycle.compose(lifecycles);
+        return composeDataLifecycles(lifecycles);
+    }
+
+    /**
+     * This method composes a series of lifecycles to a final one. The lifecycles are getting composed one level deep,
+     * meaning that the keys present on the latest lifecycle will override the ones of the others. If a key is missing
+     * then it keeps the value of the previous lifecycles. For example, if we have the following two lifecycles:
+     * [
+     *   {
+     *     "lifecycle": {
+     *       "data_retention" : "10d"
+     *     }
+     *   },
+     *   {
+     *     "lifecycle": {
+     *       "data_retention" : "20d"
+     *     }
+     *   }
+     * ]
+     * The result will be { "lifecycle": { "data_retention" : "20d"}} because the second data retention overrides the first.
+     * However, if we have the following two lifecycles:
+     * [
+     *   {
+     *     "lifecycle": {
+     *       "data_retention" : "10d"
+     *     }
+     *   },
+     *   {
+     *   "lifecycle": { }
+     *   }
+     * ]
+     * The result will be { "lifecycle": { "data_retention" : "10d"} } because the latest lifecycle does not have any
+     * information on retention.
+     * @param lifecycles a sorted list of lifecycles in the order that they will be composed
+     * @return the final lifecycle
+     */
+    @Nullable
+    public static DataLifecycle composeDataLifecycles(List<DataLifecycle> lifecycles) {
+        DataLifecycle.Builder builder = null;
+        for (DataLifecycle current : lifecycles) {
+            if (current == Template.NO_LIFECYCLE) {
+                builder = null;
+            } else if (builder == null) {
+                builder = DataLifecycle.Builder.newBuilder(current);
+            } else {
+                if (current.getDataRetention() != null) {
+                    builder.dataRetention(current.getDataRetention());
+                }
+            }
+        }
+        return builder == null ? null : builder.build();
     }
 
     /**

@@ -10,12 +10,12 @@ package org.elasticsearch.action.admin.cluster.node.shutdown;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Set;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.action.admin.cluster.node.shutdown.TransportPrevalidateNodeRemovalAction.resolveNodes;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
@@ -58,6 +58,6 @@ public class TransportPrevalidateNodeRemovalActionTests extends ESTestCase {
     }
 
     private DiscoveryNode randomNode(String nodeName, String nodeId) {
-        return new DiscoveryNode(nodeName, nodeId, buildNewFakeTransportAddress(), emptyMap(), emptySet(), randomVersion(random()));
+        return DiscoveryNodeUtils.builder(nodeId).name(nodeName).roles(emptySet()).version(randomVersion(random())).build();
     }
 }

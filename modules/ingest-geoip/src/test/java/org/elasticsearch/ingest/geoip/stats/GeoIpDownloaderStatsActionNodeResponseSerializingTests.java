@@ -9,7 +9,7 @@
 package org.elasticsearch.ingest.geoip.stats;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
@@ -34,7 +34,7 @@ public class GeoIpDownloaderStatsActionNodeResponseSerializingTests extends Abst
     }
 
     static GeoIpDownloaderStatsAction.NodeResponse createRandomInstance() {
-        DiscoveryNode node = TestDiscoveryNode.create("id");
+        DiscoveryNode node = DiscoveryNodeUtils.create("id");
         Set<String> databases = Set.copyOf(randomList(10, () -> randomAlphaOfLengthBetween(5, 10)));
         Set<String> files = Set.copyOf(randomList(10, () -> randomAlphaOfLengthBetween(5, 10)));
         Set<String> configDatabases = Set.copyOf(randomList(10, () -> randomAlphaOfLengthBetween(5, 10)));

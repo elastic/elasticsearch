@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
@@ -848,15 +849,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
     }
 
     static DiscoveryNode newDataNode(DiscoveryNodeRole role, String nodeName) {
-        return new DiscoveryNode(
-            nodeName,
-            nodeName,
-            UUIDs.randomBase64UUID(),
-            buildNewFakeTransportAddress(),
-            Map.of(),
-            Set.of(role),
-            Version.CURRENT
-        );
+        return DiscoveryNodeUtils.builder(nodeName).name(nodeName).externalId(UUIDs.randomBase64UUID()).roles(Set.of(role)).build();
     }
 
     private static String randomNodeId(RoutingNodes routingNodes, DiscoveryNodeRole role) {

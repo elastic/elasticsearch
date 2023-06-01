@@ -11,7 +11,7 @@ package org.elasticsearch.transport;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Releasable;
@@ -141,7 +141,7 @@ public class TransportServiceLifecycleTests extends ESTestCase {
                 tcpTransport,
                 threadPool,
                 TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-                boundTransportAddress -> TestDiscoveryNode.create(
+                boundTransportAddress -> DiscoveryNodeUtils.create(
                     nodeName,
                     nodeName,
                     tcpTransport.boundAddress().publishAddress(),

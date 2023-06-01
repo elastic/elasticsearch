@@ -8,12 +8,14 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Nullable;
@@ -26,7 +28,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Objects;
 
 /**
@@ -44,7 +45,6 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
 
     private static final FeatureFlag DLM_FEATURE_FLAG = new FeatureFlag("dlm");
 
-    public static final DataLifecycle EMPTY = new DataLifecycle();
     public static final String DLM_ORIGIN = "data_lifecycle";
 
     public static final ParseField DATA_RETENTION_FIELD = new ParseField("data_retention");
@@ -53,16 +53,18 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
     public static final ConstructingObjectParser<DataLifecycle, Void> PARSER = new ConstructingObjectParser<>(
         "lifecycle",
         false,
-        (args, unused) -> new DataLifecycle((TimeValue) args[0])
+        (args, unused) -> new DataLifecycle((Retention) args[0])
     );
 
     static {
-        PARSER.declareField(
-            ConstructingObjectParser.optionalConstructorArg(),
-            (p, c) -> TimeValue.parseTimeValue(p.textOrNull(), DATA_RETENTION_FIELD.getPreferredName()),
-            DATA_RETENTION_FIELD,
-            ObjectParser.ValueType.STRING_OR_NULL
-        );
+        PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> {
+            String value = p.textOrNull();
+            if (value == null) {
+                return Retention.NULL;
+            } else {
+                return new Retention(TimeValue.parseTimeValue(value, DATA_RETENTION_FIELD.getPreferredName()));
+            }
+        }, DATA_RETENTION_FIELD, ObjectParser.ValueType.STRING_OR_NULL);
     }
 
     public static boolean isEnabled() {
@@ -70,13 +72,17 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
     }
 
     @Nullable
-    private final TimeValue dataRetention;
+    private final Retention dataRetention;
 
     public DataLifecycle() {
-        this.dataRetention = null;
+        this((TimeValue) null);
     }
 
     public DataLifecycle(@Nullable TimeValue dataRetention) {
+        this(dataRetention == null ? null : new Retention(dataRetention));
+    }
+
+    public DataLifecycle(@Nullable Retention dataRetention) {
         this.dataRetention = dataRetention;
     }
 
@@ -85,55 +91,25 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
     }
 
     /**
-     * This method composes a series of lifecycles to a final one. The lifecycles are getting composed one level deep,
-     * meaning that the keys present on the latest lifecycle will override the ones of the others. If a key is missing
-     * then it keeps the value of the previous lifecycles. For example, if we have the following two lifecycles:
-     * [
-     *   {
-     *     "lifecycle": {
-     *       "data_retention" : "10d"
-     *     }
-     *   },
-     *   {
-     *     "lifecycle": {
-     *       "data_retention" : "20d"
-     *     }
-     *   }
-     * ]
-     * The result will be { "lifecycle": { "data_retention" : "20d"}} because the second data retention overrides the first.
-     * However, if we have the following two lifecycles:
-     * [
-     *   {
-     *     "lifecycle": {
-     *       "data_retention" : "10d"
-     *     }
-     *   },
-     *   {
-     *   "lifecycle": { }
-     *   }
-     * ]
-     * The result will be { "lifecycle": { "data_retention" : "10d"} } because the latest lifecycle does not have any
-     * information on retention.
-     * @param lifecycles a sorted list of lifecycles in the order that they will be composed
-     * @return the final lifecycle
+     * The least amount of time data should be kept by elasticsearch.
+     * @return the time period or null, null represents that data should never be deleted.
      */
     @Nullable
-    public static DataLifecycle compose(List<DataLifecycle> lifecycles) {
-        DataLifecycle.Builder builder = null;
-        for (DataLifecycle current : lifecycles) {
-            if (builder == null) {
-                builder = Builder.newBuilder(current);
-            } else {
-                if (current.dataRetention != null) {
-                    builder.dataRetention(current.getDataRetention());
-                }
-            }
-        }
-        return builder == null ? null : builder.build();
+    public TimeValue getEffectiveDataRetention() {
+        return dataRetention == null ? null : dataRetention.value;
     }
 
+    /**
+     * The configuration as provided by the user about the least amount of time data should be kept by elasticsearch.
+     * This method differentiates between a missing retention and a nullified retention and this is useful for template
+     * composition.
+     * @return one of the following:
+     * - `null`, represents that the user did not provide data retention, this represents the user has no opinion about retention
+     * - `Retention{value = null}`, represents that the user explicitly wants to have infinite retention
+     * - `Retention{value = "10d"}`, represents that the user has requested the data to be kept at least 10d.
+     */
     @Nullable
-    public TimeValue getDataRetention() {
+    Retention getDataRetention() {
         return dataRetention;
     }
 
@@ -148,16 +124,29 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
 
     @Override
     public int hashCode() {
-        return Objects.hashCode(dataRetention);
+        return Objects.hash(dataRetention);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalTimeValue(dataRetention);
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_007)) {
+            out.writeOptionalWriteable(dataRetention);
+        } else {
+            out.writeOptionalTimeValue(getEffectiveDataRetention());
+        }
     }
 
     public DataLifecycle(StreamInput in) throws IOException {
-        dataRetention = in.readOptionalTimeValue();
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_007)) {
+            dataRetention = in.readOptionalWriteable(Retention::read);
+        } else {
+            var value = in.readOptionalTimeValue();
+            if (value == null) {
+                dataRetention = null;
+            } else {
+                dataRetention = new Retention(value);
+            }
+        }
     }
 
     public static Diff<DataLifecycle> readDiffFrom(StreamInput in) throws IOException {
@@ -181,11 +170,15 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
         throws IOException {
         builder.startObject();
         if (dataRetention != null) {
-            builder.field(DATA_RETENTION_FIELD.getPreferredName(), dataRetention.getStringRep());
+            if (dataRetention.value() == null) {
+                builder.nullField(DATA_RETENTION_FIELD.getPreferredName());
+            } else {
+                builder.field(DATA_RETENTION_FIELD.getPreferredName(), dataRetention.value().getStringRep());
+            }
         }
         if (rolloverConfiguration != null) {
             builder.field(ROLLOVER_FIELD.getPreferredName());
-            rolloverConfiguration.evaluateAndConvertToXContent(builder, params, dataRetention);
+            rolloverConfiguration.evaluateAndConvertToXContent(builder, params, getEffectiveDataRetention());
         }
         builder.endObject();
         return builder;
@@ -200,9 +193,9 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
      */
     static class Builder {
         @Nullable
-        private TimeValue dataRetention = null;
+        private Retention dataRetention = null;
 
-        Builder dataRetention(@Nullable TimeValue value) {
+        Builder dataRetention(@Nullable Retention value) {
             dataRetention = value;
             return this;
         }
@@ -213,6 +206,25 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
 
         static Builder newBuilder(DataLifecycle dataLifecycle) {
             return new Builder().dataRetention(dataLifecycle.getDataRetention());
+        }
+    }
+
+    /**
+     * Retention is the least amount of time that the data will be kept by elasticsearch. Public for testing.
+     * @param value is a time period or null. Null represents an explicitly set infinite retention period
+     */
+    public record Retention(@Nullable TimeValue value) implements Writeable {
+
+        // For testing
+        public static final Retention NULL = new Retention(null);
+
+        public static Retention read(StreamInput in) throws IOException {
+            return new Retention(in.readOptionalTimeValue());
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeOptionalTimeValue(value);
         }
     }
 }

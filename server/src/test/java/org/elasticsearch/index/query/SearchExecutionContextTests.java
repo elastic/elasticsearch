@@ -183,7 +183,7 @@ public class SearchExecutionContextTests extends ESTestCase {
             null,
             null,
             null,
-            null,
+            MappingLookup.EMPTY,
             null,
             null,
             XContentParserConfiguration.EMPTY,

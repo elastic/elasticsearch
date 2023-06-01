@@ -18,8 +18,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponseUtils;
@@ -32,7 +32,6 @@ import org.elasticsearch.test.rest.RestActionTestCase;
 import java.util.HashMap;
 import java.util.Map;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.emptyString;
@@ -52,7 +51,7 @@ public class RestCatComponentTemplateActionTests extends RestActionTestCase {
         action = new RestCatComponentTemplateAction();
         clusterName = new ClusterName("cluster-1");
         DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
-        builder.add(TestDiscoveryNode.create("node-1", buildNewFakeTransportAddress(), emptyMap(), emptySet()));
+        builder.add(DiscoveryNodeUtils.builder("node-1").roles(emptySet()).build());
         ComponentTemplate ct1 = new ComponentTemplate(
             new Template(Settings.builder().put("number_of_replicas", 2).put("index.blocks.write", true).build(), null, null),
             2L,

@@ -10,8 +10,8 @@ package org.elasticsearch.persistent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -90,7 +90,7 @@ public abstract class PersistentTasksDecidersTestCase extends ESTestCase {
     protected static ClusterState createClusterStateWithTasks(final int nbNodes, final int nbTasks) {
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder();
         for (int i = 0; i < nbNodes; i++) {
-            nodes.add(TestDiscoveryNode.create("_node_" + i));
+            nodes.add(DiscoveryNodeUtils.create("_node_" + i));
         }
 
         PersistentTasksCustomMetadata.Builder tasks = PersistentTasksCustomMetadata.builder();

@@ -16,15 +16,14 @@ import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.common.Strings;
 
 import java.util.Arrays;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.containsString;
 
@@ -44,7 +43,7 @@ public class ClusterStateToStringTests extends ESAllocationTestCase {
             .build();
 
         DiscoveryNodes nodes = DiscoveryNodes.builder()
-            .add(TestDiscoveryNode.create("node_foo", buildNewFakeTransportAddress(), emptyMap(), emptySet()))
+            .add(DiscoveryNodeUtils.builder("node_foo").roles(emptySet()).build())
             .localNodeId("node_foo")
             .masterNodeId("node_foo")
             .build();

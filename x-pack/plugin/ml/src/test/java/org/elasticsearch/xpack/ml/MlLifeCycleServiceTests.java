@@ -11,8 +11,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -189,7 +189,7 @@ public class MlLifeCycleServiceTests extends ESTestCase {
         // Local node is node-2 here
         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder()
             .add(
-                TestDiscoveryNode.create(
+                DiscoveryNodeUtils.create(
                     "node-1-name",
                     "node-1",
                     new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
@@ -198,7 +198,7 @@ public class MlLifeCycleServiceTests extends ESTestCase {
                 )
             )
             .add(
-                TestDiscoveryNode.create(
+                DiscoveryNodeUtils.create(
                     "node-2-name",
                     "node-2",
                     new TransportAddress(InetAddress.getLoopbackAddress(), 9301),
@@ -207,7 +207,7 @@ public class MlLifeCycleServiceTests extends ESTestCase {
                 )
             )
             .add(
-                TestDiscoveryNode.create(
+                DiscoveryNodeUtils.create(
                     "node-3-name",
                     "node-3",
                     new TransportAddress(InetAddress.getLoopbackAddress(), 9302),
@@ -251,7 +251,7 @@ public class MlLifeCycleServiceTests extends ESTestCase {
         // Local node is node-2 here
         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder()
             .add(
-                TestDiscoveryNode.create(
+                DiscoveryNodeUtils.create(
                     "node-1-name",
                     "node-1",
                     new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
@@ -260,7 +260,7 @@ public class MlLifeCycleServiceTests extends ESTestCase {
                 )
             )
             .add(
-                TestDiscoveryNode.create(
+                DiscoveryNodeUtils.create(
                     "node-2-name",
                     "node-2",
                     new TransportAddress(InetAddress.getLoopbackAddress(), 9301),
@@ -269,7 +269,7 @@ public class MlLifeCycleServiceTests extends ESTestCase {
                 )
             )
             .add(
-                TestDiscoveryNode.create(
+                DiscoveryNodeUtils.create(
                     "node-3-name",
                     "node-3",
                     new TransportAddress(InetAddress.getLoopbackAddress(), 9302),

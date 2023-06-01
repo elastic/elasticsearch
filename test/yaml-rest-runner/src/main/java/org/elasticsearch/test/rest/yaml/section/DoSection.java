@@ -38,7 +38,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static java.util.Collections.emptyList;
@@ -438,8 +437,7 @@ public class DoSection implements ExecutableSection {
             .collect(toCollection(LinkedHashSet::new));
         final Set<Pattern> expectedRegex = new LinkedHashSet<>(expectedWarningHeadersRegex);
         for (final String header : warningHeaders) {
-            final Matcher matcher = HeaderWarning.WARNING_HEADER_PATTERN.matcher(header);
-            final boolean matches = matcher.matches();
+            final boolean matches = HeaderWarning.warningHeaderPatternMatches(header);
             if (matches) {
                 final String message = HeaderWarning.extractWarningValueFromWarningHeader(header, true);
                 if (allowed.contains(message)) {

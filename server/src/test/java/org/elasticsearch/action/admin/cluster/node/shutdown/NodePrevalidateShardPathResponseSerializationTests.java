@@ -9,7 +9,7 @@
 package org.elasticsearch.action.admin.cluster.node.shutdown;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
@@ -35,7 +35,7 @@ public class NodePrevalidateShardPathResponseSerializationTests extends Abstract
     }
 
     public static DiscoveryNode getRandomNode() {
-        return TestDiscoveryNode.create(randomAlphaOfLength(10));
+        return DiscoveryNodeUtils.create(randomAlphaOfLength(10));
     }
 
     @Override

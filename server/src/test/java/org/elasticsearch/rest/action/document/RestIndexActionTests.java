@@ -15,8 +15,8 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.shard.ShardId;
@@ -88,7 +88,7 @@ public class RestIndexActionTests extends RestActionTestCase {
             ClusterState.builder(ClusterName.DEFAULT)
                 .nodes(
                     DiscoveryNodes.builder()
-                        .add(TestDiscoveryNode.create("test", buildNewFakeTransportAddress(), minClusterVersion))
+                        .add(DiscoveryNodeUtils.create("test", buildNewFakeTransportAddress(), minClusterVersion))
                         .build()
                 )
                 .build()

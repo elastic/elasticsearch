@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.security.action.realm;
 
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.tasks.Task;
@@ -173,7 +173,7 @@ public class TransportClearRealmCacheActionTests extends ESTestCase {
 
     private ClusterService mockClusterService() {
         ClusterService clusterService = mock(ClusterService.class);
-        DiscoveryNode localNode = TestDiscoveryNode.create("localnode", buildNewFakeTransportAddress(), Map.of(), Set.of());
+        DiscoveryNode localNode = DiscoveryNodeUtils.create("localnode", buildNewFakeTransportAddress(), Map.of(), Set.of());
         when(clusterService.localNode()).thenReturn(localNode);
         return clusterService;
     }

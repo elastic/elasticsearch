@@ -13,8 +13,8 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -98,7 +98,7 @@ public class NodesShutdownMetadataTests extends ChunkedToXContentDiffableSeriali
 
             state = ClusterState.builder(state)
                 .metadata(Metadata.builder(state.metadata()).putCustom(NodesShutdownMetadata.TYPE, nodesShutdownMetadata).build())
-                .nodes(DiscoveryNodes.builder(state.nodes()).add(TestDiscoveryNode.create("_node_1")).build())
+                .nodes(DiscoveryNodes.builder(state.nodes()).add(DiscoveryNodeUtils.create("_node_1")).build())
                 .build();
 
             assertThat(state.metadata().nodeShutdowns().contains("this_node"), equalTo(true));

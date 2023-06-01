@@ -16,7 +16,8 @@ public class TransformMessages {
         "Timed out after [{0}] while waiting for transform [{1}] to stop";
     public static final String REST_STOP_TRANSFORM_WAIT_FOR_COMPLETION_INTERRUPT = "Interrupted while waiting for transform [{0}] to stop";
     public static final String REST_PUT_TRANSFORM_EXISTS = "Transform with id [{0}] already exists";
-    public static final String REST_UPDATE_TRANSFORM_CONFLICT = "Transform with id [{0}] got updated in the meantime. Please try again";
+    public static final String REST_UPDATE_TRANSFORM_CONFLICT =
+        "Cannot update transform id [{0}] due to a concurrent update conflict. Please retry.";
     public static final String REST_UNKNOWN_TRANSFORM = "Transform with id [{0}] could not be found";
     public static final String REST_STOP_TRANSFORM_WITHOUT_CONFIG =
         "Detected transforms with no config [{0}]. Use force to stop/delete them.";

@@ -14,8 +14,8 @@ import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.Processors;
@@ -204,7 +204,7 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
             .collect(Collectors.toSet());
         final long memory = between(0, 1000);
         state = ClusterState.builder(ClusterName.DEFAULT)
-            .nodes(DiscoveryNodes.builder().add(TestDiscoveryNode.create("nodeId", buildNewFakeTransportAddress(), Map.of(), roles)))
+            .nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.create("nodeId", buildNewFakeTransportAddress(), Map.of(), roles)))
             .build();
         context = new AutoscalingCalculateCapacityService.DefaultAutoscalingDeciderContext(
             roleNames,
@@ -235,7 +235,7 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
         for (int i = 0; i < randomIntBetween(1, 5); ++i) {
             String nodeId = "nodeId" + i;
             boolean useOtherRoles = randomBoolean();
-            DiscoveryNode node = TestDiscoveryNode.create(
+            DiscoveryNode node = DiscoveryNodeUtils.create(
                 nodeId,
                 buildNewFakeTransportAddress(),
                 Map.of(),

@@ -33,8 +33,8 @@ import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -406,8 +406,8 @@ public class MlIndexAndAliasTests extends ESTestCase {
         return ClusterState.builder(ClusterName.DEFAULT)
             .nodes(
                 DiscoveryNodes.builder()
-                    .add(TestDiscoveryNode.create("foo", new TransportAddress(inetAddress1, 9201)))
-                    .add(TestDiscoveryNode.create("bar", new TransportAddress(inetAddress2, 9202), minNodeVersion))
+                    .add(DiscoveryNodeUtils.create("foo", new TransportAddress(inetAddress1, 9201)))
+                    .add(DiscoveryNodeUtils.create("bar", new TransportAddress(inetAddress2, 9202), minNodeVersion))
                     .build()
             )
             .metadata(Metadata.builder().indices(indices).templates(legacyTemplates).indexTemplates(composableTemplates).build())

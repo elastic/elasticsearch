@@ -728,6 +728,43 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
         }
     }
 
+    public void testRandomWritesAndSeeks() throws IOException {
+        try (RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler)) {
+
+            final byte[] expectedBuffer = new byte[between(0, PageCacheRecycler.BYTE_PAGE_SIZE * 4)];
+            int currentPos = 0;
+
+            for (int i = scaledRandomIntBetween(0, 1000); i >= 0; i--) {
+                switch (between(1, 3)) {
+                    case 1 -> {
+                        currentPos = between(0, expectedBuffer.length);
+                        out.seek(currentPos);
+                    }
+                    case 2 -> {
+                        if (currentPos < expectedBuffer.length) {
+                            byte newByte = randomByte();
+                            expectedBuffer[currentPos] = newByte;
+                            out.write(newByte);
+                            currentPos += 1;
+                        }
+                    }
+                    case 3 -> {
+                        final var newBytes = randomByteArrayOfLength(scaledRandomIntBetween(0, expectedBuffer.length));
+                        final var startPos = between(0, newBytes.length);
+                        final var len = between(0, Math.min(newBytes.length - startPos, expectedBuffer.length - currentPos));
+                        out.write(newBytes, startPos, len);
+                        System.arraycopy(newBytes, startPos, expectedBuffer, currentPos, len);
+                        currentPos += len;
+                    }
+                }
+            }
+
+            final byte[] expected = new byte[currentPos];
+            System.arraycopy(expectedBuffer, 0, expected, 0, currentPos);
+            assertArrayEquals(expected, BytesReference.toBytes(out.bytes()));
+        }
+    }
+
     private static class TestWriteable implements Writeable {
 
         private boolean value;

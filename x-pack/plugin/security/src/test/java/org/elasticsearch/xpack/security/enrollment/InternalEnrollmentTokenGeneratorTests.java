@@ -17,7 +17,7 @@ import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -52,7 +52,6 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
@@ -225,7 +224,7 @@ public class InternalEnrollmentTokenGeneratorTests extends ESTestCase {
                         Version.CURRENT,
                         TransportVersion.CURRENT,
                         null,
-                        TestDiscoveryNode.create("node-name", "1", buildNewFakeTransportAddress(), Map.of(), Set.of()),
+                        DiscoveryNodeUtils.builder("1").name("node-name").roles(Set.of()).build(),
                         null,
                         null,
                         null,
@@ -258,7 +257,7 @@ public class InternalEnrollmentTokenGeneratorTests extends ESTestCase {
                         Version.CURRENT,
                         TransportVersion.CURRENT,
                         null,
-                        TestDiscoveryNode.create("node-name", "1", buildNewFakeTransportAddress(), Map.of(), Set.of()),
+                        DiscoveryNodeUtils.builder("1").name("node-name").roles(Set.of()).build(),
                         null,
                         null,
                         null,

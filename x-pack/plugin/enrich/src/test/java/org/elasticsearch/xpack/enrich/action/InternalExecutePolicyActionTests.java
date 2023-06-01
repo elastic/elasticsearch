@@ -10,8 +10,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportService;
 import org.junit.Before;
@@ -121,6 +121,6 @@ public class InternalExecutePolicyActionTests extends ESTestCase {
     }
 
     private static DiscoveryNode newNode(String nodeId, Set<DiscoveryNodeRole> roles, Version version) {
-        return TestDiscoveryNode.create(nodeId, buildNewFakeTransportAddress(), emptyMap(), roles, version);
+        return DiscoveryNodeUtils.create(nodeId, buildNewFakeTransportAddress(), emptyMap(), roles, version);
     }
 }

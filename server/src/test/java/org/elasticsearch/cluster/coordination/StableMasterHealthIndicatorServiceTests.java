@@ -13,8 +13,8 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -62,9 +62,9 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
 
     @Before
     public void setup() throws Exception {
-        node1 = TestDiscoveryNode.create("node1", randomNodeId());
-        node2 = TestDiscoveryNode.create("node2", randomNodeId());
-        node3 = TestDiscoveryNode.create("node3", randomNodeId());
+        node1 = DiscoveryNodeUtils.create("node1", randomNodeId());
+        node2 = DiscoveryNodeUtils.create("node2", randomNodeId());
+        node3 = DiscoveryNodeUtils.create("node3", randomNodeId());
         nullMasterClusterState = createClusterState(null);
         node1MasterClusterState = createClusterState(node1);
         node2MasterClusterState = createClusterState(node2);

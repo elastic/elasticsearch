@@ -30,7 +30,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.GroupShardsIteratorTests;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -63,7 +63,6 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilder;
@@ -249,7 +248,7 @@ public class TransportSearchActionTests extends ESTestCase {
         Map<String, SearchShardsResponse> searchShardsResponseMap = new LinkedHashMap<>();
         // first cluster - new response
         {
-            List<DiscoveryNode> nodes = List.of(TestDiscoveryNode.create("node1"), TestDiscoveryNode.create("node2"));
+            List<DiscoveryNode> nodes = List.of(DiscoveryNodeUtils.create("node1"), DiscoveryNodeUtils.create("node2"));
             Map<String, AliasFilter> aliasFilters1 = Map.of(
                 "foo_id",
                 AliasFilter.of(new TermsQueryBuilder("foo", "bar"), "some_alias_for_foo", "some_other_foo_alias"),
@@ -265,7 +264,7 @@ public class TransportSearchActionTests extends ESTestCase {
         }
         // second cluster - legacy response
         {
-            DiscoveryNode[] nodes2 = new DiscoveryNode[] { TestDiscoveryNode.create("node3") };
+            DiscoveryNode[] nodes2 = new DiscoveryNode[] { DiscoveryNodeUtils.create("node3") };
             ClusterSearchShardsGroup[] groups2 = new ClusterSearchShardsGroup[] {
                 new ClusterSearchShardsGroup(
                     new ShardId("xyz", "xyz_id", 0),
@@ -360,11 +359,11 @@ public class TransportSearchActionTests extends ESTestCase {
     }
 
     public void testBuildConnectionLookup() {
-        Function<String, DiscoveryNode> localNodes = (nodeId) -> TestDiscoveryNode.create(
+        Function<String, DiscoveryNode> localNodes = (nodeId) -> DiscoveryNodeUtils.create(
             "local-" + nodeId,
             new TransportAddress(TransportAddress.META_ADDRESS, 1024)
         );
-        BiFunction<String, String, DiscoveryNode> remoteNodes = (clusterAlias, nodeId) -> TestDiscoveryNode.create(
+        BiFunction<String, String, DiscoveryNode> remoteNodes = (clusterAlias, nodeId) -> DiscoveryNodeUtils.create(
             "remote-" + nodeId,
             new TransportAddress(TransportAddress.META_ADDRESS, 2048)
         );
@@ -501,7 +500,6 @@ public class TransportSearchActionTests extends ESTestCase {
         boolean local = randomBoolean();
         OriginalIndices localIndices = local ? new OriginalIndices(new String[] { "index" }, SearchRequest.DEFAULT_INDICES_OPTIONS) : null;
         TransportSearchAction.SearchTimeProvider timeProvider = new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0);
-        Function<Boolean, AggregationReduceContext> reduceContext = finalReduce -> null;
         try (
             MockTransportService service = MockTransportService.createNewService(
                 settings,

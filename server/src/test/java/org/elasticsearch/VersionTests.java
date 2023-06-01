@@ -178,7 +178,7 @@ public class VersionTests extends ESTestCase {
         for (int i = 0; i < iters; i++) {
             Version version = randomVersion(random());
             if (random().nextBoolean()) {
-                version = new Version(version.id, version.luceneVersion());
+                version = new Version(version.id, version.indexVersion);
             }
             Version parsedVersion = Version.fromString(version.toString());
             assertEquals(version, parsedVersion);

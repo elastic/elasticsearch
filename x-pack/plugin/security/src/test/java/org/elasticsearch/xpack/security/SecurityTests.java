@@ -19,8 +19,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.Loggers;
@@ -370,7 +370,7 @@ public class SecurityTests extends ESTestCase {
     }
 
     public void testJoinValidatorForFIPSOnAllowedLicense() throws Exception {
-        DiscoveryNode node = TestDiscoveryNode.create(
+        DiscoveryNode node = DiscoveryNodeUtils.create(
             "foo",
             buildNewFakeTransportAddress(),
             VersionUtils.randomVersionBetween(random(), null, Version.CURRENT)
@@ -397,7 +397,7 @@ public class SecurityTests extends ESTestCase {
     }
 
     public void testJoinValidatorForFIPSOnForbiddenLicense() throws Exception {
-        DiscoveryNode node = TestDiscoveryNode.create(
+        DiscoveryNode node = DiscoveryNodeUtils.create(
             "foo",
             buildNewFakeTransportAddress(),
             VersionUtils.randomVersionBetween(random(), null, Version.CURRENT)
@@ -428,14 +428,14 @@ public class SecurityTests extends ESTestCase {
         createComponents(Settings.EMPTY);
         BiConsumer<DiscoveryNode, ClusterState> joinValidator = security.getJoinValidator();
         assertNotNull(joinValidator);
-        DiscoveryNode node = TestDiscoveryNode.create("foo");
+        DiscoveryNode node = DiscoveryNodeUtils.create("foo");
         int indexFormat = randomBoolean() ? INTERNAL_MAIN_INDEX_FORMAT : INTERNAL_MAIN_INDEX_FORMAT - 1;
         IndexMetadata indexMetadata = IndexMetadata.builder(SECURITY_MAIN_ALIAS)
             .settings(settings(VersionUtils.randomIndexCompatibleVersion(random())).put(INDEX_FORMAT_SETTING.getKey(), indexFormat))
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
-        DiscoveryNode existingOtherNode = TestDiscoveryNode.create("bar");
+        DiscoveryNode existingOtherNode = DiscoveryNodeUtils.create("bar");
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(existingOtherNode).build();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(discoveryNodes)
@@ -449,13 +449,13 @@ public class SecurityTests extends ESTestCase {
         BiConsumer<DiscoveryNode, ClusterState> joinValidator = security.getJoinValidator();
         assertNotNull(joinValidator);
         Version version = VersionUtils.randomIndexCompatibleVersion(random());
-        DiscoveryNode node = TestDiscoveryNode.create("foo");
+        DiscoveryNode node = DiscoveryNodeUtils.create("foo");
         IndexMetadata indexMetadata = IndexMetadata.builder(SECURITY_MAIN_ALIAS)
             .settings(settings(version).put(INDEX_FORMAT_SETTING.getKey(), INTERNAL_MAIN_INDEX_FORMAT))
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
-        DiscoveryNode existingOtherNode = TestDiscoveryNode.create("bar", buildNewFakeTransportAddress(), version);
+        DiscoveryNode existingOtherNode = DiscoveryNodeUtils.create("bar", buildNewFakeTransportAddress(), version);
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(existingOtherNode).build();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(discoveryNodes)
@@ -468,8 +468,8 @@ public class SecurityTests extends ESTestCase {
         createComponents(Settings.EMPTY);
         BiConsumer<DiscoveryNode, ClusterState> joinValidator = security.getJoinValidator();
         assertNotNull(joinValidator);
-        DiscoveryNode node = TestDiscoveryNode.create("foo");
-        DiscoveryNode existingOtherNode = TestDiscoveryNode.create(
+        DiscoveryNode node = DiscoveryNodeUtils.create("foo");
+        DiscoveryNode existingOtherNode = DiscoveryNodeUtils.create(
             "bar",
             buildNewFakeTransportAddress(),
             VersionUtils.randomCompatibleVersion(random(), Version.CURRENT)

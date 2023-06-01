@@ -343,7 +343,7 @@ final class Lucene54DocValuesConsumer extends DocValuesConsumer implements Close
                 bits = 0;
             }
             if (v != null) {
-                bits |= 1 << (count & 7);
+                bits |= (byte) (1 << (count & 7));
             }
             count++;
         }

@@ -44,16 +44,16 @@ public class FleetTemplateRegistry extends IndexTemplateRegistry {
         new IndexTemplateConfig(".fleet-files", "/fleet-files.json", INDEX_TEMPLATE_VERSION, TEMPLATE_VERSION_VARIABLE),
         new IndexTemplateConfig(".fleet-file-data", "/fleet-file-data.json", INDEX_TEMPLATE_VERSION, TEMPLATE_VERSION_VARIABLE),
         new IndexTemplateConfig(
-          ".fleet-filedelivery-meta",
-          "/fleet-filedelivery-meta.json",
-          INDEX_TEMPLATE_VERSION,
-          TEMPLATE_VERSION_VARIABLE
+            ".fleet-filedelivery-meta",
+            "/fleet-filedelivery-meta.json",
+            INDEX_TEMPLATE_VERSION,
+            TEMPLATE_VERSION_VARIABLE
         ),
         new IndexTemplateConfig(
-          ".fleet-filedelivery-data",
-          "/fleet-filedelivery-data.json",
-          INDEX_TEMPLATE_VERSION,
-          TEMPLATE_VERSION_VARIABLE
+            ".fleet-filedelivery-data",
+            "/fleet-filedelivery-data.json",
+            INDEX_TEMPLATE_VERSION,
+            TEMPLATE_VERSION_VARIABLE
         )
     );
 

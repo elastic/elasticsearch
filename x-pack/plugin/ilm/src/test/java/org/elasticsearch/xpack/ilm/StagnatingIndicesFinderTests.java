@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -25,6 +26,7 @@ import java.util.function.LongSupplier;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
+import static org.elasticsearch.xpack.ilm.IlmHealthIndicatorService.isStagnated;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Mockito.mock;
@@ -39,8 +41,8 @@ public class StagnatingIndicesFinderTests extends ESTestCase {
         var stagnatingIndices = List.of(idxMd1.indexName, idxMd3.indexName);
         var mockedTimeSupplier = mock(LongSupplier.class);
         var instant = (long) randomIntBetween(100000, 200000);
-        var ruleEvaluator = new IlmHealthIndicatorService.StagnatingIndicesRuleEvaluator(
-            List.of((now, indexMetadata) -> now == instant && stagnatingIndices.contains(indexMetadata.getIndex().getName()))
+        var ruleEvaluator = List.<IlmHealthIndicatorService.RuleConfig>of(
+            (now, indexMetadata) -> now == instant && stagnatingIndices.contains(indexMetadata.getIndex().getName())
         );
         // Per the evaluator, the timeSupplier _must_ be called only twice
         when(mockedTimeSupplier.getAsLong()).thenReturn(instant, instant);
@@ -71,18 +73,18 @@ public class StagnatingIndicesFinderTests extends ESTestCase {
             // no rule matches
             var executions = randomIntBetween(3, 200);
             var calls = new AtomicInteger(0);
-            var predicates = IntStream.range(0, executions).mapToObj(i -> (IlmHealthIndicatorService.RuleConfig) (now, idxMd) -> {
+            var rules = IntStream.range(0, executions).mapToObj(i -> (IlmHealthIndicatorService.RuleConfig) (now, idxMd) -> {
                 assertEquals(now, moment);
                 assertSame(idxMd, indexMetadata);
                 calls.incrementAndGet();
                 return false;
             }).toList();
-            assertFalse(new IlmHealthIndicatorService.StagnatingIndicesRuleEvaluator(predicates).isStagnated(moment, indexMetadata));
+            assertFalse(isStagnated(rules, moment, indexMetadata));
             assertEquals(calls.get(), executions);
         }
         {
             var calls = new AtomicReference<>(new ArrayList<Integer>());
-            var predicates = List.<IlmHealthIndicatorService.RuleConfig>of((now, idxMd) -> { // will be called
+            var rules = List.<IlmHealthIndicatorService.RuleConfig>of((now, idxMd) -> { // will be called
                 assertEquals(now, moment);
                 assertSame(idxMd, indexMetadata);
                 calls.get().add(1);
@@ -104,7 +106,7 @@ public class StagnatingIndicesFinderTests extends ESTestCase {
                 return false;
             });
 
-            assertTrue(new IlmHealthIndicatorService.StagnatingIndicesRuleEvaluator(predicates).isStagnated(moment, indexMetadata));
+            assertTrue(isStagnated(rules, moment, indexMetadata));
             assertEquals(calls.get(), List.of(1, 2));
         }
     }
@@ -129,7 +131,7 @@ public class StagnatingIndicesFinderTests extends ESTestCase {
     }
 
     private IlmHealthIndicatorService.StagnatingIndicesFinder createStagnatingIndicesFinder(
-        IlmHealthIndicatorService.StagnatingIndicesRuleEvaluator evaluator,
+        Collection<IlmHealthIndicatorService.RuleConfig> evaluator,
         LongSupplier timeSupplier,
         IndexMetadata... indicesMetadata
     ) {

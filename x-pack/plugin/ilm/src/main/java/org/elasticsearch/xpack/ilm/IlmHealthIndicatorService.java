@@ -35,13 +35,12 @@ import org.elasticsearch.xpack.core.ilm.WaitForDataTierStep;
 import org.elasticsearch.xpack.core.ilm.WaitForIndexColorStep;
 import org.elasticsearch.xpack.core.ilm.WaitForNoFollowersStep;
 
-import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeSet;
-import java.util.function.BiPredicate;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
@@ -129,9 +128,7 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
         actionRule(DownsampleAction.NAME).maxTimeOnAction(ONE_DAY).stepRules(stepRule(WaitForNoFollowersStep.NAME))
     );
 
-    public static final StagnatingIndicesRuleEvaluator ILM_RULE_EVALUATOR = new StagnatingIndicesRuleEvaluator(
-        RULES_BY_ACTION_CONFIG.values().stream().toList()
-    );
+    public static final Collection<RuleConfig> ILM_RULE_EVALUATOR = RULES_BY_ACTION_CONFIG.values();
 
     static final Map<String, Diagnosis.Definition> STAGNATING_ACTION_DEFINITIONS = RULES_BY_ACTION_CONFIG.entrySet()
         .stream()
@@ -269,22 +266,7 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
      * Class in charge of find all the indices that are _potentially_ stagnated at some ILM action. To find the indices, it uses a list of
      * rules evaluators (Check {@link org.elasticsearch.xpack.ilm.IlmHealthIndicatorService#RULES_BY_ACTION_CONFIG to the current rules}
      */
-    static class StagnatingIndicesFinder {
-
-        private final ClusterService clusterService;
-        private final StagnatingIndicesRuleEvaluator stagnatingIndicesRuleEvaluator;
-        private final LongSupplier nowSupplier;
-
-        StagnatingIndicesFinder(
-            ClusterService clusterService,
-            StagnatingIndicesRuleEvaluator stagnatingIndicesRuleEvaluator,
-            LongSupplier nowSupplier
-        ) {
-            this.clusterService = clusterService;
-            this.stagnatingIndicesRuleEvaluator = stagnatingIndicesRuleEvaluator;
-            this.nowSupplier = nowSupplier;
-        }
-
+    record StagnatingIndicesFinder(ClusterService clusterService, Collection<RuleConfig> rules, LongSupplier nowSupplier) {
         /**
          * @return A list containing the ILM managed indices that are stagnated in any ILM action/step.
          */
@@ -295,25 +277,30 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
                 .values()
                 .stream()
                 .filter(metadata::isIndexManagedByILM)
-                .filter(md -> stagnatingIndicesRuleEvaluator.isStagnated(now, md))
+                .filter(md -> isStagnated(rules, now, md))
                 .toList();
         }
     }
 
-    record StagnatingIndicesRuleEvaluator(List<RuleConfig> rules) {
-        public boolean isStagnated(Long now, IndexMetadata indexMetadata) {
-            return rules.stream().anyMatch(r -> r.test(now, indexMetadata));
-        }
+    static boolean isStagnated(Collection<RuleConfig> rules, Long now, IndexMetadata indexMetadata) {
+        return rules.stream().anyMatch(r -> r.test(now, indexMetadata));
     }
 
-    interface RuleConfig extends BiPredicate<Long, IndexMetadata> {
-        default TimeValue safelyGetTimeValue(Long now, Long currentTime) {
+    @FunctionalInterface
+    public interface RuleConfig {
+
+        boolean test(Long now, IndexMetadata indexMetadata);
+
+        static TimeValue getElapsedTime(Long now, Long currentTime) {
             return currentTime == null ? TimeValue.ZERO : TimeValue.timeValueMillis(now - currentTime);
         }
 
-        @Override
-        default RuleConfig and(BiPredicate<? super Long, ? super IndexMetadata> other) {
-            return (RuleConfig) BiPredicate.super.and(other);
+        default RuleConfig and(RuleConfig other) {
+            return (now, indexMetadata) -> test(now, indexMetadata) && other.test(now, indexMetadata);
+        }
+
+        default RuleConfig or(RuleConfig other) {
+            return (now, indexMetadata) -> test(now, indexMetadata) || other.test(now, indexMetadata);
         }
 
         class Builder {
@@ -332,8 +319,16 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
             }
 
             RuleConfig stepRules(StepRule... stepRules) {
-                var reduce = Arrays.stream(stepRules).reduce(new StepRule("", null, 0), StepRule::or);
-                return new ActionRule(action, maxTimeOn).and(reduce);
+                assert stepRules.length > 0;
+                if (stepRules.length == 1) {
+                    return new ActionRule(action, maxTimeOn).and(stepRules[0]);
+                } else {
+                    RuleConfig stepRule = stepRules[0];
+                    for (var i = 1; i < stepRules.length; i++) {
+                        stepRule = stepRule.or(stepRules[i]);
+                    }
+                    return new ActionRule(action, maxTimeOn).and(stepRule);
+                }
             }
 
             RuleConfig noStepRules() {
@@ -351,27 +346,21 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
                 return action.equals(currentAction);
             } else {
                 return action.equals(currentAction)
-                    && maxTimeOn.compareTo(safelyGetTimeValue(now, indexMetadata.getLifecycleExecutionState().actionTime())) < 0;
+                    && maxTimeOn.compareTo(RuleConfig.getElapsedTime(now, indexMetadata.getLifecycleExecutionState().actionTime())) < 0;
             }
         }
     }
 
-    record StepRule(String step, TimeValue maxTimeOn, long maxRetries) implements RuleConfig {
+    public record StepRule(String step, TimeValue maxTimeOn, long maxRetries) implements RuleConfig {
         static StepRule stepRule(String name) {
             return new StepRule(name, ONE_DAY, 100);
         }
 
         @Override
         public boolean test(Long now, IndexMetadata indexMetadata) {
-            var currentStep = indexMetadata.getLifecycleExecutionState().step();
-            var currentStepRetries = indexMetadata.getLifecycleExecutionState().failedStepRetryCount();
-            var currentTimeOnAction = safelyGetTimeValue(now, indexMetadata.getLifecycleExecutionState().actionTime());
-            return step.equals(currentStep) && (maxTimeOn.compareTo(currentTimeOnAction) < 0 || currentStepRetries > maxRetries);
-        }
-
-        @Override
-        public StepRule or(BiPredicate<? super Long, ? super IndexMetadata> other) {
-            return (StepRule) RuleConfig.super.or(other);
+            return step.equals(indexMetadata.getLifecycleExecutionState().step())
+                && (maxTimeOn.compareTo(RuleConfig.getElapsedTime(now, indexMetadata.getLifecycleExecutionState().stepTime())) < 0
+                    || indexMetadata.getLifecycleExecutionState().failedStepRetryCount() > maxRetries);
         }
     }
 }

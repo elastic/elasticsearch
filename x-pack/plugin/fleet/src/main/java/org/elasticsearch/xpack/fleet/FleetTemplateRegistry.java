@@ -42,7 +42,7 @@ public class FleetTemplateRegistry extends IndexTemplateRegistry {
 
     public static final Map<String, ComposableIndexTemplate> COMPOSABLE_INDEX_TEMPLATE_CONFIGS = parseComposableTemplates(
         new IndexTemplateConfig(".fleet-files", "/fleet-files.json", INDEX_TEMPLATE_VERSION, TEMPLATE_VERSION_VARIABLE),
-        new IndexTemplateConfig(".fleet-file-data", "/fleet-file-data.json", INDEX_TEMPLATE_VERSION, TEMPLATE_VERSION_VARIABLE)
+        new IndexTemplateConfig(".fleet-file-data", "/fleet-file-data.json", INDEX_TEMPLATE_VERSION, TEMPLATE_VERSION_VARIABLE),
         new IndexTemplateConfig(".fleet-filedelivery-meta", "/fleet-filedelivery-meta.json", INDEX_TEMPLATE_VERSION, TEMPLATE_VERSION_VARIABLE),
         new IndexTemplateConfig(".fleet-filedelivery-data", "/fleet-filedelivery-data.json", INDEX_TEMPLATE_VERSION, TEMPLATE_VERSION_VARIABLE)
     );

@@ -1558,7 +1558,7 @@ public class IndexShardTests extends IndexShardTestCase {
             indexMetadata.build(),
             null,
             new InternalEngineFactory(),
-            ignoredShardId -> {},
+            () -> {},
             RetentionLeaseSyncer.EMPTY
         );
         recoverShardFromStore(shard);

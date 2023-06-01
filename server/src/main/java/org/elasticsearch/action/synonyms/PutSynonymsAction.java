@@ -13,13 +13,13 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ValidateActions;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.synonyms.SynonymRule;
 import org.elasticsearch.synonyms.SynonymsSet;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -64,11 +64,12 @@ public class PutSynonymsAction extends ActionType<PutSynonymsAction.Response> {
         @Override
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = null;
-            if (Strings.isEmpty(synonymssetId)) {
-                validationException = ValidateActions.addValidationError("synonyms set must be specified", validationException);
+            for (SynonymRule synonymRule : synonymsset.synonyms()) {
+                String error = synonymRule.validate();
+                if (error != null) {
+                    validationException = ValidateActions.addValidationError(error, validationException);
+                }
             }
-
-            // TODO Synonym validation - use current synonyms parser?
             return validationException;
         }
 
@@ -99,6 +100,7 @@ public class PutSynonymsAction extends ActionType<PutSynonymsAction.Response> {
         public int hashCode() {
             return Objects.hash(synonymssetId, synonymsset);
         }
+
     }
 
     public static class Response extends ActionResponse implements StatusToXContentObject {

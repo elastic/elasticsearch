@@ -500,7 +500,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
         Set<DiscoveryNodeRole> roles = new HashSet<>(randomSubsetOf(DiscoveryNodeRole.roles()));
         Collections.addAll(roles, mustHaveRoles);
         final String id = format("node_%03d", nodeIdGenerator.incrementAndGet());
-        return TestDiscoveryNode.create(id, id, buildNewFakeTransportAddress(), Collections.emptyMap(), roles);
+        return TestDiscoveryNode.builder(id).name(id).roles(roles).build();
     }
 
     private static ClusterState adaptClusterStateToLocalNode(ClusterState state, DiscoveryNode node) {

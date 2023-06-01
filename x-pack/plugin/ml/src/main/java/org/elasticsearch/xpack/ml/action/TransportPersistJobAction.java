@@ -10,7 +10,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.PersistJobAction;
@@ -41,7 +41,7 @@ public class TransportPersistJobAction extends TransportJobTaskAction<PersistJob
 
     @Override
     protected void taskOperation(
-        Task actionTask,
+        CancellableTask actionTask,
         PersistJobAction.Request request,
         JobTask task,
         ActionListener<PersistJobAction.Response> listener

@@ -57,7 +57,6 @@ import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import static java.util.Collections.emptyList;
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.discovery.PeerFinder.REQUEST_PEERS_ACTION_NAME;
@@ -330,12 +329,7 @@ public class PeerFinderTests extends ESTestCase {
     }
 
     public void testDoesNotAddNonMasterEligibleNodesFromUnicastHostsList() {
-        final DiscoveryNode nonMasterNode = TestDiscoveryNode.create(
-            "node-from-hosts-list",
-            buildNewFakeTransportAddress(),
-            emptyMap(),
-            emptySet()
-        );
+        final DiscoveryNode nonMasterNode = TestDiscoveryNode.builder("node-from-hosts-list").roles(emptySet()).build();
 
         providedAddresses.add(nonMasterNode.getAddress());
         transportAddressConnector.addReachableNode(nonMasterNode);
@@ -418,7 +412,7 @@ public class PeerFinderTests extends ESTestCase {
     }
 
     public void testDoesNotAddReachableNonMasterEligibleNodesFromIncomingRequests() {
-        final DiscoveryNode sourceNode = TestDiscoveryNode.create("request-source", buildNewFakeTransportAddress(), emptyMap(), emptySet());
+        final DiscoveryNode sourceNode = TestDiscoveryNode.builder("request-source").roles(emptySet()).build();
         final DiscoveryNode otherKnownNode = newDiscoveryNode("other-known-node");
 
         transportAddressConnector.addReachableNode(otherKnownNode);

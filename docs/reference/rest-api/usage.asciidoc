@@ -328,6 +328,17 @@ GET /_xpack/usage
     "data_streams" : 0,
     "indices_count" : 0
   },
+  "data_lifecycle" : {
+    "available": true,
+    "enabled": true,
+    "count": 0,
+    "default_rollover_used": true,
+    "retention": {
+        "minimum_millis": 0,
+        "maximum_millis": 0,
+        "average_millis": 0.0
+    }
+  },
   "data_tiers" : {
     "available" : true,
     "enabled" : true,
@@ -412,6 +423,9 @@ GET /_xpack/usage
     "available": true,
     "enabled": true,
     "search_applications" : {
+      "count": 0
+    },
+    "analytics_collections": {
       "count": 0
     }
   }

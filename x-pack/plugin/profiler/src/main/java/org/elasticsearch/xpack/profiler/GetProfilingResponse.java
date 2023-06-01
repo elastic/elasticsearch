@@ -7,22 +7,23 @@
 package org.elasticsearch.xpack.profiler;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.StatusToXContentObject;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
+import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BiFunction;
 
-import static org.elasticsearch.rest.RestStatus.OK;
-
-public class GetProfilingResponse extends ActionResponse implements StatusToXContentObject {
+public class GetProfilingResponse extends ActionResponse implements ChunkedToXContentObject {
     @Nullable
     private final Map<String, StackTrace> stackTraces;
     @Nullable
@@ -32,6 +33,7 @@ public class GetProfilingResponse extends ActionResponse implements StatusToXCon
     @Nullable
     private final Map<String, Integer> stackTraceEvents;
     private final int totalFrames;
+    private final double samplingRate;
     @Nullable
     private final Exception error;
 
@@ -54,7 +56,6 @@ public class GetProfilingResponse extends ActionResponse implements StatusToXCon
                     i.readList(StreamInput::readString),
                     i.readList(StreamInput::readString),
                     i.readList(StreamInput::readInt),
-                    i.readList(StreamInput::readInt),
                     i.readList(StreamInput::readInt)
                 )
             )
@@ -62,6 +63,7 @@ public class GetProfilingResponse extends ActionResponse implements StatusToXCon
         this.executables = in.readBoolean() ? in.readMap(StreamInput::readString, StreamInput::readString) : null;
         this.stackTraceEvents = in.readBoolean() ? in.readMap(StreamInput::readString, StreamInput::readInt) : null;
         this.totalFrames = in.readInt();
+        this.samplingRate = in.readDouble();
         this.error = in.readBoolean() ? in.readException() : null;
     }
 
@@ -70,13 +72,14 @@ public class GetProfilingResponse extends ActionResponse implements StatusToXCon
         Map<String, StackFrame> stackFrames,
         Map<String, String> executables,
         Map<String, Integer> stackTraceEvents,
-        int totalFrames
+        int totalFrames,
+        double samplingRate
     ) {
-        this(stackTraces, stackFrames, executables, stackTraceEvents, totalFrames, null);
+        this(stackTraces, stackFrames, executables, stackTraceEvents, totalFrames, samplingRate, null);
     }
 
     public GetProfilingResponse(Exception error) {
-        this(null, null, null, null, 0, error);
+        this(null, null, null, null, 0, 0.0, error);
     }
 
     private GetProfilingResponse(
@@ -85,6 +88,7 @@ public class GetProfilingResponse extends ActionResponse implements StatusToXCon
         Map<String, String> executables,
         Map<String, Integer> stackTraceEvents,
         int totalFrames,
+        double samplingRate,
         Exception error
     ) {
         this.stackTraces = stackTraces;
@@ -92,6 +96,7 @@ public class GetProfilingResponse extends ActionResponse implements StatusToXCon
         this.executables = executables;
         this.stackTraceEvents = stackTraceEvents;
         this.totalFrames = totalFrames;
+        this.samplingRate = samplingRate;
         this.error = error;
     }
 
@@ -115,7 +120,6 @@ public class GetProfilingResponse extends ActionResponse implements StatusToXCon
                 o.writeCollection(v.functionName, StreamOutput::writeString);
                 o.writeCollection(v.functionOffset, StreamOutput::writeInt);
                 o.writeCollection(v.lineNumber, StreamOutput::writeInt);
-                o.writeCollection(v.sourceType, StreamOutput::writeInt);
             });
         } else {
             out.writeBoolean(false);
@@ -133,17 +137,13 @@ public class GetProfilingResponse extends ActionResponse implements StatusToXCon
             out.writeBoolean(false);
         }
         out.writeInt(totalFrames);
+        out.writeDouble(samplingRate);
         if (error != null) {
             out.writeBoolean(true);
             out.writeException(error);
         } else {
             out.writeBoolean(false);
         }
-    }
-
-    @Override
-    public RestStatus status() {
-        return error != null ? ExceptionsHelper.status(ExceptionsHelper.unwrapCause(error)) : OK;
     }
 
     public Map<String, StackTrace> getStackTraces() {
@@ -171,36 +171,34 @@ public class GetProfilingResponse extends ActionResponse implements StatusToXCon
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        if (stackTraces != null) {
-            builder.startObject("stack_traces");
-            builder.mapContents(stackTraces);
-            builder.endObject();
-        }
-        if (stackFrames != null) {
-            builder.startObject("stack_frames");
-            builder.mapContents(stackFrames);
-            builder.endObject();
-        }
-        if (executables != null) {
-            builder.startObject("executables");
-            builder.mapContents(executables);
-            builder.endObject();
-        }
-        if (stackTraceEvents != null) {
-            builder.startObject("stack_trace_events");
-            builder.mapContents(stackTraceEvents);
-            builder.endObject();
-        }
-        builder.field("total_frames", totalFrames);
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+        // Calculate the sample rate.
         if (error != null) {
-            builder.startObject("error");
-            ElasticsearchException.generateThrowableXContent(builder, params, error);
-            builder.endObject();
+            return Iterators.concat(
+                ChunkedToXContentHelper.startObject(),
+                Iterators.single((b, p) -> ElasticsearchException.generateFailureXContent(b, params, error, true)),
+                ChunkedToXContentHelper.endObject()
+            );
+        } else {
+            return Iterators.concat(
+                ChunkedToXContentHelper.startObject(),
+                optional("stack_traces", stackTraces, ChunkedToXContentHelper::xContentValuesMap),
+                optional("stack_frames", stackFrames, ChunkedToXContentHelper::xContentValuesMap),
+                optional("executables", executables, ChunkedToXContentHelper::map),
+                optional("stack_trace_events", stackTraceEvents, ChunkedToXContentHelper::map),
+                Iterators.single((b, p) -> b.field("total_frames", totalFrames)),
+                Iterators.single((b, p) -> b.field("sampling_rate", samplingRate)),
+                ChunkedToXContentHelper.endObject()
+            );
         }
-        builder.endObject();
-        return builder;
+    }
+
+    private <T> Iterator<? extends ToXContent> optional(
+        String name,
+        Map<String, T> values,
+        BiFunction<String, Map<String, T>, Iterator<? extends ToXContent>> supplier
+    ) {
+        return (values != null) ? supplier.apply(name, values) : Collections.emptyIterator();
     }
 
     @Override
@@ -213,6 +211,7 @@ public class GetProfilingResponse extends ActionResponse implements StatusToXCon
         }
         GetProfilingResponse response = (GetProfilingResponse) o;
         return totalFrames == response.totalFrames
+            && samplingRate == response.samplingRate
             && Objects.equals(stackTraces, response.stackTraces)
             && Objects.equals(stackFrames, response.stackFrames)
             && Objects.equals(executables, response.executables)
@@ -222,6 +221,6 @@ public class GetProfilingResponse extends ActionResponse implements StatusToXCon
 
     @Override
     public int hashCode() {
-        return Objects.hash(stackTraces, stackFrames, executables, stackTraceEvents, totalFrames, error);
+        return Objects.hash(stackTraces, stackFrames, executables, stackTraceEvents, totalFrames, samplingRate, error);
     }
 }

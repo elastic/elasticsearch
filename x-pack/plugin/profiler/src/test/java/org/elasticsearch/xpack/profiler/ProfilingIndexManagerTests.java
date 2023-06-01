@@ -113,7 +113,7 @@ public class ProfilingIndexManagerTests extends ESTestCase {
 
         client.setVerifier((action, request, listener) -> verifyIndexInstalled(calledTimes, action, request, listener));
         indexManager.clusterChanged(event);
-        assertBusy(() -> assertThat(calledTimes.get(), equalTo(ProfilingIndexManager.INDICES_AND_ALIASES.size())));
+        assertBusy(() -> assertThat(calledTimes.get(), equalTo(ProfilingIndexManager.PROFILING_INDICES.size())));
 
         calledTimes.set(0);
     }
@@ -123,7 +123,7 @@ public class ProfilingIndexManagerTests extends ESTestCase {
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
         templatesCreated.set(true);
 
-        String existingIndex = randomFrom(ProfilingIndexManager.INDICES_AND_ALIASES.keySet());
+        String existingIndex = randomFrom(ProfilingIndexManager.PROFILING_INDICES).toString();
         ClusterChangedEvent event = createClusterChangedEvent(List.of(existingIndex), nodes);
 
         AtomicInteger calledTimes = new AtomicInteger(0);
@@ -131,7 +131,7 @@ public class ProfilingIndexManagerTests extends ESTestCase {
         client.setVerifier((action, request, listener) -> verifyIndexInstalled(calledTimes, action, request, listener));
         indexManager.clusterChanged(event);
         // should not create the existing index
-        assertBusy(() -> assertThat(calledTimes.get(), equalTo(ProfilingIndexManager.INDICES_AND_ALIASES.size() - 1)));
+        assertBusy(() -> assertThat(calledTimes.get(), equalTo(ProfilingIndexManager.PROFILING_INDICES.size() - 1)));
 
         calledTimes.set(0);
     }

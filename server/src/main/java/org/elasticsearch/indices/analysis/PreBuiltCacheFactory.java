@@ -104,12 +104,12 @@ public class PreBuiltCacheFactory {
 
         @Override
         public T get(Version version) {
-            return mapModel.get(version.luceneVersion);
+            return mapModel.get(version.luceneVersion());
         }
 
         @Override
         public void put(org.elasticsearch.Version version, T model) {
-            mapModel.put(version.luceneVersion, model);
+            mapModel.put(version.luceneVersion(), model);
         }
 
         @Override

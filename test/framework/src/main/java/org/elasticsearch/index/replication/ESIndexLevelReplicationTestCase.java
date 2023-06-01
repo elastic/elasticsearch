@@ -150,13 +150,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
     }
 
     protected DiscoveryNode getDiscoveryNode(String id) {
-        return TestDiscoveryNode.create(
-            id,
-            id,
-            buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            Collections.singleton(DiscoveryNodeRole.DATA_ROLE)
-        );
+        return TestDiscoveryNode.builder(id).name(id).roles(Collections.singleton(DiscoveryNodeRole.DATA_ROLE)).build();
     }
 
     protected class ReplicationGroup implements AutoCloseable, Iterable<IndexShard> {
@@ -203,7 +197,14 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
 
         protected ReplicationGroup(final IndexMetadata indexMetadata) throws IOException {
             final ShardRouting primaryRouting = this.createShardRouting("s0", true);
-            primary = newShard(primaryRouting, indexMetadata, null, getEngineFactory(primaryRouting), () -> {}, retentionLeaseSyncer);
+            primary = newShard(
+                primaryRouting,
+                indexMetadata,
+                null,
+                getEngineFactory(primaryRouting),
+                NOOP_GCP_SYNCER,
+                retentionLeaseSyncer
+            );
             replicas = new CopyOnWriteArrayList<>();
             this.indexMetadata = indexMetadata;
             updateAllocationIDsOnPrimary();
@@ -324,7 +325,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                 indexMetadata,
                 null,
                 getEngineFactory(replicaRouting),
-                () -> {},
+                NOOP_GCP_SYNCER,
                 retentionLeaseSyncer
             );
             addReplica(replica);
@@ -363,7 +364,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                 null,
                 null,
                 getEngineFactory(shardRouting),
-                () -> {},
+                NOOP_GCP_SYNCER,
                 retentionLeaseSyncer,
                 EMPTY_EVENT_LISTENER
             );

@@ -75,7 +75,7 @@ index's name.
 .Use date math with index alias rollovers
 ****
 If you use an index alias for time series data, you can use
-<<date-math-index-names,date math>> in the index name to track the rollover
+<<api-date-math-index-names,date math>> in the index name to track the rollover
 date. For example, you can create an alias that points to an index named
 `<my-index-{now/d}-000001>`. If you create the index on May 6, 2099, the index's
 name is `my-index-2099.05.06-000001`. If you roll over the alias on May 7, 2099,
@@ -98,7 +98,7 @@ Name of the data stream or index alias to roll over.
 
 `<target-index>`::
 (Optional, string)
-Name of the index to create. Supports <<date-math-index-names,date math>>. Data
+Name of the index to create. Supports <<api-date-math-index-names,date math>>. Data
 streams do not support this parameter.
 +
 If the name of the alias's current write index does not end with `-` and a

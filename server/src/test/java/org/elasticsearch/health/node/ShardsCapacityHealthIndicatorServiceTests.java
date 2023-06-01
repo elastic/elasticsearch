@@ -75,21 +75,15 @@ public class ShardsCapacityHealthIndicatorServiceTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
 
-        dataNode = TestDiscoveryNode.create(
-            "data_node",
-            "data_node",
-            ESTestCase.buildNewFakeTransportAddress(),
-            Map.of(),
-            Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE)
-        );
+        dataNode = TestDiscoveryNode.builder("data_node")
+            .name("data_node")
+            .roles(Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE))
+            .build();
 
-        frozenNode = TestDiscoveryNode.create(
-            "frozen_node",
-            "frozen_node",
-            ESTestCase.buildNewFakeTransportAddress(),
-            Map.of(),
-            Set.of(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE)
-        );
+        frozenNode = TestDiscoveryNode.builder("frozen_node")
+            .name("frozen_node")
+            .roles(Set.of(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE))
+            .build();
 
         clusterService = ClusterServiceUtils.createClusterService(threadPool);
     }

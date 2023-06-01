@@ -187,9 +187,9 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
         );
 
         final var discoveryNodesBuilder = new DiscoveryNodes.Builder();
-        discoveryNodesBuilder.add(
-            TestDiscoveryNode.create("master", "master", buildNewFakeTransportAddress(), Map.of(), Set.of(MASTER_ROLE))
-        ).localNodeId("master").masterNodeId("master");
+        discoveryNodesBuilder.add(TestDiscoveryNode.builder("master").name("master").roles(Set.of(MASTER_ROLE)).build())
+            .localNodeId("master")
+            .masterNodeId("master");
         for (var nodeIndex = 0; nodeIndex < nodeCountByTier.get(DataTier.DATA_HOT) + nodeCountByTier.get(DataTier.DATA_WARM)
             + nodeCountByTier.get(DataTier.DATA_COLD); nodeIndex++) {
             final var tierRole = nodeIndex < nodeCountByTier.get(DataTier.DATA_HOT) ? DATA_HOT_NODE_ROLE

@@ -18,6 +18,7 @@ import org.apache.lucene.index.MultiReader;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
@@ -55,7 +56,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
     private static final long nowInMillis = 0;
 
     public void testIsFieldWithinRangeEmptyReader() throws IOException {
-        QueryRewriteContext context = new QueryRewriteContext(parserConfig(), writableRegistry(), null, () -> nowInMillis);
+        QueryRewriteContext context = new QueryRewriteContext(parserConfig(), null, () -> nowInMillis);
         IndexReader reader = new MultiReader();
         DateFieldType ft = new DateFieldType("my_date");
         assertEquals(
@@ -65,7 +66,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testIsFieldWithinRangeOnlyDocValues() throws IOException {
-        QueryRewriteContext context = new QueryRewriteContext(parserConfig(), writableRegistry(), null, () -> nowInMillis);
+        QueryRewriteContext context = new QueryRewriteContext(parserConfig(), null, () -> nowInMillis);
         IndexReader reader = new MultiReader();
         DateFieldType ft = new DateFieldType("my_date", false);
         // in case of only doc-values, we can't establish disjointness
@@ -103,7 +104,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         doTestIsFieldWithinQuery(ft, reader, ZoneOffset.UTC, null);
         doTestIsFieldWithinQuery(ft, reader, ZoneOffset.UTC, alternateFormat);
 
-        QueryRewriteContext context = new QueryRewriteContext(parserConfig(), writableRegistry(), null, () -> nowInMillis);
+        QueryRewriteContext context = new QueryRewriteContext(parserConfig(), null, () -> nowInMillis);
 
         // Fields with no value indexed.
         DateFieldType ft2 = new DateFieldType("my_date2");
@@ -115,7 +116,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
 
     private void doTestIsFieldWithinQuery(DateFieldType ft, DirectoryReader reader, ZoneId zone, DateMathParser alternateFormat)
         throws IOException {
-        QueryRewriteContext context = new QueryRewriteContext(parserConfig(), writableRegistry(), null, () -> nowInMillis);
+        QueryRewriteContext context = new QueryRewriteContext(parserConfig(), null, () -> nowInMillis);
         assertEquals(
             Relation.INTERSECTS,
             ft.isFieldWithinQuery(reader, "2015-10-09", "2016-01-02", randomBoolean(), randomBoolean(), zone, null, context)
@@ -177,7 +178,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
             null,
             null,
             null,
-            null,
+            MappingLookup.EMPTY,
             null,
             null,
             parserConfig(),
@@ -228,7 +229,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
             null,
             null,
             null,
-            null,
+            MappingLookup.EMPTY,
             null,
             null,
             parserConfig(),
@@ -251,11 +252,17 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
             LongPoint.newRangeQuery("field", instant1, instant2),
             SortedNumericDocValuesField.newSlowRangeQuery("field", instant1, instant2)
         );
-        assertEquals(expected, ft.rangeQuery(date1, date2, true, true, null, null, null, context).rewrite(new MultiReader()));
+        assertEquals(
+            expected,
+            ft.rangeQuery(date1, date2, true, true, null, null, null, context).rewrite(new IndexSearcher(new MultiReader()))
+        );
 
         MappedFieldType ft2 = new DateFieldType("field", false);
         Query expected2 = SortedNumericDocValuesField.newSlowRangeQuery("field", instant1, instant2);
-        assertEquals(expected2, ft2.rangeQuery(date1, date2, true, true, null, null, null, context).rewrite(new MultiReader()));
+        assertEquals(
+            expected2,
+            ft2.rangeQuery(date1, date2, true, true, null, null, null, context).rewrite(new IndexSearcher(new MultiReader()))
+        );
 
         instant1 = nowInMillis;
         instant2 = instant1 + 100;
@@ -301,7 +308,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
             null,
             null,
             null,
-            null,
+            MappingLookup.EMPTY,
             null,
             null,
             parserConfig(),

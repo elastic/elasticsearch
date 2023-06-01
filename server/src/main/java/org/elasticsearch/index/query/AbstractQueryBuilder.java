@@ -286,6 +286,8 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
     }
 
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+        // NOTE: sometimes rewrites are attempted after calling `QueryRewriteContext#convertToSearchExecutionContext`
+        // which returns `null` in the default implementation.
         if (queryRewriteContext == null) {
             return this;
         }

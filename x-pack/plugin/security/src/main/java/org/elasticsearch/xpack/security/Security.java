@@ -759,7 +759,8 @@ public class Security extends Plugin
             settings,
             client,
             systemIndices.getMainIndexManager(),
-            cacheInvalidatorRegistry
+            cacheInvalidatorRegistry,
+            clusterService
         );
         components.add(privilegeStore);
 

@@ -23,7 +23,6 @@ package org.elasticsearch.tdigest;
 
 import org.elasticsearch.test.ESTestCase;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -47,7 +46,7 @@ public abstract class TDigestTests extends ESTestCase {
 
     private static String digestName;
 
-    public static void setup(String digestName) throws IOException {
+    public static void setup(String digestName) {
         TDigestTests.digestName = digestName;
     }
 
@@ -735,9 +734,7 @@ public abstract class TDigestTests extends ESTestCase {
         // Otherwise, quantiles above 0.9 use interpolation between 10 and 20, thus returning higher values.
         assertEquals(10.0, dist.quantile(0), 0);
         assertEquals(10.0, dist.quantile(0.9), 0);
-        assertEquals(13.0, dist.quantile(0.999), 3);
-        assertEquals(13.0, dist.quantile(0.9999), 3);
-        assertEquals(16.0, dist.quantile(0.99999), 3.5);
+        assertEquals(19.4, dist.quantile(0.99999), 0.5);
         assertEquals(20.0, dist.quantile(1), 0);
     }
 

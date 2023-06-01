@@ -580,7 +580,7 @@ public class MergingDigest extends AbstractTDigest {
         if (index < 0) {
             return min;
         }
-        if (index >= totalWeight) {
+        if (index >= totalWeight - 1) {
             return max;
         }
 
@@ -595,7 +595,7 @@ public class MergingDigest extends AbstractTDigest {
         // that one sample occurred at min so we can do some interpolation
         if (weight[0] > 1 && index < weightSoFar) {
             // there is a single sample at min so we interpolate with less weight
-            return min + (index - 1) / (weightSoFar - 1) * (mean[0] - min);
+            return (min * index + mean[0] * (weightSoFar - index)) / weightSoFar;
         }
 
         // if the right-most centroid has more than one sample, we still know
@@ -618,11 +618,17 @@ public class MergingDigest extends AbstractTDigest {
 
         assert weight[n - 1] >= 1;
         assert index >= totalWeight - weight[n - 1];
+        double z1 = index - weightSoFar;
 
-        // weightSoFar = totalWeight - weight[n-1]/2 (very nearly)
-        // so we interpolate out to max value ever seen
-        double z1 = index - totalWeight - weight[n - 1] / 2.0;
-        double z2 = weight[n - 1] / 2 - z1;
+        // If there's a singleton on the right boundary, interpolate between the last two centroids.
+        if (weight[n - 1] == 1) {
+            double z2 = totalWeight - weightSoFar - z1;
+            return weightedAverage(mean[n - 2], z2, mean[n - 1], z1);
+        }
+
+        // Interpolate between the last mean and the max.
+        double z2 = weight[n - 1] / 2.0 - z1;
+        ;
         return weightedAverage(mean[n - 1], z1, max, z2);
     }
 

@@ -142,7 +142,7 @@ public class AVLTreeDigest extends AbstractTDigest {
                 int count = summary.count(closest);
                 centroid = weightedAverage(centroid, count, x, w);
                 count += w;
-                summary.update(closest, centroid, count, false);
+                summary.update(closest, centroid, count);
             }
             count += w;
 
@@ -391,7 +391,7 @@ public class AVLTreeDigest extends AbstractTDigest {
                 return min + index * (values.mean(values.next(currentNode)) - min);
             }
             // Interpolate between min and first mean, otherwise.
-            return min + index * (values.mean(currentNode) - min);
+            return (min * index + values.mean(currentNode) * (weightSoFar - index)) / weightSoFar;
         }
 
         for (int i = 0; i < values.size() - 1; i++) {
@@ -419,13 +419,14 @@ public class AVLTreeDigest extends AbstractTDigest {
         assert count - weightSoFar >= 0.5;
 
         double w1 = index - weightSoFar;
-        double w2 = count - weightSoFar - w1;
 
         // If there's a singleton on the right boundary, interpolate with the previous mean.
         if (currentWeight == 1) {
+            double w2 = count - weightSoFar - w1;
             return weightedAverage(values.mean(values.prev(currentNode)), w2, values.mean(currentNode), w1);
         }
         // Interpolate between the last mean and the max.
+        double w2 = currentWeight / 2.0 - w1;
         return weightedAverage(values.mean(currentNode), w2, max, w1);
     }
 

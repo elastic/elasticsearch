@@ -11,7 +11,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.repositories.RepositoryInfo;
 import org.elasticsearch.repositories.RepositoryStats;
 import org.elasticsearch.repositories.RepositoryStatsSnapshot;
@@ -62,7 +62,7 @@ public class RepositoriesMeteringResponseTests extends ESTestCase {
         int nodes = randomIntBetween(1, 10);
         List<RepositoriesNodeMeteringResponse> nodeResponses = new ArrayList<>(nodes);
         for (int nodeId = 0; nodeId < nodes; nodeId++) {
-            DiscoveryNode node = TestDiscoveryNode.create("nodeId" + nodeId);
+            DiscoveryNode node = DiscoveryNodeUtils.create("nodeId" + nodeId);
             int numberOfRepos = randomInt(10);
             List<RepositoryStatsSnapshot> nodeRepoStats = new ArrayList<>(numberOfRepos);
 

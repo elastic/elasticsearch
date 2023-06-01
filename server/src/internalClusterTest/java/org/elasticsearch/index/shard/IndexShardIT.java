@@ -21,7 +21,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -614,7 +614,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
     }
 
     public static final IndexShard recoverShard(IndexShard newShard) throws IOException {
-        DiscoveryNode localNode = TestDiscoveryNode.builder("foo").roles(emptySet()).build();
+        DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(emptySet()).build();
         newShard.markAsRecovering("store", new RecoveryState(newShard.routingEntry(), localNode, null));
         recoverFromStore(newShard);
         IndexShardTestCase.updateRoutingEntry(

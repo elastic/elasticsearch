@@ -9,7 +9,7 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -41,7 +41,7 @@ public class MoveDecisionTests extends ESTestCase {
         stay2 = MoveDecision.cannotRemain(Decision.NO, AllocationDecision.NO, null, null);
         assertSame(stay1, stay2);
         // final decision is YES, so shouldn't use cached decision
-        DiscoveryNode node1 = TestDiscoveryNode.builder("node1").roles(emptySet()).build();
+        DiscoveryNode node1 = DiscoveryNodeUtils.builder("node1").roles(emptySet()).build();
         stay1 = MoveDecision.cannotRemain(Decision.NO, AllocationDecision.YES, node1, null);
         stay2 = MoveDecision.cannotRemain(Decision.NO, AllocationDecision.YES, node1, null);
         assertNotSame(stay1, stay2);
@@ -72,8 +72,8 @@ public class MoveDecisionTests extends ESTestCase {
     }
 
     public void testDecisionWithNodeExplanations() {
-        DiscoveryNode node1 = TestDiscoveryNode.builder("node1").roles(emptySet()).build();
-        DiscoveryNode node2 = TestDiscoveryNode.builder("node2").roles(emptySet()).build();
+        DiscoveryNode node1 = DiscoveryNodeUtils.builder("node1").roles(emptySet()).build();
+        DiscoveryNode node2 = DiscoveryNodeUtils.builder("node2").roles(emptySet()).build();
         Decision nodeDecision = randomFrom(Decision.NO, Decision.THROTTLE, Decision.YES);
         List<NodeAllocationResult> nodeDecisions = new ArrayList<>();
         nodeDecisions.add(new NodeAllocationResult(node1, nodeDecision, 2));
@@ -92,8 +92,8 @@ public class MoveDecisionTests extends ESTestCase {
 
     public void testSerialization() throws IOException {
         List<NodeAllocationResult> nodeDecisions = new ArrayList<>();
-        DiscoveryNode node1 = TestDiscoveryNode.builder("node1").roles(emptySet()).build();
-        DiscoveryNode node2 = TestDiscoveryNode.builder("node2").roles(emptySet()).build();
+        DiscoveryNode node1 = DiscoveryNodeUtils.builder("node1").roles(emptySet()).build();
+        DiscoveryNode node2 = DiscoveryNodeUtils.builder("node2").roles(emptySet()).build();
         Type finalDecision = randomFrom(Type.values());
         DiscoveryNode assignedNode = finalDecision == Type.YES ? node1 : null;
         nodeDecisions.add(new NodeAllocationResult(node1, Decision.NO, 2));

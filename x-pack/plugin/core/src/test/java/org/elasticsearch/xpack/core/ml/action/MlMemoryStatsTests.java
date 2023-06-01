@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -26,7 +26,7 @@ public class MlMemoryStatsTests extends AbstractWireSerializingTestCase<MlMemory
 
     @Override
     protected MlMemoryStats createTestInstance() {
-        DiscoveryNode node = TestDiscoveryNode.create(
+        DiscoveryNode node = DiscoveryNodeUtils.create(
             randomAlphaOfLength(20),
             new TransportAddress(InetAddress.getLoopbackAddress(), randomIntBetween(1024, 65535))
         );

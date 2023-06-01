@@ -15,7 +15,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
 import org.elasticsearch.common.Priority;
@@ -110,10 +110,10 @@ public class NodeLeftExecutorTests extends ESTestCase {
         );
         final var executor = new NodeLeftExecutor(allocationService);
 
-        final DiscoveryNode masterNode = TestDiscoveryNode.create("master");
+        final DiscoveryNode masterNode = DiscoveryNodeUtils.create("master");
         final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(
-                DiscoveryNodes.builder().add(masterNode).localNodeId("master").masterNodeId("master").add(TestDiscoveryNode.create("other"))
+                DiscoveryNodes.builder().add(masterNode).localNodeId("master").masterNodeId("master").add(DiscoveryNodeUtils.create("other"))
             )
             .build();
 
@@ -146,7 +146,7 @@ public class NodeLeftExecutorTests extends ESTestCase {
     }
 
     private static DiscoveryNode node(final int id) {
-        return TestDiscoveryNode.create(Integer.toString(id));
+        return DiscoveryNodeUtils.create(Integer.toString(id));
     }
 
     // Hard-coding the class name here because it is also mentioned in the troubleshooting docs, so should not be renamed without care.

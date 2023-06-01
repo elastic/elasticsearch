@@ -9,7 +9,7 @@
 package org.elasticsearch.action.admin.cluster.coordination;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
@@ -24,8 +24,8 @@ import static org.elasticsearch.cluster.coordination.CoordinationDiagnosticsServ
 public class CoordinationDiagnosticsActionTests extends ESTestCase {
 
     public void testSerialization() {
-        DiscoveryNode node1 = TestDiscoveryNode.create("node1", UUID.randomUUID().toString());
-        DiscoveryNode node2 = TestDiscoveryNode.create("node2", UUID.randomUUID().toString());
+        DiscoveryNode node1 = DiscoveryNodeUtils.create("node1", UUID.randomUUID().toString());
+        DiscoveryNode node2 = DiscoveryNodeUtils.create("node2", UUID.randomUUID().toString());
         CoordinationDiagnosticsDetails details = new CoordinationDiagnosticsDetails(
             node1,
             List.of(node1, node2),

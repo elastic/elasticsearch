@@ -10,7 +10,7 @@ package org.elasticsearch.indices;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -363,7 +363,7 @@ public class IndexingMemoryControllerTests extends IndexShardTestCase {
         shard = reinitShard(shard, imc);
         shardRef.set(shard);
         assertEquals(0, imc.availableShards().size());
-        DiscoveryNode localNode = TestDiscoveryNode.builder("foo").roles(emptySet()).build();
+        DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(emptySet()).build();
         shard.markAsRecovering("store", new RecoveryState(shard.routingEntry(), localNode, null));
 
         assertEquals(1, imc.availableShards().size());

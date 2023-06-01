@@ -9,7 +9,7 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult.ShardStoreInfo;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -25,7 +25,7 @@ import static java.util.Collections.emptySet;
 public class NodeAllocationResultTests extends ESTestCase {
 
     public void testSerialization() throws IOException {
-        DiscoveryNode node = TestDiscoveryNode.builder("node1").roles(emptySet()).build();
+        DiscoveryNode node = DiscoveryNodeUtils.builder("node1").roles(emptySet()).build();
         Decision decision = randomFrom(Decision.YES, Decision.THROTTLE, Decision.NO);
         NodeAllocationResult explanation = new NodeAllocationResult(node, decision, 1);
         BytesStreamOutput output = new BytesStreamOutput();
@@ -35,7 +35,7 @@ public class NodeAllocationResultTests extends ESTestCase {
     }
 
     public void testShardStore() throws IOException {
-        DiscoveryNode node = TestDiscoveryNode.builder("node1").roles(emptySet()).build();
+        DiscoveryNode node = DiscoveryNodeUtils.builder("node1").roles(emptySet()).build();
         Decision decision = randomFrom(Decision.YES, Decision.THROTTLE, Decision.NO);
         long matchingBytes = (long) randomIntBetween(1, 1000);
         ShardStoreInfo shardStoreInfo = new ShardStoreInfo(matchingBytes);

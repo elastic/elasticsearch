@@ -10,7 +10,7 @@ package org.elasticsearch.discovery;
 
 import org.elasticsearch.cluster.coordination.PeersResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.test.EqualsHashCodeTestUtils.CopyFunction;
@@ -26,7 +26,7 @@ import static java.util.Collections.singletonList;
 
 public class PeerFinderMessagesTests extends ESTestCase {
     private DiscoveryNode createNode(String id) {
-        return TestDiscoveryNode.create(id);
+        return DiscoveryNodeUtils.create(id);
     }
 
     public void testPeersRequestEqualsHashCodeSerialization() {

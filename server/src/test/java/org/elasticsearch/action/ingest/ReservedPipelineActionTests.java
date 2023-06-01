@@ -17,7 +17,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -94,7 +94,7 @@ public class ReservedPipelineActionTests extends ESTestCase {
         assertTrue(factories.containsKey("set"));
         assertEquals(1, factories.size());
 
-        DiscoveryNode discoveryNode = TestDiscoveryNode.builder("_node_id").roles(emptySet()).build();
+        DiscoveryNode discoveryNode = DiscoveryNodeUtils.builder("_node_id").roles(emptySet()).build();
 
         NodeInfo nodeInfo = new NodeInfo(
             Version.CURRENT,

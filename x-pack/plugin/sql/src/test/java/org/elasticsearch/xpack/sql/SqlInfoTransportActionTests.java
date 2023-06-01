@@ -12,7 +12,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -71,7 +71,7 @@ public class SqlInfoTransportActionTests extends ESTestCase {
             ActionListener<SqlStatsResponse> listener = (ActionListener<SqlStatsResponse>) mock.getArguments()[2];
 
             List<SqlStatsResponse.NodeStatsResponse> nodes = new ArrayList<>();
-            DiscoveryNode first = TestDiscoveryNode.create("first");
+            DiscoveryNode first = DiscoveryNodeUtils.create("first");
             SqlStatsResponse.NodeStatsResponse firstNode = new SqlStatsResponse.NodeStatsResponse(first);
             Counters firstCounters = new Counters();
             firstCounters.inc("foo.foo", 1);
@@ -79,7 +79,7 @@ public class SqlInfoTransportActionTests extends ESTestCase {
             firstNode.setStats(firstCounters);
             nodes.add(firstNode);
 
-            DiscoveryNode second = TestDiscoveryNode.create("second");
+            DiscoveryNode second = DiscoveryNodeUtils.create("second");
             SqlStatsResponse.NodeStatsResponse secondNode = new SqlStatsResponse.NodeStatsResponse(second);
             Counters secondCounters = new Counters();
             secondCounters.inc("spam", 1);

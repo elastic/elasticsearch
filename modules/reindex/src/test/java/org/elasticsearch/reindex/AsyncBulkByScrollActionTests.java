@@ -45,7 +45,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.FilterClient;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -148,7 +148,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         testTask.setWorker(testRequest.getRequestsPerSecond(), null);
         worker = testTask.getWorkerState();
 
-        localNode = TestDiscoveryNode.builder("thenode").roles(emptySet()).build();
+        localNode = DiscoveryNodeUtils.builder("thenode").roles(emptySet()).build();
         taskId = new TaskId(localNode.getId(), testTask.getId());
     }
 

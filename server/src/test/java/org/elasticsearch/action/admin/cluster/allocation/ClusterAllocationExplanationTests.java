@@ -9,7 +9,7 @@
 package org.elasticsearch.action.admin.cluster.allocation;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
@@ -155,7 +155,7 @@ public final class ClusterAllocationExplanationTests extends ESTestCase {
             true,
             assignedShard ? ShardRoutingState.STARTED : ShardRoutingState.UNASSIGNED
         );
-        DiscoveryNode node = assignedShard ? TestDiscoveryNode.builder("node-0").roles(emptySet()).build() : null;
+        DiscoveryNode node = assignedShard ? DiscoveryNodeUtils.builder("node-0").roles(emptySet()).build() : null;
         ShardAllocationDecision shardAllocationDecision;
         if (assignedShard) {
             MoveDecision moveDecision = MoveDecision.cannotRebalance(Decision.YES, AllocationDecision.NO, 3, null)

@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.autoscaling.storage;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -42,8 +42,8 @@ public class ReactiveReasonTests extends ESTestCase {
         String indexName = randomAlphaOfLength(10);
         SortedSet<ShardId> unassignedShardIds = new TreeSet<>(randomUnique(() -> new ShardId(indexName, indexUUID, randomInt(1000)), 600));
         SortedSet<ShardId> assignedShardIds = new TreeSet<>(randomUnique(() -> new ShardId(indexName, indexUUID, randomInt(1000)), 600));
-        DiscoveryNode discoveryNode = TestDiscoveryNode.builder("node1").roles(emptySet()).build();
-        DiscoveryNode discoveryNode2 = TestDiscoveryNode.builder("node2").roles(emptySet()).build();
+        DiscoveryNode discoveryNode = DiscoveryNodeUtils.builder("node1").roles(emptySet()).build();
+        DiscoveryNode discoveryNode2 = DiscoveryNodeUtils.builder("node2").roles(emptySet()).build();
         Map<ShardId, NodeDecisions> unassignedShardAllocationDecision = Map.of(
             unassignedShardIds.first(),
             new NodeDecisions(

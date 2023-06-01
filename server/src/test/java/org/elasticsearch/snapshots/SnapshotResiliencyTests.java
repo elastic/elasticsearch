@@ -1464,13 +1464,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
         private TestClusterNode newNode(String nodeName, DiscoveryNodeRole role) throws IOException {
             return new TestClusterNode(
-                TestDiscoveryNode.create(
-                    nodeName,
-                    randomAlphaOfLength(10),
-                    buildNewFakeTransportAddress(),
-                    emptyMap(),
-                    Collections.singleton(role)
-                )
+                TestDiscoveryNode.builder(randomAlphaOfLength(10)).name(nodeName).roles(Collections.singleton(role)).build()
             );
         }
 

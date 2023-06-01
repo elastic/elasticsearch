@@ -191,13 +191,7 @@ public class DatabaseNodeServiceTests extends ESTestCase {
         ClusterState state = ClusterState.builder(createClusterState(tasksCustomMetadata))
             .nodes(
                 new DiscoveryNodes.Builder().add(
-                    TestDiscoveryNode.create(
-                        "_name1",
-                        "_id1",
-                        buildNewFakeTransportAddress(),
-                        Map.of(),
-                        Set.of(DiscoveryNodeRole.MASTER_ROLE)
-                    )
+                    TestDiscoveryNode.builder("_id1").name("_name1").roles(Set.of(DiscoveryNodeRole.MASTER_ROLE)).build()
                 ).localNodeId("_id1")
             )
             .build();

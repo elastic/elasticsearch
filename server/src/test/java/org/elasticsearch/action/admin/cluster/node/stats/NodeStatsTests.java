@@ -72,7 +72,6 @@ import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.ThreadPoolStats;
-import org.elasticsearch.threadpool.ThreadPoolStatsTests;
 import org.elasticsearch.transport.TransportActionStats;
 import org.elasticsearch.transport.TransportStats;
 import org.elasticsearch.xcontent.ToXContent;
@@ -90,6 +89,7 @@ import java.util.stream.IntStream;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.test.AbstractChunkedSerializingTestCase.assertChunkCount;
+import static org.elasticsearch.threadpool.ThreadPoolStatsTests.randomStats;
 
 public class NodeStatsTests extends ESTestCase {
     public void testSerialization() throws IOException {
@@ -795,12 +795,9 @@ public class NodeStatsTests extends ESTestCase {
         }
         ThreadPoolStats threadPoolStats = null;
         if (frequently()) {
-            var numThreadPoolStats = randomIntBetween(0, 10);
-            var threadPoolStatsList = new ArrayList<ThreadPoolStats.Stats>();
-            for (int i = 0; i < numThreadPoolStats; i++) {
-                threadPoolStatsList.add(ThreadPoolStatsTests.randomStats(randomAlphaOfLengthBetween(3, 10)));
-            }
-            threadPoolStats = new ThreadPoolStats(threadPoolStatsList);
+            threadPoolStats = new ThreadPoolStats(
+                IntStream.range(0, randomIntBetween(0, 10)).mapToObj(i -> randomStats(randomAlphaOfLengthBetween(3, 10))).toList()
+            );
         }
         FsInfo fsInfo = null;
         if (frequently()) {

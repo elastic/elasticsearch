@@ -1,0 +1,13 @@
+pr: 96511
+summary: Do not return CS in /_cluster/reroute API response
+area: Allocation
+type: "breaking, tech debt"
+issues:
+ - 88978
+breaking:
+  title: Do not return CS in /_cluster/reroute API response
+  area: Allocation
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users
+  notable: false

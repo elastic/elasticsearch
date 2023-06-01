@@ -34,20 +34,21 @@ public class GetSynonymsAction extends ActionType<GetSynonymsAction.Response> {
     }
 
     public static class Request extends ActionRequest {
-        private final String SynonymsSetId;
+        private static final int MAX_SEARCH_RESULTS = 10_000;
+        private final String synonymsSetId;
         private final int from;
         private final int size;
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            this.SynonymsSetId = in.readString();
+            this.synonymsSetId = in.readString();
             this.from = in.readInt();
             this.size = in.readInt();
         }
 
         public Request(String SynonymsSetId, int from, int size) {
             Objects.requireNonNull(SynonymsSetId, "Synonym set ID cannot be null");
-            this.SynonymsSetId = SynonymsSetId;
+            this.synonymsSetId = SynonymsSetId;
             this.from = from;
             this.size = size;
         }
@@ -55,11 +56,25 @@ public class GetSynonymsAction extends ActionType<GetSynonymsAction.Response> {
         @Override
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = null;
-            if (from < 0) {
-                validationException = addValidationError("from must be a positive integer", validationException);
-            }
-            if (size < 0) {
-                validationException = addValidationError("size must be a positive integer", validationException);
+
+            validationException = validatePageParam("from", from, validationException);
+            validationException = validatePageParam("size", size, validationException);
+
+            return validationException;
+        }
+
+        private ActionRequestValidationException validatePageParam(
+            String paramName,
+            int value,
+            ActionRequestValidationException validationException
+        ) {
+            if (value < 0) {
+                validationException = addValidationError("[" + paramName + "] must be a positive integer", validationException);
+            } else if (value > MAX_SEARCH_RESULTS) {
+                validationException = addValidationError(
+                    "[" + paramName + "] must not be greater than " + MAX_SEARCH_RESULTS,
+                    validationException
+                );
             }
             return validationException;
         }
@@ -67,13 +82,13 @@ public class GetSynonymsAction extends ActionType<GetSynonymsAction.Response> {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeString(SynonymsSetId);
+            out.writeString(synonymsSetId);
             out.writeInt(from);
             out.writeInt(size);
         }
 
         public String synonymsSetId() {
-            return SynonymsSetId;
+            return synonymsSetId;
         }
 
         public int from() {
@@ -89,12 +104,12 @@ public class GetSynonymsAction extends ActionType<GetSynonymsAction.Response> {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return from == request.from && size == request.size && Objects.equals(SynonymsSetId, request.SynonymsSetId);
+            return from == request.from && size == request.size && Objects.equals(synonymsSetId, request.synonymsSetId);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(SynonymsSetId, from, size);
+            return Objects.hash(synonymsSetId, from, size);
         }
     }
 

@@ -136,17 +136,11 @@ final class AVLGroupTree extends AbstractCollection<Centroid> {
      * Update values associated with a node, readjusting the tree if necessary.
      */
     @SuppressWarnings("WeakerAccess")
-    public void update(int node, double centroid, int count, boolean forceInPlace) {
-        if (centroid == centroids[node] || forceInPlace) {
-            // we prefer to update in place so repeated values don't shuffle around and for merging
-            centroids[node] = centroid;
-            counts[node] = count;
-        } else {
-            // have to do full scale update
-            this.centroid = centroid;
-            this.count = count;
-            tree.update(node);
-        }
+    public void update(int node, double centroid, int count) {
+        // have to do full scale update
+        this.centroid = centroid;
+        this.count = count;
+        tree.update(node);
     }
 
     public void remove(int node) {

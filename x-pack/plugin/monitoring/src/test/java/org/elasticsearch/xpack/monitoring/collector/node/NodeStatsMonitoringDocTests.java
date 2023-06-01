@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.monitoring.collector.node;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
@@ -444,7 +443,7 @@ public class NodeStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestCa
             new TransportAddress(TransportAddress.META_ADDRESS, 1234),
             emptyMap(),
             emptySet(),
-            Version.CURRENT
+            null
         );
 
         return new NodeStats(

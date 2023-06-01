@@ -32,14 +32,13 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.equalTo;
 
 public class IndicesShardStoreResponseTests extends ESTestCase {
     public void testBasicSerialization() throws Exception {
-        DiscoveryNode node1 = TestDiscoveryNode.create("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet());
-        DiscoveryNode node2 = TestDiscoveryNode.create("node2", buildNewFakeTransportAddress(), emptyMap(), emptySet());
+        DiscoveryNode node1 = TestDiscoveryNode.builder("node1").roles(emptySet()).build();
+        DiscoveryNode node2 = TestDiscoveryNode.builder("node2").roles(emptySet()).build();
         List<StoreStatus> storeStatusList = List.of(
             new StoreStatus(node1, null, AllocationStatus.PRIMARY, null),
             new StoreStatus(node2, UUIDs.randomBase64UUID(), AllocationStatus.REPLICA, null),
@@ -104,7 +103,7 @@ public class IndicesShardStoreResponseTests extends ESTestCase {
     }
 
     public void testStoreStatusOrdering() throws Exception {
-        DiscoveryNode node1 = TestDiscoveryNode.create("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet());
+        DiscoveryNode node1 = TestDiscoveryNode.builder("node1").roles(emptySet()).build();
         List<StoreStatus> orderedStoreStatuses = new ArrayList<>();
         orderedStoreStatuses.add(new StoreStatus(node1, UUIDs.randomBase64UUID(), AllocationStatus.PRIMARY, null));
         orderedStoreStatuses.add(new StoreStatus(node1, UUIDs.randomBase64UUID(), AllocationStatus.REPLICA, null));

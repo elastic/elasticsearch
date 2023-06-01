@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndVersion;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.test.ESTestCase;
@@ -148,6 +149,21 @@ public class VersionLookupTests extends ESTestCase {
         assertEquals(lookup.minTimestamp, 0L);
         assertEquals(lookup.maxTimestamp, Long.MAX_VALUE);
 
+        reader.close();
+        writer.close();
+        dir.close();
+    }
+
+    public void testLoadTimestampRangeWithDeleteTombstone() throws Exception {
+        Directory dir = newDirectory();
+        IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER).setMergePolicy(NoMergePolicy.INSTANCE));
+        writer.addDocument(ParsedDocument.deleteTombstone("_id").docs().get(0));
+        DirectoryReader reader = DirectoryReader.open(writer);
+        LeafReaderContext segment = reader.leaves().get(0);
+        PerThreadIDVersionAndSeqNoLookup lookup = new PerThreadIDVersionAndSeqNoLookup(segment.reader(), IdFieldMapper.NAME, true);
+        assertTrue(lookup.loadedTimestampRange);
+        assertEquals(lookup.minTimestamp, 0L);
+        assertEquals(lookup.maxTimestamp, Long.MAX_VALUE);
         reader.close();
         writer.close();
         dir.close();

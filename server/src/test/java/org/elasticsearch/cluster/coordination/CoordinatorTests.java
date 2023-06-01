@@ -57,7 +57,6 @@ import java.util.function.Function;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
-import static java.util.Collections.emptyMap;
 import static org.elasticsearch.cluster.coordination.AbstractCoordinatorTestCase.Cluster.DEFAULT_DELAY_VARIABILITY;
 import static org.elasticsearch.cluster.coordination.Coordinator.Mode.CANDIDATE;
 import static org.elasticsearch.cluster.coordination.Coordinator.PUBLISH_TIMEOUT_SETTING;
@@ -1934,13 +1933,10 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
     ) {
         DiscoveryNodes newNodes = DiscoveryNodes.builder(currentState.nodes())
             .add(
-                TestDiscoveryNode.create(
-                    "resolvableNodeName",
-                    "resolvableNodeId",
-                    buildNewFakeTransportAddress(),
-                    emptyMap(),
-                    Set.of(DiscoveryNodeRole.MASTER_ROLE)
-                )
+                TestDiscoveryNode.builder("resolvableNodeId")
+                    .name("resolvableNodeName")
+                    .roles(Set.of(DiscoveryNodeRole.MASTER_ROLE))
+                    .build()
             )
             .build();
 

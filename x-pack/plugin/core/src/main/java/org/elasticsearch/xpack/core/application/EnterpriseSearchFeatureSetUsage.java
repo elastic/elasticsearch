@@ -41,7 +41,7 @@ public class EnterpriseSearchFeatureSetUsage extends XPackFeatureSet.Usage {
     public EnterpriseSearchFeatureSetUsage(StreamInput in) throws IOException {
         super(in);
         this.searchApplicationsUsage = in.readMap();
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_9_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_1)) {
             this.analyticsCollectionsUsage = in.readMap();
         } else {
             this.analyticsCollectionsUsage = Collections.emptyMap();
@@ -52,7 +52,7 @@ public class EnterpriseSearchFeatureSetUsage extends XPackFeatureSet.Usage {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeGenericMap(searchApplicationsUsage);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_9_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_1)) {
             out.writeGenericMap(analyticsCollectionsUsage);
         }
     }

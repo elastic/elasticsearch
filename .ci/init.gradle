@@ -13,13 +13,25 @@ initscript {
 boolean USE_ARTIFACTORY = false
 
 if (System.getenv('VAULT_ADDR') == null) {
+  // When trying to reproduce errors outside of CI, it can be useful to allow this to just return rather than blowing up
+  if (System.getenv('CI') == null) {
+    return
+  }
+
   throw new GradleException("You must set the VAULT_ADDR environment variable to use this init script.")
 }
 
 if (System.getenv('VAULT_ROLE_ID') == null && System.getenv('VAULT_SECRET_ID') == null && System.getenv('VAULT_TOKEN') == null) {
+    // When trying to reproduce errors outside of CI, it can be useful to allow this to just return rather than blowing up
+  if (System.getenv('CI') == null) {
+    return
+  }
+
   throw new GradleException("You must set either the VAULT_ROLE_ID and VAULT_SECRET_ID environment variables, " +
     "or the VAULT_TOKEN environment variable to use this init script.")
 }
+
+final String vaultPathPrefix = System.getenv('VAULT_ADDR') ==~ /secrets\.elastic\.co/ ? "secret/elasticsearch-ci" : "secret/ci/elastic-elasticsearch/migrated"
 
 final String vaultToken = System.getenv('VAULT_TOKEN') ?: new Vault(
   new VaultConfig()
@@ -44,7 +56,7 @@ final Vault vault = new Vault(
 
 if (USE_ARTIFACTORY) {
   final Map<String, String> artifactoryCredentials = vault.logical()
-    .read("secret/elasticsearch-ci/artifactory.elstc.co")
+    .read("${vaultPathPrefix}/artifactory.elstc.co")
     .getData()
   logger.info("Using elastic artifactory repos")
   Closure configCache = {
@@ -91,8 +103,8 @@ final String buildCacheUrl = System.getProperty('org.elasticsearch.build.cache.u
 final boolean buildCachePush = Boolean.valueOf(System.getProperty('org.elasticsearch.build.cache.push', 'false'))
 
 if (buildCacheUrl) {
-  final Map<String, String> buildCacheCredentials = vault.logical()
-    .read("secret/elasticsearch-ci/gradle-build-cache")
+  final Map<String, String> buildCacheCredentials = System.getenv("GRADLE_BUILD_CACHE_USERNAME") ? [:] : vault.logical()
+    .read("${vaultPathPrefix}/gradle-build-cache")
     .getData()
   gradle.settingsEvaluated { settings ->
     settings.buildCache {
@@ -104,8 +116,8 @@ if (buildCacheUrl) {
         url = buildCacheUrl
         push = buildCachePush
         credentials {
-          username = buildCacheCredentials.get("username")
-          password = buildCacheCredentials.get("password")
+          username = System.getenv("GRADLE_BUILD_CACHE_USERNAME") ?: buildCacheCredentials.get("username")
+          password = System.getenv("GRADLE_BUILD_CACHE_PASSWORD") ?: buildCacheCredentials.get("password")
         }
       }
     }

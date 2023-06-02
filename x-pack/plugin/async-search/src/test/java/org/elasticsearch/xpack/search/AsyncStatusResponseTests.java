@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.search;
 
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -36,6 +37,12 @@ public class AsyncStatusResponseTests extends AbstractWireSerializingTestCase<As
         int skippedShards = randomIntBetween(0, 5);
         int failedShards = totalShards - successfulShards - skippedShards;
         RestStatus completionStatus = isRunning ? null : randomBoolean() ? RestStatus.OK : RestStatus.SERVICE_UNAVAILABLE;
+        SearchResponse.Clusters clusters = switch (randomIntBetween(0, 3)) {
+            case 1 -> SearchResponse.Clusters.EMPTY;
+            case 2 -> new SearchResponse.Clusters(1, 1, 0);
+            case 3 -> new SearchResponse.Clusters(4, 1, 0, 3, true);
+            default -> null;  // case 0
+        };
         return new AsyncStatusResponse(
             id,
             isRunning,
@@ -46,7 +53,8 @@ public class AsyncStatusResponseTests extends AbstractWireSerializingTestCase<As
             successfulShards,
             skippedShards,
             failedShards,
-            completionStatus
+            completionStatus,
+            clusters
         );
     }
 
@@ -71,41 +79,85 @@ public class AsyncStatusResponseTests extends AbstractWireSerializingTestCase<As
             instance.getSuccessfulShards(),
             instance.getSkippedShards(),
             instance.getFailedShards(),
-            completionStatus
+            completionStatus,
+            null
         );
     }
 
     public void testToXContent() throws IOException {
         AsyncStatusResponse response = createTestInstance();
         try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
-            Object[] args = new Object[] {
-                response.getId(),
-                response.isRunning(),
-                response.isPartial(),
-                response.getStartTime(),
-                response.getExpirationTime(),
-                response.getTotalShards(),
-                response.getSuccessfulShards(),
-                response.getSkippedShards(),
-                response.getFailedShards(),
-                response.getCompletionStatus() == null ? "" : Strings.format("""
-                    ,"completion_status" : %s""", response.getCompletionStatus().getStatus()) };
-            String expectedJson = Strings.format("""
-                {
-                  "id" : "%s",
-                  "is_running" : %s,
-                  "is_partial" : %s,
-                  "start_time_in_millis" : %s,
-                  "expiration_time_in_millis" : %s,
-                  "_shards" : {
-                    "total" : %s,
-                    "successful" : %s,
-                    "skipped" : %s,
-                    "failed" : %s
-                   }
-                  %s
-                }
-                """, args);
+            String expectedJson;
+            SearchResponse.Clusters clusters = response.getClusters();
+            if (clusters == null || clusters.getTotal() == 0) {
+                Object[] args = new Object[] {
+                    response.getId(),
+                    response.isRunning(),
+                    response.isPartial(),
+                    response.getStartTime(),
+                    response.getExpirationTime(),
+                    response.getTotalShards(),
+                    response.getSuccessfulShards(),
+                    response.getSkippedShards(),
+                    response.getFailedShards(),
+                    response.getCompletionStatus() == null ? "" : Strings.format("""
+                        ,"completion_status" : %s""", response.getCompletionStatus().getStatus()) };
+
+                expectedJson = Strings.format("""
+                    {
+                      "id" : "%s",
+                      "is_running" : %s,
+                      "is_partial" : %s,
+                      "start_time_in_millis" : %s,
+                      "expiration_time_in_millis" : %s,
+                      "_shards" : {
+                        "total" : %s,
+                        "successful" : %s,
+                        "skipped" : %s,
+                        "failed" : %s
+                       }
+                      %s
+                    }
+                    """, args);
+            } else {
+                Object[] args = new Object[] {
+                    response.getId(),
+                    response.isRunning(),
+                    response.isPartial(),
+                    response.getStartTime(),
+                    response.getExpirationTime(),
+                    response.getTotalShards(),
+                    response.getSuccessfulShards(),
+                    response.getSkippedShards(),
+                    response.getFailedShards(),
+                    clusters.getTotal(),
+                    clusters.getSuccessful(),
+                    clusters.getSkipped(),
+                    response.getCompletionStatus() == null ? "" : Strings.format("""
+                        ,"completion_status" : %s""", response.getCompletionStatus().getStatus()) };
+
+                expectedJson = Strings.format("""
+                    {
+                      "id" : "%s",
+                      "is_running" : %s,
+                      "is_partial" : %s,
+                      "start_time_in_millis" : %s,
+                      "expiration_time_in_millis" : %s,
+                      "_shards" : {
+                        "total" : %s,
+                        "successful" : %s,
+                        "skipped" : %s,
+                        "failed" : %s
+                      },
+                      "_clusters": {
+                       "total": %s,
+                       "successful": %s,
+                       "skipped": %s
+                      }
+                      %s
+                    }
+                    """, args);
+            }
             response.toXContent(builder, ToXContent.EMPTY_PARAMS);
             assertEquals(XContentHelper.stripWhitespace(expectedJson), Strings.toString(builder));
         }

@@ -36,6 +36,12 @@ public class AsyncStatusResponse extends ActionResponse implements SearchStatusR
     private final int failedShards;
     private final RestStatus completionStatus;
 
+    // optionally include a _clusters object in the status response. This is used for CCS.
+    // This only needs to be handled on the coordinator, so this instance is transient (not Writeable).
+    // The SearchResponse has a Writeable copy that gets written to the async-search
+    // system index, so we can retrieve it from there after the task is finished
+    private transient SearchResponse.Clusters clusters;
+
     public AsyncStatusResponse(
         String id,
         boolean isRunning,
@@ -46,7 +52,8 @@ public class AsyncStatusResponse extends ActionResponse implements SearchStatusR
         int successfulShards,
         int skippedShards,
         int failedShards,
-        RestStatus completionStatus
+        RestStatus completionStatus,
+        SearchResponse.Clusters clusters
     ) {
         this.id = id;
         this.isRunning = isRunning;
@@ -58,6 +65,7 @@ public class AsyncStatusResponse extends ActionResponse implements SearchStatusR
         this.skippedShards = skippedShards;
         this.failedShards = failedShards;
         this.completionStatus = completionStatus;
+        this.clusters = clusters;
     }
 
     /**
@@ -94,6 +102,10 @@ public class AsyncStatusResponse extends ActionResponse implements SearchStatusR
                 }
             }
         }
+        SearchResponse.Clusters clusters = null;
+        if (searchResponse.getClusters() != null || searchResponse.getClusters() != SearchResponse.Clusters.EMPTY) {
+            clusters = searchResponse.getClusters();
+        }
         return new AsyncStatusResponse(
             id,
             asyncSearchResponse.isRunning(),
@@ -104,7 +116,8 @@ public class AsyncStatusResponse extends ActionResponse implements SearchStatusR
             successfulShards,
             skippedShards,
             failedShards,
-            completionStatus
+            completionStatus,
+            clusters
         );
     }
 
@@ -151,6 +164,9 @@ public class AsyncStatusResponse extends ActionResponse implements SearchStatusR
         builder.timeField("start_time_in_millis", "start_time", startTimeMillis);
         builder.timeField("expiration_time_in_millis", "expiration_time", expirationTimeMillis);
         RestActions.buildBroadcastShardsHeader(builder, params, totalShards, successfulShards, skippedShards, failedShards, null);
+        if (clusters != null) {
+            builder = clusters.toXContent(builder, null);
+        }
         if (isRunning == false) { // completion status information is only available for a completed search
             builder.field("completion_status", completionStatus.getStatus());
         }
@@ -264,5 +280,9 @@ public class AsyncStatusResponse extends ActionResponse implements SearchStatusR
      */
     public RestStatus getCompletionStatus() {
         return completionStatus;
+    }
+
+    public SearchResponse.Clusters getClusters() {
+        return clusters;
     }
 }

@@ -888,7 +888,7 @@ public class IngestServiceTests extends ESTestCase {
         assertThat(pipelines.get(1).getId(), equalTo("_id2"));
     }
 
-    public void testValidate() throws Exception {
+    public void testValidateProcessorTypeOnAllNodes() throws Exception {
         IngestService ingestService = createWithProcessors();
         PutPipelineRequest putRequest = new PutPipelineRequest("_id", new BytesArray("""
             {

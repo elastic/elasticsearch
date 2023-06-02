@@ -402,9 +402,12 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
             boolean registerType
         ) throws IOException {
             this.nowInMillis = nowInMillis;
-            Environment env = InternalSettingsPreparer.prepareEnvironment(nodeSettings, emptyMap(), null, () -> {
-                throw new AssertionError("node.name must be set");
-            });
+            Environment env = InternalSettingsPreparer.prepareEnvironment(
+                nodeSettings,
+                emptyMap(),
+                null,
+                () -> { throw new AssertionError("node.name must be set"); }
+            );
             PluginsService pluginsService;
             pluginsService = new MockPluginsService(nodeSettings, env, plugins);
 
@@ -576,11 +579,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 parserConfiguration,
                 this.client,
                 () -> nowInMillis,
-                IndexLongFieldRange.UNKNOWN.extendWithShardRange(
-                    randomIntBetween(0, 2),
-                    randomIntBetween(2, 5),
-                    ShardLongFieldRange.of(min, max)
-                ),
+                IndexLongFieldRange.NO_SHARDS.extendWithShardRange(0, 1, ShardLongFieldRange.of(min, max)),
                 dateFieldType
             );
         }

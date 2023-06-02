@@ -58,8 +58,11 @@ import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateEmptyPrimaryAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -117,6 +120,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -1648,6 +1652,33 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
                 .sum(),
             equalTo(0L)
         );
+    }
+
+    public void testPeerRecoveryTargetRetriesIfSourceRepliesWithCBE() throws Exception {
+        var sourceNode = internalCluster().startNode();
+        String indexName = randomIdentifier();
+        final int allocationMaxRetry = randomIntBetween(1, 5);
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
+                .put(MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY.getKey(), allocationMaxRetry)
+                .build()
+        );
+        ensureGreen(indexName);
+        MockTransportService transportService = (MockTransportService) internalCluster().getInstance(TransportService.class, sourceNode);
+        AtomicInteger startRecoveryAttempts = new AtomicInteger();
+        transportService.addRequestHandlingBehavior(PeerRecoverySourceService.Actions.START_RECOVERY, (handler, request, channel, task) -> {
+            if (startRecoveryAttempts.incrementAndGet() <= allocationMaxRetry) {
+                throw new CircuitBreakingException("Simulated circuit_breaking_exception", randomFrom(CircuitBreaker.Durability.values()));
+            }
+            handler.messageReceived(request, channel, task);
+        });
+        internalCluster().startNode();
+        setReplicaCount(1, indexName);
+        ensureGreen(indexName);
+        assertThat(startRecoveryAttempts.get(), greaterThan(allocationMaxRetry));
     }
 
     private void assertGlobalCheckpointIsStableAndSyncedInAllNodes(String indexName, List<String> nodes, int shard) throws Exception {

@@ -21,6 +21,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.Preference;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -114,6 +115,8 @@ public class SynonymsManagementAPIService {
             .setQuery(QueryBuilders.termQuery(SYNONYMS_SET_FIELD, resourceName))
             .setFrom(from)
             .setSize(size)
+            .setPreference(Preference.LOCAL.type())
+            .setTrackTotalHits(true)
             .execute(listener.delegateFailure((searchResponseListener, searchResponse) -> {
                 final long totalSynonymRules = searchResponse.getHits().getTotalHits().value;
                 if (totalSynonymRules == 0) {

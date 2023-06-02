@@ -310,6 +310,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     rewritten,
                     localIndices,
                     clusterState,
+                    SearchResponse.Clusters.EMPTY,
                     searchContext,
                     searchPhaseProvider.apply(listener)
                 );
@@ -320,6 +321,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         && rewritten.source().aggregations() != null
                             ? searchService.aggReduceContextBuilder(task::isCancelled, rewritten.source().aggregations())
                             : null;
+                    final int totalClusters = (localIndices == null ? 0 : 1) + remoteClusterIndices.size();
+                    var initClusters = new SearchResponse.Clusters(totalClusters, 0, 0, remoteClusterIndices.size(), true);
+                    if (localIndices == null) {
+                        // Notify the progress listener that a CCS with minimize_roundtrips is happening remote-only (no local shards)
+                        task.getProgressListener().notifyListShards(Collections.emptyList(), Collections.emptyList(), initClusters, false);
+                    }
                     ccsRemoteReduce(
                         parentTaskId,
                         rewritten,
@@ -336,6 +343,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                             r,
                             localIndices,
                             clusterState,
+                            initClusters,
                             searchContext,
                             searchPhaseProvider.apply(l)
                         )
@@ -458,7 +466,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         ActionListener<SearchResponse> listener,
         BiConsumer<SearchRequest, ActionListener<SearchResponse>> localSearchConsumer
     ) {
-
         if (localIndices == null && remoteIndices.size() == 1) {
             // if we are searching against a single remote cluster, we simply forward the original search request to such cluster
             // and we directly perform final reduction in the remote cluster
@@ -721,6 +728,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         SearchRequest searchRequest,
         OriginalIndices localIndices,
         ClusterState clusterState,
+        SearchResponse.Clusters clusterInfo,
         SearchContextId searchContext,
         SearchPhaseProvider searchPhaseProvider
     ) {
@@ -733,7 +741,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             (clusterName, nodeId) -> null,
             clusterState,
             Collections.emptyMap(),
-            SearchResponse.Clusters.EMPTY,
+            clusterInfo,
             searchContext,
             searchPhaseProvider
         );
@@ -872,7 +880,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         @Nullable SearchContextId searchContext,
         SearchPhaseProvider searchPhaseProvider
     ) {
-
         clusterState.blocks().globalBlockedRaiseException(ClusterBlockLevel.READ);
         if (searchRequest.allowPartialSearchResults() == null) {
             // No user preference defined in search request - apply cluster service default

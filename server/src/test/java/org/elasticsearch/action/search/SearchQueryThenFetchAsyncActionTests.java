@@ -16,7 +16,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -80,8 +80,8 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         );
 
         Map<String, Transport.Connection> lookup = new ConcurrentHashMap<>();
-        DiscoveryNode primaryNode = TestDiscoveryNode.create("node1");
-        DiscoveryNode replicaNode = TestDiscoveryNode.create("node2");
+        DiscoveryNode primaryNode = DiscoveryNodeUtils.create("node1");
+        DiscoveryNode replicaNode = DiscoveryNodeUtils.create("node2");
         lookup.put("node1", new SearchAsyncActionTests.MockConnection(primaryNode));
         lookup.put("node2", new SearchAsyncActionTests.MockConnection(replicaNode));
 
@@ -260,8 +260,8 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         int numConcurrent = randomIntBetween(1, 4);
 
         Map<String, Transport.Connection> lookup = new ConcurrentHashMap<>();
-        DiscoveryNode newVersionNode = TestDiscoveryNode.create("node1", buildNewFakeTransportAddress(), newVersion);
-        DiscoveryNode oldVersionNode = TestDiscoveryNode.create("node2", buildNewFakeTransportAddress(), oldVersion);
+        DiscoveryNode newVersionNode = DiscoveryNodeUtils.create("node1", buildNewFakeTransportAddress(), newVersion);
+        DiscoveryNode oldVersionNode = DiscoveryNodeUtils.create("node2", buildNewFakeTransportAddress(), oldVersion);
         lookup.put("node1", new SearchAsyncActionTests.MockConnection(newVersionNode));
         lookup.put("node2", new SearchAsyncActionTests.MockConnection(oldVersionNode));
 
@@ -360,8 +360,8 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         AtomicInteger successfulOps = new AtomicInteger();
 
         Map<String, Transport.Connection> lookup = new ConcurrentHashMap<>();
-        DiscoveryNode newVersionNode = TestDiscoveryNode.create("node1", buildNewFakeTransportAddress(), newVersion);
-        DiscoveryNode oldVersionNode = TestDiscoveryNode.create("node2", buildNewFakeTransportAddress(), oldVersion);
+        DiscoveryNode newVersionNode = DiscoveryNodeUtils.create("node1", buildNewFakeTransportAddress(), newVersion);
+        DiscoveryNode oldVersionNode = DiscoveryNodeUtils.create("node2", buildNewFakeTransportAddress(), oldVersion);
         lookup.put("node1", new SearchAsyncActionTests.MockConnection(newVersionNode));
         lookup.put("node2", new SearchAsyncActionTests.MockConnection(oldVersionNode));
 
@@ -502,9 +502,9 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         AtomicInteger successfulOps = new AtomicInteger();
 
         Map<String, Transport.Connection> lookup = new ConcurrentHashMap<>();
-        DiscoveryNode newVersionNode1 = TestDiscoveryNode.create("node1", buildNewFakeTransportAddress(), newVersion);
-        DiscoveryNode newVersionNode2 = TestDiscoveryNode.create("node2", buildNewFakeTransportAddress(), newVersion);
-        DiscoveryNode oldVersionNode = TestDiscoveryNode.create("node3", buildNewFakeTransportAddress(), oldVersion);
+        DiscoveryNode newVersionNode1 = DiscoveryNodeUtils.create("node1", buildNewFakeTransportAddress(), newVersion);
+        DiscoveryNode newVersionNode2 = DiscoveryNodeUtils.create("node2", buildNewFakeTransportAddress(), newVersion);
+        DiscoveryNode oldVersionNode = DiscoveryNodeUtils.create("node3", buildNewFakeTransportAddress(), oldVersion);
         lookup.put("node1", new SearchAsyncActionTests.MockConnection(newVersionNode1));
         lookup.put("node2", new SearchAsyncActionTests.MockConnection(newVersionNode2));
         lookup.put("node3", new SearchAsyncActionTests.MockConnection(oldVersionNode));

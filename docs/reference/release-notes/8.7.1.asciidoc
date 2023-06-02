@@ -16,6 +16,8 @@ sent.
 +
 This issue is fixed in 8.8.0.
 
+include::8.6.0.asciidoc[tag=reconciliation-imbalance-known-issue]
+
 [[bug-8.7.1]]
 [float]
 === Bug fixes

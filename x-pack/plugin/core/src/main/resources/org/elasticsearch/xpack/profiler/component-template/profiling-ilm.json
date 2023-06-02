@@ -3,7 +3,7 @@
     "settings": {
       "index": {
         "lifecycle": {
-          "name": "profiling"
+          "name": "profiling-60-days"
         }
       }
     }

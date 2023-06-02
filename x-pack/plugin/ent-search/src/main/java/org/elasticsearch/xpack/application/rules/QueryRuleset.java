@@ -63,13 +63,11 @@ public class QueryRuleset implements Writeable, ToXContent {
         false,
         (params, resourceName) -> {
             final String id = (String) params[0];
-            // If id is provided, check that it matches the resource name. We don't want it to be updatable
-            if (id != null) {
-                if (id.equals(resourceName) == false) {
-                    throw new IllegalArgumentException(
-                        "Query ruleset identifier [" + id + "] does not match the resource name: [" + resourceName + "]"
-                    );
-                }
+            // Check that id matches the resource name. We don't want it to be updatable
+            if (id.equals(resourceName) == false) {
+                throw new IllegalArgumentException(
+                    "Query ruleset identifier [" + id + "] does not match the resource name: [" + resourceName + "]"
+                );
             }
             @SuppressWarnings("unchecked")
             final List<QueryRule> rules = (List<QueryRule>) params[1];
@@ -122,8 +120,8 @@ public class QueryRuleset implements Writeable, ToXContent {
      */
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        // TODO I don't understand why tests fail if we have startObject/endObject here.
-//        builder.startObject();
+        // TODO I don't understand why serialization tests fail if we have startObject/endObject here.
+        builder.startObject();
         {
             builder.field(ID_FIELD.getPreferredName(), id);
             builder.startArray(RULES_FIELD.getPreferredName());
@@ -132,7 +130,7 @@ public class QueryRuleset implements Writeable, ToXContent {
             }
             builder.endArray();
         }
-//        builder.endObject();
+        builder.endObject();
         return builder;
     }
 
@@ -153,7 +151,7 @@ public class QueryRuleset implements Writeable, ToXContent {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         QueryRuleset that = (QueryRuleset) o;
-        return id.equals(that.id) && rules.equals(that.rules);
+        return id.equals(that.id) && Objects.equals(rules, that.rules);
     }
 
     @Override

@@ -54,14 +54,13 @@ public class QueryRulesIndexServiceTests extends ESSingleNodeTestCase {
         return plugins;
     }
 
-    // TODO implement
-//    public void testEmptyState() throws Exception {
-//        expectThrows(ResourceNotFoundException.class, () -> awaitGetQueryRuleset("i-dont-exist"));
-//        expectThrows(ResourceNotFoundException.class, () -> awaitDeleteQueryRuleset("i-dont-exist"));
-//
-//        QueryRulesIndexService.QueryRuleResult listResults = awaitListQueryRules(0, 10);
-//        assertThat(listResults.totalResults(), equalTo(0L));
-//    }
+    public void testEmptyState() throws Exception {
+        expectThrows(ResourceNotFoundException.class, () -> awaitGetQueryRuleset("i-dont-exist"));
+        expectThrows(ResourceNotFoundException.class, () -> awaitDeleteQueryRuleset("i-dont-exist"));
+
+        QueryRulesIndexService.QueryRulesetResult listResults = awaitListQueryRulesets(0, 10);
+        assertThat(listResults.totalResults(), equalTo(0L));
+    }
 
     public void testCreateQueryRuleset() throws Exception {
         final QueryRule myQueryRule1 = new QueryRule("my_rule1", QueryRuleType.PINNED);
@@ -101,45 +100,47 @@ public class QueryRulesIndexServiceTests extends ESSingleNodeTestCase {
         assertThat(getQueryRuleset, equalTo(myQueryRuleset));
     }
 
-    // TODO implement
-//    public void testListQueryRules() throws Exception {
-//        int numRules = 10;
-//        for (int i = 0; i < numRules; i++) {
-//            final QueryRule myQueryRule = new QueryRule("my_rule_" + i, QueryRuleType.PINNED);
-//            IndexResponse resp = awaitPutQueryRule(myQueryRule, false);
-//            assertThat(resp.status(), equalTo(RestStatus.CREATED));
-//            assertThat(resp.getIndex(), equalTo(QUERY_RULES_CONCRETE_INDEX_NAME));
-//        }
-//
-//        {
-//            QueryRulesIndexService.QueryRuleResult searchResponse = awaitListQueryRules(0, 10);
-//            final List<QueryRule> rules = searchResponse.items();
-//            assertNotNull(rules);
-//            assertThat(rules.size(), equalTo(10));
-//            assertThat(searchResponse.totalResults(), equalTo(10L));
-//
-//            for (int i = 0; i < numRules; i++) {
-//                QueryRule rule = rules.get(i);
-//                assertThat(rule.id(), equalTo("my_rule_" + i));
-//                assertThat(rule.type(), equalTo(QueryRuleType.PINNED));
-//            }
-//        }
-//
-//        {
-//           QueryRulesIndexService.QueryRuleResult searchResponse = awaitListQueryRules(5, 10);
-//            final List<QueryRule> rules = searchResponse.items();
-//            assertNotNull(rules);
-//            assertThat(rules.size(), equalTo(5));
-//            assertThat(searchResponse.totalResults(), equalTo(10L));
-//
-//            for (int i = 0; i < 5; i++) {
-//                int index = i + 5;
-//                QueryRule rule = rules.get(i);
-//                assertThat(rule.id(), equalTo("my_rule_" + index));
-//                assertThat(rule.type(), equalTo(QueryRuleType.PINNED));
-//            }
-//        }
-//    }
+    public void testListQueryRules() throws Exception {
+        int numRulesets = 10;
+        for (int i = 0; i < numRulesets; i++) {
+            final List<QueryRule> rules = List.of(
+                new QueryRule("my_rule_" + i, QueryRuleType.PINNED),
+                new QueryRule("my_rule_" + i + "_" + (i + 1), QueryRuleType.PINNED)
+            );
+            final QueryRuleset myQueryRuleset = new QueryRuleset("my_ruleset_" + i, rules);
+
+            IndexResponse resp = awaitPutQueryRuleset(myQueryRuleset, false);
+            assertThat(resp.status(), equalTo(RestStatus.CREATED));
+            assertThat(resp.getIndex(), equalTo(QUERY_RULES_CONCRETE_INDEX_NAME));
+        }
+
+        {
+            QueryRulesIndexService.QueryRulesetResult searchResponse = awaitListQueryRulesets(0, 10);
+            final List<String> rulesetIds = searchResponse.rulesetIds();
+            assertNotNull(rulesetIds);
+            assertThat(rulesetIds.size(), equalTo(10));
+            assertThat(searchResponse.totalResults(), equalTo(10L));
+
+            for (int i = 0; i < numRulesets; i++) {
+                String rulesetId = rulesetIds.get(i);
+                assertThat(rulesetId, equalTo("my_ruleset_" + i));
+            }
+        }
+
+        {
+           QueryRulesIndexService.QueryRulesetResult searchResponse = awaitListQueryRulesets(5, 10);
+            final List<String> rulesetIds = searchResponse.rulesetIds();
+            assertNotNull(rulesetIds);
+            assertThat(rulesetIds.size(), equalTo(5));
+            assertThat(searchResponse.totalResults(), equalTo(10L));
+
+            for (int i = 0; i < 5; i++) {
+                int index = i + 5;
+                String rulesetId = rulesetIds.get(i);
+                assertThat(rulesetId, equalTo("my_ruleset_" + index));
+            }
+        }
+    }
 
     public void testDeleteQueryRule() throws Exception {
         for (int i = 0; i < 5; i++) {
@@ -154,9 +155,9 @@ public class QueryRulesIndexServiceTests extends ESSingleNodeTestCase {
             assertThat(getQueryRuleset, equalTo(myQueryRuleset));
         }
 
-        DeleteResponse resp = awaitDeleteQueryRuleset("my_rule");
+        DeleteResponse resp = awaitDeleteQueryRuleset("my_ruleset");
         assertThat(resp.status(), equalTo(RestStatus.OK));
-        expectThrows(ResourceNotFoundException.class, () -> awaitGetQueryRuleset("my_rule"));
+        expectThrows(ResourceNotFoundException.class, () -> awaitGetQueryRuleset("my_ruleset"));
     }
 
     private IndexResponse awaitPutQueryRuleset(QueryRuleset queryRuleset, boolean create) throws Exception {
@@ -234,32 +235,31 @@ private DeleteResponse awaitDeleteQueryRuleset(String name) throws Exception {
         return resp.get();
     }
 
-    // TODO implement
-//private QueryRulesIndexService.QueryRuleResult awaitListQueryRules(int from, int size)
-//        throws Exception {
-//        CountDownLatch latch = new CountDownLatch(1);
-//        final AtomicReference<QueryRulesIndexService.QueryRuleResult> resp = new AtomicReference<>(null);
-//        final AtomicReference<Exception> exc = new AtomicReference<>(null);
-//        queryRuleIndexService.listQueryRules(from, size, new ActionListener<>() {
-//            @Override
-//            public void onResponse(QueryRulesIndexService.QueryRuleResult result) {
-//                resp.set(result);
-//                latch.countDown();
-//            }
-//
-//            @Override
-//            public void onFailure(Exception e) {
-//                exc.set(e);
-//                latch.countDown();
-//            }
-//        });
-//        assertTrue(latch.await(5, TimeUnit.SECONDS));
-//        if (exc.get() != null) {
-//            throw exc.get();
-//        }
-//        assertNotNull(resp.get());
-//        return resp.get();
-//    }
+    private QueryRulesIndexService.QueryRulesetResult awaitListQueryRulesets(int from, int size)
+        throws Exception {
+        CountDownLatch latch = new CountDownLatch(1);
+        final AtomicReference<QueryRulesIndexService.QueryRulesetResult> resp = new AtomicReference<>(null);
+        final AtomicReference<Exception> exc = new AtomicReference<>(null);
+        queryRuleIndexService.listQueryRulesets(from, size, new ActionListener<>() {
+            @Override
+            public void onResponse(QueryRulesIndexService.QueryRulesetResult result) {
+                resp.set(result);
+                latch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                exc.set(e);
+                latch.countDown();
+            }
+        });
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
+        if (exc.get() != null) {
+            throw exc.get();
+        }
+        assertNotNull(resp.get());
+        return resp.get();
+    }
 
     /**
      * Test plugin to register the {@link QueryRulesIndexService} system index descriptor.

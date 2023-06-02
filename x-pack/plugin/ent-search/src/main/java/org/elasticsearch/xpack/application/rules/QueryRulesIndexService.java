@@ -29,7 +29,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
-import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -43,9 +42,8 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -55,6 +53,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.application.rules.QueryRule.QueryRuleType;
@@ -136,6 +135,7 @@ public class QueryRulesIndexService {
                     builder.endObject();
 
                     builder.startObject(QueryRuleset.RULES_FIELD.getPreferredName());
+                    builder.startObject("properties");
                     {
                         builder.startObject(QueryRule.ID_FIELD.getPreferredName());
                         builder.field("type", "keyword");
@@ -145,6 +145,7 @@ public class QueryRulesIndexService {
                         builder.field("type", "keyword");
                         builder.endObject();
                     }
+                    builder.endObject();
                     builder.endObject();
 
                 }
@@ -175,15 +176,14 @@ public class QueryRulesIndexService {
             final Map<String,Object> source = getResponse.getSource();
 
             final String id = getResponse.getId();
-            final List<QueryRule> rules = Collections.emptyList(); // TODO implement source.get("rules");
-
+            @SuppressWarnings("unchecked")
+            final List<QueryRule> rules = ((List<Map<String,String>>) source.get("rules"))
+                .stream()
+                .map(rule -> new QueryRule(rule.get("rule_id"), QueryRuleType.queryRuleType(rule.get("type"))))
+                .collect(Collectors.toList());
             final QueryRuleset res = new QueryRuleset(id, rules);
             l.onResponse(res);
         }));
-    }
-
-    private QueryRule mapQueryRule() {
-        throw new UnsupportedOperationException("Not implemented yet");
     }
 
     /**
@@ -194,23 +194,18 @@ public class QueryRulesIndexService {
      * @param listener The action listener to invoke on response/failure.
      */
     public void putQueryRuleset(QueryRuleset queryRuleset, boolean create, ActionListener<IndexResponse> listener) {
-        try (ReleasableBytesStreamOutput buffer = new ReleasableBytesStreamOutput(0, bigArrays.withCircuitBreaking())) {
-            try (XContentBuilder source = XContentFactory.jsonBuilder(buffer)) {
-                source.startObject()
-                    .field(QueryRuleset.ID_FIELD.getPreferredName(), queryRuleset.id())
-                    .field(QueryRuleset.RULES_FIELD.getPreferredName(), queryRuleset.rules()) // TODO make this work
-                    .endObject();
-            }
+        try {
             DocWriteRequest.OpType opType = (create ? DocWriteRequest.OpType.CREATE : DocWriteRequest.OpType.INDEX);
             final IndexRequest indexRequest = new IndexRequest(QUERY_RULES_ALIAS_NAME).opType(DocWriteRequest.OpType.INDEX)
                 .id(queryRuleset.id())
                 .opType(opType)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                .source(buffer.bytes(), XContentType.JSON);
+                .source(queryRuleset.toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS));
             clientWithOrigin.index(indexRequest, listener);
         } catch (Exception e) {
             listener.onFailure(e);
         }
+
     }
 
     public void deleteQueryRuleset(String resourceName, ActionListener<DeleteResponse> listener) {
@@ -247,9 +242,9 @@ public class QueryRulesIndexService {
             final SearchSourceBuilder source = new SearchSourceBuilder().from(from)
                 .size(size)
                 .query(new MatchAllQueryBuilder())
-                .docValueField(QueryRule.ID_FIELD.getPreferredName())
+                .docValueField(QueryRuleset.ID_FIELD.getPreferredName())
                 .storedFields(Collections.singletonList("_none_"))
-                .sort(QueryRule.ID_FIELD.getPreferredName(), SortOrder.ASC);
+                .sort(QueryRuleset.ID_FIELD.getPreferredName(), SortOrder.ASC);
             final SearchRequest req = new SearchRequest(QUERY_RULES_ALIAS_NAME).source(source);
             clientWithOrigin.search(req, new ActionListener<>() {
                 @Override

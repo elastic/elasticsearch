@@ -18,7 +18,7 @@ import java.util.Set;
 
 import static org.elasticsearch.test.ESTestCase.buildNewFakeTransportAddress;
 
-public class TestDiscoveryNode {
+public class DiscoveryNodeUtils {
 
     public static DiscoveryNode create(String id) {
         return builder(id).build();

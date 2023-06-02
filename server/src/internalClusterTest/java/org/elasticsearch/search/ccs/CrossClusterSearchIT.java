@@ -223,7 +223,7 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
         PlainActionFuture<SearchResponse> queryFuture = new PlainActionFuture<>();
         SearchRequest searchRequest = new SearchRequest("demo", "cluster_a:prod");
         searchRequest.allowPartialSearchResults(false);
-        searchRequest.setCcsMinimizeRoundtrips(false);
+        searchRequest.setCcsMinimizeRoundtrips(randomBoolean());
         searchRequest.source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()).size(1000));
         client(LOCAL_CLUSTER).search(searchRequest, queryFuture);
         SearchListenerPlugin.waitSearchStarted();

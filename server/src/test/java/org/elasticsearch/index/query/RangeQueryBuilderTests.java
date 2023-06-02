@@ -41,6 +41,7 @@ import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuilder> {
@@ -555,6 +556,67 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         );
         final QueryBuilder rewritten = query.rewrite(coordinatorRewriteContext);
         assertThat(rewritten, not(sameInstance(query)));
+    }
+
+    public void testCoordinatorRewriteTimestampField() throws IOException {
+        final String timestampFieldName = "@timestamp";
+        RangeQueryBuilder query = new RangeQueryBuilder(timestampFieldName) {
+            @Override
+            protected QueryBuilder doSearchRewrite(SearchExecutionContext searchExecutionContext) throws IOException {
+                throw new UnsupportedOperationException("Unexpected rewrite on data node");
+            }
+        };
+        long minTimestamp = 1685714000000L;
+        long maxTimestamp = 1685715000000L;
+        final CoordinatorRewriteContext coordinatorRewriteContext = createCoordinatorRewriteContext(
+            new DateFieldMapper.DateFieldType(timestampFieldName),
+            minTimestamp,
+            maxTimestamp
+        );
+
+        // Before timestamp field range, so rewrites to match no docs:
+        long range = 10000L;
+        query.from(minTimestamp - range);
+        query.to(minTimestamp - 1);
+        QueryBuilder rewritten = query.rewrite(coordinatorRewriteContext);
+        assertThat(rewritten, not(sameInstance(query)));
+        assertThat(rewritten, instanceOf(MatchNoneQueryBuilder.class));
+
+        // After timestamp field range, so rewrites to match no docs:
+        query.from(maxTimestamp + 1);
+        query.to(maxTimestamp + range);
+        rewritten = query.rewrite(coordinatorRewriteContext);
+        assertThat(rewritten, not(sameInstance(query)));
+        assertThat(rewritten, instanceOf(MatchNoneQueryBuilder.class));
+
+        // Range within timestamp field range, so rewrite to open bounded range query:
+        query.from(minTimestamp - range);
+        query.to(maxTimestamp + range);
+        rewritten = query.rewrite(coordinatorRewriteContext);
+        assertThat(rewritten, not(sameInstance(query)));
+        assertThat(rewritten, instanceOf(RangeQueryBuilder.class));
+        RangeQueryBuilder rewrittenRangeQuery = (RangeQueryBuilder) rewritten;
+        assertThat(rewrittenRangeQuery.fieldName(), equalTo(timestampFieldName));
+        assertThat(rewrittenRangeQuery.from(), nullValue());
+        assertThat(rewrittenRangeQuery.to(), nullValue());
+
+        // Overlaps with timestamp field range, nothing that can be done so rewrite does nothing:
+        query.from(minTimestamp - (range / 2));
+        query.to(minTimestamp + (range / 2));
+        rewritten = query.rewrite(coordinatorRewriteContext);
+        assertThat(rewritten, sameInstance(query));
+
+        // Use different field name than timestamp field name, coordinating node rewrite should do nothing:
+        RangeQueryBuilder otherQuery = new RangeQueryBuilder("other_field") {
+            @Override
+            protected QueryBuilder doSearchRewrite(SearchExecutionContext searchExecutionContext) throws IOException {
+                throw new UnsupportedOperationException("Unexpected rewrite on data node");
+            }
+        };
+        otherQuery.from(minTimestamp - range);
+        otherQuery.to(minTimestamp - 1);
+        rewritten = otherQuery.rewrite(coordinatorRewriteContext);
+        assertThat(rewritten, sameInstance(otherQuery));
     }
 
     public void testNoCoordinatorRewrite() throws IOException {

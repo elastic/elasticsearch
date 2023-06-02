@@ -76,6 +76,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.index.mapper.TimeSeriesParams.TIME_SERIES_METRIC_PARAM;
 
@@ -96,6 +97,12 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
     private final MetadataCreateIndexService metadataCreateIndexService;
     private final IndexScopedSettings indexScopedSettings;
     private final ThreadContext threadContext;
+
+    private static final Set<String> FORBIDDEN_SETTINGS = Set.of(
+        IndexSettings.DEFAULT_PIPELINE.getKey(),
+        IndexSettings.FINAL_PIPELINE.getKey(),
+        IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey()
+    );
 
     /**
      * This is the cluster state task executor for cluster state update actions.
@@ -584,12 +591,15 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                 // the same rules with resize apply
                 continue;
             }
-            // Do not override settings that have already been set in the rollup index.
-            // Also, we don't want to copy the `index.block.write` setting that we know
-            // it is set in the source index settings.
-            if (IndexMetadata.SETTING_BLOCKS_WRITE.equals(key) || targetSettings.keys().contains(key)) {
+            // Do not copy index settings which are valid for the source index but not for the target index
+            if (FORBIDDEN_SETTINGS.contains(key)) {
                 continue;
             }
+            // Do not override settings that have already been set in the rollup index.
+            if (targetSettings.keys().contains(key)) {
+                continue;
+            }
+
             targetSettings.copy(key, sourceIndexMetadata.getSettings());
         }
 

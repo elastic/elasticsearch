@@ -33,6 +33,12 @@ public class SparseFileTracker {
      */
     private final TreeSet<Range> ranges = new TreeSet<>(RANGE_START_COMPARATOR);
 
+    /**
+     * Number of bytes from the start of the file that are present as one continuous range without gaps. Used as an optimization in
+     * {@link #waitForRange(ByteRange, ByteRange, ActionListener)} to bypass expensive inspection of {@link #ranges} in some cases.
+     */
+    private volatile long complete = 0L;
+
     private final Object mutex = new Object();
 
     private final String description;
@@ -167,6 +173,14 @@ public class SparseFileTracker {
             );
         }
 
+        if (complete >= range.end()) {
+            listener.onResponse(null);
+            return List.of();
+        }
+        return doWaitForRange(range, subRange, listener);
+    }
+
+    private List<Gap> doWaitForRange(ByteRange range, ByteRange subRange, ActionListener<Void> listener) {
         final ActionListener<Void> wrappedListener = wrapWithAssertions(listener);
 
         final List<Gap> gaps = new ArrayList<>();
@@ -422,15 +436,19 @@ public class SparseFileTracker {
                 assert gapRange.end == nextRange.start : gapRange + " vs " + nextRange;
                 prevRange.end = nextRange.end;
                 ranges.remove(nextRange);
+                maybeUpdateCompletePointer(prevRange);
             } else if (mergeWithPrev) {
                 assert prevRange.isPending() == false : prevRange;
                 assert prevRange.end == gapRange.start : prevRange + " vs " + gapRange;
                 prevRange.end = gapRange.end;
+                maybeUpdateCompletePointer(prevRange);
             } else if (mergeWithNext) {
                 assert nextRange.isPending() == false : nextRange;
                 assert gapRange.end == nextRange.start : gapRange + " vs " + nextRange;
                 nextRange.start = gapRange.start;
+                maybeUpdateCompletePointer(nextRange);
             } else {
+                maybeUpdateCompletePointer(gapRange);
                 ranges.add(new Range(gapRange.start, gapRange.end, null));
             }
 
@@ -438,6 +456,14 @@ public class SparseFileTracker {
         }
 
         completionListener.onResponse(gapRange.end);
+    }
+
+    private void maybeUpdateCompletePointer(Range gapRange) {
+        assert Thread.holdsLock(mutex);
+        if (gapRange.start == 0) {
+            assert complete <= gapRange.end;
+            complete = gapRange.end;
+        }
     }
 
     private void onGapProgress(final Range gapRange, long value) {

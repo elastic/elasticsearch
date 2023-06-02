@@ -546,8 +546,8 @@ public class LinearCombinationMultiShardIT extends ESIntegTestCase {
                                 .should(QueryBuilders.termQuery("text1", "508").boost(9.0f))
                                 .should(QueryBuilders.termQuery("text1", "304").boost(8.0f))
                                 .should(QueryBuilders.termQuery("text1", "501").boost(7.0f))
-                                .should(QueryBuilders.termQuery("text1", "504").boost(6.0f))
-                                .should(QueryBuilders.termQuery("text1", "502").boost(5.0f))
+                                .should(QueryBuilders.termQuery("text1", "502").boost(6.0f))
+                                .should(QueryBuilders.termQuery("text1", "504").boost(5.0f))
                                 .should(QueryBuilders.termQuery("text1", "499").boost(4.0f))
                                 .should(QueryBuilders.termQuery("text1", "800").boost(3.0f))
                                 .should(QueryBuilders.termQuery("text1", "201").boost(2.0f))
@@ -610,10 +610,10 @@ public class LinearCombinationMultiShardIT extends ESIntegTestCase {
                                 .should(QueryBuilders.termQuery("text1", "508").boost(9.0f))
                                 .should(QueryBuilders.termQuery("text1", "304").boost(8.0f))
                                 .should(QueryBuilders.termQuery("text1", "501").boost(7.0f))
-                                .should(QueryBuilders.termQuery("text1", "504").boost(6.0f))
-                                .should(QueryBuilders.termQuery("text1", "502").boost(5.0f))
+                                .should(QueryBuilders.termQuery("text1", "502").boost(6.0f))
+                                .should(QueryBuilders.termQuery("text1", "504").boost(5.0f))
                                 .should(QueryBuilders.termQuery("text1", "499").boost(4.0f))
-                                .should(QueryBuilders.termQuery("text1", "801").boost(3.0f))
+                                .should(QueryBuilders.termQuery("text1", "800").boost(3.0f))
                                 .should(QueryBuilders.termQuery("text1", "201").boost(2.0f))
                                 .should(QueryBuilders.termQuery("text1", "492").boost(1.0f))
                         )
@@ -644,10 +644,6 @@ public class LinearCombinationMultiShardIT extends ESIntegTestCase {
             assertEquals("term 496", hit.field("text0").getValue());
             assertEquals("term 504", hit.field("text1").getValue());
 
-            hit = response.getHits().getAt(4);
-            assertEquals("term 500", hit.field("text0").getValue());
-            assertEquals("term 500", hit.field("text1").getValue());
-
             LongTerms aggregation = response.getAggregations().get("sums");
             assertEquals(3, aggregation.getBuckets().size());
 
@@ -655,9 +651,9 @@ public class LinearCombinationMultiShardIT extends ESIntegTestCase {
                 if (0L == (long) bucket.getKey()) {
                     assertEquals(5, bucket.getDocCount());
                 } else if (1L == (long) bucket.getKey()) {
-                    assertEquals(6, bucket.getDocCount());
+                    assertEquals(5, bucket.getDocCount());
                 } else if (2L == (long) bucket.getKey()) {
-                    assertEquals(4, bucket.getDocCount());
+                    assertEquals(5, bucket.getDocCount());
                 } else {
                     throw new IllegalArgumentException("unexpected bucket key [" + bucket.getKey() + "]");
                 }

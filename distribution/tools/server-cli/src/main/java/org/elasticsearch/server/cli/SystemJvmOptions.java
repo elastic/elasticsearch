@@ -60,6 +60,7 @@ final class SystemJvmOptions {
              * explore alternatives. See org.elasticsearch.xpack.searchablesnapshots.preallocate.Preallocate.
              */
             "--add-opens=java.base/java.io=org.elasticsearch.preallocate",
+         //   "-Djdk.system.logger.format=[%2$s] %4$s: %5$s%6$s%n",
             maybeOverrideDockerCgroup()
         ).stream().filter(e -> e.isEmpty() == false).collect(Collectors.toList());
     }

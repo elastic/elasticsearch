@@ -276,16 +276,6 @@ public class LogConfigurator {
                 StandardCharsets.UTF_8
             )
         );
-
-        final Logger rootLogger = LogManager.getRootLogger();
-        Appender appender = Loggers.findAppender(rootLogger, ConsoleAppender.class);
-        if (appender != null) {
-            if (useConsole) {
-                consoleAppender = appender;
-            } else {
-                Loggers.removeAppender(rootLogger, appender);
-            }
-        }
     }
 
     /**

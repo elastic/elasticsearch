@@ -92,6 +92,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils.executeAndAssertSuccessful;
 import static org.elasticsearch.core.Tuple.tuple;
+import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
 import static org.elasticsearch.ingest.IngestService.NOOP_PIPELINE_NAME;
 import static org.elasticsearch.ingest.IngestService.hasPipeline;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -927,6 +928,69 @@ public class IngestServiceTests extends ESTestCase {
         var pipelineConfig2 = XContentHelper.convertToMap(putRequest.getSource(), false, putRequest.getXContentType()).v2();
         ingestInfos.put(node2, new IngestInfo(List.of(new ProcessorInfo("set"), new ProcessorInfo("remove"))));
         ingestService.validatePipeline(ingestInfos, putRequest.getId(), pipelineConfig2);
+    }
+
+    public void testValidateConfigurationExceptions() {
+        IngestService ingestService = createWithProcessors(Map.of("fail_validation", (factories, tag, description, config) -> {
+            // ordinary validation issues happen at processor construction time
+            throw newConfigurationException("fail_validation", tag, "no_property_name", "validation failure reason");
+        }));
+        PutPipelineRequest putRequest = new PutPipelineRequest("_id", new BytesArray("""
+            {
+              "processors": [
+                {
+                  "fail_validation": {
+                  }
+                }
+              ]
+            }"""), XContentType.JSON);
+        var pipelineConfig = XContentHelper.convertToMap(putRequest.getSource(), false, putRequest.getXContentType()).v2();
+
+        // other validation actually consults this map, but this validation does not. however, it must not be empty.
+        DiscoveryNode node1 = DiscoveryNodeUtils.create("_node_id1", buildNewFakeTransportAddress(), Map.of(), Set.of());
+        Map<DiscoveryNode, IngestInfo> ingestInfos = new HashMap<>();
+        ingestInfos.put(node1, new IngestInfo(List.of()));
+
+        ElasticsearchParseException e = expectThrows(
+            ElasticsearchParseException.class,
+            () -> ingestService.validatePipeline(ingestInfos, putRequest.getId(), pipelineConfig)
+        );
+        assertEquals("[no_property_name] validation failure reason", e.getMessage());
+        assertEquals("fail_validation", e.getMetadata("es.processor_type").get(0));
+    }
+
+    public void testValidateExtraValidationConfigurationExceptions() {
+        IngestService ingestService = createWithProcessors(Map.of("fail_extra_validation", (factories, tag, description, config) -> {
+            // 'extra validation' issues happen post- processor construction time
+            return new FakeProcessor("fail_extra_validation", tag, description, ingestDocument -> {}) {
+                @Override
+                public void extraValidation() throws Exception {
+                    throw newConfigurationException("fail_extra_validation", tag, "no_property_name", "extra validation failure reason");
+                }
+            };
+        }));
+        PutPipelineRequest putRequest = new PutPipelineRequest("_id", new BytesArray("""
+            {
+              "processors": [
+                {
+                  "fail_extra_validation": {
+                  }
+                }
+              ]
+            }"""), XContentType.JSON);
+        var pipelineConfig = XContentHelper.convertToMap(putRequest.getSource(), false, putRequest.getXContentType()).v2();
+
+        // other validation actually consults this map, but this validation does not. however, it must not be empty.
+        DiscoveryNode node1 = DiscoveryNodeUtils.create("_node_id1", buildNewFakeTransportAddress(), Map.of(), Set.of());
+        Map<DiscoveryNode, IngestInfo> ingestInfos = new HashMap<>();
+        ingestInfos.put(node1, new IngestInfo(List.of()));
+
+        ElasticsearchParseException e = expectThrows(
+            ElasticsearchParseException.class,
+            () -> ingestService.validatePipeline(ingestInfos, putRequest.getId(), pipelineConfig)
+        );
+        assertEquals("[no_property_name] extra validation failure reason", e.getMessage());
+        assertEquals("fail_extra_validation", e.getMetadata("es.processor_type").get(0));
     }
 
     public void testExecuteIndexPipelineExistsButFailedParsing() {

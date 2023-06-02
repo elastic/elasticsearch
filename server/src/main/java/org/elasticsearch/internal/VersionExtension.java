@@ -11,15 +11,15 @@ package org.elasticsearch.internal;
 import java.util.ServiceLoader;
 
 /**
- * Allows plugging in Version.CURRENT.
+ * Allows plugging in current version elements.
  */
 public interface VersionExtension {
     /**
-     * Returns the version id of the current version.
-     * Note this cannot return a Version object because it needs to be
-     * called during static initialization of Version.
+     * Returns the version id of the current transport version.
+     * Note this cannot return a TransportVersion object because it needs to be
+     * called during static initialization of TransportVersion.
      */
-    int getCurrentVersionId();
+    int getCurrentTransportVersionId();
 
     /**
      * Loads a single VersionExtension, or returns {@code null} if none are found.

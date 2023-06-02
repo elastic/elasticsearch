@@ -15,7 +15,6 @@ import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.internal.VersionExtension;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -143,7 +142,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     public static final Version V_8_8_0 = new Version(8_08_00_99, IndexVersion.V_8_8_0);
     public static final Version V_8_8_1 = new Version(8_08_01_99, IndexVersion.V_8_8_1);
     public static final Version V_8_9_0 = new Version(8_09_00_99, IndexVersion.V_8_9_0);
-    public static final Version CURRENT = findCurrent(V_8_9_0);
+    public static final Version CURRENT = V_8_9_0;
 
     private static final NavigableMap<Integer, Version> VERSION_IDS;
     private static final Map<String, Version> VERSION_STRINGS;
@@ -192,15 +191,6 @@ public class Version implements Comparable<Version>, ToXContentFragment {
 
         VERSION_IDS = Collections.unmodifiableNavigableMap(builder);
         VERSION_STRINGS = Map.copyOf(builderByString);
-    }
-
-    // finds the pluggable current version, or falls back to the locally defined current
-    private static Version findCurrent(Version fallback) {
-        var versionExtension = VersionExtension.load();
-        if (versionExtension == null) {
-            return fallback;
-        }
-        return new Version(versionExtension.getCurrentVersionId(), fallback.indexVersion);
     }
 
     public static Version readVersion(StreamInput in) throws IOException {

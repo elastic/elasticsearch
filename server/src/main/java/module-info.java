@@ -6,7 +6,6 @@
  * Side Public License, v 1.
  */
 
-import org.elasticsearch.internal.VersionExtension;
 import org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat;
 
 /** The Elasticsearch Server Module. */

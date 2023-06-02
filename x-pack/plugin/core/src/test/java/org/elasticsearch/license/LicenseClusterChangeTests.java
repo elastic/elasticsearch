@@ -12,8 +12,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.junit.After;
@@ -63,7 +63,7 @@ public class LicenseClusterChangeTests extends AbstractClusterStateLicenseServic
     }
 
     public void testSelfGeneratedLicenseGeneration() throws Exception {
-        DiscoveryNode master = TestDiscoveryNode.builder("b").roles(emptySet()).build();
+        DiscoveryNode master = DiscoveryNodeUtils.builder("b").roles(emptySet()).build();
         ClusterState oldState = ClusterState.builder(new ClusterName("a"))
             .nodes(DiscoveryNodes.builder().masterNodeId(master.getId()).add(master))
             .build();

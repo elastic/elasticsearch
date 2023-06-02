@@ -18,8 +18,8 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -88,8 +88,8 @@ public class LocalHealthMonitorTests extends ESTestCase {
                 .build(),
             HealthMetadata.ShardLimits.newBuilder().maxShardsPerNode(999).maxShardsPerNodeFrozen(100).build()
         );
-        node = TestDiscoveryNode.create("node", "node");
-        frozenNode = TestDiscoveryNode.builder("frozen-node")
+        node = DiscoveryNodeUtils.create("node", "node");
+        frozenNode = DiscoveryNodeUtils.builder("frozen-node")
             .name("frozen-node")
             .roles(Set.of(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE))
             .build();
@@ -299,7 +299,7 @@ public class LocalHealthMonitorTests extends ESTestCase {
     }
 
     public void testYellowStatusForNonDataNode() {
-        DiscoveryNode dedicatedMasterNode = TestDiscoveryNode.builder("master-node-1")
+        DiscoveryNode dedicatedMasterNode = DiscoveryNodeUtils.builder("master-node-1")
             .name("master-node")
             .roles(Set.of(DiscoveryNodeRole.MASTER_ROLE))
             .build();
@@ -323,7 +323,7 @@ public class LocalHealthMonitorTests extends ESTestCase {
         DiscoveryNode localNode = state.nodes().getLocalNode();
         assertThat(LocalHealthMonitor.DiskCheck.hasRelocatingShards(state, localNode), is(true));
 
-        DiscoveryNode dedicatedMasterNode = TestDiscoveryNode.builder("master-node-1")
+        DiscoveryNode dedicatedMasterNode = DiscoveryNodeUtils.builder("master-node-1")
             .name("master-node")
             .roles(Set.of(DiscoveryNodeRole.MASTER_ROLE))
             .build();

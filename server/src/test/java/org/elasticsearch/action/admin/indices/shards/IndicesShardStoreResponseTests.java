@@ -13,7 +13,7 @@ import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse.
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse.StoreStatus;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse.StoreStatus.AllocationStatus;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
@@ -37,8 +37,8 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class IndicesShardStoreResponseTests extends ESTestCase {
     public void testBasicSerialization() throws Exception {
-        DiscoveryNode node1 = TestDiscoveryNode.builder("node1").roles(emptySet()).build();
-        DiscoveryNode node2 = TestDiscoveryNode.builder("node2").roles(emptySet()).build();
+        DiscoveryNode node1 = DiscoveryNodeUtils.builder("node1").roles(emptySet()).build();
+        DiscoveryNode node2 = DiscoveryNodeUtils.builder("node2").roles(emptySet()).build();
         List<StoreStatus> storeStatusList = List.of(
             new StoreStatus(node1, null, AllocationStatus.PRIMARY, null),
             new StoreStatus(node2, UUIDs.randomBase64UUID(), AllocationStatus.REPLICA, null),
@@ -103,7 +103,7 @@ public class IndicesShardStoreResponseTests extends ESTestCase {
     }
 
     public void testStoreStatusOrdering() throws Exception {
-        DiscoveryNode node1 = TestDiscoveryNode.builder("node1").roles(emptySet()).build();
+        DiscoveryNode node1 = DiscoveryNodeUtils.builder("node1").roles(emptySet()).build();
         List<StoreStatus> orderedStoreStatuses = new ArrayList<>();
         orderedStoreStatuses.add(new StoreStatus(node1, UUIDs.randomBase64UUID(), AllocationStatus.PRIMARY, null));
         orderedStoreStatuses.add(new StoreStatus(node1, UUIDs.randomBase64UUID(), AllocationStatus.REPLICA, null));

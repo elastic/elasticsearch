@@ -36,7 +36,7 @@ import org.elasticsearch.cluster.coordination.LinearizabilityChecker.SequentialS
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.BatchedRerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterApplierService;
@@ -1195,7 +1195,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 Function<Long, Long> adaptCurrentTerm,
                 Settings settings
             ) {
-                final DiscoveryNode newLocalNode = TestDiscoveryNode.builder(localNode.getId())
+                final DiscoveryNode newLocalNode = DiscoveryNodeUtils.builder(localNode.getId())
                     .name(localNode.getName())
                     .ephemeralId(UUIDs.randomBase64UUID(random()))  // generated deterministically for repeatable tests
                     .address(randomBoolean() ? buildNewFakeTransportAddress() : localNode.getAddress())
@@ -1847,7 +1847,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
         .collect(Collectors.toUnmodifiableSet());
 
     protected DiscoveryNode createDiscoveryNode(int nodeIndex, boolean masterEligible) {
-        return TestDiscoveryNode.builder("node" + nodeIndex)
+        return DiscoveryNodeUtils.builder("node" + nodeIndex)
             .ephemeralId(UUIDs.randomBase64UUID(random()))  // generated deterministically for repeatable tests
             .roles(masterEligible ? ALL_ROLES_EXCEPT_VOTING_ONLY : emptySet())
             .build();

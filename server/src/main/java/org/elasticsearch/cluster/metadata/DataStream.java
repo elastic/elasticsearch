@@ -613,12 +613,12 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      * is treated differently for the write index (i.e. they first need to be rolled over)
      */
     public List<Index> getIndicesPastRetention(Function<String, IndexMetadata> indexMetadataSupplier, LongSupplier nowSupplier) {
-        if (lifecycle == null || lifecycle.getDataRetention() == null) {
+        if (lifecycle == null || lifecycle.getEffectiveDataRetention() == null) {
             return List.of();
         }
 
         List<Index> indicesPastRetention = getNonWriteIndicesOlderThan(
-            lifecycle.getDataRetention(),
+            lifecycle.getEffectiveDataRetention(),
             indexMetadataSupplier,
             this::isIndexManagedByDLM,
             nowSupplier

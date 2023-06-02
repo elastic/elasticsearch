@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.autoscaling.storage;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
@@ -23,7 +23,7 @@ class NodeDecisionTestUtils {
     }
 
     static DiscoveryNode randomDiscoveryNode() {
-        return TestDiscoveryNode.builder(randomAlphaOfLength(6)).roles(emptySet()).build();
+        return DiscoveryNodeUtils.builder(randomAlphaOfLength(6)).roles(emptySet()).build();
     }
 
     static Decision randomDecision() {

@@ -14,9 +14,9 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.coordination.PeersResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.node.DiscoveryNodes.Builder;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -329,7 +329,7 @@ public class PeerFinderTests extends ESTestCase {
     }
 
     public void testDoesNotAddNonMasterEligibleNodesFromUnicastHostsList() {
-        final DiscoveryNode nonMasterNode = TestDiscoveryNode.builder("node-from-hosts-list").roles(emptySet()).build();
+        final DiscoveryNode nonMasterNode = DiscoveryNodeUtils.builder("node-from-hosts-list").roles(emptySet()).build();
 
         providedAddresses.add(nonMasterNode.getAddress());
         transportAddressConnector.addReachableNode(nonMasterNode);
@@ -412,7 +412,7 @@ public class PeerFinderTests extends ESTestCase {
     }
 
     public void testDoesNotAddReachableNonMasterEligibleNodesFromIncomingRequests() {
-        final DiscoveryNode sourceNode = TestDiscoveryNode.builder("request-source").roles(emptySet()).build();
+        final DiscoveryNode sourceNode = DiscoveryNodeUtils.builder("request-source").roles(emptySet()).build();
         final DiscoveryNode otherKnownNode = newDiscoveryNode("other-known-node");
 
         transportAddressConnector.addReachableNode(otherKnownNode);
@@ -859,7 +859,7 @@ public class PeerFinderTests extends ESTestCase {
         assertFoundPeers(otherNode);
 
         transportAddressConnector.reachableNodes.clear();
-        final DiscoveryNode rebootedOtherNode = TestDiscoveryNode.create("rebooted-node", otherNode.getAddress());
+        final DiscoveryNode rebootedOtherNode = DiscoveryNodeUtils.create("rebooted-node", otherNode.getAddress());
         transportAddressConnector.addReachableNode(rebootedOtherNode);
 
         connectedNodes.remove(otherNode);
@@ -898,7 +898,7 @@ public class PeerFinderTests extends ESTestCase {
     }
 
     private DiscoveryNode newDiscoveryNode(String nodeId) {
-        return TestDiscoveryNode.create(nodeId);
+        return DiscoveryNodeUtils.create(nodeId);
     }
 
     private void runAllRunnableTasks() {

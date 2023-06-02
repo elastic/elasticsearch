@@ -17,9 +17,9 @@ import org.elasticsearch.cluster.coordination.CoordinationMetadata;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfigExclusion;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.node.DiscoveryNodes.Builder;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
@@ -61,10 +61,10 @@ public class TransportClearVotingConfigExclusionsActionTests extends ESTestCase 
     @BeforeClass
     public static void createThreadPoolAndClusterService() {
         threadPool = new TestThreadPool("test", Settings.EMPTY);
-        localNode = TestDiscoveryNode.create("local");
-        otherNode1 = TestDiscoveryNode.builder("other1").name("other1").roles(emptySet()).build();
+        localNode = DiscoveryNodeUtils.create("local");
+        otherNode1 = DiscoveryNodeUtils.builder("other1").name("other1").roles(emptySet()).build();
         otherNode1Exclusion = new VotingConfigExclusion(otherNode1);
-        otherNode2 = TestDiscoveryNode.builder("other2").name("other2").roles(emptySet()).build();
+        otherNode2 = DiscoveryNodeUtils.builder("other2").name("other2").roles(emptySet()).build();
         otherNode2Exclusion = new VotingConfigExclusion(otherNode2);
         clusterService = createClusterService(threadPool, localNode);
     }

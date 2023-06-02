@@ -20,8 +20,8 @@ import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -110,7 +110,7 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
 
     public void testStartWithStateNotRecoveredBlock() {
         DiscoveryNodes.Builder nodes = new DiscoveryNodes.Builder().add(
-            TestDiscoveryNode.builder("id1").roles(new HashSet<>(DiscoveryNodeRole.roles())).build()
+            DiscoveryNodeUtils.builder("id1").roles(new HashSet<>(DiscoveryNodeRole.roles())).build()
         ).masterNodeId("id1").localNodeId("id1");
         ClusterState clusterState = ClusterState.builder(new ClusterName("my-cluster"))
             .blocks(ClusterBlocks.builder().addGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK))
@@ -393,13 +393,13 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
         ShardRouting shardRouting = TestShardRouting.newShardRouting(shardId, "node2", true, STARTED);
         IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index).addShard(shardRouting);
 
-        DiscoveryNode node1 = TestDiscoveryNode.builder("node_1")
+        DiscoveryNode node1 = DiscoveryNodeUtils.builder("node_1")
             .roles(new HashSet<>(asList(randomFrom(DiscoveryNodeRole.INGEST_ROLE, DiscoveryNodeRole.MASTER_ROLE))))
             .build();
 
-        DiscoveryNode node2 = TestDiscoveryNode.builder("node_2").roles(new HashSet<>(asList(DiscoveryNodeRole.DATA_ROLE))).build();
+        DiscoveryNode node2 = DiscoveryNodeUtils.builder("node_2").roles(new HashSet<>(asList(DiscoveryNodeRole.DATA_ROLE))).build();
 
-        DiscoveryNode node3 = TestDiscoveryNode.builder("node_3").roles(new HashSet<>(asList(DiscoveryNodeRole.DATA_ROLE))).build();
+        DiscoveryNode node3 = DiscoveryNodeUtils.builder("node_3").roles(new HashSet<>(asList(DiscoveryNodeRole.DATA_ROLE))).build();
 
         IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(Watch.INDEX).settings(indexSettings(Version.CURRENT, 1, 0));
 
@@ -499,7 +499,7 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
             .nodes(
                 new DiscoveryNodes.Builder().masterNodeId("node_1")
                     .localNodeId("node_1")
-                    .add(TestDiscoveryNode.builder("node_1").roles(new HashSet<>(roles)).build())
+                    .add(DiscoveryNodeUtils.builder("node_1").roles(new HashSet<>(roles)).build())
             )
             .build();
 
@@ -620,6 +620,6 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
     }
 
     private static DiscoveryNode newNode(String nodeName, Version version) {
-        return TestDiscoveryNode.create(nodeName, ESTestCase.buildNewFakeTransportAddress(), version);
+        return DiscoveryNodeUtils.create(nodeName, ESTestCase.buildNewFakeTransportAddress(), version);
     }
 }

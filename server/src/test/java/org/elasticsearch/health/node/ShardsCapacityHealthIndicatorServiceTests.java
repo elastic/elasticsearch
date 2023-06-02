@@ -15,7 +15,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -75,12 +75,12 @@ public class ShardsCapacityHealthIndicatorServiceTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
 
-        dataNode = TestDiscoveryNode.builder("data_node")
+        dataNode = DiscoveryNodeUtils.builder("data_node")
             .name("data_node")
             .roles(Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE))
             .build();
 
-        frozenNode = TestDiscoveryNode.builder("frozen_node")
+        frozenNode = DiscoveryNodeUtils.builder("frozen_node")
             .name("frozen_node")
             .roles(Set.of(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE))
             .build();

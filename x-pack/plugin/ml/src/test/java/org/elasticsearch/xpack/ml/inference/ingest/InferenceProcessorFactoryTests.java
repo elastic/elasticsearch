@@ -13,8 +13,8 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -464,9 +464,11 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
             .metadata(Metadata.builder().putCustom(IngestMetadata.TYPE, ingestMetadata))
             .nodes(
                 DiscoveryNodes.builder()
-                    .add(TestDiscoveryNode.create("min_node", new TransportAddress(InetAddress.getLoopbackAddress(), 9300), minNodeVersion))
-                    .add(TestDiscoveryNode.create("current_node", new TransportAddress(InetAddress.getLoopbackAddress(), 9302)))
-                    .add(TestDiscoveryNode.create("_node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9304)))
+                    .add(
+                        DiscoveryNodeUtils.create("min_node", new TransportAddress(InetAddress.getLoopbackAddress(), 9300), minNodeVersion)
+                    )
+                    .add(DiscoveryNodeUtils.create("current_node", new TransportAddress(InetAddress.getLoopbackAddress(), 9302)))
+                    .add(DiscoveryNodeUtils.create("_node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9304)))
                     .localNodeId("_node_id")
                     .masterNodeId("_node_id")
             )

@@ -20,7 +20,8 @@
         },
         "properties": {
           "data": {
-            "type": "binary"
+            "type": "binary",
+            "store": true
           },
           "bid": {
             "type": "keyword"

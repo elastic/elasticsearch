@@ -81,7 +81,7 @@ public class PutSynonymsAction extends ActionType<PutSynonymsAction.Response> {
             if (Strings.isEmpty(synonymsSetId)) {
                 validationException = ValidateActions.addValidationError("synonyms set must be specified", validationException);
             }
-            for (SynonymRule synonymRule : synonymsset.synonyms()) {
+            for (SynonymRule synonymRule : synonymRules) {
                 String error = synonymRule.validate();
                 if (error != null) {
                     validationException = ValidateActions.addValidationError(error, validationException);

@@ -205,7 +205,13 @@ public class NativePrivilegeStore {
                 final Tuple<QueryBuilder, Predicate<String>> applicationNameQueryAndPredicate = getApplicationNameQueryAndPredicate(
                     applications
                 );
-                final QueryBuilder query = QueryBuilders.boolQuery().filter(typeQuery).filter(applicationNameQueryAndPredicate.v1());
+
+                final QueryBuilder query;
+                if (applicationNameQueryAndPredicate.v1() != null) {
+                    query = QueryBuilders.boolQuery().filter(typeQuery).filter(applicationNameQueryAndPredicate.v1());
+                } else {
+                    query = QueryBuilders.boolQuery().filter(typeQuery);
+                }
 
                 final Supplier<ThreadContext.StoredContext> supplier = client.threadPool().getThreadContext().newRestorableContext(false);
                 try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(SECURITY_ORIGIN)) {
@@ -262,7 +268,7 @@ public class NativePrivilegeStore {
             return new Tuple<>(boolQuery, null);
         } else {
             logger.trace("expensive queries are not allowed, switching to filtering application names in memory");
-            return new Tuple<>(QueryBuilders.existsQuery(APPLICATION.getPreferredName()), StringMatcher.of(applications));
+            return new Tuple<>(null, StringMatcher.of(applications));
         }
     }
 

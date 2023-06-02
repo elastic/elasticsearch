@@ -340,12 +340,15 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         if (allowExpensiveQueries) {
             assertThat(query, containsString("{\"bool\":{\"should\":[{\"terms\":{\"application\":[\"yourapp\"]"));
             assertThat(query, containsString("{\"prefix\":{\"application\":{\"value\":\"myapp-\""));
+            assertThat(query, containsString("{\"term\":{\"type\":{\"value\":\"application-privilege\""));
         } else {
-            assertThat(query, containsString("{\"exists\":{\"field\":\"application\""));
+            assertThat(
+                query,
+                equalTo("{\"bool\":{\"filter\":[{\"term\":{\"type\":{\"value\":\"application-privilege\"}}}],\"boost\":1.0}}")
+            );
         }
-        assertThat(query, containsString("{\"term\":{\"type\":{\"value\":\"application-privilege\""));
 
-        final SearchHit[] hits = buildHits(sourcePrivileges);
+        final SearchHit[] hits = buildHits(allowExpensiveQueries ? sourcePrivileges.subList(1, 4) : sourcePrivileges);
         listener.get()
             .onResponse(
                 new SearchResponse(

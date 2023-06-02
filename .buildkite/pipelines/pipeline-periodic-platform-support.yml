@@ -49,4 +49,4 @@ steps:
               - bwcTestSnapshots
               - checkRestCompat
         env:
-          GRADLE_TASK: "{{matrix.setup.GRADLE_TASK}}"
+          GRADLE_TASK: "{{matrix.GRADLE_TASK}}"

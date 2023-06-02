@@ -50,7 +50,7 @@ steps:
               - 8.8.1
               - 8.9.0
         env:
-          BWC_VERSION: "{{matrix.setup.BWC_VERSION}}"
+          BWC_VERSION: "{{matrix.BWC_VERSION}}"
   - label: cloud-deploy
     command: >-
       .ci/scripts/run-gradle.sh buildCloudDockerImage
@@ -235,7 +235,7 @@ steps:
               - 8.8.1
               - 8.9.0
         env:
-          BWC_VERSION: "{{matrix.setup.BWC_VERSION}}"
+          BWC_VERSION: "{{matrix.BWC_VERSION}}"
   - group: packaging-tests-unix-sample
     steps:
       - label: packaging-tests-unix-sample
@@ -258,7 +258,7 @@ steps:
               - destructiveDistroTest.packages
               - destructiveDistroTest.archives
         env:
-          PACKAGING_TASK: "{{matrix.setup.PACKAGING_TASK}}"
+          PACKAGING_TASK: "{{matrix.PACKAGING_TASK}}"
   - group: packaging-tests-unix
     steps:
       - label: packaging-tests-unix
@@ -295,7 +295,7 @@ steps:
               - destructiveDistroTest.packages
               - destructiveDistroTest.archives
         env:
-          PACKAGING_TASK: "{{matrix.setup.PACKAGING_TASK}}"
+          PACKAGING_TASK: "{{matrix.PACKAGING_TASK}}"
   - group: packaging-upgrade-tests
     steps:
       - label: packaging-upgrade-tests
@@ -406,7 +406,7 @@ steps:
               - 8.8.1
               - 8.9.0
         env:
-          BWC_VERSION: "{{matrix.setup.BWC_VERSION}}"
+          BWC_VERSION: "{{matrix.BWC_VERSION}}"
   - label: part-1-fips
     command: .ci/scripts/run-gradle.sh -Dignore.tests.seed -Dtests.fips.enabled=true
       checkPart1

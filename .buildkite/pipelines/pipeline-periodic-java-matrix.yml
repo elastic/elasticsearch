@@ -24,5 +24,5 @@ steps:
               - bwcTestSnapshots
               - checkRestCompat
         env:
-          ES_RUNTIME_JAVA: "{{matrix.setup.ES_RUNTIME_JAVA}}"
-          GRADLE_TASK: "{{matrix.setup.GRADLE_TASK}}"
+          ES_RUNTIME_JAVA: "{{matrix.ES_RUNTIME_JAVA}}"
+          GRADLE_TASK: "{{matrix.GRADLE_TASK}}"

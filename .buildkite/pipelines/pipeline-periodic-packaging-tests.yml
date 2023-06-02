@@ -141,4 +141,4 @@ steps:
               - 8.8.1
               - 8.9.0
         env:
-          BWC_VERSION: "{{matrix.setup.BWC_VERSION}}"
+          BWC_VERSION: "{{matrix.BWC_VERSION}}"

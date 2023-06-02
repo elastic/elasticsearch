@@ -334,6 +334,7 @@ public class TimeSeriesAggregationsIT extends AggregationIntegTestCase {
         assertThat(e.getRootCause().getMessage(), containsString("Time series aggregations cannot be used inside global aggregation."));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/96501")
     public void testStandAloneTimeSeriesAggWithMetricFilter() {
         boolean above = randomBoolean();
         int metric = randomIntBetween(0, numberOfMetrics - 1);

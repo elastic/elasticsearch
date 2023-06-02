@@ -311,6 +311,68 @@ public class IngestServiceTests extends ESTestCase {
         assertThat(ingestService.pipelines(), sameInstance(pipelines));
     }
 
+    public void testInnerUpdatePipelinesValidation() {
+        Map<String, Processor.Factory> processors = new HashMap<>();
+        processors.put("fail_validation", (factories, tag, description, config) -> {
+            // ordinary validation issues happen at processor construction time
+            throw newConfigurationException("fail_validation", tag, "no_property_name", "validation failure reason");
+        });
+        processors.put("fail_extra_validation", (factories, tag, description, config) -> {
+            // 'extra validation' issues happen post- processor construction time
+            return new FakeProcessor("fail_extra_validation", tag, description, ingestDocument -> {}) {
+                @Override
+                public void extraValidation() throws Exception {
+                    throw newConfigurationException("fail_extra_validation", tag, "no_property_name", "extra validation failure reason");
+                }
+            };
+        });
+
+        {
+            // a processor that fails ordinary validation (i.e. the processor factory throws an exception while constructing it)
+            // will result in a placeholder pipeline being substituted
+
+            IngestService ingestService = createWithProcessors(processors);
+            PipelineConfiguration config = new PipelineConfiguration("_id", new BytesArray("""
+                {"processors": [{"fail_validation" : {}}]}"""), XContentType.JSON);
+            IngestMetadata ingestMetadata = new IngestMetadata(Map.of("_id", config));
+            ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
+            ClusterState previousClusterState = clusterState;
+            clusterState = ClusterState.builder(clusterState)
+                .metadata(Metadata.builder().putCustom(IngestMetadata.TYPE, ingestMetadata))
+                .build();
+            ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
+
+            Pipeline pipeline = ingestService.getPipeline("_id");
+            assertThat(
+                pipeline.getDescription(),
+                equalTo("this is a place holder pipeline, because pipeline with id [_id] could not be loaded")
+            );
+        }
+
+        {
+            // a processor that fails extra validation (i.e. an exception is throw from `extraValidation`)
+            // will be processed just fine -- extraValidation is for rest/transport validation, not for when
+            // a processor is being created from a processor factory
+
+            IngestService ingestService = createWithProcessors(processors);
+            PipelineConfiguration config = new PipelineConfiguration("_id", new BytesArray("""
+                {"processors": [{"fail_extra_validation" : {}}]}"""), XContentType.JSON);
+            IngestMetadata ingestMetadata = new IngestMetadata(Map.of("_id", config));
+            ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
+            ClusterState previousClusterState = clusterState;
+            clusterState = ClusterState.builder(clusterState)
+                .metadata(Metadata.builder().putCustom(IngestMetadata.TYPE, ingestMetadata))
+                .build();
+            ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
+
+            Pipeline pipeline = ingestService.getPipeline("_id");
+            assertThat(pipeline.getDescription(), nullValue());
+            assertThat(pipeline.getProcessors().size(), equalTo(1));
+            Processor processor = pipeline.getProcessors().get(0);
+            assertThat(processor.getType(), equalTo("fail_extra_validation"));
+        }
+    }
+
     public void testDelete() {
         IngestService ingestService = createWithProcessors();
         PipelineConfiguration config = new PipelineConfiguration("_id", new BytesArray("""

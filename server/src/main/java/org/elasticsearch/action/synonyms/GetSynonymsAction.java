@@ -70,7 +70,7 @@ public class GetSynonymsAction extends ActionType<GetSynonymsAction.Response> {
             return validationException;
         }
 
-        private ActionRequestValidationException validatePositiveInt(
+        private static ActionRequestValidationException validatePositiveInt(
             String paramName,
             int value,
             ActionRequestValidationException validationException

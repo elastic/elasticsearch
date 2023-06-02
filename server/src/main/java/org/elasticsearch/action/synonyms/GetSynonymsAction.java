@@ -42,8 +42,8 @@ public class GetSynonymsAction extends ActionType<GetSynonymsAction.Response> {
         public Request(StreamInput in) throws IOException {
             super(in);
             this.synonymsSetId = in.readString();
-            this.from = in.readInt();
-            this.size = in.readInt();
+            this.from = in.readVInt();
+            this.size = in.readVInt();
         }
 
         public Request(String SynonymsSetId, int from, int size) {
@@ -83,8 +83,8 @@ public class GetSynonymsAction extends ActionType<GetSynonymsAction.Response> {
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(synonymsSetId);
-            out.writeInt(from);
-            out.writeInt(size);
+            out.writeVInt(from);
+            out.writeVInt(size);
         }
 
         public String synonymsSetId() {
@@ -120,7 +120,7 @@ public class GetSynonymsAction extends ActionType<GetSynonymsAction.Response> {
         public Response(StreamInput in) throws IOException {
             super(in);
             this.synonymsSetResults = new SynonymsManagementAPIService.SynonymsSetResult(
-                in.readLong(),
+                in.readVLong(),
                 in.readArray(SynonymRule::new, SynonymRule[]::new)
             );
         }
@@ -145,7 +145,7 @@ public class GetSynonymsAction extends ActionType<GetSynonymsAction.Response> {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeLong(synonymsSetResults.totalSynonymRules());
+            out.writeVLong(synonymsSetResults.totalSynonymRules());
             out.writeArray(synonymsSetResults.synonymRules());
         }
 

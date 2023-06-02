@@ -84,7 +84,7 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
     }
 
     public void testCanForceAllocate() {
-        ClusterState state = prepareState(ClusterState.EMPTY_STATE, NODE_A.getId(), NODE_B.getName());
+        ClusterState state = prepareState(NODE_A.getId(), NODE_B.getName());
         RoutingAllocation allocation = createRoutingAllocation(state);
         RoutingNode routingNode = RoutingNodesHelper.routingNode(NODE_A.getId(), NODE_A, shard);
 
@@ -122,7 +122,7 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
     }
 
     public void testCannotRemainOnReplacedNode() {
-        ClusterState state = prepareState(ClusterState.EMPTY_STATE, NODE_A.getId(), NODE_B.getName());
+        ClusterState state = prepareState(NODE_A.getId(), NODE_B.getName());
         RoutingAllocation allocation = createRoutingAllocation(state);
         RoutingNode routingNode = RoutingNodesHelper.routingNode(NODE_A.getId(), NODE_A, shard);
 
@@ -148,7 +148,7 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
     }
 
     public void testCanAllocateToNeitherSourceNorTarget() {
-        ClusterState state = prepareState(ClusterState.EMPTY_STATE, NODE_A.getId(), NODE_B.getName());
+        ClusterState state = prepareState(NODE_A.getId(), NODE_B.getName());
         RoutingAllocation allocation = createRoutingAllocation(state);
         RoutingNode routingNode = RoutingNodesHelper.routingNode(NODE_A.getId(), NODE_A, shard);
 
@@ -375,8 +375,8 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
         );
     }
 
-    private ClusterState prepareState(ClusterState initial, String sourceNodeId, String targetNodeName) {
-        return ClusterState.builder(initial)
+    private ClusterState prepareState(String sourceNodeId, String targetNodeName) {
+        return ClusterState.builder(ClusterName.DEFAULT)
             .nodes(DiscoveryNodes.builder().add(NODE_A).add(NODE_B).add(NODE_C).build())
             .metadata(
                 Metadata.builder()

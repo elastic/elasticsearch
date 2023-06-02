@@ -65,7 +65,7 @@ public class NodeShutdownAllocationDeciderTests extends ESAllocationTestCase {
     );
 
     public void testCanAllocateShardsToRestartingNode() {
-        ClusterState state = prepareState(ClusterState.EMPTY_STATE, SingleNodeShutdownMetadata.Type.RESTART);
+        ClusterState state = prepareState(SingleNodeShutdownMetadata.Type.RESTART);
         RoutingAllocation allocation = createRoutingAllocation(state);
         RoutingNode routingNode = RoutingNodesHelper.routingNode(DATA_NODE.getId(), DATA_NODE, shard);
 
@@ -79,7 +79,7 @@ public class NodeShutdownAllocationDeciderTests extends ESAllocationTestCase {
 
     public void testCannotAllocateShardsToRemovingNode() {
         for (SingleNodeShutdownMetadata.Type type : REMOVE_SHUTDOWN_TYPES) {
-            ClusterState state = prepareState(ClusterState.EMPTY_STATE, type);
+            ClusterState state = prepareState(type);
             RoutingAllocation allocation = createRoutingAllocation(state);
             RoutingNode routingNode = RoutingNodesHelper.routingNode(DATA_NODE.getId(), DATA_NODE, shard);
 
@@ -90,7 +90,7 @@ public class NodeShutdownAllocationDeciderTests extends ESAllocationTestCase {
     }
 
     public void testShardsCanRemainOnRestartingNode() {
-        ClusterState state = prepareState(ClusterState.EMPTY_STATE, SingleNodeShutdownMetadata.Type.RESTART);
+        ClusterState state = prepareState(SingleNodeShutdownMetadata.Type.RESTART);
         RoutingAllocation allocation = createRoutingAllocation(state);
         RoutingNode routingNode = RoutingNodesHelper.routingNode(DATA_NODE.getId(), DATA_NODE, shard);
 
@@ -104,7 +104,7 @@ public class NodeShutdownAllocationDeciderTests extends ESAllocationTestCase {
 
     public void testShardsCannotRemainOnRemovingNode() {
         for (SingleNodeShutdownMetadata.Type type : REMOVE_SHUTDOWN_TYPES) {
-            ClusterState state = prepareState(ClusterState.EMPTY_STATE, type);
+            ClusterState state = prepareState(type);
             RoutingAllocation allocation = createRoutingAllocation(state);
             RoutingNode routingNode = RoutingNodesHelper.routingNode(DATA_NODE.getId(), DATA_NODE, shard);
 
@@ -119,7 +119,7 @@ public class NodeShutdownAllocationDeciderTests extends ESAllocationTestCase {
     }
 
     public void testCanAutoExpandToRestartingNode() {
-        ClusterState state = prepareState(ClusterState.EMPTY_STATE, SingleNodeShutdownMetadata.Type.RESTART);
+        ClusterState state = prepareState(SingleNodeShutdownMetadata.Type.RESTART);
         RoutingAllocation allocation = createRoutingAllocation(state);
 
         Decision decision = decider.shouldAutoExpandToNode(indexMetadata, DATA_NODE, allocation);
@@ -140,7 +140,7 @@ public class NodeShutdownAllocationDeciderTests extends ESAllocationTestCase {
 
     public void testCanAutoExpandToNodeThatIsNotShuttingDown() {
         for (SingleNodeShutdownMetadata.Type type : REMOVE_SHUTDOWN_TYPES) {
-            ClusterState state = prepareState(ClusterState.EMPTY_STATE, type, "other-node-id");
+            ClusterState state = prepareState(type, "other-node-id");
 
             RoutingAllocation allocation = createRoutingAllocation(state);
 
@@ -155,7 +155,7 @@ public class NodeShutdownAllocationDeciderTests extends ESAllocationTestCase {
             SingleNodeShutdownMetadata.Type.REMOVE,
             SingleNodeShutdownMetadata.Type.SIGTERM
         )) {
-            ClusterState state = prepareState(ClusterState.EMPTY_STATE, type);
+            ClusterState state = prepareState(type);
             RoutingAllocation allocation = createRoutingAllocation(state);
 
             Decision decision = decider.shouldAutoExpandToNode(indexMetadata, DATA_NODE, allocation);
@@ -207,12 +207,12 @@ public class NodeShutdownAllocationDeciderTests extends ESAllocationTestCase {
         );
     }
 
-    private ClusterState prepareState(ClusterState initialState, SingleNodeShutdownMetadata.Type shutdownType) {
-        return prepareState(initialState, shutdownType, DATA_NODE.getId());
+    private ClusterState prepareState(SingleNodeShutdownMetadata.Type shutdownType) {
+        return prepareState(shutdownType, DATA_NODE.getId());
     }
 
-    private ClusterState prepareState(ClusterState initialState, SingleNodeShutdownMetadata.Type shutdownType, String nodeId) {
-        return ClusterState.builder(initialState)
+    private ClusterState prepareState(SingleNodeShutdownMetadata.Type shutdownType, String nodeId) {
+        return ClusterState.builder(ClusterName.DEFAULT)
             .nodes(DiscoveryNodes.builder().add(DATA_NODE).build())
             .metadata(
                 Metadata.builder()

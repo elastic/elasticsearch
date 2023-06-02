@@ -137,6 +137,11 @@ public class VariableWidthHistogramAggregationBuilder extends ValuesSourceAggreg
     }
 
     @Override
+    public boolean supportsConcurrentExecution() {
+        return false;
+    }
+
+    @Override
     protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metaData) {
         return new VariableWidthHistogramAggregationBuilder(this, factoriesBuilder, metaData);
     }

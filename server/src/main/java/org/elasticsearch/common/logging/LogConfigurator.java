@@ -269,8 +269,9 @@ public class LogConfigurator {
                     LogManager.getLogger("stderr"),
                     Level.WARN,
                     // MMapDirectory messages come from Lucene, suggesting to users as a warning that they should enable preview features in
-                    // the JDK
-                    List.of("MMapDirectory")
+                    // the JDK. Vector logs come from Lucene too, but only if the used explicitly disables the Vector API - no point warning
+                    // in this case.
+                    List.of("MMapDirectory", "VectorUtilProvider", "WARNING: Java vector incubator module is not readable")
                 ),
                 false,
                 StandardCharsets.UTF_8

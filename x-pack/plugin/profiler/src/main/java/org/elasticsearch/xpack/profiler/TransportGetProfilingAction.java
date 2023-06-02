@@ -495,7 +495,6 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
         private Map<String, String> executables;
         private Map<String, Integer> stackTraceEvents;
         private double samplingRate;
-        private Exception error;
 
         public void setStackTraces(Map<String, StackTrace> stackTraces) {
             this.stackTraces = stackTraces;
@@ -541,16 +540,8 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
             this.samplingRate = rate;
         }
 
-        public void setError(Exception error) {
-            this.error = error;
-        }
-
         public GetProfilingResponse build() {
-            if (error != null) {
-                return new GetProfilingResponse(error);
-            } else {
-                return new GetProfilingResponse(stackTraces, stackFrames, executables, stackTraceEvents, totalFrames, samplingRate);
-            }
+            return new GetProfilingResponse(stackTraces, stackFrames, executables, stackTraceEvents, totalFrames, samplingRate);
         }
     }
 }

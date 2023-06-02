@@ -1088,7 +1088,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
         public TestHttpChannel testHttpServerChannel = new TestHttpChannel(false);
         List<Runnable> forceClosers = new ArrayList<>();
 
-        public TestHttpServerTransport(Settings settings) {
+        TestHttpServerTransport(Settings settings) {
             super(
                 Settings.builder().put(settings).put(SETTING_HTTP_CLIENT_STATS_ENABLED.getKey(), false).build(),
                 AbstractHttpServerTransportTests.this.networkService,
@@ -1209,7 +1209,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
 
         public List<HttpResponse> responses = new ArrayList<>();
 
-        public TestHttpChannel(boolean waitToClose) {
+        TestHttpChannel(boolean waitToClose) {
             if (waitToClose == false) {
                 delayClose.countDown();
             }

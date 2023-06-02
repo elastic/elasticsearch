@@ -772,40 +772,46 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                 );
                 final List<SparseFileTracker.Gap> gaps = tracker.waitForRange(rangeToWrite, rangeToRead, rangeListener);
 
-                for (SparseFileTracker.Gap gap : gaps) {
-                    executor.execute(new AbstractRunnable() {
-
-                        @Override
-                        protected void doRun() throws Exception {
-                            if (CacheFileRegion.this.tryIncRef() == false) {
-                                throw new AlreadyClosedException("Cache file channel has been released and closed");
-                            }
-                            try {
-                                ensureOpen();
-                                final long start = gap.start();
-                                assert regionOwners[sharedBytesPos].get() == CacheFileRegion.this;
-                                writer.fillCacheRange(
-                                    fileChannel,
-                                    physicalStartOffset() + gap.start(),
-                                    gap.start(),
-                                    gap.end() - gap.start(),
-                                    progress -> gap.onProgress(start + progress)
-                                );
-                                writeCount.increment();
-                            } finally {
-                                decRef();
-                            }
-                            gap.onCompletion();
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            gap.onFailure(e);
-                        }
-                    });
+                if (gaps.isEmpty() == false) {
+                    fillGaps(writer, executor, fileChannel, gaps);
                 }
             } catch (Exception e) {
                 releaseAndFail(listener, Releasables.wrap(resources), e);
+            }
+        }
+
+        private void fillGaps(RangeMissingHandler writer, Executor executor, SharedBytes.IO fileChannel, List<SparseFileTracker.Gap> gaps) {
+            for (SparseFileTracker.Gap gap : gaps) {
+                executor.execute(new AbstractRunnable() {
+
+                    @Override
+                    protected void doRun() throws Exception {
+                        if (CacheFileRegion.this.tryIncRef() == false) {
+                            throw new AlreadyClosedException("Cache file channel has been released and closed");
+                        }
+                        try {
+                            ensureOpen();
+                            final long start = gap.start();
+                            assert regionOwners[sharedBytesPos].get() == CacheFileRegion.this;
+                            writer.fillCacheRange(
+                                fileChannel,
+                                physicalStartOffset() + gap.start(),
+                                gap.start(),
+                                gap.end() - gap.start(),
+                                progress -> gap.onProgress(start + progress)
+                            );
+                            writeCount.increment();
+                        } finally {
+                            decRef();
+                        }
+                        gap.onCompletion();
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        gap.onFailure(e);
+                    }
+                });
             }
         }
 

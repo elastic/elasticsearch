@@ -10,12 +10,12 @@ setup:
               id: "test-id-2"
             - synonyms: "test => check"
               id: "test-id-3"
-
----
-"Get synonyms set":
   - skip:
       version: " - 8.8.99"
       reason: Introduced in 8.9.0
+
+---
+"Get synonyms set":
   - do:
       synonyms.get:
         synonyms_set: test-get-synonyms
@@ -33,9 +33,6 @@ setup:
 
 ---
 "Get synonyms set - not found":
-  - skip:
-      version: " - 8.8.99"
-      reason: Introduced in 8.9.0
   - do:
       catch: missing
       synonyms.get:
@@ -43,9 +40,6 @@ setup:
 
 ---
 "Pagination - size":
-  - skip:
-      version: " - 8.8.99"
-      reason: Introduced in 8.9.0
   - do:
       synonyms.get:
         synonyms_set: test-get-synonyms
@@ -62,9 +56,6 @@ setup:
 
 ---
 "Pagination - from":
-  - skip:
-      version: " - 8.8.99"
-      reason: Introduced in 8.9.0
   - do:
       synonyms.get:
         synonyms_set: test-get-synonyms
@@ -82,10 +73,6 @@ setup:
 
 ---
 "Synonyms set with same IDs":
-  - skip:
-      version: " - 8.8.99"
-      reason: Introduced in 8.9.0
-
   - do:
       synonyms.put:
         synonyms_set: test-get-synonyms-same-ids

@@ -454,7 +454,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
             );
         }
 
-        return MappedFieldType.Relation.DISJOINT;
+        return MappedFieldType.Relation.INTERSECTS;
     }
 
     protected MappedFieldType.Relation getRelation(final SearchExecutionContext searchExecutionContext) throws IOException {

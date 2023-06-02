@@ -269,6 +269,19 @@ a:integer|b:integer
 1        |2
 ;
 
+inWithExpressions
+// tag::in-with-expressions[]
+ROW a = 1, b = 4, c = 3
+| WHERE c-a IN (3, b / 2, a)
+// end::in-with-expressions[]
+;
+
+// tag::in-with-expressions-result[]
+a:integer |b:integer |c:integer
+1         |4         |3
+// end::in-with-expressions-result[]
+;
+
 convertMvToMvDifferentCardinality-IgnoreWarnings
 row strings = ["1", "2", "three"] | eval ints = to_int(strings);
 

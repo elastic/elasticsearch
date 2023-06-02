@@ -66,15 +66,22 @@ FROM employees
 [discrete]
 [[esql-operators]]
 === Operators
-These comparison operators are supported:
+These binary comparison operators are supported:
 
 * equality: `==`
 * inequality: `!=`
-* comparison: 
-** less than: `<`
-** less than or equal: `<=`
-** larger than: `>`
-** larger than or equal: `>=`
+* less than: `<`
+* less than or equal: `<=`
+* larger than: `>`
+* larger than or equal: `>=`
+
+The `IN` operator allows testing whether a field or expression equals
+an element in a list of literals, fields or expressions:
+
+[source,esql]
+----
+include::{esql-specs}/row.csv-spec[tag=in-with-expressions]
+----
 
 For string comparison using wildcards or regular expressions, use `LIKE` or
 `RLIKE`:

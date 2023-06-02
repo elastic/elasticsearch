@@ -1794,6 +1794,7 @@ public abstract class ESTestCase extends LuceneTestCase {
      * not so large that we run out of ports. See also [NOTE: Port ranges for tests].
      */
     private static final int PORTS_PER_WORKER = 30;
+    private static final int PORTS_FOR_READINESS = 10;
 
     /**
      * Defines the minimum port that test workers should use. See also [NOTE: Port ranges for tests].
@@ -1819,6 +1820,14 @@ public abstract class ESTestCase extends LuceneTestCase {
      */
     public static String getPortRange() {
         final var firstPort = getWorkerBasePort();
+        final var lastPort = firstPort + PORTS_PER_WORKER - PORTS_FOR_READINESS - 1; // upper bound is inclusive, last 10 ports for
+                                                                                     // readiness
+        assert MIN_PRIVATE_PORT <= firstPort && lastPort <= MAX_PRIVATE_PORT;
+        return firstPort + "-" + lastPort;
+    }
+
+    public static String getReadinessPorts() {
+        final var firstPort = getWorkerBasePort() + PORTS_PER_WORKER - PORTS_FOR_READINESS;
         final var lastPort = firstPort + PORTS_PER_WORKER - 1; // upper bound is inclusive
         assert MIN_PRIVATE_PORT <= firstPort && lastPort <= MAX_PRIVATE_PORT;
         return firstPort + "-" + lastPort;

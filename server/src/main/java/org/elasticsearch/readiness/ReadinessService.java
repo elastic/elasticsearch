@@ -18,8 +18,10 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.transport.BoundTransportAddress;
+import org.elasticsearch.common.transport.PortsRange;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.http.BindHttpException;
 import org.elasticsearch.reservedstate.service.FileChangedListener;
 import org.elasticsearch.shutdown.PluginShutdownService;
 import org.elasticsearch.transport.BindTransportException;
@@ -52,7 +54,7 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
     private volatile boolean masterElected = false;
     private volatile boolean shuttingDown = false;
 
-    public static final Setting<Integer> PORT = Setting.intSetting("readiness.port", -1, Setting.Property.NodeScope);
+    public static final Setting<PortsRange> PORT = new Setting<>("readiness.port", "", PortsRange::new, Setting.Property.NodeScope);
 
     public ReadinessService(ClusterService clusterService, Environment environment) {
         this.serverChannel = null;
@@ -67,11 +69,13 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
 
     /**
      * Checks to see if the readiness service is enabled in the current environment
+     *
      * @param environment
      * @return
      */
     public static boolean enabled(Environment environment) {
-        return PORT.get(environment.settings()) != -1;
+        PortsRange portsRange = PORT.get(environment.settings());
+        return portsRange.getPortRangeString().trim().isEmpty() == false;
     }
 
     // package private for testing
@@ -82,6 +86,7 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
     /**
      * Returns the current bound address for the readiness service.
      * If Elasticsearch was never ready, this method will return null.
+     *
      * @return the bound address for the readiness service
      */
     public BoundTransportAddress boundAddress() {
@@ -107,28 +112,50 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
     // package private for testing
     ServerSocketChannel setupSocket() {
         var settings = environment.settings();
-        int portNumber = PORT.get(settings);
-        assert portNumber >= 0;
+        PortsRange portsRange = PORT.get(settings);
+        // int portNumber = (int) portsRange;
+        // assert portNumber >= 0;
+        final AtomicReference<Exception> lastException = new AtomicReference<>();
 
-        var socketAddress = AccessController.doPrivileged((PrivilegedAction<InetSocketAddress>) () -> {
+        boolean success = portsRange.iterate(port -> {
             try {
-                return socketAddress(InetAddress.getByName("0"), portNumber);
-            } catch (IOException e) {
-                throw new IllegalArgumentException("Failed to resolve readiness host address", e);
+                var socketAddress = AccessController.doPrivileged((PrivilegedAction<InetSocketAddress>) () -> {
+                    try {
+                        return socketAddress(InetAddress.getByName("0"), port);
+                    } catch (IOException e) {
+                        throw new IllegalArgumentException("Failed to resolve readiness host address", e);
+                    }
+                });
+
+                try {
+                    serverChannel = ServerSocketChannel.open();
+                } catch (Exception e) {
+                    throw new BindTransportException("Failed to open socket channel " + NetworkAddress.format(socketAddress), e);
+                }
+
+                AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+                    try {
+                        serverChannel.bind(socketAddress);
+                    } catch (IOException e) {
+                        throw new BindTransportException("Failed to bind to port" + port, e);
+                    }
+                    return null;
+                });
+            } catch (Exception e) {
+                lastException.set(e);
+                return false;
             }
+            return true;
         });
 
         try {
-            serverChannel = ServerSocketChannel.open();
 
-            AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-                try {
-                    serverChannel.bind(socketAddress);
-                } catch (IOException e) {
-                    throw new BindTransportException("Failed to bind to " + NetworkAddress.format(socketAddress), e);
-                }
-                return null;
-            });
+            if (success == false) {
+                throw new BindHttpException(
+                    "Failed to bind to " + NetworkAddress.format(InetAddress.getByName("0"), portsRange),
+                    lastException.get()
+                );
+            }
 
             // First time bounding the socket, we notify any listeners
             if (boundSocket.get() == null) {
@@ -141,7 +168,7 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
                 }
             }
         } catch (Exception e) {
-            throw new BindTransportException("Failed to open socket channel " + NetworkAddress.format(socketAddress), e);
+            throw new BindTransportException("Failed to open socket channel " + NetworkAddress.format(boundSocket.get()), e);
         }
 
         return serverChannel;
@@ -251,6 +278,7 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
 
     /**
      * Add a listener for bound readiness service address.
+     *
      * @param listener
      */
     public synchronized void addBoundAddressListener(BoundAddressListener listener) {
@@ -278,6 +306,7 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
          * This method is going to be called only the first time the address is bound. The readiness service
          * always binds to the same port it did initially. Subsequent changes to ready from not-ready states will
          * not send this notification.
+         *
          * @param address
          */
         void addressBound(BoundTransportAddress address);

@@ -294,10 +294,10 @@ means the document came from the local cluster.
 [[ccs-async-search-minimize-roundtrips-true]]
 === Using async search for CCS with ccs_minimize_roundtrips=true
 
-The following <<async-search,async search>> API request searches the `blogs` index on
+The following <<async-search,async search>> API request searches the `my-index-000001` index on
 three clusters:
 
-* Your local cluster, with 8 shards
+* The local cluster, with 8 shards
 * Two remote clusters, `cluster_one` and `cluster_two`, with 10 shards each
 
 [source,console]
@@ -370,8 +370,8 @@ The API returns the following response:
 <1> The async search id.
 <2> When `ccs_minimize_roundtrips` = `true` and searches on the remote clusters
 are still running, this section indicates the number of shards in scope for the
-local cluster only. This will be updated to indicate the total number of shards
-across all clusters when the search completes.
+local cluster only. This will be updated to include the total number of shards
+across all clusters only when the search is completed.
 <3> The `_clusters` section indicates that 3 clusters are in scope for the search
 and all are currently running (since `successful` and `skipped` both equal 0).
 

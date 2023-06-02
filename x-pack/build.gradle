@@ -20,7 +20,8 @@ subprojects {
     }
   }
 
-  group = 'org.elasticsearch.plugin'
+  group = path.contains(":qa:") ? 'org.elasticsearch.plugin.qa' : 'org.elasticsearch.plugin'
+
   // helper method to find the path to a module
   ext.xpackModule = { String moduleName -> ":x-pack:plugin:${moduleName}" }
 

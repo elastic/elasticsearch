@@ -188,7 +188,7 @@ public class SynonymsManagementAPIService {
                         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
                             builder.startObject();
                             {
-                                builder.field(SYNONYMS_FIELD, synonymRule.synonym());
+                                builder.field(SYNONYMS_FIELD, synonymRule.synonyms());
                                 builder.field(SYNONYMS_SET_FIELD, resourceName);
                             }
                             builder.endObject();

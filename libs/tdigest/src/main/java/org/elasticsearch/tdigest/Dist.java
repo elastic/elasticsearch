@@ -23,6 +23,7 @@ package org.elasticsearch.tdigest;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.function.Function;
 
 /**
  * Reference implementations for cdf and quantile if we have all data.
@@ -56,12 +57,11 @@ public class Dist {
         return (n1 + w * n2) / data.size();
     }
 
-    public static double quantile(final double q, double[] data) {
-        int n = data.length;
-        if (n == 0) {
+    private static double quantile(final double q, final int length, Function<Integer, Double> elementGetter) {
+        if (length == 0) {
             return Double.NaN;
         }
-        double index = q * (n - 1);
+        double index = q * (length - 1);
         int low_index = (int) Math.floor(index);
         int high_index = low_index + 1;
         double weight = index - low_index;
@@ -71,15 +71,21 @@ public class Dist {
             high_index = 0;
             weight = 0;
         }
-        if (index >= n - 1) {
-            low_index = n - 1;
-            high_index = n - 1;
+        if (index >= length - 1) {
+            low_index = length - 1;
+            high_index = length - 1;
             weight = 0;
         }
-        return data[low_index] + weight * (data[high_index] - data[low_index]);
+        double low_value = elementGetter.apply(low_index);
+        double high_value = elementGetter.apply(high_index);
+        return low_value + weight * (high_value - low_value);
+    }
+
+    public static double quantile(final double q, double[] data) {
+        return quantile(q, data.length, (i) -> data[i]);
     }
 
     public static double quantile(final double q, List<Double> data) {
-        return quantile(q, data.stream().mapToDouble(i -> i).toArray());
+        return quantile(q, data.size(), data::get);
     }
 }

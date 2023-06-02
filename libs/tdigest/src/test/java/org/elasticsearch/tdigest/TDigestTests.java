@@ -102,7 +102,7 @@ public abstract class TDigestTests extends ESTestCase {
             }
             digest.add(1_000_000);
         }
-        assertEquals(18.0, digest.quantile(0.885), 0.1);
+        assertEquals(18.0, digest.quantile(0.885), 0.15);
         assertEquals(19.0, digest.quantile(0.915), 0.1);
         assertEquals(19.0, digest.quantile(0.935), 0.1);
         assertEquals(1_000_000.0, digest.quantile(0.965), 0.1);

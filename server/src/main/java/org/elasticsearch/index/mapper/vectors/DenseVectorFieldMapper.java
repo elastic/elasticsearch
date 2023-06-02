@@ -1057,7 +1057,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
     @Override
     public void doValidate(MappingLookup mappers) {
         if (indexed && mappers.nestedLookup().getNestedParent(name()) != null) {
-            throw new IllegalArgumentException("[" + CONTENT_TYPE + "] fields cannot be indexed if they're" + " within [nested] mappings");
+            //throw new IllegalArgumentException("[" + CONTENT_TYPE + "] fields cannot be indexed if they're" + " within [nested] mappings");
         }
     }
 

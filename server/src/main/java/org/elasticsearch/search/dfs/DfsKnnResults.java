@@ -17,14 +17,21 @@ import org.elasticsearch.common.lucene.Lucene;
 import java.io.IOException;
 
 public class DfsKnnResults implements Writeable {
+    private final String nestedPath;
     private final ScoreDoc[] scoreDocs;
 
-    public DfsKnnResults(ScoreDoc[] scoreDocs) {
+    public DfsKnnResults(String nestedPath, ScoreDoc[] scoreDocs) {
+        this.nestedPath = nestedPath;
         this.scoreDocs = scoreDocs;
     }
 
     public DfsKnnResults(StreamInput in) throws IOException {
         scoreDocs = in.readArray(Lucene::readScoreDoc, ScoreDoc[]::new);
+        nestedPath = in.readOptionalString();
+    }
+
+    public String getNestedPath() {
+        return nestedPath;
     }
 
     public ScoreDoc[] scoreDocs() {
@@ -33,5 +40,6 @@ public class DfsKnnResults implements Writeable {
 
     public void writeTo(StreamOutput out) throws IOException {
         out.writeArray(Lucene::writeScoreDoc, scoreDocs);
+        out.writeOptionalString(nestedPath);
     }
 }

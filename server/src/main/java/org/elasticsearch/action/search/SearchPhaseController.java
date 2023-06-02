@@ -139,14 +139,18 @@ public final class SearchPhaseController {
         }
 
         List<List<TopDocs>> topDocsLists = new ArrayList<>(request.source().knnSearch().size());
+        List<String> nestedPath = new ArrayList<>();
         for (int i = 0; i < request.source().knnSearch().size(); i++) {
             topDocsLists.add(new ArrayList<>());
+            nestedPath.add(null);
         }
 
-        for (DfsSearchResult dfsSearchResult : dfsSearchResults) {
+        for (int i = 0; i < dfsSearchResults.size(); i++) {
+            DfsSearchResult dfsSearchResult = dfsSearchResults.get(i);
             if (dfsSearchResult.knnResults() != null) {
-                for (int i = 0; i < dfsSearchResult.knnResults().size(); i++) {
-                    DfsKnnResults knnResults = dfsSearchResult.knnResults().get(i);
+                nestedPath.set(i, dfsSearchResult.knnResults().get(0).getNestedPath());
+                for (int j = 0; j < dfsSearchResult.knnResults().size(); j++) {
+                    DfsKnnResults knnResults = dfsSearchResult.knnResults().get(j);
                     ScoreDoc[] scoreDocs = knnResults.scoreDocs();
                     TotalHits totalHits = new TotalHits(scoreDocs.length, Relation.EQUAL_TO);
                     TopDocs shardTopDocs = new TopDocs(totalHits, scoreDocs);
@@ -158,7 +162,7 @@ public final class SearchPhaseController {
         List<DfsKnnResults> mergedResults = new ArrayList<>(request.source().knnSearch().size());
         for (int i = 0; i < request.source().knnSearch().size(); i++) {
             TopDocs mergedTopDocs = TopDocs.merge(request.source().knnSearch().get(i).k(), topDocsLists.get(i).toArray(new TopDocs[0]));
-            mergedResults.add(new DfsKnnResults(mergedTopDocs.scoreDocs));
+            mergedResults.add(new DfsKnnResults(nestedPath.get(i), mergedTopDocs.scoreDocs));
         }
         return mergedResults;
     }

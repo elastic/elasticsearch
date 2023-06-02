@@ -42,6 +42,7 @@ public class JavaUtilLoggingFormatTests extends ESTestCase {
         } finally {
             System.setOut(out);
             System.setErr(err);
+            System.getProperties().remove(key);
         }
     }
 

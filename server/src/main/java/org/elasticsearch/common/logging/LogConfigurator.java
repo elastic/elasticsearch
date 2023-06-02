@@ -10,10 +10,8 @@ package org.elasticsearch.common.logging;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.Appender;
 import org.apache.logging.log4j.core.LoggerContext;
-import org.apache.logging.log4j.core.appender.ConsoleAppender;
 import org.apache.logging.log4j.core.config.AbstractConfiguration;
 import org.apache.logging.log4j.core.config.ConfigurationException;
 import org.apache.logging.log4j.core.config.ConfigurationSource;
@@ -270,7 +268,7 @@ public class LogConfigurator {
                     Level.WARN,
                     // MMapDirectory messages come from Lucene, suggesting to users as a warning that they should enable preview features in
                     // the JDK
-                    List.of(/*"MMapDirectory"*/)
+                    List.of("MMapDirectory")
                 ),
                 false,
                 StandardCharsets.UTF_8

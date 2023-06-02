@@ -831,34 +831,34 @@ public abstract class CcrIntegTestCase extends ESTestCase {
     ) {
         final var future = new PlainActionFuture<RestoreInfo>();
         restoreService.restoreSnapshot(restoreSnapshotRequest, future.delegateFailure((delegate, restoreCompletionResponse) -> {
-            if (restoreCompletionResponse.getRestoreInfo() == null) {
-                final Snapshot snapshot = restoreCompletionResponse.getSnapshot();
-                final String uuid = restoreCompletionResponse.getUuid();
-                final ClusterStateListener clusterStateListener = new ClusterStateListener() {
-                    @Override
-                    public void clusterChanged(ClusterChangedEvent changedEvent) {
-                        final RestoreInProgress.Entry prevEntry = restoreInProgress(changedEvent.previousState(), uuid);
-                        final RestoreInProgress.Entry newEntry = restoreInProgress(changedEvent.state(), uuid);
+            assertNull(restoreCompletionResponse.getRestoreInfo());
+            // this would only be non-null if the restore was a no-op, but that would be a test bug
+            final Snapshot snapshot = restoreCompletionResponse.getSnapshot();
+            final String uuid = restoreCompletionResponse.getUuid();
+            final ClusterStateListener clusterStateListener = new ClusterStateListener() {
+                @Override
+                public void clusterChanged(ClusterChangedEvent changedEvent) {
+                    final RestoreInProgress.Entry prevEntry = restoreInProgress(changedEvent.previousState(), uuid);
+                    final RestoreInProgress.Entry newEntry = restoreInProgress(changedEvent.state(), uuid);
 
-                        assertNotNull(prevEntry);
-                        // prevEntry could be null if there was a master failover and (due to batching) we missed the cluster state update
-                        // that completed the restore, but that doesn't happen in these tests
-                        if (newEntry == null) {
-                            clusterService.removeListener(this);
-                            Map<ShardId, RestoreInProgress.ShardRestoreStatus> shards = prevEntry.shards();
-                            RestoreInfo ri = new RestoreInfo(
-                                prevEntry.snapshot().getSnapshotId().getName(),
-                                prevEntry.indices(),
-                                shards.size(),
-                                shards.size() - RestoreService.failedShards(shards)
-                            );
-                            logger.debug("restore of [{}] completed", snapshot);
-                            delegate.onResponse(ri);
-                        } // else restore not completed yet, wait for next cluster state update
-                    }
-                };
-                clusterService.addListener(clusterStateListener);
-            }
+                    assertNotNull(prevEntry);
+                    // prevEntry could be null if there was a master failover and (due to batching) we missed the cluster state update
+                    // that completed the restore, but that doesn't happen in these tests
+                    if (newEntry == null) {
+                        clusterService.removeListener(this);
+                        Map<ShardId, RestoreInProgress.ShardRestoreStatus> shards = prevEntry.shards();
+                        RestoreInfo ri = new RestoreInfo(
+                            prevEntry.snapshot().getSnapshotId().getName(),
+                            prevEntry.indices(),
+                            shards.size(),
+                            shards.size() - RestoreService.failedShards(shards)
+                        );
+                        logger.debug("restore of [{}] completed", snapshot);
+                        delegate.onResponse(ri);
+                    } // else restore not completed yet, wait for next cluster state update
+                }
+            };
+            clusterService.addListener(clusterStateListener);
         }));
         return future;
     }

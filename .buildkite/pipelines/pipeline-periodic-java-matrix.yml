@@ -1,26 +1,28 @@
 steps:
-  - label: java-matrix
-    command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true $$GRADLE_TASK
-    agents:
-      provider: gcp
-      image: family/core-ubuntu-2204
-      buildDirectory: /dev/shm/bk
-      machineType: custom-32-98304
-      useVault: false
-    matrix:
-      setup:
-        ES_RUNTIME_JAVA:
-          - graalvm-ce17
-          - openjdk17
-          - openjdk18
-          - openjdk19
-          - openjdk20
-        GRADLE_TASK:
-          - checkPart1
-          - checkPart2
-          - checkPart3
-          - bwcTestSnapshots
-          - checkRestCompat
-    env:
-      ES_RUNTIME_JAVA: "{{matrix.setup.ES_RUNTIME_JAVA}}"
-      GRADLE_TASK: "{{matrix.setup.GRADLE_TASK}}"
+  - group: java-matrix
+    steps:
+      - label: java-matrix
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true $$GRADLE_TASK
+        agents:
+          provider: gcp
+          image: family/core-ubuntu-2204
+          buildDirectory: /dev/shm/bk
+          machineType: custom-32-98304
+          useVault: false
+        matrix:
+          setup:
+            ES_RUNTIME_JAVA:
+              - graalvm-ce17
+              - openjdk17
+              - openjdk18
+              - openjdk19
+              - openjdk20
+            GRADLE_TASK:
+              - checkPart1
+              - checkPart2
+              - checkPart3
+              - bwcTestSnapshots
+              - checkRestCompat
+        env:
+          ES_RUNTIME_JAVA: "{{matrix.setup.ES_RUNTIME_JAVA}}"
+          GRADLE_TASK: "{{matrix.setup.GRADLE_TASK}}"

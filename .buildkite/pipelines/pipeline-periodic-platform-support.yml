@@ -1,48 +1,52 @@
 steps:
-  - label: platform-support-unix
-    command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true check
-    agents:
-      provider: gcp
-      image: "{{matrix.image}}"
-      buildDirectory: /dev/shm/bk
-      machineType: custom-32-98304
-      useVault: false
-    matrix:
-      setup:
-        image:
-          - family/core-centos-7
-          - family/core-debian-10
-          - family/core-debian-11
-          - family/core-opensuse-15
-          - family/core-oraclelinux-7
-          - family/core-oraclelinux-8
-          - family/core-sles-12
-          - family/core-sles-15
-          - family/core-ubuntu-1804
-          - family/core-ubuntu-2004
-          - family/core-ubuntu-2204
-          - family/core-rocky-linux-8
-          - family/core-rhel-7
-          - family/core-rhel-8
-          - family/core-rhel-9
-          - family/core-almalinux-8
-    env: {}
-  - label: platform-support-arm
-    command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true $$GRADLE_TASK
-    agents:
-      provider: gcp
-      image: "{{matrix.image}}"
-      buildDirectory: /dev/shm/bk
-      machineType: custom-32-98304
-      useVault: false
-    matrix:
-      setup:
-        image: []
-        GRADLE_TASK:
-          - checkPart1
-          - checkPart2
-          - checkPart3
-          - bwcTestSnapshots
-          - checkRestCompat
-    env:
-      GRADLE_TASK: "{{matrix.setup.GRADLE_TASK}}"
+  - group: platform-support-unix
+    steps:
+      - label: platform-support-unix
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true check
+        agents:
+          provider: gcp
+          image: "{{matrix.image}}"
+          buildDirectory: /dev/shm/bk
+          machineType: custom-32-98304
+          useVault: false
+        matrix:
+          setup:
+            image:
+              - family/core-centos-7
+              - family/core-debian-10
+              - family/core-debian-11
+              - family/core-opensuse-15
+              - family/core-oraclelinux-7
+              - family/core-oraclelinux-8
+              - family/core-sles-12
+              - family/core-sles-15
+              - family/core-ubuntu-1804
+              - family/core-ubuntu-2004
+              - family/core-ubuntu-2204
+              - family/core-rocky-linux-8
+              - family/core-rhel-7
+              - family/core-rhel-8
+              - family/core-rhel-9
+              - family/core-almalinux-8
+        env: {}
+  - group: platform-support-arm
+    steps:
+      - label: platform-support-arm
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true $$GRADLE_TASK
+        agents:
+          provider: gcp
+          image: "{{matrix.image}}"
+          buildDirectory: /dev/shm/bk
+          machineType: custom-32-98304
+          useVault: false
+        matrix:
+          setup:
+            image: []
+            GRADLE_TASK:
+              - checkPart1
+              - checkPart2
+              - checkPart3
+              - bwcTestSnapshots
+              - checkRestCompat
+        env:
+          GRADLE_TASK: "{{matrix.setup.GRADLE_TASK}}"

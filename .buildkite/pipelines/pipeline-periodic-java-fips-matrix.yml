@@ -1,23 +1,25 @@
 steps:
-  - label: java-fips-matrix
-    command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true
-      -Dtests.fips.enabled=true $$GRADLE_TASK
-    agents:
-      provider: gcp
-      image: family/core-ubuntu-2204
-      buildDirectory: /dev/shm/bk
-      machineType: custom-32-98304
-      useVault: false
-    matrix:
-      setup:
-        ES_RUNTIME_JAVA:
-          - openjdk17
-        GRADLE_TASK:
-          - checkPart1
-          - checkPart2
-          - checkPart3
-          - bwcTestSnapshots
-          - checkRestCompat
-    env:
-      ES_RUNTIME_JAVA: "{{matrix.setup.ES_RUNTIME_JAVA}}"
-      GRADLE_TASK: "{{matrix.setup.GRADLE_TASK}}"
+  - group: java-fips-matrix
+    steps:
+      - label: java-fips-matrix
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true
+          -Dtests.fips.enabled=true $$GRADLE_TASK
+        agents:
+          provider: gcp
+          image: family/core-ubuntu-2204
+          buildDirectory: /dev/shm/bk
+          machineType: custom-32-98304
+          useVault: false
+        matrix:
+          setup:
+            ES_RUNTIME_JAVA:
+              - openjdk17
+            GRADLE_TASK:
+              - checkPart1
+              - checkPart2
+              - checkPart3
+              - bwcTestSnapshots
+              - checkRestCompat
+        env:
+          ES_RUNTIME_JAVA: "{{matrix.setup.ES_RUNTIME_JAVA}}"
+          GRADLE_TASK: "{{matrix.setup.GRADLE_TASK}}"

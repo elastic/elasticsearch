@@ -9,7 +9,8 @@
         },
         "set_priority": {
           "priority": 100
-        }
+        },
+        "readonly": {}
       }
     },
     "warm": {

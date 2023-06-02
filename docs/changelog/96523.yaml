@@ -1,0 +1,5 @@
+pr: 96523
+summary: Cleanup `RestoreSnapshotResponse`
+area: Snapshot/Restore
+type: tech debt
+issues: []

@@ -29,10 +29,13 @@ export JAVA11_HOME
 JAVA16_HOME="$HOME/.java/openjdk16"
 export JAVA16_HOME
 
-# Temporary, just for testing
-cd "$HOME/.java"
-curl -O https://download.java.net/java/GA/jdk17.0.2/dfd4a8d0985749f896bed50d7138ee7f/8/GPL/openjdk-17.0.2_linux-x64_bin.tar.gz
-echo "0022753d0cceecacdd3a795dd4cea2bd7ffdf9dc06e22ffd1be98411742fbb44 openjdk-17.0.2_linux-x64_bin.tar.gz" | sha256sum --check
-tar -xvf openjdk-17.0.2_linux-x64_bin.tar.gz
-mv jdk-17.0.2 openjdk17
-cd -
+if [[ "$BUILDKITE_SCRIPT_PATH" != *"buildkite-agent pipeline upload"* ]]; then
+  # Temporary, just for testing
+  mkdir -p "$HOME/.java"
+  cd "$HOME/.java"
+  curl -O https://download.java.net/java/GA/jdk17.0.2/dfd4a8d0985749f896bed50d7138ee7f/8/GPL/openjdk-17.0.2_linux-x64_bin.tar.gz
+  echo "0022753d0cceecacdd3a795dd4cea2bd7ffdf9dc06e22ffd1be98411742fbb44 openjdk-17.0.2_linux-x64_bin.tar.gz" | sha256sum --check
+  tar -xvf openjdk-17.0.2_linux-x64_bin.tar.gz
+  mv jdk-17.0.2 openjdk17
+  cd -
+fi

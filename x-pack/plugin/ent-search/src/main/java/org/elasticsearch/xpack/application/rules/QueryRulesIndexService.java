@@ -294,11 +294,29 @@ public class QueryRulesIndexService {
         );
     }
 
+    static QueryRuleset parseQueryRulesetBinaryWithVersion(StreamInput in) throws IOException {
+        TransportVersion version = TransportVersion.readVersion(in);
+        assert version.onOrBefore(TransportVersion.CURRENT) : version + " >= " + TransportVersion.CURRENT;
+        in.setTransportVersion(version);
+        return new QueryRuleset(in);
+    }
+
     static QueryRule parseQueryRuleBinaryWithVersion(StreamInput in) throws IOException {
         TransportVersion version = TransportVersion.readVersion(in);
         assert version.onOrBefore(TransportVersion.CURRENT) : version + " >= " + TransportVersion.CURRENT;
         in.setTransportVersion(version);
         return new QueryRule(in);
+    }
+
+    static void writeQueryRulesetBinaryWithVersion(QueryRuleset queryRuleset, OutputStream os, TransportVersion minTransportVersion)
+        throws IOException {
+        // do not close the output
+        os = Streams.noCloseStream(os);
+        TransportVersion.writeVersion(minTransportVersion, new OutputStreamStreamOutput(os));
+        try (OutputStreamStreamOutput out = new OutputStreamStreamOutput(os)) {
+            out.setTransportVersion(minTransportVersion);
+            queryRuleset.writeTo(out);
+        }
     }
 
     static void writeQueryRuleBinaryWithVersion(QueryRule queryRule, OutputStream os, TransportVersion minTransportVersion)

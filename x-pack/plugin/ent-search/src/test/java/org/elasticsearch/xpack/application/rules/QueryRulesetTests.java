@@ -7,9 +7,14 @@
 
 package org.elasticsearch.xpack.application.rules;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.InputStreamStreamInput;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.search.SearchModule;
@@ -44,7 +49,7 @@ public class QueryRulesetTests extends ESTestCase {
             QueryRuleset testInstance = SearchApplicationTestUtils.randomQueryRuleset();
             assertTransportSerialization(testInstance);
             assertXContent(testInstance, randomBoolean());
-//            assertIndexSerialization(testInstance); // TODO enable
+            assertIndexSerialization(testInstance);
         }
     }
 
@@ -110,27 +115,26 @@ public class QueryRulesetTests extends ESTestCase {
         assertThat(testInstance, equalTo(deserializedInstance));
     }
 
-    // TODO implement
-//    private void assertIndexSerialization(QueryRuleset testInstance) throws IOException {
-//        final QueryRuleset deserializedInstance;
-//        try (BytesStreamOutput output = new BytesStreamOutput()) {
-//            QueryRulesIndexService.writeQueryRulesetBinaryWithVersion(
-//                testInstance,
-//                output,
-//                TransportVersion.MINIMUM_COMPATIBLE
-//            );
-//            try (
-//                StreamInput in = new NamedWriteableAwareStreamInput(
-//                    new InputStreamStreamInput(output.bytes().streamInput()),
-//                    namedWriteableRegistry
-//                )
-//            ) {
-//                deserializedInstance = QueryRulesIndexService.parseQueryRulesetBinaryWithVersion(in);
-//            }
-//        }
-//        assertNotSame(testInstance, deserializedInstance);
-//        assertThat(testInstance, equalTo(deserializedInstance));
-//    }
+    private void assertIndexSerialization(QueryRuleset testInstance) throws IOException {
+        final QueryRuleset deserializedInstance;
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            QueryRulesIndexService.writeQueryRulesetBinaryWithVersion(
+                testInstance,
+                output,
+                TransportVersion.MINIMUM_COMPATIBLE
+            );
+            try (
+                StreamInput in = new NamedWriteableAwareStreamInput(
+                    new InputStreamStreamInput(output.bytes().streamInput()),
+                    namedWriteableRegistry
+                )
+            ) {
+                deserializedInstance = QueryRulesIndexService.parseQueryRulesetBinaryWithVersion(in);
+            }
+        }
+        assertNotSame(testInstance, deserializedInstance);
+        assertThat(testInstance, equalTo(deserializedInstance));
+    }
 
     private QueryRuleset copyInstance(QueryRuleset instance) throws IOException {
         return copyWriteable(instance, namedWriteableRegistry, QueryRuleset::new);

@@ -1,0 +1,18 @@
+env:
+  BUILD_NUMBER: $BUILDKITE_BUILD_NUMBER
+  COMPOSE_HTTP_TIMEOUT: "120"
+  JOB_BRANCH: $BUILDKITE_BRANCH
+  GRADLEW: ./gradlew --parallel --scan --build-cache --no-watch-fs
+    -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
+  GRADLEW_BAT: ./gradlew.bat --parallel --scan --build-cache --no-watch-fs
+    -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
+steps:
+  - label: single-processor-node-tests
+    command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true
+      -Dtests.configure_test_clusters_with_one_processor=true check
+    agents:
+      provider: gcp
+      image: family/core-ubuntu-2204
+      buildDirectory: /dev/shm/bk
+      machineType: custom-32-98304
+      useVault: false

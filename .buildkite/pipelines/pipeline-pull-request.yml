@@ -1,0 +1,515 @@
+env:
+  BUILD_NUMBER: $BUILDKITE_BUILD_NUMBER
+  COMPOSE_HTTP_TIMEOUT: "120"
+  JOB_BRANCH: $BUILDKITE_BRANCH
+  GRADLEW: ./gradlew --parallel --scan --build-cache --no-watch-fs
+    -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
+  GRADLEW_BAT: ./gradlew.bat --parallel --scan --build-cache --no-watch-fs
+    -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
+steps:
+  - label: build-benchmark-part1
+    command: >-
+      .ci/scripts/run-gradle.sh :build-tools-internal:bootstrapPerformanceTests
+
+      .ci/scripts/install-gradle-profiler.sh
+
+      .ci/scripts/run-gradle-profiler.sh --benchmark --scenario-file build-tools-internal/build/performanceTests/elasticsearch-build-benchmark-part1.scenarios --project-dir . --output-dir profile-out
+
+      mkdir build
+
+      tar -czf build/$${BUILD_NUMBER}.tar.bz2 profile-out
+    agents:
+      provider: gcp
+      image: family/core-ubuntu-2204
+      buildDirectory: /dev/shm/bk
+      machineType: custom-32-98304
+      useVault: false
+  - label: build-benchmark-part2
+    command: >-
+      .ci/scripts/run-gradle.sh :build-tools-internal:bootstrapPerformanceTests
+
+      .ci/scripts/install-gradle-profiler.sh
+
+      .ci/scripts/run-gradle-profiler.sh --benchmark --scenario-file build-tools-internal/build/performanceTests/elasticsearch-build-benchmark-part2.scenarios --project-dir . --output-dir profile-out
+
+      mkdir build
+
+      tar -czf build/$${BUILD_NUMBER}.tar.bz2 profile-out
+    agents:
+      provider: gcp
+      image: family/core-ubuntu-2204
+      buildDirectory: /dev/shm/bk
+      machineType: custom-32-98304
+      useVault: false
+  - label: bwc-snapshots
+    command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+    agents:
+      provider: gcp
+      image: family/core-ubuntu-2204
+      buildDirectory: /dev/shm/bk
+      machineType: custom-32-98304
+      useVault: false
+    matrix:
+      setup:
+        BWC_VERSION:
+          - 7.17.11
+          - 8.8.1
+          - 8.9.0
+    env:
+      BWC_VERSION: "{{matrix.setup.BWC_VERSION}}"
+  - label: cloud-deploy
+    command: >-
+      .ci/scripts/run-gradle.sh buildCloudDockerImage
+
+
+      #!/bin/bash
+
+      set +x
+
+      VAULT_TOKEN=$$(vault write -field=token auth/approle/login role_id=$$VAULT_ROLE_ID secret_id=$$VAULT_SECRET_ID)
+
+      export VAULT_TOKEN
+
+      export DOCKER_REGISTRY_USERNAME="$$(vault read -field=username secret/elasticsearch-ci/prod_docker_registry_credentials)"
+
+      export DOCKER_REGISTRY_PASSWORD="$$(vault read -field=password secret/elasticsearch-ci/prod_docker_registry_credentials)"
+
+      export ES_VERSION=$$(grep 'elasticsearch' build-tools-internal/version.properties | awk '{print $$3}')
+
+      export DOCKER_TAG=docker.elastic.co/elasticsearch-ci/elasticsearch-cloud:$${ES_VERSION}-$${ghprbActualCommit:0:7}
+
+      docker tag elasticsearch-cloud:test $$DOCKER_TAG
+
+      echo $$DOCKER_REGISTRY_PASSWORD | docker login -u $$DOCKER_REGISTRY_USERNAME --password-stdin docker.elastic.co
+
+      unset VAULT_TOKEN DOCKER_REGISTRY_USERNAME DOCKER_REGISTRY_PASSWORD
+
+      set -x
+
+      docker push $$DOCKER_TAG
+    agents:
+      provider: gcp
+      image: family/core-ubuntu-2204
+      buildDirectory: /dev/shm/bk
+      machineType: custom-32-98304
+      useVault: false
+  - label: docs-check
+    command: .ci/scripts/run-gradle.sh -Dignore.tests.seed precommit :docs:check
+    agents:
+      provider: gcp
+      image: family/core-ubuntu-2204
+      buildDirectory: /dev/shm/bk
+      machineType: custom-32-98304
+      useVault: false
+  - label: eql-correctness
+    command: >-
+      set +x
+
+      VAULT_TOKEN=$$(vault write -field=token auth/approle/login role_id=$$VAULT_ROLE_ID secret_id=$$VAULT_SECRET_ID)
+
+      export VAULT_TOKEN
+
+      export eql_test_credentials_file="$$(pwd)/x-pack/plugin/eql/qa/correctness/credentials.gcs.json"
+
+      vault read -field=credentials.gcs.json secret/elasticsearch-ci/eql_test_credentials > $${eql_test_credentials_file}
+
+      unset VAULT_TOKEN
+
+      set -x
+
+
+      .ci/scripts/run-gradle.sh -Dignore.tests.seed :x-pack:plugin:eql:qa:correctness:check
+    agents:
+      provider: gcp
+      image: family/core-ubuntu-2204
+      buildDirectory: /dev/shm/bk
+      machineType: custom-32-98304
+      useVault: false
+  - label: example-plugins
+    command: >-
+      cd plugins/examples
+
+      .ci/scripts/run-gradle.sh -Dorg.gradle.jvmargs=-Xmx8g build --include-build $$WORKSPACE
+    agents:
+      provider: gcp
+      image: family/core-ubuntu-2204
+      buildDirectory: /dev/shm/bk
+      machineType: custom-32-98304
+      useVault: false
+  - label: full-bwc
+    command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+    agents:
+      provider: gcp
+      image: family/core-ubuntu-2204
+      buildDirectory: /dev/shm/bk
+      machineType: custom-32-98304
+      useVault: false
+    matrix:
+      setup:
+        BWC_VERSION:
+          - 7.0.0
+          - 7.0.1
+          - 7.1.0
+          - 7.1.1
+          - 7.2.0
+          - 7.2.1
+          - 7.3.0
+          - 7.3.1
+          - 7.3.2
+          - 7.4.0
+          - 7.4.1
+          - 7.4.2
+          - 7.5.0
+          - 7.5.1
+          - 7.5.2
+          - 7.6.0
+          - 7.6.1
+          - 7.6.2
+          - 7.7.0
+          - 7.7.1
+          - 7.8.0
+          - 7.8.1
+          - 7.9.0
+          - 7.9.1
+          - 7.9.2
+          - 7.9.3
+          - 7.10.0
+          - 7.10.1
+          - 7.10.2
+          - 7.11.0
+          - 7.11.1
+          - 7.11.2
+          - 7.12.0
+          - 7.12.1
+          - 7.13.0
+          - 7.13.1
+          - 7.13.2
+          - 7.13.3
+          - 7.13.4
+          - 7.14.0
+          - 7.14.1
+          - 7.14.2
+          - 7.15.0
+          - 7.15.1
+          - 7.15.2
+          - 7.16.0
+          - 7.16.1
+          - 7.16.2
+          - 7.16.3
+          - 7.17.0
+          - 7.17.1
+          - 7.17.2
+          - 7.17.3
+          - 7.17.4
+          - 7.17.5
+          - 7.17.6
+          - 7.17.7
+          - 7.17.8
+          - 7.17.9
+          - 7.17.10
+          - 7.17.11
+          - 8.0.0
+          - 8.0.1
+          - 8.1.0
+          - 8.1.1
+          - 8.1.2
+          - 8.1.3
+          - 8.2.0
+          - 8.2.1
+          - 8.2.2
+          - 8.2.3
+          - 8.3.0
+          - 8.3.1
+          - 8.3.2
+          - 8.3.3
+          - 8.4.0
+          - 8.4.1
+          - 8.4.2
+          - 8.4.3
+          - 8.5.0
+          - 8.5.1
+          - 8.5.2
+          - 8.5.3
+          - 8.6.0
+          - 8.6.1
+          - 8.6.2
+          - 8.7.0
+          - 8.7.1
+          - 8.8.0
+          - 8.8.1
+          - 8.9.0
+    env:
+      BWC_VERSION: "{{matrix.setup.BWC_VERSION}}"
+  - label: packaging-tests-unix-sample
+    command: ./.ci/scripts/packaging-test.sh --build-cache
+      -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
+      $$PACKAGING_TASK
+    agents:
+      provider: gcp
+      image: "{{matrix.image}}"
+      buildDirectory: /dev/shm/bk
+      machineType: custom-16-32768
+      useVault: false
+    matrix:
+      setup:
+        image:
+          - family/core-rhel-8
+          - family/core-ubuntu-2004
+        PACKAGING_TASK:
+          - destructiveDistroTest.docker
+          - destructiveDistroTest.packages
+          - destructiveDistroTest.archives
+    env:
+      PACKAGING_TASK: "{{matrix.setup.PACKAGING_TASK}}"
+  - label: packaging-tests-unix
+    command: ./.ci/scripts/packaging-test.sh --build-cache
+      -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
+      $$PACKAGING_TASK
+    agents:
+      provider: gcp
+      image: "{{matrix.image}}"
+      buildDirectory: /dev/shm/bk
+      machineType: custom-16-32768
+      useVault: false
+    matrix:
+      setup:
+        image:
+          - family/core-centos-7
+          - family/core-debian-10
+          - family/core-debian-11
+          - family/core-opensuse-15
+          - family/core-oraclelinux-7
+          - family/core-oraclelinux-8
+          - family/core-sles-12
+          - family/core-sles-15
+          - family/core-ubuntu-1804
+          - family/core-ubuntu-2004
+          - family/core-ubuntu-2204
+          - family/core-rocky-linux-8
+          - family/core-rhel-7
+          - family/core-rhel-8
+          - family/core-rhel-9
+          - family/core-almalinux-8
+        PACKAGING_TASK:
+          - destructiveDistroTest.docker
+          - destructiveDistroTest.packages
+          - destructiveDistroTest.archives
+    env:
+      PACKAGING_TASK: "{{matrix.setup.PACKAGING_TASK}}"
+  - label: packaging-upgrade-tests
+    command: ./.ci/scripts/packaging-test.sh --build-cache
+      -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
+      destructiveDistroUpgradeTest.v$$BWC_VERSION
+    agents:
+      provider: gcp
+      image: "{{matrix.image}}"
+      buildDirectory: /dev/shm/bk
+      machineType: custom-16-32768
+      useVault: false
+    matrix:
+      setup:
+        image:
+          - family/core-rocky-linux-8
+          - family/core-ubuntu-2004
+        BWC_VERSION:
+          - 7.0.0
+          - 7.0.1
+          - 7.1.0
+          - 7.1.1
+          - 7.2.0
+          - 7.2.1
+          - 7.3.0
+          - 7.3.1
+          - 7.3.2
+          - 7.4.0
+          - 7.4.1
+          - 7.4.2
+          - 7.5.0
+          - 7.5.1
+          - 7.5.2
+          - 7.6.0
+          - 7.6.1
+          - 7.6.2
+          - 7.7.0
+          - 7.7.1
+          - 7.8.0
+          - 7.8.1
+          - 7.9.0
+          - 7.9.1
+          - 7.9.2
+          - 7.9.3
+          - 7.10.0
+          - 7.10.1
+          - 7.10.2
+          - 7.11.0
+          - 7.11.1
+          - 7.11.2
+          - 7.12.0
+          - 7.12.1
+          - 7.13.0
+          - 7.13.1
+          - 7.13.2
+          - 7.13.3
+          - 7.13.4
+          - 7.14.0
+          - 7.14.1
+          - 7.14.2
+          - 7.15.0
+          - 7.15.1
+          - 7.15.2
+          - 7.16.0
+          - 7.16.1
+          - 7.16.2
+          - 7.16.3
+          - 7.17.0
+          - 7.17.1
+          - 7.17.2
+          - 7.17.3
+          - 7.17.4
+          - 7.17.5
+          - 7.17.6
+          - 7.17.7
+          - 7.17.8
+          - 7.17.9
+          - 7.17.10
+          - 7.17.11
+          - 8.0.0
+          - 8.0.1
+          - 8.1.0
+          - 8.1.1
+          - 8.1.2
+          - 8.1.3
+          - 8.2.0
+          - 8.2.1
+          - 8.2.2
+          - 8.2.3
+          - 8.3.0
+          - 8.3.1
+          - 8.3.2
+          - 8.3.3
+          - 8.4.0
+          - 8.4.1
+          - 8.4.2
+          - 8.4.3
+          - 8.5.0
+          - 8.5.1
+          - 8.5.2
+          - 8.5.3
+          - 8.6.0
+          - 8.6.1
+          - 8.6.2
+          - 8.7.0
+          - 8.7.1
+          - 8.8.0
+          - 8.8.1
+          - 8.9.0
+    env:
+      BWC_VERSION: "{{matrix.setup.BWC_VERSION}}"
+  - label: part-1-fips
+    command: .ci/scripts/run-gradle.sh -Dignore.tests.seed -Dtests.fips.enabled=true
+      checkPart1
+    agents:
+      provider: gcp
+      image: family/core-ubuntu-2204
+      buildDirectory: /dev/shm/bk
+      machineType: custom-32-98304
+      useVault: false
+  - label: part-1
+    command: .ci/scripts/run-gradle.sh -Dignore.tests.seed checkPart1
+    agents:
+      provider: gcp
+      image: family/core-ubuntu-2204
+      buildDirectory: /dev/shm/bk
+      machineType: custom-32-98304
+      useVault: false
+  - label: part-2-fips
+    command: .ci/scripts/run-gradle.sh -Dignore.tests.seed -Dtests.fips.enabled=true
+      checkPart2
+    agents:
+      provider: gcp
+      image: family/core-ubuntu-2204
+      buildDirectory: /dev/shm/bk
+      machineType: custom-32-98304
+      useVault: false
+  - label: part-2
+    command: .ci/scripts/run-gradle.sh -Dignore.tests.seed checkPart2
+    agents:
+      provider: gcp
+      image: family/core-ubuntu-2204
+      buildDirectory: /dev/shm/bk
+      machineType: custom-32-98304
+      useVault: false
+  - label: part-3-fips
+    command: .ci/scripts/run-gradle.sh -Dignore.tests.seed -Dtests.fips.enabled=true
+      checkPart3
+    agents:
+      provider: gcp
+      image: family/core-ubuntu-2204
+      buildDirectory: /dev/shm/bk
+      machineType: custom-32-98304
+      useVault: false
+  - label: part-3
+    command: .ci/scripts/run-gradle.sh -Dignore.tests.seed checkPart3
+    agents:
+      provider: gcp
+      image: family/core-ubuntu-2204
+      buildDirectory: /dev/shm/bk
+      machineType: custom-32-98304
+      useVault: false
+  - label: precommit
+    command: .ci/scripts/run-gradle.sh -Dignore.tests.seed precommit
+    agents:
+      provider: gcp
+      image: family/core-ubuntu-2204
+      buildDirectory: /dev/shm/bk
+      machineType: custom-32-98304
+      useVault: false
+  - label: release-tests
+    command: >-
+      # Fetch beats artifacts
+
+      export ES_VERSION=$$(grep 'elasticsearch' build-tools-internal/version.properties | awk '{print $$3}')
+
+      export BEATS_DIR=$$(pwd)/distribution/docker/build/artifacts/beats
+
+
+      mkdir -p $${BEATS_DIR}
+
+      curl --fail -o "$${BEATS_DIR}/metricbeat-$${ES_VERSION}-linux-x86_64.tar.gz" https://artifacts-snapshot.elastic.co/beats/$${ES_VERSION}-SNAPSHOT/downloads/beats/metricbeat/metricbeat-$${ES_VERSION}-SNAPSHOT-linux-x86_64.tar.gz
+
+      curl --fail -o "$${BEATS_DIR}/metricbeat-$${ES_VERSION}-linux-arm64.tar.gz" https://artifacts-snapshot.elastic.co/beats/$${ES_VERSION}-SNAPSHOT/downloads/beats/metricbeat/metricbeat-$${ES_VERSION}-SNAPSHOT-linux-arm64.tar.gz
+
+      curl --fail -o "$${BEATS_DIR}/filebeat-$${ES_VERSION}-linux-x86_64.tar.gz" https://artifacts-snapshot.elastic.co/beats/$${ES_VERSION}-SNAPSHOT/downloads/beats/metricbeat/metricbeat-$${ES_VERSION}-SNAPSHOT-linux-x86_64.tar.gz
+
+      curl --fail -o "$${BEATS_DIR}/filebeat-$${ES_VERSION}-linux-arm64.tar.gz" https://artifacts-snapshot.elastic.co/beats/$${ES_VERSION}-SNAPSHOT/downloads/beats/filebeat/filebeat-$${ES_VERSION}-SNAPSHOT-linux-arm64.tar.gz
+
+
+      # Fetch ML artifacts
+
+      export ML_IVY_REPO=$$(mktemp -d)
+
+      mkdir -p $${ML_IVY_REPO}/maven/org/elasticsearch/ml/ml-cpp/$${ES_VERSION}
+
+      curl --fail -o "$${ML_IVY_REPO}/maven/org/elasticsearch/ml/ml-cpp/$${ES_VERSION}/ml-cpp-$${ES_VERSION}-deps.zip" https://artifacts-snapshot.elastic.co/ml-cpp/$${ES_VERSION}-SNAPSHOT/downloads/ml-cpp/ml-cpp-$${ES_VERSION}-SNAPSHOT-deps.zip
+
+      curl --fail -o "$${ML_IVY_REPO}/maven/org/elasticsearch/ml/ml-cpp/$${ES_VERSION}/ml-cpp-$${ES_VERSION}-nodeps.zip" https://artifacts-snapshot.elastic.co/ml-cpp/$${ES_VERSION}-SNAPSHOT/downloads/ml-cpp/ml-cpp-$${ES_VERSION}-SNAPSHOT-nodeps.zip
+
+      curl --fail -o "$${ML_IVY_REPO}/maven/org/elasticsearch/ml/ml-cpp/$${ES_VERSION}/ml-cpp-$${ES_VERSION}.zip" https://artifacts-snapshot.elastic.co/ml-cpp/$${ES_VERSION}-SNAPSHOT/downloads/ml-cpp/ml-cpp-$${ES_VERSION}-SNAPSHOT.zip
+
+
+      .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dbuild.snapshot=false -Dbuild.ml_cpp.repo=file://$${ML_IVY_REPO} \
+        -Dtests.jvm.argline=-Dbuild.snapshot=false -Dlicense.key=$${WORKSPACE}/x-pack/license-tools/src/test/resources/public.key -Dbuild.id=deadbeef build
+    agents:
+      provider: gcp
+      image: family/core-ubuntu-2204
+      buildDirectory: /dev/shm/bk
+      machineType: custom-32-98304
+      useVault: false
+  - label: rest-compatibility
+    command: .ci/scripts/run-gradle.sh -Dignore.tests.seed checkRestCompat
+    agents:
+      provider: gcp
+      image: family/core-ubuntu-2204
+      buildDirectory: /dev/shm/bk
+      machineType: custom-32-98304
+      useVault: false

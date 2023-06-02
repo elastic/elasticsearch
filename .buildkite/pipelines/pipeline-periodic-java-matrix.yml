@@ -1,0 +1,34 @@
+env:
+  BUILD_NUMBER: $BUILDKITE_BUILD_NUMBER
+  COMPOSE_HTTP_TIMEOUT: "120"
+  JOB_BRANCH: $BUILDKITE_BRANCH
+  GRADLEW: ./gradlew --parallel --scan --build-cache --no-watch-fs
+    -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
+  GRADLEW_BAT: ./gradlew.bat --parallel --scan --build-cache --no-watch-fs
+    -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
+steps:
+  - label: java-matrix
+    command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true $$GRADLE_TASK
+    agents:
+      provider: gcp
+      image: family/core-ubuntu-2204
+      buildDirectory: /dev/shm/bk
+      machineType: custom-32-98304
+      useVault: false
+    matrix:
+      setup:
+        ES_RUNTIME_JAVA:
+          - graalvm-ce17
+          - openjdk17
+          - openjdk18
+          - openjdk19
+          - openjdk20
+        GRADLE_TASK:
+          - checkPart1
+          - checkPart2
+          - checkPart3
+          - bwcTestSnapshots
+          - checkRestCompat
+    env:
+      ES_RUNTIME_JAVA: "{{matrix.setup.ES_RUNTIME_JAVA}}"
+      GRADLE_TASK: "{{matrix.setup.GRADLE_TASK}}"

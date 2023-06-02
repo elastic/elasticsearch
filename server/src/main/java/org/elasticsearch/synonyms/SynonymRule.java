@@ -137,6 +137,7 @@ public class SynonymRule implements Writeable, ToXContentObject {
     }
 
     // Copied from org.apache.lucene.analysis.synonym.SolrSynonymParser
+    // TODO: should we use String::split instead?
     private static String[] split(String s, String separator) {
         ArrayList<String> list = new ArrayList<>(2);
         StringBuilder sb = new StringBuilder();

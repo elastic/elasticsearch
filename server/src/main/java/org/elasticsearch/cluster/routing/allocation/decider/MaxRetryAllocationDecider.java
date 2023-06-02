@@ -34,7 +34,7 @@ public class MaxRetryAllocationDecider extends AllocationDecider {
         Setting.Property.NotCopyableOnResize
     );
 
-    private static final String RETRY_FAILED_API = "POST /_cluster/reroute?retry_failed&metric=none";
+    private static final String RETRY_FAILED_API = "POST /_cluster/reroute?retry_failed";
 
     public static final String NAME = "max_retry";
 

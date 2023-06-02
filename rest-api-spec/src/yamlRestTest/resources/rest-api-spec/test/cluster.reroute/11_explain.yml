@@ -18,7 +18,6 @@ setup:
       cluster.reroute:
         explain: true
         dry_run: true
-        metric: none
         body:
           commands: []
 
@@ -39,7 +38,6 @@ setup:
       cluster.reroute:
         explain: true
         dry_run: true
-        metric: none
         body:
           commands:
             - cancel:

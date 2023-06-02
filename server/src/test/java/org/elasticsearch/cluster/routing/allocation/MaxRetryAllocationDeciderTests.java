@@ -180,7 +180,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
                 decision.getExplanation(),
                 allOf(
                     containsString("shard has exceeded the maximum number of retries"),
-                    containsString("POST /_cluster/reroute?retry_failed&metric=none")
+                    containsString("POST /_cluster/reroute?retry_failed")
                 )
             );
         }
@@ -279,7 +279,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
                 decision.getExplanation(),
                 allOf(
                     containsString("shard has exceeded the maximum number of retries"),
-                    containsString("POST /_cluster/reroute?retry_failed&metric=none")
+                    containsString("POST /_cluster/reroute?retry_failed")
                 )
             );
         });

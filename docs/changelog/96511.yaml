@@ -1,13 +1,15 @@
 pr: 96511
-summary: Do not return CS in /_cluster/reroute API response
+summary: Do not return Cluster State in /_cluster/reroute API response
 area: Allocation
-type: "breaking, tech debt"
+type: breaking
 issues:
  - 88978
 breaking:
-  title: Do not return CS in /_cluster/reroute API response
-  area: Allocation
-  details: Please describe the details of this change for the release notes. You can
-    use asciidoc.
-  impact: Please describe the impact of this change to users
+  title: Do not return Cluster State in /_cluster/reroute API response
+  area: REST API
+  details: |-
+   `state` field is not present in /_cluster/reroute API response. It was deprecated in previous release and now
+   is removed.
+  impact: |-
+   Users of /_cluster/reroute API won't be able to read `state` field in /_cluster/reroute API response.
   notable: false

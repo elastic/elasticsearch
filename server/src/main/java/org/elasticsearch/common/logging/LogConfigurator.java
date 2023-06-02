@@ -10,8 +10,10 @@ package org.elasticsearch.common.logging;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.Appender;
 import org.apache.logging.log4j.core.LoggerContext;
+import org.apache.logging.log4j.core.appender.ConsoleAppender;
 import org.apache.logging.log4j.core.config.AbstractConfiguration;
 import org.apache.logging.log4j.core.config.ConfigurationException;
 import org.apache.logging.log4j.core.config.ConfigurationSource;
@@ -274,6 +276,16 @@ public class LogConfigurator {
                 StandardCharsets.UTF_8
             )
         );
+
+        final Logger rootLogger = LogManager.getRootLogger();
+        Appender appender = Loggers.findAppender(rootLogger, ConsoleAppender.class);
+        if (appender != null) {
+            if (useConsole) {
+                consoleAppender = appender;
+            } else {
+                Loggers.removeAppender(rootLogger, appender);
+            }
+        }
     }
 
     /**

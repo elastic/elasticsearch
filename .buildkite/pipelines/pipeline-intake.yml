@@ -1,11 +1,3 @@
-env:
-  BUILD_NUMBER: $BUILDKITE_BUILD_NUMBER
-  COMPOSE_HTTP_TIMEOUT: "120"
-  JOB_BRANCH: $BUILDKITE_BRANCH
-  GRADLEW: ./gradlew --parallel --scan --build-cache --no-watch-fs
-    -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
-  GRADLEW_BAT: ./gradlew.bat --parallel --scan --build-cache --no-watch-fs
-    -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
 steps:
   - label: sanity-check
     command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true
@@ -17,6 +9,7 @@ steps:
       buildDirectory: /dev/shm/bk
       machineType: custom-32-98304
       useVault: false
+  - wait: null
   - label: part1
     command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true
       -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed
@@ -75,6 +68,7 @@ steps:
       buildDirectory: /dev/shm/bk
       machineType: custom-32-98304
       useVault: false
+  - wait: null
   - label: dra-snapshot
     command: >-
       WORKFLOW="snapshot"
@@ -155,6 +149,7 @@ steps:
       buildDirectory: /dev/shm/bk
       machineType: custom-32-98304
       useVault: false
+  - wait: null
   - label: update-last-good-commit
     command: /usr/bin/true
     agents:

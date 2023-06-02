@@ -1,0 +1,19 @@
+#!/bin/bash
+
+WORKSPACE="$(pwd)"
+export WORKSPACE
+
+BUILD_NUMBER="$BUILDKITE_BUILD_NUMBER"
+export BUILD_NUMBER
+
+COMPOSE_HTTP_TIMEOUT="120"
+export COMPOSE_HTTP_TIMEOUT
+
+JOB_BRANCH="$BUILDKITE_BRANCH"
+export JOB_BRANCH
+
+GRADLEW="./gradlew --parallel --scan --build-cache --no-watch-fs -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/"
+export GRADLEW
+
+GRADLEW_BAT="./gradlew.bat --parallel --scan --build-cache --no-watch-fs -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/"
+export GRADLEW_BAT

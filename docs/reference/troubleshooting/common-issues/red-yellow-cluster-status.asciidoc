@@ -95,7 +95,7 @@ asynchronously in the background.
 
 [source,console]
 ----
-POST _cluster/reroute?metric=none
+POST _cluster/reroute
 ----
 
 [discrete]
@@ -233,7 +233,7 @@ unassigned primary shard to another data node in the same tier. Set
 
 [source,console]
 ----
-POST _cluster/reroute?metric=none
+POST _cluster/reroute
 {
   "commands": [
     {

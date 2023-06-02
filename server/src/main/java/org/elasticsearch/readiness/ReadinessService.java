@@ -21,7 +21,6 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.PortsRange;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.http.BindHttpException;
 import org.elasticsearch.reservedstate.service.FileChangedListener;
 import org.elasticsearch.shutdown.PluginShutdownService;
 import org.elasticsearch.transport.BindTransportException;
@@ -151,8 +150,8 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
         try {
 
             if (success == false) {
-                throw new BindHttpException(
-                    "Failed to bind to " + NetworkAddress.format(InetAddress.getByName("0"), portsRange),
+                throw new BindTransportException(
+                    "Failed to bind to any range within the portRange" + portsRange.getPortRangeString(),
                     lastException.get()
                 );
             }
@@ -168,7 +167,7 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
                 }
             }
         } catch (Exception e) {
-            throw new BindTransportException("Failed to open socket channel " + NetworkAddress.format(boundSocket.get()), e);
+            throw new BindTransportException("Failed to open socket channel localhost:" + portsRange.getPortRangeString(), e);
         }
 
         return serverChannel;

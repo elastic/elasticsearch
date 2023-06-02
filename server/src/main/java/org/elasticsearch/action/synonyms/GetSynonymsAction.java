@@ -34,7 +34,7 @@ public class GetSynonymsAction extends ActionType<GetSynonymsAction.Response> {
     }
 
     public static class Request extends ActionRequest {
-        private static final int MAX_SEARCH_RESULTS = 10_000;
+        private static final int MAX_SYNONYMS_RESULTS = 10_000;
         private final String synonymsSetId;
         private final int from;
         private final int size;
@@ -57,25 +57,28 @@ public class GetSynonymsAction extends ActionType<GetSynonymsAction.Response> {
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = null;
 
-            validationException = validatePageParam("from", from, validationException);
-            validationException = validatePageParam("size", size, validationException);
+            validationException = validatePositiveInt("from", from, validationException);
+            validationException = validatePositiveInt("size", size, validationException);
+
+            if (from + size > MAX_SYNONYMS_RESULTS) {
+                validationException = addValidationError(
+                    "Too many synonyms to retrieve. [from] + [size] must be less than or equal to " + MAX_SYNONYMS_RESULTS,
+                    validationException
+                );
+            }
 
             return validationException;
         }
 
-        private ActionRequestValidationException validatePageParam(
+        private ActionRequestValidationException validatePositiveInt(
             String paramName,
             int value,
             ActionRequestValidationException validationException
         ) {
             if (value < 0) {
                 validationException = addValidationError("[" + paramName + "] must be a positive integer", validationException);
-            } else if (value > MAX_SEARCH_RESULTS) {
-                validationException = addValidationError(
-                    "[" + paramName + "] must not be greater than " + MAX_SEARCH_RESULTS,
-                    validationException
-                );
             }
+
             return validationException;
         }
 

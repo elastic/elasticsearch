@@ -185,7 +185,6 @@ public class SynonymsManagementAPIService {
                 BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
                 try {
                     for (SynonymRule synonymRule : synonymsSet) {
-
                         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
                             builder.startObject();
                             {
@@ -197,7 +196,6 @@ public class SynonymsManagementAPIService {
                             final IndexRequest indexRequest = new IndexRequest(SYNONYMS_ALIAS_NAME).opType(DocWriteRequest.OpType.INDEX)
                                 .source(builder);
                             indexRequest.id(internalSynonymRuleId(resourceName, synonymRule));
-
                             bulkRequestBuilder.add(indexRequest);
                         }
                     }

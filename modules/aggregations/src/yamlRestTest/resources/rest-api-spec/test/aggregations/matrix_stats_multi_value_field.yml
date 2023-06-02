@@ -19,6 +19,8 @@ setup:
                 "type": "double"
               "val3":
                 "type": "double"
+              "vals":
+                "type": "float"
 
   - do:
       indices.create:

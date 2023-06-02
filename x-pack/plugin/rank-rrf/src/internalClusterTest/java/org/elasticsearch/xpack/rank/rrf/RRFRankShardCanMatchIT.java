@@ -116,11 +116,8 @@ public class RRFRankShardCanMatchIT extends ESIntegTestCase {
         return 0;
     }
 
-    private int shardA = -1;
-    private int shardB = -1;
-
-    @Override
-    public void setupSuiteScopeCluster() throws Exception {
+    public void testCanMatchShard() throws IOException {
+        // setup the cluster
         XContentBuilder builder = XContentFactory.jsonBuilder()
             .startObject()
             .startObject("properties")
@@ -132,6 +129,9 @@ public class RRFRankShardCanMatchIT extends ESIntegTestCase {
 
         assertAcked(prepareCreate("value_index").setMapping(builder));
         ensureGreen("value_index");
+
+        int shardA = -1;
+        int shardB = -1;
 
         for (int i = 0; i < 10; i++) {
             IndexResponse ir = client().prepareIndex("value_index").setSource("value", "" + i).setRouting("a").get();
@@ -147,9 +147,7 @@ public class RRFRankShardCanMatchIT extends ESIntegTestCase {
         }
 
         client().admin().indices().prepareRefresh("value_index").get();
-    }
 
-    public void testCanMatchShard() {
         // match 2 separate shard with no overlap in queries
         SearchResponse response = client().prepareSearch("value_index")
             .setSearchType(SearchType.QUERY_THEN_FETCH)

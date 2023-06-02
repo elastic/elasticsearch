@@ -104,8 +104,8 @@ public class RRFRankCoordinatorCanMatchIT extends ESIntegTestCase {
         return 0;
     }
 
-    @Override
-    public void setupSuiteScopeCluster() throws Exception {
+    public void testCanMatchCoordinator() throws Exception {
+        // setup the cluster
         XContentBuilder builder = XContentFactory.jsonBuilder()
             .startObject()
             .startObject("properties")
@@ -133,9 +133,7 @@ public class RRFRankCoordinatorCanMatchIT extends ESIntegTestCase {
             IndexLongFieldRange timestampRange = clusterService().state().metadata().index("time_index").getTimestampRange();
             assertTrue(Strings.toString(timestampRange), timestampRange.containsAllShardRanges());
         });
-    }
 
-    public void testCanMatchCoordinator() {
         // match 2 separate shard with no overlap in queries
         SearchResponse response = client().prepareSearch("time_index")
             .setSearchType(SearchType.QUERY_THEN_FETCH)

@@ -167,8 +167,12 @@ public class TransportVersionTests extends ESTestCase {
         }
     }
 
-    public void testCURRENTIsLatest() {
+    public void testCurrentIsLatest() {
         assertThat(Collections.max(TransportVersion.getAllVersions()), is(TransportVersion.CURRENT));
+    }
+
+    public void testCurrentIncrementGap() {
+        assertThat(TransportVersion.CURRENT.id() % 100, equalTo(0));
     }
 
     public void testToString() {

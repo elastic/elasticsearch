@@ -60,9 +60,14 @@ final class SystemJvmOptions {
              * explore alternatives. See org.elasticsearch.xpack.searchablesnapshots.preallocate.Preallocate.
              */
             "--add-opens=java.base/java.io=org.elasticsearch.preallocate",
-         //   "-Djdk.system.logger.format=[%2$s] %4$s: %5$s%6$s%n",
+            javaUtilLoggingDefaultFormat(),
             maybeOverrideDockerCgroup()
         ).stream().filter(e -> e.isEmpty() == false).collect(Collectors.toList());
+    }
+
+    //scope for testing
+    static String javaUtilLoggingDefaultFormat() {
+        return "-Djava.util.logging.SimpleFormatter.format=[%4$s][%3$s] %5$s%6$s%n";
     }
 
     /*

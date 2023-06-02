@@ -270,7 +270,7 @@ public class LogConfigurator {
                     Level.WARN,
                     // MMapDirectory messages come from Lucene, suggesting to users as a warning that they should enable preview features in
                     // the JDK
-                    List.of("MMapDirectory")
+                    List.of(/*"MMapDirectory"*/)
                 ),
                 false,
                 StandardCharsets.UTF_8

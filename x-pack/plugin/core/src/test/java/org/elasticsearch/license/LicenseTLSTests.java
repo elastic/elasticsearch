@@ -9,7 +9,7 @@ package org.elasticsearch.license;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.core.TimeValue;
@@ -59,7 +59,7 @@ public class LicenseTLSTests extends AbstractClusterStateLicenseServiceTestCase 
 
     @Override
     protected DiscoveryNode getLocalNode() {
-        return TestDiscoveryNode.create(
+        return DiscoveryNodeUtils.create(
             "localnode",
             new TransportAddress(inetAddress, randomIntBetween(9300, 9399)),
             emptyMap(),

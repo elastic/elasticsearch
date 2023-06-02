@@ -42,7 +42,6 @@ import org.elasticsearch.transport.TransportService;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -107,7 +106,7 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
         if (nodesShutdownMetadata == null) {
             response = new GetShutdownStatusAction.Response(new ArrayList<>());
         } else if (request.getNodeIds().length == 0) {
-            final List<SingleNodeShutdownStatus> shutdownStatuses = nodesShutdownMetadata.getAllNodeMetadataMap()
+            final List<SingleNodeShutdownStatus> shutdownStatuses = nodesShutdownMetadata.getAll()
                 .values()
                 .stream()
                 .map(
@@ -131,9 +130,8 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
             response = new GetShutdownStatusAction.Response(shutdownStatuses);
         } else {
             new ArrayList<>();
-            final Map<String, SingleNodeShutdownMetadata> nodeShutdownMetadataMap = nodesShutdownMetadata.getAllNodeMetadataMap();
             final List<SingleNodeShutdownStatus> shutdownStatuses = Arrays.stream(request.getNodeIds())
-                .map(nodeShutdownMetadataMap::get)
+                .map(nodesShutdownMetadata::get)
                 .filter(Objects::nonNull)
                 .map(
                     ns -> new SingleNodeShutdownStatus(
@@ -199,7 +197,7 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
         allocation.setDebugMode(RoutingAllocation.DebugMode.EXCLUDE_YES_DECISIONS);
 
         // We also need the set of node IDs which are currently shutting down.
-        Set<String> shuttingDownNodes = currentState.metadata().nodeShutdowns().keySet();
+        Set<String> shuttingDownNodes = currentState.metadata().nodeShutdowns().getAll().keySet();
 
         // Check if we have any unassigned primary shards that have this nodeId as their lastAllocatedNodeId
         var unassignedShards = currentState.getRoutingNodes()

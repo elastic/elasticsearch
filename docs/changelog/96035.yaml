@@ -1,0 +1,7 @@
+pr: 96035
+summary: Expand start and end time to nanoseconds during coordinator rewrite when
+  needed
+area: TSDB
+type: bug
+issues:
+ - 96030

@@ -1,0 +1,18 @@
+manage_dlm:
+  cluster:
+    - monitor
+  indices:
+    - names: [ 'dlm-*' ]
+      privileges:
+        - read
+        - write
+        - manage_dlm
+not_privileged:
+  cluster:
+    - monitor
+  indices:
+    - names: [ 'dlm-*' ]
+      privileges:
+        - read
+        - write
+        - view_index_metadata

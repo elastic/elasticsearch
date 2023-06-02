@@ -276,7 +276,7 @@ before you start.
 
 . If you <<back-up-config-files,backed up the cluster's configuration
 files>>, you can restore them to each node. This step is optional and requires a
-<<restart-upgrade,full cluster restart>>.
+<<restart-cluster, full cluster restart>>.
 +
 After you shut down a node, copy the backed-up configuration files over to the
 node's `$ES_PATH_CONF` directory. Before restarting the node, ensure

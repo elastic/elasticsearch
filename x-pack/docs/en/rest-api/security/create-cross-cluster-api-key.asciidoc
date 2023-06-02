@@ -1,0 +1,9 @@
+[role="xpack"]
+[[security-api-create-cross-cluster-api-key]]
+=== Create Cross-Cluster API key API
+
+++++
+<titleabbrev>Create Cross-Cluster API key</titleabbrev>
+++++
+
+TODO: Placeholder

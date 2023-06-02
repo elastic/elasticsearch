@@ -236,23 +236,6 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
      */
     @Override
     protected void doStop() {
-        stopListeningForNewConnections();
-        gracefullyCloseConnections();
-        refCounted.decRef();
-        boolean closed = false;
-        if (shutdownGracePeriodMillis > 0) {
-            closed = waitForClientConnectionsToClose();
-        }
-        if (closed == false) {
-            closeClientConnectionsImmediately();
-        }
-        stopInternal();
-    }
-
-    /**
-     * Close all {@link #httpServerChannels}.  Synchronized.
-     */
-    protected void stopListeningForNewConnections() {
         synchronized (httpServerChannels) {
             if (httpServerChannels.isEmpty() == false) {
                 try {
@@ -264,51 +247,39 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
                 }
             }
         }
+        gracefullyCloseConnections();
+        refCounted.decRef();
+        boolean closed = false;
+        if (shutdownGracePeriodMillis > 0) {
+            try {
+                FutureUtils.get(allClientsClosedListener, shutdownGracePeriodMillis, TimeUnit.MILLISECONDS);
+                closed = true;
+            } catch (ElasticsearchTimeoutException t) {
+                logger.warn(format("timed out while waiting [%d]ms for clients to close connections", shutdownGracePeriodMillis));
+            }
+        }
+        if (closed == false) {
+            try {
+                CloseableChannel.closeChannels(new ArrayList<>(httpChannels), true);
+            } catch (Exception e) {
+                logger.warn("unexpected exception while closing http channels", e);
+            }
+
+            try {
+                allClientsClosedListener.get();
+            } catch (Exception e) {
+                assert false : e;
+                logger.warn("unexpected exception while waiting for http channels to close", e);
+            }
+        }
+        stopInternal();
     }
 
     /**
      * Close the client channel after a new request.
      */
-    public void gracefullyCloseConnections() {
+    void gracefullyCloseConnections() {
         gracefullyCloseConnections = true;
-    }
-
-    /**
-     * Wait at most {@link #shutdownGracePeriodMillis} for all client connections to close.
-     * Returns true if all clients connections closed before the timeout, false otherwise.
-     */
-    protected boolean waitForClientConnectionsToClose() {
-        try {
-            FutureUtils.get(allClientsClosedListener, shutdownGracePeriodMillis, TimeUnit.MILLISECONDS);
-            return true;
-        } catch (ElasticsearchTimeoutException t) {
-            logger.warn(
-                format(
-                    "timed out while waiting [%d]ms for clients to close connections [%s]",
-                    shutdownGracePeriodMillis,
-                    t.getDetailedMessage()
-                )
-            );
-        }
-        return false;
-    }
-
-    /**
-     * Close all client connections immediately, blocking until they finish closing.
-     */
-    protected void closeClientConnectionsImmediately() {
-        try {
-            CloseableChannel.closeChannels(new ArrayList<>(httpChannels), true);
-        } catch (Exception e) {
-            logger.warn("unexpected exception while closing http channels", e);
-        }
-
-        try {
-            allClientsClosedListener.get();
-        } catch (Exception e) {
-            assert false : e;
-            logger.warn("unexpected exception while waiting for http channels to close", e);
-        }
     }
 
     @Override

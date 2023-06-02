@@ -82,11 +82,9 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
@@ -938,96 +936,111 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             transport.bindServer();
             final TestHttpRequest httpRequest = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/");
 
-            TestHttpChannel httpChannel = new TestHttpChannel(false);
+            TestHttpChannel httpChannel = new TestHttpChannel();
             transport.serverAcceptedChannel(httpChannel);
             transport.incomingRequest(httpRequest, httpChannel);
 
             transport.doStop();
-            assertThat("stop listening first", transport.stopListeningForNewConnectionsOrder(), is(1));
-            assertThat("graceful close second", transport.gracefullyCloseConnectionsOrder(), is(2));
-            assertThat("no wait", transport.waitForClientConnectionsToCloseOrder(), is(-1));
-            assertThat("close immediately third", transport.closeClientConnectionsImmediatelyOrder(), is(3));
             assertFalse(transport.testHttpServerChannel.isOpen());
             assertFalse(httpChannel.isOpen());
         }
     }
 
-    public void testStopEarlyWhenNoRequests() {
+    public void testStopWorksWithNoOpenRequests() {
         try (TestHttpServerTransport transport = new TestHttpServerTransport(gracePeriod(1))) {
             transport.bindServer();
 
+            final TestHttpRequest httpRequest = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/") {
+                @Override
+                public Map<String, List<String>> getHeaders() {
+                    // close connection before shutting down
+                    return Map.of(CONNECTION, List.of(CLOSE));
+                }
+            };
+            TestHttpChannel httpChannel = new TestHttpChannel();
+            transport.serverAcceptedChannel(httpChannel);
+            transport.incomingRequest(httpRequest, httpChannel);
+            assertFalse(httpChannel.isOpen());
+
+            // TestHttpChannel will throw if closed twice, so this ensures close is not called.
             transport.doStop();
-            assertThat("stop listening first", transport.stopListeningForNewConnectionsOrder(), is(1));
-            assertThat("graceful close second", transport.gracefullyCloseConnectionsOrder(), is(2));
-            assertThat("wait third", transport.waitForClientConnectionsToCloseOrder(), is(3));
-            assertThat("no need to close immediately", transport.closeClientConnectionsImmediatelyOrder(), is(-1));
-            assertTrue(transport.waitClosedBeforeTimeout);
             assertFalse(transport.testHttpServerChannel.isOpen());
         }
     }
 
-    public void testStopWaitsForTimeoutWhenRequests() {
-        try (TestHttpServerTransport transport = new TestHttpServerTransport(gracePeriod(1))) {
-            transport.bindServer();
+    public void testStopForceClosesConnection() {
+        final Logger mockLogger = LogManager.getLogger(AbstractHttpServerTransport.class);
+        Loggers.setLevel(mockLogger, Level.WARN);
+        final MockLogAppender appender = new MockLogAppender();
+        try (TestHttpServerTransport transport = new TestHttpServerTransport(gracePeriod(10))) {
+            Loggers.addAppender(mockLogger, appender);
+            appender.start();
 
+            appender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "message",
+                    AbstractHttpServerTransport.class.getName(),
+                    Level.WARN,
+                    "timed out while waiting [10]ms for clients to close connections"
+                )
+            );
+
+            transport.bindServer();
             final TestHttpRequest httpRequest = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/");
-            TestHttpChannel httpChannel = new TestHttpChannel(true);
+            TestHttpChannel httpChannel = new TestHttpChannel();
             transport.serverAcceptedChannel(httpChannel);
             transport.incomingRequest(httpRequest, httpChannel);
-            transport.addForceCloser(httpChannel.delayClose::countDown);
-
+            // idle connection
+            assertTrue(httpChannel.isOpen());
             transport.doStop();
-            assertThat("stop listening first", transport.stopListeningForNewConnectionsOrder(), is(1));
-            assertThat("graceful close second", transport.gracefullyCloseConnectionsOrder(), is(2));
-            assertThat("wait third", transport.waitForClientConnectionsToCloseOrder(), is(3));
-            assertThat("close immediately fourth", transport.closeClientConnectionsImmediatelyOrder(), is(4));
-            assertFalse(transport.waitClosedBeforeTimeout);
+            assertFalse(httpChannel.isOpen());
             assertFalse(transport.testHttpServerChannel.isOpen());
+            // ensure we timed out waiting for connections to close naturally
+            appender.assertAllExpectationsMatched();
+        } finally {
+            appender.stop();
+            Loggers.removeAppender(mockLogger, appender);
         }
     }
 
     public void testStopClosesChannelAfterRequest() {
-        try (TestHttpServerTransport transport = new TestHttpServerTransport(gracePeriod(100))) {
+        try (TestHttpServerTransport transport = new TestHttpServerTransport(gracePeriod(1_000))) {
             transport.bindServer();
 
-            TestHttpChannel httpChannel = new TestHttpChannel(true);
+            TestHttpChannel httpChannel = new TestHttpChannel();
             transport.serverAcceptedChannel(httpChannel);
             transport.incomingRequest(new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/"), httpChannel);
-            CountDownLatch lastRequestSent = new CountDownLatch(1);
 
-            TestHttpChannel idleChannel = new TestHttpChannel(true);
+            TestHttpChannel idleChannel = new TestHttpChannel();
             transport.serverAcceptedChannel(idleChannel);
             transport.incomingRequest(new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/"), idleChannel);
 
-            // going to force close the idle channel
-            transport.addForceCloser(idleChannel.delayClose::countDown);
-
-            // After graceful close, send one last request
-            transport.listeners.put(TestHttpServerTransport.State.GRACEFUL_CLOSE, () -> {
-                httpChannel.delayClose.countDown();
-                transport.incomingRequest(new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/"), httpChannel);
-                lastRequestSent.countDown();
-            });
-
-            // Latch for all reactive logic to trigger
             CountDownLatch stopped = new CountDownLatch(1);
+
             new Thread(() -> {
                 transport.doStop();
                 stopped.countDown();
             }).start();
 
             try {
-                assertTrue(stopped.await(100, TimeUnit.SECONDS));
+                assertTrue(transport.gracePeriodCalled.await(10, TimeUnit.SECONDS));
+            } catch (InterruptedException e) {
+                fail("server never called grace period");
+            }
+
+            // one last request, should cause httpChannel to close naturally now that we've set grace period
+            transport.incomingRequest(new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/"), httpChannel);
+
+            try {
+                assertTrue(stopped.await(10, TimeUnit.SECONDS));
             } catch (InterruptedException e) {
                 fail("server never stopped");
             }
-            assertThat("stop listening first", transport.stopListeningForNewConnectionsOrder(), is(1));
-            assertThat("graceful close second", transport.gracefullyCloseConnectionsOrder(), is(2));
-            assertThat("wait third", transport.waitForClientConnectionsToCloseOrder(), is(3));
-            assertThat("close immediately fourth", transport.closeClientConnectionsImmediatelyOrder(), is(4));
-            assertFalse(transport.waitClosedBeforeTimeout);
+
             assertFalse(transport.testHttpServerChannel.isOpen());
-            assertFalse(httpChannel.open);
+            assertFalse(idleChannel.isOpen());
+            assertFalse(httpChannel.isOpen());
+
             assertThat(httpChannel.responses, hasSize(2));
             HttpResponse first = httpChannel.responses.get(0);
             HttpResponse last = httpChannel.responses.get(1);
@@ -1036,6 +1049,51 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             assertThat(last, instanceOf(TestHttpResponse.class));
             assertThat(((TestHttpResponse) last).headers().get(CONNECTION).get(0), equalTo(CLOSE));
         }
+    }
+
+    public void testForceClosesOpenChannels() {
+        try (TestHttpServerTransport transport = new TestHttpServerTransport(gracePeriod(1_000))) {
+            transport.bindServer();
+
+            TestHttpChannel httpChannel = new TestHttpChannel(true);
+            transport.serverAcceptedChannel(httpChannel);
+            transport.incomingRequest(new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/"), httpChannel);
+
+            CountDownLatch stopped = new CountDownLatch(1);
+
+            new Thread(() -> {
+                try {
+                    assertTrue(transport.gracePeriodCalled.await(100, TimeUnit.MILLISECONDS));
+                } catch (InterruptedException e) {
+                    fail("server never called grace period");
+                }
+                // one last request, will attempt to close naturally, but we are blocking it
+                transport.incomingRequest(new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/"), httpChannel);
+            }).start();
+
+            new Thread(() -> {
+                transport.doStop();
+                stopped.countDown();
+            }).start();
+
+            try {
+                assertTrue(stopped.await(10, TimeUnit.SECONDS));
+            } catch (InterruptedException e) {
+                fail("server never stopped");
+            }
+
+            assertFalse(transport.testHttpServerChannel.isOpen());
+            assertFalse(httpChannel.isOpen());
+
+            assertThat(httpChannel.responses, hasSize(2));
+            HttpResponse first = httpChannel.responses.get(0);
+            HttpResponse last = httpChannel.responses.get(1);
+            assertFalse(first.containsHeader(CONNECTION));
+            assertTrue(last.containsHeader(CONNECTION));
+            assertThat(last, instanceOf(TestHttpResponse.class));
+            assertThat(((TestHttpResponse) last).headers().get(CONNECTION).get(0), equalTo(CLOSE));
+        }
+
     }
 
     private static RestResponse emptyResponse(RestStatus status) {
@@ -1086,7 +1144,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
 
     private class TestHttpServerTransport extends AbstractHttpServerTransport {
         public TestHttpChannel testHttpServerChannel = new TestHttpChannel(false);
-        List<Runnable> forceClosers = new ArrayList<>();
+        public CountDownLatch gracePeriodCalled = new CountDownLatch(1);
 
         TestHttpServerTransport(Settings settings) {
             super(
@@ -1111,79 +1169,10 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             );
         }
 
-        private enum State {
-            STOP_LISTENING,
-            GRACEFUL_CLOSE,
-            WAIT_FOR_CLIENTS,
-            FORCE_CLIENTS
-        }
-
-        private int step = 1;
-
-        public Map<State, Integer> order = new HashMap<>();
-        public Map<State, Runnable> listeners = new HashMap<>();
-
-        boolean waitClosedBeforeTimeout = false;
-
-        public int stopListeningForNewConnectionsOrder() {
-            return order.getOrDefault(State.STOP_LISTENING, -1);
-        }
-
-        public int gracefullyCloseConnectionsOrder() {
-            return order.getOrDefault(State.GRACEFUL_CLOSE, -1);
-        }
-
-        public int waitForClientConnectionsToCloseOrder() {
-            return order.getOrDefault(State.WAIT_FOR_CLIENTS, -1);
-        }
-
-        public int closeClientConnectionsImmediatelyOrder() {
-            return order.getOrDefault(State.FORCE_CLIENTS, -1);
-        }
-
-        public void addForceCloser(Runnable runnable) {
-            forceClosers.add(runnable);
-        }
-
         @Override
-        protected void stopListeningForNewConnections() {
-            State state = State.STOP_LISTENING;
-            assertThat("already stopped listening", order, not(hasKey(state)));
-            order.put(state, step++);
-            super.stopListeningForNewConnections();
-            listeners.getOrDefault(state, () -> {}).run();
-        }
-
-        @Override
-        public void gracefullyCloseConnections() {
-            State state = State.GRACEFUL_CLOSE;
+        void gracefullyCloseConnections() {
             super.gracefullyCloseConnections();
-            assertThat("already gracefully closed", order, not(hasKey(state)));
-            order.put(state, step++);
-            super.gracefullyCloseConnections();
-            listeners.getOrDefault(state, () -> {}).run();
-        }
-
-        @Override
-        protected boolean waitForClientConnectionsToClose() {
-            State state = State.WAIT_FOR_CLIENTS;
-            assertThat("already waited", order, not(hasKey(state)));
-            order.put(state, step++);
-            waitClosedBeforeTimeout = super.waitForClientConnectionsToClose();
-            listeners.getOrDefault(state, () -> {}).run();
-            return waitClosedBeforeTimeout;
-        }
-
-        @Override
-        protected void closeClientConnectionsImmediately() {
-            State state = State.FORCE_CLIENTS;
-            assertThat("already closed", order, not(hasKey(state)));
-            order.put(state, step++);
-            for (Runnable fc : forceClosers) {
-                fc.run();
-            }
-            super.closeClientConnectionsImmediately();
-            listeners.getOrDefault(state, () -> {}).run();
+            gracePeriodCalled.countDown();
         }
 
         @Override
@@ -1203,16 +1192,19 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
 
     private static class TestHttpChannel implements HttpChannel, HttpServerChannel {
         private boolean open = true;
-        public final CountDownLatch delayClose = new CountDownLatch(1);
+        private int numCloses = 0;
+        private final CountDownLatch closeLatch;
         private ActionListener<Void> closeListener;
         private InetSocketAddress localAddress;
 
         public List<HttpResponse> responses = new ArrayList<>();
 
-        TestHttpChannel(boolean waitToClose) {
-            if (waitToClose == false) {
-                delayClose.countDown();
-            }
+        TestHttpChannel() {
+            this(false);
+        }
+
+        TestHttpChannel(boolean blockFirstClose) {
+            closeLatch = blockFirstClose ? new CountDownLatch(1) : null;
         }
 
         @Override
@@ -1237,15 +1229,24 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
 
         @Override
         public void close() {
+            if (closeLatch != null) {
+                boolean waitForever;
+                synchronized (this) {
+                    waitForever = numCloses == 0;
+                    numCloses++;
+                }
+                if (waitForever) {
+                    try {
+                        closeLatch.await(1, TimeUnit.SECONDS);
+                    } catch (InterruptedException ie) {
+                        throw new RuntimeException(ie);
+                    }
+                }
+            }
             if (open == false) {
                 throw new IllegalStateException("channel already closed!");
             }
             open = false;
-            try {
-                delayClose.await();
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
-            }
             if (closeListener != null) {
                 closeListener.onResponse(null);
             }

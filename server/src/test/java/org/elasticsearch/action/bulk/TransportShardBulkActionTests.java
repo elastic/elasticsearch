@@ -45,6 +45,7 @@ import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
@@ -572,8 +573,9 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
     public void testUpdateRequestWithConflictFailure() throws Exception {
         IndexSettings indexSettings = new IndexSettings(indexMetadata(), Settings.EMPTY);
+        int retries = randomInt(4);
         DocWriteRequest<UpdateRequest> writeRequest = new UpdateRequest("index", "id").doc(Requests.INDEX_CONTENT_TYPE, "field", "value")
-            .retryOnConflict(1);
+            .retryOnConflict(retries);
         BulkItemRequest primaryRequest = new BulkItemRequest(0, writeRequest);
 
         IndexRequest updateResponse = new IndexRequest("index").id("id").source(Requests.INDEX_CONTENT_TYPE, "field", "value");
@@ -600,26 +602,19 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
 
         randomlySetIgnoredPrimaryResponse(primaryRequest);
-
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
-        TransportShardBulkAction.executeBulkItemRequest(
-            context,
-            updateHelper,
-            threadPool::absoluteTimeInMillis,
-            new NoopMappingUpdatePerformer(),
-            listener -> listener.onResponse(null),
-            ASSERTING_DONE_LISTENER
-        );
-        // retry once
-        assertTrue(context.hasMoreOperationsToExecute());
-        TransportShardBulkAction.executeBulkItemRequest(
-            context,
-            updateHelper,
-            threadPool::absoluteTimeInMillis,
-            new NoopMappingUpdatePerformer(),
-            listener -> listener.onResponse(null),
-            ASSERTING_DONE_LISTENER
-        );
+
+        for (int i = 0; i < retries + 1; i++) {
+            assertTrue(context.hasMoreOperationsToExecute());
+            TransportShardBulkAction.executeBulkItemRequest(
+                context,
+                updateHelper,
+                threadPool::absoluteTimeInMillis,
+                new NoopMappingUpdatePerformer(),
+                listener -> listener.onResponse(null),
+                ASSERTING_DONE_LISTENER
+            );
+        }
         assertFalse(context.hasMoreOperationsToExecute());
 
         assertNull(context.getLocationToSync());

@@ -75,10 +75,9 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
             .nodes(DiscoveryNodes.builder().add(NODE_A).add(NODE_B).add(NODE_C).build())
             .build();
 
-        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state, null, null, 0);
+        RoutingAllocation allocation = createRoutingAllocation(state);
         DiscoveryNode node = randomFrom(NODE_A, NODE_B, NODE_C);
         RoutingNode routingNode = RoutingNodesHelper.routingNode(node.getId(), node, shard);
-        allocation.debugDecision(true);
 
         assertThat(decider.canAllocate(shard, routingNode, allocation), equalTo(NodeReplacementAllocationDecider.YES__NO_REPLACEMENTS));
         assertThat(decider.canRemain(null, shard, routingNode, allocation), equalTo(NodeReplacementAllocationDecider.YES__NO_REPLACEMENTS));
@@ -86,9 +85,8 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
 
     public void testCanForceAllocate() {
         ClusterState state = prepareState(ClusterState.EMPTY_STATE, NODE_A.getId(), NODE_B.getName());
-        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state, null, null, 0);
+        RoutingAllocation allocation = createRoutingAllocation(state);
         RoutingNode routingNode = RoutingNodesHelper.routingNode(NODE_A.getId(), NODE_A, shard);
-        allocation.debugDecision(true);
 
         ShardRouting assignedShard = ShardRouting.newUnassigned(
             new ShardId("myindex", "myindex", 0),
@@ -125,9 +123,8 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
 
     public void testCannotRemainOnReplacedNode() {
         ClusterState state = prepareState(ClusterState.EMPTY_STATE, NODE_A.getId(), NODE_B.getName());
-        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state, null, null, 0);
+        RoutingAllocation allocation = createRoutingAllocation(state);
         RoutingNode routingNode = RoutingNodesHelper.routingNode(NODE_A.getId(), NODE_A, shard);
-        allocation.debugDecision(true);
 
         assertThatDecision(
             decider.canRemain(indexMetadata, shard, routingNode, allocation),
@@ -152,9 +149,8 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
 
     public void testCanAllocateToNeitherSourceNorTarget() {
         ClusterState state = prepareState(ClusterState.EMPTY_STATE, NODE_A.getId(), NODE_B.getName());
-        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state, null, null, 0);
+        RoutingAllocation allocation = createRoutingAllocation(state);
         RoutingNode routingNode = RoutingNodesHelper.routingNode(NODE_A.getId(), NODE_A, shard);
-        allocation.debugDecision(true);
 
         ShardRouting testShard = this.shard;
         if (randomBoolean()) {
@@ -213,7 +209,7 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
             )
             .build();
 
-        var allocation = new RoutingAllocation(allocationDeciders, state, null, null, 0);
+        var allocation = createRoutingAllocation(state);
 
         // index is already allocated on both nodes
         assertThat(indexMetadata.getAutoExpandReplicas().getDesiredNumberOfReplicas(indexMetadata, allocation), equalTo(0));
@@ -263,7 +259,7 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
 
         // index is already allocated on both nodes
         {
-            var allocation = new RoutingAllocation(allocationDeciders, state, null, null, 0);
+            var allocation = createRoutingAllocation(state);
             assertThat(indexMetadata.getAutoExpandReplicas().getDesiredNumberOfReplicas(indexMetadata, allocation), equalTo(1));
             assertThat(
                 decider.shouldAutoExpandToNode(indexMetadata, NODE_A, allocation),
@@ -285,7 +281,7 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
             )
             .build();
         {
-            var allocation = new RoutingAllocation(allocationDeciders, state, null, null, 0);
+            var allocation = createRoutingAllocation(state);
             assertThat(indexMetadata.getAutoExpandReplicas().getDesiredNumberOfReplicas(indexMetadata, allocation), equalTo(1));
             assertThatDecision(
                 decider.shouldAutoExpandToNode(indexMetadata, NODE_A, allocation),
@@ -307,7 +303,7 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
         // when starting node replacement
         state = ClusterState.builder(state).nodes(DiscoveryNodes.builder().add(NODE_A).add(NODE_B).add(NODE_C).build()).build();
         {
-            var allocation = new RoutingAllocation(allocationDeciders, state, null, null, 0);
+            var allocation = createRoutingAllocation(state);
             assertThatDecision(
                 decider.canAllocate(
                     allocation.routingNodes().node(NODE_A.getId()).getByShardId(shardId),
@@ -333,7 +329,7 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
                     .build()
             )
             .build();
-        assertThatAutoExpandReplicasDidNotContract(indexMetadata, new RoutingAllocation(allocationDeciders, state, null, null, 0));
+        assertThatAutoExpandReplicasDidNotContract(indexMetadata, createRoutingAllocation(state));
 
         // when index is relocated
         state = ClusterState.builder(state)
@@ -348,11 +344,11 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
                     .build()
             )
             .build();
-        assertThatAutoExpandReplicasDidNotContract(indexMetadata, new RoutingAllocation(allocationDeciders, state, null, null, 0));
+        assertThatAutoExpandReplicasDidNotContract(indexMetadata, createRoutingAllocation(state));
 
         // when source node is removed
         state = ClusterState.builder(state).nodes(DiscoveryNodes.builder().add(NODE_B).add(NODE_C).build()).build();
-        assertThatAutoExpandReplicasDidNotContract(indexMetadata, new RoutingAllocation(allocationDeciders, state, null, null, 0));
+        assertThatAutoExpandReplicasDidNotContract(indexMetadata, createRoutingAllocation(state));
     }
 
     private void assertThatAutoExpandReplicasDidNotContract(IndexMetadata indexMetadata, RoutingAllocation allocation) {
@@ -400,6 +396,12 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
                 .setStartedAtMillis(1L)
                 .build()
         );
+    }
+
+    private RoutingAllocation createRoutingAllocation(ClusterState state) {
+        var allocation = new RoutingAllocation(allocationDeciders, state, null, null, 0);
+        allocation.debugDecision(true);
+        return allocation;
     }
 
     private static void assertThatDecision(Decision decision, Decision.Type type, String explanation) {

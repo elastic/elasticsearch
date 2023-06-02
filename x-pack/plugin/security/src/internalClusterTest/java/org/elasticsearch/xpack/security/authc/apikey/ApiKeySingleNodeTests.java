@@ -435,33 +435,7 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
             }""");
 
         final PlainActionFuture<CreateApiKeyResponse> future = new PlainActionFuture<>();
-        // Cross-cluster API keys can be created by an API key as long as it has manage_security
-        final boolean createWithUser = randomBoolean();
-        if (createWithUser) {
-            client().execute(CreateCrossClusterApiKeyAction.INSTANCE, request, future);
-        } else {
-            final CreateApiKeyResponse createAdminKeyResponse = new CreateApiKeyRequestBuilder(client()).setName("admin-key")
-                .setRoleDescriptors(
-                    randomFrom(
-                        List.of(new RoleDescriptor(randomAlphaOfLengthBetween(3, 8), new String[] { "manage_security" }, null, null)),
-                        null
-                    )
-                )
-                .execute()
-                .actionGet();
-            client().filterWithHeader(
-                Map.of(
-                    "Authorization",
-                    "ApiKey "
-                        + Base64.getEncoder()
-                            .encodeToString(
-                                (createAdminKeyResponse.getId() + ":" + createAdminKeyResponse.getKey().toString()).getBytes(
-                                    StandardCharsets.UTF_8
-                                )
-                            )
-                )
-            ).execute(CreateCrossClusterApiKeyAction.INSTANCE, request, future);
-        }
+        client().execute(CreateCrossClusterApiKeyAction.INSTANCE, request, future);
         final CreateApiKeyResponse createApiKeyResponse = future.actionGet();
 
         final String apiKeyId = createApiKeyResponse.getId();
@@ -522,11 +496,7 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
         assertThat(getApiKeyInfo.getLimitedBy(), nullValue());
         assertThat(getApiKeyInfo.getMetadata(), anEmptyMap());
         assertThat(getApiKeyInfo.getUsername(), equalTo("test_user"));
-        if (createWithUser) {
-            assertThat(getApiKeyInfo.getRealm(), equalTo("file"));
-        } else {
-            assertThat(getApiKeyInfo.getRealm(), equalTo("_es_api_key"));
-        }
+        assertThat(getApiKeyInfo.getRealm(), equalTo("file"));
 
         // Check the API key attributes with Query API
         final QueryApiKeyRequest queryApiKeyRequest = new QueryApiKeyRequest(
@@ -545,11 +515,7 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
         assertThat(queryApiKeyInfo.getLimitedBy(), nullValue());
         assertThat(queryApiKeyInfo.getMetadata(), anEmptyMap());
         assertThat(queryApiKeyInfo.getUsername(), equalTo("test_user"));
-        if (createWithUser) {
-            assertThat(queryApiKeyInfo.getRealm(), equalTo("file"));
-        } else {
-            assertThat(queryApiKeyInfo.getRealm(), equalTo("_es_api_key"));
-        }
+        assertThat(queryApiKeyInfo.getRealm(), equalTo("file"));
     }
 
     public void testUpdateCrossClusterApiKey() throws IOException {
@@ -651,6 +617,41 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
         assertThat(queryApiKeyInfo.getMetadata(), equalTo(updateMetadata == null ? Map.of() : updateMetadata));
         assertThat(queryApiKeyInfo.getUsername(), equalTo("test_user"));
         assertThat(queryApiKeyInfo.getRealm(), equalTo("file"));
+    }
+
+    // Cross-cluster API keys cannot be created by an API key even if it has manage_security privilege
+    // This is intentional until we solve the issue of derived API key ownership
+    public void testCannotCreateDerivedCrossClusterApiKey() throws IOException {
+        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
+
+        final CreateApiKeyResponse createAdminKeyResponse = new CreateApiKeyRequestBuilder(client()).setName("admin-key")
+            .setRoleDescriptors(
+                randomFrom(
+                    List.of(new RoleDescriptor(randomAlphaOfLengthBetween(3, 8), new String[] { "manage_security" }, null, null)),
+                    null
+                )
+            )
+            .execute()
+            .actionGet();
+        final String encoded = Base64.getEncoder()
+            .encodeToString(
+                (createAdminKeyResponse.getId() + ":" + createAdminKeyResponse.getKey().toString()).getBytes(StandardCharsets.UTF_8)
+            );
+
+        final var request = CreateCrossClusterApiKeyRequest.withNameAndAccess(randomAlphaOfLengthBetween(3, 8), """
+            {
+              "search": [ {"names": ["logs"]} ]
+            }""");
+
+        final PlainActionFuture<CreateApiKeyResponse> future = new PlainActionFuture<>();
+        client().filterWithHeader(Map.of("Authorization", "ApiKey " + encoded))
+            .execute(CreateCrossClusterApiKeyAction.INSTANCE, request, future);
+
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, future::actionGet);
+        assertThat(
+            e.getMessage(),
+            containsString("authentication via API key not supported: An API key cannot be used to create a cross-cluster API key")
+        );
     }
 
     private GrantApiKeyRequest buildGrantApiKeyRequest(String username, SecureString password, String runAsUsername) throws IOException {

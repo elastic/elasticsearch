@@ -70,6 +70,7 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.junit.After;
@@ -686,6 +687,45 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
             final AtomicBoolean isCancelled = new AtomicBoolean();
             final CountDownLatch readFromBlobCalledLatch = new CountDownLatch(1);
             final CountDownLatch readFromBlobRespondLatch = new CountDownLatch(1);
+
+            internalCluster().getInstances(TransportService.class)
+                .forEach(
+                    transportService -> ((MockTransportService) transportService).addRequestHandlingBehavior(
+                        PeerRecoverySourceService.Actions.START_RECOVERY,
+                        (handler, request, channel, task) -> handler.messageReceived(request, new TransportChannel() {
+                            @Override
+                            public String getProfileName() {
+                                return channel.getProfileName();
+                            }
+
+                            @Override
+                            public String getChannelType() {
+                                return channel.getChannelType();
+                            }
+
+                            @Override
+                            public void sendResponse(TransportResponse response) {
+                                fail("recovery should not succeed");
+                            }
+
+                            @Override
+                            public void sendResponse(Exception exception) {
+                                // Must not respond until the index deletion is applied on the target node, or else it will get an
+                                // IllegalIndexShardStateException which it considers to be retryable, and will reset the recovery and
+                                // generate a new `CancellableThreads` which is cancelled instead of the original `CancellableThreads`,
+                                // permitting a subsequent read.
+                                transportService.getThreadPool().generic().execute(() -> {
+                                    safeAwait(readFromBlobRespondLatch);
+                                    try {
+                                        channel.sendResponse(exception);
+                                    } catch (IOException e) {
+                                        throw new AssertionError("unexpected", e);
+                                    }
+                                });
+                            }
+                        }, task)
+                    )
+                );
 
             FilterFsRepository.wrapReadBlobMethod((blobName, stream) -> {
                 if (blobName.startsWith("__")) {

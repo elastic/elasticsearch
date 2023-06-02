@@ -1705,7 +1705,7 @@ public class Node implements Closeable {
             httpServerTransport.stop();
             return null;
         });
-        new Thread(stopper).start();
+        new Thread(stopper, "http-server-transport-stop").start();
 
         Optional.ofNullable(terminationHandler.get()).ifPresent(TerminationHandler::handleTermination);
 

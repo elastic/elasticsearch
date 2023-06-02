@@ -225,7 +225,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     /**
      * Gracefully shut down.  If {@link HttpTransportSettings#SETTING_HTTP_SERVER_SHUTDOWN_GRACE_PERIOD} is zero, the default, then
      * forcefully close all open connections immediately.
-     * Serially run through the following step:
+     * Serially run through the following steps:
      * 1) Stop listening for new HTTP connections, which means no new HttpChannel are added to the {@link #httpChannels} list
      * 2) Add the {@code Connection: close} response header to all new requests on existing {@link #httpChannels} and close the HttpChannel
      *    after the new request completes

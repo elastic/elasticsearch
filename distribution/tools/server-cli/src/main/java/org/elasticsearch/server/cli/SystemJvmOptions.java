@@ -65,7 +65,7 @@ final class SystemJvmOptions {
         ).stream().filter(e -> e.isEmpty() == false).collect(Collectors.toList());
     }
 
-    //scope for testing
+    // scope for testing
     static String javaUtilLoggingDefaultFormat() {
         return "-Djava.util.logging.SimpleFormatter.format=[%4$s][%3$s] %5$s%6$s%n";
     }

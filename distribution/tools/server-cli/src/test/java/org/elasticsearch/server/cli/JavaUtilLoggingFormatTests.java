@@ -8,6 +8,7 @@
 
 package org.elasticsearch.server.cli;
 
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.BeforeClass;
 
@@ -23,6 +24,7 @@ public class JavaUtilLoggingFormatTests extends ESTestCase {
         assert "false".equals(System.getProperty("tests.security.manager")) : "-Dtests.security.manager=false has to be set";
     }
 
+    @SuppressForbidden(reason = "testing the behaviour of 3rd party using jul")
     public void testJavaUtilLoggingFormat() {
         String key = key(SystemJvmOptions.javaUtilLoggingDefaultFormat());
         String value = value(SystemJvmOptions.javaUtilLoggingDefaultFormat());
@@ -34,7 +36,6 @@ public class JavaUtilLoggingFormatTests extends ESTestCase {
         try {
             System.setErr(new PrintStream(myOut));
             System.setOut(new PrintStream(myOut));
-
 
             Logger.getLogger("any").info("message");
 

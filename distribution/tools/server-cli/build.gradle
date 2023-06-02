@@ -24,10 +24,6 @@ tasks.withType(CheckForbiddenApis).configureEach {
   replaceSignatureFiles 'jdk-signatures'
 }
 
-tasks.named("forbiddenPatterns").configure {
-  exclude '**/JavaUtilLoggingFormatTests.java'
-}
-
 ["javadoc", "loggerUsageCheck", "jarHell"].each { tsk ->
   tasks.named(tsk).configure { enabled = false }
 }

@@ -96,32 +96,29 @@ public class QueryRule implements Writeable, ToXContentObject {
         (params, resourceName) -> {
             final String id = (String) params[0];
             final QueryRuleType type = QueryRuleType.queryRuleType((String) params[1]);
-            return new QueryRule(resourceName, type);
+            return new QueryRule(id, type);
         }
     );
 
-    public static final ParseField ID_FIELD = new ParseField("id");
+    public static final ParseField ID_FIELD = new ParseField("rule_id");
     public static final ParseField TYPE_FIELD = new ParseField("type");
-    public static final ParseField TAGS_FIELD = new ParseField("tags");
 
     static {
         PARSER.declareStringOrNull(optionalConstructorArg(), ID_FIELD);
         PARSER.declareStringOrNull(constructorArg(), TYPE_FIELD);
-        PARSER.declareStringArray(optionalConstructorArg(), TAGS_FIELD);
     }
 
     /**
      * Parses a {@link QueryRule} from its {@param xContentType} representation in bytes.
      *
-     * @param resourceName The name of the resource (must match the {@link QueryRule} id).
      * @param source The bytes that represents the {@link QueryRule}.
      * @param xContentType The format of the representation.
      *
      * @return The parsed {@link QueryRule}.
      */
-    public static QueryRule fromXContentBytes(String resourceName, BytesReference source, XContentType xContentType) {
+    public static QueryRule fromXContentBytes(BytesReference source, XContentType xContentType) {
         try (XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, source, xContentType)) {
-            return QueryRule.fromXContent(resourceName, parser);
+            return QueryRule.fromXContent(parser);
         } catch (IOException e) {
             throw new ElasticsearchParseException("Failed to parse: " + source.utf8ToString(), e);
         }
@@ -129,14 +126,12 @@ public class QueryRule implements Writeable, ToXContentObject {
 
     /**
      * Parses a {@link QueryRule} through the provided {@param parser}.
-     *
-     * @param resourceName The name of the resource (must match the {@link QueryRule} name).
      * @param parser The {@link XContentType} parser.
      *
      * @return The parsed {@link QueryRule}.
      */
-    public static QueryRule fromXContent(String resourceName, XContentParser parser) throws IOException {
-        return PARSER.parse(parser, resourceName);
+    public static QueryRule fromXContent(XContentParser parser) throws IOException {
+        return PARSER.apply(parser, null);
     }
 
     /**

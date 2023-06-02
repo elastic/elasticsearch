@@ -51,37 +51,55 @@ public class QueryRulesetTests extends ESTestCase {
     public void testToXContent() throws IOException {
         String content = XContentHelper.stripWhitespace("""
             {
-              "id": "my_query_rule",
-              "type": "pinned"
+              "ruleset_id": "my_query_ruleset",
+              "rules": [
+                {
+                  "rule_id": "my_query_rule1",
+                  "type": "pinned"
+                },
+                {
+                  "rule_id": "my_query_rule2",
+                  "type": "pinned"
+                }
+              ]
             }""");
 
-        QueryRule queryRule = QueryRule.fromXContentBytes("my_query_rule", new BytesArray(content), XContentType.JSON);
+        QueryRuleset queryRuleset = QueryRuleset.fromXContentBytes("my_query_ruleset", new BytesArray(content), XContentType.JSON);
         boolean humanReadable = true;
-        BytesReference originalBytes = toShuffledXContent(queryRule, XContentType.JSON, ToXContent.EMPTY_PARAMS, humanReadable);
-        QueryRule parsed;
+        BytesReference originalBytes = toShuffledXContent(queryRuleset, XContentType.JSON, ToXContent.EMPTY_PARAMS, humanReadable);
+        QueryRuleset parsed;
         try (XContentParser parser = createParser(XContentType.JSON.xContent(), originalBytes)) {
-            parsed = QueryRule.fromXContent(queryRule.id(), parser);
+            parsed = QueryRuleset.fromXContent("my_query_ruleset", parser);
         }
         assertToXContentEquivalent(originalBytes, toXContent(parsed, XContentType.JSON, humanReadable), XContentType.JSON);
     }
 
-    public void testToXContentInvalidQueryRuleId() throws IOException {
+    public void testToXContentInvalidQueryRulesetId() throws IOException {
         String content = XContentHelper.stripWhitespace("""
             {
-              "name": "not_my_query_rule",
-              "type": "pinned"
+              "ruleset_id": "not_my_ruleset_id",
+              "rules": [
+                {
+                  "rule_id": "my_query_rule1",
+                  "type": "pinned"
+                },
+                {
+                  "rule_id": "my_query_rule2",
+                  "type": "pinned"
+                }
+              ]
             }""");
         expectThrows(
             IllegalArgumentException.class,
-            () -> QueryRule.fromXContentBytes("my_query_rule", new BytesArray(content), XContentType.JSON)
+            () -> QueryRuleset.fromXContentBytes("my_ruleset_id", new BytesArray(content), XContentType.JSON)
         );
     }
 
     private void assertXContent(QueryRuleset queryRuleset, boolean humanReadable) throws IOException {
         BytesReference originalBytes = toShuffledXContent(queryRuleset, XContentType.JSON, ToXContent.EMPTY_PARAMS, humanReadable);
-        QueryRule parsed;
+        QueryRuleset parsed;
         try (XContentParser parser = createParser(XContentType.JSON.xContent(), originalBytes)) {
-            parsed = QueryRule.fromXContent(queryRuleset.id(), parser);
+            parsed = QueryRuleset.fromXContent(queryRuleset.id(), parser);
         }
         assertToXContentEquivalent(originalBytes, toXContent(parsed, XContentType.JSON, humanReadable), XContentType.JSON);
     }

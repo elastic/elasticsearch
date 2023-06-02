@@ -175,11 +175,15 @@ public class QueryRulesIndexService {
             final Map<String,Object> source = getResponse.getSource();
 
             final String id = getResponse.getId();
-            final List<QueryRule> rules = Collections.emptyList(); // TODO implement
+            final List<QueryRule> rules = Collections.emptyList(); // TODO implement source.get("rules");
 
             final QueryRuleset res = new QueryRuleset(id, rules);
             l.onResponse(res);
         }));
+    }
+
+    private QueryRule mapQueryRule() {
+        throw new UnsupportedOperationException("Not implemented yet");
     }
 
     /**

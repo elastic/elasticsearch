@@ -56,59 +56,36 @@ public class QueryRuleTests extends ESTestCase {
     public void testToXContent() throws IOException {
         String content = XContentHelper.stripWhitespace("""
             {
-              "id": "my_query_rule",
+              "rule_id": "my_query_rule",
               "type": "pinned"
             }""");
 
-        QueryRule queryRule = QueryRule.fromXContentBytes("my_query_rule", new BytesArray(content), XContentType.JSON);
+        QueryRule queryRule = QueryRule.fromXContentBytes(new BytesArray(content), XContentType.JSON);
         boolean humanReadable = true;
         BytesReference originalBytes = toShuffledXContent(queryRule, XContentType.JSON, ToXContent.EMPTY_PARAMS, humanReadable);
         QueryRule parsed;
         try (XContentParser parser = createParser(XContentType.JSON.xContent(), originalBytes)) {
-            parsed = QueryRule.fromXContent(queryRule.id(), parser);
+            parsed = QueryRule.fromXContent(parser);
         }
         assertToXContentEquivalent(originalBytes, toXContent(parsed, XContentType.JSON, humanReadable), XContentType.JSON);
     }
 
-    public void testToXContentInvalidQueryRuleId() throws IOException {
+    public void testToXContentMissingQueryRuleId() throws IOException {
         String content = XContentHelper.stripWhitespace("""
             {
-              "name": "not_my_query_rule",
               "type": "pinned"
             }""");
         expectThrows(
             IllegalArgumentException.class,
-            () -> QueryRule.fromXContentBytes("my_query_rule", new BytesArray(content), XContentType.JSON)
+            () -> QueryRule.fromXContentBytes(new BytesArray(content), XContentType.JSON)
         );
     }
-
-    // TODO implement this once we have more content in query rules.
-//    public void testMerge() throws IOException {
-//        String content = """
-//            {
-//              "indices": ["my_index", "my_index_2"],
-//              "updated_at_millis": 0
-//            }""";
-//
-//        String update = """
-//            {
-//              "indices": ["my_index_2", "my_index"],
-//              "analytics_collection_name": "my_search_app_analytics",
-//              "updated_at_millis": 12345
-//            }""";
-//        SearchApplication app = SearchApplication.fromXContentBytes("my_search_app", new BytesArray(content), XContentType.JSON);
-//        SearchApplication updatedApp = app.merge(new BytesArray(update), XContentType.JSON, BigArrays.NON_RECYCLING_INSTANCE);
-//        assertNotSame(app, updatedApp);
-//        assertThat(updatedApp.indices(), equalTo(new String[] { "my_index", "my_index_2" }));
-//        assertThat(updatedApp.analyticsCollectionName(), equalTo("my_search_app_analytics"));
-//        assertThat(updatedApp.updatedAtMillis(), equalTo(12345L));
-//    }
 
     private void assertXContent(QueryRule queryRule, boolean humanReadable) throws IOException {
         BytesReference originalBytes = toShuffledXContent(queryRule, XContentType.JSON, ToXContent.EMPTY_PARAMS, humanReadable);
         QueryRule parsed;
         try (XContentParser parser = createParser(XContentType.JSON.xContent(), originalBytes)) {
-            parsed = QueryRule.fromXContent(queryRule.id(), parser);
+            parsed = QueryRule.fromXContent(parser);
         }
         assertToXContentEquivalent(originalBytes, toXContent(parsed, XContentType.JSON, humanReadable), XContentType.JSON);
     }

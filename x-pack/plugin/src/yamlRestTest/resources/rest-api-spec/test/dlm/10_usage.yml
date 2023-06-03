@@ -3,6 +3,7 @@
   - skip:
       version: "- 8.8.99"
       reason: "the dlm stats were only added to the usage api in 8.9"
+      features: allowed_warnings
 
   - do:
       xpack.usage: {}
@@ -16,6 +17,8 @@
   - match: { data_lifecycle.retention.average_millis: 0 }
 
   - do:
+      allowed_warnings:
+        - "index template [my-template-1] has index patterns [foo-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template-1] will take precedence during new index creation"
       indices.put_index_template:
         name: my-template-1
         body:
@@ -35,6 +38,8 @@
   - is_true: acknowledged
 
   - do:
+      allowed_warnings:
+        - "index template [my-template-2] has index patterns [bar-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template-2] will take precedence during new index creation"
       indices.put_index_template:
         name: my-template-2
         body:

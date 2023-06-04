@@ -1,0 +1,15 @@
+---
+- job:
+    name: elastic+elasticsearch+%BRANCH%+periodic+concurrent-search-tests
+    display-name: "elastic / elasticsearch # %BRANCH% - concurrent search tests"
+    description: "Testing concurrent search enabled for the Elasticsearch %BRANCH% branch.\n"
+    node: "general-purpose && docker"
+    builders:
+      - inject:
+          properties-file: '.ci/java-versions.properties'
+          properties-content: |
+            JAVA_HOME=$HOME/.java/$ES_BUILD_JAVA
+            JAVA11_HOME=$HOME/.java/java11
+      - shell: |
+          #!/usr/local/bin/runbld --redirect-stderr
+          $WORKSPACE/.ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dtests.jvm.argline=-Des.concurrent_search=true -Des.concurrent_search=true check

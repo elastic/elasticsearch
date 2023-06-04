@@ -45,7 +45,6 @@ import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
@@ -278,6 +277,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         }, listener -> listener.onResponse(null), ASSERTING_DONE_LISTENER);
         assertTrue(context.isInitial());
         assertTrue(context.hasMoreOperationsToExecute());
+        assertThat(context.getUpdateRetryCounter(), equalTo(0));
 
         assertThat("mappings were \"updated\" once", updateCalled.get(), equalTo(1));
 

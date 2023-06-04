@@ -4,11 +4,10 @@
   "data_stream": {},
   "composed_of": [
     "logs-mappings",
-    "ecs-dynamic-mappings",
     "ecs-data-stream-mappings",
     "logs-settings",
     "logs@custom",
-    "string-to-keyword-dynamic-mapping"
+    "ecs-dynamic-mappings"
   ],
   "ignore_missing_component_templates": ["logs@custom"],
   "allow_auto_create": true,

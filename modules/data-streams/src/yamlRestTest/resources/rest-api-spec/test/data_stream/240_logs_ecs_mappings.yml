@@ -111,7 +111,6 @@ Test Elastic Agent log ECS mappings:
             "stream": "stderr",
             "data_stream": {
               "namespace": "default",
-              "type": "logs",
               "dataset": "kubernetes.container_logs"
             },
             "host": {
@@ -276,7 +275,7 @@ Test general mockup ECS mappings:
             "data_stream": {
               "dataset": "nginx.access",
               "namespace": "production",
-              "type": "logs"
+              "custom": "whatever"
             },
             "structured_data": {
               "key1": "value1",
@@ -312,6 +311,10 @@ Test general mockup ECS mappings:
           fields:
             - field: 'start_timestamp'
             - field: 'start-timestamp'
+          script_fields:
+            data_stream_type:
+              script:
+                source: "doc['data_stream.type'].value"
   - length: { hits.hits: 1 }
   # the ECS date dynamic template enforces mapping of "*_timestamp" fields to a date type
   - length: { hits.hits.0._ignored: 2 }
@@ -320,6 +323,8 @@ Test general mockup ECS mappings:
   - match: { hits.hits.0.ignored_field_values.start_timestamp.0: 'not a date' }
   # "start-timestamp" doesn't match the ECS dynamic mapping pattern "*_timestamp"
   - match: { hits.hits.0.fields.start-timestamp.0: 'not a date' }
+  # verify that data_stream.type has the correct constant_keyword value
+  - match: { hits.hits.0.fields.data_stream_type.0: 'logs' }
   - match: { hits.hits.0._ignored.1: 'vulnerability.textual_score' }
 
   - do:
@@ -381,6 +386,8 @@ Test general mockup ECS mappings:
   - match: { .$idx0name.mappings.properties.data_stream.properties.dataset.type: "constant_keyword" }
   - match: { .$idx0name.mappings.properties.data_stream.properties.namespace.type: "constant_keyword" }
   - match: { .$idx0name.mappings.properties.data_stream.properties.type.type: "constant_keyword" }
+  # not one of the three data_stream fields that are explicitly mapped to constant_keyword
+  - match: { .$idx0name.mappings.properties.data_stream.properties.custom.type: "keyword" }
   - match: { .$idx0name.mappings.properties.structured_data.type: "flattened" }
   - match: { .$idx0name.mappings.properties.exports.type: "flattened" }
   - match: { .$idx0name.mappings.properties.top_level_imports.type: "flattened" }

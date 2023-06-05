@@ -41,9 +41,7 @@ the only allocations that will be performed are explicit ones given using the
 It is possible to run `reroute` commands in "dry run" mode by using the
 `?dry_run` URI query parameter, or by passing `"dry_run": true` in the request
 body. This will calculate the result of applying the commands to the current
-cluster state, and return the resulting cluster state after the commands (and
-re-balancing) has been applied, but will not actually perform the requested
-changes.
+cluster state, but will not actually perform the requested changes.
 
 If the `?explain` URI query parameter is included then a detailed explanation
 of why the commands could or could not be executed is included in the response.
@@ -64,45 +62,11 @@ query parameter, which will attempt a single retry round for these shards.
 ==== {api-query-parms-title}
 
 `dry_run`::
-    (Optional, Boolean) If `true`, then the request simulates the operation only
-    and returns the resulting state.
+    (Optional, Boolean) If `true`, then the request simulates the operation only.
 
 `explain`::
     (Optional, Boolean) If `true`, then the response contains an explanation of
     why the commands can or cannot be executed.
-
-`metric`::
-    (Optional, string) Limits the information returned to the specified metrics.
-    Defaults to all but metadata. The following options are available:
-
-+
-.Options for `metric`
-[%collapsible%open]
-======
-`_all`::
-    Shows all metrics.
-
-`blocks`::
-    Shows the `blocks` part of the response.
-
-`master_node`::
-    Shows the elected `master_node` part of the response.
-
-`metadata`::
-    Shows the `metadata` part of the response. If you supply a comma separated
-    list of indices, the returned output will only contain metadata for these
-    indices.
-
-`nodes`::
-    Shows the `nodes` part of the response.
-
-`routing_table`::
-    Shows the `routing_table` part of the response.
-
-`version`::
-    Shows the cluster state version.
-======
-
 
 `retry_failed`::
     (Optional, Boolean) If `true`, then retries allocation of shards that are

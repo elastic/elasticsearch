@@ -48,7 +48,7 @@ public class ClusterRerouteRequest extends AcknowledgedRequest<ClusterRerouteReq
 
     /**
      * Sets a dry run flag (defaults to {@code false}) allowing to run the commands without
-     * actually applying them to the cluster state, and getting the resulting cluster state back.
+     * actually applying them to the cluster state.
      */
     public ClusterRerouteRequest dryRun(boolean dryRun) {
         this.dryRun = dryRun;
@@ -56,8 +56,7 @@ public class ClusterRerouteRequest extends AcknowledgedRequest<ClusterRerouteReq
     }
 
     /**
-     * Returns the current dry run flag which allows to run the commands without actually applying them,
-     * just to get back the resulting cluster state back.
+     * Returns the current dry run flag which allows to run the commands without actually applying them.
      */
     public boolean dryRun() {
         return this.dryRun;

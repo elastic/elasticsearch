@@ -69,7 +69,6 @@ public class ClusterRerouteResponse extends ActionResponse implements IsAcknowle
                 if (params.paramAsBoolean("explain", false)) {
                     explanations.toXContent(builder, params);
                 }
-
                 builder.endObject();
                 return builder;
             })

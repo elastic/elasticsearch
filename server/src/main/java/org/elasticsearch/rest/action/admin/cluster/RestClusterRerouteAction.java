@@ -10,9 +10,7 @@ package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -25,7 +23,6 @@ import org.elasticsearch.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.xcontent.ParseField;
 
 import java.io.IOException;
-import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
 
@@ -46,10 +43,6 @@ public class RestClusterRerouteAction extends BaseRestHandler {
         );
         PARSER.declareBoolean(ClusterRerouteRequest::dryRun, new ParseField("dry_run"));
     }
-
-    private static final String DEFAULT_METRICS = Strings.arrayToCommaDelimitedString(
-        EnumSet.complementOf(EnumSet.of(ClusterState.Metric.METADATA)).toArray()
-    );
 
     private final SettingsFilter settingsFilter;
 
@@ -78,11 +71,6 @@ public class RestClusterRerouteAction extends BaseRestHandler {
         settingsFilter.addFilterSettingParams(request);
         if (clusterRerouteRequest.explain()) {
             request.params().put("explain", Boolean.TRUE.toString());
-        }
-        // by default, return everything but metadata
-        final String metric = request.param("metric");
-        if (metric == null) {
-            request.params().put("metric", DEFAULT_METRICS);
         }
         return channel -> client.admin().cluster().reroute(clusterRerouteRequest, new RestChunkedToXContentListener<>(channel));
     }

@@ -109,14 +109,6 @@ public class ClusterRerouteIT extends ESIntegTestCase {
             .setDryRun(true)
             .get();
 
-        state = clusterAdmin().prepareState().execute().actionGet().getState();
-
-        assertThat(state.getRoutingNodes().unassigned().size(), equalTo(1));
-        assertThat(
-            state.getRoutingNodes().node(state.nodes().resolveNode(node_1).getId()).iterator().next().state(),
-            equalTo(ShardRoutingState.INITIALIZING)
-        );
-
         logger.info("--> get the state, verify nothing changed because of the dry run");
         state = clusterAdmin().prepareState().execute().actionGet().getState();
         assertThat(state.getRoutingNodes().unassigned().size(), equalTo(2));

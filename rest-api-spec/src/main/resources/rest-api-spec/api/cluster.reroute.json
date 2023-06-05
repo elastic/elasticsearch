@@ -23,7 +23,7 @@
     "params":{
       "dry_run":{
         "type":"boolean",
-        "description":"Simulate the operation only and return the resulting state"
+        "description":"Simulate the operation only"
       },
       "explain":{
         "type":"boolean",
@@ -32,19 +32,6 @@
       "retry_failed":{
         "type":"boolean",
         "description":"Retries allocation of shards that are blocked due to too many subsequent allocation failures"
-      },
-      "metric":{
-        "type":"list",
-        "options":[
-          "_all",
-          "blocks",
-          "metadata",
-          "nodes",
-          "routing_table",
-          "master_node",
-          "version"
-        ],
-        "description":"Limit the information returned to the specified metrics. Defaults to all but metadata"
       },
       "master_timeout":{
         "type":"time",

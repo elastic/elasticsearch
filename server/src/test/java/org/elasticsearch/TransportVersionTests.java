@@ -172,7 +172,8 @@ public class TransportVersionTests extends ESTestCase {
     }
 
     public void testCurrentIncrementGap() {
-        assertThat(TransportVersion.CURRENT.id() % 100, equalTo(0));
+        assertThat("Transport must be incremented by multiples of 100",
+            TransportVersion.CURRENT.id() % 100, equalTo(0));
     }
 
     public void testToString() {

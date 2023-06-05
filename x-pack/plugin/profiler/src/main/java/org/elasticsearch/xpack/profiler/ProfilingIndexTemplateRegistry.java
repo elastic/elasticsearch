@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.profiler;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
@@ -28,11 +30,13 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Creates all index-templates and ILM policies that are required for using Elastic Universal Profiling.
  */
 public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
+    private static final Logger logger = LogManager.getLogger(ProfilingIndexTemplateRegistry.class);
     // history (please add a comment why you increased the version here)
     // version 1: initial
     public static final int INDEX_TEMPLATE_VERSION = 1;
@@ -70,9 +74,11 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
     }
 
     private static final List<LifecyclePolicy> LIFECYCLE_POLICIES = List.of(
-        new LifecyclePolicyConfig("profiling", "/org/elasticsearch/xpack/profiler/ilm-policy/profiling-60-days.json").load(
-            LifecyclePolicyConfig.DEFAULT_X_CONTENT_REGISTRY
-        )
+        new LifecyclePolicyConfig(
+            "profiling",
+            "/org/elasticsearch/xpack/profiler/ilm-policy/profiling-60-days.json",
+            Map.of(PROFILING_TEMPLATE_VERSION_VARIABLE, String.valueOf(INDEX_TEMPLATE_VERSION))
+        ).load(LifecyclePolicyConfig.DEFAULT_X_CONTENT_REGISTRY)
     );
 
     @Override
@@ -212,6 +218,22 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
     @Override
     protected Map<String, ComposableIndexTemplate> getComposableTemplateConfigs() {
         return templatesEnabled ? COMPOSABLE_INDEX_TEMPLATE_CONFIGS : Collections.emptyMap();
+    }
+
+    @Override
+    protected boolean isUpgradeRequired(LifecyclePolicy currentPolicy, LifecyclePolicy newPolicy) {
+        try {
+            return getVersion(currentPolicy) < getVersion(newPolicy);
+        } catch (NumberFormatException ex) {
+            logger.warn("Invalid version for profiling lifecycle policy.", ex);
+            // don't attempt an upgrade on invalid data
+            return false;
+        }
+    }
+
+    private int getVersion(LifecyclePolicy policy) {
+        Map<String, Object> meta = policy.getMetadata();
+        return meta != null ? Integer.parseInt(meta.getOrDefault("version", Integer.MIN_VALUE).toString()) : Integer.MIN_VALUE;
     }
 
     public static boolean areAllTemplatesCreated(ClusterState state) {

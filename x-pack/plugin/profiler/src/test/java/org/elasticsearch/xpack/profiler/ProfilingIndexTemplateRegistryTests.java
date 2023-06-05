@@ -50,6 +50,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
@@ -128,7 +129,7 @@ public class ProfilingIndexTemplateRegistryTests extends ESTestCase {
         });
     }
 
-    public void testThatNonExistingPoliciesAreAddedImmediately() {
+    public void testThatNonExistingPoliciesAreAddedImmediately() throws Exception {
         DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
@@ -153,6 +154,15 @@ public class ProfilingIndexTemplateRegistryTests extends ESTestCase {
                 return null;
             }
         });
+
+        ClusterChangedEvent newEvent = createClusterChangedEvent(
+            Collections.emptyMap(),
+            Collections.emptyMap(),
+            Collections.emptyMap(),
+            nodes
+        );
+        registry.clusterChanged(newEvent);
+        assertBusy(() -> assertThat(calledTimes.get(), equalTo(registry.getPolicyConfigs().size())));
     }
 
     public void testPolicyAlreadyExists() {
@@ -191,7 +201,11 @@ public class ProfilingIndexTemplateRegistryTests extends ESTestCase {
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         Map<String, LifecyclePolicy> policyMap = new HashMap<>();
-        String policyStr = "{\"phases\":{\"delete\":{\"min_age\":\"1m\",\"actions\":{\"delete\":{}}}}}";
+        String policyStr = String.format(
+            Locale.ROOT,
+            "{\"_meta\":{\"version\":%d},\"phases\":{\"delete\":{\"min_age\":\"1m\",\"actions\":{\"delete\":{}}}}}",
+            ProfilingIndexTemplateRegistry.INDEX_TEMPLATE_VERSION
+        );
         List<LifecyclePolicy> policies = registry.getPolicyConfigs();
         assertThat(policies, hasSize(1));
         policies.forEach(p -> policyMap.put(p.getName(), p));
@@ -235,6 +249,69 @@ public class ProfilingIndexTemplateRegistryTests extends ESTestCase {
             policyMap.put(policies.get(0).getName(), different);
             ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyMap(), Collections.emptyMap(), policyMap, nodes);
             registry.clusterChanged(event);
+        }
+    }
+
+    public void testPolicyUpgraded() throws Exception {
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
+        DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
+
+        Map<String, LifecyclePolicy> policyMap = new HashMap<>();
+        // set version to 0 to force an upgrade (proper versions start at 1)
+        String priorPolicyStr = "{\"_meta\":{\"version\":0},\"phases\":{\"delete\":{\"min_age\":\"1m\",\"actions\":{\"delete\":{}}}}}";
+        List<LifecyclePolicy> policies = registry.getPolicyConfigs();
+        assertThat(policies, hasSize(1));
+        policies.forEach(p -> policyMap.put(p.getName(), p));
+
+        AtomicInteger calledTimes = new AtomicInteger(0);
+        client.setVerifier((action, request, listener) -> {
+            if (action instanceof PutComponentTemplateAction) {
+                // Ignore this, it's verified in another test
+                return AcknowledgedResponse.TRUE;
+            } else if (action instanceof PutComposableIndexTemplateAction) {
+                // Ignore this, it's verified in another test
+                return AcknowledgedResponse.TRUE;
+            } else if (action instanceof PutIndexTemplateAction) {
+                // Ignore this, it's verified in another test
+                return AcknowledgedResponse.TRUE;
+            } else if (action instanceof PutLifecycleAction) {
+                calledTimes.incrementAndGet();
+                assertThat(action, instanceOf(PutLifecycleAction.class));
+                assertThat(request, instanceOf(PutLifecycleAction.Request.class));
+                final PutLifecycleAction.Request putRequest = (PutLifecycleAction.Request) request;
+                assertThat(putRequest.getPolicy().getName(), equalTo("profiling"));
+                assertNotNull(listener);
+                return AcknowledgedResponse.TRUE;
+
+            } else {
+                fail("client called with unexpected request: " + request.toString());
+            }
+            return null;
+        });
+
+        try (
+            XContentParser parser = XContentType.JSON.xContent()
+                .createParser(
+                    XContentParserConfiguration.EMPTY.withRegistry(
+                        new NamedXContentRegistry(
+                            List.of(
+                                new NamedXContentRegistry.Entry(
+                                    LifecycleAction.class,
+                                    new ParseField(DeleteAction.NAME),
+                                    DeleteAction::parse
+                                )
+                            )
+                        )
+                    ),
+                    priorPolicyStr
+                )
+        ) {
+            LifecyclePolicy priorPolicy = LifecyclePolicy.parse(parser, policies.get(0).getName());
+            policyMap.put(policies.get(0).getName(), priorPolicy);
+            ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyMap(), Collections.emptyMap(), policyMap, nodes);
+            registry.clusterChanged(event);
+            // we've changed one policy that should be upgraded
+            assertBusy(() -> assertThat(calledTimes.get(), equalTo(1)));
         }
     }
 

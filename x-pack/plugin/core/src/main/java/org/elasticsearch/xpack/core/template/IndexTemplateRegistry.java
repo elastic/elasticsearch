@@ -488,18 +488,19 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
     }
 
     private void addIndexLifecyclePoliciesIfMissing(ClusterState state) {
-        Optional<IndexLifecycleMetadata> maybeMeta = Optional.ofNullable(state.metadata().custom(IndexLifecycleMetadata.TYPE));
+        IndexLifecycleMetadata metadata = state.metadata().custom(IndexLifecycleMetadata.TYPE);
         for (LifecyclePolicy policy : getPolicyConfigs()) {
             final AtomicBoolean creationCheck = policyCreationsInProgress.computeIfAbsent(
                 policy.getName(),
                 key -> new AtomicBoolean(false)
             );
             if (creationCheck.compareAndSet(false, true)) {
-                final boolean policyNeedsToBeCreated = maybeMeta.flatMap(
-                    ilmMeta -> Optional.ofNullable(ilmMeta.getPolicies().get(policy.getName()))
-                ).isPresent() == false;
-                if (policyNeedsToBeCreated) {
+                final LifecyclePolicy currentPolicy = metadata != null ? metadata.getPolicies().get(policy.getName()) : null;
+                if (Objects.isNull(currentPolicy)) {
                     logger.debug("adding lifecycle policy [{}] for [{}], because it doesn't exist", policy.getName(), getOrigin());
+                    putPolicy(policy, creationCheck);
+                } else if (isUpgradeRequired(currentPolicy, policy)) {
+                    logger.info("upgrading lifecycle policy [{}] for [{}]", policy.getName(), getOrigin());
                     putPolicy(policy, creationCheck);
                 } else {
                     logger.trace("not adding lifecycle policy [{}] for [{}], because it already exists", policy.getName(), getOrigin());
@@ -507,6 +508,17 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
                 }
             }
         }
+    }
+
+    /**
+     * Determines whether an index lifecycle policy should be upgraded to a newer version.
+     *
+     * @param currentPolicy The current lifecycle policy. Never null.
+     * @param newPolicy The new lifecycle policy. Never null.
+     * @return <code>true</code> if <code>newPolicy</code> should replace <code>currentPolicy</code>.
+     */
+    protected boolean isUpgradeRequired(LifecyclePolicy currentPolicy, LifecyclePolicy newPolicy) {
+        return false;
     }
 
     private void putPolicy(final LifecyclePolicy policy, final AtomicBoolean creationCheck) {

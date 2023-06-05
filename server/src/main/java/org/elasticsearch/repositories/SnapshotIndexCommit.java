@@ -9,9 +9,10 @@
 package org.elasticsearch.repositories;
 
 import org.apache.lucene.index.IndexCommit;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.core.AbstractRefCounted;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.engine.Engine;
 
 /**
@@ -22,8 +23,7 @@ public class SnapshotIndexCommit extends AbstractRefCounted {
 
     private final Engine.IndexCommitRef commitRef;
     private final Runnable releaseInitialRef;
-    @Nullable
-    private Exception closeException;
+    private final SubscribableListener<Void> completionListeners = new SubscribableListener<>();
 
     public SnapshotIndexCommit(Engine.IndexCommitRef commitRef) {
         this.commitRef = commitRef;
@@ -32,25 +32,21 @@ public class SnapshotIndexCommit extends AbstractRefCounted {
 
     @Override
     protected void closeInternal() {
-        assert closeException == null : closeException;
-        try {
+        assert completionListeners.isDone() == false;
+        ActionListener.completeWith(completionListeners, () -> {
             commitRef.close();
-        } catch (Exception e) {
-            closeException = e;
-        }
+            return null;
+        });
     }
 
     /**
-     * Called after all other refs are released, to release the initial ref (if not already released) and re-throw any exception thrown
+     * Called after all other refs are released, to release the initial ref (if not already released) and expose any exception thrown
      * when the inner {@link IndexCommit} was closed.
      */
-    public void onCompletion() throws Exception {
+    public void onCompletion(ActionListener<Void> completionListener) {
         releaseInitialRef.run();
-        assert hasReferences() == false;
-        // closeInternal happens-before here so no need for synchronization
-        if (closeException != null) {
-            throw closeException;
-        }
+        assert refCount() <= 1; // almost always zero here, but may not be if a concurrent abort has not run the last decRef() yet
+        completionListeners.addListener(completionListener); // completed directly or by a concurrently-running aborting thread
     }
 
     /**

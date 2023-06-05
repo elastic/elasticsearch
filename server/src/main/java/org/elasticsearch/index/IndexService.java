@@ -670,7 +670,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
 
     /**
      * Creates a new {@link QueryRewriteContext}.
-     * This class is used to rewrite queries before we are able to get a a valid {@link SearchExecutionContext} and
+     * This class is used to rewrite queries before we are able to get a valid {@link SearchExecutionContext} and
      * allows us to anticipate rewriting queries before the query is executed on the data node. Not using a full
      * SearhcExecutionContext allows us to save on query latency and IO operations.
      */

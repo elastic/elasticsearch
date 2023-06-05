@@ -74,7 +74,20 @@ public final class SnapshotShardContext extends DelegatingActionListener<ShardSn
 
             @Override
             public void onFailure(Exception e) {
-                commitRef.onCompletion(listener.map(ignored -> { throw e; }));
+                commitRef.onCompletion(new ActionListener<>() {
+                    @Override
+                    public void onResponse(Void unused) {
+                        listener.onFailure(e);
+                    }
+
+                    @Override
+                    public void onFailure(Exception e2) {
+                        if (e2 != e) {
+                            e.addSuppressed(e2);
+                        }
+                        listener.onFailure(e);
+                    }
+                });
             }
         });
         this.store = store;

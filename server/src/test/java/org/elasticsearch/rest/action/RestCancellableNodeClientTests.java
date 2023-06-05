@@ -225,6 +225,7 @@ public class RestCancellableNodeClientTests extends ESTestCase {
         @Override
         public void close() {
             if (open.compareAndSet(true, false) == false) {
+                assert false : "HttpChannel is already closed";
                 return;     // nothing to do
             }
             ActionListener<Void> listener = closeListener.get();

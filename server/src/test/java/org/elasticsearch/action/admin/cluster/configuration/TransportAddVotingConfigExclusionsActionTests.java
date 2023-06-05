@@ -9,7 +9,6 @@ package org.elasticsearch.action.admin.cluster.configuration;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchTimeoutException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterName;
@@ -24,6 +23,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes.Builder;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -82,19 +82,12 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
         otherNode1Exclusion = new VotingConfigExclusion(otherNode1);
         otherNode2 = makeDiscoveryNode("other2");
         otherNode2Exclusion = new VotingConfigExclusion(otherNode2);
-        otherDataNode = new DiscoveryNode("data", "data", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        otherDataNode = TestDiscoveryNode.create("data", "data", buildNewFakeTransportAddress(), emptyMap(), emptySet());
         clusterService = createClusterService(threadPool, localNode);
     }
 
     private static DiscoveryNode makeDiscoveryNode(String name) {
-        return new DiscoveryNode(
-            name,
-            name,
-            buildNewFakeTransportAddress(),
-            emptyMap(),
-            Set.of(DiscoveryNodeRole.MASTER_ROLE),
-            Version.CURRENT
-        );
+        return TestDiscoveryNode.create(name, name, buildNewFakeTransportAddress(), emptyMap(), Set.of(DiscoveryNodeRole.MASTER_ROLE));
     }
 
     @AfterClass

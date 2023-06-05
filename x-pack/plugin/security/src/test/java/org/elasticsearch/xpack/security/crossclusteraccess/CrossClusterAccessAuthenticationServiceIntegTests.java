@@ -16,8 +16,9 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xpack.core.security.SecurityContext;
-import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyResponse;
+import org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
@@ -138,9 +139,10 @@ public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityI
         }
     }
 
-    private String getEncodedCrossClusterAccessApiKey() {
-        final CreateApiKeyResponse response = new CreateApiKeyRequestBuilder(client().admin().cluster()).setName("cross_cluster_access_key")
-            .get();
+    private String getEncodedCrossClusterAccessApiKey() throws IOException {
+        final CreateCrossClusterApiKeyRequest request = CreateCrossClusterApiKeyRequest.withNameAndAccess("cross_cluster_access_key", """
+            {"search": [{"names": ["*"]}]}""");
+        final CreateApiKeyResponse response = client().execute(CreateCrossClusterApiKeyAction.INSTANCE, request).actionGet();
         return ApiKeyService.withApiKeyPrefix(
             Base64.getEncoder().encodeToString((response.getId() + ":" + response.getKey()).getBytes(StandardCharsets.UTF_8))
         );

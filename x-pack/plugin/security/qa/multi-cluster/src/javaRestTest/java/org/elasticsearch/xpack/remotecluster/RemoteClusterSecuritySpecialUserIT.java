@@ -68,16 +68,12 @@ public class RemoteClusterSecuritySpecialUserIT extends AbstractRemoteClusterSec
                 if (API_KEY_MAP_REF.get() == null) {
                     final Map<String, Object> apiKeyMap = createCrossClusterAccessApiKey("""
                         {
-                          "role": {
-                            "cluster": ["cross_cluster_search"],
-                            "index": [
+                            "search": [
                               {
                                 "names": ["shared-*", "apm-1", ".security*"],
-                                "privileges": ["read", "read_cross_cluster"],
                                 "allow_restricted_indices": true
                               }
                             ]
-                          }
                         }""");
                     API_KEY_MAP_REF.set(apiKeyMap);
                 }
@@ -129,7 +125,8 @@ public class RemoteClusterSecuritySpecialUserIT extends AbstractRemoteClusterSec
                 { "index": { "_index": "apm-2" } }
                 { "name": "apm-2" }
                 { "index": { "_index": "logs-apm.1" } }
-                { "name": "logs-apm.1" }\n"""));
+                { "name": "logs-apm.1" }
+                """));
             assertOK(performRequestAgainstFulfillingCluster(bulkRequest));
         }
 

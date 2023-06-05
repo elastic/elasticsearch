@@ -2114,11 +2114,11 @@ included in the response.
 
 `local_address`::
 (string)
-Local address for the HTTP client.
+Local address for the HTTP connection.
 
 `remote_address`::
 (string)
-Remote address for the HTTP client.
+Remote address for the HTTP connection.
 
 `last_uri`::
 (string)

@@ -30,7 +30,6 @@ import java.util.Objects;
 public final class SearchShardsRequest extends ActionRequest implements IndicesRequest.Replaceable {
     private String[] indices;
     private final IndicesOptions indicesOptions;
-
     @Nullable
     private final QueryBuilder query;
 
@@ -41,13 +40,16 @@ public final class SearchShardsRequest extends ActionRequest implements IndicesR
 
     private final boolean allowPartialSearchResults;
 
+    private final String clusterAlias;
+
     public SearchShardsRequest(
         String[] indices,
         IndicesOptions indicesOptions,
         QueryBuilder query,
         String routing,
         String preference,
-        boolean allowPartialSearchResults
+        boolean allowPartialSearchResults,
+        String clusterAlias
     ) {
         this.indices = indices;
         this.indicesOptions = indicesOptions;
@@ -55,6 +57,7 @@ public final class SearchShardsRequest extends ActionRequest implements IndicesR
         this.routing = routing;
         this.preference = preference;
         this.allowPartialSearchResults = allowPartialSearchResults;
+        this.clusterAlias = clusterAlias;
     }
 
     public SearchShardsRequest(StreamInput in) throws IOException {
@@ -65,6 +68,7 @@ public final class SearchShardsRequest extends ActionRequest implements IndicesR
         this.routing = in.readOptionalString();
         this.preference = in.readOptionalString();
         this.allowPartialSearchResults = in.readBoolean();
+        this.clusterAlias = in.readOptionalString();
     }
 
     @Override
@@ -76,6 +80,7 @@ public final class SearchShardsRequest extends ActionRequest implements IndicesR
         out.writeOptionalString(routing);
         out.writeOptionalString(preference);
         out.writeBoolean(allowPartialSearchResults);
+        out.writeOptionalString(clusterAlias);
     }
 
     @Override
@@ -102,6 +107,10 @@ public final class SearchShardsRequest extends ActionRequest implements IndicesR
     @Override
     public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
         return new SearchTask(id, type, action, this::description, parentTaskId, headers);
+    }
+
+    public String clusterAlias() {
+        return clusterAlias;
     }
 
     public QueryBuilder query() {
@@ -134,7 +143,9 @@ public final class SearchShardsRequest extends ActionRequest implements IndicesR
             + preference
             + '\''
             + ", allowPartialSearchResults="
-            + allowPartialSearchResults;
+            + allowPartialSearchResults
+            + ", clusterAlias="
+            + clusterAlias;
     }
 
     @Override
@@ -152,12 +163,13 @@ public final class SearchShardsRequest extends ActionRequest implements IndicesR
             && Objects.equals(query, request.query)
             && Objects.equals(routing, request.routing)
             && Objects.equals(preference, request.preference)
-            && allowPartialSearchResults == request.allowPartialSearchResults;
+            && allowPartialSearchResults == request.allowPartialSearchResults
+            && Objects.equals(clusterAlias, request.clusterAlias);
     }
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(indicesOptions, query, routing, preference, allowPartialSearchResults);
+        int result = Objects.hash(indicesOptions, query, routing, preference, allowPartialSearchResults, clusterAlias);
         result = 31 * result + Arrays.hashCode(indices);
         return result;
     }

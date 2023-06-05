@@ -121,10 +121,8 @@ public final class IndexModule {
     /** On which extensions to load data into the file-system cache upon opening of files.
      *  This only works with the mmap directory, and even in that case is still
      *  best-effort only. */
-    public static final Setting<List<String>> INDEX_STORE_PRE_LOAD_SETTING = Setting.listSetting(
+    public static final Setting<List<String>> INDEX_STORE_PRE_LOAD_SETTING = Setting.stringListSetting(
         "index.store.preload",
-        Collections.emptyList(),
-        Function.identity(),
         Property.IndexScope,
         Property.NodeScope
     );

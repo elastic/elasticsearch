@@ -119,7 +119,9 @@ public class MockInternalClusterInfoService extends InternalClusterInfoService {
                 shardStats.getRetentionLeaseStats(),
                 shardStats.getDataPath(),
                 shardStats.getStatePath(),
-                shardStats.isCustomDataPath()
+                shardStats.isCustomDataPath(),
+                shardStats.isSearchIdle(),
+                shardStats.getSearchIdleTime()
             );
         }).toArray(ShardStats[]::new);
     }

@@ -57,15 +57,11 @@ public class RemoteClusterSecurityTransformIT extends AbstractRemoteClusterSecur
             .keystore("cluster.remote.my_remote_cluster.credentials", () -> {
                 API_KEY_MAP_REF.compareAndSet(null, createCrossClusterAccessApiKey("""
                     {
-                      "role": {
-                        "cluster": ["cross_cluster_search"],
-                        "index": [
+                        "search": [
                           {
-                              "names": ["shared-transform-index"],
-                              "privileges": ["read", "read_cross_cluster", "view_index_metadata"]
+                              "names": ["shared-transform-index"]
                           }
                         ]
-                      }
                     }"""));
                 return (String) API_KEY_MAP_REF.get().get("encoded");
             })

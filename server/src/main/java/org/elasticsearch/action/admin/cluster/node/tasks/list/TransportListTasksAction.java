@@ -106,14 +106,14 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
                 () -> taskManager.unregisterRemovedTaskListener(removedTaskListener)
             );
             try {
-                processTasks(request, task -> {
+                for (final var task : processTasks(request)) {
                     if (task.getAction().startsWith(ListTasksAction.NAME) == false) {
                         // It doesn't make sense to wait for List Tasks and it can cause an infinite loop of the task waiting
                         // for itself or one of its child tasks
                         matchedTasks.add(task);
                     }
                     operation.accept(task);
-                });
+                }
             } catch (Exception e) {
                 allMatchedTasksRemovedListener.onFailure(e);
                 return;

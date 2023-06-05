@@ -621,6 +621,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             "ml-size-based-ilm-policy",
             "logs",
             "metrics",
+            "profiling",
             "synthetics",
             "7-days-default",
             "30-days-default",
@@ -1814,11 +1815,15 @@ public abstract class ESRestTestCase extends ESTestCase {
         if (name.startsWith("behavioral_analytics-")) {
             return true;
         }
+        if (name.startsWith("profiling-")) {
+            return true;
+        }
         switch (name) {
             case ".watches":
             case "security_audit_log":
             case ".slm-history":
             case ".async-search":
+            case ".profiling-ilm-lock": // TODO: Remove after switch to K/V indices
             case "saml-service-provider":
             case "logs":
             case "logs-settings":

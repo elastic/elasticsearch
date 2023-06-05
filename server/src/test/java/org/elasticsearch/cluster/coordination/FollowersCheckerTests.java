@@ -785,7 +785,7 @@ public class FollowersCheckerTests extends ESTestCase {
     }
 
     private static DiscoveryNode newNode(int nodeId, Map<String, String> attributes, Set<DiscoveryNodeRole> roles) {
-        return new DiscoveryNode("name_" + nodeId, "node_" + nodeId, buildNewFakeTransportAddress(), attributes, roles, Version.CURRENT);
+        return TestDiscoveryNode.create("name_" + nodeId, "node_" + nodeId, buildNewFakeTransportAddress(), attributes, roles);
     }
 
     private static Settings randomSettings() {

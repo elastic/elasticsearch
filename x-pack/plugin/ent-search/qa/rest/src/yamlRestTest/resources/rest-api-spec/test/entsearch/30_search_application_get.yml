@@ -29,6 +29,9 @@ setup:
                 query:
                   query_string:
                     query: "{{query_string}}"
+            dictionary:
+              query_string:
+                type: string
 
   - do:
       search_application.put:
@@ -70,6 +73,11 @@ teardown:
         lang: "mustache",
         options: {
           content_type: "application/json;charset=utf-8"
+        }
+      },
+      dictionary: {
+        query_string: {
+          type: string
         }
       }
     }

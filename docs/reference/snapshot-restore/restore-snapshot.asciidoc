@@ -232,7 +232,7 @@ snapshot as well as each feature's indices.
 
 To restore a specific feature state from the snapshot, specify the
 `feature_name` from the response in the restore snapshot API's
-<<restore-snapshot-api-feature-states,`feature_states`>> parameter. 
+<<restore-snapshot-api-feature-states,`feature_states`>> parameter.
 
 NOTE: When you restore a feature state, {es} closes and overwrites the feature's existing indices.
 
@@ -247,7 +247,7 @@ realm>> to ensure you'll still be able to access your cluster.
 POST _snapshot/my_repository/my_snapshot_2099.05.06/_restore
 {
   "feature_states": [ "geoip" ],
-  "include_global_state": false,    <1>  
+  "include_global_state": false,    <1>
   "indices": "-*"                   <2>
 }
 ----
@@ -256,7 +256,7 @@ POST _snapshot/my_repository/my_snapshot_2099.05.06/_restore
 // TEST[s/_restore/_restore?wait_for_completion=true/]
 // TEST[s/"feature_states": \[ "geoip" \],//]
 
-<1> Exclude the cluster state from the restore operation. 
+<1> Exclude the cluster state from the restore operation.
 <2> Exclude the other indices and data streams in the snapshot from the restore operation.
 
 [discrete]
@@ -365,6 +365,27 @@ POST _watcher/_start
 . {blank}
 +
 --
+* Universal Profiling
++
+Check if Universal Profiling index template management is enabled:
++
+[source,console]
+----
+GET /_cluster/settings?filter_path=**.xpack.profiling.templates.enabled&include_defaults=true
+----
++
+If the value is `true`, disable Universal Profiling index template management:
++
+[source,console]
+----
+PUT _cluster/settings
+{
+  "persistent": {
+    "xpack.profiling.templates.enabled": false
+  }
+}
+----
+
 [[restore-create-file-realm-user]]
 If you use {es} security features, log in to a node host, navigate to the {es}
 installation directory, and add a user with the `superuser` role to the file
@@ -479,6 +500,21 @@ PUT _cluster/settings
 POST _watcher/_start
 ----
 --
+
+* Universal Profiling
++
+If the value was `true` initially, enable Universal Profiling index template management again, otherwise skip this step:
++
+[source,console]
+----
+PUT _cluster/settings
+{
+  "persistent": {
+    "xpack.profiling.templates.enabled": true
+  }
+}
+----
+//TEST[s/true/false/]
 
 . If wanted, reset the `action.destructive_requires_name` cluster setting.
 +

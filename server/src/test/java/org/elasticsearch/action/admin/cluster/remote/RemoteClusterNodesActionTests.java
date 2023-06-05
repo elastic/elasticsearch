@@ -19,6 +19,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -133,7 +134,7 @@ public class RemoteClusterNodesActionTests extends ESTestCase {
     }
 
     private DiscoveryNode randomNode(final int id) {
-        return new DiscoveryNode("node-" + id, Integer.toString(id), buildNewFakeTransportAddress(), Map.of(), Set.of(), Version.CURRENT);
+        return TestDiscoveryNode.create("node-" + id, Integer.toString(id), buildNewFakeTransportAddress(), Map.of(), Set.of());
     }
 
 }

@@ -12,7 +12,6 @@ import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
@@ -370,7 +369,7 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
                 writer.addDocument(Arrays.asList(doubleField("s", 1.0), doubleField("m", 2.0)));
             }
 
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
+            try (DirectoryReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = newIndexSearcher(indexReader);
                 TopMetricsAggregationBuilder builder = simpleBuilder(new FieldSortBuilder("s").order(SortOrder.ASC));
                 try (
@@ -575,7 +574,7 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
                 buildIndex.accept(indexWriter);
             }
 
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
+            try (DirectoryReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = newIndexSearcher(indexReader);
                 InternalAggregation agg = searchAndReduce(
                     indexSearcher,

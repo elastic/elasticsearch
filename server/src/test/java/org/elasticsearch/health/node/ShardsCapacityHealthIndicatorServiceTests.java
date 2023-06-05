@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -74,22 +75,20 @@ public class ShardsCapacityHealthIndicatorServiceTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
 
-        dataNode = new DiscoveryNode(
+        dataNode = TestDiscoveryNode.create(
             "data_node",
             "data_node",
             ESTestCase.buildNewFakeTransportAddress(),
             Map.of(),
-            Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE),
-            Version.CURRENT
+            Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE)
         );
 
-        frozenNode = new DiscoveryNode(
+        frozenNode = TestDiscoveryNode.create(
             "frozen_node",
             "frozen_node",
             ESTestCase.buildNewFakeTransportAddress(),
             Map.of(),
-            Set.of(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE),
-            Version.CURRENT
+            Set.of(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE)
         );
 
         clusterService = ClusterServiceUtils.createClusterService(threadPool);

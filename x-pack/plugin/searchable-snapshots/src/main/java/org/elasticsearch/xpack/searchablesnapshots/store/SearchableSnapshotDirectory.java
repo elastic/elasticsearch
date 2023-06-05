@@ -74,6 +74,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
@@ -191,7 +192,11 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
      *
      * @return true if the snapshot was loaded by executing this method, false otherwise
      */
-    public boolean loadSnapshot(RecoveryState snapshotRecoveryState, ActionListener<Void> preWarmListener) {
+    public boolean loadSnapshot(
+        RecoveryState snapshotRecoveryState,
+        Supplier<Boolean> cancelPreWarming,
+        ActionListener<Void> preWarmListener
+    ) {
         assert snapshotRecoveryState != null;
         assert snapshotRecoveryState instanceof SearchableSnapshotRecoveryState;
         assert snapshotRecoveryState.getRecoverySource().getType() == RecoverySource.Type.SNAPSHOT
@@ -213,7 +218,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                     cleanExistingRegularShardFiles();
                     waitForPendingEvictions();
                     this.recoveryState = (SearchableSnapshotRecoveryState) snapshotRecoveryState;
-                    prewarmCache(preWarmListener);
+                    prewarmCache(preWarmListener, cancelPreWarming);
                 }
             }
         }
@@ -467,12 +472,12 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         cacheService.waitForCacheFilesEvictionIfNeeded(snapshotId.getUUID(), indexId.getName(), shardId);
     }
 
-    private void prewarmCache(ActionListener<Void> listener) {
+    private void prewarmCache(ActionListener<Void> listener, Supplier<Boolean> cancelPreWarming) {
         try (var completionListener = new RefCountingListener(listener.map(v -> {
             recoveryState.setPreWarmComplete();
             return v;
         }))) {
-            if (prewarmCache == false) {
+            if (prewarmCache == false || cancelPreWarming.get()) {
                 return;
             }
             var prewarmTaskRunner = new ThrottledTaskRunner(
@@ -482,6 +487,9 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
             );
 
             for (BlobStoreIndexShardSnapshot.FileInfo file : snapshot().indexFiles()) {
+                if (cancelPreWarming.get()) {
+                    return;
+                }
                 boolean hashEqualsContents = file.metadata().hashEqualsContents();
                 if (hashEqualsContents || isExcludedFromCache(file.physicalName())) {
                     if (hashEqualsContents) {
@@ -496,34 +504,36 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                     final IndexInput input = openInput(file.physicalName(), CachedBlobContainerIndexInput.CACHE_WARMING_CONTEXT);
                     assert input instanceof CachedBlobContainerIndexInput : "expected cached index input but got " + input.getClass();
 
-                    try (
-                        var fileListener = new RefCountingListener(
-                            ActionListener.runBefore(completionListener.acquire(), () -> IOUtils.closeWhileHandlingException(input))
-                        )
-                    ) {
+                    final AtomicLong prefetchedBytes = new AtomicLong(0L);
+                    try (var fileListener = new RefCountingListener(ActionListener.runBefore(completionListener.acquire().map(v -> {
+                        if (prefetchedBytes.get() == 0L) {
+                            recoveryState.markIndexFileAsReused(file.physicalName());
+                        } else {
+                            recoveryState.getIndex().addRecoveredFromSnapshotBytesToFile(file.physicalName(), prefetchedBytes.get());
+                        }
+                        return v;
+                    }), () -> IOUtils.closeWhileHandlingException(input)))) {
                         for (int p = 0; p < file.numberOfParts(); p++) {
                             final int part = p;
                             prewarmTaskRunner.enqueueTask(fileListener.acquire().map(releasable -> {
                                 try (releasable) {
-                                    ensureOpen();
                                     var fileName = file.physicalName();
                                     final long startTimeInNanos = statsCurrentTimeNanosSupplier.getAsLong();
-                                    final long persistentCacheLength = ((CachedBlobContainerIndexInput) input).prefetchPart(part).v1();
-                                    if (persistentCacheLength == file.length()) {
-                                        recoveryState.markIndexFileAsReused(fileName);
-                                    } else {
-                                        recoveryState.getIndex().addRecoveredFromSnapshotBytesToFile(fileName, file.partBytes(part));
+                                    var prefetchedPartBytes = ((CachedBlobContainerIndexInput) input).prefetchPart(part, cancelPreWarming);
+                                    if (prefetchedPartBytes > -1L) {
+                                        prefetchedBytes.addAndGet(prefetchedPartBytes);
+                                        logger.trace(
+                                            () -> format(
+                                                "%s part [%s/%s] of [%s] warmed in [%s] ms (%d bytes)",
+                                                shardId,
+                                                part + 1,
+                                                file.numberOfParts(),
+                                                fileName,
+                                                timeValueNanos(statsCurrentTimeNanosSupplier.getAsLong() - startTimeInNanos).millis(),
+                                                prefetchedBytes
+                                            )
+                                        );
                                     }
-                                    logger.trace(
-                                        () -> format(
-                                            "%s part [%s/%s] of [%s] warmed in [%s] ms",
-                                            shardId,
-                                            part + 1,
-                                            file.numberOfParts(),
-                                            fileName,
-                                            timeValueNanos(statsCurrentTimeNanosSupplier.getAsLong() - startTimeInNanos).millis()
-                                        )
-                                    );
                                     return null;
                                 }
                             }));

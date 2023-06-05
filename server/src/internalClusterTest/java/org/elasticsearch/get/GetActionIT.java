@@ -197,9 +197,7 @@ public class GetActionIT extends ESIntegTestCase {
     public void testGetWithAliasPointingToMultipleIndices() {
         client().admin().indices().prepareCreate("index1").addAlias(new Alias("alias1").indexRouting("0")).get();
         if (randomBoolean()) {
-            client().admin()
-                .indices()
-                .prepareCreate("index2")
+            indicesAdmin().prepareCreate("index2")
                 .addAlias(new Alias("alias1").indexRouting("0").writeIndex(randomFrom(false, null)))
                 .get();
         } else {

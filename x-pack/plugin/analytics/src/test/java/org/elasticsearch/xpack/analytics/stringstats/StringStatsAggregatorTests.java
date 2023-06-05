@@ -10,7 +10,6 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
@@ -235,7 +234,7 @@ public class StringStatsAggregatorTests extends AggregatorTestCase {
         }
         indexWriter.close();
 
-        IndexReader indexReader = DirectoryReader.open(directory);
+        DirectoryReader indexReader = DirectoryReader.open(directory);
         IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
         Terms terms = searchAndReduce(indexSearcher, new AggTestConfig(aggregationBuilder, numericFieldType, textFieldType));

@@ -14,22 +14,20 @@ import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.remote.RemoteClusterNodesAction;
-import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsAction;
-import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
-import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
-import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchShardsAction;
+import org.elasticsearch.action.search.SearchShardsRequest;
+import org.elasticsearch.action.search.SearchShardsResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -965,7 +963,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
         if (minimizeRoundtrips) {
             expectedActions.add(SearchAction.NAME);
         } else {
-            expectedActions.add(ClusterSearchShardsAction.NAME);
+            expectedActions.add(SearchShardsAction.NAME);
         }
         if (false == useProxyMode) {
             expectedActions.add(RemoteClusterNodesAction.NAME);
@@ -994,7 +992,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                     );
                     assertThat(actualCrossClusterAccessSubjectInfo, equalTo(expectedCrossClusterAccessSubjectInfo));
                 }
-                case SearchAction.NAME, ClusterSearchShardsAction.NAME -> {
+                case SearchAction.NAME, SearchShardsAction.NAME -> {
                     assertContainsHeadersExpectedForCrossClusterAccess(actual.headers());
                     assertContainsCrossClusterAccessCredentialsHeader(encodedCredential, actual);
                     final var actualCrossClusterAccessSubjectInfo = CrossClusterAccessSubjectInfo.decode(
@@ -1060,16 +1058,14 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                 }
             );
             service.registerRequestHandler(
-                ClusterSearchShardsAction.NAME,
+                SearchShardsAction.NAME,
                 ThreadPool.Names.SAME,
-                ClusterSearchShardsRequest::new,
+                SearchShardsRequest::new,
                 (request, channel, task) -> {
                     capturedHeaders.add(
                         new CapturedActionWithHeaders(task.getAction(), Map.copyOf(threadPool.getThreadContext().getHeaders()))
                     );
-                    channel.sendResponse(
-                        new ClusterSearchShardsResponse(new ClusterSearchShardsGroup[0], new DiscoveryNode[0], Collections.emptyMap())
-                    );
+                    channel.sendResponse(new SearchShardsResponse(List.of(), List.of(), Collections.emptyMap()));
                 }
             );
             service.registerRequestHandler(SearchAction.NAME, ThreadPool.Names.SAME, SearchRequest::new, (request, channel, task) -> {

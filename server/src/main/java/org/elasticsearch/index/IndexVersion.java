@@ -173,12 +173,6 @@ public record IndexVersion(int id, Version luceneVersion) implements Comparable<
      * Detached index versions added below here.
      */
 
-    static {
-        // see comment on IDS field
-        // now we're registered the index versions, we can clear the map
-        IDS = null;
-    }
-
     /**
      * Reference to the most recent index version.
      * This should be the index version with the highest id.
@@ -187,9 +181,15 @@ public record IndexVersion(int id, Version luceneVersion) implements Comparable<
 
     /**
      * Reference to the earliest compatible index version to this version of the codebase.
-     * This should be the index version used by the previous major version.
+     * This should be the index version used by the first release of the previous major version.
      */
     public static final IndexVersion MINIMUM_COMPATIBLE = V_7_0_0;
+
+    static {
+        // see comment on IDS field
+        // now we're registered the index versions, we can clear the map
+        IDS = null;
+    }
 
     static NavigableMap<Integer, IndexVersion> getAllVersionIds(Class<?> cls) {
         Map<Integer, String> versionIdFields = new HashMap<>();
@@ -208,7 +208,6 @@ public record IndexVersion(int id, Version luceneVersion) implements Comparable<
                 try {
                     version = (IndexVersion) declaredField.get(null);
                 } catch (IllegalAccessException e) {
-                    // should not happen, checked above
                     throw new AssertionError(e);
                 }
                 builder.put(version.id, version);
@@ -294,6 +293,20 @@ public record IndexVersion(int id, Version luceneVersion) implements Comparable<
         return org.elasticsearch.Version.fromId(id);
     }
 
+    /**
+     * Returns the minimum version of {@code version1} and {@code version2}
+     */
+    public static IndexVersion min(IndexVersion version1, IndexVersion version2) {
+        return version1.id < version2.id ? version1 : version2;
+    }
+
+    /**
+     * Returns the maximum version of {@code version1} and {@code version2}
+     */
+    public static IndexVersion max(IndexVersion version1, IndexVersion version2) {
+        return version1.id > version2.id ? version1 : version2;
+    }
+
     public boolean after(IndexVersion version) {
         return version.id < id;
     }
@@ -310,7 +323,12 @@ public record IndexVersion(int id, Version luceneVersion) implements Comparable<
         return version.id >= id;
     }
 
-    public boolean isLegacyIndexFormatVersion() {
+    public boolean between(IndexVersion lowerInclusive, IndexVersion upperExclusive) {
+        if (upperExclusive.onOrBefore(lowerInclusive)) throw new IllegalArgumentException();
+        return onOrAfter(lowerInclusive) && before(upperExclusive);
+    }
+
+    public boolean isLegacyIndexVersion() {
         return before(MINIMUM_COMPATIBLE);
     }
 

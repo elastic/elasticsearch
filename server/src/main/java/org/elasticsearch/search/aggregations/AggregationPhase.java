@@ -9,7 +9,6 @@ package org.elasticsearch.search.aggregations;
 
 import org.apache.lucene.search.Collector;
 import org.elasticsearch.action.search.SearchShardTask;
-import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.support.TimeSeriesIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.profile.query.CollectorResult;
@@ -75,21 +74,11 @@ public class AggregationPhase {
             });
         }
 
-        boolean timeoutSet = context.scrollContext() == null
-            && context.timeout() != null
-            && context.timeout().equals(SearchService.NO_TIMEOUT) == false;
-
-        if (timeoutSet) {
-            final long startTime = context.getRelativeTimeInMillis();
-            final long timeout = context.timeout().millis();
-            final long maxTime = startTime + timeout;
-            cancellationChecks.add(() -> {
-                final long time = context.getRelativeTimeInMillis();
-                if (time > maxTime) {
-                    throw new QueryPhase.TimeExceededException();
-                }
-            });
+        final Runnable timeoutRunnable = QueryPhase.getTimeoutCheck(context);
+        if (timeoutRunnable != null) {
+            cancellationChecks.add(timeoutRunnable);
         }
+
         return cancellationChecks;
     }
 

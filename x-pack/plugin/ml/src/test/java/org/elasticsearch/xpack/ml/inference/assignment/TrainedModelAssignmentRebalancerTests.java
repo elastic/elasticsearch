@@ -8,9 +8,9 @@
 package org.elasticsearch.xpack.ml.inference.assignment;
 
 import org.elasticsearch.ResourceAlreadyExistsException;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.test.ESTestCase;
@@ -1087,7 +1087,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
     }
 
     private static DiscoveryNode buildNode(String name, long nativeMemory, int allocatedProcessors) {
-        return new DiscoveryNode(
+        return TestDiscoveryNode.create(
             name,
             name,
             buildNewFakeTransportAddress(),
@@ -1096,8 +1096,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
                 .put(MachineLearning.MAX_JVM_SIZE_NODE_ATTR, String.valueOf(10))
                 .put(MachineLearning.ALLOCATED_PROCESSORS_NODE_ATTR, String.valueOf(allocatedProcessors))
                 .map(),
-            DiscoveryNodeRole.roles(),
-            Version.CURRENT
+            DiscoveryNodeRole.roles()
         );
     }
 }

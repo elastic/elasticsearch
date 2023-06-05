@@ -9,7 +9,6 @@ package org.elasticsearch.index.query;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -24,26 +23,21 @@ import java.util.function.LongSupplier;
  */
 public class QueryRewriteContext {
     private final XContentParserConfiguration parserConfiguration;
-    private final NamedWriteableRegistry writeableRegistry;
     protected final Client client;
     protected final LongSupplier nowInMillis;
     private final List<BiConsumer<Client, ActionListener<?>>> asyncActions = new ArrayList<>();
 
-    public QueryRewriteContext(
-        XContentParserConfiguration parserConfiguration,
-        NamedWriteableRegistry writeableRegistry,
-        Client client,
-        LongSupplier nowInMillis
-    ) {
+    public QueryRewriteContext(XContentParserConfiguration parserConfiguration, Client client, LongSupplier nowInMillis) {
 
         this.parserConfiguration = parserConfiguration;
-        this.writeableRegistry = writeableRegistry;
         this.client = client;
         this.nowInMillis = nowInMillis;
     }
 
     /**
      * The registry used to build new {@link XContentParser}s. Contains registered named parsers needed to parse the query.
+     *
+     * Used by WrapperQueryBuilder
      */
     public XContentParserConfiguration getParserConfig() {
         return parserConfiguration;
@@ -51,13 +45,11 @@ public class QueryRewriteContext {
 
     /**
      * Returns the time in milliseconds that is shared across all resources involved. Even across shards and nodes.
+     *
+     * Used in date field query rewriting
      */
     public long nowInMillis() {
         return nowInMillis.getAsLong();
-    }
-
-    public NamedWriteableRegistry getWriteableRegistry() {
-        return writeableRegistry;
     }
 
     /**

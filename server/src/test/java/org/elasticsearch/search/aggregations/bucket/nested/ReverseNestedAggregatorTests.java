@@ -13,7 +13,6 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
@@ -56,7 +55,7 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
      * Nested aggregations need the {@linkplain DirectoryReader} wrapped.
      */
     @Override
-    protected IndexReader wrapDirectoryReader(DirectoryReader reader) throws IOException {
+    protected DirectoryReader wrapDirectoryReader(DirectoryReader reader) throws IOException {
         return wrapInMockESDirectoryReader(reader);
     }
 
@@ -65,7 +64,7 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
             try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
                 // intentionally not writing any docs
             }
-            try (IndexReader indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
+            try (DirectoryReader indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
                 NestedAggregationBuilder nestedBuilder = new NestedAggregationBuilder(NESTED_AGG, NESTED_OBJECT);
                 ReverseNestedAggregationBuilder reverseNestedBuilder = new ReverseNestedAggregationBuilder(REVERSE_AGG_NAME);
                 nestedBuilder.subAggregation(reverseNestedBuilder);
@@ -117,7 +116,7 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
                 }
                 iw.commit();
             }
-            try (IndexReader indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
+            try (DirectoryReader indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
                 NestedAggregationBuilder nestedBuilder = new NestedAggregationBuilder(NESTED_AGG, NESTED_OBJECT);
                 ReverseNestedAggregationBuilder reverseNestedBuilder = new ReverseNestedAggregationBuilder(REVERSE_AGG_NAME);
                 nestedBuilder.subAggregation(reverseNestedBuilder);
@@ -174,7 +173,7 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
                 iw.commit();
             }
 
-            try (IndexReader indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
+            try (DirectoryReader indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
                 MaxAggregationBuilder maxAgg = max(MAX_AGG_NAME).field(VALUE_FIELD_NAME);
                 MaxAggregationBuilder aliasMaxAgg = max(MAX_AGG_NAME).field(VALUE_FIELD_NAME + "-alias");
 

@@ -12,7 +12,6 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 
-import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.xpack.core.security.SecurityField.setting;
@@ -29,10 +28,8 @@ public class AnonymousUser extends User {
         s -> s,
         Property.NodeScope
     );
-    public static final Setting<List<String>> ROLES_SETTING = Setting.listSetting(
+    public static final Setting<List<String>> ROLES_SETTING = Setting.stringListSetting(
         setting("authc.anonymous.roles"),
-        Collections.emptyList(),
-        s -> s,
         Property.NodeScope
     );
 

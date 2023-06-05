@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.rest;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.Supplier;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -60,9 +61,14 @@ public class SecurityRestFilter implements RestHandler {
 
     @Override
     public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
+        // requests with the OPTIONS method should be handled elsewhere, and not by calling {@code RestHandler#handleRequest}
+        // authn is bypassed for HTTP requests with the OPTIONS method, so this sanity check prevents dispatching unauthenticated requests
         if (request.method() == Method.OPTIONS) {
-            // CORS - allow for preflight unauthenticated OPTIONS request
-            restHandler.handleRequest(request, channel, client);
+            handleException(
+                request,
+                channel,
+                new ElasticsearchSecurityException("Cannot dispatch OPTIONS request, as they are not authenticated")
+            );
             return;
         }
 

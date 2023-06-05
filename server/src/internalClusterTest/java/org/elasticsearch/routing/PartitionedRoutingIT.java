@@ -32,9 +32,7 @@ public class PartitionedRoutingIT extends ESIntegTestCase {
             for (int partitionSize = 1; partitionSize < shards; partitionSize++) {
                 String index = "index_" + shards + "_" + partitionSize;
 
-                client().admin()
-                    .indices()
-                    .prepareCreate(index)
+                indicesAdmin().prepareCreate(index)
                     .setSettings(
                         Settings.builder()
                             .put("index.number_of_shards", shards)
@@ -65,9 +63,7 @@ public class PartitionedRoutingIT extends ESIntegTestCase {
         int currentShards = originalShards;
         String index = "index_" + currentShards;
 
-        client().admin()
-            .indices()
-            .prepareCreate(index)
+        indicesAdmin().prepareCreate(index)
             .setSettings(
                 indexSettings(currentShards, numberOfReplicas()).put("index.number_of_routing_shards", currentShards)
                     .put("index.routing_partition_size", partitionSize)
@@ -117,9 +113,7 @@ public class PartitionedRoutingIT extends ESIntegTestCase {
             index = "index_" + currentShards;
 
             logger.info("--> shrinking index [" + previousIndex + "] to [" + index + "]");
-            client().admin()
-                .indices()
-                .prepareResizeIndex(previousIndex, index)
+            indicesAdmin().prepareResizeIndex(previousIndex, index)
                 .setSettings(indexSettings(currentShards, numberOfReplicas()).putNull("index.routing.allocation.require._name").build())
                 .get();
             ensureGreen();

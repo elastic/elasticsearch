@@ -20,6 +20,9 @@ import java.util.Collection;
 import java.util.LinkedList;
 import java.util.Queue;
 
+import static org.elasticsearch.cluster.service.ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME;
+import static org.elasticsearch.cluster.service.MasterService.MASTER_UPDATE_THREAD_NAME;
+
 public class PendingListenersQueue {
 
     private static final Logger logger = LogManager.getLogger(PendingListenersQueue.class);
@@ -51,7 +54,7 @@ public class PendingListenersQueue {
     }
 
     public void completeAllAsNotMaster() {
-        assert MasterService.assertMasterUpdateOrTestThread();
+        assert ThreadPool.assertCurrentThreadPool(MASTER_UPDATE_THREAD_NAME, CLUSTER_UPDATE_THREAD_NAME);
         completedIndex = -1;
         executeListeners(Long.MAX_VALUE, false);
     }

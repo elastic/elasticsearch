@@ -8,13 +8,11 @@
 
 package org.elasticsearch.action.admin.cluster.coordination;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -26,22 +24,8 @@ import static org.elasticsearch.cluster.coordination.CoordinationDiagnosticsServ
 public class CoordinationDiagnosticsActionTests extends ESTestCase {
 
     public void testSerialization() {
-        DiscoveryNode node1 = new DiscoveryNode(
-            "node1",
-            UUID.randomUUID().toString(),
-            buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            DiscoveryNodeRole.roles(),
-            Version.CURRENT
-        );
-        DiscoveryNode node2 = new DiscoveryNode(
-            "node2",
-            UUID.randomUUID().toString(),
-            buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            DiscoveryNodeRole.roles(),
-            Version.CURRENT
-        );
+        DiscoveryNode node1 = TestDiscoveryNode.create("node1", UUID.randomUUID().toString());
+        DiscoveryNode node2 = TestDiscoveryNode.create("node2", UUID.randomUUID().toString());
         CoordinationDiagnosticsDetails details = new CoordinationDiagnosticsDetails(
             node1,
             List.of(node1, node2),

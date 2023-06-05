@@ -81,7 +81,7 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
                     .numberOfReplicas(1)
             )
             .build();
-        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(metadata)
             .routingTable(RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(metadata.index("test")).build())
             .build();
@@ -127,7 +127,7 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
                     .numberOfReplicas(1)
             )
             .build();
-        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(metadata)
             .routingTable(RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(metadata.index("test")).build())
             .build();
@@ -242,7 +242,7 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
                     .numberOfReplicas(1)
             )
             .build();
-        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(metadata)
             .routingTable(
                 RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
@@ -431,7 +431,7 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
                     .numberOfReplicas(1)
             )
             .build();
-        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(metadata)
             .routingTable(
                 RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)

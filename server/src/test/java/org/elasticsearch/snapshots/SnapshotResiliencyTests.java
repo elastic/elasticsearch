@@ -12,7 +12,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -111,6 +110,7 @@ import org.elasticsearch.cluster.metadata.MetadataMappingService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.routing.BatchedRerouteService;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -1464,13 +1464,12 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
         private TestClusterNode newNode(String nodeName, DiscoveryNodeRole role) throws IOException {
             return new TestClusterNode(
-                new DiscoveryNode(
+                TestDiscoveryNode.create(
                     nodeName,
                     randomAlphaOfLength(10),
                     buildNewFakeTransportAddress(),
                     emptyMap(),
-                    Collections.singleton(role),
-                    Version.CURRENT
+                    Collections.singleton(role)
                 )
             );
         }
@@ -2150,7 +2149,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 scheduleSoon(() -> {
                     try {
                         final TestClusterNode restartedNode = new TestClusterNode(
-                            new DiscoveryNode(node.getName(), node.getId(), node.getAddress(), emptyMap(), node.getRoles(), Version.CURRENT)
+                            TestDiscoveryNode.create(node.getName(), node.getId(), node.getAddress(), emptyMap(), node.getRoles())
                         );
                         nodes.put(node.getName(), restartedNode);
                         restartedNode.start(oldState);

@@ -702,7 +702,7 @@ public class RecoverySettings {
     /**
      * Whether the node bandwidth recovery settings are set.
      */
-    public static boolean hasNodeBandwidthRecoverySettings(Settings settings) {
+    private static boolean hasNodeBandwidthRecoverySettings(Settings settings) {
         return NODE_BANDWIDTH_RECOVERY_SETTINGS.stream()
             .filter(setting -> setting.get(settings) != ByteSizeValue.MINUS_ONE)
             .count() == NODE_BANDWIDTH_RECOVERY_SETTINGS.size();

@@ -8,6 +8,7 @@
 package org.elasticsearch.index.shard;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
@@ -15,6 +16,7 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.InternalEngine;
+import org.elasticsearch.index.engine.LiveVersionMapTestUtils;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
@@ -28,6 +30,7 @@ import java.util.function.LongSupplier;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class ShardGetServiceTests extends IndexShardTestCase {
 
@@ -208,5 +211,97 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         assertTrue(getResult.isExists());
 
         closeShards(shard);
+    }
+
+    public void testGetFromTranslog() throws IOException {
+        Settings settings = indexSettings(Version.CURRENT, 1, 1).build();
+        IndexMetadata metadata = IndexMetadata.builder("test").putMapping("""
+            { "properties": { "foo":  { "type": "text"}}}""").settings(settings).primaryTerm(0, 1).build();
+        IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
+        recoverShardFromStore(primary);
+        InternalEngine engine = (InternalEngine) primary.getEngineOrNull();
+
+        // Initially there hasn't been any switches from unsafe to safe maps in the live version map
+        assertEquals(engine.getLastUnsafeSegmentGenerationForGets(), -1);
+        var map = engine.getLiveVersionMap();
+        assertFalse(LiveVersionMapTestUtils.isSafeAccessRequired(map));
+        assertFalse(LiveVersionMapTestUtils.isUnsafe(map));
+
+        // Make the map unsafe by indexing a doc that will be indexed in the append-only mode
+        var indexResult = indexDoc(primary, null, "{\"foo\" : \"baz\"}", XContentType.JSON, "foobar");
+        assertFalse(LiveVersionMapTestUtils.isSafeAccessRequired(map));
+        assertTrue(LiveVersionMapTestUtils.isUnsafe(map));
+
+        // Issue a get that would enforce safe access mode and switches the maps from unsafe to safe
+        var getResult = primary.getService()
+            .getFromTranslog("2", new String[] { "foo" }, true, 1, VersionType.INTERNAL, FetchSourceContext.FETCH_SOURCE, false);
+        assertNull(getResult);
+        var lastUnsafeGeneration = engine.getLastUnsafeSegmentGenerationForGets();
+        assertThat(lastUnsafeGeneration, greaterThan(0L));
+        assertTrue(LiveVersionMapTestUtils.isSafeAccessRequired(map));
+        assertFalse(LiveVersionMapTestUtils.isUnsafe(map));
+
+        // A flush shouldn't change the recorded last unsafe generation for gets
+        PlainActionFuture<Engine.FlushResult> flushFuture = PlainActionFuture.newFuture();
+        engine.flush(true, true, flushFuture);
+        var flushResult = flushFuture.actionGet();
+        assertTrue(flushResult.flushPerformed());
+        assertThat(flushResult.generation(), equalTo(lastUnsafeGeneration));
+        assertThat(engine.getLastUnsafeSegmentGenerationForGets(), equalTo(lastUnsafeGeneration));
+        // No longer in translog
+        getResult = primary.getService()
+            .getFromTranslog(
+                indexResult.getId(),
+                new String[] { "foo" },
+                true,
+                1,
+                VersionType.INTERNAL,
+                FetchSourceContext.FETCH_SOURCE,
+                false
+            );
+        assertNull(getResult);
+        // But normal get would still work!
+        getResult = primary.getService()
+            .get(indexResult.getId(), new String[] { "foo" }, true, 1, VersionType.INTERNAL, FetchSourceContext.FETCH_SOURCE, false);
+        assertNotNull(getResult);
+        assertTrue(getResult.isExists());
+        assertEquals(engine.getLastUnsafeSegmentGenerationForGets(), lastUnsafeGeneration);
+
+        // As long as in safe mode, last unsafe generation stays the same
+        assertTrue(LiveVersionMapTestUtils.isSafeAccessRequired(map));
+        assertFalse(LiveVersionMapTestUtils.isUnsafe(map));
+        indexDoc(primary, "1", "{\"foo\" : \"baz\"}", XContentType.JSON, "foobar");
+        // The first get in safe mode, would trigger a refresh, since we need to start tracking translog locations in the live version map
+        getResult = primary.getService()
+            .getFromTranslog("1", new String[] { "foo" }, true, 1, VersionType.INTERNAL, FetchSourceContext.FETCH_SOURCE, false);
+        assertTrue(getResult.isExists());
+        assertEquals(engine.getLastUnsafeSegmentGenerationForGets(), lastUnsafeGeneration);
+        getResult = primary.getService()
+            .getFromTranslog("2", new String[] { "foo" }, true, 1, VersionType.INTERNAL, FetchSourceContext.FETCH_SOURCE, false);
+        assertNull(getResult);
+        assertEquals(engine.getLastUnsafeSegmentGenerationForGets(), lastUnsafeGeneration);
+
+        // After two refreshes (one for tracking translog locations, i.e., source="realtime_get") and the following)
+        // with no safe access needed, it should switch to append-only. (see https://github.com/elastic/elasticsearch/pull/27752)
+        assertTrue(LiveVersionMapTestUtils.isSafeAccessRequired(map));
+        assertFalse(LiveVersionMapTestUtils.isUnsafe(map));
+        indexDoc(primary, null, "{\"foo\" : \"baz\"}", XContentType.JSON, "foobar");
+        engine.refresh("test");
+        assertFalse(LiveVersionMapTestUtils.isSafeAccessRequired(map));
+        assertFalse(LiveVersionMapTestUtils.isUnsafe(map));
+
+        // Redo the same: make the map unsafe and see that the recorded last unsafe generation gets updated, upon a get.
+        indexDoc(primary, null, "{\"foo\" : \"baz\"}", XContentType.JSON, "foobar");
+        assertFalse(LiveVersionMapTestUtils.isSafeAccessRequired(map));
+        assertTrue(LiveVersionMapTestUtils.isUnsafe(map));
+        getResult = primary.getService()
+            .getFromTranslog("2", new String[] { "foo" }, true, 1, VersionType.INTERNAL, FetchSourceContext.FETCH_SOURCE, false);
+        assertNull(getResult);
+        var lastUnsafeGeneration2 = engine.getLastUnsafeSegmentGenerationForGets();
+        assertTrue(lastUnsafeGeneration2 > lastUnsafeGeneration);
+        assertTrue(LiveVersionMapTestUtils.isSafeAccessRequired(map));
+        assertFalse(LiveVersionMapTestUtils.isUnsafe(map));
+
+        closeShards(primary);
     }
 }

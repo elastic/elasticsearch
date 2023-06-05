@@ -88,9 +88,7 @@ public class SimpleIndexStateIT extends ESIntegTestCase {
 
     public void testFastCloseAfterCreateContinuesCreateAfterOpen() {
         logger.info("--> creating test index that cannot be allocated");
-        client().admin()
-            .indices()
-            .prepareCreate("test")
+        indicesAdmin().prepareCreate("test")
             .setWaitForActiveShards(ActiveShardCount.NONE)
             .setSettings(Settings.builder().put("index.routing.allocation.include.tag", "no_such_node").build())
             .get();
@@ -141,9 +139,7 @@ public class SimpleIndexStateIT extends ESIntegTestCase {
         }
 
         logger.info("--> creating test index with valid settings ");
-        CreateIndexResponse response = client().admin()
-            .indices()
-            .prepareCreate("test")
+        CreateIndexResponse response = indicesAdmin().prepareCreate("test")
             .setSettings(Settings.builder().put("number_of_shards", 1))
             .get();
         assertThat(response.isAcknowledged(), equalTo(true));

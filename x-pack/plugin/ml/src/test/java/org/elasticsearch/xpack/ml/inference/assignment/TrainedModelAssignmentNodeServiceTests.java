@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.ml.inference.assignment;
 
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.ShardSearchFailure;
@@ -17,9 +16,8 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -311,19 +309,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
 
     public void testClusterChangedWithResetMode() {
         final TrainedModelAssignmentNodeService trainedModelAssignmentNodeService = createService();
-        final DiscoveryNodes nodes = DiscoveryNodes.builder()
-            .localNodeId(NODE_ID)
-            .add(
-                new DiscoveryNode(
-                    NODE_ID,
-                    NODE_ID,
-                    buildNewFakeTransportAddress(),
-                    Collections.emptyMap(),
-                    DiscoveryNodeRole.roles(),
-                    Version.CURRENT
-                )
-            )
-            .build();
+        final DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId(NODE_ID).add(TestDiscoveryNode.create(NODE_ID, NODE_ID)).build();
         String modelOne = "model-1";
         String modelTwo = "model-2";
         String notUsedModel = "model-3";
@@ -371,19 +357,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
 
     public void testClusterChanged() throws Exception {
         final TrainedModelAssignmentNodeService trainedModelAssignmentNodeService = createService();
-        final DiscoveryNodes nodes = DiscoveryNodes.builder()
-            .localNodeId(NODE_ID)
-            .add(
-                new DiscoveryNode(
-                    NODE_ID,
-                    NODE_ID,
-                    buildNewFakeTransportAddress(),
-                    Collections.emptyMap(),
-                    DiscoveryNodeRole.roles(),
-                    Version.CURRENT
-                )
-            )
-            .build();
+        final DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId(NODE_ID).add(TestDiscoveryNode.create(NODE_ID, NODE_ID)).build();
         String modelOne = "model-1";
         String modelTwo = "model-2";
         String notUsedModel = "model-3";
@@ -536,19 +510,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
 
     public void testClusterChanged_GivenAllStartedAssignments_AndNonMatchingTargetAllocations() throws Exception {
         final TrainedModelAssignmentNodeService trainedModelAssignmentNodeService = createService();
-        final DiscoveryNodes nodes = DiscoveryNodes.builder()
-            .localNodeId(NODE_ID)
-            .add(
-                new DiscoveryNode(
-                    NODE_ID,
-                    NODE_ID,
-                    buildNewFakeTransportAddress(),
-                    Collections.emptyMap(),
-                    DiscoveryNodeRole.roles(),
-                    Version.CURRENT
-                )
-            )
-            .build();
+        final DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId(NODE_ID).add(TestDiscoveryNode.create(NODE_ID, NODE_ID)).build();
         String modelOne = "model-1";
         String modelTwo = "model-2";
         String deploymentOne = "deployment-1";

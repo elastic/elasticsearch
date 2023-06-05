@@ -7,8 +7,16 @@
  */
 package org.elasticsearch.dlm;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.indices.flush.FlushRequest;
+import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
+import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
+import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
+import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequest;
+import org.elasticsearch.action.admin.indices.segments.ShardSegments;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -23,6 +31,7 @@ import org.elasticsearch.cluster.metadata.DataLifecycle;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamAction;
 import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
@@ -30,6 +39,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.dlm.action.PutDataLifecycleAction;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
@@ -39,11 +49,13 @@ import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.backingIndexEqualTo;
@@ -54,11 +66,13 @@ import static org.elasticsearch.indices.ShardLimitValidator.SETTING_CLUSTER_MAX_
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 public class DataLifecycleServiceIT extends ESIntegTestCase {
+    private static final Logger logger = LogManager.getLogger(DataLifecycleServiceIT.class);
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -246,6 +260,128 @@ public class DataLifecycleServiceIT extends ESIntegTestCase {
         });
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/96084")
+    public void testAutomaticForceMerge() throws Exception {
+        /*
+         * This test makes sure that (1) DLM does _not_ call forcemerge on an index in the same DLM pass when it rolls over the index and
+         * that (2) it _does_ call forcemerge on an index that was rolled over in a previous DLM pass.
+         * It's harder than you would think to detect through the REST API that forcemerge has been called. The reason is that segment
+         * merging happens automatically during indexing, and when forcemerge is called it likely does nothing because all nececssary
+         * merging has already happened automatically. In order to force forcemerge to merge segments, we change
+         * "index.merge.policy.merge_factor" on the index to a value lower than the default. If the number of segments goes down, that is
+         *  proof that DLM called forcemerge.
+         */
+        DataLifecycle lifecycle = new DataLifecycle();
+        disableDLM();
+        String dataStreamName = "metrics-foo";
+        putComposableIndexTemplate(
+            "id1",
+            null,
+            List.of(dataStreamName + "*"),
+            Settings.builder().put("index.number_of_replicas", 1).put("index.number_of_shards", 1).build(),
+            null,
+            lifecycle
+        );
+
+        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
+        client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
+        int finalGeneration = randomIntBetween(2, 10);
+        for (int currentGeneration = 1; currentGeneration < finalGeneration; currentGeneration++) {
+            // This is currently the write index, but it will be rolled over as soon as DLM runs:
+            final String toBeRolledOverIndex = DataStream.getDefaultBackingIndexName(dataStreamName, currentGeneration);
+            for (int i = 0; i < randomIntBetween(10, 50); i++) {
+                indexDocs(dataStreamName, randomIntBetween(1, 300));
+                // Make sure the segments get written:
+                FlushResponse flushResponse = client().admin().indices().flush(new FlushRequest(toBeRolledOverIndex)).actionGet();
+                assertThat(flushResponse.getStatus(), equalTo(RestStatus.OK));
+            }
+            /*
+             * Without the following, calls to forcemerge are essentially a no-op since it has already done automatic merging. Setting
+             * merge_factor on its own does not do anything, but it results in calls to forcemerge making observable changes to the
+             * number of segments. So we're doing this just so that we can check that DLM did actually call forcemerge.
+             */
+            updateIndexSettings(
+                Settings.builder().put(MergePolicyConfig.INDEX_MERGE_POLICY_MERGE_FACTOR_SETTING.getKey(), 5),
+                toBeRolledOverIndex
+            );
+
+            final String toBeForceMergedIndex;
+            final int preDlmSegmentsForceMergedIndex;
+            if (currentGeneration == 1) {
+                toBeForceMergedIndex = null; // Not going to be used
+                preDlmSegmentsForceMergedIndex = -1; // Not going to be used
+            } else {
+                toBeForceMergedIndex = DataStream.getDefaultBackingIndexName(dataStreamName, currentGeneration - 1);
+                preDlmSegmentsForceMergedIndex = getSegmentCount(toBeForceMergedIndex);
+            }
+            final int preDlmSegmentsAboutToBeRolledOverIndex = getSegmentCount(toBeRolledOverIndex);
+            int currentBackingIndexCount = currentGeneration;
+            DataLifecycleService dataLifecycleService = internalCluster().getInstance(
+                DataLifecycleService.class,
+                internalCluster().getMasterName()
+            );
+            ClusterService clusterService = internalCluster().getInstance(ClusterService.class, internalCluster().getMasterName());
+            // run DLM once
+            dataLifecycleService.run(clusterService.state());
+            assertBusy(() -> {
+                GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { dataStreamName });
+                GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
+                    .actionGet();
+                assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
+                DataStream dataStream = getDataStreamResponse.getDataStreams().get(0).getDataStream();
+                assertThat(dataStream.getName(), equalTo(dataStreamName));
+                List<Index> backingIndices = dataStream.getIndices();
+                assertThat(backingIndices.size(), equalTo(currentBackingIndexCount + 1));
+                String writeIndex = dataStream.getWriteIndex().getName();
+                assertThat(writeIndex, backingIndexEqualTo(dataStreamName, currentBackingIndexCount + 1));
+                int postDlmSegmentsNewlyRolledOverIndex = getSegmentCount(toBeRolledOverIndex);
+                /*
+                 * We only expect forcemerge to happen on the 2nd DLM run and later, since on the first there's only the single write
+                 * index to be rolled over.
+                 */
+                if (currentBackingIndexCount > 1) {
+                    int postDlmSegmentsForceMergedIndex = getSegmentCount(toBeForceMergedIndex);
+                    assertThat(
+                        "The segments for " + toBeForceMergedIndex + " were not merged",
+                        postDlmSegmentsForceMergedIndex,
+                        lessThan(preDlmSegmentsForceMergedIndex)
+                    );
+                }
+                // We want to assert that when DLM rolls over the write index it, it doesn't forcemerge it on that iteration:
+                assertThat(
+                    "The segments for " + toBeRolledOverIndex + " were unexpectedly merged",
+                    postDlmSegmentsNewlyRolledOverIndex,
+                    equalTo(preDlmSegmentsAboutToBeRolledOverIndex)
+                );
+            });
+        }
+    }
+
+    private static void enableDLM(TimeValue pollInterval) {
+        updateClusterSettings(Settings.builder().put(DataLifecycleService.DLM_POLL_INTERVAL, pollInterval));
+    }
+
+    private static void disableDLM() {
+        updateClusterSettings(Settings.builder().put(DataLifecycleService.DLM_POLL_INTERVAL, TimeValue.MAX_VALUE));
+    }
+
+    private int getSegmentCount(String indexName) throws ExecutionException, InterruptedException {
+        IndicesSegmentResponse segmentResponse = client().admin().indices().segments(new IndicesSegmentsRequest(indexName)).get();
+        return (int) segmentResponse.getIndices()
+            .get(indexName)
+            .getShards()
+            .values()
+            .stream()
+            .map(IndexShardSegments::shards)
+            .flatMap(Arrays::stream)
+            .filter(shard -> shard.getShardRouting().primary())
+            .map(ShardSegments::getSegments)
+            .flatMap(List::stream)
+            .filter(segment -> segment.search) // in case there hasn't been a flush
+            .count();
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/96070")
     public void testErrorRecordingOnRollover() throws Exception {
         // empty lifecycle contains the default rollover
         DataLifecycle lifecycle = new DataLifecycle();

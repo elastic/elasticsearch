@@ -62,6 +62,10 @@ public class InternalMedianAbsoluteDeviation extends InternalNumericMetricsAggre
         out.writeDouble(medianAbsoluteDeviation);
     }
 
+    static InternalMedianAbsoluteDeviation empty(String name, Map<String, Object> metadata, DocValueFormat format, double compression) {
+        return new InternalMedianAbsoluteDeviation(name, metadata, format, new TDigestState(compression));
+    }
+
     @Override
     public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
         final TDigestState valueMerged = new TDigestState(valuesSketch.compression());

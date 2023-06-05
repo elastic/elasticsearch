@@ -1,0 +1,121 @@
+[[cluster-info-http]]
+=== Cluster Info HTTP API
+++++
+<titleabbrev>Cluster HTTP Info</titleabbrev>
+++++
+
+Returns cluster HTTP information.
+
+[[cluster-info-http-api-request]]
+==== {api-request-title}
+
+`GET /_info/http` +
+
+[[cluster-info-http-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `monitor` or
+`manage` <<privileges-list-cluster,cluster privilege>> to use this API.
+
+
+[[cluster-info-http-api-desc]]
+==== {api-description-title}
+
+You can use the Cluster Info HTTP API to retrieve http information in a cluster.
+
+[role="child_attributes"]
+[[cluster-info-http-api-response-body]]
+==== {api-response-body-title}
+
+`cluster_name`::
+(string)
+Name of the cluster. Based on the <<cluster-name>> setting.
+
+
+[[cluster-info-http-api-response-body-http]]
+`http`::
+(object)
+Contains http statistics for the cluster.
++
+.Properties of `http`
+[%collapsible%open]
+======
+`current_open`::
+(integer)
+Current number of open HTTP connections for the cluster.
+
+`total_opened`::
+(integer)
+Total number of HTTP connections opened for the cluster.
+
+`clients`::
+(array of objects)
+Information on current and recently-closed HTTP client connections.
+Clients that have been closed longer than the <<http-settings,http.client_stats.closed_channels.max_age>>
+setting will not be represented here.
++
+.Properties of `clients`
+[%collapsible%open]
+=======
+`id`::
+(integer)
+Unique ID for the HTTP client.
+
+`agent`::
+(string)
+Reported agent for the HTTP client. If unavailable, this property is not
+included in the response.
+
+`local_address`::
+(string)
+Local address for the HTTP connection.
+
+`remote_address`::
+(string)
+Remote address for the HTTP connection.
+
+`last_uri`::
+(string)
+The URI of the client's most recent request.
+
+`x_forwarded_for`::
+(string)
+Value from the client's `x-forwarded-for` HTTP header. If unavailable, this
+property is not included in the response.
+
+`x_opaque_id`::
+(string)
+Value from the client's `x-opaque-id` HTTP header. If unavailable, this property
+is not included in the response.
+
+`opened_time_millis`::
+(integer)
+Time at which the client opened the connection.
+
+`closed_time_millis`::
+(integer)
+Time at which the client closed the connection if the connection is closed.
+
+`last_request_time_millis`::
+(integer)
+Time of the most recent request from this client.
+
+`request_count`::
+(integer)
+Number of requests from this client.
+
+`request_size_bytes`::
+(integer)
+Cumulative size in bytes of all requests from this client.
+=======
+======
+
+
+[[cluster-info-http-api-example]]
+==== {api-examples-title}
+
+[source,console]
+----
+# returns the http info of the cluster
+GET /_info/http
+----

@@ -1,0 +1,6 @@
+pr: 95891
+summary: Cancel cold cache prewarming tasks if store is closing
+area: Snapshot/Restore
+type: bug
+issues:
+ - 95504

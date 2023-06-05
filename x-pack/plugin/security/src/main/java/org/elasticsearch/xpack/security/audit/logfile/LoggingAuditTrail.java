@@ -44,6 +44,7 @@ import org.elasticsearch.xcontent.json.JsonStringEncoder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.Grant;
+import org.elasticsearch.xpack.core.security.action.apikey.AbstractCreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.BaseUpdateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyRequest;
@@ -1219,11 +1220,11 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             return this;
         }
 
-        LogEntryBuilder withRequestBody(CreateApiKeyRequest createApiKeyRequest) throws IOException {
+        LogEntryBuilder withRequestBody(AbstractCreateApiKeyRequest abstractCreateApiKeyRequest) throws IOException {
             logEntry.with(EVENT_ACTION_FIELD_NAME, "create_apikey");
             XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
             builder.startObject();
-            withRequestBody(builder, createApiKeyRequest);
+            withRequestBody(builder, abstractCreateApiKeyRequest);
             builder.endObject();
             logEntry.with(CREATE_CONFIG_FIELD_NAME, Strings.toString(builder));
             return this;
@@ -1261,19 +1262,19 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             return this;
         }
 
-        private void withRequestBody(XContentBuilder builder, CreateApiKeyRequest createApiKeyRequest) throws IOException {
-            TimeValue expiration = createApiKeyRequest.getExpiration();
+        private void withRequestBody(XContentBuilder builder, AbstractCreateApiKeyRequest abstractCreateApiKeyRequest) throws IOException {
+            TimeValue expiration = abstractCreateApiKeyRequest.getExpiration();
             builder.startObject("apikey")
-                .field("id", createApiKeyRequest.getId())
-                .field("name", createApiKeyRequest.getName())
+                .field("id", abstractCreateApiKeyRequest.getId())
+                .field("name", abstractCreateApiKeyRequest.getName())
                 .field("expiration", expiration != null ? expiration.toString() : null)
                 .startArray("role_descriptors");
-            for (RoleDescriptor roleDescriptor : createApiKeyRequest.getRoleDescriptors()) {
+            for (RoleDescriptor roleDescriptor : abstractCreateApiKeyRequest.getRoleDescriptors()) {
                 withRoleDescriptor(builder, roleDescriptor);
             }
             builder.endArray(); // role_descriptors
-            if (createApiKeyRequest.getMetadata() != null && createApiKeyRequest.getMetadata().isEmpty() == false) {
-                builder.field("metadata", createApiKeyRequest.getMetadata());
+            if (abstractCreateApiKeyRequest.getMetadata() != null && abstractCreateApiKeyRequest.getMetadata().isEmpty() == false) {
+                builder.field("metadata", abstractCreateApiKeyRequest.getMetadata());
             }
             builder.endObject(); // apikey
         }

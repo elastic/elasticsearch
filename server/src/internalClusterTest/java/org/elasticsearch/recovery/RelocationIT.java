@@ -668,9 +668,7 @@ public class RelocationIT extends ESIntegTestCase {
         logger.debug("--> blue nodes: [{}], red nodes: [{}]", blueNodes, redNodes);
         ensureStableCluster(halfNodes * 2);
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate(indexName)
+            indicesAdmin().prepareCreate(indexName)
                 .setSettings(
                     Settings.builder()
                         .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, halfNodes - 1))

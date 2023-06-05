@@ -17,6 +17,7 @@ import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
 import org.elasticsearch.action.search.SearchAction;
+import org.elasticsearch.action.search.SearchShardsAction;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.action.support.DestructiveOperations;
@@ -93,6 +94,7 @@ final class CrossClusterAccessServerTransportFilter extends ServerTransportFilte
                 RemoteClusterNodesAction.NAME,
                 SearchAction.NAME,
                 ClusterSearchShardsAction.NAME,
+                SearchShardsAction.NAME,
                 ResolveIndexAction.NAME,
                 FieldCapabilitiesAction.NAME,
                 FieldCapabilitiesAction.NAME + "[n]",

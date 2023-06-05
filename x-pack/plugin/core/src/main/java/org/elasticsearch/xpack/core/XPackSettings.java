@@ -93,6 +93,13 @@ public class XPackSettings {
         Setting.Property.NodeScope
     );
 
+    /** Setting for enabling or disabling universal profiling. Defaults to true. */
+    public static final Setting<Boolean> PROFILING_ENABLED = Setting.boolSetting(
+        "xpack.profiling.enabled",
+        true,
+        Setting.Property.NodeScope
+    );
+
     /** Setting for enabling or disabling enterprise search. Defaults to true. */
     public static final Setting<Boolean> ENTERPRISE_SEARCH_ENABLED = Setting.boolSetting(
         "xpack.ent_search.enabled",
@@ -318,6 +325,7 @@ public class XPackSettings {
         settings.add(SECURITY_ENABLED);
         settings.add(GRAPH_ENABLED);
         settings.add(MACHINE_LEARNING_ENABLED);
+        settings.add(PROFILING_ENABLED);
         settings.add(ENTERPRISE_SEARCH_ENABLED);
         settings.add(AUDIT_ENABLED);
         settings.add(WATCHER_ENABLED);

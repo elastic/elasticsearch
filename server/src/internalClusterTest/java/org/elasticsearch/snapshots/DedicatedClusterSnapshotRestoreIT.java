@@ -441,12 +441,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         ensureGreen("test-idx");
 
         Set<Integer> reusedShards = new HashSet<>();
-        List<RecoveryState> recoveryStates = client().admin()
-            .indices()
-            .prepareRecoveries("test-idx")
-            .get()
-            .shardRecoveryStates()
-            .get("test-idx");
+        List<RecoveryState> recoveryStates = indicesAdmin().prepareRecoveries("test-idx").get().shardRecoveryStates().get("test-idx");
         for (RecoveryState recoveryState : recoveryStates) {
             if (recoveryState.getIndex().reusedBytes() > 0) {
                 reusedShards.add(recoveryState.getShardId().getId());

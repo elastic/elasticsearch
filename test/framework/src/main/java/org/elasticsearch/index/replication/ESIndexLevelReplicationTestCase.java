@@ -41,6 +41,7 @@ import org.elasticsearch.action.support.replication.TransportWriteActionTestHelp
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -149,13 +150,12 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
     }
 
     protected DiscoveryNode getDiscoveryNode(String id) {
-        return new DiscoveryNode(
+        return TestDiscoveryNode.create(
             id,
             id,
             buildNewFakeTransportAddress(),
             Collections.emptyMap(),
-            Collections.singleton(DiscoveryNodeRole.DATA_ROLE),
-            Version.CURRENT
+            Collections.singleton(DiscoveryNodeRole.DATA_ROLE)
         );
     }
 

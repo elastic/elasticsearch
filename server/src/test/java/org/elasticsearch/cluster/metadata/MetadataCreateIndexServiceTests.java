@@ -152,9 +152,11 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         routingTableBuilder.addAsNew(metadata.index(name));
 
         RoutingTable routingTable = routingTableBuilder.build();
-        ClusterState clusterState = ClusterState.builder(
-            org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)
-        ).metadata(metadata).routingTable(routingTable).blocks(ClusterBlocks.builder().addBlocks(indexMetadata)).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(metadata)
+            .routingTable(routingTable)
+            .blocks(ClusterBlocks.builder().addBlocks(indexMetadata))
+            .build();
         return clusterState;
     }
 
@@ -593,10 +595,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
     private static void validateIndexName(MetadataCreateIndexService metadataCreateIndexService, String indexName, String errorMessage) {
         InvalidIndexNameException e = expectThrows(
             InvalidIndexNameException.class,
-            () -> MetadataCreateIndexService.validateIndexName(
-                indexName,
-                ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).build()
-            )
+            () -> MetadataCreateIndexService.validateIndexName(indexName, ClusterState.builder(ClusterName.DEFAULT).build())
         );
         assertThat(e.getMessage(), endsWith(errorMessage));
     }
@@ -699,9 +698,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             builder.settings(Settings.builder().put("template_setting", "value1"));
         });
         Metadata metadata = new Metadata.Builder().templates(Map.of("template_1", templateMetadata)).build();
-        ClusterState clusterState = ClusterState.builder(
-            org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)
-        ).metadata(metadata).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
         request.settings(Settings.builder().put("request_setting", "value2").build());
 
         Settings aggregatedIndexSettings = aggregateIndexSettings(

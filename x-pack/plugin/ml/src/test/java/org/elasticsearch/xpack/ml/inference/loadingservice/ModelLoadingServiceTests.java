@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.ml.inference.loadingservice;
 
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -15,9 +14,9 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -758,13 +757,12 @@ public class ModelLoadingServiceTests extends ESTestCase {
             .nodes(
                 DiscoveryNodes.builder()
                     .add(
-                        new DiscoveryNode(
+                        TestDiscoveryNode.create(
                             "node_name",
                             "node_id",
                             new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
                             Collections.emptyMap(),
-                            isIngestNode ? Collections.singleton(DiscoveryNodeRole.INGEST_ROLE) : Collections.emptySet(),
-                            Version.CURRENT
+                            isIngestNode ? Collections.singleton(DiscoveryNodeRole.INGEST_ROLE) : Collections.emptySet()
                         )
                     )
                     .localNodeId("node_id")

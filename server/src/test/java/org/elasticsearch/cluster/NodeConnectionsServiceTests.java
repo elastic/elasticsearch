@@ -78,9 +78,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         List<DiscoveryNode> nodes = new ArrayList<>();
         for (int i = randomIntBetween(20, 50); i > 0; i--) {
             Set<DiscoveryNodeRole> roles = new HashSet<>(randomSubsetOf(DiscoveryNodeRole.roles()));
-            nodes.add(
-                new DiscoveryNode("node_" + i, "" + i, buildNewFakeTransportAddress(), Collections.emptyMap(), roles, Version.CURRENT)
-            );
+            nodes.add(TestDiscoveryNode.create("node_" + i, "" + i, buildNewFakeTransportAddress(), Collections.emptyMap(), roles));
         }
         return nodes;
     }

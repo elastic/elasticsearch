@@ -259,27 +259,13 @@ public class QueryPhase {
                 );
             }
 
-            boolean timeoutSet = scrollContext == null
-                && searchContext.timeout() != null
-                && searchContext.timeout().equals(SearchService.NO_TIMEOUT) == false;
-
-            final Runnable timeoutRunnable;
-            if (timeoutSet) {
-                final long startTime = searchContext.getRelativeTimeInMillis();
-                final long timeout = searchContext.timeout().millis();
-                final long maxTime = startTime + timeout;
-                timeoutRunnable = searcher.addQueryCancellation(() -> {
-                    final long time = searchContext.getRelativeTimeInMillis();
-                    if (time > maxTime) {
-                        throw new TimeExceededException();
-                    }
-                });
-            } else {
-                timeoutRunnable = null;
+            final Runnable timeoutRunnable = getTimeoutCheck(searchContext);
+            if (timeoutRunnable != null) {
+                searcher.addQueryCancellation(timeoutRunnable);
             }
 
             try {
-                searchWithCollectorManager(searchContext, searcher, query, collectorManager, timeoutSet);
+                searchWithCollectorManager(searchContext, searcher, query, collectorManager, timeoutRunnable != null);
                 queryResult.topDocs(topDocsFactory.topDocsAndMaxScore(), topDocsFactory.sortValueFormats);
                 ExecutorService executor = searchContext.indexShard().getThreadPool().executor(ThreadPool.Names.SEARCH);
                 assert executor instanceof EWMATrackingEsThreadPoolExecutor
@@ -364,7 +350,34 @@ public class QueryPhase {
         return true;
     }
 
-    public static class TimeExceededException extends RuntimeException {}
+    public static Runnable getTimeoutCheck(SearchContext searchContext) {
+        boolean timeoutSet = searchContext.scrollContext() == null
+            && searchContext.timeout() != null
+            && searchContext.timeout().equals(SearchService.NO_TIMEOUT) == false;
+
+        if (timeoutSet) {
+            final long startTime = searchContext.getRelativeTimeInMillis();
+            final long timeout = searchContext.timeout().millis();
+            final long maxTime = startTime + timeout;
+            return () -> {
+                final long time = searchContext.getRelativeTimeInMillis();
+                if (time > maxTime) {
+                    throw new TimeExceededException();
+                }
+            };
+        } else {
+            return null;
+        }
+    }
+
+    private static class TimeExceededException extends RuntimeException {
+
+        @Override
+        public Throwable fillInStackTrace() {
+            // never re-thrown so we can save the expensive stacktrace
+            return this;
+        }
+    }
 
     private static final Collector EMPTY_COLLECTOR = new SimpleCollector() {
         @Override

@@ -60,6 +60,16 @@ public class ObjectMapper extends Mapper implements Cloneable {
         DynamicFieldsBuilder getDynamicFieldsBuilder() {
             throw new UnsupportedOperationException("Cannot create dynamic fields when dynamic is set to [" + this + "]");
         };
+
+        /**
+         * Get the root-level dynamic setting for a Mapping
+         *
+         * If no dynamic settings are explicitly configured, we default to {@link #TRUE}
+         */
+        static Dynamic getRootDynamic(MappingLookup mappingLookup) {
+            ObjectMapper.Dynamic rootDynamic = mappingLookup.getMapping().getRoot().dynamic;
+            return rootDynamic == null ? ObjectMapper.Dynamic.TRUE : rootDynamic;
+        }
     }
 
     public static class Builder extends Mapper.Builder {

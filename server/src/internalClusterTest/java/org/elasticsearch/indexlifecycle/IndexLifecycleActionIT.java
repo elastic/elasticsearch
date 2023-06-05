@@ -54,10 +54,7 @@ public class IndexLifecycleActionIT extends ESIntegTestCase {
         final String node1 = getLocalNodeId(server_1);
 
         logger.info("Creating index [test]");
-        CreateIndexResponse createIndexResponse = client().admin()
-            .indices()
-            .create(new CreateIndexRequest("test").settings(settings))
-            .actionGet();
+        CreateIndexResponse createIndexResponse = indicesAdmin().create(new CreateIndexRequest("test").settings(settings)).actionGet();
         assertAcked(createIndexResponse);
 
         ClusterState clusterState = client().admin().cluster().prepareState().get().getState();

@@ -498,7 +498,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
         if (proxyAddress == null || proxyAddress.isEmpty()) {
             TransportAddress transportAddress = new TransportAddress(parseConfiguredAddress(address));
             return new DiscoveryNode(
-                "",
+                null,
                 clusterAlias + "#" + transportAddress,
                 transportAddress,
                 Collections.emptyMap(),
@@ -509,7 +509,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
             TransportAddress transportAddress = new TransportAddress(parseConfiguredAddress(proxyAddress));
             String hostName = RemoteConnectionStrategy.parseHost(proxyAddress);
             return new DiscoveryNode(
-                "",
+                null,
                 clusterAlias + "#" + address,
                 UUIDs.randomBase64UUID(),
                 hostName,

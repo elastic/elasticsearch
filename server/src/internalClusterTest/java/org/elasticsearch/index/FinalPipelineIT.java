@@ -68,7 +68,7 @@ public class FinalPipelineIT extends ESIntegTestCase {
 
     @After
     public void cleanUpPipelines() {
-        client().admin().indices().prepareDelete("*").get();
+        indicesAdmin().prepareDelete("*").get();
 
         final GetPipelineResponse response = clusterAdmin().prepareGetPipeline("default_pipeline", "final_pipeline", "request_pipeline")
             .get();

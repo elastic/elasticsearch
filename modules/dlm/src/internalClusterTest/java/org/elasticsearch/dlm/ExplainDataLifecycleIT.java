@@ -120,7 +120,10 @@ public class ExplainDataLifecycleIT extends ESIntegTestCase {
                 assertThat(explainIndex.getIndexCreationDate(), notNullValue());
                 assertThat(explainIndex.getLifecycle(), notNullValue());
                 assertThat(explainIndex.getLifecycle().getDataRetention(), nullValue());
-                assertThat(explainIndex.getError(), nullValue());
+                if (internalCluster().numDataNodes() > 1) {
+                    // If the number of nodes is 1 then the cluster will be yellow so forcemerge will report an error if it has run
+                    assertThat(explainIndex.getError(), nullValue());
+                }
 
                 if (explainIndex.getIndex().equals(DataStream.getDefaultBackingIndexName(dataStreamName, 1))) {
                     // first generation index was rolled over
@@ -225,7 +228,15 @@ public class ExplainDataLifecycleIT extends ESIntegTestCase {
             ExplainDataLifecycleAction.Response response = client().execute(ExplainDataLifecycleAction.INSTANCE, explainIndicesRequest)
                 .actionGet();
             assertThat(response.getIndices().size(), is(1));
-            assertThat(response.getIndices().get(0).getError(), is(nullValue()));
+            if (internalCluster().numDataNodes() > 1) {
+                assertThat(response.getIndices().get(0).getError(), is(nullValue()));
+            } else {
+                /*
+                 * If there is only one node in the cluster then the replica shard will never be allocated. So forcemerge will never
+                 * succeed, and there will always be an error in the error store. This behavior is subject to change in the future.
+                 */
+                assertThat(response.getIndices().get(0).getError(), is(notNullValue()));
+            }
         });
     }
 
@@ -254,8 +265,10 @@ public class ExplainDataLifecycleIT extends ESIntegTestCase {
                 assertThat(explainIndex.getGenerationTime(System::currentTimeMillis), nullValue());
                 assertThat(explainIndex.getRolloverDate(), nullValue());
                 assertThat(explainIndex.getTimeSinceRollover(System::currentTimeMillis), nullValue());
-
-                assertThat(explainIndex.getError(), nullValue());
+                if (internalCluster().numDataNodes() > 1) {
+                    // If the number of nodes is 1 then the cluster will be yellow so forcemerge will report an error if it has run
+                    assertThat(explainIndex.getError(), nullValue());
+                }
             }
         });
     }

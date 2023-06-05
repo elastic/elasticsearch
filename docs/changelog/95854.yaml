@@ -1,0 +1,6 @@
+pr: 95854
+summary: Fix 0 default value for repo snapshot speed
+area: Snapshot/Restore
+type: bug
+issues:
+ - 95561

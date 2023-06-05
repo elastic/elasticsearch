@@ -28,13 +28,13 @@ import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
 import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
 import org.elasticsearch.xpack.core.ccr.action.ShardFollowTask;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 public class TransportFollowStatsAction extends TransportTasksAction<
@@ -98,17 +98,19 @@ public class TransportFollowStatsAction extends TransportTasksAction<
     }
 
     @Override
-    protected void processTasks(final FollowStatsAction.StatsRequest request, final Consumer<ShardFollowNodeTask> operation) {
+    protected List<ShardFollowNodeTask> processTasks(final FollowStatsAction.StatsRequest request) {
         final ClusterState state = clusterService.state();
         final Set<String> followerIndices = findFollowerIndicesFromShardFollowTasks(state, request.indices());
 
+        final var tasks = new ArrayList<ShardFollowNodeTask>();
         for (final Task task : taskManager.getTasks().values()) {
             if (task instanceof final ShardFollowNodeTask shardFollowNodeTask) {
                 if (followerIndices.contains(shardFollowNodeTask.getFollowShardId().getIndexName())) {
-                    operation.accept(shardFollowNodeTask);
+                    tasks.add(shardFollowNodeTask);
                 }
             }
         }
+        return tasks;
     }
 
     @Override

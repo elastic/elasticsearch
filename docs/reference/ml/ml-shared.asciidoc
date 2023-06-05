@@ -498,6 +498,10 @@ that document will not be used for training, but a prediction with the trained
 model will be generated for it. It is also known as continuous target variable.
 end::dependent-variable[]
 
+tag::deployment-id[]
+A unique identifier for the deployment of the model.
+end::deployment-id[]
+
 tag::desc-results[]
 If true, the results are sorted in descending order.
 end::desc-results[]

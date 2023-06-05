@@ -304,7 +304,7 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
                                 modelId,
                                 modelSizeStats,
                                 ingestStats,
-                                ingestStats == null ? 0 : ingestStats.getPipelineStats().size(),
+                                ingestStats == null ? 0 : ingestStats.pipelineStats().size(),
                                 inferenceStats,
                                 null // no assignment stats for undeployed models
                             )
@@ -327,7 +327,7 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
                                     modelId,
                                     modelSizeStats,
                                     ingestStats,
-                                    ingestStats == null ? 0 : ingestStats.getPipelineStats().size(),
+                                    ingestStats == null ? 0 : ingestStats.pipelineStats().size(),
                                     inferenceStats,
                                     assignmentStats
                                 )

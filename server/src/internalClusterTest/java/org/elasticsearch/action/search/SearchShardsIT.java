@@ -8,20 +8,35 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
+import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.transport.TransportService;
+
+import java.util.Collection;
+import java.util.Queue;
 
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 
 public class SearchShardsIT extends ESIntegTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return CollectionUtils.appendToCopy(super.nodePlugins(), MockTransportService.TestPlugin.class);
+    }
 
     public void testBasic() {
         int indicesWithData = between(1, 10);
@@ -52,7 +67,8 @@ public class SearchShardsIT extends ESIntegTestCase {
                 rangeQuery,
                 null,
                 null,
-                randomBoolean()
+                randomBoolean(),
+                randomBoolean() ? null : randomAlphaOfLength(10)
             );
             var resp = client().execute(SearchShardsAction.INSTANCE, request).actionGet();
             assertThat(resp.getGroups(), hasSize(indicesWithData + indicesWithoutData));
@@ -60,7 +76,6 @@ public class SearchShardsIT extends ESIntegTestCase {
             for (SearchShardsGroup g : resp.getGroups()) {
                 String indexName = g.shardId().getIndexName();
                 assertThat(g.allocatedNodes(), not(empty()));
-                assertTrue(g.preFiltered());
                 if (indexName.contains("without")) {
                     assertTrue(g.skipped());
                     skipped++;
@@ -79,13 +94,13 @@ public class SearchShardsIT extends ESIntegTestCase {
                 matchAll,
                 null,
                 null,
-                randomBoolean()
+                randomBoolean(),
+                randomBoolean() ? null : randomAlphaOfLength(10)
             );
             SearchShardsResponse resp = client().execute(SearchShardsAction.INSTANCE, request).actionGet();
             assertThat(resp.getGroups(), hasSize(indicesWithData + indicesWithoutData));
             for (SearchShardsGroup g : resp.getGroups()) {
                 assertFalse(g.skipped());
-                assertTrue(g.preFiltered());
             }
         }
     }
@@ -120,13 +135,65 @@ public class SearchShardsIT extends ESIntegTestCase {
                 rangeQuery,
                 null,
                 preference,
-                randomBoolean()
+                randomBoolean(),
+                randomBoolean() ? null : randomAlphaOfLength(10)
             );
             var searchShardsResponse = client().execute(SearchShardsAction.INSTANCE, searchShardsRequest).actionGet();
 
             assertThat(searchShardsResponse.getGroups(), hasSize(searchResponse.getTotalShards()));
             long skippedShards = searchShardsResponse.getGroups().stream().filter(SearchShardsGroup::skipped).count();
             assertThat(skippedShards, equalTo((long) searchResponse.getSkippedShards()));
+        }
+    }
+
+    public void testNoCanMatchWithoutQuery() {
+        Queue<CanMatchNodeRequest> canMatchRequests = ConcurrentCollections.newQueue();
+        for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
+            MockTransportService ts = (MockTransportService) transportService;
+            ts.addSendBehavior((connection, requestId, action, request, options) -> {
+                if (action.equals(SearchTransportService.QUERY_CAN_MATCH_NODE_NAME)) {
+                    canMatchRequests.add((CanMatchNodeRequest) request);
+                }
+                connection.sendRequest(requestId, action, request, options);
+            });
+        }
+        try {
+            int numIndices = randomIntBetween(1, 10);
+            int totalShards = 0;
+            for (int i = 0; i < numIndices; i++) {
+                String index = "index-" + i;
+                int numShards = between(1, 5);
+                ElasticsearchAssertions.assertAcked(
+                    admin().indices()
+                        .prepareCreate(index)
+                        .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards))
+                );
+                totalShards += numShards;
+                int numDocs = randomIntBetween(10, 100);
+                for (int j = 0; j < numDocs; j++) {
+                    client().prepareIndex(index).setSource("value", i).setId(Integer.toString(i)).get();
+                }
+                client().admin().indices().prepareRefresh(index).get();
+            }
+            SearchShardsRequest request = new SearchShardsRequest(
+                new String[] { "index-*" },
+                IndicesOptions.LENIENT_EXPAND_OPEN,
+                randomBoolean() ? new MatchAllQueryBuilder() : null,
+                null,
+                null,
+                randomBoolean(),
+                null
+            );
+            SearchShardsResponse resp = client().execute(SearchShardsAction.INSTANCE, request).actionGet();
+            assertThat(resp.getGroups(), hasSize(totalShards));
+            for (SearchShardsGroup group : resp.getGroups()) {
+                assertFalse(group.skipped());
+            }
+            assertThat(canMatchRequests, emptyIterable());
+        } finally {
+            for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
+                ((MockTransportService) transportService).clearAllRules();
+            }
         }
     }
 }

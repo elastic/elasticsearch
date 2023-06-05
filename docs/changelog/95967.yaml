@@ -1,0 +1,5 @@
+pr: 95967
+summary: Upgrade Lucene to the final 9.6.0 release
+area: Search
+type: upgrade
+issues: []

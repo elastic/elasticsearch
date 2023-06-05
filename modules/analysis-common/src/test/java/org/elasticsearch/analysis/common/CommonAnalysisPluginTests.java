@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.analysis.common.synonyms.SynonymsManagementAPIService.SYNONYMS_INDEX;
+import static org.elasticsearch.analysis.common.synonyms.SynonymsManagementAPIService.isEnabled;
 
 public class CommonAnalysisPluginTests extends ESTestCase {
 
@@ -225,6 +226,7 @@ public class CommonAnalysisPluginTests extends ESTestCase {
     }
 
     public void testSystemSynonymsIndexName() {
+        assumeTrue("This test should only run with enabled synonyms feature flag", isEnabled());
         assertEquals(
             List.of(SYNONYMS_INDEX),
             new CommonAnalysisPlugin().getSystemIndexDescriptors(Settings.EMPTY)

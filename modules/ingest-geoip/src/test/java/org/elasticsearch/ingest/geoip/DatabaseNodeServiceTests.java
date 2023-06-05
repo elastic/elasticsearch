@@ -23,7 +23,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.node.TestDiscoveryNode;
@@ -192,13 +191,12 @@ public class DatabaseNodeServiceTests extends ESTestCase {
         ClusterState state = ClusterState.builder(createClusterState(tasksCustomMetadata))
             .nodes(
                 new DiscoveryNodes.Builder().add(
-                    new DiscoveryNode(
+                    TestDiscoveryNode.create(
                         "_name1",
                         "_id1",
                         buildNewFakeTransportAddress(),
                         Map.of(),
-                        Set.of(DiscoveryNodeRole.MASTER_ROLE),
-                        Version.CURRENT
+                        Set.of(DiscoveryNodeRole.MASTER_ROLE)
                     )
                 ).localNodeId("_id1")
             )

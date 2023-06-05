@@ -8,7 +8,6 @@
 
 package org.elasticsearch.cluster.node;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -51,10 +50,10 @@ public class DiscoveryNodeFiltersTests extends ESTestCase {
         Settings settings = Settings.builder().put("xxx.name", "name1").build();
         DiscoveryNodeFilters filters = buildFromSettings(OR, "xxx.", settings);
 
-        DiscoveryNode node = new DiscoveryNode("name1", "id1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        DiscoveryNode node = TestDiscoveryNode.create("name1", "id1", buildNewFakeTransportAddress(), emptyMap(), emptySet());
         assertThat(filters.match(node), equalTo(true));
 
-        node = new DiscoveryNode("name2", "id2", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        node = TestDiscoveryNode.create("name2", "id2", buildNewFakeTransportAddress(), emptyMap(), emptySet());
         assertThat(filters.match(node), equalTo(false));
     }
 
@@ -62,10 +61,10 @@ public class DiscoveryNodeFiltersTests extends ESTestCase {
         Settings settings = Settings.builder().put("xxx._id", "id1").build();
         DiscoveryNodeFilters filters = buildFromSettings(OR, "xxx.", settings);
 
-        DiscoveryNode node = new DiscoveryNode("name1", "id1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        DiscoveryNode node = TestDiscoveryNode.create("name1", "id1", buildNewFakeTransportAddress(), emptyMap(), emptySet());
         assertThat(filters.match(node), equalTo(true));
 
-        node = new DiscoveryNode("name2", "id2", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        node = TestDiscoveryNode.create("name2", "id2", buildNewFakeTransportAddress(), emptyMap(), emptySet());
         assertThat(filters.match(node), equalTo(false));
     }
 
@@ -73,14 +72,13 @@ public class DiscoveryNodeFiltersTests extends ESTestCase {
         Settings settings = shuffleSettings(Settings.builder().put("xxx._id", "id1,blah").put("xxx.name", "blah,name2").build());
         DiscoveryNodeFilters filters = buildFromSettings(OR, "xxx.", settings);
 
-        final Version version = Version.CURRENT;
-        DiscoveryNode node = new DiscoveryNode("name1", "id1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), version);
+        DiscoveryNode node = new DiscoveryNode("name1", "id1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), null);
         assertThat(filters.match(node), equalTo(true));
 
-        node = new DiscoveryNode("name2", "id2", buildNewFakeTransportAddress(), emptyMap(), emptySet(), version);
+        node = new DiscoveryNode("name2", "id2", buildNewFakeTransportAddress(), emptyMap(), emptySet(), null);
         assertThat(filters.match(node), equalTo(true));
 
-        node = new DiscoveryNode("name3", "id3", buildNewFakeTransportAddress(), emptyMap(), emptySet(), version);
+        node = new DiscoveryNode("name3", "id3", buildNewFakeTransportAddress(), emptyMap(), emptySet(), null);
         assertThat(filters.match(node), equalTo(false));
     }
 
@@ -91,24 +89,24 @@ public class DiscoveryNodeFiltersTests extends ESTestCase {
         Map<String, String> attributes = new HashMap<>();
         attributes.put("tag", "A");
         attributes.put("group", "B");
-        DiscoveryNode node = new DiscoveryNode("name1", "id1", buildNewFakeTransportAddress(), attributes, emptySet(), Version.CURRENT);
+        DiscoveryNode node = TestDiscoveryNode.create("name1", "id1", buildNewFakeTransportAddress(), attributes, emptySet());
         assertThat(filters.match(node), equalTo(true));
 
         attributes = new HashMap<>();
         attributes.put("tag", "A");
         attributes.put("group", "B");
         attributes.put("name", "X");
-        node = new DiscoveryNode("name2", "id2", buildNewFakeTransportAddress(), attributes, emptySet(), Version.CURRENT);
+        node = TestDiscoveryNode.create("name2", "id2", buildNewFakeTransportAddress(), attributes, emptySet());
         assertThat(filters.match(node), equalTo(true));
 
         attributes = new HashMap<>();
         attributes.put("tag", "A");
         attributes.put("group", "F");
         attributes.put("name", "X");
-        node = new DiscoveryNode("name3", "id3", buildNewFakeTransportAddress(), attributes, emptySet(), Version.CURRENT);
+        node = TestDiscoveryNode.create("name3", "id3", buildNewFakeTransportAddress(), attributes, emptySet());
         assertThat(filters.match(node), equalTo(false));
 
-        node = new DiscoveryNode("name4", "id4", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        node = TestDiscoveryNode.create("name4", "id4", buildNewFakeTransportAddress(), emptyMap(), emptySet());
         assertThat(filters.match(node), equalTo(false));
     }
 
@@ -116,7 +114,7 @@ public class DiscoveryNodeFiltersTests extends ESTestCase {
         Settings settings = Settings.builder().put("xxx.name", "*").build();
         DiscoveryNodeFilters filters = buildFromSettings(OR, "xxx.", settings);
 
-        DiscoveryNode node = new DiscoveryNode("name1", "id1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        DiscoveryNode node = TestDiscoveryNode.create("name1", "id1", buildNewFakeTransportAddress(), emptyMap(), emptySet());
         assertThat(filters.match(node), equalTo(true));
     }
 

@@ -23,6 +23,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class TransformUpdateIT extends TransformRestTestCase {
 
@@ -146,6 +147,24 @@ public class TransformUpdateIT extends TransformRestTestCase {
 
     public void testUpdateTransferRightsSecondaryAuthHeaders() throws Exception {
         updateTransferRightsTester(true);
+    }
+
+    public void testUpdateThatChangesSettingsButNotHeaders() throws Exception {
+        String transformId = "test_update_that_changes_settings";
+        String destIndex = transformId + "-dest";
+
+        // Create the transform
+        createPivotReviewsTransform(transformId, destIndex, null, null, null);
+
+        Request updateTransformRequest = createRequestWithAuth("POST", getTransformEndpoint() + transformId + "/_update", null);
+        updateTransformRequest.setJsonEntity("""
+            { "settings": { "max_page_search_size": 123 } }""");
+
+        // Update the transform's settings
+        Map<String, Object> updatedConfig = entityAsMap(client().performRequest(updateTransformRequest));
+
+        // Verify that the settings got updated
+        assertThat(updatedConfig.get("settings"), is(equalTo(Map.of("max_page_search_size", 123))));
     }
 
     private void updateTransferRightsTester(boolean useSecondaryAuthHeaders) throws Exception {

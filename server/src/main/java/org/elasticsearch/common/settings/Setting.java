@@ -1644,6 +1644,7 @@ public class Setting<T> implements ToXContentObject {
         return new ListSetting<>(key, null, s -> defValue, Setting::parseableStringToList, v -> {}, properties) {
             @Override
             public List<String> get(Settings settings) {
+                checkDeprecation(settings);
                 return settings.getAsList(getKey(), defValue);
             }
         };

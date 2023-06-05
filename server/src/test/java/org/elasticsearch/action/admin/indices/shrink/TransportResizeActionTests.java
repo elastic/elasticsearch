@@ -64,7 +64,7 @@ public class TransportResizeActionTests extends ESTestCase {
         routingTableBuilder.addAsNew(metadata.index(name));
 
         RoutingTable routingTable = routingTableBuilder.build();
-        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(metadata)
             .routingTable(routingTable)
             .blocks(ClusterBlocks.builder().addBlocks(indexMetadata))

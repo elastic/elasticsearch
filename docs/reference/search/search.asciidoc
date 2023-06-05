@@ -102,6 +102,7 @@ Defaults to `open`.
 (Optional, Boolean) If `true`, returns detailed information about score
 computation as part of a hit. Defaults to `false`.
 
+[[search-from-param]]
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=from]
 +
 By default, you cannot page through more than 10,000 hits using the `from` and
@@ -231,6 +232,7 @@ searches.
 (Optional, Boolean) If `true`, returns sequence number and primary term of the
 last modification of each hit. See <<optimistic-concurrency-control>>.
 
+[[search-size-param]]
 `size`::
 (Optional, integer) Defines the number of hits to return. Defaults to `10`.
 +
@@ -238,6 +240,7 @@ By default, you cannot page through more than 10,000 hits using the `from` and
 `size` parameters. To page through more hits, use the
 <<search-after,`search_after`>> parameter.
 
+[[search-sort-param]]
 `sort`::
 (Optional, string) A comma-separated list of <field>:<direction> pairs.
 
@@ -527,6 +530,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn-similarity]
 Minimum <<relevance-scores,`_score`>> for matching documents. Documents with a
 lower `_score` are not included in the search results.
 
+[[search-api-pit]]
 `pit`::
 (Optional, object)
 Limits the search to a <<point-in-time-api,point in time (PIT)>>. If you provide
@@ -552,8 +556,11 @@ Period of time used to extend the life of the PIT.
 
 [[request-body-rank]]
 `rank`::
-(Optional, object) Defines a method for combining and ranking `1` standard query
-with `1..n` knn searches or no standard query with `2..n` knn searches.
+(Optional, object) Defines a method for combining and ranking result sets from
+either:
++
+* 1 query and 1 or more kNN searches
+* 2 or more kNN searches
 +
 .Ranking methods
 [%collapsible%open]

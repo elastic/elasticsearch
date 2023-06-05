@@ -53,7 +53,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -335,43 +334,6 @@ public class AllocationService {
     }
 
     /**
-     * Removes delay markers from unassigned shards based on current time stamp.
-     */
-    private void removeDelayMarkers(RoutingAllocation allocation) {
-        final RoutingNodes.UnassignedShards.UnassignedIterator unassignedIterator = allocation.routingNodes().unassigned().iterator();
-        final Metadata metadata = allocation.metadata();
-        while (unassignedIterator.hasNext()) {
-            ShardRouting shardRouting = unassignedIterator.next();
-            UnassignedInfo unassignedInfo = shardRouting.unassignedInfo();
-            if (unassignedInfo.isDelayed()) {
-                final long newComputedLeftDelayNanos = unassignedInfo.getRemainingDelay(
-                    allocation.getCurrentNanoTime(),
-                    metadata.getIndexSafe(shardRouting.index()).getSettings(),
-                    metadata.nodeShutdowns()
-                );
-                if (newComputedLeftDelayNanos == 0) {
-                    unassignedIterator.updateUnassigned(
-                        new UnassignedInfo(
-                            unassignedInfo.getReason(),
-                            unassignedInfo.getMessage(),
-                            unassignedInfo.getFailure(),
-                            unassignedInfo.getNumFailedAllocations(),
-                            unassignedInfo.getUnassignedTimeInNanos(),
-                            unassignedInfo.getUnassignedTimeInMillis(),
-                            false,
-                            unassignedInfo.getLastAllocationStatus(),
-                            unassignedInfo.getFailedNodeIds(),
-                            unassignedInfo.getLastAllocatedNodeId()
-                        ),
-                        shardRouting.recoverySource(),
-                        allocation.changes()
-                    );
-                }
-            }
-        }
-    }
-
-    /**
      * Internal helper to cap the number of elements in a potentially long list for logging.
      *
      * @param elements  The elements to log. May be any non-null list. Must not be null.
@@ -443,18 +405,60 @@ public class AllocationService {
      *
      * @return an updated cluster state, or the same instance that was passed as an argument if no changes were made.
      */
-    public ClusterState executeWithRoutingAllocation(
-        ClusterState clusterState,
-        String reason,
-        Consumer<RoutingAllocation> routingAllocationConsumer
-    ) {
+    public ClusterState executeWithRoutingAllocation(ClusterState clusterState, String reason, RerouteStrategy rerouteStrategy) {
         ClusterState fixedClusterState = adaptAutoExpandReplicas(clusterState);
         RoutingAllocation allocation = createRoutingAllocation(fixedClusterState, currentNanoTime());
-        reroute(allocation, routingAllocationConsumer);
+        reroute(allocation, rerouteStrategy);
         if (fixedClusterState == clusterState && allocation.routingNodesChanged() == false) {
             return clusterState;
         }
         return buildResultAndLogHealthChange(clusterState, allocation, reason);
+    }
+
+    @FunctionalInterface
+    public interface RerouteStrategy {
+
+        /**
+         * Removes delay markers from unassigned shards based on current time stamp.
+         */
+        default void removeDelayMarkers(RoutingAllocation allocation) {
+            final RoutingNodes.UnassignedShards.UnassignedIterator unassignedIterator = allocation.routingNodes().unassigned().iterator();
+            final Metadata metadata = allocation.metadata();
+            while (unassignedIterator.hasNext()) {
+                ShardRouting shardRouting = unassignedIterator.next();
+                UnassignedInfo unassignedInfo = shardRouting.unassignedInfo();
+                if (unassignedInfo.isDelayed()) {
+                    final long newComputedLeftDelayNanos = unassignedInfo.getRemainingDelay(
+                        allocation.getCurrentNanoTime(),
+                        metadata.getIndexSafe(shardRouting.index()).getSettings(),
+                        metadata.nodeShutdowns()
+                    );
+                    if (newComputedLeftDelayNanos == 0) {
+                        unassignedIterator.updateUnassigned(
+                            new UnassignedInfo(
+                                unassignedInfo.getReason(),
+                                unassignedInfo.getMessage(),
+                                unassignedInfo.getFailure(),
+                                unassignedInfo.getNumFailedAllocations(),
+                                unassignedInfo.getUnassignedTimeInNanos(),
+                                unassignedInfo.getUnassignedTimeInMillis(),
+                                false,
+                                unassignedInfo.getLastAllocationStatus(),
+                                unassignedInfo.getFailedNodeIds(),
+                                unassignedInfo.getLastAllocatedNodeId()
+                            ),
+                            shardRouting.recoverySource(),
+                            allocation.changes()
+                        );
+                    }
+                }
+            }
+        }
+
+        /**
+         * Generic action to be executed on preconfigured allocation
+         */
+        void execute(RoutingAllocation allocation);
     }
 
     private static void logClusterHealthStateChange(final ClusterState previousState, final ClusterState newState, String reason) {
@@ -515,16 +519,14 @@ public class AllocationService {
         return false;
     }
 
-    private void reroute(RoutingAllocation allocation, Consumer<RoutingAllocation> routingAllocationConsumer) {
+    private void reroute(RoutingAllocation allocation, RerouteStrategy rerouteStrategy) {
         assert hasDeadNodes(allocation) == false : "dead nodes should be explicitly cleaned up. See disassociateDeadNodes";
         assert AutoExpandReplicas.getAutoExpandReplicaChanges(allocation.metadata(), () -> allocation).isEmpty()
             : "auto-expand replicas out of sync with number of nodes in the cluster";
         assert assertInitialized();
-
-        removeDelayMarkers(allocation);
-
-        allocateExistingUnassignedShards(allocation);  // try to allocate existing shard copies first
-        routingAllocationConsumer.accept(allocation);
+        rerouteStrategy.removeDelayMarkers(allocation);
+        allocateExistingUnassignedShards(allocation); // try to allocate existing shard copies first
+        rerouteStrategy.execute(allocation);
         assert RoutingNodes.assertShardStats(allocation.routingNodes());
     }
 

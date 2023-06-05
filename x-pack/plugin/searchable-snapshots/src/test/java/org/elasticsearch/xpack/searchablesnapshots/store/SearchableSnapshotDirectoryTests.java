@@ -69,7 +69,6 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
@@ -675,7 +674,7 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
                     )
                 ) {
                     final PlainActionFuture<Void> f = PlainActionFuture.newFuture();
-                    final boolean loaded = snapshotDirectory.loadSnapshot(recoveryState, f);
+                    final boolean loaded = snapshotDirectory.loadSnapshot(recoveryState, store::isClosing, f);
                     try {
                         f.get();
                     } catch (ExecutionException e) {
@@ -734,7 +733,7 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
                 randomFiles.add(
                     new BlobStoreIndexShardSnapshot.FileInfo(
                         blobName,
-                        new StoreFileMetadata(fileName, input.length, checksum, IndexVersion.CURRENT.luceneVersion().toString()),
+                        new StoreFileMetadata(fileName, input.length, checksum, Version.CURRENT.luceneVersion().toString()),
                         ByteSizeValue.ofBytes(input.length)
                     )
                 );
@@ -780,7 +779,7 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
             ) {
                 final RecoveryState recoveryState = createRecoveryState(randomBoolean());
                 final PlainActionFuture<Void> f = PlainActionFuture.newFuture();
-                final boolean loaded = directory.loadSnapshot(recoveryState, f);
+                final boolean loaded = directory.loadSnapshot(recoveryState, () -> false, f);
                 f.get();
                 assertThat("Failed to load snapshot", loaded, is(true));
                 assertThat("Snapshot should be loaded", directory.snapshot(), sameInstance(snapshot));

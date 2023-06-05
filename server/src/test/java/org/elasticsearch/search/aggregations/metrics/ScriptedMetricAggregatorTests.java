@@ -12,7 +12,6 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
@@ -284,7 +283,7 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
                 // intentionally not writing any docs
             }
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
+            try (DirectoryReader indexReader = DirectoryReader.open(directory)) {
                 ScriptedMetricAggregationBuilder aggregationBuilder = new ScriptedMetricAggregationBuilder(AGG_NAME);
                 aggregationBuilder.mapScript(MAP_SCRIPT).combineScript(COMBINE_SCRIPT_NOOP).reduceScript(REDUCE_SCRIPT);
                 ScriptedMetric scriptedMetric = searchAndReduce(newIndexSearcher(indexReader), new AggTestConfig(aggregationBuilder));
@@ -303,7 +302,7 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
                     indexWriter.addDocument(singleton(new SortedNumericDocValuesField("number", i)));
                 }
             }
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
+            try (DirectoryReader indexReader = DirectoryReader.open(directory)) {
                 ScriptedMetricAggregationBuilder aggregationBuilder = new ScriptedMetricAggregationBuilder(AGG_NAME);
                 aggregationBuilder.initScript(INIT_SCRIPT).mapScript(MAP_SCRIPT).reduceScript(REDUCE_SCRIPT);
                 IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> {
@@ -322,7 +321,7 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
                     indexWriter.addDocument(singleton(new SortedNumericDocValuesField("number", i)));
                 }
             }
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
+            try (DirectoryReader indexReader = DirectoryReader.open(directory)) {
                 ScriptedMetricAggregationBuilder aggregationBuilder = new ScriptedMetricAggregationBuilder(AGG_NAME);
                 aggregationBuilder.initScript(INIT_SCRIPT).mapScript(MAP_SCRIPT).combineScript(COMBINE_SCRIPT);
                 IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> {
@@ -344,7 +343,7 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
                     indexWriter.addDocument(singleton(new SortedNumericDocValuesField("number", i)));
                 }
             }
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
+            try (DirectoryReader indexReader = DirectoryReader.open(directory)) {
                 ScriptedMetricAggregationBuilder aggregationBuilder = new ScriptedMetricAggregationBuilder(AGG_NAME);
                 aggregationBuilder.initScript(INIT_SCRIPT).mapScript(MAP_SCRIPT).combineScript(COMBINE_SCRIPT).reduceScript(REDUCE_SCRIPT);
                 ScriptedMetric scriptedMetric = searchAndReduce(newIndexSearcher(indexReader), new AggTestConfig(aggregationBuilder));
@@ -366,7 +365,7 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
                     indexWriter.addDocument(singleton(new SortedNumericDocValuesField("number", i)));
                 }
             }
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
+            try (DirectoryReader indexReader = DirectoryReader.open(directory)) {
                 ScriptedMetricAggregationBuilder aggregationBuilder = new ScriptedMetricAggregationBuilder(AGG_NAME);
                 aggregationBuilder.initScript(INIT_SCRIPT_SCORE)
                     .mapScript(MAP_SCRIPT_SCORE)
@@ -391,7 +390,7 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
                 indexWriter.forceMerge(1);
             }
 
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
+            try (DirectoryReader indexReader = DirectoryReader.open(directory)) {
                 ScriptedMetricAggregationBuilder aggregationBuilder = new ScriptedMetricAggregationBuilder(AGG_NAME);
                 aggregationBuilder.initScript(INIT_SCRIPT_PARAMS)
                     .mapScript(MAP_SCRIPT_PARAMS)
@@ -417,7 +416,7 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
                 }
             }
 
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
+            try (DirectoryReader indexReader = DirectoryReader.open(directory)) {
                 ScriptedMetricAggregationBuilder aggregationBuilder = new ScriptedMetricAggregationBuilder(AGG_NAME);
                 aggregationBuilder.params(Collections.singletonMap("aggs_param", 1))
                     .initScript(INIT_SCRIPT_PARAMS)
@@ -443,7 +442,7 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
                 }
             }
 
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
+            try (DirectoryReader indexReader = DirectoryReader.open(directory)) {
                 ScriptedMetricAggregationBuilder aggregationBuilder = new ScriptedMetricAggregationBuilder(AGG_NAME);
                 Map<String, Object> aggParams = Collections.singletonMap(CONFLICTING_PARAM_NAME, "blah");
                 aggregationBuilder.params(aggParams)
@@ -468,7 +467,7 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
                 // No need to add docs for this test
             }
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
+            try (DirectoryReader indexReader = DirectoryReader.open(directory)) {
                 ScriptedMetricAggregationBuilder aggregationBuilder = new ScriptedMetricAggregationBuilder(AGG_NAME);
                 aggregationBuilder.initScript(INIT_SCRIPT_SELF_REF)
                     .mapScript(MAP_SCRIPT)
@@ -491,7 +490,7 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
                     indexWriter.addDocument(singleton(new SortedNumericDocValuesField("number", i)));
                 }
             }
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
+            try (DirectoryReader indexReader = DirectoryReader.open(directory)) {
                 ScriptedMetricAggregationBuilder aggregationBuilder = new ScriptedMetricAggregationBuilder(AGG_NAME);
                 aggregationBuilder.initScript(INIT_SCRIPT)
                     .mapScript(MAP_SCRIPT_SELF_REF)
@@ -511,7 +510,7 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
                 // No need to add docs for this test
             }
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
+            try (DirectoryReader indexReader = DirectoryReader.open(directory)) {
                 ScriptedMetricAggregationBuilder aggregationBuilder = new ScriptedMetricAggregationBuilder(AGG_NAME);
                 aggregationBuilder.initScript(INIT_SCRIPT)
                     .mapScript(MAP_SCRIPT)

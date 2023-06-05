@@ -451,7 +451,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         }
         var now = System.nanoTime();
         var restartingAllocationDelayExpiration = info.getUnassignedTimeInNanos() + shutdown.getAllocationDelay().nanos();
-        return now <= restartingAllocationDelayExpiration;
+        return now - restartingAllocationDelayExpiration <= 0;
     }
 
     private static boolean isUnassignedDueToNewInitialization(ShardRouting routing) {

@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -89,7 +88,7 @@ public class GetDatafeedStatsActionResponseTests extends AbstractWireSerializing
         attributes.put("non-ml-attribute", "should be filtered out");
         TransportAddress transportAddress = new TransportAddress(TransportAddress.META_ADDRESS, 9000);
 
-        DiscoveryNode node = new DiscoveryNode("df-node-name", "df-node-id", transportAddress, attributes, Set.of(), Version.CURRENT);
+        DiscoveryNode node = TestDiscoveryNode.create("df-node-name", "df-node-id", transportAddress, attributes, Set.of());
 
         DatafeedTimingStats timingStats = new DatafeedTimingStats(
             "my-job-id",

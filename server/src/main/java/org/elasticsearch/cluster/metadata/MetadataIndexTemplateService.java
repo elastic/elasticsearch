@@ -91,7 +91,9 @@ public class MetadataIndexTemplateService {
     static {
         final Map<String, Map<String, String>> defaultTimestampField = Map.of(
             DEFAULT_TIMESTAMP_FIELD,
-            Map.of("type", DateFieldMapper.CONTENT_TYPE)
+            // We inject ignore_malformed false so that if a user does not add the timestamp field it will explicitly skip applying any
+            // other ignore_malformed configurations from the index settings.
+            Map.of("type", DateFieldMapper.CONTENT_TYPE, "ignore_malformed", "false")
         );
         try {
             DEFAULT_TIMESTAMP_MAPPING = new CompressedXContent(
@@ -1421,19 +1423,22 @@ public class MetadataIndexTemplateService {
     public static DataLifecycle resolveLifecycle(ComposableIndexTemplate template, Map<String, ComponentTemplate> componentTemplates) {
         Objects.requireNonNull(template, "attempted to resolve lifecycle for a null template");
         Objects.requireNonNull(componentTemplates, "attempted to resolve lifecycle with null component templates");
-        // The actual index template's lifecycle takes the highest precedence.
-        if (template.template() != null && template.template().lifecycle() != null) {
-            return template.template().lifecycle();
+
+        List<DataLifecycle> lifecycles = new ArrayList<>();
+        for (String componentTemplateName : template.composedOf()) {
+            if (componentTemplates.containsKey(componentTemplateName) == false) {
+                continue;
+            }
+            DataLifecycle dataLifecycle = componentTemplates.get(componentTemplateName).template().lifecycle();
+            if (dataLifecycle != null) {
+                lifecycles.add(dataLifecycle);
+            }
         }
-        List<DataLifecycle> componentLifecycle = template.composedOf()
-            .stream()
-            .map(componentTemplates::get)
-            .filter(Objects::nonNull)
-            .map(ComponentTemplate::template)
-            .map(Template::lifecycle)
-            .filter(Objects::nonNull)
-            .toList();
-        return componentLifecycle.isEmpty() ? null : componentLifecycle.get(componentLifecycle.size() - 1);
+        // The actual index template's lifecycle has the highest precedence.
+        if (template.template() != null && template.template().lifecycle() != null) {
+            lifecycles.add(template.template().lifecycle());
+        }
+        return DataLifecycle.compose(lifecycles);
     }
 
     /**

@@ -19,6 +19,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslConfiguration;
@@ -170,6 +171,6 @@ public class TransportNodeEnrollmentActionTests extends ESTestCase {
     }
 
     private DiscoveryNode node(final int id) {
-        return new DiscoveryNode("node-" + id, Integer.toString(id), buildNewFakeTransportAddress(), Map.of(), Set.of(), Version.CURRENT);
+        return TestDiscoveryNode.create("node-" + id, Integer.toString(id), buildNewFakeTransportAddress(), Map.of(), Set.of());
     }
 }

@@ -9,7 +9,7 @@
   "ignore_missing_component_templates": ["syslog@custom"],
   "allow_auto_create": true,
   "_meta": {
-    "description": "default logs template installed by x-pack",
+    "description": "syslog test settings",
     "managed": true
   },
   "version": ${xpack.stack.template.version}

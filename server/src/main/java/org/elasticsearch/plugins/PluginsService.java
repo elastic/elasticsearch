@@ -110,12 +110,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
     private final PluginsAndModules info;
     private final StablePluginsRegistry stablePluginsRegistry = new StablePluginsRegistry();
 
-    public static final Setting<List<String>> MANDATORY_SETTING = Setting.listSetting(
-        "plugin.mandatory",
-        Collections.emptyList(),
-        Function.identity(),
-        Property.NodeScope
-    );
+    public static final Setting<List<String>> MANDATORY_SETTING = Setting.stringListSetting("plugin.mandatory", Property.NodeScope);
 
     /**
      * Constructs a new PluginService
@@ -291,10 +286,12 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         LinkedHashMap<String, LoadedPlugin> loaded = new LinkedHashMap<>();
         Map<String, Set<URL>> transitiveUrls = new HashMap<>();
         List<PluginBundle> sortedBundles = PluginsUtils.sortBundles(bundles);
-        Set<URL> systemLoaderURLs = JarHell.parseModulesAndClassPath();
-        for (PluginBundle bundle : sortedBundles) {
-            PluginsUtils.checkBundleJarHell(systemLoaderURLs, bundle, transitiveUrls);
-            loadBundle(bundle, loaded, qualifiedExports);
+        if (sortedBundles.isEmpty() == false) {
+            Set<URL> systemLoaderURLs = JarHell.parseModulesAndClassPath();
+            for (PluginBundle bundle : sortedBundles) {
+                PluginsUtils.checkBundleJarHell(systemLoaderURLs, bundle, transitiveUrls);
+                loadBundle(bundle, loaded, qualifiedExports);
+            }
         }
 
         loadExtensions(loaded.values());

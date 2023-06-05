@@ -29,7 +29,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -693,21 +693,7 @@ public class IndexModuleTests extends ESTestCase {
 
             IndexShard indexShard = indexService.createShard(shardRouting, s -> {}, RetentionLeaseSyncer.EMPTY);
             closeables.add(() -> indexShard.close("close shard at end of test", true));
-            indexShard.markAsRecovering(
-                "test",
-                new RecoveryState(
-                    shardRouting,
-                    new DiscoveryNode(
-                        "_node_id",
-                        "_node_id",
-                        buildNewFakeTransportAddress(),
-                        Collections.emptyMap(),
-                        DiscoveryNodeRole.roles(),
-                        Version.CURRENT
-                    ),
-                    null
-                )
-            );
+            indexShard.markAsRecovering("test", new RecoveryState(shardRouting, TestDiscoveryNode.create("_node_id", "_node_id"), null));
 
             final PlainActionFuture<Boolean> recoveryFuture = PlainActionFuture.newFuture();
             indexShard.recoverFromStore(recoveryFuture);

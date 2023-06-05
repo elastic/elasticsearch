@@ -11,7 +11,6 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.core.LogEvent;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.SimpleDiffable;
@@ -23,6 +22,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterStateUpdateStats;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -1934,13 +1934,12 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
     ) {
         DiscoveryNodes newNodes = DiscoveryNodes.builder(currentState.nodes())
             .add(
-                new DiscoveryNode(
+                TestDiscoveryNode.create(
                     "resolvableNodeName",
                     "resolvableNodeId",
                     buildNewFakeTransportAddress(),
                     emptyMap(),
-                    Set.of(DiscoveryNodeRole.MASTER_ROLE),
-                    Version.CURRENT
+                    Set.of(DiscoveryNodeRole.MASTER_ROLE)
                 )
             )
             .build();

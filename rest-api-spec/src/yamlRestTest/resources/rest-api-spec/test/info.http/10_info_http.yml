@@ -1,0 +1,24 @@
+---
+"HTTP Stats":
+  - skip:
+      version: " - 8.8.99"
+      reason: "/_info/http only available from v8.9"
+
+  - do:
+      info.http: {}
+
+  - is_true: cluster_name
+  - gte: { http.current_open: 0 }
+  - gte: { http.total_opened: 1 }
+  - is_true: http.clients
+  - gte: { http.clients.0.id: 1 }
+  - match: { http.clients.0.agent: "/.*/" }
+  - match: { http.clients.0.local_address: "/.*/" }
+  - match: { http.clients.0.remote_address: "/.*/" }
+  - is_true:  http.clients.0.last_uri
+  - gte: { http.clients.0.opened_time_millis: 1684328268000 } # 2023-05-17
+  - gte: { http.clients.0.last_request_time_millis: 1684328268000 }
+  - gte: { http.clients.0.request_count: 1 }
+  - gte: { http.clients.0.request_size_bytes: 0 }
+    # values for clients.0.closed_time_millis, clients.0.x_forwarded_for, and clients.0.x_opaque_id are often
+    # null and cannot be tested here

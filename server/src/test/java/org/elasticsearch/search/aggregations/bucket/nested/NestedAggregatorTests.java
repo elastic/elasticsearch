@@ -15,7 +15,6 @@ import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.NoMergePolicy;
@@ -122,7 +121,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
      * Nested aggregations need the {@linkplain DirectoryReader} wrapped.
      */
     @Override
-    protected IndexReader wrapDirectoryReader(DirectoryReader reader) throws IOException {
+    protected DirectoryReader wrapDirectoryReader(DirectoryReader reader) throws IOException {
         return wrapInMockESDirectoryReader(reader);
     }
 
@@ -141,7 +140,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
             try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
                 // intentionally not writing any docs
             }
-            try (IndexReader indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
+            try (DirectoryReader indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
                 NestedAggregationBuilder nestedBuilder = new NestedAggregationBuilder(NESTED_AGG, NESTED_OBJECT);
                 MaxAggregationBuilder maxAgg = new MaxAggregationBuilder(MAX_AGG_NAME).field(VALUE_FIELD_NAME);
                 nestedBuilder.subAggregation(maxAgg);
@@ -184,7 +183,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 }
                 iw.commit();
             }
-            try (IndexReader indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
+            try (DirectoryReader indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
                 NestedAggregationBuilder nestedBuilder = new NestedAggregationBuilder(NESTED_AGG, NESTED_OBJECT);
                 MaxAggregationBuilder maxAgg = new MaxAggregationBuilder(MAX_AGG_NAME).field(VALUE_FIELD_NAME);
                 nestedBuilder.subAggregation(maxAgg);
@@ -233,7 +232,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 }
                 iw.commit();
             }
-            try (IndexReader indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
+            try (DirectoryReader indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
                 NestedAggregationBuilder nestedBuilder = new NestedAggregationBuilder(NESTED_AGG, NESTED_OBJECT + "." + NESTED_OBJECT2);
                 MaxAggregationBuilder maxAgg = new MaxAggregationBuilder(MAX_AGG_NAME).field(VALUE_FIELD_NAME);
                 nestedBuilder.subAggregation(maxAgg);
@@ -285,7 +284,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 iw.addDocuments(documents);
                 iw.commit();
             }
-            try (IndexReader indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
+            try (DirectoryReader indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
                 NestedAggregationBuilder nestedBuilder = new NestedAggregationBuilder(NESTED_AGG, NESTED_OBJECT);
                 SumAggregationBuilder sumAgg = new SumAggregationBuilder(SUM_AGG_NAME).field(VALUE_FIELD_NAME);
                 nestedBuilder.subAggregation(sumAgg);
@@ -362,7 +361,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 iw.commit();
                 iw.close();
             }
-            try (IndexReader indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
+            try (DirectoryReader indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
 
                 NestedAggregationBuilder nestedBuilder = new NestedAggregationBuilder(NESTED_AGG, "nested_field");
                 MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(VALUE_FIELD_NAME, NumberFieldMapper.NumberType.LONG);
@@ -399,7 +398,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 iw.addDocuments(generateBook("8", new String[] { "f" }, new int[] { 12, 14 }));
                 iw.addDocuments(generateBook("9", new String[] { "g", "c", "e" }, new int[] { 18, 8 }));
             }
-            try (IndexReader indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
+            try (DirectoryReader indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
                 MappedFieldType fieldType1 = new NumberFieldMapper.NumberFieldType("num_pages", NumberFieldMapper.NumberType.LONG);
                 MappedFieldType fieldType2 = new KeywordFieldMapper.KeywordFieldType("author");
 
@@ -533,7 +532,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                     return cmp;
                 }
             });
-            try (IndexReader indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
+            try (DirectoryReader indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
                 MappedFieldType fieldType1 = new NumberFieldMapper.NumberFieldType("num_pages", NumberFieldMapper.NumberType.LONG);
                 MappedFieldType fieldType2 = new KeywordFieldMapper.KeywordFieldType("author");
 
@@ -629,7 +628,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 iw.addDocuments(documents);
                 iw.commit();
             }
-            try (IndexReader indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
+            try (DirectoryReader indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
                 TermsAggregationBuilder valueBuilder = new TermsAggregationBuilder("value").userValueTypeHint(ValueType.STRING)
                     .field("value");
                 TermsAggregationBuilder keyBuilder = new TermsAggregationBuilder("key").userValueTypeHint(ValueType.STRING).field("key");
@@ -700,7 +699,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 iw.commit();
             }
 
-            try (IndexReader indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
+            try (DirectoryReader indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
                 NestedAggregationBuilder agg = nested(NESTED_AGG, NESTED_OBJECT).subAggregation(max(MAX_AGG_NAME).field(VALUE_FIELD_NAME));
                 NestedAggregationBuilder aliasAgg = nested(NESTED_AGG, NESTED_OBJECT).subAggregation(
                     max(MAX_AGG_NAME).field(VALUE_FIELD_NAME + "-alias")
@@ -739,7 +738,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 }
                 iw.commit();
             }
-            try (IndexReader indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
+            try (DirectoryReader indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
                 NestedAggregationBuilder nestedBuilder = new NestedAggregationBuilder(NESTED_AGG, NESTED_OBJECT).subAggregation(
                     new TermsAggregationBuilder("terms").field(VALUE_FIELD_NAME)
                         .userValueTypeHint(ValueType.NUMERIC)

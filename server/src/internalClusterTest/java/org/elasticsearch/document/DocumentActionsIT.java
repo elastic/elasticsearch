@@ -74,10 +74,9 @@ public class DocumentActionsIT extends ESIntegTestCase {
         assertThat(indexExists("test1234565"), equalTo(false));
 
         logger.info("Clearing cache");
-        ClearIndicesCacheResponse clearIndicesCacheResponse = client().admin()
-            .indices()
-            .clearCache(new ClearIndicesCacheRequest("test").fieldDataCache(true).queryCache(true))
-            .actionGet();
+        ClearIndicesCacheResponse clearIndicesCacheResponse = indicesAdmin().clearCache(
+            new ClearIndicesCacheRequest("test").fieldDataCache(true).queryCache(true)
+        ).actionGet();
         assertNoFailures(clearIndicesCacheResponse);
         assertThat(clearIndicesCacheResponse.getSuccessfulShards(), equalTo(numShards.totalNumShards));
 

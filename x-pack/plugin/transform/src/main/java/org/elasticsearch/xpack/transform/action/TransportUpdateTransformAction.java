@@ -205,6 +205,8 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
                                     authState,
                                     ActionListener.wrap(aVoid -> listener.onResponse(new Response(updatedConfig)), listener::onFailure)
                                 );
+                            } else {
+                                listener.onResponse(new Response(updatedConfig));
                             }
                         } else {
                             listener.onResponse(new Response(updatedConfig));

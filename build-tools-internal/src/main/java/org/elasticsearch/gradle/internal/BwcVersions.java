@@ -236,8 +236,7 @@ public class BwcVersions {
      * Return all versions of Elasticsearch which are index compatible with the current version.
      */
     public List<Version> getAllIndexCompatible() {
-        int minVersion = currentVersion.getMajor() - 1;
-        return versions.stream().filter(v -> v.getMajor() >= minVersion).toList();
+        return versions.stream().filter(v -> v.getMajor() >= (currentVersion.getMajor() - 1)).toList();
     }
 
     public void withIndexCompatible(BiConsumer<Version, String> versionAction) {

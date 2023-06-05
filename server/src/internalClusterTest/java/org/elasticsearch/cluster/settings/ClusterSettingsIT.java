@@ -517,9 +517,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test"));
 
         try {
-            client().admin()
-                .indices()
-                .prepareUpdateSettings("test")
+            indicesAdmin().prepareUpdateSettings("test")
                 .setSettings(Settings.builder().put("index.refresh_interval", "10"))
                 .execute()
                 .actionGet();

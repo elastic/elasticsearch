@@ -634,9 +634,9 @@ public class CompoundProcessorTests extends ESTestCase {
 
     private void assertStats(int processor, CompoundProcessor compoundProcessor, long current, long count, long failed, long time) {
         IngestStats.Stats stats = compoundProcessor.getProcessorsWithMetrics().get(processor).v2().createStats();
-        assertThat(stats.getIngestCount(), equalTo(count));
-        assertThat(stats.getIngestCurrent(), equalTo(current));
-        assertThat(stats.getIngestFailedCount(), equalTo(failed));
-        assertThat(stats.getIngestTimeInMillis(), equalTo(time));
+        assertThat(stats.ingestCount(), equalTo(count));
+        assertThat(stats.ingestCurrent(), equalTo(current));
+        assertThat(stats.ingestFailedCount(), equalTo(failed));
+        assertThat(stats.ingestTimeInMillis(), equalTo(time));
     }
 }

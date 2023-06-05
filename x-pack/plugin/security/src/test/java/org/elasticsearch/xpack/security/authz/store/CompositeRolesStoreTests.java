@@ -2072,25 +2072,18 @@ public class CompositeRolesStoreTests extends ESTestCase {
             effectiveRoleDescriptors::set
         );
         AuditUtil.getOrGenerateRequestId(threadContext);
-        final TransportVersion version = TransportVersion.CURRENT;
-        final String apiKeyRoleName = "user_role_" + randomAlphaOfLength(4);
-        final Authentication apiKeyAuthentication = createApiKeyAuthentication(
-            apiKeyService,
-            randomValueOtherThanMany(
-                authc -> authc.getAuthenticationType() == AuthenticationType.API_KEY,
-                () -> AuthenticationTestHelper.builder().build()
-            ),
-            Collections.singleton(
-                new RoleDescriptor(
-                    apiKeyRoleName,
-                    null,
-                    new IndicesPrivileges[] { IndicesPrivileges.builder().indices("index*").privileges("all").build() },
-                    null
-                )
-            ),
-            null,
-            version
-        );
+        final Authentication apiKeyAuthentication = AuthenticationTestHelper.builder()
+            .crossClusterApiKey(randomAlphaOfLength(20))
+            .metadata(Map.of(API_KEY_ROLE_DESCRIPTORS_KEY, new BytesArray("""
+                {
+                  "cross_cluster": {
+                    "cluster": ["cross_cluster_search"],
+                    "indices": [
+                      { "names":["index*"], "privileges":["read","read_cross_cluster","view_index_metadata"] }
+                    ]
+                  }
+                }""")))
+            .build(false);
         final boolean emptyRemoteRole = randomBoolean();
         Authentication authentication = apiKeyAuthentication.toCrossClusterAccess(
             AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo(
@@ -2129,7 +2122,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
 
         verify(apiKeyService, times(1)).parseRoleDescriptorsBytes(anyString(), any(BytesReference.class), any());
         assertThat(role.names().length, is(1));
-        assertThat(role.names()[0], equalTo(apiKeyRoleName));
+        assertThat(role.names()[0], equalTo("cross_cluster"));
 
         // Smoke-test for authorization
         final Metadata indexMetadata = Metadata.builder()

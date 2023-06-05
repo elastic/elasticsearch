@@ -680,9 +680,7 @@ public class AliasRoutingIT extends ESIntegTestCase {
 
         logger.info("--> creating alias with search routing [3,4] and index routing 4");
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareAliases()
+            indicesAdmin().prepareAliases()
                 .addAliasAction(AliasActions.add().index("test").alias("alias").searchRouting("3,4").indexRouting("4"))
         );
 

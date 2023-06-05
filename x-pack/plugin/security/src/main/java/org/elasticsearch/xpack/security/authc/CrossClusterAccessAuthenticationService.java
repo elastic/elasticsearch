@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
 
@@ -55,7 +56,9 @@ public class CrossClusterAccessAuthenticationService {
         try {
             // parse and add as authentication token as early as possible so that failure events in audit log include API key ID
             crossClusterAccessHeaders = CrossClusterAccessHeaders.readFromContext(threadContext);
-            authcContext.addAuthenticationToken(crossClusterAccessHeaders.credentials());
+            final ApiKeyService.ApiKeyCredentials apiKeyCredentials = crossClusterAccessHeaders.credentials();
+            assert ApiKey.Type.CROSS_CLUSTER == apiKeyCredentials.getExpectedType();
+            authcContext.addAuthenticationToken(apiKeyCredentials);
             apiKeyService.ensureEnabled();
         } catch (Exception ex) {
             withRequestProcessingFailure(authcContext, ex, listener);

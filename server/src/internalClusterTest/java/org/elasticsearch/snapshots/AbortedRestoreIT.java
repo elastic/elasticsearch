@@ -59,9 +59,7 @@ public class AbortedRestoreIT extends AbstractSnapshotIntegTestCase {
             .execute();
 
         assertBusy(() -> {
-            final RecoveryResponse recoveries = client().admin()
-                .indices()
-                .prepareRecoveries(indexName)
+            final RecoveryResponse recoveries = indicesAdmin().prepareRecoveries(indexName)
                 .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN)
                 .setActiveOnly(true)
                 .get();

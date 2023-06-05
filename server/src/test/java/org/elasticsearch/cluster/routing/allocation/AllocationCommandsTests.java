@@ -84,9 +84,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
         RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
             .addAsNew(metadata.index("test"))
             .build();
-        ClusterState clusterState = ClusterState.builder(
-            org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)
-        ).metadata(metadata).routingTable(routingTable).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(routingTable).build();
 
         logger.info("adding two nodes and performing rerouting");
         clusterState = ClusterState.builder(clusterState)
@@ -158,9 +156,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
         RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
             .addAsRecovery(metadata.index(index))
             .build();
-        ClusterState clusterState = ClusterState.builder(
-            org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)
-        ).metadata(metadata).routingTable(routingTable).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(routingTable).build();
         final ShardId shardId = new ShardId(metadata.index(index).getIndex(), 0);
 
         logger.info("--> adding 3 nodes on same rack and do rerouting");
@@ -376,10 +372,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
         RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
             .addAsRecovery(metadata.index(index))
             .build();
-        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-            .metadata(metadata)
-            .routingTable(routingTable)
-            .build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(routingTable).build();
 
         final String node1 = "node1";
         final String node2 = "node2";
@@ -429,9 +422,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
         RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
             .addAsNew(metadata.index("test"))
             .build();
-        ClusterState clusterState = ClusterState.builder(
-            org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)
-        ).metadata(metadata).routingTable(routingTable).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(routingTable).build();
 
         logger.info("--> adding 3 nodes");
         clusterState = ClusterState.builder(clusterState)
@@ -800,9 +791,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
         RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
             .addAsNew(metadata.index("test"))
             .build();
-        ClusterState clusterState = ClusterState.builder(
-            org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)
-        ).metadata(metadata).routingTable(routingTable).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(routingTable).build();
 
         logger.info("--> adding two nodes");
 
@@ -870,9 +859,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
         RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
             .addAsNew(metadata.index("test"))
             .build();
-        ClusterState clusterState = ClusterState.builder(
-            org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)
-        ).metadata(metadata).routingTable(routingTable).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(routingTable).build();
 
         logger.info("--> adding two nodes");
 
@@ -970,10 +957,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
             .addAsRecovery(metadata.index(index2))
             .addAsRecovery(metadata.index(index3))
             .build();
-        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-            .metadata(metadata)
-            .routingTable(routingTable)
-            .build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(routingTable).build();
 
         final String node1 = "node1";
         final String node2 = "node2";

@@ -8,9 +8,9 @@
 
 package org.elasticsearch.cluster.routing;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
@@ -45,7 +45,7 @@ public class RoutingNodeTests extends ESTestCase {
         super.setUp();
         InetAddress inetAddress = InetAddress.getByAddress("name1", new byte[] { (byte) 192, (byte) 168, (byte) 0, (byte) 1 });
         TransportAddress transportAddress = new TransportAddress(inetAddress, randomIntBetween(0, 65535));
-        DiscoveryNode discoveryNode = new DiscoveryNode("name1", "node-1", transportAddress, emptyMap(), emptySet(), Version.CURRENT);
+        DiscoveryNode discoveryNode = TestDiscoveryNode.create("name1", "node-1", transportAddress, emptyMap(), emptySet());
         routingNode = RoutingNodesHelper.routingNode("node1", discoveryNode, unassignedShard0, initializingShard0, relocatingShard0);
     }
 

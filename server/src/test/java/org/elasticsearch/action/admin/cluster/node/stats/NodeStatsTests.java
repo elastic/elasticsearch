@@ -294,12 +294,9 @@ public class NodeStatsTests extends ESTestCase {
                         deserializedNodeStats.getTransport().getOutboundHandlingTimeBucketFrequencies()
                     );
                 }
-                if (nodeStats.getHttp() == null) {
-                    assertNull(deserializedNodeStats.getHttp());
-                } else {
-                    assertEquals(nodeStats.getHttp().getServerOpen(), deserializedNodeStats.getHttp().getServerOpen());
-                    assertEquals(nodeStats.getHttp().getTotalOpen(), deserializedNodeStats.getHttp().getTotalOpen());
-                }
+
+                assertEquals(nodeStats.getHttp(), deserializedNodeStats.getHttp());
+
                 if (nodeStats.getBreaker() == null) {
                     assertNull(deserializedNodeStats.getBreaker());
                 } else {
@@ -470,40 +467,31 @@ public class NodeStatsTests extends ESTestCase {
                 if (ingestStats == null) {
                     assertNull(deserializedIngestStats);
                 } else {
-                    IngestStats.Stats totalStats = ingestStats.getTotalStats();
-                    assertEquals(totalStats.getIngestCount(), deserializedIngestStats.getTotalStats().getIngestCount());
-                    assertEquals(totalStats.getIngestCurrent(), deserializedIngestStats.getTotalStats().getIngestCurrent());
-                    assertEquals(totalStats.getIngestFailedCount(), deserializedIngestStats.getTotalStats().getIngestFailedCount());
-                    assertEquals(totalStats.getIngestTimeInMillis(), deserializedIngestStats.getTotalStats().getIngestTimeInMillis());
-                    assertEquals(ingestStats.getPipelineStats().size(), deserializedIngestStats.getPipelineStats().size());
-                    for (IngestStats.PipelineStat pipelineStat : ingestStats.getPipelineStats()) {
-                        String pipelineId = pipelineStat.getPipelineId();
-                        IngestStats.Stats deserializedPipelineStats = getPipelineStats(
-                            deserializedIngestStats.getPipelineStats(),
-                            pipelineId
-                        );
-                        assertEquals(pipelineStat.getStats().getIngestFailedCount(), deserializedPipelineStats.getIngestFailedCount());
-                        assertEquals(pipelineStat.getStats().getIngestTimeInMillis(), deserializedPipelineStats.getIngestTimeInMillis());
-                        assertEquals(pipelineStat.getStats().getIngestCurrent(), deserializedPipelineStats.getIngestCurrent());
-                        assertEquals(pipelineStat.getStats().getIngestCount(), deserializedPipelineStats.getIngestCount());
-                        List<IngestStats.ProcessorStat> processorStats = ingestStats.getProcessorStats().get(pipelineId);
+                    IngestStats.Stats totalStats = ingestStats.totalStats();
+                    assertEquals(totalStats.ingestCount(), deserializedIngestStats.totalStats().ingestCount());
+                    assertEquals(totalStats.ingestCurrent(), deserializedIngestStats.totalStats().ingestCurrent());
+                    assertEquals(totalStats.ingestFailedCount(), deserializedIngestStats.totalStats().ingestFailedCount());
+                    assertEquals(totalStats.ingestTimeInMillis(), deserializedIngestStats.totalStats().ingestTimeInMillis());
+                    assertEquals(ingestStats.pipelineStats().size(), deserializedIngestStats.pipelineStats().size());
+                    for (IngestStats.PipelineStat pipelineStat : ingestStats.pipelineStats()) {
+                        String pipelineId = pipelineStat.pipelineId();
+                        IngestStats.Stats deserializedPipelineStats = getPipelineStats(deserializedIngestStats.pipelineStats(), pipelineId);
+                        assertEquals(pipelineStat.stats().ingestFailedCount(), deserializedPipelineStats.ingestFailedCount());
+                        assertEquals(pipelineStat.stats().ingestTimeInMillis(), deserializedPipelineStats.ingestTimeInMillis());
+                        assertEquals(pipelineStat.stats().ingestCurrent(), deserializedPipelineStats.ingestCurrent());
+                        assertEquals(pipelineStat.stats().ingestCount(), deserializedPipelineStats.ingestCount());
+                        List<IngestStats.ProcessorStat> processorStats = ingestStats.processorStats().get(pipelineId);
                         // intentionally validating identical order
-                        Iterator<IngestStats.ProcessorStat> it = deserializedIngestStats.getProcessorStats().get(pipelineId).iterator();
+                        Iterator<IngestStats.ProcessorStat> it = deserializedIngestStats.processorStats().get(pipelineId).iterator();
                         for (IngestStats.ProcessorStat processorStat : processorStats) {
                             IngestStats.ProcessorStat deserializedProcessorStat = it.next();
+                            assertEquals(processorStat.stats().ingestFailedCount(), deserializedProcessorStat.stats().ingestFailedCount());
                             assertEquals(
-                                processorStat.getStats().getIngestFailedCount(),
-                                deserializedProcessorStat.getStats().getIngestFailedCount()
+                                processorStat.stats().ingestTimeInMillis(),
+                                deserializedProcessorStat.stats().ingestTimeInMillis()
                             );
-                            assertEquals(
-                                processorStat.getStats().getIngestTimeInMillis(),
-                                deserializedProcessorStat.getStats().getIngestTimeInMillis()
-                            );
-                            assertEquals(
-                                processorStat.getStats().getIngestCurrent(),
-                                deserializedProcessorStat.getStats().getIngestCurrent()
-                            );
-                            assertEquals(processorStat.getStats().getIngestCount(), deserializedProcessorStat.getStats().getIngestCount());
+                            assertEquals(processorStat.stats().ingestCurrent(), deserializedProcessorStat.stats().ingestCurrent());
+                            assertEquals(processorStat.stats().ingestCount(), deserializedProcessorStat.stats().ingestCount());
                         }
                         assertFalse(it.hasNext());
                     }
@@ -583,11 +571,9 @@ public class NodeStatsTests extends ESTestCase {
     private static int expectedChunks(@Nullable IngestStats ingestStats) {
         return ingestStats == null
             ? 0
-            : 2 + ingestStats.getPipelineStats()
+            : 2 + ingestStats.pipelineStats()
                 .stream()
-                .mapToInt(
-                    pipelineStats -> 2 + ingestStats.getProcessorStats().getOrDefault(pipelineStats.getPipelineId(), List.of()).size()
-                )
+                .mapToInt(pipelineStats -> 2 + ingestStats.processorStats().getOrDefault(pipelineStats.pipelineId(), List.of()).size())
                 .sum();
     }
 
@@ -706,7 +692,7 @@ public class NodeStatsTests extends ESTestCase {
             .resolve(shardRouting.shardId().getIndex().getUUID())
             .resolve(String.valueOf(shardRouting.shardId().id()));
         ShardPath shardPath = new ShardPath(false, path, path, shardRouting.shardId());
-        return new ShardStats(shardRouting, shardPath, createShardLevelCommonStats(), null, null, null);
+        return new ShardStats(shardRouting, shardPath, createShardLevelCommonStats(), null, null, null, false, 0);
     }
 
     public static NodeStats createNodeStats() {
@@ -924,7 +910,7 @@ public class NodeStatsTests extends ESTestCase {
                 );
                 clientStats.add(cs);
             }
-            httpStats = new HttpStats(clientStats, randomNonNegativeLong(), randomNonNegativeLong());
+            httpStats = new HttpStats(randomNonNegativeLong(), randomNonNegativeLong(), clientStats);
         }
         AllCircuitBreakerStats allCircuitBreakerStats = null;
         if (frequently()) {
@@ -1133,6 +1119,6 @@ public class NodeStatsTests extends ESTestCase {
     }
 
     private IngestStats.Stats getPipelineStats(List<IngestStats.PipelineStat> pipelineStats, String id) {
-        return pipelineStats.stream().filter(p1 -> p1.getPipelineId().equals(id)).findFirst().map(p2 -> p2.getStats()).orElse(null);
+        return pipelineStats.stream().filter(p1 -> p1.pipelineId().equals(id)).findFirst().map(p2 -> p2.stats()).orElse(null);
     }
 }

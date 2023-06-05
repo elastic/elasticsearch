@@ -64,20 +64,20 @@ public class ClusterStatsNodesTests extends ESTestCase {
     public void testIngestStats() throws Exception {
         NodeStats nodeStats = randomValueOtherThanMany(n -> n.getIngestStats() == null, NodeStatsTests::createNodeStats);
         SortedMap<String, long[]> processorStats = new TreeMap<>();
-        nodeStats.getIngestStats().getProcessorStats().values().forEach(stats -> {
+        nodeStats.getIngestStats().processorStats().values().forEach(stats -> {
             stats.forEach(stat -> {
-                processorStats.compute(stat.getType(), (key, value) -> {
+                processorStats.compute(stat.type(), (key, value) -> {
                     if (value == null) {
                         return new long[] {
-                            stat.getStats().getIngestCount(),
-                            stat.getStats().getIngestFailedCount(),
-                            stat.getStats().getIngestCurrent(),
-                            stat.getStats().getIngestTimeInMillis() };
+                            stat.stats().ingestCount(),
+                            stat.stats().ingestFailedCount(),
+                            stat.stats().ingestCurrent(),
+                            stat.stats().ingestTimeInMillis() };
                     } else {
-                        value[0] += stat.getStats().getIngestCount();
-                        value[1] += stat.getStats().getIngestFailedCount();
-                        value[2] += stat.getStats().getIngestCurrent();
-                        value[3] += stat.getStats().getIngestTimeInMillis();
+                        value[0] += stat.stats().ingestCount();
+                        value[1] += stat.stats().ingestFailedCount();
+                        value[2] += stat.stats().ingestCurrent();
+                        value[3] += stat.stats().ingestTimeInMillis();
                         return value;
                     }
                 });
@@ -85,7 +85,7 @@ public class ClusterStatsNodesTests extends ESTestCase {
         });
 
         ClusterStatsNodes.IngestStats stats = new ClusterStatsNodes.IngestStats(List.of(nodeStats));
-        assertThat(stats.pipelineCount, equalTo(nodeStats.getIngestStats().getProcessorStats().size()));
+        assertThat(stats.pipelineCount, equalTo(nodeStats.getIngestStats().processorStats().size()));
         StringBuilder processorStatsString = new StringBuilder("{");
         Iterator<Map.Entry<String, long[]>> iter = processorStats.entrySet().iterator();
         while (iter.hasNext()) {

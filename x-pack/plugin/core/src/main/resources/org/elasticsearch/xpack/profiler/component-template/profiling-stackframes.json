@@ -1,0 +1,50 @@
+{
+  "template": {
+    "settings": {
+      "index": {
+        "number_of_shards": 16,
+        "number_of_replicas": 0,
+        "auto_expand_replicas": "0-1",
+        "refresh_interval": "10s"
+      }
+    },
+    "mappings": {
+      "_source": {
+        "enabled": true
+      },
+      "properties": {
+        "ecs.version": {
+          "type": "keyword",
+          "index": true,
+          "doc_values": false,
+          "store": false
+        },
+        "Stackframe.line.number": {
+          "type": "integer",
+          "index": false,
+          "doc_values": false,
+          "store": false
+        },
+        "Stackframe.file.name": {
+          "type": "keyword",
+          "index": false,
+          "doc_values": false,
+          "store": false
+        },
+        "Stackframe.function.name": {
+          "type": "keyword",
+          "index": false,
+          "doc_values": false,
+          "store": false
+        },
+        "Stackframe.function.offset": {
+          "type": "integer",
+          "index": false,
+          "doc_values": false,
+          "store": false
+        }
+      }
+    }
+  },
+  "version": ${xpack.profiling.template.version}
+}

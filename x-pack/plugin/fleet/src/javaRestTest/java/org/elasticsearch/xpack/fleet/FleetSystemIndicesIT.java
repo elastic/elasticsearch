@@ -151,6 +151,22 @@ public class FleetSystemIndicesIT extends ESRestTestCase {
         assertThat(responseBody, containsString("coordinator_idx"));
     }
 
+    public void testCreationOfFleetSecrets() throws Exception {
+        Request request = new Request("PUT", ".fleet-secrets");
+        Response response = client().performRequest(request);
+        assertEquals(200, response.getStatusLine().getStatusCode());
+
+        request = new Request("GET", ".fleet-secrets/_mapping");
+        response = client().performRequest(request);
+        String responseBody = EntityUtils.toString(response.getEntity());
+        assertThat(responseBody, containsString("value"));
+
+        request = new Request("GET", ".fleet-secrets-7/_mapping");
+        response = client().performRequest(request);
+        responseBody = EntityUtils.toString(response.getEntity());
+        assertThat(responseBody, containsString("value"));
+    }
+
     public void testCreationOfFleetPoliciesLeader() throws Exception {
         Request request = new Request("PUT", ".fleet-policies-leader");
         Response response = client().performRequest(request);

@@ -26,14 +26,14 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
 
     private final KeyedLock<BytesRef> keyedLock = new KeyedLock<>();
 
-    private final LiveVersionMapArchive archiver;
+    private final LiveVersionMapArchive archive;
 
     LiveVersionMap() {
         this(LiveVersionMapArchive.NOOP_ARCHIVE);
     }
 
-    LiveVersionMap(LiveVersionMapArchive archiver) {
-        this.archiver = archiver;
+    LiveVersionMap(LiveVersionMapArchive archive) {
+        this.archive = archive;
     }
 
     public static final class VersionLookup {
@@ -164,8 +164,8 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
         /**
          * builds a new map that invalidates the old map but maintains the current. This should be called in afterRefresh()
          */
-        Maps invalidateOldMap(LiveVersionMapArchive archiver) {
-            archiver.afterRefresh(old);
+        Maps invalidateOldMap(LiveVersionMapArchive archive) {
+            archive.afterRefresh(old);
             return new Maps(current, VersionLookup.EMPTY, previousMapsNeededSafeAccess);
         }
 
@@ -272,7 +272,7 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
         // reopen, and so any concurrent indexing requests can still sneak in a few additions to that current map that are in fact
         // reflected in the previous reader. We don't touch tombstones here: they expire on their own index.gc_deletes timeframe:
 
-        maps = maps.invalidateOldMap(archiver);
+        maps = maps.invalidateOldMap(archive);
         assert (unsafeKeysMap = unsafeKeysMap.invalidateOldMapForAssert()) != null;
 
     }
@@ -297,14 +297,14 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
             return value;
         }
 
-        // We first check the tombstone then the archiver since the archiver accumulates ids from the old map, and we
-        // makes sure in `putDeleteUnderLock` the old map does not hold an entry that is in tombstone, archiver also wouldn't have them.
+        // We first check the tombstone then the archive since the archive accumulates ids from the old map, and we
+        // makes sure in `putDeleteUnderLock` the old map does not hold an entry that is in tombstone, archive also wouldn't have them.
         value = tombstones.get(uid);
         if (value != null) {
             return value;
         }
 
-        return archiver.get(uid);
+        return archive.get(uid);
     }
 
     VersionValue getVersionForAssert(final BytesRef uid) {
@@ -402,8 +402,8 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
         // version value can't be removed it's
         // not yet flushed to lucene ie. it's part of this current maps object
         final boolean isNotTrackedByCurrentMaps = versionValue.time < maps.getMinDeleteTimestamp();
-        final boolean isNotTrackedByArchiver = versionValue.time < archiver.getMinDeleteTimestamp();
-        return isTooOld && isSafeToPrune && isNotTrackedByCurrentMaps & isNotTrackedByArchiver;
+        final boolean isNotTrackedByArchive = versionValue.time < archive.getMinDeleteTimestamp();
+        return isTooOld && isSafeToPrune && isNotTrackedByCurrentMaps & isNotTrackedByArchive;
     }
 
     /**
@@ -496,7 +496,7 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
     }
 
     // visible for testing purposes only
-    LiveVersionMapArchive getArchiver() {
-        return archiver;
+    LiveVersionMapArchive getArchive() {
+        return archive;
     }
 }

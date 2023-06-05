@@ -45,11 +45,13 @@ dependencies {
   api "io.netty:netty-resolver:${versions.netty}"
   api "io.netty:netty-transport:${versions.netty}"
   api "io.netty:netty-transport-native-unix-common:${versions.netty}"
+
+  testImplementation project(':modules:rest-root')
 }
 
 restResources {
   restApi {
-    include '_common', 'cluster', 'nodes'
+    include '_common', 'cluster', 'nodes', 'ping'
   }
 }
 
@@ -88,6 +90,10 @@ TaskProvider<RestIntegTestTask> pooledJavaRestTest = tasks.register("pooledJavaR
 
 tasks.named("internalClusterTest").configure {
   systemProperty 'es.insecure_network_trace_enabled', 'true'
+}
+
+testClusters.configureEach {
+  module ':modules:rest-root'
 }
 
 tasks.named("check").configure {

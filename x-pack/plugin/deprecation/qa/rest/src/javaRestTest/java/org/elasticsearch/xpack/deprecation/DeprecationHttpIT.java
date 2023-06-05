@@ -35,6 +35,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -48,8 +49,8 @@ import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasEntry;
-import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -142,32 +143,26 @@ public class DeprecationHttpIT extends ESRestTestCase {
             final Response response = client().performRequest(request);
 
             final List<String> deprecatedWarnings = getWarningHeaders(response.getHeaders());
-            final List<Matcher<String>> headerMatchers = new ArrayList<>(2);
-
-            for (Setting<Boolean> setting : List.of(
-                TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE1,
-                TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE2
-            )) {
-                headerMatchers.add(
-                    equalTo("[" + setting.getKey() + "] setting was deprecated in Elasticsearch and will be removed in a future release.")
-                );
-            }
-
-            assertThat(deprecatedWarnings, hasSize(headerMatchers.size()));
-            for (final String deprecatedWarning : deprecatedWarnings) {
-                assertThat(
-                    "Header does not conform to expected pattern",
-                    deprecatedWarning,
-                    matches(HeaderWarning.WARNING_HEADER_PATTERN.pattern())
-                );
-            }
+            assertThat(deprecatedWarnings, everyItem(matches(HeaderWarning.WARNING_HEADER_PATTERN.pattern())));
 
             final List<String> actualWarningValues = deprecatedWarnings.stream()
                 .map(s -> HeaderWarning.extractWarningValueFromWarningHeader(s, true))
                 .collect(Collectors.toList());
-            for (Matcher<String> headerMatcher : headerMatchers) {
-                assertThat(actualWarningValues, hasItem(headerMatcher));
-            }
+            assertThat(
+                actualWarningValues,
+                containsInAnyOrder(
+                    equalTo(
+                        "["
+                            + TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE1.getKey()
+                            + "] setting was deprecated in Elasticsearch and will be removed in a future release."
+                    ),
+                    equalTo(
+                        "["
+                            + TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE2.getKey()
+                            + "] setting was deprecated in Elasticsearch and will be removed in a future release."
+                    )
+                )
+            );
 
             assertBusy(() -> {
                 List<Map<String, Object>> documents = DeprecationTestUtils.getIndexedDeprecations(client());
@@ -230,16 +225,13 @@ public class DeprecationHttpIT extends ESRestTestCase {
         assertOK(response);
 
         final List<String> deprecatedWarnings = getWarningHeaders(response.getHeaders());
-        final List<Matcher<String>> headerMatchers = new ArrayList<>();
+        final List<Matcher<? super String>> headerMatchers = new ArrayList<>();
 
         for (String index : indices) {
             headerMatchers.add(containsString(LoggerMessageFormat.format("[{}] index", (Object) index)));
         }
 
-        assertThat(deprecatedWarnings, hasSize(headerMatchers.size()));
-        for (Matcher<String> headerMatcher : headerMatchers) {
-            assertThat(deprecatedWarnings, hasItem(headerMatcher));
-        }
+        assertThat(deprecatedWarnings, containsInAnyOrder(headerMatchers));
     }
 
     public void testDeprecationWarningsAppearInHeaders() throws Exception {
@@ -287,23 +279,19 @@ public class DeprecationHttpIT extends ESRestTestCase {
         assertOK(response);
 
         final List<String> deprecatedWarnings = getWarningHeaders(response.getHeaders());
-        final List<Matcher<String>> headerMatchers = new ArrayList<>(4);
+        final List<Matcher<? super String>> headerMatchers = new ArrayList<>(4);
 
         headerMatchers.add(equalTo(TestDeprecationHeaderRestAction.DEPRECATED_ENDPOINT));
         if (useDeprecatedField) {
             headerMatchers.add(equalTo(TestDeprecationHeaderRestAction.DEPRECATED_USAGE));
         }
 
-        assertThat(deprecatedWarnings, hasSize(headerMatchers.size()));
-        for (final String deprecatedWarning : deprecatedWarnings) {
-            assertThat(deprecatedWarning, matches(HeaderWarning.WARNING_HEADER_PATTERN.pattern()));
-        }
+        assertThat(deprecatedWarnings, everyItem(matches(HeaderWarning.WARNING_HEADER_PATTERN.pattern())));
         final List<String> actualWarningValues = deprecatedWarnings.stream()
             .map(s -> HeaderWarning.extractWarningValueFromWarningHeader(s, true))
             .collect(Collectors.toList());
-        for (Matcher<String> headerMatcher : headerMatchers) {
-            assertThat(actualWarningValues, hasItem(headerMatcher));
-        }
+        assertThat(actualWarningValues, containsInAnyOrder(headerMatchers));
+
         // expect to index same number of new deprecations as the number of header warnings in the response
         assertBusy(() -> {
             List<Map<String, Object>> documents = DeprecationTestUtils.getIndexedDeprecations(client());
@@ -327,7 +315,6 @@ public class DeprecationHttpIT extends ESRestTestCase {
             List<Map<String, Object>> documents = DeprecationTestUtils.getIndexedDeprecations(client());
 
             logger.warn(documents);
-            assertThat(documents, hasSize(3));
 
             assertThat(
                 documents,
@@ -362,7 +349,6 @@ public class DeprecationHttpIT extends ESRestTestCase {
             List<Map<String, Object>> documents = DeprecationTestUtils.getIndexedDeprecations(client());
 
             logger.warn(documents);
-            assertThat(documents, hasSize(2));
 
             assertThat(
                 documents,
@@ -407,7 +393,6 @@ public class DeprecationHttpIT extends ESRestTestCase {
             List<Map<String, Object>> documents = DeprecationTestUtils.getIndexedDeprecations(client());
 
             logger.warn(documents);
-            assertThat(documents, hasSize(2));
 
             assertThat(
                 documents,
@@ -477,7 +462,6 @@ public class DeprecationHttpIT extends ESRestTestCase {
             List<Map<String, Object>> documents = DeprecationTestUtils.getIndexedDeprecations(client());
 
             logger.warn(documents);
-            assertThat(documents, hasSize(1));
 
             assertThat(
                 documents,
@@ -529,7 +513,6 @@ public class DeprecationHttpIT extends ESRestTestCase {
             List<Map<String, Object>> documents = DeprecationTestUtils.getIndexedDeprecations(client());
 
             logger.warn(documents);
-            assertThat(documents, hasSize(2));
 
             assertThat(
                 documents,
@@ -611,7 +594,6 @@ public class DeprecationHttpIT extends ESRestTestCase {
             List<Map<String, Object>> documents = DeprecationTestUtils.getIndexedDeprecations(client());
 
             logger.warn(documents);
-            assertThat(documents, hasSize(2));
 
             assertThat(
                 documents,
@@ -674,7 +656,6 @@ public class DeprecationHttpIT extends ESRestTestCase {
             List<Map<String, Object>> documents = DeprecationTestUtils.getIndexedDeprecations(client());
 
             logger.warn(documents);
-            assertThat(documents, hasSize(4));
 
             assertThat(
                 documents,
@@ -709,15 +690,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
     }
 
     private List<String> getWarningHeaders(Header[] headers) {
-        List<String> warnings = new ArrayList<>();
-
-        for (Header header : headers) {
-            if (header.getName().equals("Warning")) {
-                warnings.add(header.getValue());
-            }
-        }
-
-        return warnings;
+        return Arrays.stream(headers).filter(h -> h.getName().equals("Warning")).map(Header::getValue).toList();
     }
 
     private HttpEntity buildSettingsRequest(List<Setting<Boolean>> settings, String settingName) throws IOException {

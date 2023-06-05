@@ -1,0 +1,22 @@
+{
+  "info.http": {
+      "documentation": {
+          "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/cluster-info-http.html",
+          "description": "Returns statistical information about http status in the cluster."
+      },
+      "stability": "stable",
+      "visibility": "public",
+      "headers": {
+          "accept": ["application/json"]
+      },
+      "url": {
+          "paths": [
+              {
+                  "path": "/_info/http",
+                  "methods": ["GET"]
+              }
+          ]
+      },
+      "params": {}
+  }
+}

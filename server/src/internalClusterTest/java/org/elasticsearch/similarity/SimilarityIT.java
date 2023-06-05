@@ -25,9 +25,7 @@ public class SimilarityIT extends ESIntegTestCase {
             // ignore
         }
 
-        client().admin()
-            .indices()
-            .prepareCreate("test")
+        indicesAdmin().prepareCreate("test")
             .setMapping(
                 jsonBuilder().startObject()
                     .startObject("_doc")

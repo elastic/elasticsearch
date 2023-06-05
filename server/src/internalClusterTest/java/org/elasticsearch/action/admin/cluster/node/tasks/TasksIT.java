@@ -163,7 +163,7 @@ public class TasksIT extends ESIntegTestCase {
         // tasks
         createIndex("test");
         ensureGreen("test"); // Make sure all shards are allocated
-        client().admin().indices().prepareValidateQuery("test").setAllShards(true).get();
+        indicesAdmin().prepareValidateQuery("test").setAllShards(true).get();
 
         // the field stats operation should produce one main task
         NumShards numberOfShards = getNumShards("test");
@@ -180,7 +180,7 @@ public class TasksIT extends ESIntegTestCase {
         registerTaskManagerListeners(ForceMergeAction.NAME + "[n]"); // node level tasks
         createIndex("test");
         ensureGreen("test"); // Make sure all shards are allocated
-        client().admin().indices().prepareForceMerge("test").get();
+        indicesAdmin().prepareForceMerge("test").get();
 
         // the percolate operation should produce one main task
         assertEquals(1, numberOfEvents(ForceMergeAction.NAME, Tuple::v1));
@@ -196,7 +196,7 @@ public class TasksIT extends ESIntegTestCase {
         registerTaskManagerListeners(ValidateQueryAction.NAME + "[s]"); // shard level tasks
         createIndex("test");
         ensureGreen("test"); // Make sure all shards are allocated
-        client().admin().indices().prepareValidateQuery("test").get();
+        indicesAdmin().prepareValidateQuery("test").get();
 
         // the validate operation should produce one main task
         assertEquals(1, numberOfEvents(ValidateQueryAction.NAME, Tuple::v1));
@@ -212,7 +212,7 @@ public class TasksIT extends ESIntegTestCase {
         registerTaskManagerListeners(RefreshAction.NAME + "[s][*]"); // primary and replica shard tasks
         createIndex("test");
         ensureGreen("test"); // Make sure all shards are allocated
-        client().admin().indices().prepareRefresh("test").get();
+        indicesAdmin().prepareRefresh("test").get();
 
         // the refresh operation should produce one main task
         NumShards numberOfShards = getNumShards("test");
@@ -296,7 +296,7 @@ public class TasksIT extends ESIntegTestCase {
         createIndex("test");
         ensureGreen("test"); // Make sure all shards are allocated to catch replication tasks
         // ensures the mapping is available on all nodes so we won't retry the request (in case replicas don't have the right mapping).
-        client().admin().indices().preparePutMapping("test").setSource("foo", "type=keyword").get();
+        indicesAdmin().preparePutMapping("test").setSource("foo", "type=keyword").get();
         client().prepareBulk().add(client().prepareIndex("test").setId("test_id").setSource("{\"foo\": \"bar\"}", XContentType.JSON)).get();
 
         // the bulk operation should produce one main task
@@ -532,7 +532,12 @@ public class TasksIT extends ESIntegTestCase {
         new TestTaskPlugin.UnblockTestTasksRequestBuilder(client(), TestTaskPlugin.UnblockTestTasksAction.INSTANCE).get();
 
         future.get();
-        assertEquals(0, clusterAdmin().prepareListTasks().setActions(TestTaskPlugin.TestTaskAction.NAME + "[n]").get().getTasks().size());
+        assertBusy(
+            () -> assertEquals(
+                0,
+                clusterAdmin().prepareListTasks().setActions(TestTaskPlugin.TestTaskAction.NAME + "[n]").get().getTasks().size()
+            )
+        );
     }
 
     public void testListTasksWaitForCompletion() throws Exception {
@@ -780,7 +785,7 @@ public class TasksIT extends ESIntegTestCase {
         Map<?, ?> result = taskResult.getResponseAsMap();
         assertEquals("0", result.get("failure_count").toString());
 
-        assertNoFailures(client().admin().indices().prepareRefresh(TaskResultsService.TASK_INDEX).get());
+        assertNoFailures(indicesAdmin().prepareRefresh(TaskResultsService.TASK_INDEX).get());
 
         SearchResponse searchResponse = client().prepareSearch(TaskResultsService.TASK_INDEX)
             .setSource(SearchSourceBuilder.searchSource().query(QueryBuilders.termQuery("task.action", taskInfo.action())))

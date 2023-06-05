@@ -12,10 +12,12 @@ import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.StatusToXContentObject;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
+import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
@@ -29,6 +31,7 @@ import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.profile.SearchProfileShardResult;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -36,6 +39,7 @@ import org.elasticsearch.xcontent.XContentParser.Token;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -47,7 +51,7 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
 /**
  * A response of a search request.
  */
-public class SearchResponse extends ActionResponse implements StatusToXContentObject {
+public class SearchResponse extends ActionResponse implements ChunkedToXContentObject {
 
     private static final ParseField SCROLL_ID = new ParseField("_scroll_id");
     private static final ParseField POINT_IN_TIME_ID = new ParseField("pit_id");
@@ -129,7 +133,6 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
             : "SearchResponse can't have both scrollId [" + scrollId + "] and searchContextId [" + pointInTimeId + "]";
     }
 
-    @Override
     public RestStatus status() {
         return RestStatus.status(successfulShards, totalShards, shardFailures);
     }
@@ -264,14 +267,23 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        innerToXContent(builder, params);
-        builder.endObject();
-        return builder;
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+        return Iterators.concat(
+            ChunkedToXContentHelper.startObject(),
+            this.innerToXContentChunked(params),
+            ChunkedToXContentHelper.endObject()
+        );
     }
 
-    public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
+    public Iterator<? extends ToXContent> innerToXContentChunked(ToXContent.Params params) {
+        return Iterators.concat(
+            ChunkedToXContentHelper.singleChunk(SearchResponse.this::headerToXContent),
+            Iterators.single(clusters),
+            internalResponse.toXContentChunked(params)
+        );
+    }
+
+    public XContentBuilder headerToXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         if (scrollId != null) {
             builder.field(SCROLL_ID.getPreferredName(), scrollId);
         }
@@ -295,8 +307,6 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
             getFailedShards(),
             getShardFailures()
         );
-        clusters.toXContent(builder, params);
-        internalResponse.toXContent(builder, params);
         return builder;
     }
 

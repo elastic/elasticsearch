@@ -9,7 +9,6 @@
 package org.elasticsearch.index.query;
 
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -31,13 +30,12 @@ public class CoordinatorRewriteContext extends QueryRewriteContext {
 
     public CoordinatorRewriteContext(
         XContentParserConfiguration parserConfig,
-        NamedWriteableRegistry writeableRegistry,
         Client client,
         LongSupplier nowInMillis,
         IndexLongFieldRange indexLongFieldRange,
         DateFieldMapper.DateFieldType timestampFieldType
     ) {
-        super(parserConfig, writeableRegistry, client, nowInMillis);
+        super(parserConfig, client, nowInMillis);
         this.indexLongFieldRange = indexLongFieldRange;
         this.timestampFieldType = timestampFieldType;
     }

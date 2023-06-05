@@ -18,9 +18,9 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.IndicesAdminClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -334,9 +334,7 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
         ClusterState state = ClusterState.builder(prevState)
             .nodes(
                 DiscoveryNodes.builder()
-                    .add(
-                        new DiscoveryNode("node1", "node1", buildNewFakeTransportAddress(), emptyMap(), MASTER_DATA_ROLES, Version.CURRENT)
-                    )
+                    .add(TestDiscoveryNode.create("node1", "node1", buildNewFakeTransportAddress(), emptyMap(), MASTER_DATA_ROLES))
                     .localNodeId("node1")
                     .masterNodeId("node1")
                     .build()

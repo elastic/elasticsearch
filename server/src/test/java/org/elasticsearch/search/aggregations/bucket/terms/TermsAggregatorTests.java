@@ -217,7 +217,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         Directory directory = newDirectory();
         RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
         indexWriter.close();
-        IndexReader indexReader = DirectoryReader.open(directory);
+        DirectoryReader indexReader = DirectoryReader.open(directory);
         // We do not use LuceneTestCase.newSearcher because we need a DirectoryReader
         IndexSearcher indexSearcher = new IndexSearcher(indexReader);
         MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("string");
@@ -699,7 +699,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                 document.add(new NumericDocValuesField("long_field", 5));
                 document.add(new NumericDocValuesField("double_field", Double.doubleToRawLongBits(5.0)));
                 indexWriter.addDocument(document);
-                try (IndexReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
+                try (DirectoryReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
                     IndexSearcher indexSearcher = newIndexSearcher(indexReader);
                     MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("long_field", NumberFieldMapper.NumberType.LONG);
 
@@ -897,7 +897,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                         }
                     }
                 }
-                try (IndexReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
+                try (DirectoryReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
                     boolean order = randomBoolean();
                     List<Map.Entry<T, Integer>> expectedBuckets = new ArrayList<>();
                     expectedBuckets.addAll(counts.entrySet());
@@ -1000,7 +1000,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     document.add(new NumericDocValuesField("value", entry.getValue()));
                     indexWriter.addDocument(document);
                 }
-                try (IndexReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
+                try (DirectoryReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
                     boolean order = randomBoolean();
                     List<Map.Entry<T, Long>> expectedBuckets = new ArrayList<>();
                     expectedBuckets.addAll(counts.entrySet());
@@ -1050,7 +1050,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                 MappedFieldType fieldType1 = new KeywordFieldMapper.KeywordFieldType("string");
                 MappedFieldType fieldType2 = new NumberFieldMapper.NumberFieldType("long", NumberFieldMapper.NumberType.LONG);
                 MappedFieldType fieldType3 = new NumberFieldMapper.NumberFieldType("double", NumberFieldMapper.NumberType.DOUBLE);
-                try (IndexReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
+                try (DirectoryReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
                     IndexSearcher indexSearcher = newIndexSearcher(indexReader);
                     TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name").userValueTypeHint(ValueType.STRING)
                         .field("string");
@@ -1075,7 +1075,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
     public void testUnmapped() throws Exception {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
-                try (IndexReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
+                try (DirectoryReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
                     IndexSearcher indexSearcher = newIndexSearcher(indexReader);
                     ValueType[] valueTypes = new ValueType[] { ValueType.STRING, ValueType.LONG, ValueType.DOUBLE };
                     String[] fieldNames = new String[] { "string", "long", "double" };
@@ -1100,7 +1100,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                 document.add(new NumericDocValuesField("unrelated_value", 100));
                 indexWriter.addDocument(document);
 
-                try (IndexReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
+                try (DirectoryReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
 
                     MappedFieldType fieldType1 = new KeywordFieldMapper.KeywordFieldType("unrelated_value");
 
@@ -1136,7 +1136,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                 Document document = new Document();
                 document.add(field);
                 indexWriter.addDocument(document);
-                try (IndexReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
+                try (DirectoryReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
                     MappedFieldType fieldType = new RangeFieldMapper.RangeFieldType(fieldName, rangeType);
                     IndexSearcher indexSearcher = newIndexSearcher(indexReader);
                     TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name").field(fieldName);
@@ -1157,7 +1157,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                 Document document = new Document();
                 document.add(new LatLonDocValuesField(field, point.getLat(), point.getLon()));
                 indexWriter.addDocument(document);
-                try (IndexReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
+                try (DirectoryReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
                     MappedFieldType fieldType = new GeoPointFieldMapper.GeoPointFieldType("field");
                     IndexSearcher indexSearcher = newIndexSearcher(indexReader);
                     TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name").field(field);
@@ -1214,7 +1214,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                 document.addAll(doc(fieldType1, "e"));
                 document.addAll(doc(fieldType2, "f"));
                 indexWriter.addDocument(document);
-                try (IndexReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
+                try (DirectoryReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
                     IndexSearcher indexSearcher = newIndexSearcher(indexReader);
                     String executionHint = randomFrom(TermsAggregatorFactory.ExecutionMode.values()).toString();
                     Aggregator.SubAggCollectionMode collectionMode = randomFrom(Aggregator.SubAggCollectionMode.values());
@@ -1316,7 +1316,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                 document = new Document();
                 document.add(new SortedDocValuesField("keyword", new BytesRef("e")));
                 indexWriter.addDocument(document);
-                try (IndexReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
+                try (DirectoryReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
                     IndexSearcher indexSearcher = newIndexSearcher(indexReader);
                     String executionHint = randomFrom(TermsAggregatorFactory.ExecutionMode.values()).toString();
                     Aggregator.SubAggCollectionMode collectionMode = randomFrom(Aggregator.SubAggCollectionMode.values());
@@ -1385,7 +1385,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                             "nested_value",
                             NumberFieldMapper.NumberType.LONG
                         );
-                        try (IndexReader indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
+                        try (DirectoryReader indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
                             {
                                 // match root document only
                                 InternalNested result = searchAndReduce(
@@ -1433,7 +1433,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     .shardSize(10)
                     .size(10)
                     .order(BucketOrder.aggregation("nested>max_number", false));
-                try (IndexReader indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
+                try (DirectoryReader indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
                     // match root document only
                     StringTerms result = searchAndReduce(
                         newIndexSearcher(indexReader),
@@ -1472,7 +1472,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     .order(BucketOrder.aggregation("nested>max_val", false));
                 MappedFieldType nestedFieldType = new NumberFieldMapper.NumberFieldType("nested_value", NumberFieldMapper.NumberType.LONG);
                 MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("value", NumberFieldMapper.NumberType.LONG);
-                try (IndexReader indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
+                try (DirectoryReader indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
                     // match root document only
                     LongTerms result = searchAndReduce(
                         newIndexSearcher(indexReader),
@@ -1646,7 +1646,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                         }
                     }
                 }
-                try (IndexReader reader = maybeWrapReaderEs(writer.getReader())) {
+                try (DirectoryReader reader = maybeWrapReaderEs(writer.getReader())) {
                     IndexSearcher searcher = newIndexSearcher(reader);
                     TermsAggregationBuilder request = new TermsAggregationBuilder("i").field("i")
                         .executionHint(executionHint)
@@ -1689,7 +1689,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                         }
                     }
                 }
-                try (IndexReader reader = maybeWrapReaderEs(writer.getReader())) {
+                try (DirectoryReader reader = maybeWrapReaderEs(writer.getReader())) {
                     IndexSearcher searcher = newIndexSearcher(reader);
                     TermsAggregationBuilder request = new TermsAggregationBuilder("i").field("i")
                         .subAggregation(
@@ -1737,7 +1737,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
     public void testOrderByPipelineAggregation() throws Exception {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
-                try (IndexReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
+                try (DirectoryReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
                     IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
                     BucketScriptPipelineAggregationBuilder bucketScriptAgg = bucketScript("script", new Script("2.718"));
@@ -1834,7 +1834,10 @@ public class TermsAggregatorTests extends AggregatorTestCase {
             }
             iw.close();
 
-            try (DirectoryReader unwrapped = DirectoryReader.open(directory); IndexReader indexReader = wrapDirectoryReader(unwrapped)) {
+            try (
+                DirectoryReader unwrapped = DirectoryReader.open(directory);
+                DirectoryReader indexReader = wrapDirectoryReader(unwrapped)
+            ) {
                 IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
                 AggTestConfig aggTestConfig = new AggTestConfig(

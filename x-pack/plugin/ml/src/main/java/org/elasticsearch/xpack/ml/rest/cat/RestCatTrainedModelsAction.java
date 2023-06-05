@@ -280,14 +280,14 @@ public class RestCatTrainedModelsAction extends AbstractCatAction {
             GetTrainedModelsStatsAction.Response.TrainedModelStats modelStats = statsMap.get(config.getModelId());
             table.addCell(modelStats.getPipelineCount());
             boolean hasIngestStats = modelStats != null && modelStats.getIngestStats() != null;
-            table.addCell(hasIngestStats ? modelStats.getIngestStats().getTotalStats().getIngestCount() : 0);
+            table.addCell(hasIngestStats ? modelStats.getIngestStats().totalStats().ingestCount() : 0);
             table.addCell(
                 hasIngestStats
-                    ? TimeValue.timeValueMillis(modelStats.getIngestStats().getTotalStats().getIngestTimeInMillis())
+                    ? TimeValue.timeValueMillis(modelStats.getIngestStats().totalStats().ingestTimeInMillis())
                     : TimeValue.timeValueMillis(0)
             );
-            table.addCell(hasIngestStats ? modelStats.getIngestStats().getTotalStats().getIngestCurrent() : 0);
-            table.addCell(hasIngestStats ? modelStats.getIngestStats().getTotalStats().getIngestFailedCount() : 0);
+            table.addCell(hasIngestStats ? modelStats.getIngestStats().totalStats().ingestCurrent() : 0);
+            table.addCell(hasIngestStats ? modelStats.getIngestStats().totalStats().ingestFailedCount() : 0);
 
             DataFrameAnalyticsConfig dataFrameAnalyticsConfig = config.getTags()
                 .stream()

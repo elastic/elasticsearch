@@ -566,14 +566,7 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         // And make sure they both have aliases
         final String systemIndexAlias = SystemIndexTestPlugin.SYSTEM_INDEX_NAME + "-alias";
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareAliases()
-                .addAlias(systemIndexName, systemIndexAlias)
-                .addAlias(regularIndex, regularAlias)
-                .get()
-        );
+        assertAcked(indicesAdmin().prepareAliases().addAlias(systemIndexName, systemIndexAlias).addAlias(regularIndex, regularAlias).get());
 
         // run a snapshot including global state
         CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(REPO_NAME, "test-snap")

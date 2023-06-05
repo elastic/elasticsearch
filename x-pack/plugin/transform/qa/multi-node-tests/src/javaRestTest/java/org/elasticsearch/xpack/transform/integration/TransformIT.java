@@ -39,6 +39,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasKey;
@@ -471,12 +472,26 @@ public class TransformIT extends TransformRestTestCase {
             .build();
 
         putTransform(transformId, Strings.toString(config), RequestOptions.DEFAULT);
+
         ResponseException e = expectThrows(
             ResponseException.class,
             () -> startTransform(config.getId(), RequestOptions.DEFAULT.toBuilder().addParameter("timeout", "1nanos").build())
         );
 
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(RestStatus.REQUEST_TIMEOUT.getStatus()));
+        assertThat(e.getMessage(), containsString("Starting transform [" + transformId + "] timed out after [1nanos]"));
+
+        // After we've verified that the _start call timed out, we stop the transform (which might have been started despite timeout).
+        try {
+            stopTransform(transformId);
+        } catch (ResponseException e2) {
+            // It can be that the _stop call timed out because of the race condition, i.e.: the _stop call executed *before* the _start call
+            // because of how threads were scheduled by the generic thread pool and now the current transform state is STARTED.
+            // In such a case, we repeat the _stop call to make the transform STOPPED.
+            assertThat(e2.getResponse().getStatusLine().getStatusCode(), equalTo(RestStatus.REQUEST_TIMEOUT.getStatus()));
+            assertThat(e2.getMessage(), containsString("Could not stop the transforms [" + transformId + "] as they timed out [30s]."));
+            stopTransform(transformId);
+        }
     }
 
     private void indexMoreDocs(long timestamp, long userId, String index) throws Exception {

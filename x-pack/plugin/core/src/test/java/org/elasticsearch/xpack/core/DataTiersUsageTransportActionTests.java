@@ -774,7 +774,7 @@ public class DataTiersUsageTransportActionTests extends ESTestCase {
         Path fakePath = PathUtils.get("test/dir/" + routing.shardId().getIndex().getUUID() + "/" + routing.shardId().id());
         ShardPath fakeShardPath = new ShardPath(false, fakePath, fakePath, routing.shardId());
 
-        return new ShardStats(routing, fakeShardPath, commonStats, null, null, null);
+        return new ShardStats(routing, fakeShardPath, commonStats, null, null, null, false, 0);
     }
 
     private static NodeStats mockNodeStats(DiscoveryNode node, NodeIndicesStats indexStats) {

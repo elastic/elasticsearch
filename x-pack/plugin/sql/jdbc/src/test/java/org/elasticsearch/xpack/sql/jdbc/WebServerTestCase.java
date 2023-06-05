@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.sql.jdbc;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.main.MainResponse;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.rest.root.MainResponse;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockWebServer;
 import org.junit.After;

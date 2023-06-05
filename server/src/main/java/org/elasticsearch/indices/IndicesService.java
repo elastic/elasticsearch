@@ -537,7 +537,9 @@ public class IndicesService extends AbstractLifecycleComponent
                     CommonStats.getShardLevelStats(indicesService.getIndicesQueryCache(), indexShard, flags),
                     commitStats,
                     seqNoStats,
-                    retentionLeaseStats
+                    retentionLeaseStats,
+                    indexShard.isSearchIdle(),
+                    indexShard.searchIdleTime()
                 ) }
         );
     }
@@ -1693,18 +1695,11 @@ public class IndicesService extends AbstractLifecycleComponent
      * Returns a new {@link QueryRewriteContext} with the given {@code now} provider
      */
     public QueryRewriteContext getRewriteContext(LongSupplier nowInMillis) {
-        return new QueryRewriteContext(parserConfig, namedWriteableRegistry, client, nowInMillis);
+        return new QueryRewriteContext(parserConfig, client, nowInMillis);
     }
 
     public CoordinatorRewriteContextProvider getCoordinatorRewriteContextProvider(LongSupplier nowInMillis) {
-        return new CoordinatorRewriteContextProvider(
-            parserConfig,
-            namedWriteableRegistry,
-            client,
-            nowInMillis,
-            clusterService::state,
-            this::getTimestampFieldType
-        );
+        return new CoordinatorRewriteContextProvider(parserConfig, client, nowInMillis, clusterService::state, this::getTimestampFieldType);
     }
 
     /**

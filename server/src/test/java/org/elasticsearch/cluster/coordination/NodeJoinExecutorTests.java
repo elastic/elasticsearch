@@ -447,13 +447,12 @@ public class NodeJoinExecutorTests extends ESTestCase {
         final var executor = new NodeJoinExecutor(allocationService, rerouteService);
 
         final var masterNode = TestDiscoveryNode.create(UUIDs.randomBase64UUID(random()));
-        final var otherNode = new DiscoveryNode(
+        final var otherNode = TestDiscoveryNode.create(
             UUIDs.randomBase64UUID(random()),
             UUIDs.randomBase64UUID(random()),
             buildNewFakeTransportAddress(),
             Map.of(),
-            Set.of(DiscoveryNodeRole.MASTER_ROLE),
-            Version.CURRENT
+            Set.of(DiscoveryNodeRole.MASTER_ROLE)
         );
 
         var clusterState = ClusterState.builder(ClusterName.DEFAULT)

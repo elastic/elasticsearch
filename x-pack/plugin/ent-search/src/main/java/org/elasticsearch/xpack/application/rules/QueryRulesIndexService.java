@@ -48,6 +48,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -144,6 +145,25 @@ public class QueryRulesIndexService {
                         builder.startObject(QueryRule.TYPE_FIELD.getPreferredName());
                         builder.field("type", "keyword");
                         builder.endObject();
+
+                        builder.startObject(QueryRule.CRITERIA_FIELD.getPreferredName());
+                        builder.startObject("properties");
+                        {
+                            builder.startObject(QueryRuleCriteria.TYPE_FIELD.getPreferredName());
+                            builder.field("type", "keyword");
+                            builder.endObject();
+
+                            builder.startObject(QueryRuleCriteria.METADATA_FIELD.getPreferredName());
+                            builder.field("type", "keyword");
+                            builder.endObject();
+
+                            builder.startObject(QueryRuleCriteria.VALUE_FIELD.getPreferredName());
+                            builder.field("type", "object");
+                            builder.field("enabled", false);
+                            builder.endObject();
+                        }
+                        builder.endObject();
+                        builder.endObject();
                     }
                     builder.endObject();
                     builder.endObject();
@@ -177,13 +197,27 @@ public class QueryRulesIndexService {
 
             final String id = getResponse.getId();
             @SuppressWarnings("unchecked")
-            final List<QueryRule> rules = ((List<Map<String,String>>) source.get("rules"))
+            final List<QueryRule> rules = ((List<Map<String,Object>>) source.get("rules"))
                 .stream()
-                .map(rule -> new QueryRule(rule.get("rule_id"), QueryRuleType.queryRuleType(rule.get("type"))))
+                .map(rule -> new QueryRule((String) rule.get("rule_id"),
+                    QueryRuleType.queryRuleType((String) rule.get("type")),
+                    parseCriteria((List<Map<String,Object>>) rule.get("criteria"))
+                    ))
                 .collect(Collectors.toList());
             final QueryRuleset res = new QueryRuleset(id, rules);
             l.onResponse(res);
         }));
+    }
+
+    private List<QueryRuleCriteria> parseCriteria(List<Map<String,Object>> rawCriteria) {
+        List<QueryRuleCriteria> criteria = new ArrayList<>(rawCriteria.size());
+        for (Map<String,Object> entry : rawCriteria) {
+            criteria.add(new QueryRuleCriteria(
+                QueryRuleCriteria.CriteriaType.criteriaType((String) entry.get("type")),
+                QueryRuleCriteria.CriteriaMetadata.criteriaMetadata((String) entry.get("metadata")),
+                (String) entry.get("value")));
+        }
+        return criteria;
     }
 
     /**
@@ -285,7 +319,8 @@ public class QueryRulesIndexService {
         final String resourceName = documentFields.get(QueryRule.ID_FIELD.getPreferredName()).getValue();
         return new QueryRule(
             resourceName,
-           QueryRuleType.queryRuleType(documentFields.get(QueryRule.TYPE_FIELD.getPreferredName()).getValue())
+           QueryRuleType.queryRuleType(documentFields.get(QueryRule.TYPE_FIELD.getPreferredName()).getValue()),
+            documentFields.get(QueryRule.CRITERIA_FIELD.getPreferredName()).getValue()
         );
     }
 

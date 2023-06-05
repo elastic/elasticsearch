@@ -12,6 +12,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.application.rules.QueryRule;
+import org.elasticsearch.xpack.application.rules.QueryRuleCriteria;
 import org.elasticsearch.xpack.application.rules.QueryRuleset;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 
@@ -77,10 +78,17 @@ public final class SearchApplicationTestUtils {
         return randomMap(0, 10, () -> Tuple.tuple(randomIdentifier(), randomAlphaOfLengthBetween(0, 10)));
     }
 
+    public static QueryRuleCriteria randomQueryRuleCriteria() {
+        return new QueryRuleCriteria(randomFrom(QueryRuleCriteria.CriteriaType.values()),
+            randomFrom(QueryRuleCriteria.CriteriaMetadata.values()),
+            randomAlphaOfLengthBetween(1, 10));
+    }
+
     public static QueryRule randomQueryRule() {
         String id = randomIdentifier();
         QueryRule.QueryRuleType type = randomFrom(QueryRule.QueryRuleType.values());
-        return new QueryRule(id, type);
+        List<QueryRuleCriteria> criteria = List.of(randomQueryRuleCriteria());
+        return new QueryRule(id, type, criteria);
     }
 
     public static QueryRuleset randomQueryRuleset() {

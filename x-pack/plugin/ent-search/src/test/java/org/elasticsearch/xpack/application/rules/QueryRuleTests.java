@@ -57,7 +57,14 @@ public class QueryRuleTests extends ESTestCase {
         String content = XContentHelper.stripWhitespace("""
             {
               "rule_id": "my_query_rule",
-              "type": "pinned"
+              "type": "pinned",
+              "criteria": [
+                {
+                  "type": "exact",
+                  "metadata": "query_string",
+                  "value": "foo"
+                }
+              ]
             }""");
 
         QueryRule queryRule = QueryRule.fromXContentBytes(new BytesArray(content), XContentType.JSON);
@@ -73,7 +80,23 @@ public class QueryRuleTests extends ESTestCase {
     public void testToXContentMissingQueryRuleId() throws IOException {
         String content = XContentHelper.stripWhitespace("""
             {
-              "type": "pinned"
+              "type": "pinned",
+              "criteria": [
+                { "type": "exact", "metadata": "query_string", "value": "foo" }
+              ]
+            }""");
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> QueryRule.fromXContentBytes(new BytesArray(content), XContentType.JSON)
+        );
+    }
+
+    public void testToXContentEmptyCriteria() throws IOException {
+        String content = XContentHelper.stripWhitespace("""
+            {
+              "rule_id": "my_query_rule",
+              "type": "pinned",
+              "criteria": []
             }""");
         expectThrows(
             IllegalArgumentException.class,

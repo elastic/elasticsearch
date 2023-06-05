@@ -23,6 +23,7 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
@@ -42,6 +43,8 @@ public class QueryRule implements Writeable, ToXContentObject {
 
     private final String id;
     private final QueryRuleType type;
+
+    private final List<QueryRuleCriteria> criteria;
 
     // TODO add criteria, actions
 
@@ -67,7 +70,8 @@ public class QueryRule implements Writeable, ToXContentObject {
      */
     public QueryRule(
         String id,
-        QueryRuleType type
+        QueryRuleType type,
+        List<QueryRuleCriteria> criteria
     ) {
         if (Strings.isNullOrEmpty(id)) {
             throw new IllegalArgumentException("Query rule id cannot be null or blank");
@@ -76,36 +80,47 @@ public class QueryRule implements Writeable, ToXContentObject {
 
         Objects.requireNonNull(type, "Query rule type cannot be null");
         this.type = type;
+
+        Objects.requireNonNull(criteria, "Query rule criteria cannot be null");
+        if (criteria.isEmpty()) {
+            throw new IllegalArgumentException("Query rule criteria cannot be empty");
+        }
+        this.criteria = criteria;
     }
 
     public QueryRule(StreamInput in) throws IOException {
         this.id = in.readString();
         this.type = QueryRuleType.queryRuleType(in.readString());
+        this.criteria = in.readList(QueryRuleCriteria::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(id);
         out.writeString(type.toString());
+        out.writeList(criteria);
     }
 
-    // TODO - I don't think we need to do validation on resourcename for query rule anymore. Think about this a bit more.
     private static final ConstructingObjectParser<QueryRule, String> PARSER = new ConstructingObjectParser<>(
         "query_rule",
         false,
         (params, resourceName) -> {
             final String id = (String) params[0];
             final QueryRuleType type = QueryRuleType.queryRuleType((String) params[1]);
-            return new QueryRule(id, type);
+            @SuppressWarnings("unchecked")
+            final List<QueryRuleCriteria> criteria = (List<QueryRuleCriteria>) params[2];
+            return new QueryRule(id, type, criteria);
         }
     );
 
     public static final ParseField ID_FIELD = new ParseField("rule_id");
     public static final ParseField TYPE_FIELD = new ParseField("type");
+    public static final ParseField CRITERIA_FIELD = new ParseField("criteria");
 
     static {
         PARSER.declareStringOrNull(optionalConstructorArg(), ID_FIELD);
         PARSER.declareStringOrNull(constructorArg(), TYPE_FIELD);
+        PARSER.declareObjectArray(constructorArg(), (p, c) -> QueryRuleCriteria.fromXContent(p), CRITERIA_FIELD);
     }
 
     /**
@@ -145,6 +160,13 @@ public class QueryRule implements Writeable, ToXContentObject {
         {
             builder.field(ID_FIELD.getPreferredName(), id);
             builder.field(TYPE_FIELD.getPreferredName(), type);
+            builder.startArray(CRITERIA_FIELD.getPreferredName());
+            {
+                for (QueryRuleCriteria queryRuleCriteria : criteria) {
+                    queryRuleCriteria.toXContent(builder, params);
+                }
+            }
+            builder.endArray();
         }
         builder.endObject();
         return builder;
@@ -168,17 +190,21 @@ public class QueryRule implements Writeable, ToXContentObject {
         return type;
     }
 
+    public List<QueryRuleCriteria> criteria() {
+        return criteria;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         QueryRule queryRule = (QueryRule) o;
-        return Objects.equals(id, queryRule.id) && type == queryRule.type;
+        return Objects.equals(id, queryRule.id) && type == queryRule.type && Objects.equals(criteria, queryRule.criteria);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, type);
+        return Objects.hash(id, type, criteria);
     }
 
     @Override

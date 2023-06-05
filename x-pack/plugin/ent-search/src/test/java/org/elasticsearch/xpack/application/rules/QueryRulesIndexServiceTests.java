@@ -31,6 +31,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.application.rules.QueryRule.QueryRuleType;
+import static org.elasticsearch.xpack.application.rules.QueryRuleCriteria.CriteriaType;
+import static org.elasticsearch.xpack.application.rules.QueryRuleCriteria.CriteriaMetadata;
 import static org.elasticsearch.xpack.application.rules.QueryRulesIndexService.QUERY_RULES_CONCRETE_INDEX_NAME;
 import static org.hamcrest.CoreMatchers.anyOf;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -63,8 +65,8 @@ public class QueryRulesIndexServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testCreateQueryRuleset() throws Exception {
-        final QueryRule myQueryRule1 = new QueryRule("my_rule1", QueryRuleType.PINNED);
-        final QueryRule myQueryRule2 = new QueryRule("my_rule2", QueryRuleType.PINNED);
+        final QueryRule myQueryRule1 = new QueryRule("my_rule1", QueryRuleType.PINNED, List.of(new QueryRuleCriteria(CriteriaType.EXACT, CriteriaMetadata.QUERY_STRING, "foo")));
+        final QueryRule myQueryRule2 = new QueryRule("my_rule2", QueryRuleType.PINNED, List.of(new QueryRuleCriteria(CriteriaType.EXACT, CriteriaMetadata.QUERY_STRING, "bar")));
         final QueryRuleset myQueryRuleset = new QueryRuleset("my_ruleset", List.of(myQueryRule1, myQueryRule2));
 
         IndexResponse resp = awaitPutQueryRuleset(myQueryRuleset, true);
@@ -79,7 +81,7 @@ public class QueryRulesIndexServiceTests extends ESSingleNodeTestCase {
 
     public void testUpdateQueryRuleset() throws Exception {
         {
-            final QueryRule myQueryRule1 = new QueryRule("my_rule1", QueryRuleType.PINNED);
+            final QueryRule myQueryRule1 = new QueryRule("my_rule1", QueryRuleType.PINNED, List.of(new QueryRuleCriteria(CriteriaType.EXACT, CriteriaMetadata.QUERY_STRING, "foo")));
             final QueryRuleset myQueryRuleset = new QueryRuleset("my_ruleset", Collections.singletonList(myQueryRule1));
             IndexResponse resp = awaitPutQueryRuleset(myQueryRuleset, false);
             assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
@@ -90,8 +92,8 @@ public class QueryRulesIndexServiceTests extends ESSingleNodeTestCase {
         }
 
         // TODO update with new values
-        final QueryRule myQueryRule1 = new QueryRule("my_rule1", QueryRuleType.PINNED);
-        final QueryRule myQueryRule2 = new QueryRule("my_rule2", QueryRuleType.PINNED);
+        final QueryRule myQueryRule1 = new QueryRule("my_rule1", QueryRuleType.PINNED, List.of(new QueryRuleCriteria(CriteriaType.EXACT, CriteriaMetadata.QUERY_STRING, "foo")));
+        final QueryRule myQueryRule2 = new QueryRule("my_rule2", QueryRuleType.PINNED, List.of(new QueryRuleCriteria(CriteriaType.EXACT, CriteriaMetadata.QUERY_STRING, "bar")));
         final QueryRuleset myQueryRuleset = new QueryRuleset("my_ruleset", List.of(myQueryRule1, myQueryRule2));
         IndexResponse newResp = awaitPutQueryRuleset(myQueryRuleset, false);
         assertThat(newResp.status(), equalTo(RestStatus.OK));
@@ -104,8 +106,8 @@ public class QueryRulesIndexServiceTests extends ESSingleNodeTestCase {
         int numRulesets = 10;
         for (int i = 0; i < numRulesets; i++) {
             final List<QueryRule> rules = List.of(
-                new QueryRule("my_rule_" + i, QueryRuleType.PINNED),
-                new QueryRule("my_rule_" + i + "_" + (i + 1), QueryRuleType.PINNED)
+                new QueryRule("my_rule_" + i, QueryRuleType.PINNED, List.of(new QueryRuleCriteria(CriteriaType.EXACT, CriteriaMetadata.QUERY_STRING, "foo" + i))),
+                new QueryRule("my_rule_" + i + "_" + (i + 1), QueryRuleType.PINNED, List.of(new QueryRuleCriteria(CriteriaType.EXACT, CriteriaMetadata.QUERY_STRING, "bar" + i)))
             );
             final QueryRuleset myQueryRuleset = new QueryRuleset("my_ruleset_" + i, rules);
 
@@ -144,8 +146,8 @@ public class QueryRulesIndexServiceTests extends ESSingleNodeTestCase {
 
     public void testDeleteQueryRule() throws Exception {
         for (int i = 0; i < 5; i++) {
-            final QueryRule myQueryRule1 = new QueryRule("my_rule1", QueryRuleType.PINNED);
-            final QueryRule myQueryRule2 = new QueryRule("my_rule2", QueryRuleType.PINNED);
+            final QueryRule myQueryRule1 = new QueryRule("my_rule1", QueryRuleType.PINNED, List.of(new QueryRuleCriteria(CriteriaType.EXACT, CriteriaMetadata.QUERY_STRING, "foo")));
+            final QueryRule myQueryRule2 = new QueryRule("my_rule2", QueryRuleType.PINNED, List.of(new QueryRuleCriteria(CriteriaType.EXACT, CriteriaMetadata.QUERY_STRING, "bar")));
             final QueryRuleset myQueryRuleset = new QueryRuleset("my_ruleset", List.of(myQueryRule1, myQueryRule2));
             IndexResponse resp = awaitPutQueryRuleset(myQueryRuleset, false);
             assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));

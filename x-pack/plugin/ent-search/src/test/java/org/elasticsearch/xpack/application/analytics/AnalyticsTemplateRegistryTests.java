@@ -407,8 +407,8 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
     }
 
     public void testThatNothingIsInstalledWhenAllNodesAreNotUpdated() {
-        DiscoveryNode updatedNode = TestDiscoveryNode.create("updatedNode");
-        DiscoveryNode outdatedNode = TestDiscoveryNode.create("outdatedNode", ESTestCase.buildNewFakeTransportAddress(), Version.V_8_7_0);
+        DiscoveryNode updatedNode = DiscoveryNodeUtils.create("updatedNode");
+        DiscoveryNode outdatedNode = DiscoveryNodeUtils.create("outdatedNode", ESTestCase.buildNewFakeTransportAddress(), Version.V_8_7_0);
         DiscoveryNodes nodes = DiscoveryNodes.builder()
             .localNodeId("updatedNode")
             .masterNodeId("updatedNode")

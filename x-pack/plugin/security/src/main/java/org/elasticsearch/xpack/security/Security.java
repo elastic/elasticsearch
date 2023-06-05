@@ -295,7 +295,7 @@ import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 import org.elasticsearch.xpack.security.authz.store.RoleProviders;
 import org.elasticsearch.xpack.security.ingest.SetSecurityUserProcessor;
 import org.elasticsearch.xpack.security.operator.FileOperatorUsersStore;
-import org.elasticsearch.xpack.security.operator.OperatorOnlyRegistry;
+import org.elasticsearch.xpack.security.operator.DefaultOperatorOnlyRegistry;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges.OperatorPrivilegesService;
 import org.elasticsearch.xpack.security.profile.ProfileService;
@@ -890,7 +890,7 @@ public class Security extends Plugin
             operatorPrivilegesService = new OperatorPrivileges.DefaultOperatorPrivilegesService(
                 getLicenseState(),
                 new FileOperatorUsersStore(environment, resourceWatcherService),
-                new OperatorOnlyRegistry(clusterService.getClusterSettings())
+                new DefaultOperatorOnlyRegistry(clusterService.getClusterSettings())
             );
         } else {
             operatorPrivilegesService = OperatorPrivileges.NOOP_OPERATOR_PRIVILEGES_SERVICE;

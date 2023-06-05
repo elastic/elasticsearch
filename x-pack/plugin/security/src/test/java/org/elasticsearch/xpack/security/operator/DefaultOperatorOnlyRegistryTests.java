@@ -32,7 +32,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class OperatorOnlyRegistryTests extends ESTestCase {
+public class DefaultOperatorOnlyRegistryTests extends ESTestCase {
 
     private static final Set<Setting<?>> DYNAMIC_SETTINGS = ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.stream()
         .filter(Setting::isDynamic)
@@ -49,18 +49,18 @@ public class OperatorOnlyRegistryTests extends ESTestCase {
         HTTP_FILTER_DENY_SETTING
     );
 
-    private OperatorOnlyRegistry operatorOnlyRegistry;
+    private DefaultOperatorOnlyRegistry operatorOnlyRegistry;
 
     @Before
     public void init() {
         final Set<Setting<?>> settingsSet = new HashSet<>(IP_FILTER_SETTINGS);
         settingsSet.addAll(DYNAMIC_SETTINGS);
-        operatorOnlyRegistry = new OperatorOnlyRegistry(new ClusterSettings(Settings.EMPTY, settingsSet));
+        operatorOnlyRegistry = new DefaultOperatorOnlyRegistry(new ClusterSettings(Settings.EMPTY, settingsSet));
     }
 
     public void testSimpleOperatorOnlyApi() {
-        for (final String actionName : OperatorOnlyRegistry.SIMPLE_ACTIONS) {
-            final OperatorOnlyRegistry.OperatorPrivilegesViolation violation = operatorOnlyRegistry.check(actionName, null);
+        for (final String actionName : DefaultOperatorOnlyRegistry.SIMPLE_ACTIONS) {
+            final DefaultOperatorOnlyRegistry.OperatorPrivilegesViolation violation = operatorOnlyRegistry.check(actionName, null);
             assertNotNull(violation);
             assertThat(violation.message(), containsString("action [" + actionName + "]"));
         }
@@ -68,7 +68,7 @@ public class OperatorOnlyRegistryTests extends ESTestCase {
 
     public void testNonOperatorOnlyApi() {
         final String actionName = randomValueOtherThanMany(
-            OperatorOnlyRegistry.SIMPLE_ACTIONS::contains,
+            DefaultOperatorOnlyRegistry.SIMPLE_ACTIONS::contains,
             () -> randomAlphaOfLengthBetween(10, 40)
         );
         assertNull(operatorOnlyRegistry.check(actionName, null));
@@ -78,7 +78,7 @@ public class OperatorOnlyRegistryTests extends ESTestCase {
         final ClusterUpdateSettingsRequest request;
         final Setting<?> transientSetting;
         final Setting<?> persistentSetting;
-        final OperatorOnlyRegistry.OperatorPrivilegesViolation violation;
+        final DefaultOperatorOnlyRegistry.OperatorPrivilegesViolation violation;
 
         switch (randomIntBetween(0, 3)) {
             case 0 -> {

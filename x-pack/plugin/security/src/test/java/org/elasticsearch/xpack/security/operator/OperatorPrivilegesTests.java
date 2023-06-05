@@ -47,14 +47,14 @@ public class OperatorPrivilegesTests extends ESTestCase {
 
     private MockLicenseState xPackLicenseState;
     private FileOperatorUsersStore fileOperatorUsersStore;
-    private OperatorOnlyRegistry operatorOnlyRegistry;
+    private DefaultOperatorOnlyRegistry operatorOnlyRegistry;
     private OperatorPrivilegesService operatorPrivilegesService;
 
     @Before
     public void init() {
         xPackLicenseState = mock(MockLicenseState.class);
         fileOperatorUsersStore = mock(FileOperatorUsersStore.class);
-        operatorOnlyRegistry = mock(OperatorOnlyRegistry.class);
+        operatorOnlyRegistry = mock(DefaultOperatorOnlyRegistry.class);
         operatorPrivilegesService = new DefaultOperatorPrivilegesService(xPackLicenseState, fileOperatorUsersStore, operatorOnlyRegistry);
     }
 

@@ -299,17 +299,17 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
     }
 
     /**
-     * Get a node by its name
+     * Check if a node with provided name exists
      *
-     * @return node identified by the given name or <code>null</code> if no such node exists
+     * @return {@code true} node identified with provided name exists or {@code false} otherwise
      */
-    public DiscoveryNode findByName(String name) {
+    public boolean hasByName(String name) {
         for (DiscoveryNode node : nodes.values()) {
             if (node.getName().equals(name)) {
-                return node;
+                return true;
             }
         }
-        return null;
+        return false;
     }
 
     /**

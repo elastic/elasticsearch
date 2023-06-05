@@ -119,7 +119,7 @@ public class NodeReplacementAllocationDecider extends AllocationDecider {
                     Decision.YES,
                     NAME,
                     "node [%s] is a node replacement target for node [%s], "
-                        + "shards can auto expand to it as they were already present of the source node",
+                        + "shard can auto expand to it as it was already present on the source node",
                     node.getId(),
                     sourceNodeId
                 );
@@ -136,11 +136,11 @@ public class NodeReplacementAllocationDecider extends AllocationDecider {
         } else if (isReplacementSource(allocation, node.getId())) {
             final SingleNodeShutdownMetadata shutdown = allocation.getClusterState().metadata().nodeShutdowns().get(node.getId());
             final String replacementNodeName = shutdown != null ? shutdown.getTargetNodeName() : null;
-            final boolean hasShardThatCanNotMigrate = hasShardOnNode(indexMetadata, node.getId(), allocation)
+            final boolean hasShardOnSource = hasShardOnNode(indexMetadata, node.getId(), allocation)
                 && shutdown != null
-                && allocation.getClusterState().getNodes().findByName(shutdown.getTargetNodeName()) == null;
+                && allocation.getClusterState().getNodes().hasByName(replacementNodeName) == false;
 
-            if (hasShardThatCanNotMigrate) {
+            if (hasShardOnSource) {
                 return allocation.decision(
                     Decision.YES,
                     NAME,

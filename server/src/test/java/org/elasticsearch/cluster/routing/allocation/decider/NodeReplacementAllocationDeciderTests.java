@@ -40,7 +40,6 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
 import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.nullValue;
 
 public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase {
     private static final DiscoveryNode NODE_A = newNode("node-a", "node-a", Collections.singleton(DiscoveryNodeRole.DATA_ROLE));
@@ -265,7 +264,7 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
                 decider.shouldAutoExpandToNode(indexMetadata, NODE_A, allocation),
                 equalTo(NodeReplacementAllocationDecider.YES__NO_REPLACEMENTS)
             );
-            assertThat("node-b has not joined yet", allocation.getClusterState().nodes().findByName(NODE_B.getName()), nullValue());
+            assertThat("node-b has not joined yet", allocation.getClusterState().nodes().hasByName(NODE_B.getName()), equalTo(false));
             assertThat(
                 decider.shouldAutoExpandToNode(indexMetadata, NODE_C, allocation),
                 equalTo(NodeReplacementAllocationDecider.YES__NO_REPLACEMENTS)
@@ -293,7 +292,7 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
                     + "], shards can auto expand to be on it "
                     + "while replacement node has not joined the cluster"
             );
-            assertThat("node-b has not joined yet", allocation.getClusterState().nodes().findByName(NODE_B.getName()), nullValue());
+            assertThat("node-b has not joined yet", allocation.getClusterState().nodes().hasByName(NODE_B.getName()), equalTo(false));
             assertThat(
                 decider.shouldAutoExpandToNode(indexMetadata, NODE_C, allocation),
                 equalTo(NodeReplacementAllocationDecider.YES__NO_APPLICABLE_REPLACEMENTS)
@@ -366,7 +365,7 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
                 + "] is a node replacement target for node ["
                 + NODE_A.getId()
                 + "], "
-                + "shards can auto expand to it as they were already present of the source node"
+                + "shard can auto expand to it as it was already present on the source node"
         );
         assertThatDecision(
             decider.shouldAutoExpandToNode(indexMetadata, NODE_C, allocation),

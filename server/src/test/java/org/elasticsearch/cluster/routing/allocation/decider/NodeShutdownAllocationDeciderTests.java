@@ -170,7 +170,6 @@ public class NodeShutdownAllocationDeciderTests extends ESAllocationTestCase {
             .nodes(DiscoveryNodes.builder().add(DATA_NODE).build())
             .metadata(Metadata.builder().put(IndexMetadata.builder(indexMetadata)))
             .build();
-        ;
 
         // should auto-expand when no shutdown
         assertThatDecision(
@@ -179,7 +178,7 @@ public class NodeShutdownAllocationDeciderTests extends ESAllocationTestCase {
             "no nodes are shutting down"
         );
 
-        // should auto-expand when shutdown/replacement is registered and no node replacement yet
+        // should auto-expand to source when shutdown/replacement entry is registered and node replacement has not started
         var shutdown = createNodesShutdownMetadata(SingleNodeShutdownMetadata.Type.REPLACE, DATA_NODE.getId());
         state = ClusterState.builder(state)
             .metadata(Metadata.builder(state.metadata()).putCustom(NodesShutdownMetadata.TYPE, shutdown).build())
@@ -190,7 +189,7 @@ public class NodeShutdownAllocationDeciderTests extends ESAllocationTestCase {
             "node [" + DATA_NODE.getId() + "] is preparing to be removed from the cluster, but replacement is not yet present"
         );
 
-        // should not auto-expand when only to replacement node when joined
+        // should auto-expand to replacement when node replacement has started
         var replacementName = shutdown.get(DATA_NODE.getId()).getTargetNodeName();
         var replacementNode = newNode(replacementName, "node-data-1", Set.of(DiscoveryNodeRole.DATA_ROLE));
         state = ClusterState.builder(state).nodes(DiscoveryNodes.builder(state.getNodes()).add(replacementNode).build()).build();

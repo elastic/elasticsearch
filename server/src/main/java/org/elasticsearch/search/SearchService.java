@@ -21,7 +21,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.search.CanMatchNodeRequest;
 import org.elasticsearch.action.search.CanMatchNodeResponse;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.TransportActions;
@@ -1688,14 +1687,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     /**
-     * Returns a builder for {@link AggregationReduceContext}. This
-     * builder retains a reference to the provided {@link SearchRequest}.
+     * Returns a builder for {@link AggregationReduceContext}.
      */
-    public AggregationReduceContext.Builder aggReduceContextBuilder(Supplier<Boolean> isCanceled, SearchRequest request) {
+    public AggregationReduceContext.Builder aggReduceContextBuilder(Supplier<Boolean> isCanceled, AggregatorFactories.Builder aggs) {
         return new AggregationReduceContext.Builder() {
             @Override
             public AggregationReduceContext forPartialReduction() {
-                return new AggregationReduceContext.ForPartial(bigArrays, scriptService, isCanceled, request.source().aggregations());
+                return new AggregationReduceContext.ForPartial(bigArrays, scriptService, isCanceled, aggs);
             }
 
             @Override
@@ -1704,7 +1702,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     bigArrays,
                     scriptService,
                     isCanceled,
-                    request.source().aggregations(),
+                    aggs,
                     multiBucketConsumerService.create()
                 );
             }

@@ -373,6 +373,7 @@ public class DiskThresholdMonitor {
             // Calculate both the source node id and the target node id of a "replace" type shutdown
             final Set<String> nodesIdsPartOfReplacement = state.metadata()
                 .nodeShutdowns()
+                .getAll()
                 .values()
                 .stream()
                 .filter(meta -> meta.getType() == SingleNodeShutdownMetadata.Type.REPLACE)

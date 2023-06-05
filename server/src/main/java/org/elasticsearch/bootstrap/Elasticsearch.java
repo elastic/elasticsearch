@@ -24,6 +24,7 @@ import org.elasticsearch.common.network.IfConfig;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
+import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
@@ -44,6 +45,7 @@ import java.nio.file.Path;
 import java.security.Permission;
 import java.security.Security;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -180,6 +182,8 @@ class Elasticsearch {
         try {
             // ReferenceDocs class does nontrivial static initialization which should always succeed but load it now (before SM) to be sure
             MethodHandles.publicLookup().ensureInitialized(ReferenceDocs.class);
+            // AbstractRefCounted class uses MethodHandles.lookup during initialization, load it now (before SM) to be sure it succeeds
+            MethodHandles.publicLookup().ensureInitialized(AbstractRefCounted.class);
         } catch (IllegalAccessException unexpected) {
             throw new AssertionError(unexpected);
         }
@@ -322,10 +326,10 @@ class Elasticsearch {
     }
 
     static void checkLucene() {
-        if (Version.CURRENT.luceneVersion.equals(org.apache.lucene.util.Version.LATEST) == false) {
+        if (Version.CURRENT.luceneVersion().equals(org.apache.lucene.util.Version.LATEST) == false) {
             throw new AssertionError(
                 "Lucene version mismatch this version of Elasticsearch requires lucene version ["
-                    + Version.CURRENT.luceneVersion
+                    + Version.CURRENT.luceneVersion()
                     + "]  but the current lucene version is ["
                     + org.apache.lucene.util.Version.LATEST
                     + "]"
@@ -423,8 +427,8 @@ class Elasticsearch {
     private final Thread keepAliveThread;
 
     private Elasticsearch(Spawner spawner, Node node) {
-        this.spawner = spawner;
-        this.node = node;
+        this.spawner = Objects.requireNonNull(spawner);
+        this.node = Objects.requireNonNull(node);
         this.keepAliveThread = new Thread(() -> {
             try {
                 keepAliveLatch.await();
@@ -445,14 +449,15 @@ class Elasticsearch {
         }
         var es = INSTANCE;
         try {
+            es.node.prepareForClose();
             IOUtils.close(es.node, es.spawner);
-            if (es.node != null && es.node.awaitClose(10, TimeUnit.SECONDS) == false) {
+            if (es.node.awaitClose(10, TimeUnit.SECONDS) == false) {
                 throw new IllegalStateException(
                     "Node didn't stop within 10 seconds. " + "Any outstanding requests or tasks might get killed."
                 );
             }
         } catch (IOException ex) {
-            throw new ElasticsearchException("failed to stop node", ex);
+            throw new ElasticsearchException("Failure occurred while shutting down node", ex);
         } catch (InterruptedException e) {
             LogManager.getLogger(Elasticsearch.class).warn("Thread got interrupted while waiting for the node to shutdown.");
             Thread.currentThread().interrupt();

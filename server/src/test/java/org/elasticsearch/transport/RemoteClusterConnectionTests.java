@@ -13,23 +13,22 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.remote.RemoteClusterNodesAction;
-import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsAction;
-import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
-import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
-import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchShardsAction;
+import org.elasticsearch.action.search.SearchShardsRequest;
+import org.elasticsearch.action.search.SearchShardsResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -125,20 +124,14 @@ public class RemoteClusterConnectionTests extends ESTestCase {
         MockTransportService newService = MockTransportService.createNewService(s, version, transportVersion, threadPool, null);
         try {
             newService.registerRequestHandler(
-                ClusterSearchShardsAction.NAME,
+                SearchShardsAction.NAME,
                 ThreadPool.Names.SAME,
-                ClusterSearchShardsRequest::new,
+                SearchShardsRequest::new,
                 (request, channel, task) -> {
                     if ("index_not_found".equals(request.preference())) {
                         channel.sendResponse(new IndexNotFoundException("index"));
                     } else {
-                        channel.sendResponse(
-                            new ClusterSearchShardsResponse(
-                                new ClusterSearchShardsGroup[0],
-                                knownNodes.toArray(new DiscoveryNode[0]),
-                                Collections.emptyMap()
-                            )
-                        );
+                        channel.sendResponse(new SearchShardsResponse(List.of(), knownNodes, Collections.emptyMap()));
                     }
                 }
             );
@@ -211,7 +204,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
         try (ServerSocket socket = new MockServerSocket()) {
             socket.bind(new InetSocketAddress(InetAddress.getLocalHost(), 0), 1);
             socket.setReuseAddress(true);
-            DiscoveryNode seedNode = TestDiscoveryNode.create(
+            DiscoveryNode seedNode = DiscoveryNodeUtils.create(
                 "TEST",
                 new TransportAddress(socket.getInetAddress(), socket.getLocalPort()),
                 emptyMap(),
@@ -309,7 +302,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                 service.acceptIncomingRequests();
                 String clusterAlias = "test-cluster";
                 Settings settings = buildRandomSettings(clusterAlias, seedNodes);
-                try (RemoteClusterConnection connection = new RemoteClusterConnection(settings, clusterAlias, service, randomBoolean())) {
+                try (RemoteClusterConnection connection = new RemoteClusterConnection(settings, clusterAlias, service, false)) {
                     int numThreads = randomIntBetween(4, 10);
                     Thread[] threads = new Thread[numThreads];
                     CyclicBarrier barrier = new CyclicBarrier(numThreads + 1);

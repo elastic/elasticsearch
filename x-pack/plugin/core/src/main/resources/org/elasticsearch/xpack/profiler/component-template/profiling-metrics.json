@@ -33,9 +33,6 @@
         "@timestamp": {
           "type": "date",
           "format": "epoch_second"
-        },
-        "Elasticsearch.cluster.id": {
-          "type": "keyword"
         }
       }
     }

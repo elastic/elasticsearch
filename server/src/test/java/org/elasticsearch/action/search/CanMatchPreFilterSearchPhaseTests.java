@@ -20,11 +20,10 @@ import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
@@ -99,8 +98,8 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         );
 
         Map<String, Transport.Connection> lookup = new ConcurrentHashMap<>();
-        DiscoveryNode primaryNode = TestDiscoveryNode.create("node_1");
-        DiscoveryNode replicaNode = randomBoolean() ? null : TestDiscoveryNode.create("node_2");
+        DiscoveryNode primaryNode = DiscoveryNodeUtils.create("node_1");
+        DiscoveryNode replicaNode = randomBoolean() ? null : DiscoveryNodeUtils.create("node_2");
         lookup.put("node1", new SearchAsyncActionTests.MockConnection(primaryNode));
         lookup.put("node2", new SearchAsyncActionTests.MockConnection(replicaNode));
         final boolean shard1 = randomBoolean();
@@ -184,8 +183,8 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             System::nanoTime
         );
         Map<String, Transport.Connection> lookup = new ConcurrentHashMap<>();
-        DiscoveryNode primaryNode = TestDiscoveryNode.create("node_1");
-        DiscoveryNode replicaNode = TestDiscoveryNode.create("node_2");
+        DiscoveryNode primaryNode = DiscoveryNodeUtils.create("node_1");
+        DiscoveryNode replicaNode = DiscoveryNodeUtils.create("node_2");
         lookup.put("node1", new SearchAsyncActionTests.MockConnection(primaryNode));
         lookup.put("node2", new SearchAsyncActionTests.MockConnection(replicaNode));
         final boolean shard1 = randomBoolean();
@@ -276,8 +275,8 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         );
 
         Map<String, Transport.Connection> lookup = new ConcurrentHashMap<>();
-        DiscoveryNode primaryNode = TestDiscoveryNode.create("node_1");
-        DiscoveryNode replicaNode = TestDiscoveryNode.create("node_2");
+        DiscoveryNode primaryNode = DiscoveryNodeUtils.create("node_1");
+        DiscoveryNode replicaNode = DiscoveryNodeUtils.create("node_2");
         lookup.put("node1", new SearchAsyncActionTests.MockConnection(primaryNode));
         lookup.put("node2", new SearchAsyncActionTests.MockConnection(replicaNode));
 
@@ -375,8 +374,8 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         );
 
         Map<String, Transport.Connection> lookup = new ConcurrentHashMap<>();
-        DiscoveryNode primaryNode = TestDiscoveryNode.create("node_1");
-        DiscoveryNode replicaNode = TestDiscoveryNode.create("node_2");
+        DiscoveryNode primaryNode = DiscoveryNodeUtils.create("node_1");
+        DiscoveryNode replicaNode = DiscoveryNodeUtils.create("node_2");
         lookup.put("node1", new SearchAsyncActionTests.MockConnection(primaryNode));
         lookup.put("node2", new SearchAsyncActionTests.MockConnection(replicaNode));
 
@@ -709,8 +708,8 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         BiConsumer<List<SearchShardIterator>, List<ShardSearchRequest>> canMatchResultsConsumer
     ) throws Exception {
         Map<String, Transport.Connection> lookup = new ConcurrentHashMap<>();
-        DiscoveryNode primaryNode = TestDiscoveryNode.create("node_1");
-        DiscoveryNode replicaNode = TestDiscoveryNode.create("node_2");
+        DiscoveryNode primaryNode = DiscoveryNodeUtils.create("node_1");
+        DiscoveryNode replicaNode = DiscoveryNodeUtils.create("node_2");
         lookup.put("node1", new SearchAsyncActionTests.MockConnection(primaryNode));
         lookup.put("node2", new SearchAsyncActionTests.MockConnection(replicaNode));
 
@@ -904,7 +903,6 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         public CoordinatorRewriteContextProvider build() {
             return new CoordinatorRewriteContextProvider(
                 XContentParserConfiguration.EMPTY,
-                mock(NamedWriteableRegistry.class),
                 mock(Client.class),
                 System::currentTimeMillis,
                 () -> clusterState,

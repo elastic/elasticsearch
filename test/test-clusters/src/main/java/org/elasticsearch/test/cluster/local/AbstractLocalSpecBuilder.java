@@ -96,6 +96,12 @@ public abstract class AbstractLocalSpecBuilder<T extends LocalSpecBuilder<?>> im
         return cast(this);
     }
 
+    @Override
+    public T environment(String key, Supplier<String> supplier) {
+        this.environmentProviders.add(s -> Map.of(key, supplier.get()));
+        return cast(this);
+    }
+
     Map<String, String> getEnvironment() {
         return inherit(() -> parent.getEnvironment(), environment);
     }

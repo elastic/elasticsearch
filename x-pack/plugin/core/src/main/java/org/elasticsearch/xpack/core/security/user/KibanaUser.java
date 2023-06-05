@@ -6,26 +6,19 @@
  */
 package org.elasticsearch.xpack.core.security.user;
 
-import org.elasticsearch.xpack.core.security.support.MetadataUtils;
+import java.util.Optional;
 
 /**
  * Built in user for the kibana server
  * @deprecated use KibanaSystemUser
  */
 @Deprecated
-public class KibanaUser extends User {
+public class KibanaUser extends ReservedUser {
 
     public static final String NAME = UsernamesField.DEPRECATED_KIBANA_NAME;
     public static final String ROLE_NAME = UsernamesField.KIBANA_ROLE;
 
     public KibanaUser(boolean enabled) {
-        super(
-            NAME,
-            new String[] { ROLE_NAME },
-            null,
-            null,
-            MetadataUtils.getDeprecatedReservedMetadata("Please use the [kibana_system] user instead."),
-            enabled
-        );
+        super(NAME, new String[] { ROLE_NAME }, enabled, Optional.of("Please use the [kibana_system] user instead."));
     }
 }

@@ -309,7 +309,7 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
                     if (token == XContentParser.Token.START_OBJECT) {
                         // we pass true as last parameter because we do not want to reject files if field permissions
                         // are given in 2.x syntax
-                        RoleDescriptor descriptor = RoleDescriptor.parse(roleName, parser, true);
+                        RoleDescriptor descriptor = RoleDescriptor.parse(roleName, parser, true, false);
                         return checkDescriptor(descriptor, path, logger, settings, xContentRegistry);
                     } else {
                         logger.error("invalid role definition [{}] in roles file [{}]. skipping role...", roleName, path.toAbsolutePath());

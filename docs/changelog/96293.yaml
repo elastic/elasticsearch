@@ -1,0 +1,6 @@
+pr: 96293
+summary: Report version conflict on concurrent updates
+area: Transform
+type: bug
+issues:
+ - 96311

@@ -28,6 +28,7 @@ import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -249,7 +250,7 @@ public class TransportStopTrainedModelDeploymentAction extends TransportTasksAct
 
     @Override
     protected void taskOperation(
-        Task actionTask,
+        CancellableTask actionTask,
         StopTrainedModelDeploymentAction.Request request,
         TrainedModelDeploymentTask task,
         ActionListener<StopTrainedModelDeploymentAction.Response> listener

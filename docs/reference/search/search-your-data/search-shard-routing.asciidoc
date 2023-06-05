@@ -158,7 +158,7 @@ the request hits. However, hitting a large number of shards can significantly
 increase CPU and memory usage.
 
 TIP: For tips on preventing indices with large numbers of shards, see
-<<avoid-oversharding>>.
+<<size-your-shards>>.
 
 You can use the `max_concurrent_shard_requests` query parameter to control
 maximum number of concurrent shards a search request can hit per node. This

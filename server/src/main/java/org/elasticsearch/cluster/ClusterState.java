@@ -475,7 +475,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         if (transportVersions.isEmpty() == false) {
             sb.append("transport versions:\n");
             for (var tv : transportVersions.entrySet()) {
-                sb.append(TAB).append(tv.getKey()).append(": ").append(tv.getValue());
+                sb.append(TAB).append(tv.getKey()).append(": ").append(tv.getValue()).append("\n");
             }
         }
         sb.append(routingTable());

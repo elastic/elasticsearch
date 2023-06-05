@@ -934,7 +934,7 @@ public class MetadataIndexTemplateService {
                 }
             }
             if (templateNames.isEmpty()) {
-                // if its a match all pattern, and no templates are found (we have none), don't
+                // if it's a match all pattern, and no templates are found (we have none), don't
                 // fail with index missing...
                 boolean isMatchAll = false;
                 if (Regex.isMatchAllPattern(name)) {
@@ -948,7 +948,7 @@ public class MetadataIndexTemplateService {
             }
         }
 
-        Set<String> dataStreamsUsingTemplates = dataStreamsUsingTemplates(currentState, templateNames);
+        Set<String> dataStreamsUsingTemplates = dataStreamsExclusivelyUsingTemplates(currentState, templateNames);
         if (dataStreamsUsingTemplates.size() > 0) {
             throw new IllegalArgumentException(
                 "unable to remove composable templates "
@@ -966,7 +966,12 @@ public class MetadataIndexTemplateService {
         return ClusterState.builder(currentState).metadata(metadata).build();
     }
 
-    static Set<String> dataStreamsUsingTemplates(final ClusterState state, final Set<String> templateNames) {
+    /**
+     * Returns the data stream names that solely match the patterns of the template names that were provided and no
+     * other templates. This means that the returned data streams depend on these templates which has implications for
+     * these templates, for example they cannot be removed.
+     */
+    static Set<String> dataStreamsExclusivelyUsingTemplates(final ClusterState state, final Set<String> templateNames) {
         Metadata metadata = state.metadata();
 
         Set<String> namePatterns = templateNames.stream()
@@ -983,10 +988,22 @@ public class MetadataIndexTemplateService {
             // Limit to checking data streams that match any of the templates' index patterns
             .filter(ds -> namePatterns.stream().anyMatch(pattern -> Regex.simpleMatch(pattern, ds.getName())))
             .filter(ds -> {
-                // Retrieve the template that matches the data stream name that has the highest priority
-                String matchedTemplate = findV2Template(metadata, ds.getName(), ds.isHidden());
-                // Limit data streams where their in-use template is the one of specified templates
-                return templateNames.contains(matchedTemplate);
+                // Retrieve the templates that match the data stream name ordered by priority
+                List<Tuple<String, ComposableIndexTemplate>> candidates = findV2CandidateTemplates(metadata, ds.getName(), ds.isHidden());
+                if (candidates.isEmpty()) {
+                    throw new IllegalStateException("Data stream " + ds.getName() + " did not match any composable index templates.");
+                }
+
+                // Limit data streams that can ONLY use any of the specified templates, we do this by filtering
+                // the matching templates that are others than the ones requested and could be a valid template to use.
+                return candidates.stream()
+                    .filter(
+                        template -> templateNames.contains(template.v1()) == false
+                            && isGlobalAndHasIndexHiddenSetting(metadata, template.v2(), template.v1()) == false
+                    )
+                    .map(Tuple::v1)
+                    .toList()
+                    .isEmpty();
             })
             .map(DataStream::getName)
             .collect(Collectors.toSet());
@@ -1183,44 +1200,19 @@ public class MetadataIndexTemplateService {
      */
     @Nullable
     public static String findV2Template(Metadata metadata, String indexName, boolean isHidden) {
-        final String resolvedIndexName = IndexNameExpressionResolver.DateMathExpressionResolver.resolveExpression(indexName);
-        final Predicate<String> patternMatchPredicate = pattern -> Regex.simpleMatch(pattern, resolvedIndexName);
-        final Map<ComposableIndexTemplate, String> matchedTemplates = new HashMap<>();
-        for (Map.Entry<String, ComposableIndexTemplate> entry : metadata.templatesV2().entrySet()) {
-            final String name = entry.getKey();
-            final ComposableIndexTemplate template = entry.getValue();
-            if (isHidden == false) {
-                final boolean matched = template.indexPatterns().stream().anyMatch(patternMatchPredicate);
-                if (matched) {
-                    matchedTemplates.put(template, name);
-                }
-            } else {
-                final boolean isNotMatchAllTemplate = template.indexPatterns().stream().noneMatch(Regex::isMatchAllPattern);
-                if (isNotMatchAllTemplate) {
-                    if (template.indexPatterns().stream().anyMatch(patternMatchPredicate)) {
-                        matchedTemplates.put(template, name);
-                    }
-                }
-            }
-        }
-
-        if (matchedTemplates.size() == 0) {
+        final List<Tuple<String, ComposableIndexTemplate>> candidates = findV2CandidateTemplates(metadata, indexName, isHidden);
+        if (candidates.isEmpty()) {
             return null;
         }
 
-        final List<ComposableIndexTemplate> candidates = new ArrayList<>(matchedTemplates.keySet());
-        CollectionUtil.timSort(candidates, Comparator.comparing(ComposableIndexTemplate::priorityOrZero, Comparator.reverseOrder()));
-
-        assert candidates.size() > 0 : "we should have returned early with no candidates";
-        ComposableIndexTemplate winner = candidates.get(0);
-        String winnerName = matchedTemplates.get(winner);
+        ComposableIndexTemplate winner = candidates.get(0).v2();
+        String winnerName = candidates.get(0).v1();
 
         // if the winner template is a global template that specifies the `index.hidden` setting (which is not allowed, so it'd be due to
         // a restored index cluster state that modified a component template used by this global template such that it has this setting)
         // we will fail and the user will have to update the index template and remove this setting or update the corresponding component
         // template that contributes to the index template resolved settings
-        if (winner.indexPatterns().stream().anyMatch(Regex::isMatchAllPattern)
-            && IndexMetadata.INDEX_HIDDEN_SETTING.exists(resolveSettings(metadata, winnerName))) {
+        if (isGlobalAndHasIndexHiddenSetting(metadata, winner, winnerName)) {
             throw new IllegalStateException(
                 "global index template ["
                     + winnerName
@@ -1231,6 +1223,44 @@ public class MetadataIndexTemplateService {
         }
 
         return winnerName;
+    }
+
+    /**
+     * Return an ordered list of the name (id) and composable index templates that would apply to an index. The first
+     * one is the winner template that is applied to this index. In the event that no templates are matched,
+     * an empty list is returned.
+     */
+    static List<Tuple<String, ComposableIndexTemplate>> findV2CandidateTemplates(Metadata metadata, String indexName, boolean isHidden) {
+        final String resolvedIndexName = IndexNameExpressionResolver.DateMathExpressionResolver.resolveExpression(indexName);
+        final Predicate<String> patternMatchPredicate = pattern -> Regex.simpleMatch(pattern, resolvedIndexName);
+        final List<Tuple<String, ComposableIndexTemplate>> candidates = new ArrayList<>();
+        for (Map.Entry<String, ComposableIndexTemplate> entry : metadata.templatesV2().entrySet()) {
+            final String name = entry.getKey();
+            final ComposableIndexTemplate template = entry.getValue();
+            if (isHidden == false) {
+                final boolean matched = template.indexPatterns().stream().anyMatch(patternMatchPredicate);
+                if (matched) {
+                    candidates.add(Tuple.tuple(name, template));
+                }
+            } else {
+                final boolean isNotMatchAllTemplate = template.indexPatterns().stream().noneMatch(Regex::isMatchAllPattern);
+                if (isNotMatchAllTemplate) {
+                    if (template.indexPatterns().stream().anyMatch(patternMatchPredicate)) {
+                        candidates.add(Tuple.tuple(name, template));
+                    }
+                }
+            }
+        }
+
+        CollectionUtil.timSort(candidates, Comparator.comparing(candidate -> candidate.v2().priorityOrZero(), Comparator.reverseOrder()));
+        return candidates;
+    }
+
+    // Checks if a global template specifies the `index.hidden` setting. This check is important because a global
+    // template shouldn't specify the `index.hidden` setting, we leave it up to the caller to handle this situation.
+    private static boolean isGlobalAndHasIndexHiddenSetting(Metadata metadata, ComposableIndexTemplate template, String templateName) {
+        return template.indexPatterns().stream().anyMatch(Regex::isMatchAllPattern)
+            && IndexMetadata.INDEX_HIDDEN_SETTING.exists(resolveSettings(metadata, templateName));
     }
 
     /**
@@ -1438,7 +1468,57 @@ public class MetadataIndexTemplateService {
         if (template.template() != null && template.template().lifecycle() != null) {
             lifecycles.add(template.template().lifecycle());
         }
-        return DataLifecycle.compose(lifecycles);
+        return composeDataLifecycles(lifecycles);
+    }
+
+    /**
+     * This method composes a series of lifecycles to a final one. The lifecycles are getting composed one level deep,
+     * meaning that the keys present on the latest lifecycle will override the ones of the others. If a key is missing
+     * then it keeps the value of the previous lifecycles. For example, if we have the following two lifecycles:
+     * [
+     *   {
+     *     "lifecycle": {
+     *       "data_retention" : "10d"
+     *     }
+     *   },
+     *   {
+     *     "lifecycle": {
+     *       "data_retention" : "20d"
+     *     }
+     *   }
+     * ]
+     * The result will be { "lifecycle": { "data_retention" : "20d"}} because the second data retention overrides the first.
+     * However, if we have the following two lifecycles:
+     * [
+     *   {
+     *     "lifecycle": {
+     *       "data_retention" : "10d"
+     *     }
+     *   },
+     *   {
+     *   "lifecycle": { }
+     *   }
+     * ]
+     * The result will be { "lifecycle": { "data_retention" : "10d"} } because the latest lifecycle does not have any
+     * information on retention.
+     * @param lifecycles a sorted list of lifecycles in the order that they will be composed
+     * @return the final lifecycle
+     */
+    @Nullable
+    public static DataLifecycle composeDataLifecycles(List<DataLifecycle> lifecycles) {
+        DataLifecycle.Builder builder = null;
+        for (DataLifecycle current : lifecycles) {
+            if (current == Template.NO_LIFECYCLE) {
+                builder = null;
+            } else if (builder == null) {
+                builder = DataLifecycle.Builder.newBuilder(current);
+            } else {
+                if (current.getDataRetention() != null) {
+                    builder.dataRetention(current.getDataRetention());
+                }
+            }
+        }
+        return builder == null ? null : builder.build();
     }
 
     /**

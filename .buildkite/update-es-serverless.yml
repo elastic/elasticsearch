@@ -1,6 +1,6 @@
 steps:
-  - trigger: elasticsearch-serverless
-    label: ":elasticsearch: Run serverless tests"
+  - trigger: elasticsearch-serverless-update-submodule
+    label: ":elasticsearch: Update elasticsearch submodule in serverless"
     build:
       message: "Elasticsearch submodule update build"
       env:

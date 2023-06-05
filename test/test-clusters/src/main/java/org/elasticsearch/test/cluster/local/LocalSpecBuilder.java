@@ -51,6 +51,11 @@ interface LocalSpecBuilder<T extends LocalSpecBuilder<?>> {
     T environment(String key, String value);
 
     /**
+     * Add a new node environment variable computed by the given supplier.
+     */
+    T environment(String key, Supplier<String> supplier);
+
+    /**
      * Set the cluster {@link DistributionType}. By default, the {@link DistributionType#INTEG_TEST} distribution is used.
      */
     T distribution(DistributionType type);

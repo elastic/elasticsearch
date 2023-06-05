@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
@@ -51,6 +52,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
+import org.mockito.ArgumentCaptor;
 
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
@@ -69,11 +71,19 @@ import java.util.concurrent.TimeUnit;
 import static java.net.InetAddress.getByName;
 import static java.util.Arrays.asList;
 import static org.elasticsearch.http.AbstractHttpServerTransport.resolvePublishPort;
+import static org.elasticsearch.test.LambdaMatchers.transformedMatch;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 
 public class AbstractHttpServerTransportTests extends ESTestCase {
 
@@ -219,6 +229,8 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 // specified request headers value are copied into the thread context
                 assertEquals("true", threadContext.getHeader("header.1"));
                 assertEquals("true", threadContext.getHeader("header.2"));
+                // trace start time is also set
+                assertThat(threadContext.getTransient(Task.TRACE_START_TIME), notNullValue());
                 // but unknown headers are not copied at all
                 assertNull(threadContext.getHeader("header.3"));
             }
@@ -229,6 +241,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 assertNull(threadContext.getHeader("header.1"));
                 assertNull(threadContext.getHeader("header.2"));
                 assertNull(threadContext.getHeader("header.3"));
+                assertNull(threadContext.getTransient(Task.TRACE_START_TIME));
             }
 
         };
@@ -312,6 +325,8 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 assertThat(threadContext.getHeader(Task.TRACE_ID), equalTo("0af7651916cd43dd8448eb211c80319c"));
                 assertThat(threadContext.getHeader(Task.TRACE_PARENT_HTTP_HEADER), nullValue());
                 assertThat(threadContext.getTransient("parent_" + Task.TRACE_PARENT_HTTP_HEADER), equalTo(traceParentValue));
+                // request trace start time is also set
+                assertThat(threadContext.getTransient(Task.TRACE_START_TIME), notNullValue());
             }
 
             @Override
@@ -320,6 +335,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 assertThat(threadContext.getHeader(Task.TRACE_ID), nullValue());
                 assertThat(threadContext.getHeader(Task.TRACE_PARENT_HTTP_HEADER), nullValue());
                 assertThat(threadContext.getTransient("parent_" + Task.TRACE_PARENT_HTTP_HEADER), nullValue());
+                assertThat(threadContext.getTransient(Task.TRACE_START_TIME), nullValue());
             }
 
         };
@@ -756,10 +772,16 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             transport.incomingRequest(fakeRestRequest.getHttpRequest(), fakeRestRequest.getHttpChannel());
 
             HttpStats httpStats = transport.stats();
-            assertThat(httpStats.getClientStats().size(), equalTo(1));
-            assertThat(httpStats.getClientStats().get(0).remoteAddress, equalTo(NetworkAddress.format(remoteAddress)));
-            assertThat(httpStats.getClientStats().get(0).opaqueId, equalTo(opaqueId));
-            assertThat(httpStats.getClientStats().get(0).lastUri, equalTo("/internal/stats_test"));
+            assertThat(
+                httpStats.getClientStats(),
+                contains(
+                    allOf(
+                        transformedMatch(HttpStats.ClientStats::remoteAddress, equalTo(NetworkAddress.format(remoteAddress))),
+                        transformedMatch(HttpStats.ClientStats::opaqueId, equalTo(opaqueId)),
+                        transformedMatch(HttpStats.ClientStats::lastUri, equalTo("/internal/stats_test"))
+                    )
+                )
+            );
 
             remoteAddress = new InetSocketAddress(randomIp(randomBoolean()), randomIntBetween(1, 65535));
             opaqueId = UUIDs.randomBase64UUID(random());
@@ -774,13 +796,13 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             assertThat(httpStats.getClientStats().size(), equalTo(2));
 
             // due to non-deterministic ordering in map iteration, the second client may not be the second entry in the list
-            HttpStats.ClientStats secondClientStats = httpStats.getClientStats().get(0).opaqueId.equals(opaqueId)
+            HttpStats.ClientStats secondClientStats = httpStats.getClientStats().get(0).opaqueId().equals(opaqueId)
                 ? httpStats.getClientStats().get(0)
                 : httpStats.getClientStats().get(1);
 
-            assertThat(secondClientStats.remoteAddress, equalTo(NetworkAddress.format(remoteAddress)));
-            assertThat(secondClientStats.opaqueId, equalTo(opaqueId));
-            assertThat(secondClientStats.lastUri, equalTo("/internal/stats_test2"));
+            assertThat(secondClientStats.remoteAddress(), equalTo(NetworkAddress.format(remoteAddress)));
+            assertThat(secondClientStats.opaqueId(), equalTo(opaqueId));
+            assertThat(secondClientStats.lastUri(), equalTo("/internal/stats_test2"));
         }
     }
 
@@ -834,7 +856,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             // HTTP client stats should default to enabled
             HttpStats httpStats = transport.stats();
             assertThat(httpStats.getClientStats().size(), equalTo(1));
-            assertThat(httpStats.getClientStats().get(0).opaqueId, equalTo(opaqueId));
+            assertThat(httpStats.getClientStats().get(0).opaqueId(), equalTo(opaqueId));
 
             clusterSettings.applySettings(
                 Settings.builder().put(HttpTransportSettings.SETTING_HTTP_CLIENT_STATS_ENABLED.getKey(), false).build()
@@ -873,6 +895,66 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             transport.incomingRequest(fakeRestRequest.getHttpRequest(), fakeRestRequest.getHttpChannel());
             httpStats = transport.stats();
             assertThat(httpStats.getClientStats().size(), equalTo(1));
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testSetGracefulClose() {
+        try (
+            AbstractHttpServerTransport transport = new AbstractHttpServerTransport(
+                Settings.EMPTY,
+                networkService,
+                recycler,
+                threadPool,
+                xContentRegistry(),
+                new HttpServerTransport.Dispatcher() {
+                    @Override
+                    public void dispatchRequest(RestRequest request, RestChannel channel, ThreadContext threadContext) {
+                        channel.sendResponse(emptyResponse(RestStatus.OK));
+                    }
+
+                    @Override
+                    public void dispatchBadRequest(RestChannel channel, ThreadContext threadContext, Throwable cause) {
+                        channel.sendResponse(emptyResponse(RestStatus.BAD_REQUEST));
+                    }
+                },
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                Tracer.NOOP
+            ) {
+
+                @Override
+                protected HttpServerChannel bind(InetSocketAddress hostAddress) {
+                    return null;
+                }
+
+                @Override
+                protected void doStart() {}
+
+                @Override
+                protected void stopInternal() {}
+            }
+        ) {
+            final TestHttpRequest httpRequest = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/");
+
+            HttpChannel httpChannel = mock(HttpChannel.class);
+            transport.incomingRequest(httpRequest, httpChannel);
+
+            var response = ArgumentCaptor.forClass(TestHttpResponse.class);
+            var listener = ArgumentCaptor.forClass(ActionListener.class);
+            verify(httpChannel).sendResponse(response.capture(), listener.capture());
+
+            listener.getValue().onResponse(null);
+            assertThat(response.getValue().containsHeader(DefaultRestChannel.CONNECTION), is(false));
+            verify(httpChannel, never()).close();
+
+            httpChannel = mock(HttpChannel.class);
+            transport.gracefullyCloseConnections();
+            transport.incomingRequest(httpRequest, httpChannel);
+            verify(httpChannel).sendResponse(response.capture(), listener.capture());
+
+            listener.getValue().onResponse(null);
+            assertThat(response.getValue().headers().get(DefaultRestChannel.CONNECTION), containsInAnyOrder(DefaultRestChannel.CLOSE));
+            verify(httpChannel).close();
         }
     }
 

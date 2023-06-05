@@ -223,7 +223,14 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
     }
 
     private static final List<IngestPipelineConfig> INGEST_PIPELINE_CONFIGS = List.of(
-        new IngestPipelineConfig("logs-default-pipeline", "/logs-default-pipeline.json", REGISTRY_VERSION, TEMPLATE_VERSION_VARIABLE)
+        new IngestPipelineConfig("logs@json-message", "/logs-json-message-pipeline.json", REGISTRY_VERSION, TEMPLATE_VERSION_VARIABLE),
+        new IngestPipelineConfig(
+            "logs-default-pipeline",
+            "/logs-default-pipeline.json",
+            REGISTRY_VERSION,
+            TEMPLATE_VERSION_VARIABLE,
+            Collections.singletonList("logs@json-message")
+        )
     );
 
     @Override

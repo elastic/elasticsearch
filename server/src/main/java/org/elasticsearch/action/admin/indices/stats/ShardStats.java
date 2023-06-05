@@ -58,7 +58,7 @@ public class ShardStats implements Writeable, ToXContentFragment {
         isCustomDataPath = in.readBoolean();
         seqNoStats = in.readOptionalWriteable(SeqNoStats::new);
         retentionLeaseStats = in.readOptionalWriteable(RetentionLeaseStats::new);
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_9_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_004)) {
             isSearchIdle = in.readBoolean();
             searchIdleTime = in.readVLong();
         } else {
@@ -212,7 +212,7 @@ public class ShardStats implements Writeable, ToXContentFragment {
         out.writeBoolean(isCustomDataPath);
         out.writeOptionalWriteable(seqNoStats);
         out.writeOptionalWriteable(retentionLeaseStats);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_9_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_004)) {
             out.writeBoolean(isSearchIdle);
             out.writeVLong(searchIdleTime);
         }

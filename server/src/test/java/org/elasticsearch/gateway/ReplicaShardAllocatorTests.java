@@ -66,7 +66,9 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
-    private static final String MIN_SUPPORTED_LUCENE_VERSION = Version.CURRENT.minimumIndexCompatibilityVersion().luceneVersion.toString();
+    private static final String MIN_SUPPORTED_LUCENE_VERSION = Version.CURRENT.minimumIndexCompatibilityVersion()
+        .luceneVersion()
+        .toString();
 
     private final ShardId shardId = new ShardId("test", "_na_", 0);
     private final DiscoveryNode node1 = newNode("node1");

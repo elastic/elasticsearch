@@ -41,6 +41,16 @@ public class InternalHDRPercentiles extends AbstractInternalHDRPercentiles imple
         return NAME;
     }
 
+    public static InternalHDRPercentiles empty(
+        String name,
+        double[] keys,
+        boolean keyed,
+        DocValueFormat format,
+        Map<String, Object> metadata
+    ) {
+        return new InternalHDRPercentiles(name, keys, null, keyed, format, metadata);
+    }
+
     @Override
     public Iterator<Percentile> iterator() {
         return new Iter(keys, state);

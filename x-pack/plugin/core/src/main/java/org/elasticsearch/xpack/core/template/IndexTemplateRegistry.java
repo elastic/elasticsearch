@@ -562,32 +562,55 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
             );
 
             if (creationCheck.compareAndSet(false, true)) {
-                PipelineConfiguration existingPipeline = findInstalledPipeline(state, requiredPipeline.getId());
-                if (existingPipeline != null) {
-                    Integer existingPipelineVersion = existingPipeline.getVersion();
-                    if (existingPipelineVersion == null || existingPipelineVersion < requiredPipeline.getVersion()) {
-                        logger.info(
-                            "upgrading ingest pipeline [{}] for [{}] from version [{}] to version [{}]",
-                            requiredPipeline.getId(),
-                            getOrigin(),
-                            existingPipelineVersion,
-                            requiredPipeline.getVersion()
-                        );
-                        putIngestPipeline(requiredPipeline, creationCheck);
+                List<String> pipelineDependencies = requiredPipeline.getPipelineDependencies();
+                if (pipelineDependencies != null && pipelineDependenciesExist(state, pipelineDependencies) == false) {
+                    creationCheck.set(false);
+                    logger.trace(
+                        "not adding ingest pipeline [{}] for [{}] because its dependencies do not exist",
+                        requiredPipeline.getId(),
+                        getOrigin()
+                    );
+                } else {
+                    PipelineConfiguration existingPipeline = findInstalledPipeline(state, requiredPipeline.getId());
+                    if (existingPipeline != null) {
+                        Integer existingPipelineVersion = existingPipeline.getVersion();
+                        if (existingPipelineVersion == null || existingPipelineVersion < requiredPipeline.getVersion()) {
+                            logger.info(
+                                "upgrading ingest pipeline [{}] for [{}] from version [{}] to version [{}]",
+                                requiredPipeline.getId(),
+                                getOrigin(),
+                                existingPipelineVersion,
+                                requiredPipeline.getVersion()
+                            );
+                            putIngestPipeline(requiredPipeline, creationCheck);
+                        } else {
+                            creationCheck.set(false);
+                            logger.debug(
+                                "not adding ingest pipeline [{}] for [{}], because it already exists",
+                                requiredPipeline.getId(),
+                                getOrigin()
+                            );
+                        }
                     } else {
                         logger.debug(
-                            "not adding ingest pipeline [{}] for [{}], because it already exists",
+                            "adding ingest pipeline [{}] for [{}], because it doesn't exist",
                             requiredPipeline.getId(),
                             getOrigin()
                         );
-                        creationCheck.set(false);
+                        putIngestPipeline(requiredPipeline, creationCheck);
                     }
-                } else {
-                    logger.debug("adding ingest pipeline [{}] for [{}], because it doesn't exist", requiredPipeline.getId(), getOrigin());
-                    putIngestPipeline(requiredPipeline, creationCheck);
                 }
             }
         }
+    }
+
+    private boolean pipelineDependenciesExist(ClusterState state, List<String> dependencies) {
+        for (String dependency : dependencies) {
+            if (findInstalledPipeline(state, dependency) == null) {
+                return false;
+            }
+        }
+        return true;
     }
 
     @Nullable

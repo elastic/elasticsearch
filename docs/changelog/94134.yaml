@@ -1,5 +1,0 @@
-pr: 94134
-summary: Increase the merge factor to 32 for time-based data
-area: Engine
-type: enhancement
-issues: []

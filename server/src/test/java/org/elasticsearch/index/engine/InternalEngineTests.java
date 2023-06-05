@@ -6725,7 +6725,7 @@ public class InternalEngineTests extends EngineTestCase {
             Map<String, String> userData = new HashMap<>(store.readLastCommittedSegmentsInfo().userData);
             userData.remove(Engine.MIN_RETAINED_SEQNO);
             IndexWriterConfig indexWriterConfig = new IndexWriterConfig(null).setOpenMode(IndexWriterConfig.OpenMode.APPEND)
-                .setIndexCreatedVersionMajor(Version.CURRENT.luceneVersion.major)
+                .setIndexCreatedVersionMajor(Version.CURRENT.luceneVersion().major)
                 .setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
                 .setCommitOnClose(false)
                 .setMergePolicy(NoMergePolicy.INSTANCE);
@@ -6785,7 +6785,7 @@ public class InternalEngineTests extends EngineTestCase {
                 engine.refresh("test");
                 try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
                     LeafReader leafReader = getOnlyLeafReader(searcher.getIndexReader());
-                    assertEquals(createdVersion.luceneVersion.major, leafReader.getMetaData().getCreatedVersionMajor());
+                    assertEquals(createdVersion.luceneVersion().major, leafReader.getMetaData().getCreatedVersionMajor());
                 }
             }
         }

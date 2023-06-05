@@ -771,14 +771,6 @@
           - { index: { } }
           - { gender: 1, salary: 2000, birth_date: 1982 }
           - { index: { } }
-          - { gender: 1, salary: 3000, birth_date: 1981 }
-          - { index: { } }
-          - { gender: 1, salary: 4000, birth_date: 1982 }
-          - { index: { } }
-          - { gender: 2, salary: 6000, birth_date: 1982 }
-          - { index: { } }
-          - { gender: 2, salary: 7000, birth_date: 1981 }
-          - { index: { } }
           - { gender: 2, salary: 8000, birth_date: 1982 }
           - { index: { } }
           - { gender: 2, salary: 9000, birth_date: 1981 }
@@ -817,7 +809,7 @@
   - match: { aggregations.groupby.buckets.0.top_salary.top.0.metrics.salary: 1000}
   - match: { aggregations.groupby.buckets.1.key.gender_comp: 2}
   - match: { aggregations.groupby.buckets.1.top_salary.top.0.sort.0: 1981}
-  - match: { aggregations.groupby.buckets.1.top_salary.top.0.metrics.salary: 7000}
+  - match: { aggregations.groupby.buckets.1.top_salary.top.0.metrics.salary: 9000}
 
   # Similar to a SQL query with HAVING clause:
   #

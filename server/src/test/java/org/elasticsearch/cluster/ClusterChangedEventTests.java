@@ -466,7 +466,7 @@ public class ClusterChangedEventTests extends ESTestCase {
             buildNewFakeTransportAddress(),
             Collections.emptyMap(),
             roles,
-            Version.CURRENT
+            null
         );
     }
 

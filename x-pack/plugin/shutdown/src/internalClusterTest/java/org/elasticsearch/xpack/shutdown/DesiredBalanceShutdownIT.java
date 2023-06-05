@@ -64,7 +64,14 @@ public class DesiredBalanceShutdownIT extends ESIntegTestCase {
                 assertAcked(
                     client().execute(
                         PutShutdownNodeAction.INSTANCE,
-                        new PutShutdownNodeAction.Request(oldNodeId, SingleNodeShutdownMetadata.Type.REPLACE, "test", null, newNodeName)
+                        new PutShutdownNodeAction.Request(
+                            oldNodeId,
+                            SingleNodeShutdownMetadata.Type.REPLACE,
+                            "test",
+                            null,
+                            newNodeName,
+                            null
+                        )
                     ).actionGet(10, TimeUnit.SECONDS)
                 );
 

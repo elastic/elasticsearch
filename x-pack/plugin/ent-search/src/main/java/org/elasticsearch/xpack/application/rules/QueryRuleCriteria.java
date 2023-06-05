@@ -137,9 +137,17 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
         out.writeString(criteriaValue);
     }
 
-    public CriteriaType criteriaType() { return criteriaType; }
-    public CriteriaMetadata criteriaMetadata() { return criteriaMetadata; }
-    public Object criteriaValue() { return criteriaValue; }
+    public CriteriaType criteriaType() {
+        return criteriaType;
+    }
+
+    public CriteriaMetadata criteriaMetadata() {
+        return criteriaMetadata;
+    }
+
+    public Object criteriaValue() {
+        return criteriaValue;
+    }
 
     @Override
     public boolean equals(Object o) {
@@ -155,5 +163,7 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
     }
 
     @Override
-    public String toString() { return Strings.toString(this); }
+    public String toString() {
+        return Strings.toString(this);
+    }
 }

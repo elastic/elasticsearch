@@ -52,7 +52,7 @@ public class QueryRuleset implements Writeable, ToXContent {
         this.id = in.readString();
         int numRules = in.readVInt();
         List<QueryRule> rules = new ArrayList<>();
-        for (int i=0; i<numRules; i++) {
+        for (int i = 0; i < numRules; i++) {
             rules.add(new QueryRule(in));
         }
         this.rules = rules;
@@ -143,8 +143,13 @@ public class QueryRuleset implements Writeable, ToXContent {
         }
     }
 
-    public String id() { return id; }
-    public List<QueryRule> rules() { return rules; }
+    public String id() {
+        return id;
+    }
+
+    public List<QueryRule> rules() {
+        return rules;
+    }
 
     @Override
     public boolean equals(Object o) {

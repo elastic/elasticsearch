@@ -79,16 +79,18 @@ public final class SearchApplicationTestUtils {
     }
 
     public static QueryRuleCriteria randomQueryRuleCriteria() {
-        return new QueryRuleCriteria(randomFrom(QueryRuleCriteria.CriteriaType.values()),
+        return new QueryRuleCriteria(
+            randomFrom(QueryRuleCriteria.CriteriaType.values()),
             randomFrom(QueryRuleCriteria.CriteriaMetadata.values()),
-            randomAlphaOfLengthBetween(1, 10));
+            randomAlphaOfLengthBetween(1, 10)
+        );
     }
 
     public static QueryRule randomQueryRule() {
         String id = randomIdentifier();
         QueryRule.QueryRuleType type = randomFrom(QueryRule.QueryRuleType.values());
         List<QueryRuleCriteria> criteria = List.of(randomQueryRuleCriteria());
-        Map<String,Object> actions = Map.of(randomAlphaOfLengthBetween(2, 10), List.of(randomAlphaOfLengthBetween(2, 10)));
+        Map<String, Object> actions = Map.of(randomAlphaOfLengthBetween(2, 10), List.of(randomAlphaOfLengthBetween(2, 10)));
         return new QueryRule(id, type, criteria, actions);
     }
 

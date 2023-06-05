@@ -66,8 +66,18 @@ public class QueryRulesIndexServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testCreateQueryRuleset() throws Exception {
-        final QueryRule myQueryRule1 = new QueryRule("my_rule1", QueryRuleType.PINNED, List.of(new QueryRuleCriteria(CriteriaType.EXACT, CriteriaMetadata.QUERY_STRING, "foo")), Map.of("ids", List.of("id1", "id2")));
-        final QueryRule myQueryRule2 = new QueryRule("my_rule2", QueryRuleType.PINNED, List.of(new QueryRuleCriteria(CriteriaType.EXACT, CriteriaMetadata.QUERY_STRING, "bar")), Map.of("ids", List.of("id3", "id4")));
+        final QueryRule myQueryRule1 = new QueryRule(
+            "my_rule1",
+            QueryRuleType.PINNED,
+            List.of(new QueryRuleCriteria(CriteriaType.EXACT, CriteriaMetadata.QUERY_STRING, "foo")),
+            Map.of("ids", List.of("id1", "id2"))
+        );
+        final QueryRule myQueryRule2 = new QueryRule(
+            "my_rule2",
+            QueryRuleType.PINNED,
+            List.of(new QueryRuleCriteria(CriteriaType.EXACT, CriteriaMetadata.QUERY_STRING, "bar")),
+            Map.of("ids", List.of("id3", "id4"))
+        );
         final QueryRuleset myQueryRuleset = new QueryRuleset("my_ruleset", List.of(myQueryRule1, myQueryRule2));
 
         IndexResponse resp = awaitPutQueryRuleset(myQueryRuleset, true);
@@ -82,7 +92,12 @@ public class QueryRulesIndexServiceTests extends ESSingleNodeTestCase {
 
     public void testUpdateQueryRuleset() throws Exception {
         {
-            final QueryRule myQueryRule1 = new QueryRule("my_rule1", QueryRuleType.PINNED, List.of(new QueryRuleCriteria(CriteriaType.EXACT, CriteriaMetadata.QUERY_STRING, "foo")), Map.of("ids", List.of("id1", "id2")));
+            final QueryRule myQueryRule1 = new QueryRule(
+                "my_rule1",
+                QueryRuleType.PINNED,
+                List.of(new QueryRuleCriteria(CriteriaType.EXACT, CriteriaMetadata.QUERY_STRING, "foo")),
+                Map.of("ids", List.of("id1", "id2"))
+            );
             final QueryRuleset myQueryRuleset = new QueryRuleset("my_ruleset", Collections.singletonList(myQueryRule1));
             IndexResponse resp = awaitPutQueryRuleset(myQueryRuleset, false);
             assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
@@ -93,8 +108,18 @@ public class QueryRulesIndexServiceTests extends ESSingleNodeTestCase {
         }
 
         // TODO update with new values
-        final QueryRule myQueryRule1 = new QueryRule("my_rule1", QueryRuleType.PINNED, List.of(new QueryRuleCriteria(CriteriaType.EXACT, CriteriaMetadata.QUERY_STRING, "foo")), Map.of("ids", List.of("id1", "id2")));
-        final QueryRule myQueryRule2 = new QueryRule("my_rule2", QueryRuleType.PINNED, List.of(new QueryRuleCriteria(CriteriaType.EXACT, CriteriaMetadata.QUERY_STRING, "bar")), Map.of("ids", List.of("id3", "id4")));
+        final QueryRule myQueryRule1 = new QueryRule(
+            "my_rule1",
+            QueryRuleType.PINNED,
+            List.of(new QueryRuleCriteria(CriteriaType.EXACT, CriteriaMetadata.QUERY_STRING, "foo")),
+            Map.of("ids", List.of("id1", "id2"))
+        );
+        final QueryRule myQueryRule2 = new QueryRule(
+            "my_rule2",
+            QueryRuleType.PINNED,
+            List.of(new QueryRuleCriteria(CriteriaType.EXACT, CriteriaMetadata.QUERY_STRING, "bar")),
+            Map.of("ids", List.of("id3", "id4"))
+        );
         final QueryRuleset myQueryRuleset = new QueryRuleset("my_ruleset", List.of(myQueryRule1, myQueryRule2));
         IndexResponse newResp = awaitPutQueryRuleset(myQueryRuleset, false);
         assertThat(newResp.status(), equalTo(RestStatus.OK));
@@ -107,8 +132,18 @@ public class QueryRulesIndexServiceTests extends ESSingleNodeTestCase {
         int numRulesets = 10;
         for (int i = 0; i < numRulesets; i++) {
             final List<QueryRule> rules = List.of(
-                new QueryRule("my_rule_" + i, QueryRuleType.PINNED, List.of(new QueryRuleCriteria(CriteriaType.EXACT, CriteriaMetadata.QUERY_STRING, "foo" + i)), Map.of("ids", List.of("id1", "id2"))),
-                new QueryRule("my_rule_" + i + "_" + (i + 1), QueryRuleType.PINNED, List.of(new QueryRuleCriteria(CriteriaType.EXACT, CriteriaMetadata.QUERY_STRING, "bar" + i)), Map.of("ids", List.of("id3", "id4")))
+                new QueryRule(
+                    "my_rule_" + i,
+                    QueryRuleType.PINNED,
+                    List.of(new QueryRuleCriteria(CriteriaType.EXACT, CriteriaMetadata.QUERY_STRING, "foo" + i)),
+                    Map.of("ids", List.of("id1", "id2"))
+                ),
+                new QueryRule(
+                    "my_rule_" + i + "_" + (i + 1),
+                    QueryRuleType.PINNED,
+                    List.of(new QueryRuleCriteria(CriteriaType.EXACT, CriteriaMetadata.QUERY_STRING, "bar" + i)),
+                    Map.of("ids", List.of("id3", "id4"))
+                )
             );
             final QueryRuleset myQueryRuleset = new QueryRuleset("my_ruleset_" + i, rules);
 
@@ -131,7 +166,7 @@ public class QueryRulesIndexServiceTests extends ESSingleNodeTestCase {
         }
 
         {
-           QueryRulesIndexService.QueryRulesetResult searchResponse = awaitListQueryRulesets(5, 10);
+            QueryRulesIndexService.QueryRulesetResult searchResponse = awaitListQueryRulesets(5, 10);
             final List<String> rulesetIds = searchResponse.rulesetIds();
             assertNotNull(rulesetIds);
             assertThat(rulesetIds.size(), equalTo(5));
@@ -147,8 +182,18 @@ public class QueryRulesIndexServiceTests extends ESSingleNodeTestCase {
 
     public void testDeleteQueryRule() throws Exception {
         for (int i = 0; i < 5; i++) {
-            final QueryRule myQueryRule1 = new QueryRule("my_rule1", QueryRuleType.PINNED, List.of(new QueryRuleCriteria(CriteriaType.EXACT, CriteriaMetadata.QUERY_STRING, "foo")), Map.of("ids", List.of("id1", "id2")));
-            final QueryRule myQueryRule2 = new QueryRule("my_rule2", QueryRuleType.PINNED, List.of(new QueryRuleCriteria(CriteriaType.EXACT, CriteriaMetadata.QUERY_STRING, "bar")), Map.of("ids", List.of("id3", "id4")));
+            final QueryRule myQueryRule1 = new QueryRule(
+                "my_rule1",
+                QueryRuleType.PINNED,
+                List.of(new QueryRuleCriteria(CriteriaType.EXACT, CriteriaMetadata.QUERY_STRING, "foo")),
+                Map.of("ids", List.of("id1", "id2"))
+            );
+            final QueryRule myQueryRule2 = new QueryRule(
+                "my_rule2",
+                QueryRuleType.PINNED,
+                List.of(new QueryRuleCriteria(CriteriaType.EXACT, CriteriaMetadata.QUERY_STRING, "bar")),
+                Map.of("ids", List.of("id3", "id4"))
+            );
             final QueryRuleset myQueryRuleset = new QueryRuleset("my_ruleset", List.of(myQueryRule1, myQueryRule2));
             IndexResponse resp = awaitPutQueryRuleset(myQueryRuleset, false);
             assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
@@ -213,7 +258,7 @@ public class QueryRulesIndexServiceTests extends ESSingleNodeTestCase {
         return resp.get();
     }
 
-private DeleteResponse awaitDeleteQueryRuleset(String name) throws Exception {
+    private DeleteResponse awaitDeleteQueryRuleset(String name) throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<DeleteResponse> resp = new AtomicReference<>(null);
         final AtomicReference<Exception> exc = new AtomicReference<>(null);
@@ -238,8 +283,7 @@ private DeleteResponse awaitDeleteQueryRuleset(String name) throws Exception {
         return resp.get();
     }
 
-    private QueryRulesIndexService.QueryRulesetResult awaitListQueryRulesets(int from, int size)
-        throws Exception {
+    private QueryRulesIndexService.QueryRulesetResult awaitListQueryRulesets(int from, int size) throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<QueryRulesIndexService.QueryRulesetResult> resp = new AtomicReference<>(null);
         final AtomicReference<Exception> exc = new AtomicReference<>(null);

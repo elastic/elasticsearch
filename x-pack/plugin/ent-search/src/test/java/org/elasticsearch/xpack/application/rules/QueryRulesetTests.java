@@ -118,11 +118,7 @@ public class QueryRulesetTests extends ESTestCase {
     private void assertIndexSerialization(QueryRuleset testInstance) throws IOException {
         final QueryRuleset deserializedInstance;
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            QueryRulesIndexService.writeQueryRulesetBinaryWithVersion(
-                testInstance,
-                output,
-                TransportVersion.MINIMUM_COMPATIBLE
-            );
+            QueryRulesIndexService.writeQueryRulesetBinaryWithVersion(testInstance, output, TransportVersion.MINIMUM_COMPATIBLE);
             try (
                 StreamInput in = new NamedWriteableAwareStreamInput(
                     new InputStreamStreamInput(output.bytes().streamInput()),

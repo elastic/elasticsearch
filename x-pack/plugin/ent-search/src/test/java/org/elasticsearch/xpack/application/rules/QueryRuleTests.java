@@ -87,10 +87,7 @@ public class QueryRuleTests extends ESTestCase {
                   "ids": ["id1", "id2"]
                 }
             }""");
-        expectThrows(
-            IllegalArgumentException.class,
-            () -> QueryRule.fromXContentBytes(new BytesArray(content), XContentType.JSON)
-        );
+        expectThrows(IllegalArgumentException.class, () -> QueryRule.fromXContentBytes(new BytesArray(content), XContentType.JSON));
     }
 
     public void testToXContentEmptyCriteria() throws IOException {
@@ -101,10 +98,7 @@ public class QueryRuleTests extends ESTestCase {
               "criteria": [],
               "actions": {}
             }""");
-        expectThrows(
-            IllegalArgumentException.class,
-            () -> QueryRule.fromXContentBytes(new BytesArray(content), XContentType.JSON)
-        );
+        expectThrows(IllegalArgumentException.class, () -> QueryRule.fromXContentBytes(new BytesArray(content), XContentType.JSON));
     }
 
     private void assertXContent(QueryRule queryRule, boolean humanReadable) throws IOException {
@@ -125,11 +119,7 @@ public class QueryRuleTests extends ESTestCase {
     private void assertIndexSerialization(QueryRule testInstance) throws IOException {
         final QueryRule deserializedInstance;
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            QueryRulesIndexService.writeQueryRuleBinaryWithVersion(
-                testInstance,
-                output,
-                TransportVersion.MINIMUM_COMPATIBLE
-            );
+            QueryRulesIndexService.writeQueryRuleBinaryWithVersion(testInstance, output, TransportVersion.MINIMUM_COMPATIBLE);
             try (
                 StreamInput in = new NamedWriteableAwareStreamInput(
                     new InputStreamStreamInput(output.bytes().streamInput()),

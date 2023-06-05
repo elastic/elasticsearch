@@ -47,11 +47,11 @@ public class QueryRule implements Writeable, ToXContentObject {
 
     private final List<QueryRuleCriteria> criteria;
 
-    private final Map<String,Object> actions;
-
+    private final Map<String, Object> actions;
 
     public enum QueryRuleType {
         PINNED;
+
         public static QueryRuleType queryRuleType(String type) {
             for (QueryRuleType queryRuleType : QueryRuleType.values()) {
                 if (queryRuleType.name().equalsIgnoreCase(type)) {
@@ -68,12 +68,7 @@ public class QueryRule implements Writeable, ToXContentObject {
      * @param id                        The unique identifier associated with this query rule
      * @param type                      The type of query rule
      */
-    public QueryRule(
-        String id,
-        QueryRuleType type,
-        List<QueryRuleCriteria> criteria,
-        Map<String,Object> actions
-    ) {
+    public QueryRule(String id, QueryRuleType type, List<QueryRuleCriteria> criteria, Map<String, Object> actions) {
         if (Strings.isNullOrEmpty(id)) {
             throw new IllegalArgumentException("Query rule id cannot be null or blank");
         }
@@ -118,7 +113,7 @@ public class QueryRule implements Writeable, ToXContentObject {
             final String id = (String) params[0];
             final QueryRuleType type = QueryRuleType.queryRuleType((String) params[1]);
             final List<QueryRuleCriteria> criteria = (List<QueryRuleCriteria>) params[2];
-            final Map<String,Object> actions = (Map<String,Object>) params[3];
+            final Map<String, Object> actions = (Map<String, Object>) params[3];
             return new QueryRule(id, type, criteria, actions);
         }
     );
@@ -181,7 +176,7 @@ public class QueryRule implements Writeable, ToXContentObject {
             builder.endArray();
             builder.startObject(ACTIONS_FIELD.getPreferredName());
             {
-                for (Map.Entry<String,Object> entry : actions.entrySet()) {
+                for (Map.Entry<String, Object> entry : actions.entrySet()) {
                     builder.field(entry.getKey(), entry.getValue());
                 }
             }
@@ -213,17 +208,19 @@ public class QueryRule implements Writeable, ToXContentObject {
         return criteria;
     }
 
-    public Map<String,Object> actions() { return actions; }
+    public Map<String, Object> actions() {
+        return actions;
+    }
 
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         QueryRule queryRule = (QueryRule) o;
-        return Objects.equals(id, queryRule.id) && type == queryRule.type && Objects.equals(criteria, queryRule.criteria) && Objects.equals(
-            actions,
-            queryRule.actions
-        );
+        return Objects.equals(id, queryRule.id)
+            && type == queryRule.type
+            && Objects.equals(criteria, queryRule.criteria)
+            && Objects.equals(actions, queryRule.actions);
     }
 
     @Override

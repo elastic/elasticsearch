@@ -69,8 +69,8 @@ public class QueryRulesIndexService {
     public static final String QUERY_RULES_CONCRETE_INDEX_NAME = ".query-rules-1";
     public static final String QUERY_RULES_INDEX_NAME_PATTERN = ".query-rules-*";
 
-//    // The client to perform any operations on user indices (alias, ...).
-//    private final Client client;
+    // // The client to perform any operations on user indices (alias, ...).
+    // private final Client client;
     // The client to interact with the system index (internal user).
     private final Client clientWithOrigin;
     private final ClusterService clusterService;
@@ -83,7 +83,7 @@ public class QueryRulesIndexService {
         NamedWriteableRegistry namedWriteableRegistry,
         BigArrays bigArrays
     ) {
-//        this.client = client;
+        // this.client = client;
         this.clientWithOrigin = new OriginSettingClient(client, ENT_SEARCH_ORIGIN);
         this.clusterService = clusterService;
         this.namedWriteableRegistry = namedWriteableRegistry;
@@ -193,30 +193,35 @@ public class QueryRulesIndexService {
                 l.onFailure(new ResourceNotFoundException(resourceName));
                 return;
             }
-            final Map<String,Object> source = getResponse.getSource();
+            final Map<String, Object> source = getResponse.getSource();
 
             final String id = getResponse.getId();
             @SuppressWarnings("unchecked")
-            final List<QueryRule> rules = ((List<Map<String,Object>>) source.get("rules"))
-                .stream()
-                .map(rule -> new QueryRule((String) rule.get("rule_id"),
-                    QueryRuleType.queryRuleType((String) rule.get("type")),
-                    parseCriteria((List<Map<String,Object>>) rule.get("criteria")),
-                    (Map<String,Object>) rule.get("actions")
-                    ))
+            final List<QueryRule> rules = ((List<Map<String, Object>>) source.get("rules")).stream()
+                .map(
+                    rule -> new QueryRule(
+                        (String) rule.get("rule_id"),
+                        QueryRuleType.queryRuleType((String) rule.get("type")),
+                        parseCriteria((List<Map<String, Object>>) rule.get("criteria")),
+                        (Map<String, Object>) rule.get("actions")
+                    )
+                )
                 .collect(Collectors.toList());
             final QueryRuleset res = new QueryRuleset(id, rules);
             l.onResponse(res);
         }));
     }
 
-    private List<QueryRuleCriteria> parseCriteria(List<Map<String,Object>> rawCriteria) {
+    private List<QueryRuleCriteria> parseCriteria(List<Map<String, Object>> rawCriteria) {
         List<QueryRuleCriteria> criteria = new ArrayList<>(rawCriteria.size());
-        for (Map<String,Object> entry : rawCriteria) {
-            criteria.add(new QueryRuleCriteria(
-                QueryRuleCriteria.CriteriaType.criteriaType((String) entry.get("type")),
-                QueryRuleCriteria.CriteriaMetadata.criteriaMetadata((String) entry.get("metadata")),
-                (String) entry.get("value")));
+        for (Map<String, Object> entry : rawCriteria) {
+            criteria.add(
+                new QueryRuleCriteria(
+                    QueryRuleCriteria.CriteriaType.criteriaType((String) entry.get("type")),
+                    QueryRuleCriteria.CriteriaMetadata.criteriaMetadata((String) entry.get("metadata")),
+                    (String) entry.get("value")
+                )
+            );
         }
         return criteria;
     }
@@ -309,9 +314,7 @@ public class QueryRulesIndexService {
     }
 
     private static QueryRuleResult mapSearchResponse(SearchResponse response) {
-        final List<QueryRule> queryRules = Arrays.stream(response.getHits().getHits())
-            .map(QueryRulesIndexService::hitToQueryRule)
-            .toList();
+        final List<QueryRule> queryRules = Arrays.stream(response.getHits().getHits()).map(QueryRulesIndexService::hitToQueryRule).toList();
         return new QueryRuleResult(queryRules, (int) response.getHits().getTotalHits().value);
     }
 
@@ -320,7 +323,7 @@ public class QueryRulesIndexService {
         final String resourceName = documentFields.get(QueryRule.ID_FIELD.getPreferredName()).getValue();
         return new QueryRule(
             resourceName,
-           QueryRuleType.queryRuleType(documentFields.get(QueryRule.TYPE_FIELD.getPreferredName()).getValue()),
+            QueryRuleType.queryRuleType(documentFields.get(QueryRule.TYPE_FIELD.getPreferredName()).getValue()),
             documentFields.get(QueryRule.CRITERIA_FIELD.getPreferredName()).getValue(),
             documentFields.get(QueryRule.ACTIONS_FIELD.getPreferredName()).getValue()
         );
@@ -389,5 +392,6 @@ public class QueryRulesIndexService {
     }
 
     public record QueryRulesetResult(List<String> rulesetIds, long totalResults) {}
+
     public record QueryRuleResult(List<QueryRule> items, long totalResults) {}
 }

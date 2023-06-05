@@ -13,6 +13,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Assertions;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
@@ -57,7 +59,7 @@ import java.util.TreeMap;
  * representing the reverted change. <em>Do not</em> let the index version go backwards, it must <em>always</em> be incremented.
  */
 @SuppressWarnings({"checkstyle:linelength", "deprecation"})
-public record IndexVersion(int id, Version luceneVersion) implements Comparable<IndexVersion> {
+public record IndexVersion(int id, Version luceneVersion) implements Comparable<IndexVersion>, ToXContentFragment {
 
     /*
      * NOTE: IntelliJ lies!
@@ -322,6 +324,11 @@ public record IndexVersion(int id, Version luceneVersion) implements Comparable<
     @Override
     public int compareTo(IndexVersion other) {
         return Integer.compare(this.id, other.id);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        return builder.value(toString());
     }
 
     @Override

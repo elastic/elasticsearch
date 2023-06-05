@@ -281,7 +281,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
             transportAddress,
             singletonMap("attr", "value"),
             singleton(DiscoveryNodeRole.MASTER_ROLE),
-            Version.CURRENT,
+            null,
             "_external_id"
         );
 

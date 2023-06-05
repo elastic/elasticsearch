@@ -141,7 +141,13 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
 
     private static final StringLiteralDeduplicator nodeStringDeduplicator = new StringLiteralDeduplicator();
 
-    public record VersionInformation(Version nodeVersion, IndexVersion minIndexVersion, IndexVersion maxIndexVersion) {}
+    public record VersionInformation(Version nodeVersion, IndexVersion minIndexVersion, IndexVersion maxIndexVersion) {
+        public VersionInformation {
+            Objects.requireNonNull(nodeVersion);
+            Objects.requireNonNull(minIndexVersion);
+            Objects.requireNonNull(maxIndexVersion);
+        }
+    }
 
     private final String nodeName;
     private final String nodeId;
@@ -221,44 +227,10 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         Set<DiscoveryNodeRole> roles,
         @Nullable Version version
     ) {
-        this(nodeName, nodeId, ephemeralId, hostName, hostAddress, address, attributes, roles, version, null);
+        this(nodeName, nodeId, ephemeralId, hostName, hostAddress, address, attributes, roles, expandNodeVersion(version), null);
     }
 
-    /**
-     * Creates a new {@link DiscoveryNode}.
-     * <p>
-     * <b>Note:</b> if the version of the node is unknown {@link Version#minimumCompatibilityVersion()} should be used for the current
-     * version. it corresponds to the minimum version this elasticsearch version can communicate with. If a higher version is used
-     * the node might not be able to communicate with the remote node. After initial handshakes node versions will be discovered
-     * and updated.
-     * </p>
-     *
-     * @param nodeName         the nodes name
-     * @param nodeId           the nodes unique persistent id
-     * @param ephemeralId      the nodes unique ephemeral id
-     * @param hostAddress      the nodes host address
-     * @param address          the nodes transport address
-     * @param attributes       node attributes
-     * @param roles            node roles
-     * @param version          the version of the node
-     * @param externalId       the external id used to identify this node by external systems
-     */
-    public DiscoveryNode(
-        @Nullable String nodeName,
-        String nodeId,
-        String ephemeralId,
-        String hostName,
-        String hostAddress,
-        TransportAddress address,
-        Map<String, String> attributes,
-        Set<DiscoveryNodeRole> roles,
-        @Nullable Version version,
-        @Nullable String externalId
-    ) {
-        this(nodeName, nodeId, ephemeralId, hostName, hostAddress, address, attributes, roles, expandNodeVersion(version), externalId);
-    }
-
-    private static VersionInformation expandNodeVersion(Version version) {
+    static VersionInformation expandNodeVersion(Version version) {
         if (version == null) return null;
         if (version.after(Version.V_8_8_0)) throw new IllegalArgumentException(
             "IndexVersion can only be calculated from Version for <=8.8.0"
@@ -290,7 +262,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
      * @param externalId       the external id used to identify this node by external systems
      */
     public DiscoveryNode(
-        String nodeName,
+        @Nullable String nodeName,
         String nodeId,
         String ephemeralId,
         String hostName,
@@ -298,8 +270,8 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         TransportAddress address,
         Map<String, String> attributes,
         Set<DiscoveryNodeRole> roles,
-        VersionInformation version,
-        String externalId
+        @Nullable VersionInformation version,
+        @Nullable String externalId
     ) {
         if (nodeName != null) {
             this.nodeName = nodeStringDeduplicator.deduplicate(nodeName);
@@ -344,7 +316,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             publishAddress,
             attributes,
             roles,
-            Version.CURRENT,
+            null,
             Node.NODE_EXTERNAL_ID_SETTING.get(settings)
         );
     }
@@ -546,6 +518,10 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         return roles;
     }
 
+    public VersionInformation getVersionInformation() {
+        return this.version;
+    }
+
     public Version getVersion() {
         return this.version.nodeVersion();
     }
@@ -654,7 +630,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             transportAddress,
             getAttributes(),
             getRoles(),
-            getVersion(),
+            getVersionInformation(),
             getExternalId()
         );
     }

@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.node;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.index.IndexVersion;
 
 import java.util.Map;
 import java.util.Objects;
@@ -74,6 +75,8 @@ public class DiscoveryNodeUtils {
         private Map<String, String> attributes = Map.of();
         private Set<DiscoveryNodeRole> roles = DiscoveryNodeRole.roles();
         private Version version;
+        private IndexVersion minIndexVersion;
+        private IndexVersion maxIndexVersion;
         private String externalId;
 
         private Builder(String id) {
@@ -116,6 +119,13 @@ public class DiscoveryNodeUtils {
             return this;
         }
 
+        public Builder version(Version version, IndexVersion minIndexVersion, IndexVersion maxIndexVersion) {
+            this.version = version;
+            this.minIndexVersion = minIndexVersion;
+            this.maxIndexVersion = maxIndexVersion;
+            return this;
+        }
+
         public Builder externalId(String externalId) {
             this.externalId = externalId;
             return this;
@@ -132,7 +142,14 @@ public class DiscoveryNodeUtils {
                 hostAddress = address.getAddress();
             }
 
-            return new DiscoveryNode(name, id, ephemeralId, hostName, hostAddress, address, attributes, roles, version, externalId);
+            DiscoveryNode.VersionInformation versionInfo;
+            if (minIndexVersion == null || maxIndexVersion == null) {
+                versionInfo = DiscoveryNode.expandNodeVersion(version);
+            } else {
+                versionInfo = new DiscoveryNode.VersionInformation(version, minIndexVersion, maxIndexVersion);
+            }
+
+            return new DiscoveryNode(name, id, ephemeralId, hostName, hostAddress, address, attributes, roles, versionInfo, externalId);
         }
     }
 }

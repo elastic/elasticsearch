@@ -1003,6 +1003,59 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
         }
     }
 
+    public void testStopForceClosesConnectionDuringRequest() {
+        final Logger mockLogger = LogManager.getLogger(AbstractHttpServerTransport.class);
+        Loggers.setLevel(mockLogger, Level.WARN);
+        final MockLogAppender appender = new MockLogAppender();
+        final var inDispatch = new CountDownLatch(1);
+        final var blockingDispatch = new CountDownLatch(1);
+        try (TestHttpServerTransport transport = new TestHttpServerTransport(gracePeriod(10), () -> {
+            inDispatch.countDown();
+            try {
+                blockingDispatch.await();
+            } catch (InterruptedException ie) {
+                fail("interrupted");
+            }
+        })) {
+            Loggers.addAppender(mockLogger, appender);
+            appender.start();
+
+            appender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "message",
+                    AbstractHttpServerTransport.class.getName(),
+                    Level.WARN,
+                    "timed out while waiting [10]ms for clients to close connections"
+                )
+            );
+
+            transport.bindServer();
+            final TestHttpRequest httpRequest = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/");
+            TestHttpChannel httpChannel = new TestHttpChannel();
+            transport.serverAcceptedChannel(httpChannel);
+            new Thread(
+                () -> transport.incomingRequest(httpRequest, httpChannel),
+                "testStopForceClosesConnectionDuringRequest -> incomingRequest"
+            ).start();
+            try {
+                inDispatch.await();
+            } catch (InterruptedException ie) {
+                fail("interrupted");
+            }
+            assertTrue(httpChannel.isOpen());
+            transport.doStop();
+            assertFalse(httpChannel.isOpen());
+            assertFalse(transport.testHttpServerChannel.isOpen());
+            assertThat(httpChannel.responses, hasSize(0));
+            // ensure we timed out waiting for connections to close naturally
+            appender.assertAllExpectationsMatched();
+        } finally {
+            appender.stop();
+            Loggers.removeAppender(mockLogger, appender);
+            blockingDispatch.countDown();
+        }
+    }
+
     public void testStopClosesChannelAfterRequest() {
         try (TestHttpServerTransport transport = new TestHttpServerTransport(gracePeriod(1_000))) {
             transport.bindServer();
@@ -1023,13 +1076,14 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             }).start();
 
             try {
-                assertTrue(transport.gracePeriodCalled.await(10, TimeUnit.SECONDS));
+                assertTrue(transport.gracefullyCloseCalled.await(10, TimeUnit.SECONDS));
             } catch (InterruptedException e) {
                 fail("server never called grace period");
             }
 
             // one last request, should cause httpChannel to close naturally now that we've set grace period
             transport.incomingRequest(new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/"), httpChannel);
+            assertFalse(httpChannel.isOpen());
 
             try {
                 assertTrue(stopped.await(10, TimeUnit.SECONDS));
@@ -1039,7 +1093,6 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
 
             assertFalse(transport.testHttpServerChannel.isOpen());
             assertFalse(idleChannel.isOpen());
-            assertFalse(httpChannel.isOpen());
 
             assertThat(httpChannel.responses, hasSize(2));
             HttpResponse first = httpChannel.responses.get(0);
@@ -1063,7 +1116,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
 
             new Thread(() -> {
                 try {
-                    assertTrue(transport.gracePeriodCalled.await(100, TimeUnit.MILLISECONDS));
+                    assertTrue(transport.gracefullyCloseCalled.await(100, TimeUnit.MILLISECONDS));
                 } catch (InterruptedException e) {
                     fail("server never called grace period");
                 }
@@ -1144,9 +1197,9 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
 
     private class TestHttpServerTransport extends AbstractHttpServerTransport {
         public TestHttpChannel testHttpServerChannel = new TestHttpChannel(false);
-        public CountDownLatch gracePeriodCalled = new CountDownLatch(1);
+        public CountDownLatch gracefullyCloseCalled = new CountDownLatch(1);
 
-        TestHttpServerTransport(Settings settings) {
+        TestHttpServerTransport(Settings settings, Runnable dispatchCallback) {
             super(
                 Settings.builder().put(settings).put(SETTING_HTTP_CLIENT_STATS_ENABLED.getKey(), false).build(),
                 AbstractHttpServerTransportTests.this.networkService,
@@ -1156,6 +1209,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 new HttpServerTransport.Dispatcher() {
                     @Override
                     public void dispatchRequest(RestRequest request, RestChannel channel, ThreadContext threadContext) {
+                        dispatchCallback.run();
                         channel.sendResponse(emptyResponse(RestStatus.OK));
                     }
 
@@ -1169,10 +1223,14 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             );
         }
 
+        TestHttpServerTransport(Settings settings) {
+            this(settings, () -> {});
+        }
+
         @Override
         void gracefullyCloseConnections() {
             super.gracefullyCloseConnections();
-            gracePeriodCalled.countDown();
+            gracefullyCloseCalled.countDown();
         }
 
         @Override

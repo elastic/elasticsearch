@@ -166,11 +166,17 @@ birth_date:date         |bd:date
 1964-06-02T00:00:00.000Z|1964-06-02T00:00:00.000Z
 ;
 
-convertFromString
-row string = ["1953-09-02T00:00:00.000Z", "1964-06-02T00:00:00.000Z"] | eval datetime = to_datetime(string);
+convertFromString-IgnoreWarnings
+// tag::to_datetime-str[]
+ROW string = ["1953-09-02T00:00:00.000Z", "1964-06-02T00:00:00.000Z", "1964-06-02 00:00:00"]
+| EVAL datetime = TO_DATETIME(string)
+// end::to_datetime-str[]
+;
 
-string:keyword                                      |datetime:date
-[1953-09-02T00:00:00.000Z, 1964-06-02T00:00:00.000Z]|[1953-09-02T00:00:00.000Z, 1964-06-02T00:00:00.000Z]
+// tag::to_datetime-str-result[]
+string:keyword                                          |datetime:date
+["1953-09-02T00:00:00.000Z", "1964-06-02T00:00:00.000Z", "1964-06-02 00:00:00"]|[1953-09-02T00:00:00.000Z, 1964-06-02T00:00:00.000Z]
+// end::to_datetime-str-result[]
 ;
 
 convertFromLong
@@ -192,6 +198,20 @@ row int = [501379200, 520128000] | eval dt = to_datetime(int);
 
 int:integer           |dt:date
 [501379200, 520128000]|[1970-01-06T19:16:19.200Z, 1970-01-07T00:28:48.000Z]
+;
+
+// TODO: add a -1, once https://github.com/elastic/elasticsearch-internal/issues/1203 is fixed
+convertFromIntForDocs
+// tag::to_datetime-int[]
+ROW int = [0, 1]
+| EVAL dt = TO_DATETIME(int)
+// end::to_datetime-int[]
+;
+
+// tag::to_datetime-int-result[]
+int:integer |dt:date
+[0, 1]     |[1970-01-01T00:00:00.000Z, 1970-01-01T00:00:00.001Z]
+// end::to_datetime-int-result[]
 ;
 
 autoBucketSimpleMonth

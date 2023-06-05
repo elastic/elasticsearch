@@ -18,13 +18,13 @@ include::{esql-specs}/string.csv-spec[tag=mv_concat-result]
 If you want to concat non-string fields call <<esql-to_string>> on them first:
 [source,esql]
 ----
-include::{esql-specs}/ints.csv-spec[tag=mv_concat]
+include::{esql-specs}/string.csv-spec[tag=mv_concat-to_string]
 ----
 
 Returns:
 
 [%header,format=dsv,separator=|]
 |===
-include::{esql-specs}/ints.csv-spec[tag=mv_concat-result]
+include::{esql-specs}/string.csv-spec[tag=mv_concat-to_string-result]
 |===
 

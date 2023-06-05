@@ -56,10 +56,16 @@ emp_no:integer |hire_date:date          |hire_double:double
 ;
 
 convertFromString-IgnoreWarnings
-row dbl_str = "5.20128E11" | eval dbl = to_double(dbl_str), dbl2 = to_double("520128000000"), no_number = to_double("foo");
+// tag::to_double-str[]
+ROW str1 = "5.20128E11", str2 = "foo"
+| EVAL dbl = TO_DOUBLE("520128000000"), dbl1 = TO_DOUBLE(str1), dbl2 = TO_DOUBLE(str2)
+// end::to_double-str[]
+;
 
-dbl_str:keyword|dbl:double     |dbl2:double    |no_number:double 
-5.20128E11     |5.20128E11     |5.20128E11     |null
+// tag::to_double-str-result[]
+str1:keyword |str2:keyword |dbl:double |dbl1:double |dbl2:double
+5.20128E11   |foo          |5.20128E11 |5.20128E11  |null
+// end::to_double-str-result[]
 ;
 
 convertFromLong

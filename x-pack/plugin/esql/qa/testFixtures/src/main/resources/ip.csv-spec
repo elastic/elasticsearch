@@ -187,8 +187,15 @@ null                                                  |null
 ;
 
 convertFromString-IgnoreWarnings
-row ip_str = "1.1.1.1" | eval ip = to_ip(ip_str), not_ip = to_ip("blah") | where cidr_match(ip, "1.0.0.0/8");
+// tag::to_ip[]
+ROW str1 = "1.1.1.1", str2 = "foo"
+| EVAL ip1 = TO_IP(str1), ip2 = TO_IP(str2)
+| WHERE CIDR_MATCH(ip1, "1.0.0.0/8")
+// end::to_ip[]
+;
 
-ip_str:keyword    |ip:ip   |not_ip:ip
-1.1.1.1           |1.1.1.1 |null
+// tag::to_ip-result[]
+str1:keyword |str2:keyword |ip1:ip  |ip2:ip
+1.1.1.1      |foo          |1.1.1.1 |null
+// end::to_ip-result[]
 ;

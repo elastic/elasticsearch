@@ -34,6 +34,12 @@ these functions:
 * <<esql-split>>
 * <<esql-starts_with>>
 * <<esql-substring>>
+* <<esql-to_boolean>>
+* <<esql-to_datetime>>
+* <<esql-to_double>>
+* <<esql-to_integer>>
+* <<esql-to_ip>>
+* <<esql-to_long>>
 * <<esql-to_string>>
 
 include::functions/abs.asciidoc[]
@@ -60,4 +66,10 @@ include::functions/round.asciidoc[]
 include::functions/split.asciidoc[]
 include::functions/starts_with.asciidoc[]
 include::functions/substring.asciidoc[]
+include::functions/to_boolean.asciidoc[]
+include::functions/to_datetime.asciidoc[]
+include::functions/to_double.asciidoc[]
+include::functions/to_integer.asciidoc[]
+include::functions/to_ip.asciidoc[]
+include::functions/to_long.asciidoc[]
 include::functions/to_string.asciidoc[]

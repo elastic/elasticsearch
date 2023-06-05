@@ -1,0 +1,27 @@
+[[esql-to_boolean]]
+=== `TO_BOOLEAN`
+Converts an input value to a boolean value.
+
+The input can be a single- or multi-valued field or an expression. The input
+type must be of a string or numeric type.
+
+A string value of *"true"* will be case-insensitive converted to the Boolean
+*true*. For anything else, including the empty string, the function will
+return *false*. For example:
+
+[source,esql]
+----
+include::{esql-specs}/boolean.csv-spec[tag=to_boolean]
+----
+
+returns:
+
+[%header,format=dsv,separator=|]
+|===
+include::{esql-specs}/boolean.csv-spec[tag=to_boolean-result]
+|===
+
+The numerical value of *0* will be converted to *false*, anything else will be
+converted to *true*.
+
+Alias: TO_BOOL

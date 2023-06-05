@@ -4,26 +4,28 @@ Converts a field into a string. For example:
 
 [source,esql]
 ----
-include::{esql-specs}/ints.csv-spec[tag=to_string]
+include::{esql-specs}/string.csv-spec[tag=to_string]
 ----
 
 which returns:
 
 [%header,format=dsv,separator=|]
 |===
-include::{esql-specs}/ints.csv-spec[tag=to_string-result]
+include::{esql-specs}/string.csv-spec[tag=to_string-result]
 |===
 
 It also works fine on multivalued fields:
 
 [source,esql]
 ----
-include::{esql-specs}/ints.csv-spec[tag=to_string_multivalue]
+include::{esql-specs}/string.csv-spec[tag=to_string_multivalue]
 ----
 
 which returns:
 
 [%header,format=dsv,separator=|]
 |===
-include::{esql-specs}/ints.csv-spec[tag=to_string_multivalue-result]
+include::{esql-specs}/string.csv-spec[tag=to_string_multivalue-result]
 |===
+
+Alias: TO_STR

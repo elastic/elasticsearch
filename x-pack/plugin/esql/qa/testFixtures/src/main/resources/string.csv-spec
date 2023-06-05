@@ -382,3 +382,42 @@ emp_no:integer |byte:keyword   |short:keyword  |long:keyword |int:keyword |langu
 10001          |2              |2              |2            |2           |2
 10002          |5              |5              |5            |5           |5
 ;
+
+convertFromIntSimple
+// tag::to_string[]
+ROW a=10
+| EVAL j = TO_STRING(a)
+// end::to_string[]
+;
+
+// tag::to_string-result[]
+a:integer | j:keyword
+       10 | "10"
+// end::to_string-result[]
+;
+
+convertFromIntMultivalue
+// tag::to_string_multivalue[]
+ROW a=[10, 9, 8]
+| EVAL j = TO_STRING(a)
+// end::to_string_multivalue[]
+;
+
+// tag::to_string_multivalue-result[]
+ a:integer | j:keyword
+[10, 9, 8] | ["10", "9", "8"]
+// end::to_string_multivalue-result[]
+;
+
+mvConcatToString
+// tag::mv_concat-to_string[]
+ROW a=[10, 9, 8]
+| EVAL j = MV_CONCAT(TO_STRING(a), ", ")
+// end::mv_concat-to_string[]
+;
+
+// tag::mv_concat-to_string-result[]
+ a:integer | j:keyword
+[10, 9, 8] | "10, 9, 8"
+// end::mv_concat-to_string-result[]
+;

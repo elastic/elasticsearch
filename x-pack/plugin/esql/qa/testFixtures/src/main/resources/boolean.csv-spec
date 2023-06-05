@@ -159,6 +159,19 @@ emp_no:integer |is_rehired:boolean         |rehired_str:keyword        |rehired_
 10005          |[false, false, false, true]|[false, false, false, true]|[false, false, false, true] |false
 ;
 
+convertFromStringForDocs
+// tag::to_boolean[]
+ROW str = ["true", "TRuE", "false", "", "yes", "1"]
+| EVAL bool = TO_BOOLEAN(str)
+// end::to_boolean[]
+;
+
+// tag::to_boolean-result[]
+str:keyword                                | bool:boolean
+["true", "TRuE", "false", "", "yes", "1"] | [true, true, false, false, false, false]
+// end::to_boolean-result[]
+;
+
 convertFromDouble
 from employees | eval h_2 = height - 2.0, double2bool = to_boolean(h_2) | where emp_no in (10036, 10037, 10038) | project emp_no, height, *2bool;
 

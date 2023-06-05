@@ -70,10 +70,16 @@ tf:boolean     |t2l:long       |f2l:long       |tf2l:long
 ;
 
 convertStringToLong-IgnoreWarnings
-row long_str = "2147483648", long_dbl_str = "2147483648.2" | eval ls2l = to_long(long_str), lds2l = to_long(long_dbl_str), no_number = to_long("foo");
+// tag::to_long-str[]
+ROW str1 = "2147483648", str2 = "2147483648.2", str3 = "foo"
+| EVAL long1 = TO_LONG(str1), long2 = TO_LONG(str2), long3 = TO_LONG(str3)
+// end::to_long-str[]
+;
 
-long_str:keyword |long_dbl_str:keyword |ls2l:long   |lds2l:long     |no_number:long
-2147483648       |2147483648.2         |2147483648  |2147483648     |null
+// tag::to_long-str-result[]
+str1:keyword |str2:keyword |str3:keyword |long1:long  |long2:long |long3:long
+2147483648   |2147483648.2 |foo          |2147483648  |2147483648 |null
+// end::to_long-str-result[]
 ;
 
 convertDoubleToLong-IgnoreWarnings
@@ -93,10 +99,16 @@ int:integer       |ii:integer
 ;
 
 convertLongToInt-IgnoreWarnings
-row int = [5013792, 520128] | eval long = to_long(int) | eval ii = to_integer(long), not_int = to_integer(501379200000) | project long, ii, not_int;
+// tag::to_int-long[]
+ROW long = [5013792, 2147483647, 501379200000]
+| EVAL int = TO_INTEGER(long)
+// end::to_int-long[]
+;
 
-long:long         |ii:integer        |not_int:integer
-[5013792, 520128] |[5013792, 520128] |null
+// tag::to_int-long-result[]
+long:long                           |int:integer
+[5013792, 2147483647, 501379200000] |[5013792, 2147483647]
+// end::to_int-long-result[]
 ;
 
 convertDatetimeToInt
@@ -125,45 +137,6 @@ row d = 123.4 | eval d2i = to_integer(d), overflow = to_integer(1e19);
 
 d:double       |d2i:integer   |overflow:integer
 123.4          |123           |null    
-;
-
-convertToStringSimple
-// tag::to_string[]
-ROW a=10
-| EVAL j = TO_STRING(a)
-// end::to_string[]
-;
-
-// tag::to_string-result[]
-a:integer | j:keyword
-       10 | "10"
-// end::to_string-result[]
-;
-
-convertToStringMultivalue
-// tag::to_string_multivalue[]
-ROW a=[10, 9, 8]
-| EVAL j = TO_STRING(a)
-// end::to_string_multivalue[]
-;
-
-// tag::to_string_multivalue-result[]
- a:integer | j:keyword
-[10, 9, 8] | ["10", "9", "8"]
-// end::to_string_multivalue-result[]
-;
-
-mvJoin
-// tag::mv_concat[]
-ROW a=[10, 9, 8]
-| EVAL j = MV_CONCAT(TO_STRING(a), ", ")
-// end::mv_concat[]
-;
-
-// tag::mv_concat-result[]
- a:integer | j:keyword
-[10, 9, 8] | "10, 9, 8"
-// end::mv_concat-result[]
 ;
 
 lessThanMultivalue

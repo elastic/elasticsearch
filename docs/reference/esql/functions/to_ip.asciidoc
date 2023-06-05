@@ -1,0 +1,30 @@
+[[esql-to_ip]]
+=== `TO_IP`
+Converts an input string to an IP value.
+
+The input can be a single- or multi-valued field or an expression.
+
+Example:
+
+[source,esql]
+----
+include::{esql-specs}/ip.csv-spec[tag=to_ip]
+----
+
+which returns:
+
+[%header,format=dsv,separator=|]
+|===
+include::{esql-specs}/ip.csv-spec[tag=to_ip-result]
+|===
+
+Note that in the example above the last conversion of the string isn't
+possible. When this happens, the result is a *null* value. In this case a
+_Warning_ header is added to the response. The header will provide information
+on the source of the failure:
+
+`"Line 1:68: evaluation of [TO_IP(str2)] failed, treating result as null. Only first 20 failures recorded."`
+
+A following header will contain the failure reason and the offending value:
+
+`"java.lang.IllegalArgumentException: 'foo' is not an IP string literal."`

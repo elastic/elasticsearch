@@ -1,0 +1,40 @@
+[[esql-to_double]]
+=== `TO_DOUBLE`
+Converts an input value to a double value.
+
+The input can be a single- or multi-valued field or an expression. The input
+type must be of a boolean, date, string or numeric type.
+
+Example:
+
+[source,esql]
+----
+include::{esql-specs}/floats.csv-spec[tag=to_double-str]
+----
+
+returns:
+
+[%header,format=dsv,separator=|]
+|===
+include::{esql-specs}/floats.csv-spec[tag=to_double-str-result]
+|===
+
+Note that in this example, the last conversion of the string isn't
+possible. When this happens, the result is a *null* value. In this case a
+_Warning_ header is added to the response. The header will provide information
+on the source of the failure:
+
+`"Line 1:115: evaluation of [TO_DOUBLE(str2)] failed, treating result as null. Only first 20 failures recorded."`
+
+A following header will contain the failure reason and the offending value:
+
+`"java.lang.NumberFormatException: For input string: \"foo\""`
+
+
+If the input parameter is of a date type, its value will be interpreted as
+milliseconds since the https://en.wikipedia.org/wiki/Unix_time[Unix epoch],
+converted to double.
+
+Boolean *true* will be converted to double *1.0*, *false* to *0.0*.
+
+Alias: TO_DBL

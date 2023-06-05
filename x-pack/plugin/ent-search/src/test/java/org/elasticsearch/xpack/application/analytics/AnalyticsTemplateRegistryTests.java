@@ -23,8 +23,8 @@ import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -91,7 +91,7 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
     }
 
     public void testThatNonExistingComposableTemplatesAreAddedImmediately() throws Exception {
-        DiscoveryNode node = TestDiscoveryNode.create("node");
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
         Map<String, Integer> existingComponentTemplates = Map.of(
             AnalyticsTemplateRegistry.EVENT_DATA_STREAM_SETTINGS_COMPONENT_NAME,
@@ -122,7 +122,7 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
     }
 
     public void testThatNonExistingComponentTemplatesAreAddedImmediately() throws Exception {
-        DiscoveryNode node = TestDiscoveryNode.create("node");
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         ClusterChangedEvent event = createClusterChangedEvent(
@@ -153,7 +153,7 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
     }
 
     public void testThatNonExistingPoliciesAreAddedImmediately() throws Exception {
-        DiscoveryNode node = TestDiscoveryNode.create("node");
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         AtomicInteger calledTimes = new AtomicInteger(0);
@@ -188,7 +188,7 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
     }
 
     public void testPolicyAlreadyExists() {
-        DiscoveryNode node = TestDiscoveryNode.create("node");
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         Map<String, LifecyclePolicy> policyMap = new HashMap<>();
@@ -223,7 +223,7 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
     }
 
     public void testPolicyAlreadyExistsButDiffers() throws IOException {
-        DiscoveryNode node = TestDiscoveryNode.create("node");
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         Map<String, LifecyclePolicy> policyMap = new HashMap<>();
@@ -279,7 +279,7 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
     }
 
     public void testThatVersionedOldComponentTemplatesAreUpgraded() throws Exception {
-        DiscoveryNode node = TestDiscoveryNode.create("node");
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         ClusterChangedEvent event = createClusterChangedEvent(
@@ -299,7 +299,7 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
     }
 
     public void testThatUnversionedOldComponentTemplatesAreUpgraded() throws Exception {
-        DiscoveryNode node = TestDiscoveryNode.create("node");
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         ClusterChangedEvent event = createClusterChangedEvent(
@@ -317,7 +317,7 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
 
     @TestLogging(value = "org.elasticsearch.xpack.core.template:DEBUG", reason = "test")
     public void testSameOrHigherVersionComponentTemplateNotUpgraded() {
-        DiscoveryNode node = TestDiscoveryNode.create("node");
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         Map<String, Integer> versions = new HashMap<>();
@@ -359,7 +359,7 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
     }
 
     public void testThatMissingMasterNodeDoesNothing() {
-        DiscoveryNode localNode = TestDiscoveryNode.create("node");
+        DiscoveryNode localNode = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").add(localNode).build();
 
         client.setVerifier((a, r, l) -> {
@@ -376,7 +376,7 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
     }
 
     public void testThatNonExistingPipelinesAreAddedImmediately() throws Exception {
-        DiscoveryNode node = TestDiscoveryNode.create("node");
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         AtomicInteger calledTimes = new AtomicInteger(0);

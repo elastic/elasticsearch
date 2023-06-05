@@ -50,7 +50,7 @@ public class TransportHandshakerTests extends ESTestCase {
             buildNewFakeTransportAddress(),
             Collections.emptyMap(),
             Collections.emptySet(),
-            Version.CURRENT
+            null
         );
         threadPool = new TestThreadPool("thread-poll");
         handshaker = new TransportHandshaker(TransportVersion.CURRENT, threadPool, requestSender, false);

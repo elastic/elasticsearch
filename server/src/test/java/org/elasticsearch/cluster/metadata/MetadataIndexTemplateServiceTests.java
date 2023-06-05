@@ -1499,86 +1499,125 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
         ClusterState state = ClusterState.EMPTY_STATE;
 
-        DataLifecycle dataLifecycle1 = new DataLifecycle(TimeValue.timeValueDays(1));
-        ComponentTemplate ct1 = new ComponentTemplate(new Template(null, null, null, dataLifecycle1), null, null);
-        DataLifecycle dataLifecycle2 = new DataLifecycle(TimeValue.timeValueDays(30));
-        ComponentTemplate ct2 = new ComponentTemplate(new Template(null, null, null, dataLifecycle2), null, null);
-        ComponentTemplate ctNoLifecycle = new ComponentTemplate(new Template(null, null, null, null), null, null);
+        DataLifecycle lifecycle30d = new DataLifecycle(TimeValue.timeValueDays(30));
+        String ct30d = "ct_30d";
+        state = addComponentTemplate(service, state, ct30d, lifecycle30d);
 
-        state = service.addComponentTemplate(state, true, "ct_1", ct1);
-        state = service.addComponentTemplate(state, true, "ct_2", ct2);
-        state = service.addComponentTemplate(state, true, "ct_no_lifecycle", ctNoLifecycle);
-        {
-            // Respect the order the templates are defined
-            ComposableIndexTemplate it = new ComposableIndexTemplate(
-                List.of("i1*"),
-                new Template(null, null, null),
-                List.of("ct_2", "ct_1"),
-                0L,
-                1L,
-                null,
-                new ComposableIndexTemplate.DataStreamTemplate(),
-                null
-            );
-            state = service.addIndexTemplateV2(state, true, "my-template-1", it);
+        DataLifecycle lifecycle45d = new DataLifecycle(TimeValue.timeValueDays(45));
+        String ct45d = "ct_45d";
+        state = addComponentTemplate(service, state, ct45d, lifecycle45d);
 
-            DataLifecycle resolvedLifecycle = MetadataIndexTemplateService.resolveLifecycle(state.metadata(), "my-template-1");
-            assertThat(resolvedLifecycle, equalTo(dataLifecycle1));
-        }
-        {
-            // If the lifecycle is missing of the latest template we take the one from the previous
-            ComposableIndexTemplate it = new ComposableIndexTemplate(
-                List.of("i2*"),
-                new Template(null, null, null),
-                List.of("ct_1", "ct_no_lifecycle"),
-                0L,
-                1L,
-                null,
-                new ComposableIndexTemplate.DataStreamTemplate(),
-                null
-            );
-            state = service.addIndexTemplateV2(state, true, "my-template-2", it);
+        DataLifecycle lifecycleNullRetention = new DataLifecycle.Builder().dataRetention(DataLifecycle.Retention.NULL).build();
+        String ctNullRetention = "ct_null_retention";
+        state = addComponentTemplate(service, state, ctNullRetention, lifecycleNullRetention);
 
-            DataLifecycle resolvedLifecycle = MetadataIndexTemplateService.resolveLifecycle(state.metadata(), "my-template-2");
+        String ctEmptyLifecycle = "ct_empty_lifecycle";
+        state = addComponentTemplate(service, state, ctEmptyLifecycle, DataLifecycleTests.IMPLICIT_INFINITE_RETENTION);
 
-            // Based on precedence only the latest
-            assertThat(resolvedLifecycle, equalTo(dataLifecycle1));
-        }
-        {
-            ComposableIndexTemplate it = new ComposableIndexTemplate(
-                List.of("i3*"),
-                new Template(null, null, null, dataLifecycle2),
-                List.of("ct_no_lifecycle", "ct_1"),
-                0L,
-                1L,
-                null,
-                new ComposableIndexTemplate.DataStreamTemplate(),
-                null
-            );
-            state = service.addIndexTemplateV2(state, true, "my-template-3", it);
+        String ctNullLifecycle = "ct_null_lifecycle";
+        state = addComponentTemplate(service, state, ctNullLifecycle, Template.NO_LIFECYCLE);
 
-            DataLifecycle resolvedLifecycle = MetadataIndexTemplateService.resolveLifecycle(state.metadata(), "my-template-3");
+        String ctNoLifecycle = "ct_no_lifecycle";
+        state = addComponentTemplate(service, state, ctNoLifecycle, null);
 
-            // The index template has higher precedence and overwrites the retention of the others.
-            assertThat(resolvedLifecycle, equalTo(dataLifecycle2));
-        }
-        {
-            ComposableIndexTemplate it = new ComposableIndexTemplate(
-                List.of("i4*"),
-                new Template(null, null, null, new DataLifecycle()),
-                List.of("ct_no_lifecycle", "ct_1"),
-                0L,
-                1L,
-                null,
-                new ComposableIndexTemplate.DataStreamTemplate(),
-                null
-            );
-            state = service.addIndexTemplateV2(state, true, "my-template-4", it);
+        // Component A: -
+        // Component B: "lifecycle": {}
+        // Composable Z: -
+        // Result: "lifecycle": {}
+        assertLifecycleResolution(
+            service,
+            state,
+            List.of(ctNoLifecycle, ctEmptyLifecycle),
+            null,
+            DataLifecycleTests.IMPLICIT_INFINITE_RETENTION
+        );
 
-            DataLifecycle resolvedLifecycle = MetadataIndexTemplateService.resolveLifecycle(state.metadata(), "my-template-4");
+        // Component A: "lifecycle": {}
+        // Component B: "lifecycle": {"retention": "30d"}
+        // Composable Z: -
+        // Result: "lifecycle": {"retention": "30d"}
+        assertLifecycleResolution(service, state, List.of(ctEmptyLifecycle, ct30d), null, lifecycle30d);
 
-            // The index template lifecycle does not have a retention so the one from ct_1 remains unchanged.
-            assertThat(resolvedLifecycle, equalTo(dataLifecycle1));
+        // Component A: "lifecycle": {"retention": "30d"}
+        // Component B: "lifecycle": {"retention": "45d"}
+        // Composable Z: "lifecycle": {}
+        // Result: "lifecycle": {"retention": "45d"}
+        assertLifecycleResolution(service, state, List.of(ct30d, ct45d), DataLifecycleTests.IMPLICIT_INFINITE_RETENTION, lifecycle45d);
+
+        // Component A: "lifecycle": {}
+        // Component B: "lifecycle": {"retention": "45d"}
+        // Composable Z: "lifecycle": {"retention": "30d"}
+        // Result: "lifecycle": {"retention": "30d"}
+        assertLifecycleResolution(service, state, List.of(ctEmptyLifecycle, ct45d), lifecycle30d, lifecycle30d);
+
+        // Component A: "lifecycle": {"retention": "30d"}
+        // Component B: "lifecycle": {"retention": null}
+        // Composable Z: -
+        // Result: "lifecycle": {"retention": null}, here the result of the composition is with retention explicitly
+        // nullified, but effectively this is equivalent to "lifecycle": {} when there is no further composition.
+        assertLifecycleResolution(service, state, List.of(ct30d, ctNullRetention), null, lifecycleNullRetention);
+
+        // Component A: "lifecycle": {}
+        // Component B: "lifecycle": {"retention": "45d"}
+        // Composable Z: "lifecycle": {"retention": null}
+        // Result: "lifecycle": {"retention": null} , here the result of the composition is with retention explicitly
+        // nullified, but effectively this is equivalent to "lifecycle": {} when there is no further composition.
+        assertLifecycleResolution(service, state, List.of(ctEmptyLifecycle, ct45d), lifecycleNullRetention, lifecycleNullRetention);
+
+        // Component A: "lifecycle": {"retention": "30d"}
+        // Component B: "lifecycle": {"retention": "45d"}
+        // Composable Z: "lifecycle": null
+        // Result: null aka unmanaged
+        assertLifecycleResolution(service, state, List.of(ct30d, ct45d), Template.NO_LIFECYCLE, null);
+
+        // Component A: "lifecycle": {"retention": "30d"}
+        // Component B: "lifecycle": null
+        // Composable Z: -
+        // Result: null aka unmanaged
+        assertLifecycleResolution(service, state, List.of(ct30d, ctNullLifecycle), null, null);
+
+        // Component A: "lifecycle": {"retention": "30d"}
+        // Component B: "lifecycle": null
+        // Composable Z: "lifecycle": {"retention": "45d"}
+        // Result: "lifecycle": {"retention": "45d"}
+        assertLifecycleResolution(service, state, List.of(ct30d, ctNullLifecycle), lifecycle45d, lifecycle45d);
+    }
+
+    private ClusterState addComponentTemplate(
+        MetadataIndexTemplateService service,
+        ClusterState state,
+        String name,
+        DataLifecycle dataLifecycle
+    ) throws Exception {
+        ComponentTemplate ct = new ComponentTemplate(new Template(null, null, null, dataLifecycle), null, null);
+        return service.addComponentTemplate(state, true, name, ct);
+    }
+
+    private void assertLifecycleResolution(
+        MetadataIndexTemplateService service,
+        ClusterState state,
+        List<String> composeOf,
+        DataLifecycle lifecycleZ,
+        DataLifecycle expected
+    ) throws Exception {
+        ComposableIndexTemplate it = new ComposableIndexTemplate(
+            List.of(randomAlphaOfLength(10) + "*"),
+            new Template(null, null, null, lifecycleZ),
+            composeOf,
+            0L,
+            1L,
+            null,
+            new ComposableIndexTemplate.DataStreamTemplate(),
+            null
+        );
+        state = service.addIndexTemplateV2(state, true, "my-template", it);
+
+        DataLifecycle resolvedLifecycle = MetadataIndexTemplateService.resolveLifecycle(state.metadata(), "my-template");
+
+        if (expected == null) {
+            assertThat(resolvedLifecycle, nullValue());
+        } else {
+            assertThat(resolvedLifecycle, equalTo(expected));
         }
     }
 

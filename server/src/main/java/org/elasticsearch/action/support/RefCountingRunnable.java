@@ -15,8 +15,7 @@ import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
-
-import java.util.concurrent.atomic.AtomicBoolean;
+import org.elasticsearch.core.Releasables;
 
 /**
  * A mechanism to trigger an action on the completion of some (dynamic) collection of other actions. Basic usage is as follows:
@@ -67,20 +66,6 @@ public final class RefCountingRunnable implements Releasable {
     static final String ALREADY_CLOSED_MESSAGE = "already closed, cannot acquire or release any further refs";
 
     private final RefCounted refCounted;
-    private final AtomicBoolean originalRefReleased = new AtomicBoolean();
-
-    private class AcquiredRef extends AtomicBoolean implements Releasable {
-
-        @Override
-        public void close() {
-            releaseRef(this);
-        }
-
-        @Override
-        public String toString() {
-            return RefCountingRunnable.this.toString();
-        }
-    }
 
     /**
      * Construct a {@link RefCountingRunnable} which executes {@code delegate} when all refs are released.
@@ -102,7 +87,7 @@ public final class RefCountingRunnable implements Releasable {
      */
     public Releasable acquire() {
         if (refCounted.tryIncRef()) {
-            return new AcquiredRef();
+            return Releasables.assertOnce(this);
         }
         assert false : ALREADY_CLOSED_MESSAGE;
         throw new IllegalStateException(ALREADY_CLOSED_MESSAGE);
@@ -124,19 +109,11 @@ public final class RefCountingRunnable implements Releasable {
      */
     @Override
     public void close() {
-        releaseRef(originalRefReleased);
-    }
-
-    private void releaseRef(AtomicBoolean released) {
-        if (released.compareAndSet(false, true)) {
-            try {
-                refCounted.decRef();
-            } catch (Exception e) {
-                logger.error("exception in delegate", e);
-                assert false : e;
-            }
-        } else {
-            assert false : "already closed";
+        try {
+            refCounted.decRef();
+        } catch (Exception e) {
+            logger.error("exception in delegate", e);
+            assert false : e;
         }
     }
 

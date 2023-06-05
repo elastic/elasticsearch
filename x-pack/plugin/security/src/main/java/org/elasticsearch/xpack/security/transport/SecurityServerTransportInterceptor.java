@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
 import org.elasticsearch.xpack.core.security.transport.ProfileConfigurations;
 import org.elasticsearch.xpack.core.security.user.CrossClusterAccessUser;
+import org.elasticsearch.xpack.core.security.user.InternalUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.SSLService;
@@ -335,7 +336,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 assert authentication != null : "authentication must be present in security context";
 
                 final User user = authentication.getEffectiveSubject().getUser();
-                if (User.isInternal(user) && false == SystemUser.is(user)) {
+                if (user instanceof InternalUser && false == SystemUser.is(user)) {
                     final String message = "Internal user [" + user.principal() + "] should not be used for cross cluster requests";
                     assert false : message;
                     throw illegalArgumentExceptionWithDebugLog(message);

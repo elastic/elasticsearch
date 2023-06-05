@@ -1,5 +1,0 @@
-pr: 96221
-summary: Call listener in order to prevent the request from hanging
-area: Transform
-type: bug
-issues: []

@@ -18,6 +18,7 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -75,7 +76,8 @@ class TestRegistryWithCustomPlugin extends IndexTemplateRegistry {
                 "custom-plugin-default_pipeline",
                 "/org/elasticsearch/xpack/core/template/custom-plugin-default_pipeline.json",
                 REGISTRY_VERSION,
-                TEMPLATE_VERSION_VARIABLE
+                TEMPLATE_VERSION_VARIABLE,
+                Collections.singletonList("custom-plugin-final_pipeline")
             ),
             new IngestPipelineConfig(
                 "custom-plugin-final_pipeline",

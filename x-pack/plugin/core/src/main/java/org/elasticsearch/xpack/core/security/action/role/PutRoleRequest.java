@@ -237,7 +237,8 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
             runAs,
             metadata,
             Collections.emptyMap(),
-            remoteIndicesPrivileges.toArray(new RoleDescriptor.RemoteIndicesPrivileges[0])
+            remoteIndicesPrivileges.toArray(new RoleDescriptor.RemoteIndicesPrivileges[0]),
+            null
         );
     }
 }

@@ -74,7 +74,6 @@ import static org.elasticsearch.dlm.DataLifecycleService.FORCE_MERGE_COMPLETED_T
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -667,8 +666,8 @@ public class DataLifecycleServiceTests extends ESTestCase {
             assertThat(dlmMetadata.size(), equalTo(1));
             String forceMergeCompleteTimestampString = dlmMetadata.get(FORCE_MERGE_COMPLETED_TIMESTAMP_METADATA_KEY);
             assertThat(forceMergeCompleteTimestampString, notNullValue());
-            long forceMergeCopmleteTimestamp = Long.parseLong(forceMergeCompleteTimestampString);
-            assertThat(forceMergeCopmleteTimestamp, greaterThanOrEqualTo(threadPool.absoluteTimeInMillis()));
+            long forceMergeCompleteTimestamp = Long.parseLong(forceMergeCompleteTimestampString);
+            assertThat(forceMergeCompleteTimestamp, lessThanOrEqualTo(threadPool.absoluteTimeInMillis()));
             // The listener's onResponse should not be called by execute():
             assertThat(onResponseCount.get(), equalTo(0));
         }
@@ -689,8 +688,8 @@ public class DataLifecycleServiceTests extends ESTestCase {
             assertThat(dlmMetadata.get(preExistingDlmCustomMetadataKey), equalTo(preExistingDlmCustomMetadataValue));
             String forceMergeCompleteTimestampString = dlmMetadata.get(FORCE_MERGE_COMPLETED_TIMESTAMP_METADATA_KEY);
             assertThat(forceMergeCompleteTimestampString, notNullValue());
-            long forceMergeCopmleteTimestamp = Long.parseLong(forceMergeCompleteTimestampString);
-            assertThat(forceMergeCopmleteTimestamp, greaterThanOrEqualTo(threadPool.absoluteTimeInMillis()));
+            long forceMergeCompleteTimestamp = Long.parseLong(forceMergeCompleteTimestampString);
+            assertThat(forceMergeCompleteTimestamp, lessThanOrEqualTo(threadPool.absoluteTimeInMillis()));
             // The listener's onResponse should not be called by execute():
             assertThat(onResponseCount.get(), equalTo(0));
         }
@@ -883,7 +882,7 @@ public class DataLifecycleServiceTests extends ESTestCase {
             buildNewFakeTransportAddress(),
             Collections.emptyMap(),
             Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_HOT_NODE_ROLE, DiscoveryNodeRole.DATA_CONTENT_NODE_ROLE),
-            Version.CURRENT
+            null
         );
     }
 

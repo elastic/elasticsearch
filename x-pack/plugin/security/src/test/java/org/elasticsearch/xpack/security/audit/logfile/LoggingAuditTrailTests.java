@@ -52,12 +52,17 @@ import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyActio
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder;
 import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.UpdateCrossClusterApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.UpdateCrossClusterApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.privilege.PutPrivilegesAction;
@@ -108,13 +113,10 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableCluster
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
 import org.elasticsearch.xpack.core.security.support.ValidationTests;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
-import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
-import org.elasticsearch.xpack.core.security.user.CrossClusterAccessUser;
-import org.elasticsearch.xpack.core.security.user.SystemUser;
+import org.elasticsearch.xpack.core.security.user.InternalUser;
+import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.user.UsernamesField;
-import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
-import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.audit.AuditLevel;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
@@ -600,7 +602,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         String expectedCreateKeyAuditEventString = String.format(
             Locale.ROOT,
             """
-                "create":{"apikey":{"id":"%s","name":"%s","expiration":%s,%s%s}}\
+                "create":{"apikey":{"id":"%s","name":"%s","type":"rest","expiration":%s,%s%s}}\
                 """,
             createApiKeyRequest.getId(),
             keyName,
@@ -636,7 +638,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         final var expectedUpdateKeyAuditEventString = String.format(
             Locale.ROOT,
             """
-                "change":{"apikey":{"id":"%s"%s%s}}\
+                "change":{"apikey":{"id":"%s","type":"rest"%s%s}}\
                 """,
             keyId,
             updateApiKeyRequest.getRoleDescriptors() == null ? "" : "," + roleDescriptorsStringBuilder,
@@ -668,7 +670,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         final var expectedBulkUpdateKeyAuditEventString = String.format(
             Locale.ROOT,
             """
-                "change":{"apikeys":{"ids":[%s]%s%s}}\
+                "change":{"apikeys":{"ids":[%s],"type":"rest"%s%s}}\
                 """,
             bulkUpdateApiKeyRequest.getIds().stream().map(s -> Strings.format("\"%s\"", s)).collect(Collectors.joining(",")),
             bulkUpdateApiKeyRequest.getRoleDescriptors() == null ? "" : "," + roleDescriptorsStringBuilder,
@@ -711,7 +713,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
             .append(grantApiKeyRequest.getApiKeyRequest().getId())
             .append("\",\"name\":\"")
             .append(keyName)
-            .append("\",\"expiration\":")
+            .append("\",\"type\":\"rest\",\"expiration\":")
             .append(expiration != null ? "\"" + expiration + "\"" : "null")
             .append(",")
             .append(roleDescriptorsStringBuilder);
@@ -808,6 +810,103 @@ public class LoggingAuditTrailTests extends ESTestCase {
             .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "delete_role")
             .put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
         assertMsg(generatedDeleteRoleAuditEventString, checkedFields.map());
+    }
+
+    public void testSecurityConfigChangeEventForCrossClusterApiKeys() throws IOException {
+        final CrossClusterApiKeyAccessWithSerialization accessWithSerialization = randomCrossClusterApiKeyAccessWithSerialization();
+        final var roleDescriptorBuilder = CrossClusterApiKeyRoleDescriptorBuilder.parse(accessWithSerialization.access());
+
+        // Create
+        final String apiKeyName = randomAlphaOfLengthBetween(3, 8);
+        final TimeValue expiration = randomFrom(TimeValue.timeValueHours(randomIntBetween(1, 99)), null);
+        final ApiKeyMetadataWithSerialization metadataWithSerialization = randomApiKeyMetadataWithSerialization();
+        final var createRequest = new CreateCrossClusterApiKeyRequest(
+            apiKeyName,
+            roleDescriptorBuilder,
+            expiration,
+            metadataWithSerialization.metadata()
+        );
+
+        final String requestId = randomRequestId();
+        final String[] expectedRoles = randomArray(0, 4, String[]::new, () -> randomBoolean() ? null : randomAlphaOfLengthBetween(1, 4));
+        final AuthorizationInfo authorizationInfo = () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, expectedRoles);
+        final Authentication authentication = createAuthentication();
+        auditTrail.accessGranted(requestId, authentication, CreateCrossClusterApiKeyAction.NAME, createRequest, authorizationInfo);
+
+        final String expectedCreateAuditEventString = String.format(
+            Locale.ROOT,
+            """
+                "create":{"apikey":{"id":"%s","name":"%s","type":"cross_cluster","expiration":%s,"role_descriptors":%s%s}}\
+                """,
+            createRequest.getId(),
+            apiKeyName,
+            expiration != null ? "\"" + expiration + "\"" : "null",
+            accessWithSerialization.serialization(),
+            createRequest.getMetadata() == null || createRequest.getMetadata().isEmpty()
+                ? ""
+                : Strings.format(",\"metadata\":%s", metadataWithSerialization.serialization())
+        );
+
+        List<String> output = CapturingLogger.output(logger.getName(), Level.INFO);
+        assertThat(output.size(), is(2));
+        String generatedCreateAuditEventString = output.get(1);
+        assertThat(generatedCreateAuditEventString, containsString(expectedCreateAuditEventString));
+        generatedCreateAuditEventString = generatedCreateAuditEventString.replace(", " + expectedCreateAuditEventString, "");
+        MapBuilder<String, String> checkedFields = new MapBuilder<>(commonFields);
+        checkedFields.remove(LoggingAuditTrail.ORIGIN_ADDRESS_FIELD_NAME);
+        checkedFields.remove(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME);
+        checkedFields.put("type", "audit")
+            .put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, "security_config_change")
+            .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "create_apikey")
+            .put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
+        assertMsg(generatedCreateAuditEventString, checkedFields.map());
+        // clear log
+        CapturingLogger.output(logger.getName(), Level.INFO).clear();
+
+        // Update
+        final CrossClusterApiKeyRoleDescriptorBuilder updateAccess = randomFrom(roleDescriptorBuilder, null);
+        final ApiKeyMetadataWithSerialization updateMetadataWithSerialization;
+        if (null == updateAccess) {
+            updateMetadataWithSerialization = randomValueOtherThanMany(
+                m -> m.metadata == null,
+                this::randomApiKeyMetadataWithSerialization
+            );
+        } else {
+            updateMetadataWithSerialization = randomApiKeyMetadataWithSerialization();
+        }
+
+        final var updateRequest = new UpdateCrossClusterApiKeyRequest(
+            createRequest.getId(),
+            updateAccess,
+            updateMetadataWithSerialization.metadata()
+        );
+        auditTrail.accessGranted(requestId, authentication, UpdateCrossClusterApiKeyAction.NAME, updateRequest, authorizationInfo);
+
+        final String expectedUpdateAuditEventString = String.format(
+            Locale.ROOT,
+            """
+                "change":{"apikey":{"id":"%s","type":"cross_cluster"%s%s}}\
+                """,
+            createRequest.getId(),
+            updateAccess == null ? "" : ",\"role_descriptors\":" + accessWithSerialization.serialization(),
+            updateRequest.getMetadata() == null ? "" : Strings.format(",\"metadata\":%s", updateMetadataWithSerialization.serialization())
+        );
+
+        output = CapturingLogger.output(logger.getName(), Level.INFO);
+        assertThat(output.size(), is(2));
+        String generatedUpdateAuditEventString = output.get(1);
+        assertThat(generatedUpdateAuditEventString, containsString(expectedUpdateAuditEventString));
+        generatedUpdateAuditEventString = generatedUpdateAuditEventString.replace(", " + expectedUpdateAuditEventString, "");
+        checkedFields = new MapBuilder<>(commonFields);
+        checkedFields.remove(LoggingAuditTrail.ORIGIN_ADDRESS_FIELD_NAME);
+        checkedFields.remove(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME);
+        checkedFields.put("type", "audit")
+            .put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, "security_config_change")
+            .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "change_apikey")
+            .put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
+        assertMsg(generatedUpdateAuditEventString, checkedFields.map());
+        // clear log
+        CapturingLogger.output(logger.getName(), Level.INFO).clear();
     }
 
     public void testSecurityConfigChangeEventFormattingForApiKeyInvalidation() throws IOException {
@@ -1917,7 +2016,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         final TransportRequest request = randomBoolean() ? new MockRequest(threadContext) : new MockIndicesRequest(threadContext);
         final String[] expectedRoles = randomArray(0, 4, String[]::new, () -> randomBoolean() ? null : randomAlphaOfLengthBetween(1, 4));
         final AuthorizationInfo authorizationInfo = () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, expectedRoles);
-        final User systemUser = randomFrom(SystemUser.INSTANCE, XPackUser.INSTANCE, XPackSecurityUser.INSTANCE, AsyncSearchUser.INSTANCE);
+        final InternalUser systemUser = AuthenticationTestHelper.randomInternalUser();
         final Authentication authentication = AuthenticationTestHelper.builder().internal(systemUser).build();
         final String requestId = randomRequestId();
 
@@ -1996,7 +2095,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         final TransportRequest request = randomBoolean() ? new MockRequest(threadContext) : new MockIndicesRequest(threadContext);
         final String[] expectedRoles = randomArray(0, 4, String[]::new, () -> randomBoolean() ? null : randomAlphaOfLengthBetween(1, 4));
         final AuthorizationInfo authorizationInfo = () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, expectedRoles);
-        final User systemUser = randomFrom(SystemUser.INSTANCE, XPackUser.INSTANCE, XPackSecurityUser.INSTANCE, AsyncSearchUser.INSTANCE);
+        final InternalUser systemUser = AuthenticationTestHelper.randomInternalUser();
         final Authentication authentication = AuthenticationTestHelper.builder().internal(systemUser).build();
         final String requestId = randomRequestId();
         auditTrail.accessGranted(requestId, authentication, "internal:_action", request, authorizationInfo);
@@ -2579,7 +2678,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         final String requestId = randomRequestId();
         final Authentication remoteAuthentication = randomFrom(
             AuthenticationTestHelper.builder().realm(false),
-            AuthenticationTestHelper.builder().internal(CrossClusterAccessUser.INSTANCE),
+            AuthenticationTestHelper.builder().internal(InternalUsers.CROSS_CLUSTER_ACCESS_USER),
             AuthenticationTestHelper.builder().serviceAccount(),
             AuthenticationTestHelper.builder().apiKey().metadata(Map.of(AuthenticationField.API_KEY_NAME_KEY, randomAlphaOfLength(42)))
         ).build(false);
@@ -3136,5 +3235,82 @@ public class LoggingAuditTrailTests extends ESTestCase {
             }
             default -> throw new IllegalStateException("Unexpected case number: " + metadataCase);
         };
+    }
+
+    private record CrossClusterApiKeyAccessWithSerialization(String access, String serialization) {};
+
+    private CrossClusterApiKeyAccessWithSerialization randomCrossClusterApiKeyAccessWithSerialization() {
+        return randomFrom(
+            new CrossClusterApiKeyAccessWithSerialization(
+                """
+                    {
+                      "search": [
+                        {
+                          "names": [
+                            "logs*"
+                          ]
+                        }
+                      ]
+                    }""",
+                "[{\"cluster\":[\"cross_cluster_search\"],"
+                    + "\"indices\":[{\"names\":[\"logs*\"],"
+                    + "\"privileges\":[\"read\",\"read_cross_cluster\",\"view_index_metadata\"]}],"
+                    + "\"applications\":[],\"run_as\":[]}]"
+            ),
+            new CrossClusterApiKeyAccessWithSerialization(
+                """
+                    {
+                      "replication": [
+                        {
+                          "names": [
+                            "archive*"
+                          ]
+                        }
+                      ]
+                    }""",
+                "[{\"cluster\":[\"cross_cluster_replication\"],"
+                    + "\"indices\":[{\"names\":[\"archive*\"],"
+                    + "\"privileges\":[\"cross_cluster_replication\",\"cross_cluster_replication_internal\"]}],"
+                    + "\"applications\":[],\"run_as\":[]}]"
+            ),
+            new CrossClusterApiKeyAccessWithSerialization(
+                """
+                    {
+                        "search": [
+                          {
+                            "names": [
+                              "logs*"
+                            ],
+                            "query": {
+                              "term": {
+                                "tag": 42
+                              }
+                            },
+                            "field_security": {
+                              "grant": [
+                                "*"
+                              ],
+                              "except": [
+                                "private"
+                              ]
+                            }
+                          }
+                        ],
+                        "replication": [
+                          {
+                            "names": [
+                              "archive"
+                            ],
+                            "allow_restricted_indices": true
+                          }
+                        ]
+                      }""",
+                "[{\"cluster\":[\"cross_cluster_search\",\"cross_cluster_replication\"],"
+                    + "\"indices\":[{\"names\":[\"logs*\"],\"privileges\":[\"read\",\"read_cross_cluster\",\"view_index_metadata\"],"
+                    + "\"field_security\":{\"grant\":[\"*\"],\"except\":[\"private\"]},\"query\":\"{\\\"term\\\":{\\\"tag\\\":42}}\"},"
+                    + "{\"names\":[\"archive\"],\"privileges\":[\"cross_cluster_replication\",\"cross_cluster_replication_internal\"],"
+                    + "\"allow_restricted_indices\":true}],\"applications\":[],\"run_as\":[]}]"
+            )
+        );
     }
 }

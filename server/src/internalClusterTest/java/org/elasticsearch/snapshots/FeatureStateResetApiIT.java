@@ -76,7 +76,8 @@ public class FeatureStateResetApiIT extends ESIntegTestCase {
                 ResetFeatureStateResponse.ResetFeatureStateStatus.success("SystemIndexTestPlugin"),
                 ResetFeatureStateResponse.ResetFeatureStateStatus.success("SecondSystemIndexTestPlugin"),
                 ResetFeatureStateResponse.ResetFeatureStateStatus.success("EvilSystemIndexTestPlugin"),
-                ResetFeatureStateResponse.ResetFeatureStateStatus.success("tasks")
+                ResetFeatureStateResponse.ResetFeatureStateStatus.success("tasks"),
+                ResetFeatureStateResponse.ResetFeatureStateStatus.success("synonyms")
             )
         );
 

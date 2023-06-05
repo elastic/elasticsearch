@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.core.security.user;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
 import org.elasticsearch.xpack.core.security.authc.Subject;
@@ -17,11 +16,11 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Optional;
 
-public class CrossClusterAccessUser extends User {
-    public static final String NAME = UsernamesField.CROSS_CLUSTER_ACCESS_NAME;
+public class CrossClusterAccessUser extends InternalUser {
 
-    public static final RoleDescriptor ROLE_DESCRIPTOR = new RoleDescriptor(
+    private static final RoleDescriptor REMOTE_ACCESS_ROLE_DESCRIPTOR = new RoleDescriptor(
         UsernamesField.CROSS_CLUSTER_ACCESS_ROLE,
         new String[] { "cross_cluster_search", "cross_cluster_replication" },
         // Needed for CCR background jobs (with system user)
@@ -36,31 +35,25 @@ public class CrossClusterAccessUser extends User {
         null,
         null,
         null,
+        null,
         null
     );
 
-    public static final User INSTANCE = new CrossClusterAccessUser();
+    /**
+     * Package protected to enforce a singleton (private constructor) - use {@link InternalUsers#CROSS_CLUSTER_ACCESS_USER} instead
+     */
+    static final InternalUser INSTANCE = new CrossClusterAccessUser();
 
     private CrossClusterAccessUser() {
-        super(NAME, Strings.EMPTY_ARRAY);
-        // the following traits, and especially the run-as one, go with all the internal users
-        // TODO abstract in a base `InternalUser` class
-        assert enabled();
-        assert roles() != null && roles().length == 0;
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        return INSTANCE == o;
-    }
-
-    @Override
-    public int hashCode() {
-        return System.identityHashCode(this);
-    }
-
-    public static boolean is(User user) {
-        return INSTANCE.equals(user);
+        super(
+            UsernamesField.CROSS_CLUSTER_ACCESS_NAME,
+            /**
+             *  this user is not permitted to execute actions that originate on the local cluster,
+             *  its only purpose is to execute actions from a remote cluster
+             */
+            Optional.empty(),
+            Optional.of(REMOTE_ACCESS_ROLE_DESCRIPTOR)
+        );
     }
 
     /**
@@ -71,7 +64,7 @@ public class CrossClusterAccessUser extends User {
     public static CrossClusterAccessSubjectInfo subjectInfo(TransportVersion transportVersion, String nodeName) {
         try {
             return new CrossClusterAccessSubjectInfo(
-                Authentication.newInternalAuthentication(INSTANCE, transportVersion, nodeName),
+                Authentication.newInternalAuthentication(InternalUsers.CROSS_CLUSTER_ACCESS_USER, transportVersion, nodeName),
                 RoleDescriptorsIntersection.EMPTY
             );
         } catch (IOException e) {

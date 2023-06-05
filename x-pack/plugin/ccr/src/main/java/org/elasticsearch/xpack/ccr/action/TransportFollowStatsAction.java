@@ -21,6 +21,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.Ccr;
@@ -115,7 +116,7 @@ public class TransportFollowStatsAction extends TransportTasksAction<
 
     @Override
     protected void taskOperation(
-        final Task actionTask,
+        final CancellableTask actionTask,
         final FollowStatsAction.StatsRequest request,
         final ShardFollowNodeTask task,
         final ActionListener<FollowStatsAction.StatsResponse> listener

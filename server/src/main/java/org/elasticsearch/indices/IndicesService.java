@@ -108,6 +108,7 @@ import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.seqno.RetentionLeaseStats;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.seqno.SeqNoStats;
+import org.elasticsearch.index.shard.GlobalCheckpointSyncer;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
@@ -848,7 +849,7 @@ public class IndicesService extends AbstractLifecycleComponent
         final PeerRecoveryTargetService.RecoveryListener recoveryListener,
         final RepositoriesService repositoriesService,
         final Consumer<IndexShard.ShardFailure> onShardFailure,
-        final Consumer<ShardId> globalCheckpointSyncer,
+        final GlobalCheckpointSyncer globalCheckpointSyncer,
         final RetentionLeaseSyncer retentionLeaseSyncer,
         final DiscoveryNode targetNode,
         final DiscoveryNode sourceNode

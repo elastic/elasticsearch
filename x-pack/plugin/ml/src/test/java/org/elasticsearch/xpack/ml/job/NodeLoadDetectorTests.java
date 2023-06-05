@@ -10,8 +10,8 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -67,7 +67,7 @@ public class NodeLoadDetectorTests extends ESTestCase {
         );
         DiscoveryNodes nodes = DiscoveryNodes.builder()
             .add(
-                TestDiscoveryNode.create(
+                DiscoveryNodeUtils.create(
                     "_node_name1",
                     "_node_id1",
                     new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
@@ -76,7 +76,7 @@ public class NodeLoadDetectorTests extends ESTestCase {
                 )
             )
             .add(
-                TestDiscoveryNode.create(
+                DiscoveryNodeUtils.create(
                     "_node_name2",
                     "_node_id2",
                     new TransportAddress(InetAddress.getLoopbackAddress(), 9301),
@@ -85,7 +85,7 @@ public class NodeLoadDetectorTests extends ESTestCase {
                 )
             )
             .add(
-                TestDiscoveryNode.create(
+                DiscoveryNodeUtils.create(
                     "_node_name3",
                     "_node_id3",
                     new TransportAddress(InetAddress.getLoopbackAddress(), 9302),
@@ -94,7 +94,7 @@ public class NodeLoadDetectorTests extends ESTestCase {
                 )
             )
             .add(
-                TestDiscoveryNode.create(
+                DiscoveryNodeUtils.create(
                     "_node_name4",
                     "_node_id4",
                     new TransportAddress(InetAddress.getLoopbackAddress(), 9303),

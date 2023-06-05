@@ -1,0 +1,9 @@
+[role="xpack"]
+[[security-api-update-cross-cluster-api-key]]
+=== Update Cross-Cluster API key API
+
+++++
+<titleabbrev>Update Cross-Cluster API key</titleabbrev>
+++++
+
+TODO: Placeholder

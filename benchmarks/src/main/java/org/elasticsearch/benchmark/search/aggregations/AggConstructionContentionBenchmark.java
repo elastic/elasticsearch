@@ -295,6 +295,11 @@ public class AggConstructionContentionBenchmark {
         }
 
         @Override
+        public void removeReleasable(Aggregator aggregator) {
+            releaseMe.remove(aggregator);
+        }
+
+        @Override
         public int maxBuckets() {
             return Integer.MAX_VALUE;
         }

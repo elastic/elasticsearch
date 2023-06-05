@@ -1,0 +1,9 @@
+steps:
+  - trigger: elasticsearch-serverless-update-submodule
+    label: ":elasticsearch: Check elasticsearch changes against serverless"
+    build:
+      message: "Validate latest elasticsearch changes"
+      env:
+        ELASTICSEARCH_SUBMODULE_COMMIT: "${BUILDKITE_COMMIT}"
+        UPDATE_SUBMODULE: "false"
+

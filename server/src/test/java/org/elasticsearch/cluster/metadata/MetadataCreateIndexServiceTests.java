@@ -23,8 +23,8 @@ import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
@@ -45,6 +45,7 @@ import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.InvalidAliasNameException;
@@ -121,7 +122,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             null,
             null,
             null,
-            null,
+            MappingLookup.EMPTY,
             null,
             null,
             parserConfig(),
@@ -552,12 +553,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
     }
 
     private DiscoveryNode newNode(String nodeId) {
-        return TestDiscoveryNode.create(
-            nodeId,
-            buildNewFakeTransportAddress(),
-            emptyMap(),
-            Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE)
-        );
+        return DiscoveryNodeUtils.builder(nodeId).roles(Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE)).build();
     }
 
     public void testValidateIndexName() throws Exception {

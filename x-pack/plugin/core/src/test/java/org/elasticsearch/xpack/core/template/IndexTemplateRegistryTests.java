@@ -24,8 +24,8 @@ import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -83,14 +83,14 @@ public class IndexTemplateRegistryTests extends ESTestCase {
         threadPool.shutdownNow();
     }
 
-    public void testThatPipelinesAreAddedImmediately() throws Exception {
-        DiscoveryNode node = TestDiscoveryNode.create("node");
+    public void testThatIndependentPipelinesAreAddedImmediately() throws Exception {
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         AtomicInteger calledTimes = new AtomicInteger(0);
         client.setVerifier((action, request, listener) -> {
             if (action instanceof PutPipelineAction) {
-                assertPutPipelineAction(calledTimes, action, request, listener);
+                assertPutPipelineAction(calledTimes, action, request, listener, "custom-plugin-final_pipeline");
                 return AcknowledgedResponse.TRUE;
             } else {
                 // the composable template is not expected to be added, as it's dependency is not available in the cluster state
@@ -102,11 +102,38 @@ public class IndexTemplateRegistryTests extends ESTestCase {
 
         ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyMap(), nodes);
         registry.clusterChanged(event);
-        assertBusy(() -> assertThat(calledTimes.get(), equalTo(2)));
+        assertBusy(() -> assertThat(calledTimes.get(), equalTo(1)));
+    }
+
+    public void testThatDependentPipelinesAreAddedIfDependenciesExist() throws Exception {
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
+        DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
+
+        AtomicInteger calledTimes = new AtomicInteger(0);
+        client.setVerifier((action, request, listener) -> {
+            if (action instanceof PutPipelineAction) {
+                assertPutPipelineAction(calledTimes, action, request, listener, "custom-plugin-default_pipeline");
+                return AcknowledgedResponse.TRUE;
+            } else {
+                // the composable template is not expected to be added, as it's dependency is not available in the cluster state
+                // custom-plugin-settings.json is not expected to be added as it contains a dependency on the default_pipeline
+                fail("client called with unexpected request: " + request.toString());
+                return null;
+            }
+        });
+
+        ClusterChangedEvent event = createClusterChangedEvent(
+            Collections.emptyMap(),
+            Collections.emptyMap(),
+            Map.of("custom-plugin-final_pipeline", 3),
+            nodes
+        );
+        registry.clusterChanged(event);
+        assertBusy(() -> assertThat(calledTimes.get(), equalTo(1)));
     }
 
     public void testThatTemplateIsAddedIfAllDependenciesExist() throws Exception {
-        DiscoveryNode node = TestDiscoveryNode.create("node");
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         AtomicInteger calledTimes = new AtomicInteger(0);
@@ -132,13 +159,13 @@ public class IndexTemplateRegistryTests extends ESTestCase {
     }
 
     public void testThatTemplateIsNotAddedIfNotAllDependenciesExist() throws Exception {
-        DiscoveryNode node = TestDiscoveryNode.create("node");
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         AtomicInteger calledTimes = new AtomicInteger(0);
         client.setVerifier((action, request, listener) -> {
             if (action instanceof PutPipelineAction) {
-                assertPutPipelineAction(calledTimes, action, request, listener);
+                assertPutPipelineAction(calledTimes, action, request, listener, "custom-plugin-default_pipeline");
                 return AcknowledgedResponse.TRUE;
             } else {
                 // the template is not expected to be added, as the final pipeline is missing
@@ -150,7 +177,7 @@ public class IndexTemplateRegistryTests extends ESTestCase {
         ClusterChangedEvent event = createClusterChangedEvent(
             Collections.emptyMap(),
             Collections.emptyMap(),
-            Map.of("custom-plugin-default_pipeline", 3),
+            Map.of("custom-plugin-final_pipeline", 3),
             nodes
         );
         registry.clusterChanged(event);
@@ -158,7 +185,7 @@ public class IndexTemplateRegistryTests extends ESTestCase {
     }
 
     public void testThatComposableTemplateIsAddedIfDependenciesExist() throws Exception {
-        DiscoveryNode node = TestDiscoveryNode.create("node");
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         AtomicInteger calledTimes = new AtomicInteger(0);
@@ -182,13 +209,20 @@ public class IndexTemplateRegistryTests extends ESTestCase {
     }
 
     public void testThatTemplatesAreUpgradedWhenNeeded() throws Exception {
-        DiscoveryNode node = TestDiscoveryNode.create("node");
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         AtomicInteger calledTimes = new AtomicInteger(0);
         client.setVerifier((action, request, listener) -> {
             if (action instanceof PutPipelineAction) {
-                assertPutPipelineAction(calledTimes, action, request, listener);
+                assertPutPipelineAction(
+                    calledTimes,
+                    action,
+                    request,
+                    listener,
+                    "custom-plugin-default_pipeline",
+                    "custom-plugin-final_pipeline"
+                );
                 return AcknowledgedResponse.TRUE;
             } else if (action instanceof PutComponentTemplateAction) {
                 assertPutComponentTemplate(calledTimes, action, request, listener);
@@ -213,7 +247,7 @@ public class IndexTemplateRegistryTests extends ESTestCase {
     }
 
     public void testThatTemplatesAreNotUpgradedWhenNotNeeded() throws Exception {
-        DiscoveryNode node = TestDiscoveryNode.create("node");
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         AtomicInteger calledTimes = new AtomicInteger(0);
@@ -277,12 +311,13 @@ public class IndexTemplateRegistryTests extends ESTestCase {
         AtomicInteger calledTimes,
         ActionType<?> action,
         ActionRequest request,
-        ActionListener<?> listener
+        ActionListener<?> listener,
+        String... pipelineIds
     ) {
         assertThat(action, instanceOf(PutPipelineAction.class));
         assertThat(request, instanceOf(PutPipelineRequest.class));
         final PutPipelineRequest putRequest = (PutPipelineRequest) request;
-        assertThat(putRequest.getId(), oneOf("custom-plugin-default_pipeline", "custom-plugin-final_pipeline"));
+        assertThat(putRequest.getId(), oneOf(pipelineIds));
         PipelineConfiguration pipelineConfiguration = new PipelineConfiguration(
             putRequest.getId(),
             putRequest.getSource(),

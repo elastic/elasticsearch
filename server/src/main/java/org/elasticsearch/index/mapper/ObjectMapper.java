@@ -182,7 +182,6 @@ public class ObjectMapper extends Mapper implements Cloneable {
     }
 
     public static class TypeParser implements Mapper.TypeParser {
-
         @Override
         public boolean supportsVersion(Version indexCreatedVersion) {
             return true;
@@ -191,6 +190,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext)
             throws MapperParsingException {
+            parserContext.incrementMappingObjectDepth(); // throws MapperParsingException if depth limit is exceeded
             Explicit<Boolean> subobjects = parseSubobjects(node);
             ObjectMapper.Builder builder = new Builder(name, subobjects);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
@@ -201,6 +201,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
                     iterator.remove();
                 }
             }
+            parserContext.decrementMappingObjectDepth();
             return builder;
         }
 

@@ -18,6 +18,7 @@ admin:
         "test-search-application",
         "test-search-application-1",
         "test-search-application-2",
+        "test-search-application-with-list",
         "another-test-search-application",
         "test-updated-search-application",
         "test-error-search-application",
@@ -33,7 +34,9 @@ user:
     - post_behavioral_analytics_event
   indices:
     - names: [
-      "test-search-application"
+      "test-search-application",
+      "test-search-application-1",
+      "test-search-application-with-list"
     ]
       privileges: [ "read" ]
 

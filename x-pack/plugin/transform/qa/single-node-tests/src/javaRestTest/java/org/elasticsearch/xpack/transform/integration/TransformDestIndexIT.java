@@ -109,7 +109,6 @@ public class TransformDestIndexIT extends TransformRestTestCase {
         assertAliases(destIndex2, destAliasAll, destAliasLatest);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/95310")
     public void testTransformDestIndexCreatedDuringUpdate() throws Exception {
         String transformId = "test_dest_index_on_update";
         String destIndex = transformId + "-dest";
@@ -130,11 +129,10 @@ public class TransformDestIndexIT extends TransformRestTestCase {
         );
         startTransform(transformId);
 
-        // Verify that the destination index does not exist
-        assertFalse(indexExists(destIndex));
-
         // Update the unattended transform. This will trigger destination index creation.
         // The update has to change something in the config (here, max_page_search_size). Otherwise it would have been optimized away.
+        // Note that at this point the destination index could have already been created by the indexing process of the running transform
+        // but the update code should cope with this situation.
         updateTransform(transformId, """
             { "settings": { "max_page_search_size": 123 } }""");
 

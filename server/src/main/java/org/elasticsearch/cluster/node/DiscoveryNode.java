@@ -172,12 +172,12 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
      * @param version          the version of the node
      */
     public DiscoveryNode(
-        String nodeName,
+        @Nullable String nodeName,
         String nodeId,
         TransportAddress address,
         Map<String, String> attributes,
         Set<DiscoveryNodeRole> roles,
-        Version version
+        @Nullable Version version
     ) {
         this(
             nodeName,
@@ -189,46 +189,6 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             attributes,
             roles,
             version
-        );
-    }
-
-    /**
-     * Creates a new {@link DiscoveryNode}
-     * <p>
-     * <b>Note:</b> if the version of the node is unknown {@link Version#minimumCompatibilityVersion()} should be used for the current
-     * version. it corresponds to the minimum version this elasticsearch version can communicate with. If a higher version is used
-     * the node might not be able to communicate with the remote node. After initial handshakes node versions will be discovered
-     * and updated.
-     * </p>
-     *
-     * @param nodeName         the nodes name
-     * @param nodeId           the nodes unique persistent id. An ephemeral id will be auto generated.
-     * @param externalId       the external id used to identify this node by external systems
-     * @param address          the nodes transport address
-     * @param attributes       node attributes
-     * @param roles            node roles
-     * @param version          the version of the node
-     */
-    public DiscoveryNode(
-        String nodeName,
-        String nodeId,
-        String externalId,
-        TransportAddress address,
-        Map<String, String> attributes,
-        Set<DiscoveryNodeRole> roles,
-        Version version
-    ) {
-        this(
-            nodeName,
-            nodeId,
-            UUIDs.randomBase64UUID(),
-            address.address().getHostString(),
-            address.getAddress(),
-            address,
-            attributes,
-            roles,
-            version,
-            externalId
         );
     }
 
@@ -251,7 +211,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
      * @param version          the version of the node
      */
     public DiscoveryNode(
-        String nodeName,
+        @Nullable String nodeName,
         String nodeId,
         String ephemeralId,
         String hostName,
@@ -259,7 +219,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         TransportAddress address,
         Map<String, String> attributes,
         Set<DiscoveryNodeRole> roles,
-        Version version
+        @Nullable Version version
     ) {
         this(nodeName, nodeId, ephemeralId, hostName, hostAddress, address, attributes, roles, version, null);
     }
@@ -284,7 +244,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
      * @param externalId       the external id used to identify this node by external systems
      */
     public DiscoveryNode(
-        String nodeName,
+        @Nullable String nodeName,
         String nodeId,
         String ephemeralId,
         String hostName,
@@ -292,8 +252,8 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         TransportAddress address,
         Map<String, String> attributes,
         Set<DiscoveryNodeRole> roles,
-        Version version,
-        String externalId
+        @Nullable Version version,
+        @Nullable String externalId
     ) {
         this(nodeName, nodeId, ephemeralId, hostName, hostAddress, address, attributes, roles, expandNodeVersion(version), externalId);
     }
@@ -378,11 +338,14 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         return new DiscoveryNode(
             Node.NODE_NAME_SETTING.get(settings),
             nodeId,
-            Node.NODE_EXTERNAL_ID_SETTING.get(settings),
+            UUIDs.randomBase64UUID(),
+            publishAddress.address().getHostString(),
+            publishAddress.getAddress(),
             publishAddress,
             attributes,
             roles,
-            Version.CURRENT
+            Version.CURRENT,
+            Node.NODE_EXTERNAL_ID_SETTING.get(settings)
         );
     }
 

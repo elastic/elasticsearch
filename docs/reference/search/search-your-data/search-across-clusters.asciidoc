@@ -355,6 +355,9 @@ See <<ccs-unmin-roundtrips>> to learn how this option works.
 NOTE: The <<search-vector-tile-api,vector tile search API>> always minimizes
 network roundtrips and doesn't include the `ccs_minimize_roundtrips` parameter.
 
+NOTE: The <<approximate-knn, Approximate kNN search>> doesn't support minimizing
+network roundtrips, and sets the parameter `ccs_minimize_roundtrips` to `false`.
+
 [discrete]
 [[ccs-min-roundtrips]]
 ==== Minimize network roundtrips

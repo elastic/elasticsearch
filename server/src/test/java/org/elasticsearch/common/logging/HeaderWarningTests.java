@@ -335,4 +335,45 @@ public class HeaderWarningTests extends ESTestCase {
         assertThat(responses.get(0), containsString("\"legacy template [global] has index patterns"));
         assertThat(responses.get(0), containsString(Integer.toString(299)));
     }
+
+    public void testHeaderWarningValidation() {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        final Set<ThreadContext> threadContexts = Collections.singleton(threadContext);
+
+        HeaderWarning.addWarning(threadContexts, allAllowedChars());
+
+        // LoggerMessageFormat.format makes sure all not allowed chars are escaped
+        HeaderWarning.addWarning(threadContexts, "\"");
+        HeaderWarning.addWarning(threadContexts, "\\");
+        HeaderWarning.addWarning(threadContexts, allNotAllowedChars());
+    }
+
+    private String allNotAllowedChars() {
+        StringBuilder chars = new StringBuilder();
+        for (char c = 0; c < 256; c++) {
+            if (c < '\t' || ('\t' < c && c < 0x20) || c == 0x7f) {
+                chars.append(c);
+            }
+        }
+        return chars.toString();
+    }
+
+    private static String allAllowedChars() {
+        StringBuilder allPossibleChars = new StringBuilder();
+        allPossibleChars.append('\t');
+        allPossibleChars.append(' ');
+        allPossibleChars.append('!');
+        for (int i = 0x23; i <= 0x5b; i++) {
+            allPossibleChars.append((char) i);
+        }
+        for (int i = 0x5d; i <= 0x7e; i++) {
+            allPossibleChars.append((char) i);
+        }
+        for (int i = 0x80; i <= 0xff; i++) {
+            allPossibleChars.append((char) i);
+        }
+        allPossibleChars.append("\\");
+        allPossibleChars.append("\\\"");
+        return allPossibleChars.toString();
+    }
 }

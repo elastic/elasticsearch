@@ -51,6 +51,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
+import static org.elasticsearch.xpack.security.operator.OperatorPrivileges.NOOP_OPERATOR_PRIVILEGES_SERVICE;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
@@ -81,7 +82,14 @@ public class SecurityRestFilterTests extends ESTestCase {
         restHandler = mock(RestHandler.class);
         threadContext = new ThreadContext(Settings.EMPTY);
         secondaryAuthenticator = new SecondaryAuthenticator(Settings.EMPTY, threadContext, authcService, new AuditTrailService(null, null));
-        filter = new SecurityRestFilter(true, threadContext, secondaryAuthenticator, new AuditTrailService(null, null), restHandler);
+        filter = new SecurityRestFilter(
+            true,
+            threadContext,
+            secondaryAuthenticator,
+            new AuditTrailService(null, null),
+            restHandler,
+            NOOP_OPERATOR_PRIVILEGES_SERVICE
+        );
     }
 
     public void testProcess() throws Exception {
@@ -147,7 +155,14 @@ public class SecurityRestFilterTests extends ESTestCase {
     }
 
     public void testProcessWithSecurityDisabled() throws Exception {
-        filter = new SecurityRestFilter(false, threadContext, secondaryAuthenticator, mock(AuditTrailService.class), restHandler);
+        filter = new SecurityRestFilter(
+            false,
+            threadContext,
+            secondaryAuthenticator,
+            mock(AuditTrailService.class),
+            restHandler,
+            NOOP_OPERATOR_PRIVILEGES_SERVICE
+        );
         RestRequest request = mock(RestRequest.class);
         filter.handleRequest(request, channel, null);
         verify(restHandler).handleRequest(request, channel, null);
@@ -198,7 +213,8 @@ public class SecurityRestFilterTests extends ESTestCase {
             threadContext,
             secondaryAuthenticator,
             new AuditTrailService(auditTrail, licenseState),
-            restHandler
+            restHandler,
+            NOOP_OPERATOR_PRIVILEGES_SERVICE
         );
 
         filter.handleRequest(restRequest, channel, null);

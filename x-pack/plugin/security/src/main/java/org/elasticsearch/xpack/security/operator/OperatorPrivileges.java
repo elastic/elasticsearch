@@ -14,12 +14,17 @@ import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotR
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.user.InternalUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.Security;
+
+import java.util.stream.Collectors;
 
 public class OperatorPrivileges {
 
@@ -48,6 +53,10 @@ public class OperatorPrivileges {
             TransportRequest request,
             ThreadContext threadContext
         );
+
+        RestResponse checkRestFull(RestHandler restHandler, ThreadContext threadContext);
+
+        RestRequest checkRestPartial(RestHandler restHandler, RestRequest restRequest, ThreadContext threadContext);
 
         /**
          * When operator privileges are enabled, certain requests needs to be configured in a specific way
@@ -122,6 +131,52 @@ public class OperatorPrivileges {
             return null;
         }
 
+        @Override
+        public RestResponse checkRestFull(RestHandler restHandler, ThreadContext threadContext) {
+            if (false == shouldProcess()) {
+                return null;
+            }
+            if (false == AuthenticationField.PRIVILEGE_CATEGORY_VALUE_OPERATOR.equals(
+                threadContext.getHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY)
+            )) {
+                // Only check whether request is operator-only when user is NOT an operator
+                if (logger.isTraceEnabled()) {
+                    Authentication authentication = threadContext.getTransient(AuthenticationField.AUTHENTICATION_KEY);
+                    final User user = authentication.getEffectiveSubject().getUser();
+                    logger.trace(
+                        "Checking operator-only violation for user [{}] and routes [{}]",
+                        user,
+                        restHandler.routes().stream().map(RestHandler.Route::getPath).collect(Collectors.joining(","))
+                    );
+                }
+                return operatorOnlyRegistry.checkRestFull(restHandler);
+            }
+            return null;
+        }
+
+        @Override
+        public RestRequest checkRestPartial(RestHandler restHandler, RestRequest restRequest, ThreadContext threadContext) {
+            if (false == shouldProcess()) {
+                return null;
+            }
+            if (false == AuthenticationField.PRIVILEGE_CATEGORY_VALUE_OPERATOR.equals(
+                threadContext.getHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY)
+            )) {
+                // Only check whether request is operator-only when user is NOT an operator
+                if (logger.isTraceEnabled()) {
+                    Authentication authentication = threadContext.getTransient(AuthenticationField.AUTHENTICATION_KEY);
+                    final User user = authentication.getEffectiveSubject().getUser();
+                    logger.trace(
+                        "Checking operator-only violation for user [{}] and routes [{}]",
+                        user,
+                        restHandler.routes().stream().map(RestHandler.Route::getPath).collect(Collectors.joining(","))
+                    );
+                }
+                return operatorOnlyRegistry.checkRestPartial(restHandler, restRequest);
+            }
+            return restRequest;
+        }
+
         public void maybeInterceptRequest(ThreadContext threadContext, TransportRequest request) {
             if (request instanceof RestoreSnapshotRequest) {
                 logger.debug("Intercepting [{}] for operator privileges", request);
@@ -146,6 +201,16 @@ public class OperatorPrivileges {
             ThreadContext threadContext
         ) {
             return null;
+        }
+
+        @Override
+        public RestResponse checkRestFull(RestHandler restHandler, ThreadContext threadContext) {
+            return null;
+        }
+
+        @Override
+        public RestRequest checkRestPartial(RestHandler restHandler, RestRequest restRequest, ThreadContext threadContext) {
+            return restRequest;
         }
 
         @Override

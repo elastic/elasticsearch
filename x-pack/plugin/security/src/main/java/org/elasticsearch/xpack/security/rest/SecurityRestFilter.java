@@ -21,6 +21,7 @@ import org.elasticsearch.rest.RestRequestFilter;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator;
+import org.elasticsearch.xpack.security.operator.OperatorPrivileges;
 
 import java.util.List;
 
@@ -35,19 +36,22 @@ public class SecurityRestFilter implements RestHandler {
     private final AuditTrailService auditTrailService;
     private final boolean enabled;
     private final ThreadContext threadContext;
+    private final OperatorPrivileges.OperatorPrivilegesService operatorPrivilegesService;
 
     public SecurityRestFilter(
         boolean enabled,
         ThreadContext threadContext,
         SecondaryAuthenticator secondaryAuthenticator,
         AuditTrailService auditTrailService,
-        RestHandler restHandler
+        RestHandler restHandler,
+        OperatorPrivileges.OperatorPrivilegesService operatorPrivilegesService
     ) {
         this.enabled = enabled;
         this.threadContext = threadContext;
         this.secondaryAuthenticator = secondaryAuthenticator;
         this.auditTrailService = auditTrailService;
         this.restHandler = restHandler;
+        this.operatorPrivilegesService = operatorPrivilegesService;
     }
 
     @Override
@@ -89,11 +93,17 @@ public class SecurityRestFilter implements RestHandler {
 
     private void doHandleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
         threadContext.sanitizeHeaders();
-        try {
-            restHandler.handleRequest(request, channel, client);
-        } catch (Exception e) {
-            logger.debug(() -> format("Request handling failed for REST request [%s]", request.uri()), e);
-            throw e;
+        RestResponse fullyRestrictedResponse = operatorPrivilegesService.checkRestFull(restHandler, threadContext);
+        if (fullyRestrictedResponse == null) {
+            RestRequest maybeRestrictedRequest = operatorPrivilegesService.checkRestPartial(restHandler, request, threadContext);
+            try {
+                restHandler.handleRequest(maybeRestrictedRequest, channel, client);
+            } catch (Exception e) {
+                logger.debug(() -> format("Request handling failed for REST request [%s]", request.uri()), e);
+                throw e;
+            }
+        } else {
+            channel.sendResponse(fullyRestrictedResponse);
         }
     }
 

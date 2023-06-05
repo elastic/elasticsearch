@@ -7,11 +7,13 @@
 package org.elasticsearch.xpack.core.search.action;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -36,11 +38,9 @@ public class AsyncStatusResponse extends ActionResponse implements SearchStatusR
     private final int failedShards;
     private final RestStatus completionStatus;
 
-    // optionally include a _clusters object in the status response. This is used for CCS.
-    // This only needs to be handled on the coordinator, so this instance is transient (not Writeable).
-    // The SearchResponse has a Writeable copy that gets written to the async-search
-    // system index, so we can retrieve it from there after the task is finished
-    private transient SearchResponse.Clusters clusters;
+    // Non-null for cross cluster searches
+    @Nullable
+    private final SearchResponse.Clusters clusters;
 
     public AsyncStatusResponse(
         String id,
@@ -132,6 +132,11 @@ public class AsyncStatusResponse extends ActionResponse implements SearchStatusR
         this.skippedShards = in.readVInt();
         this.failedShards = in.readVInt();
         this.completionStatus = (this.isRunning == false) ? RestStatus.readFrom(in) : null;
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_009)) {
+            this.clusters = in.readOptionalWriteable(SearchResponse.Clusters::new);
+        } else {
+            this.clusters = null;
+        }
     }
 
     @Override
@@ -145,8 +150,12 @@ public class AsyncStatusResponse extends ActionResponse implements SearchStatusR
         out.writeVInt(successfulShards);
         out.writeVInt(skippedShards);
         out.writeVInt(failedShards);
-        if (isRunning == false) {
+        if (isRunning == false) { /// MP: Hmm, is this going to be a problem? Why is this not writeOptionalString?
             RestStatus.writeTo(out, completionStatus);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_009)) {
+            // optional since only CCS uses is; it is null for local-only searches
+            out.writeOptionalWriteable(clusters);
         }
     }
 
@@ -188,7 +197,8 @@ public class AsyncStatusResponse extends ActionResponse implements SearchStatusR
             && successfulShards == other.successfulShards
             && skippedShards == other.skippedShards
             && failedShards == other.failedShards
-            && Objects.equals(completionStatus, other.completionStatus);
+            && Objects.equals(completionStatus, other.completionStatus)
+            && Objects.equals(clusters, other.clusters);
     }
 
     @Override
@@ -203,7 +213,8 @@ public class AsyncStatusResponse extends ActionResponse implements SearchStatusR
             successfulShards,
             skippedShards,
             failedShards,
-            completionStatus
+            completionStatus,
+            clusters
         );
     }
 
@@ -282,6 +293,10 @@ public class AsyncStatusResponse extends ActionResponse implements SearchStatusR
         return completionStatus;
     }
 
+    /**
+     * @return For CCS, clusters object that has information about the clustes being searched, such as total count
+     * successful count and skipped. Will be null for local-only searches.
+     */
     public SearchResponse.Clusters getClusters() {
         return clusters;
     }

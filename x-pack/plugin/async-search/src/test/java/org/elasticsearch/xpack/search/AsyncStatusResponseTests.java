@@ -69,6 +69,12 @@ public class AsyncStatusResponseTests extends AbstractWireSerializingTestCase<As
         boolean isRunning = instance.isRunning() == false;
         boolean isPartial = isRunning ? randomBoolean() : false;
         RestStatus completionStatus = isRunning ? null : randomBoolean() ? RestStatus.OK : RestStatus.SERVICE_UNAVAILABLE;
+        SearchResponse.Clusters clusters = switch (randomIntBetween(0, 3)) {
+            case 1 -> SearchResponse.Clusters.EMPTY;
+            case 2 -> new SearchResponse.Clusters(1, 1, 0);
+            case 3 -> new SearchResponse.Clusters(4, 1, 0, 3, true);
+            default -> null;  // case 0
+        };
         return new AsyncStatusResponse(
             instance.getId(),
             isRunning,
@@ -80,7 +86,7 @@ public class AsyncStatusResponseTests extends AbstractWireSerializingTestCase<As
             instance.getSkippedShards(),
             instance.getFailedShards(),
             completionStatus,
-            null
+            clusters
         );
     }
 

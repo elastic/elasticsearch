@@ -224,7 +224,7 @@ weights.
 You can combine `text_expansion` with a <<compound-queries,compound query>> for 
 example with a `query_string` that uses the same query text as the 
 `text_expansion` query. This enables you to combine the search results 
-from both queries. You can increase or dicrease the relevance scores of each 
+from both queries. You can increase or decrease the relevance scores of each 
 query by using the `boost` parameter.
 
 [source,console]

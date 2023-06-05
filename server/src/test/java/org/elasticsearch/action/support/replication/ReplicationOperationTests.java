@@ -19,8 +19,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -201,7 +201,7 @@ public class ReplicationOperationTests extends ESTestCase {
                 exception = new RemoteTransportException("remote", cause);
             } else {
                 TransportAddress address = new TransportAddress(InetAddress.getLoopbackAddress(), 9300);
-                DiscoveryNode node = TestDiscoveryNode.create("replica", address);
+                DiscoveryNode node = DiscoveryNodeUtils.create("replica", address);
                 cause = new ConnectTransportException(node, "broken");
                 exception = cause;
             }
@@ -309,9 +309,9 @@ public class ReplicationOperationTests extends ESTestCase {
         final boolean testPrimaryDemotedOnStaleShardCopies = randomBoolean();
         final Exception shardActionFailure;
         if (randomBoolean()) {
-            shardActionFailure = new NodeClosedException(TestDiscoveryNode.create("foo"));
+            shardActionFailure = new NodeClosedException(DiscoveryNodeUtils.create("foo"));
         } else if (randomBoolean()) {
-            DiscoveryNode node = TestDiscoveryNode.create("foo");
+            DiscoveryNode node = DiscoveryNodeUtils.create("foo");
             shardActionFailure = new SendRequestTransportException(
                 node,
                 ShardStateAction.SHARD_FAILED_ACTION_NAME,

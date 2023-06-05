@@ -110,8 +110,4 @@ public class DefaultOperatorOnlyRegistry implements OperatorOnlyRegistry {
         }
     }
 
-    @FunctionalInterface
-    public interface OperatorPrivilegesViolation {
-        String message();
-    }
 }

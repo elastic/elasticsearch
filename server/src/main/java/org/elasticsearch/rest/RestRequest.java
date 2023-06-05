@@ -122,7 +122,13 @@ public class RestRequest implements ToXContent.Params {
     }
 
     protected RestRequest(RestRequest other) {
+        this(other, Map.of());
+    }
+
+    private RestRequest(RestRequest other, Map<String, String> additionalParams) {
         assert other.parserConfig.restApiVersion().equals(other.restApiVersion);
+        this.params = other.params;
+        this.params.putAll(additionalParams);
         this.parsedAccept = other.parsedAccept;
         this.parsedContentType = other.parsedContentType;
         if (other.xContentType.get() != null) {
@@ -132,7 +138,6 @@ public class RestRequest implements ToXContent.Params {
         this.parserConfig = other.parserConfig;
         this.httpRequest = other.httpRequest;
         this.httpChannel = other.httpChannel;
-        this.params = other.params;
         this.rawPath = other.rawPath;
         this.headers = other.headers;
         this.requestId = other.requestId;
@@ -181,6 +186,10 @@ public class RestRequest implements ToXContent.Params {
             httpChannel,
             requestIdGenerator.incrementAndGet()
         );
+    }
+
+    public static RestRequest copyRequestWithAdditionalParams(RestRequest original, Map<String, String> additionalParams) {
+        return new RestRequest(original, additionalParams);
     }
 
     private static Map<String, String> params(final String uri) {

@@ -51,7 +51,10 @@ public class SecurityRestFilter implements RestHandler {
         this.secondaryAuthenticator = secondaryAuthenticator;
         this.auditTrailService = auditTrailService;
         this.restHandler = restHandler;
-        this.operatorPrivilegesService = operatorPrivilegesService;
+        // can be null if security is not enabled
+        this.operatorPrivilegesService = operatorPrivilegesService == null
+            ? OperatorPrivileges.NOOP_OPERATOR_PRIVILEGES_SERVICE
+            : operatorPrivilegesService;
     }
 
     @Override

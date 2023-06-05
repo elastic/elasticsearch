@@ -60,7 +60,7 @@ public class DefaultOperatorOnlyRegistryTests extends ESTestCase {
 
     public void testSimpleOperatorOnlyApi() {
         for (final String actionName : DefaultOperatorOnlyRegistry.SIMPLE_ACTIONS) {
-            final DefaultOperatorOnlyRegistry.OperatorPrivilegesViolation violation = operatorOnlyRegistry.check(actionName, null);
+            final OperatorPrivilegesViolation violation = operatorOnlyRegistry.check(actionName, null);
             assertNotNull(violation);
             assertThat(violation.message(), containsString("action [" + actionName + "]"));
         }
@@ -78,7 +78,7 @@ public class DefaultOperatorOnlyRegistryTests extends ESTestCase {
         final ClusterUpdateSettingsRequest request;
         final Setting<?> transientSetting;
         final Setting<?> persistentSetting;
-        final DefaultOperatorOnlyRegistry.OperatorPrivilegesViolation violation;
+        final OperatorPrivilegesViolation violation;
 
         switch (randomIntBetween(0, 3)) {
             case 0 -> {

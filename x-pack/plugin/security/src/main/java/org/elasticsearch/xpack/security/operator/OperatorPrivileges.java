@@ -123,7 +123,7 @@ public class OperatorPrivileges {
             )) {
                 // Only check whether request is operator-only when user is NOT an operator
                 logger.trace("Checking operator-only violation for user [{}] and action [{}]", user, action);
-                final DefaultOperatorOnlyRegistry.OperatorPrivilegesViolation violation = operatorOnlyRegistry.check(action, request);
+                final OperatorPrivilegesViolation violation = operatorOnlyRegistry.check(action, request);
                 if (violation != null) {
                     return new ElasticsearchSecurityException("Operator privileges are required for " + violation.message());
                 }

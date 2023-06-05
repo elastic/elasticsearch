@@ -19,7 +19,7 @@ public interface OperatorOnlyRegistry {
      * null if the action+request is NOT operator-only. Other it returns a violation object
      * that contains the message for details.
      */
-    DefaultOperatorOnlyRegistry.OperatorPrivilegesViolation check(String action, TransportRequest request);
+    OperatorPrivilegesViolation check(String action, TransportRequest request);
 
     /**
      * Checks to see if a given {@link RestHandler} is subject to restrictions. This method may return a {@link RestResponse} if the

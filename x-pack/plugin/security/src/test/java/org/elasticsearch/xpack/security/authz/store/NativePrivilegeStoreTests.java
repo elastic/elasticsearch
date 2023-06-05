@@ -38,7 +38,6 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
-import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -77,7 +76,6 @@ import static java.util.Collections.singleton;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
-import static org.elasticsearch.xpack.security.Security.SECURITY_CRYPTO_THREAD_POOL_NAME;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.contains;
@@ -145,19 +143,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         }).when(securityIndex).checkIndexVersionThenExecute(anyConsumer(), any(Runnable.class));
         cacheInvalidatorRegistry = new CacheInvalidatorRegistry();
 
-        threadPool = Mockito.spy(
-            new TestThreadPool(
-                "api key service tests",
-                new FixedExecutorBuilder(
-                    Settings.EMPTY,
-                    SECURITY_CRYPTO_THREAD_POOL_NAME,
-                    1,
-                    1000,
-                    "xpack.security.crypto.thread_pool",
-                    false
-                )
-            )
-        );
+        threadPool = new TestThreadPool(getTestName());
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         clusterService = ClusterServiceUtils.createClusterService(threadPool, clusterSettings);
         allowExpensiveQueries = randomBoolean();

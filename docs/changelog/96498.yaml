@@ -1,0 +1,5 @@
+pr: 96498
+summary: Added `enrollment_id` to fleet-agents
+area: Infra/Core
+type: enhancement
+issues: []

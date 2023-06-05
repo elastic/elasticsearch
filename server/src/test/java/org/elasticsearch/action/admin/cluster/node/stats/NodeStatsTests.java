@@ -878,7 +878,7 @@ public class NodeStatsTests extends ESTestCase {
                 contexts.add(context);
                 stats.add(new ScriptContextStats(context, randomLongBetween(0, 1024), randomTimeSeries(), randomTimeSeries()));
             }
-            scriptStats = ScriptStats.of(stats);
+            scriptStats = ScriptStats.read(stats);
         }
         ClusterApplierRecordingService.Stats timeTrackerStats;
         if (randomBoolean()) {

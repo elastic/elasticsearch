@@ -30,7 +30,7 @@ public class ScriptStatsTests extends ESTestCase {
             new ScriptContextStats("contextB", 302, new TimeSeries(1000, 1001, 1002, 100), new TimeSeries(2000, 2001, 2002, 201)),
             new ScriptContextStats("contextA", 3020, new TimeSeries(1000), new TimeSeries(2010))
         );
-        ScriptStats stats = ScriptStats.of(contextStats);
+        ScriptStats stats = ScriptStats.read(contextStats);
         final XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
 
         builder.startObject();
@@ -173,7 +173,7 @@ public class ScriptStatsTests extends ESTestCase {
             stats.writeTo(out);
             try (StreamInput in = out.bytes().streamInput()) {
                 in.setTransportVersion(inVersion);
-                return ScriptContextStats.of(in);
+                return ScriptContextStats.read(in);
             }
         }
     }

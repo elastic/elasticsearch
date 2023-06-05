@@ -944,7 +944,7 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
                 ScriptCache cache = entry.getValue().get();
                 contextStats.add(cache.stats(entry.getKey()));
             }
-            return ScriptStats.of(contextStats);
+            return ScriptStats.read(contextStats);
         }
 
         ScriptCacheStats cacheStats() {

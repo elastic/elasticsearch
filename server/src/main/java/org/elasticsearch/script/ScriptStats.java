@@ -58,7 +58,7 @@ public record ScriptStats(
         );
     }
 
-    public static ScriptStats of(List<ScriptContextStats> contextStats) {
+    public static ScriptStats read(List<ScriptContextStats> contextStats) {
         long compilations = 0;
         long cacheEvictions = 0;
         long compilationLimitTriggered = 0;
@@ -77,7 +77,7 @@ public record ScriptStats(
         );
     }
 
-    public static ScriptStats of(ScriptContextStats context) {
+    public static ScriptStats read(ScriptContextStats context) {
         return new ScriptStats(
             context.getCompilations(),
             context.getCacheEvictions(),
@@ -87,7 +87,7 @@ public record ScriptStats(
         );
     }
 
-    public static ScriptStats of(StreamInput in) throws IOException {
+    public static ScriptStats read(StreamInput in) throws IOException {
         TimeSeries compilationsHistory;
         TimeSeries cacheEvictionsHistory;
         long compilations;
@@ -104,7 +104,7 @@ public record ScriptStats(
             cacheEvictionsHistory = new TimeSeries(cacheEvictions);
         }
         var compilationLimitTriggered = in.readVLong();
-        var contextStats = in.readList(ScriptContextStats::of);
+        var contextStats = in.readList(ScriptContextStats::read);
         return new ScriptStats(
             contextStats,
             compilations,
@@ -150,7 +150,7 @@ public record ScriptStats(
         }
         Map<String, ScriptStats> contexts = Maps.newMapWithExpectedSize(contextStats.size());
         for (ScriptContextStats contextStats : contextStats) {
-            contexts.put(contextStats.getContext(), ScriptStats.of(contextStats));
+            contexts.put(contextStats.getContext(), ScriptStats.read(contextStats));
         }
         return new ScriptCacheStats(contexts);
     }

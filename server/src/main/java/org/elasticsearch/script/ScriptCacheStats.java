@@ -42,17 +42,17 @@ public record ScriptCacheStats(Map<String, ScriptStats> context, ScriptStats gen
         this(null, Objects.requireNonNull(general));
     }
 
-    public static ScriptCacheStats of(StreamInput in) throws IOException {
+    public static ScriptCacheStats read(StreamInput in) throws IOException {
         boolean isContext = in.readBoolean();
         if (isContext == false) {
-            return new ScriptCacheStats(ScriptStats.of(in));
+            return new ScriptCacheStats(ScriptStats.read(in));
         }
 
         int size = in.readInt();
         Map<String, ScriptStats> context = Maps.newMapWithExpectedSize(size);
         for (int i = 0; i < size; i++) {
             String name = in.readString();
-            context.put(name, ScriptStats.of(in));
+            context.put(name, ScriptStats.read(in));
         }
         return new ScriptCacheStats(context);
     }

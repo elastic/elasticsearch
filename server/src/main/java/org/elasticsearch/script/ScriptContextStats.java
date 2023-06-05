@@ -43,7 +43,7 @@ public record ScriptContextStats(
         );
     }
 
-    public static ScriptContextStats of(StreamInput in) throws IOException {
+    public static ScriptContextStats read(StreamInput in) throws IOException {
         var context = in.readString();
         var compilations = in.readVLong();
         var cacheEvictions = in.readVLong();

@@ -15,6 +15,11 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 
+/**
+ * An allocation decider that ensures that all the shards allocated to the node scheduled for removal are relocated to the replacement node.
+ * It also ensures that auto-expands replicas are expanded to only the replacement source or target (not both at the same time)
+ * and only of the shards that were already present on the source node.
+ */
 public class NodeReplacementAllocationDecider extends AllocationDecider {
 
     public static final String NAME = "node_replacement";

@@ -32,6 +32,16 @@ import static org.elasticsearch.script.ScriptStats.Fields.COMPILATION_LIMIT_TRIG
 import static org.elasticsearch.script.ScriptStats.Fields.CONTEXTS;
 import static org.elasticsearch.script.ScriptStats.Fields.SCRIPT_STATS;
 
+/**
+ * Record object that holds global statistics of the scripts in a node.
+ *
+ * @param contextStats               A list of different {@link ScriptContextStats}
+ * @param compilations               Total number of compilations.
+ * @param cacheEvictions             Total number of evictions.
+ * @param compilationLimitTriggered  Total number of times that the compilation time has been reached.
+ * @param compilationsHistory        Historical information of the compilations in timeseries format.
+ * @param cacheEvictionsHistory      Historical information of the evictions in timeseries format.
+ */
 public record ScriptStats(
     List<ScriptContextStats> contextStats,
     long compilations,

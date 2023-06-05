@@ -18,6 +18,16 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * Record object that holds stats information for the different script contexts in a node.
+ *
+ * @param context                    Context name.
+ * @param compilations               Total number of compilations.
+ * @param compilationsHistory        Historical information of the compilations of scripts in timeseries format.
+ * @param cacheEvictions             Total of evictions.
+ * @param cacheEvictionsHistory      Historical information of the evictions of scripts in timeseries format.
+ * @param compilationLimitTriggered  Total times that a limit of compilations that have reached the limit.
+ */
 public record ScriptContextStats(
     String context,
     long compilations,

@@ -251,9 +251,11 @@ import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.synonyms.DeleteSynonymsAction;
 import org.elasticsearch.action.synonyms.GetSynonymsAction;
+import org.elasticsearch.action.synonyms.ListSynonymsAction;
 import org.elasticsearch.action.synonyms.PutSynonymsAction;
 import org.elasticsearch.action.synonyms.TransportDeleteSynonymsAction;
 import org.elasticsearch.action.synonyms.TransportGetSynonymsAction;
+import org.elasticsearch.action.synonyms.TransportListSynonymsAction;
 import org.elasticsearch.action.synonyms.TransportPutSynonymsAction;
 import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
 import org.elasticsearch.action.termvectors.TermVectorsAction;
@@ -440,6 +442,7 @@ import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.rest.action.search.RestSearchScrollAction;
 import org.elasticsearch.rest.action.synonyms.RestDeleteSynonymsAction;
 import org.elasticsearch.rest.action.synonyms.RestGetSynonymsAction;
+import org.elasticsearch.rest.action.synonyms.RestListSynonymsAction;
 import org.elasticsearch.rest.action.synonyms.RestPutSynonymsAction;
 import org.elasticsearch.synonyms.SynonymsAPI;
 import org.elasticsearch.tasks.Task;
@@ -787,6 +790,7 @@ public class ActionModule extends AbstractModule {
             actions.register(PutSynonymsAction.INSTANCE, TransportPutSynonymsAction.class);
             actions.register(GetSynonymsAction.INSTANCE, TransportGetSynonymsAction.class);
             actions.register(DeleteSynonymsAction.INSTANCE, TransportDeleteSynonymsAction.class);
+            actions.register(ListSynonymsAction.INSTANCE, TransportListSynonymsAction.class);
         }
 
         return unmodifiableMap(actions.getRegistry());
@@ -1002,6 +1006,7 @@ public class ActionModule extends AbstractModule {
             registerHandler.accept(new RestPutSynonymsAction());
             registerHandler.accept(new RestGetSynonymsAction());
             registerHandler.accept(new RestDeleteSynonymsAction());
+            registerHandler.accept(new RestListSynonymsAction());
         }
     }
 

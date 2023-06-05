@@ -24,6 +24,7 @@ import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.Preference;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
@@ -31,6 +32,9 @@ import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.aggregations.BucketOrder;
+import org.elasticsearch.search.aggregations.bucket.terms.Terms;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 
@@ -56,6 +60,7 @@ public class SynonymsManagementAPIService {
     public static final String SYNONYMS_SET_FIELD = "synonyms_set";
     public static final String SYNONYMS_FIELD = "synonyms";
     public static final String SYNONYM_RULE_ID_SEPARATOR = "|";
+    public static final String SYNONYM_SETS_AGG_NAME = "synonym_sets_aggr";
 
     private final Client client;
 
@@ -112,7 +117,29 @@ public class SynonymsManagementAPIService {
         }
     }
 
-    public void getSynonymsSet(String resourceName, int from, int size, ActionListener<SynonymsSetResult> listener) {
+    public void listSynonymsSet(int from, int size, ActionListener<PagedResult<SynonymSetResult>> listener) {
+        client.prepareSearch(SYNONYMS_ALIAS_NAME)
+            .setSize(0)
+            .addAggregation(
+                new TermsAggregationBuilder(SYNONYM_SETS_AGG_NAME)
+                    // TODO Pagination
+                    .size(size)
+                    .field(SYNONYMS_SET_FIELD)
+                    .order(BucketOrder.key(true))
+            )
+            .setPreference(Preference.LOCAL.type())
+            .execute(listener.delegateFailure((searchResponseListener, searchResponse) -> {
+                Terms aggregation = searchResponse.getAggregations().get(SYNONYM_SETS_AGG_NAME);
+                List<? extends Terms.Bucket> buckets = aggregation.getBuckets();
+                SynonymSetResult[] synonymSetResults = buckets.stream()
+                    .map(bucket -> new SynonymSetResult(bucket.getDocCount(), bucket.getKeyAsString()))
+                    .toArray(SynonymSetResult[]::new);
+
+                listener.onResponse(new PagedResult<>(buckets.size(), synonymSetResults));
+            }));
+    }
+
+    public void getSynonymsSet(String resourceName, int from, int size, ActionListener<PagedResult<SynonymRule>> listener) {
         client.prepareSearch(SYNONYMS_ALIAS_NAME)
             .setQuery(QueryBuilders.termQuery(SYNONYMS_SET_FIELD, resourceName))
             .setFrom(from)
@@ -128,7 +155,7 @@ public class SynonymsManagementAPIService {
                 final SynonymRule[] synonymRules = Arrays.stream(searchResponse.getHits().getHits())
                     .map(SynonymsManagementAPIService::hitToSynonymRule)
                     .toArray(SynonymRule[]::new);
-                listener.onResponse(new SynonymsSetResult(totalSynonymRules, synonymRules));
+                listener.onResponse(new PagedResult<>(totalSynonymRules, synonymRules));
             }));
     }
 
@@ -146,17 +173,6 @@ public class SynonymsManagementAPIService {
             throw new IllegalStateException("Synonym Rule ID [" + internalId + "] is incorrect");
         }
         return internalId.substring(index + 1);
-    }
-
-    // Retrieves the internal synonym rule ID to store it in the index. As the same synonym rule ID
-    // can be used in different synonym sets, we prefix the ID with the synonym set to avoid collisions
-    private static String internalSynonymRuleId(String resourceName, SynonymRule synonymRule) {
-        String synonymRuleId = synonymRule.id();
-        if (synonymRuleId == null) {
-            synonymRuleId = UUIDs.base64UUID();
-        }
-        final String id = resourceName + SYNONYM_RULE_ID_SEPARATOR + synonymRuleId;
-        return id;
     }
 
     public void putSynonymsSet(String resourceName, SynonymRule[] synonymsSet, ActionListener<UpdateSynonymsResult> listener) {
@@ -240,6 +256,17 @@ public class SynonymsManagementAPIService {
         }));
     }
 
+    // Retrieves the internal synonym rule ID to store it in the index. As the same synonym rule ID
+    // can be used in different synonym sets, we prefix the ID with the synonym set to avoid collisions
+    private static String internalSynonymRuleId(String resourceName, SynonymRule synonymRule) {
+        String synonymRuleId = synonymRule.id();
+        if (synonymRuleId == null) {
+            synonymRuleId = UUIDs.base64UUID();
+        }
+        final String id = resourceName + SYNONYM_RULE_ID_SEPARATOR + synonymRuleId;
+        return id;
+    }
+
     static Settings settings() {
         return Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
@@ -253,12 +280,13 @@ public class SynonymsManagementAPIService {
         UPDATED
     }
 
-    public record SynonymsSetResult(long totalSynonymRules, SynonymRule[] synonymRules) {
+    public record PagedResult<T extends Writeable>(long totalSynonymRules, T[] synonymRules) {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            SynonymsSetResult that = (SynonymsSetResult) o;
+            @SuppressWarnings("unchecked")
+            PagedResult<T> that = (PagedResult<T>) o;
             return totalSynonymRules == that.totalSynonymRules && Arrays.equals(synonymRules, that.synonymRules);
         }
 

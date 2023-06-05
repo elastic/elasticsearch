@@ -69,6 +69,7 @@ public class Constants {
         "cluster:admin/scripts/painless/execute",
         "cluster:admin/synonyms/delete",
         "cluster:admin/synonyms/get",
+        "cluster:admin/synonyms/list",
         "cluster:admin/synonyms/put",
         "cluster:admin/settings/update",
         "cluster:admin/slm/delete",

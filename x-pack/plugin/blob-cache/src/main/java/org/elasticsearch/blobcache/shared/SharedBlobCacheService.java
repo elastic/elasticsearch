@@ -910,7 +910,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             final long regionStart = getRegionStart(region);
             fileRegion.populateAndRead(
                 mapSubRangeToRegion(rangeToWrite, region),
-                rangeToRead,
+                mapSubRangeToRegion(rangeToRead, region),
                 readerWithOffset(reader, fileRegion, rangeToRead.start() - regionStart),
                 writerWithOffset(writer, fileRegion, rangeToWrite.start() - regionStart),
                 executor,
@@ -932,7 +932,6 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             final AtomicInteger bytesRead = new AtomicInteger();
             try (var listeners = new RefCountingListener(1, readsComplete)) {
                 for (int region = startRegion; region <= endRegion; region++) {
-                    final ByteRange subRangeToWrite = mapSubRangeToRegion(rangeToWrite, region);
                     final ByteRange subRangeToRead = mapSubRangeToRegion(rangeToRead, region);
                     if (subRangeToRead.length() == 0L) {
                         // nothing to read, skip
@@ -940,13 +939,11 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                     }
                     final CacheFileRegion fileRegion = get(cacheKey, length, region);
                     final long regionStart = getRegionStart(region);
-                    final long writeOffset = rangeToWrite.start() - regionStart;
-                    final long readOffset = rangeToRead.start() - regionStart;
                     fileRegion.populateAndRead(
-                        subRangeToWrite,
+                        mapSubRangeToRegion(rangeToWrite, region),
                         subRangeToRead,
-                        readerWithOffset(reader, fileRegion, readOffset),
-                        writerWithOffset(writer, fileRegion, writeOffset),
+                        readerWithOffset(reader, fileRegion, rangeToRead.start() - regionStart),
+                        writerWithOffset(writer, fileRegion, rangeToWrite.start() - regionStart),
                         executor,
                         listeners.acquire(i -> bytesRead.updateAndGet(j -> Math.addExact(i, j)))
                     );
@@ -957,13 +954,19 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         }
 
         private RangeMissingHandler writerWithOffset(RangeMissingHandler writer, CacheFileRegion fileRegion, long writeOffset) {
-            final RangeMissingHandler adjustedWriter = (channel, channelPos, relativePos, len, progressUpdater) -> writer.fillCacheRange(
-                channel,
-                channelPos,
-                relativePos - writeOffset,
-                len,
-                progressUpdater
-            );
+            final RangeMissingHandler adjustedWriter;
+            if (writeOffset == 0) {
+                // no need to allocate a new capturing lambda if the offset isn't adjusted
+                adjustedWriter = writer;
+            } else {
+                adjustedWriter = (channel, channelPos, relativePos, len, progressUpdater) -> writer.fillCacheRange(
+                    channel,
+                    channelPos,
+                    relativePos - writeOffset,
+                    len,
+                    progressUpdater
+                );
+            }
             if (Assertions.ENABLED) {
                 return (channel, channelPos, relativePos, len, progressUpdater) -> {
                     assert assertValidRegionAndLength(fileRegion, channelPos, len);

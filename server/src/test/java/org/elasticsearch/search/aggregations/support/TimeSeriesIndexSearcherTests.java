@@ -16,8 +16,11 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedDocValues;
+import org.apache.lucene.queryparser.xml.builders.MatchAllDocsQueryBuilder;
+import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.ScoreMode;
@@ -26,13 +29,27 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.search.function.CombineFunction;
+import org.elasticsearch.common.lucene.search.function.LeafScoreFunction;
+import org.elasticsearch.common.lucene.search.function.ScoreFunction;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
+import org.elasticsearch.index.query.functionscore.RandomScoreFunctionBuilder;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.index.query.functionscore.*;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -42,8 +59,12 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.index.IndexSortConfig.TIME_SERIES_SORT;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class TimeSeriesIndexSearcherTests extends ESTestCase {
 
@@ -89,6 +110,118 @@ public class TimeSeriesIndexSearcherTests extends ESTestCase {
         BucketCollector collector = getBucketCollector(THREADS * DOC_COUNTS);
 
         indexSearcher.search(new MatchAllDocsQuery(), collector);
+        collector.postCollection();
+
+        reader.close();
+        dir.close();
+    }
+
+    public void testCollectMinScoreAcrossSegments() throws IOException, InterruptedException {
+        Directory dir = newDirectory();
+        RandomIndexWriter iw = getIndexWriter(dir);
+
+        AtomicInteger clock = new AtomicInteger(0);
+
+        final int DOC_COUNTS = 5;
+        Document doc = new Document();
+        for (int j = 0; j < DOC_COUNTS; j++) {
+            String tsid = "tsid" + j % 30;
+            long time = clock.addAndGet(j % 10);
+            doc.clear();
+            doc.add(new SortedDocValuesField(TimeSeriesIdFieldMapper.NAME, new BytesRef(tsid)));
+            doc.add(new NumericDocValuesField(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD, time));
+            try {
+                iw.addDocument(doc);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }
+        iw.close();
+
+        IndexReader reader = DirectoryReader.open(dir);
+        IndexSearcher searcher = new IndexSearcher(reader);
+
+
+        TimeSeriesIndexSearcher indexSearcher = new TimeSeriesIndexSearcher(searcher, List.of());
+        indexSearcher.setMinimumScore(0.99f);
+
+        // Total count including arbitrary score filtering.
+        BucketCollector collector = getBucketCollector(1);
+
+        ScoreFunction scoreFunction = new ScoreFunction(CombineFunction.REPLACE) {
+            @Override
+            public LeafScoreFunction getLeafScoreFunction(LeafReaderContext ctx) throws IOException {
+                return new LeafScoreFunction() {
+
+                    @Override
+                    public double score(int docId, float subQueryScore) throws IOException {
+                        return docId == 1 ? 1 : 0;
+                    }
+
+                    @Override
+                    public Explanation explainScore(int docId, Explanation subQueryScore) throws IOException {
+                        return null;
+                    }
+                };
+            }
+
+            @Override
+            public boolean needsScores() {
+                return false;
+            }
+
+            @Override
+            protected boolean doEquals(ScoreFunction other) {
+                return false;
+            }
+
+            @Override
+            protected int doHashCode() {
+                return 0;
+            }
+        };
+
+        ScoreFunctionBuilder scoreFunctionBuilder = new ScoreFunctionBuilder() {
+            @Override
+            protected void doWriteTo(StreamOutput out) throws IOException {
+
+            }
+
+            @Override
+            public String getName() {
+                return null;
+            }
+
+            @Override
+            protected void doXContent(XContentBuilder builder, Params params) throws IOException {
+
+            }
+
+            @Override
+            protected boolean doEquals(ScoreFunctionBuilder functionBuilder) {
+                return false;
+            }
+
+            @Override
+            protected int doHashCode() {
+                return 0;
+            }
+
+            @Override
+            protected ScoreFunction doToFunction(SearchExecutionContext context) throws IOException {
+                return scoreFunction;
+            }
+
+            @Override
+            public TransportVersion getMinimalSupportedVersion() {
+                return null;
+            }
+        };
+
+        FunctionScoreQueryBuilder functionScoreQuery = new FunctionScoreQueryBuilder(new MatchAllQueryBuilder(),
+            scoreFunctionBuilder);
+        SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
+        indexSearcher.search(functionScoreQuery.toQuery(searchExecutionContext), collector);
         collector.postCollection();
 
         reader.close();

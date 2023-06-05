@@ -53,6 +53,8 @@ public class TimeSeriesIndexSearcher {
     private final boolean tsidReverse;
     private final boolean timestampReverse;
 
+    private Float minimumScore = null;
+
     public TimeSeriesIndexSearcher(IndexSearcher searcher, List<Runnable> cancellations) {
         try {
             this.searcher = new ContextIndexSearcher(
@@ -76,6 +78,10 @@ public class TimeSeriesIndexSearcher {
         this.timestampReverse = TIME_SERIES_SORT[1].getOrder() == SortOrder.DESC;
     }
 
+    public void setMinimumScore(float minimumScore) {
+        this.minimumScore = minimumScore;
+    }
+
     public void search(Query query, BucketCollector bucketCollector) throws IOException {
         int seen = 0;
         query = searcher.rewrite(query);
@@ -90,7 +96,7 @@ public class TimeSeriesIndexSearcher {
             }
             Scorer scorer = weight.scorer(leaf);
             if (scorer != null) {
-                LeafWalker leafWalker = new LeafWalker(leaf, scorer, bucketCollector, () -> tsidOrd[0]);
+                LeafWalker leafWalker = new LeafWalker(leaf, scorer, minimumScore, bucketCollector, () -> tsidOrd[0]);
                 if (leafWalker.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
                     leafWalkers.add(leafWalker);
                 }
@@ -197,16 +203,23 @@ public class TimeSeriesIndexSearcher {
         private final SortedDocValues tsids;
         private final SortedNumericDocValues timestamps;    // TODO can we have this just a NumericDocValues?
         private final BytesRefBuilder scratch = new BytesRefBuilder();
+
+        private final Scorer scorer;
+
+        private final Float minimumScore;
+
         int docId = -1;
         int tsidOrd;
         long timestamp;
 
-        LeafWalker(LeafReaderContext context, Scorer scorer, BucketCollector bucketCollector, IntSupplier tsidOrdSupplier)
+        LeafWalker(LeafReaderContext context, Scorer scorer, Float minimumScore, BucketCollector bucketCollector, IntSupplier tsidOrdSupplier)
             throws IOException {
             AggregationExecutionContext aggCtx = new AggregationExecutionContext(context, scratch::get, () -> timestamp, tsidOrdSupplier);
             this.collector = bucketCollector.getLeafCollector(aggCtx);
             liveDocs = context.reader().getLiveDocs();
             this.collector.setScorer(scorer);
+            this.scorer = scorer;
+            this.minimumScore = minimumScore;
             iterator = scorer.iterator();
             tsids = DocValues.getSorted(context.reader(), TimeSeriesIdFieldMapper.NAME);
             timestamps = DocValues.getSortedNumeric(context.reader(), DataStream.TimestampField.FIXED_TIMESTAMP_FIELD);
@@ -224,7 +237,8 @@ public class TimeSeriesIndexSearcher {
             }
             do {
                 docId = iterator.nextDoc();
-            } while (docId != DocIdSetIterator.NO_MORE_DOCS && isInvalidDoc(docId));
+            } while (docId != DocIdSetIterator.NO_MORE_DOCS &&
+                (isInvalidDoc(docId) || (minimumScore != null && scorer.score() < minimumScore)));
             if (docId != DocIdSetIterator.NO_MORE_DOCS) {
                 timestamp = timestamps.nextValue();
             }

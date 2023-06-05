@@ -1,7 +1,6 @@
 {
   "template": {
     "mappings": {
-      "date_detection": false,
       "dynamic_templates": [
         {
           "ecs_timestamp": {

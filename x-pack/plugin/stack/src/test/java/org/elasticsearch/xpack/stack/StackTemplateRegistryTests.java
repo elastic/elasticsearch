@@ -372,7 +372,6 @@ public class StackTemplateRegistryTests extends ESTestCase {
         Map<String, Integer> versions = new HashMap<>();
         versions.put(StackTemplateRegistry.DATA_STREAMS_MAPPINGS_COMPONENT_TEMPLATE_NAME, StackTemplateRegistry.REGISTRY_VERSION);
         versions.put(StackTemplateRegistry.ECS_DYNAMIC_MAPPINGS_COMPONENT_TEMPLATE_NAME, StackTemplateRegistry.REGISTRY_VERSION);
-        versions.put(StackTemplateRegistry.ECS_DATA_STREAM_MAPPINGS_COMPONENT_TEMPLATE_NAME, StackTemplateRegistry.REGISTRY_VERSION);
         versions.put(StackTemplateRegistry.LOGS_SETTINGS_COMPONENT_TEMPLATE_NAME, StackTemplateRegistry.REGISTRY_VERSION);
         versions.put(StackTemplateRegistry.LOGS_MAPPINGS_COMPONENT_TEMPLATE_NAME, StackTemplateRegistry.REGISTRY_VERSION);
         versions.put(StackTemplateRegistry.METRICS_SETTINGS_COMPONENT_TEMPLATE_NAME, StackTemplateRegistry.REGISTRY_VERSION);
@@ -404,10 +403,6 @@ public class StackTemplateRegistryTests extends ESTestCase {
         );
         versions.put(
             StackTemplateRegistry.ECS_DYNAMIC_MAPPINGS_COMPONENT_TEMPLATE_NAME,
-            StackTemplateRegistry.REGISTRY_VERSION + randomIntBetween(1, 1000)
-        );
-        versions.put(
-            StackTemplateRegistry.ECS_DATA_STREAM_MAPPINGS_COMPONENT_TEMPLATE_NAME,
             StackTemplateRegistry.REGISTRY_VERSION + randomIntBetween(1, 1000)
         );
         versions.put(

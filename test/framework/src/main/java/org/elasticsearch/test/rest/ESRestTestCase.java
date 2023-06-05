@@ -1839,8 +1839,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             case "logstash-index-template":
             case "security-index-template":
             case "data-streams-mappings":
-            case "ecs-dynamic-mappings":
-            case "ecs-data-stream-mappings":
+            case "ecs@dynamic-mappings":
                 return true;
             default:
                 return false;

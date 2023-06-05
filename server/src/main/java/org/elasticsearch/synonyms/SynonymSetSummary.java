@@ -17,7 +17,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Objects;
 
-public class SynonymSetResult implements Writeable, ToXContentObject {
+public class SynonymSetSummary implements Writeable, ToXContentObject {
 
     public static final String NAME_FIELD = "synonyms";
     public static final String COUNT_FIELD = "count";
@@ -25,12 +25,12 @@ public class SynonymSetResult implements Writeable, ToXContentObject {
     private final String name;
     private final long count;
 
-    public SynonymSetResult(long count, String name) {
+    public SynonymSetSummary(long count, String name) {
         this.name = name;
         this.count = count;
     }
 
-    public SynonymSetResult(StreamInput in) throws IOException {
+    public SynonymSetSummary(StreamInput in) throws IOException {
         this.name = in.readString();
         this.count = in.readVLong();
     }
@@ -65,7 +65,7 @@ public class SynonymSetResult implements Writeable, ToXContentObject {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        SynonymSetResult that = (SynonymSetResult) o;
+        SynonymSetSummary that = (SynonymSetSummary) o;
         return Objects.equals(name, that.name) && Objects.equals(count, that.count);
     }
 

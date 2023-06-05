@@ -9,8 +9,8 @@
 package org.elasticsearch.action.synonyms;
 
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.synonyms.SynonymSetResult;
-import org.elasticsearch.synonyms.SynonymsManagementAPIService;
+import org.elasticsearch.synonyms.PagedResult;
+import org.elasticsearch.synonyms.SynonymSetSummary;
 
 import java.io.IOException;
 import java.util.function.IntFunction;
@@ -34,7 +34,7 @@ public class ListSynonymsAction extends AbstractSynonymsRetrievalAction<ListSyno
         }
     }
 
-    public static class Response extends AbstractSynonymsRetrievalAction.AbstractPagedResultResponse<SynonymSetResult> {
+    public static class Response extends AbstractSynonymsRetrievalAction.AbstractPagedResultResponse<SynonymSetSummary> {
 
         public static final String RESULTS_FIELD = "results";
 
@@ -42,7 +42,7 @@ public class ListSynonymsAction extends AbstractSynonymsRetrievalAction<ListSyno
             super(in);
         }
 
-        public Response(SynonymsManagementAPIService.PagedResult<SynonymSetResult> result) {
+        public Response(PagedResult<SynonymSetSummary> result) {
             super(result);
         }
 
@@ -52,13 +52,13 @@ public class ListSynonymsAction extends AbstractSynonymsRetrievalAction<ListSyno
         }
 
         @Override
-        protected Reader<SynonymSetResult> reader() {
-            return SynonymSetResult::new;
+        protected Reader<SynonymSetSummary> reader() {
+            return SynonymSetSummary::new;
         }
 
         @Override
-        protected IntFunction<SynonymSetResult[]> arraySupplier() {
-            return SynonymSetResult[]::new;
+        protected IntFunction<SynonymSetSummary[]> arraySupplier() {
+            return SynonymSetSummary[]::new;
         }
     }
 

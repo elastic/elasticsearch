@@ -15,7 +15,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.synonyms.SynonymsManagementAPIService;
+import org.elasticsearch.synonyms.PagedResult;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -26,6 +26,12 @@ import java.util.function.IntFunction;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
+/**
+ * Base class for synonyms retrieval actions, including {@link GetSynonymsAction} and {@link ListSynonymsAction}.
+ * Provides basic pagination requests and responses
+ *
+ * @param <T> Type to be returned by the response, wrapped in a {@link PagedResult}
+ */
 public abstract class AbstractSynonymsRetrievalAction<T extends ActionResponse> extends ActionType<T> {
 
     public AbstractSynonymsRetrievalAction(String name, Writeable.Reader<T> reader) {
@@ -123,9 +129,9 @@ public abstract class AbstractSynonymsRetrievalAction<T extends ActionResponse> 
             this.resultList = in.readArray(reader(), arraySupplier());
         }
 
-        public AbstractPagedResultResponse(SynonymsManagementAPIService.PagedResult<T> result) {
-            this.resultList = result.synonymRules();
-            this.totalCount = result.totalSynonymRules();
+        public AbstractPagedResultResponse(PagedResult<T> result) {
+            this.resultList = result.pageResults();
+            this.totalCount = result.totalResults();
         }
 
         @Override

@@ -10,6 +10,7 @@ package org.elasticsearch.action.synonyms;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.synonyms.PagedResult;
 import org.elasticsearch.synonyms.SynonymRule;
 import org.elasticsearch.synonyms.SynonymsManagementAPIService;
 
@@ -71,7 +72,7 @@ public class GetSynonymsAction extends AbstractSynonymsRetrievalAction<GetSynony
             super(in);
         }
 
-        public Response(SynonymsManagementAPIService.PagedResult<SynonymRule> result) {
+        public Response(PagedResult<SynonymRule> result) {
             super(result);
         }
 

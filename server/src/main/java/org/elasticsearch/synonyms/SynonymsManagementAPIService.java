@@ -24,7 +24,6 @@ import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.Preference;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
@@ -42,7 +41,6 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Objects;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
@@ -117,7 +115,7 @@ public class SynonymsManagementAPIService {
         }
     }
 
-    public void listSynonymsSet(int from, int size, ActionListener<PagedResult<SynonymSetResult>> listener) {
+    public void listSynonymsSet(int from, int size, ActionListener<PagedResult<SynonymSetSummary>> listener) {
         client.prepareSearch(SYNONYMS_ALIAS_NAME)
             .setSize(0)
             .addAggregation(
@@ -131,11 +129,11 @@ public class SynonymsManagementAPIService {
             .execute(listener.delegateFailure((searchResponseListener, searchResponse) -> {
                 Terms aggregation = searchResponse.getAggregations().get(SYNONYM_SETS_AGG_NAME);
                 List<? extends Terms.Bucket> buckets = aggregation.getBuckets();
-                SynonymSetResult[] synonymSetResults = buckets.stream()
-                    .map(bucket -> new SynonymSetResult(bucket.getDocCount(), bucket.getKeyAsString()))
-                    .toArray(SynonymSetResult[]::new);
+                SynonymSetSummary[] synonymSetSummaries = buckets.stream()
+                    .map(bucket -> new SynonymSetSummary(bucket.getDocCount(), bucket.getKeyAsString()))
+                    .toArray(SynonymSetSummary[]::new);
 
-                listener.onResponse(new PagedResult<>(buckets.size(), synonymSetResults));
+                listener.onResponse(new PagedResult<>(buckets.size(), synonymSetSummaries));
             }));
     }
 
@@ -279,23 +277,4 @@ public class SynonymsManagementAPIService {
         CREATED,
         UPDATED
     }
-
-    public record PagedResult<T extends Writeable>(long totalSynonymRules, T[] synonymRules) {
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            @SuppressWarnings("unchecked")
-            PagedResult<T> that = (PagedResult<T>) o;
-            return totalSynonymRules == that.totalSynonymRules && Arrays.equals(synonymRules, that.synonymRules);
-        }
-
-        @Override
-        public int hashCode() {
-            int result = Objects.hash(totalSynonymRules);
-            result = 31 * result + Arrays.hashCode(synonymRules);
-            return result;
-        }
-    }
-
 }

@@ -15,7 +15,6 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
-import org.elasticsearch.cluster.metadata.DataLifecycle;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
@@ -59,7 +58,7 @@ public class GetComposableIndexTemplateAction extends ActionType<GetComposableIn
         public Request(StreamInput in) throws IOException {
             super(in);
             name = in.readOptionalString();
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0) && DataLifecycle.isEnabled()) {
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
                 includeDefaults = in.readBoolean();
             } else {
                 includeDefaults = false;
@@ -70,7 +69,7 @@ public class GetComposableIndexTemplateAction extends ActionType<GetComposableIn
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeOptionalString(name);
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0) && DataLifecycle.isEnabled()) {
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
                 out.writeBoolean(includeDefaults);
             }
         }
@@ -124,7 +123,7 @@ public class GetComposableIndexTemplateAction extends ActionType<GetComposableIn
         public Response(StreamInput in) throws IOException {
             super(in);
             indexTemplates = in.readMap(StreamInput::readString, ComposableIndexTemplate::new);
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0) && DataLifecycle.isEnabled()) {
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
                 rolloverConfiguration = in.readOptionalWriteable(RolloverConfiguration::new);
             } else {
                 rolloverConfiguration = null;
@@ -148,7 +147,7 @@ public class GetComposableIndexTemplateAction extends ActionType<GetComposableIn
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeMap(indexTemplates, StreamOutput::writeString, (o, v) -> v.writeTo(o));
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0) && DataLifecycle.isEnabled()) {
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
                 out.writeOptionalWriteable(rolloverConfiguration);
             }
         }

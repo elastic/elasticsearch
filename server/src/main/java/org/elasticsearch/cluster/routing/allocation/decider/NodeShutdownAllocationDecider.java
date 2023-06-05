@@ -19,7 +19,7 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
  * An allocation decider that prevents shards from being allocated to a node that is in the process of shutting down.
  *
  * No shards can be allocated to or remain on a node which is shutting down for removal.
- * Shard can be allocated or remain on the node scheduled for a restart.
+ * Shards can be allocated to or remain on a node scheduled for a restart.
  */
 public class NodeShutdownAllocationDecider extends AllocationDecider {
 

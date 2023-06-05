@@ -110,19 +110,20 @@ public class DistanceFunctionBenchmark {
     private abstract static class BinaryFloatBenchmarkFunction extends BenchmarkFunction {
 
         final BytesRef docVector;
+        final float[] docFloatVector;
         final float[] queryVector;
 
         private BinaryFloatBenchmarkFunction(int dims, boolean normalize) {
             super(dims);
 
-            float[] docVector = new float[dims];
+            docFloatVector = new float[dims];
             queryVector = new float[dims];
 
             float docMagnitude = 0f;
             float queryMagnitude = 0f;
 
             for (int i = 0; i < dims; ++i) {
-                docVector[i] = (float) (dims - i);
+                docFloatVector[i] = (float) (dims - i);
                 queryVector[i] = (float) i;
 
                 docMagnitude += (float) (dims - i);
@@ -136,11 +137,11 @@ public class DistanceFunctionBenchmark {
 
             for (int i = 0; i < dims; ++i) {
                 if (normalize) {
-                    docVector[i] /= docMagnitude;
+                    docFloatVector[i] /= docMagnitude;
                     queryVector[i] /= queryMagnitude;
                 }
 
-                byteBuffer.putFloat(docVector[i]);
+                byteBuffer.putFloat(docFloatVector[i]);
             }
 
             byteBuffer.putFloat(docMagnitude);
@@ -238,7 +239,7 @@ public class DistanceFunctionBenchmark {
 
         @Override
         public void execute(Consumer<Object> consumer) {
-            new BinaryDenseVector(docVector, dims, Version.CURRENT).dotProduct(queryVector);
+            new BinaryDenseVector(docFloatVector, docVector, dims, Version.CURRENT).dotProduct(queryVector);
         }
     }
 
@@ -286,7 +287,7 @@ public class DistanceFunctionBenchmark {
 
         @Override
         public void execute(Consumer<Object> consumer) {
-            new BinaryDenseVector(docVector, dims, Version.CURRENT).cosineSimilarity(queryVector, false);
+            new BinaryDenseVector(docFloatVector, docVector, dims, Version.CURRENT).cosineSimilarity(queryVector, false);
         }
     }
 
@@ -334,7 +335,7 @@ public class DistanceFunctionBenchmark {
 
         @Override
         public void execute(Consumer<Object> consumer) {
-            new BinaryDenseVector(docVector, dims, Version.CURRENT).l1Norm(queryVector);
+            new BinaryDenseVector(docFloatVector, docVector, dims, Version.CURRENT).l1Norm(queryVector);
         }
     }
 
@@ -382,7 +383,7 @@ public class DistanceFunctionBenchmark {
 
         @Override
         public void execute(Consumer<Object> consumer) {
-            new BinaryDenseVector(docVector, dims, Version.CURRENT).l1Norm(queryVector);
+            new BinaryDenseVector(docFloatVector, docVector, dims, Version.CURRENT).l1Norm(queryVector);
         }
     }
 

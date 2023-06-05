@@ -36,26 +36,23 @@ public final class VectorEncoderDecoder {
     /**
      * Calculates vector magnitude
      */
-    private static float calculateMagnitude(Version indexVersion, BytesRef vectorBR) {
-        final int length = denseVectorLength(indexVersion, vectorBR);
-        ByteBuffer byteBuffer = ByteBuffer.wrap(vectorBR.bytes, vectorBR.offset, vectorBR.length);
+    private static float calculateMagnitude(float[] decodedVector) {
         double magnitude = 0.0f;
-        for (int i = 0; i < length; i++) {
-            float value = byteBuffer.getFloat();
-            magnitude += value * value;
+        for (int i = 0; i < decodedVector.length; i++) {
+            magnitude += decodedVector[i] * decodedVector[i];
         }
         magnitude = Math.sqrt(magnitude);
         return (float) magnitude;
     }
 
-    public static float getMagnitude(Version indexVersion, BytesRef vectorBR) {
+    public static float getMagnitude(Version indexVersion, BytesRef vectorBR, float[] decodedVector) {
         if (vectorBR == null) {
             throw new IllegalArgumentException(DenseVectorScriptDocValues.MISSING_VECTOR_FIELD_MESSAGE);
         }
         if (indexVersion.onOrAfter(Version.V_7_5_0)) {
             return decodeMagnitude(indexVersion, vectorBR);
         } else {
-            return calculateMagnitude(indexVersion, vectorBR);
+            return calculateMagnitude(decodedVector);
         }
     }
 
@@ -70,7 +67,7 @@ public final class VectorEncoderDecoder {
         }
         ByteBuffer byteBuffer = ByteBuffer.wrap(vectorBR.bytes, vectorBR.offset, vectorBR.length);
         for (int dim = 0; dim < vector.length; dim++) {
-            vector[dim] = byteBuffer.getFloat();
+            vector[dim] = byteBuffer.getFloat((dim + vectorBR.offset) * Float.BYTES);
         }
     }
 

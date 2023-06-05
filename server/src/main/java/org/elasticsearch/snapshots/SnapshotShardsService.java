@@ -402,7 +402,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
             } finally {
                 if (snapshotIndexCommit != null) {
                     try {
-                        snapshotIndexCommit.onCompletion();
+                        snapshotIndexCommit.closingBefore(ActionListener.noop()).onResponse(null);
                     } catch (Exception e) {
                         // we're already failing exceptionally, and prefer to propagate the original exception instead of this one
                         logger.warn(Strings.format("exception when closing commit for [%s] in [%s]", indexShard.shardId(), snapshot), e);

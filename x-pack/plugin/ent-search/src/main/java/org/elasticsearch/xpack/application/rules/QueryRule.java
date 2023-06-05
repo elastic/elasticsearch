@@ -24,6 +24,7 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
@@ -46,11 +47,10 @@ public class QueryRule implements Writeable, ToXContentObject {
 
     private final List<QueryRuleCriteria> criteria;
 
-    // TODO add criteria, actions
+    private final Map<String,Object> actions;
 
 
     public enum QueryRuleType {
-
         PINNED;
         public static QueryRuleType queryRuleType(String type) {
             for (QueryRuleType queryRuleType : QueryRuleType.values()) {
@@ -71,7 +71,8 @@ public class QueryRule implements Writeable, ToXContentObject {
     public QueryRule(
         String id,
         QueryRuleType type,
-        List<QueryRuleCriteria> criteria
+        List<QueryRuleCriteria> criteria,
+        Map<String,Object> actions
     ) {
         if (Strings.isNullOrEmpty(id)) {
             throw new IllegalArgumentException("Query rule id cannot be null or blank");
@@ -86,12 +87,19 @@ public class QueryRule implements Writeable, ToXContentObject {
             throw new IllegalArgumentException("Query rule criteria cannot be empty");
         }
         this.criteria = criteria;
+
+        Objects.requireNonNull(actions, "Query rule actions cannot be null");
+        if (actions.isEmpty()) {
+            throw new IllegalArgumentException("Query rule actions cannot be empty");
+        }
+        this.actions = actions;
     }
 
     public QueryRule(StreamInput in) throws IOException {
         this.id = in.readString();
         this.type = QueryRuleType.queryRuleType(in.readString());
         this.criteria = in.readList(QueryRuleCriteria::new);
+        this.actions = in.readMap();
     }
 
     @Override
@@ -99,28 +107,32 @@ public class QueryRule implements Writeable, ToXContentObject {
         out.writeString(id);
         out.writeString(type.toString());
         out.writeList(criteria);
+        out.writeGenericMap(actions);
     }
 
+    @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<QueryRule, String> PARSER = new ConstructingObjectParser<>(
         "query_rule",
         false,
         (params, resourceName) -> {
             final String id = (String) params[0];
             final QueryRuleType type = QueryRuleType.queryRuleType((String) params[1]);
-            @SuppressWarnings("unchecked")
             final List<QueryRuleCriteria> criteria = (List<QueryRuleCriteria>) params[2];
-            return new QueryRule(id, type, criteria);
+            final Map<String,Object> actions = (Map<String,Object>) params[3];
+            return new QueryRule(id, type, criteria, actions);
         }
     );
 
     public static final ParseField ID_FIELD = new ParseField("rule_id");
     public static final ParseField TYPE_FIELD = new ParseField("type");
     public static final ParseField CRITERIA_FIELD = new ParseField("criteria");
+    public static final ParseField ACTIONS_FIELD = new ParseField("actions");
 
     static {
         PARSER.declareStringOrNull(optionalConstructorArg(), ID_FIELD);
         PARSER.declareStringOrNull(constructorArg(), TYPE_FIELD);
         PARSER.declareObjectArray(constructorArg(), (p, c) -> QueryRuleCriteria.fromXContent(p), CRITERIA_FIELD);
+        PARSER.declareObject(constructorArg(), (p, c) -> p.map(), ACTIONS_FIELD);
     }
 
     /**
@@ -167,6 +179,13 @@ public class QueryRule implements Writeable, ToXContentObject {
                 }
             }
             builder.endArray();
+            builder.startObject(ACTIONS_FIELD.getPreferredName());
+            {
+                for (Map.Entry<String,Object> entry : actions.entrySet()) {
+                    builder.field(entry.getKey(), entry.getValue());
+                }
+            }
+            builder.endObject();
         }
         builder.endObject();
         return builder;
@@ -194,17 +213,22 @@ public class QueryRule implements Writeable, ToXContentObject {
         return criteria;
     }
 
+    public Map<String,Object> actions() { return actions; }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         QueryRule queryRule = (QueryRule) o;
-        return Objects.equals(id, queryRule.id) && type == queryRule.type && Objects.equals(criteria, queryRule.criteria);
+        return Objects.equals(id, queryRule.id) && type == queryRule.type && Objects.equals(criteria, queryRule.criteria) && Objects.equals(
+            actions,
+            queryRule.actions
+        );
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, type, criteria);
+        return Objects.hash(id, type, criteria, actions);
     }
 
     @Override

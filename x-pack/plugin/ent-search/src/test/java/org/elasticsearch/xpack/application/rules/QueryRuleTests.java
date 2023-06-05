@@ -59,12 +59,11 @@ public class QueryRuleTests extends ESTestCase {
               "rule_id": "my_query_rule",
               "type": "pinned",
               "criteria": [
-                {
-                  "type": "exact",
-                  "metadata": "query_string",
-                  "value": "foo"
-                }
-              ]
+                { "type": "exact", "metadata": "query_string", "value": "foo" }
+              ],
+              "actions": {
+                "ids": ["id1", "id2"]
+              }
             }""");
 
         QueryRule queryRule = QueryRule.fromXContentBytes(new BytesArray(content), XContentType.JSON);
@@ -83,7 +82,10 @@ public class QueryRuleTests extends ESTestCase {
               "type": "pinned",
               "criteria": [
                 { "type": "exact", "metadata": "query_string", "value": "foo" }
-              ]
+              ],
+              "actions": {
+                  "ids": ["id1", "id2"]
+                }
             }""");
         expectThrows(
             IllegalArgumentException.class,
@@ -96,7 +98,8 @@ public class QueryRuleTests extends ESTestCase {
             {
               "rule_id": "my_query_rule",
               "type": "pinned",
-              "criteria": []
+              "criteria": [],
+              "actions": {}
             }""");
         expectThrows(
             IllegalArgumentException.class,

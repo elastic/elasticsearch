@@ -201,7 +201,8 @@ public class QueryRulesIndexService {
                 .stream()
                 .map(rule -> new QueryRule((String) rule.get("rule_id"),
                     QueryRuleType.queryRuleType((String) rule.get("type")),
-                    parseCriteria((List<Map<String,Object>>) rule.get("criteria"))
+                    parseCriteria((List<Map<String,Object>>) rule.get("criteria")),
+                    (Map<String,Object>) rule.get("actions")
                     ))
                 .collect(Collectors.toList());
             final QueryRuleset res = new QueryRuleset(id, rules);
@@ -320,7 +321,8 @@ public class QueryRulesIndexService {
         return new QueryRule(
             resourceName,
            QueryRuleType.queryRuleType(documentFields.get(QueryRule.TYPE_FIELD.getPreferredName()).getValue()),
-            documentFields.get(QueryRule.CRITERIA_FIELD.getPreferredName()).getValue()
+            documentFields.get(QueryRule.CRITERIA_FIELD.getPreferredName()).getValue(),
+            documentFields.get(QueryRule.ACTIONS_FIELD.getPreferredName()).getValue()
         );
     }
 

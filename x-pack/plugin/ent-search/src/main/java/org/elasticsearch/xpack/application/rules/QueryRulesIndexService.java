@@ -164,6 +164,11 @@ public class QueryRulesIndexService {
                         }
                         builder.endObject();
                         builder.endObject();
+
+                        builder.startObject(QueryRule.ACTIONS_FIELD.getPreferredName());
+                        builder.field("type", "object");
+                        builder.field("enabled", false);
+                        builder.endObject();
                     }
                     builder.endObject();
                     builder.endObject();

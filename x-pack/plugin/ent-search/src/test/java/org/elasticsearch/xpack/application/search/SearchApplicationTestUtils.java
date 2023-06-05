@@ -96,7 +96,7 @@ public final class SearchApplicationTestUtils {
 
     public static QueryRuleset randomQueryRuleset() {
         String id = randomAlphaOfLengthBetween(1, 10);
-        int numRules = randomIntBetween(0, 10);
+        int numRules = randomIntBetween(1, 10);
         List<QueryRule> rules = new ArrayList<>(numRules);
         for (int i = 0; i < numRules; i++) {
             rules.add(randomQueryRule());

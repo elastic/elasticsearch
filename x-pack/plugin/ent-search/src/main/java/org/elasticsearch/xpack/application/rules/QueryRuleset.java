@@ -14,8 +14,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
@@ -25,15 +23,12 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 public class QueryRuleset implements Writeable, ToXContent {
-
-    private final Logger logger = LogManager.getLogger(QueryRuleset.class);
 
     private final String id;
     private final List<QueryRule> rules;
@@ -45,17 +40,15 @@ public class QueryRuleset implements Writeable, ToXContent {
         this.id = id;
 
         Objects.requireNonNull(rules, "rules cannot be null");
+        if (rules.isEmpty()) {
+            throw new IllegalArgumentException("rules cannot be empty");
+        }
         this.rules = rules;
     }
 
     public QueryRuleset(StreamInput in) throws IOException {
         this.id = in.readString();
-        int numRules = in.readVInt();
-        List<QueryRule> rules = new ArrayList<>();
-        for (int i = 0; i < numRules; i++) {
-            rules.add(new QueryRule(in));
-        }
-        this.rules = rules;
+        this.rules = in.readList(QueryRule::new);
     }
 
     private static final ConstructingObjectParser<QueryRuleset, String> PARSER = new ConstructingObjectParser<>(
@@ -120,7 +113,8 @@ public class QueryRuleset implements Writeable, ToXContent {
      */
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        // TODO I don't understand why serialization tests fail if we have startObject/endObject here.
+        // TODO I don't understand why QueryRuleset.testToXContent, QueryRuleset.testRandomSerialization fails if we have
+        // startObject/endObject here.
         builder.startObject();
         {
             builder.field(ID_FIELD.getPreferredName(), id);
@@ -137,10 +131,7 @@ public class QueryRuleset implements Writeable, ToXContent {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(id);
-        out.writeVInt(rules.size());
-        for (QueryRule rule : rules) {
-            rule.writeTo(out);
-        }
+        out.writeList(rules);
     }
 
     public String id() {

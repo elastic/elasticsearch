@@ -56,25 +56,33 @@ public class QueryRulesetTests extends ESTestCase {
     public void testToXContent() throws IOException {
         String content = XContentHelper.stripWhitespace("""
             {
-              "ruleset_id": "my_query_ruleset",
+              "ruleset_id": "my_ruleset_id",
               "rules": [
                 {
                   "rule_id": "my_query_rule1",
-                  "type": "pinned"
+                  "type": "pinned",
+                  "criteria": [ {"type": "exact", "metadata": "query_string", "value": "foo"} ],
+                  "actions": {
+                    "ids": ["id1", "id2"]
+                  }
                 },
                 {
                   "rule_id": "my_query_rule2",
-                  "type": "pinned"
+                  "type": "pinned",
+                  "criteria": [ {"type": "exact", "metadata": "query_string", "value": "bar"} ],
+                  "actions": {
+                    "ids": ["id3", "id4"]
+                  }
                 }
               ]
             }""");
 
-        QueryRuleset queryRuleset = QueryRuleset.fromXContentBytes("my_query_ruleset", new BytesArray(content), XContentType.JSON);
+        QueryRuleset queryRuleset = QueryRuleset.fromXContentBytes("my_ruleset_id", new BytesArray(content), XContentType.JSON);
         boolean humanReadable = true;
         BytesReference originalBytes = toShuffledXContent(queryRuleset, XContentType.JSON, ToXContent.EMPTY_PARAMS, humanReadable);
         QueryRuleset parsed;
         try (XContentParser parser = createParser(XContentType.JSON.xContent(), originalBytes)) {
-            parsed = QueryRuleset.fromXContent("my_query_ruleset", parser);
+            parsed = QueryRuleset.fromXContent("my_ruleset_id", parser);
         }
         assertToXContentEquivalent(originalBytes, toXContent(parsed, XContentType.JSON, humanReadable), XContentType.JSON);
     }
@@ -82,21 +90,29 @@ public class QueryRulesetTests extends ESTestCase {
     public void testToXContentInvalidQueryRulesetId() throws IOException {
         String content = XContentHelper.stripWhitespace("""
             {
-              "ruleset_id": "not_my_ruleset_id",
+              "ruleset_id": "my_ruleset_id",
               "rules": [
                 {
                   "rule_id": "my_query_rule1",
-                  "type": "pinned"
+                  "type": "pinned",
+                  "criteria": [ {"type": "exact", "metadata": "query_string", "value": "foo"} ],
+                  "actions": {
+                    "ids": ["id1", "id2"]
+                  }
                 },
                 {
                   "rule_id": "my_query_rule2",
-                  "type": "pinned"
+                  "type": "pinned",
+                  "criteria": [ {"type": "exact", "metadata": "query_string", "value": "bar"} ],
+                  "actions": {
+                    "ids": ["id3", "id4"]
+                  }
                 }
               ]
             }""");
         expectThrows(
             IllegalArgumentException.class,
-            () -> QueryRuleset.fromXContentBytes("my_ruleset_id", new BytesArray(content), XContentType.JSON)
+            () -> QueryRuleset.fromXContentBytes("not_my_ruleset_id", new BytesArray(content), XContentType.JSON)
         );
     }
 

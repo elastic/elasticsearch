@@ -268,9 +268,19 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
 
     /**
      * Class in charge of find all the indices that are _potentially_ stagnated at some ILM action. To find the indices, it uses a list of
-     * rules evaluators (Check {@link org.elasticsearch.xpack.ilm.IlmHealthIndicatorService#RULES_BY_ACTION_CONFIG to the current rules}
+     * rules evaluators (Check {@link IlmHealthIndicatorService#RULES_BY_ACTION_CONFIG to the current rules}
      */
-    record StagnatingIndicesFinder(ClusterService clusterService, Collection<RuleConfig> rules, LongSupplier nowSupplier) {
+    static class StagnatingIndicesFinder {
+        private final ClusterService clusterService;
+        private final Collection<RuleConfig> rules;
+        private final LongSupplier nowSupplier;
+
+        StagnatingIndicesFinder(ClusterService clusterService, Collection<RuleConfig> rules, LongSupplier nowSupplier) {
+            this.clusterService = clusterService;
+            this.rules = rules;
+            this.nowSupplier = nowSupplier;
+        }
+
         /**
          * @return A list containing the ILM managed indices that are stagnated in any ILM action/step.
          */

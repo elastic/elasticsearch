@@ -12,8 +12,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -537,7 +537,7 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
     }
 
     private static DiscoveryNode buildNode(String name, boolean isML, double allocatedProcessors) {
-        return TestDiscoveryNode.create(
+        return DiscoveryNodeUtils.create(
             name,
             name,
             buildNewFakeTransportAddress(),

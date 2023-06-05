@@ -1,5 +1,0 @@
-pr: 95557
-summary: Revert usage of `SafeMustacheFactory` in `CustomMustacheFactory`
-area: Infra/Scripting
-type: bug
-issues: []

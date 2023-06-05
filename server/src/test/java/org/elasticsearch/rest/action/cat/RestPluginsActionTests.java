@@ -17,8 +17,8 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.plugins.PluginDescriptor;
 import org.elasticsearch.plugins.PluginRuntimeInfo;
@@ -28,7 +28,6 @@ import org.elasticsearch.test.rest.FakeRestRequest;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.empty;
@@ -89,6 +88,6 @@ public class RestPluginsActionTests extends ESTestCase {
     }
 
     private DiscoveryNode node(final int id) {
-        return TestDiscoveryNode.create("node-" + id, Integer.toString(id), buildNewFakeTransportAddress(), Map.of(), Set.of());
+        return DiscoveryNodeUtils.builder(Integer.toString(id)).name("node-" + id).roles(Set.of()).build();
     }
 }

@@ -1,5 +1,0 @@
-pr: 95187
-summary: Fix privileges check failures by adding `allow_restricted_indices` flag
-area: Transform
-type: bug
-issues: []

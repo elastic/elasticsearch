@@ -17,13 +17,14 @@ import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.RemovedTaskListener;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -76,12 +77,18 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
     }
 
     @Override
-    protected void processTasks(ListTasksRequest request, ActionListener<List<Task>> nodeOperation) {
+    protected void doExecute(Task task, ListTasksRequest request, ActionListener<ListTasksResponse> listener) {
+        assert task instanceof CancellableTask;
+        super.doExecute(task, request, listener);
+    }
+
+    @Override
+    protected void processTasks(CancellableTask nodeTask, ListTasksRequest request, ActionListener<List<Task>> nodeOperation) {
         if (request.getWaitForCompletion()) {
             final ListenableActionFuture<List<Task>> future = new ListenableActionFuture<>();
             final List<Task> processedTasks = new ArrayList<>();
-            final Set<Task> removedTasks = Sets.newConcurrentHashSet();
-            final Set<Task> matchedTasks = Sets.newConcurrentHashSet();
+            final Set<Task> removedTasks = ConcurrentCollections.newConcurrentSet();
+            final Set<Task> matchedTasks = ConcurrentCollections.newConcurrentSet();
             final RefCounted removalRefs = AbstractRefCounted.of(() -> {
                 matchedTasks.removeAll(removedTasks);
                 removedTasks.clear();
@@ -137,8 +144,9 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
                 threadPool,
                 ThreadPool.Names.SAME
             );
+            nodeTask.addListener(() -> future.onFailure(new TaskCancelledException("task cancelled")));
         } else {
-            super.processTasks(request, nodeOperation);
+            super.processTasks(nodeTask, request, nodeOperation);
         }
     }
 }

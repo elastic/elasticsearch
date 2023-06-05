@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
@@ -219,14 +220,11 @@ public class FailedNodeRoutingTests extends ESAllocationTestCase {
         Set<DiscoveryNodeRole> roles = new HashSet<>(randomSubsetOf(DiscoveryNodeRole.roles()));
         Collections.addAll(roles, mustHaveRoles);
         final String id = Strings.format("node_%03d", nodeIdGenerator.incrementAndGet());
-        return new DiscoveryNode(
-            id,
-            id,
-            buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            roles,
-            VersionUtils.randomCompatibleVersion(random(), Version.CURRENT)
-        );
+        return DiscoveryNodeUtils.builder(id)
+            .name(id)
+            .roles(roles)
+            .version(VersionUtils.randomCompatibleVersion(random(), Version.CURRENT))
+            .build();
     }
 
 }

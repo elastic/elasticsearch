@@ -1,0 +1,44 @@
+{
+  "synonyms.get": {
+    "documentation": {
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/get-synonyms.html",
+      "description": "Retrieves a synonym set"
+    },
+    "stability": "experimental",
+    "visibility": "feature_flag",
+    "feature_flag": "es.synonyms_feature_flag_enabled",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_synonyms/{synonyms_set}",
+          "methods": [
+            "GET"
+          ],
+          "parts": {
+            "synonyms_set": {
+              "type": "string",
+              "description": "The name of the synonyms set to be retrieved"
+            }
+          }
+        }
+      ]
+    },
+    "params": {
+      "from": {
+        "type": "int",
+        "description": "Starting offset",
+        "default": 0
+      },
+      "size": {
+        "type": "int",
+        "description": "specifies a max number of results to get",
+        "default": 10
+      }
+    }
+  }
+}

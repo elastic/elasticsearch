@@ -3,6 +3,21 @@
 
 Also see <<breaking-changes-8.7,Breaking changes in 8.7>>.
 
+[[known-issues-8.7.1]]
+[float]
+=== Known issues
+
+* `ArrayIndexOutOfBoundsException` may be thrown while creating a transport message
++
+Certain sequences of writes and seeks to the buffer used to create a transport
+message may encounter an alignment bug which results in an
+`ArrayIndexOutOfBoundsException`, preventing the transport message from being
+sent.
++
+This issue is fixed in 8.8.0.
+
+include::8.6.0.asciidoc[tag=reconciliation-imbalance-known-issue]
+
 [[bug-8.7.1]]
 [float]
 === Bug fixes

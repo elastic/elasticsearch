@@ -58,7 +58,15 @@ public enum ChunkedToXContentHelper {
         );
     }
 
-    public static <T> Iterator<ToXContent> field(String name, T value) {
+    public static Iterator<ToXContent> field(String name, boolean value) {
+        return Iterators.single(((builder, params) -> builder.field(name, value)));
+    }
+
+    public static Iterator<ToXContent> field(String name, long value) {
+        return Iterators.single(((builder, params) -> builder.field(name, value)));
+    }
+
+    public static Iterator<ToXContent> field(String name, String value) {
         return Iterators.single(((builder, params) -> builder.field(name, value)));
     }
 

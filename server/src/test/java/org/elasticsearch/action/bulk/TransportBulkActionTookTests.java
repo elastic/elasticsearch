@@ -22,7 +22,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -76,7 +76,7 @@ public class TransportBulkActionTookTests extends ESTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        DiscoveryNode discoveryNode = TestDiscoveryNode.create(
+        DiscoveryNode discoveryNode = DiscoveryNodeUtils.create(
             "node",
             ESTestCase.buildNewFakeTransportAddress(),
             VersionUtils.randomCompatibleVersion(random(), Version.CURRENT)

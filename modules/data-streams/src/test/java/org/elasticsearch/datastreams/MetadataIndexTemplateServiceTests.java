@@ -11,6 +11,7 @@ package org.elasticsearch.datastreams;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.DataLifecycle;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.Template;
@@ -32,11 +33,13 @@ import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.generateTsdbMapping;
+import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.composeDataLifecycles;
 import static org.elasticsearch.common.settings.Settings.builder;
 import static org.elasticsearch.datastreams.MetadataDataStreamRolloverServiceTests.createSettingsProvider;
 import static org.elasticsearch.indices.ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -137,6 +140,47 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             );
             var state = service.addIndexTemplateV2(ClusterState.EMPTY_STATE, false, "1", indexTemplate);
             assertThat(state.getMetadata().templatesV2().get("1"), equalTo(indexTemplate));
+        }
+    }
+
+    public void testLifecycleComposition() {
+        // No lifecycles result to null
+        {
+            List<DataLifecycle> lifecycles = List.of();
+            assertThat(composeDataLifecycles(lifecycles), nullValue());
+        }
+        // One lifecycle results to this lifecycle as the final
+        {
+            DataLifecycle lifecycle = switch (randomInt(2)) {
+                case 0 -> new DataLifecycle();
+                case 1 -> new DataLifecycle(DataLifecycle.Retention.NULL);
+                default -> new DataLifecycle(randomMillisUpToYear9999());
+            };
+            List<DataLifecycle> lifecycles = List.of(lifecycle);
+            assertThat(composeDataLifecycles(lifecycles), equalTo(lifecycle));
+        }
+        // If the last lifecycle is missing a property we keep the latest from the previous ones
+        {
+            DataLifecycle lifecycleWithRetention = new DataLifecycle(randomMillisUpToYear9999());
+            List<DataLifecycle> lifecycles = List.of(lifecycleWithRetention, new DataLifecycle());
+            assertThat(
+                composeDataLifecycles(lifecycles).getEffectiveDataRetention(),
+                equalTo(lifecycleWithRetention.getEffectiveDataRetention())
+            );
+        }
+        // If both lifecycle have all properties, then the latest one overwrites all the others
+        {
+            DataLifecycle lifecycle1 = new DataLifecycle(randomMillisUpToYear9999());
+            DataLifecycle lifecycle2 = new DataLifecycle(randomMillisUpToYear9999());
+            List<DataLifecycle> lifecycles = List.of(lifecycle1, lifecycle2);
+            assertThat(composeDataLifecycles(lifecycles), equalTo(lifecycle2));
+        }
+        // If the last lifecycle is explicitly null, the result is also null
+        {
+            DataLifecycle lifecycle1 = new DataLifecycle(randomMillisUpToYear9999());
+            DataLifecycle lifecycle2 = new DataLifecycle(randomMillisUpToYear9999());
+            List<DataLifecycle> lifecycles = List.of(lifecycle1, lifecycle2, Template.NO_LIFECYCLE);
+            assertThat(composeDataLifecycles(lifecycles), nullValue());
         }
     }
 

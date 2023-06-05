@@ -8,7 +8,6 @@
 
 package org.elasticsearch.synonyms;
 
-import org.apache.logging.log4j.core.appender.rolling.action.Action;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
@@ -166,52 +165,51 @@ public class SynonymsManagementAPIService {
 
         // Delete synonyms set if it existed previously. Avoid catching an index not found error by ignoring unavailable indices
         deleteSynonymSetRules(resourceName, listener.delegateFailure((deleteByQueryResponseListener, bulkByScrollResponse) -> {
-                boolean created = bulkByScrollResponse.getDeleted() == 0;
-                final List<BulkItemResponse.Failure> bulkFailures = bulkByScrollResponse.getBulkFailures();
-                if (bulkFailures.isEmpty() == false) {
-                    listener.onFailure(
-                        new ElasticsearchException(
-                            "Error updating synonyms: "
-                                + bulkFailures.stream().map(BulkItemResponse.Failure::getMessage).collect(Collectors.joining("\n"))
-                        )
-                    );
-                }
+            boolean created = bulkByScrollResponse.getDeleted() == 0;
+            final List<BulkItemResponse.Failure> bulkFailures = bulkByScrollResponse.getBulkFailures();
+            if (bulkFailures.isEmpty() == false) {
+                listener.onFailure(
+                    new ElasticsearchException(
+                        "Error updating synonyms: "
+                            + bulkFailures.stream().map(BulkItemResponse.Failure::getMessage).collect(Collectors.joining("\n"))
+                    )
+                );
+            }
 
-                // Insert as bulk requests
-                BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
-                try {
-                    for (SynonymRule synonymRule : synonymsSet) {
-                        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-                            builder.startObject();
-                            {
-                                builder.field(SYNONYMS_FIELD, synonymRule.synonyms());
-                                builder.field(SYNONYMS_SET_FIELD, resourceName);
-                            }
-                            builder.endObject();
-
-                            final IndexRequest indexRequest = new IndexRequest(SYNONYMS_ALIAS_NAME).opType(DocWriteRequest.OpType.INDEX)
-                                .source(builder);
-                            indexRequest.id(internalSynonymRuleId(resourceName, synonymRule));
-                            bulkRequestBuilder.add(indexRequest);
+            // Insert as bulk requests
+            BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
+            try {
+                for (SynonymRule synonymRule : synonymsSet) {
+                    try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+                        builder.startObject();
+                        {
+                            builder.field(SYNONYMS_FIELD, synonymRule.synonyms());
+                            builder.field(SYNONYMS_SET_FIELD, resourceName);
                         }
+                        builder.endObject();
+
+                        final IndexRequest indexRequest = new IndexRequest(SYNONYMS_ALIAS_NAME).opType(DocWriteRequest.OpType.INDEX)
+                            .source(builder);
+                        indexRequest.id(internalSynonymRuleId(resourceName, synonymRule));
+                        bulkRequestBuilder.add(indexRequest);
                     }
-                } catch (IOException ex) {
-                    listener.onFailure(ex);
                 }
+            } catch (IOException ex) {
+                listener.onFailure(ex);
+            }
 
-                bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                    .execute(deleteByQueryResponseListener.delegateFailure((bulkResponseListener, bulkResponse) -> {
-                        if (bulkResponse.hasFailures() == false) {
-                            UpdateSynonymsResult result = created ? UpdateSynonymsResult.CREATED : UpdateSynonymsResult.UPDATED;
-                            bulkResponseListener.onResponse(result);
-                        } else {
-                            bulkResponseListener.onFailure(
-                                new ElasticsearchException("Couldn't update synonyms: " + bulkResponse.buildFailureMessage())
-                            );
-                        }
-                    }));
-            })
-        );
+            bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .execute(deleteByQueryResponseListener.delegateFailure((bulkResponseListener, bulkResponse) -> {
+                    if (bulkResponse.hasFailures() == false) {
+                        UpdateSynonymsResult result = created ? UpdateSynonymsResult.CREATED : UpdateSynonymsResult.UPDATED;
+                        bulkResponseListener.onResponse(result);
+                    } else {
+                        bulkResponseListener.onFailure(
+                            new ElasticsearchException("Couldn't update synonyms: " + bulkResponse.buildFailureMessage())
+                        );
+                    }
+                }));
+        }));
     }
 
     // Deletes a synonym set rules, using the supplied listener
@@ -223,6 +221,7 @@ public class SynonymsManagementAPIService {
 
         client.execute(DeleteByQueryAction.INSTANCE, dbqRequest, listener);
     }
+
     public void deleteSynonymsSet(String resourceName, ActionListener<AcknowledgedResponse> listener) {
         deleteSynonymSetRules(resourceName, listener.delegateFailure((l, bulkByScrollResponse) -> {
             if (bulkByScrollResponse.getDeleted() == 0) {

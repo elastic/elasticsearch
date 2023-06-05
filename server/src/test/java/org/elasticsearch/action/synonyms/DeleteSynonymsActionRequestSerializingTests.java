@@ -22,9 +22,7 @@ public class DeleteSynonymsActionRequestSerializingTests extends AbstractWireSer
 
     @Override
     protected DeleteSynonymsAction.Request createTestInstance() {
-        return new DeleteSynonymsAction.Request(
-            randomIdentifier()
-        );
+        return new DeleteSynonymsAction.Request(randomIdentifier());
     }
 
     @Override

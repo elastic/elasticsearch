@@ -1,7 +1,7 @@
 pr: 96511
 summary: Do not return Cluster State in /_cluster/reroute API response
 area: Allocation
-type: "breaking, tech debt"
+type: breaking
 issues:
  - 88978
 breaking:

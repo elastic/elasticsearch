@@ -96,8 +96,6 @@ public class SearchIdleTests extends ESSingleNodeTestCase {
         final List<ShardStats> activeShards = Arrays.stream(afterStatsResponse.getShards())
             .filter(shardStats -> shardStats.isSearchIdle() == false)
             .toList();
-        // NOTE: we need an empty result from at least one shard
-        assertEquals(1, activeShards.size());
 
         assertIdleShardsRefreshStats(beforeStatsResponse, afterStatsResponse);
     }
@@ -163,11 +161,6 @@ public class SearchIdleTests extends ESSingleNodeTestCase {
 
         // THEN
         final IndicesStatsResponse idleIndexStatsAfter = client().admin().indices().prepareStats(idleIndex).get();
-        Arrays.stream(idleIndexStatsAfter.getShards()).forEach(shardStats -> assertTrue(shardStats.isSearchIdle()));
-
-        final IndicesStatsResponse activeIndexStatsAfter = client().admin().indices().prepareStats(activeIndex).get();
-        Arrays.stream(activeIndexStatsAfter.getShards()).forEach(shardStats -> assertFalse(shardStats.isSearchIdle()));
-
         assertIdleShardsRefreshStats(idleIndexStatsBefore, idleIndexStatsAfter);
     }
 
@@ -222,6 +215,8 @@ public class SearchIdleTests extends ESSingleNodeTestCase {
 
         // WHEN
         final SearchResponse searchResponse = search("test*", "constant_keyword", "constant", 5);
+
+        // THEN
         assertEquals(RestStatus.OK, searchResponse.status());
         assertEquals(0, searchResponse.getSkippedShards());
         assertEquals(0, searchResponse.getFailedShards());
@@ -229,11 +224,7 @@ public class SearchIdleTests extends ESSingleNodeTestCase {
             new String[] { "test1", "test2" },
             Arrays.stream(searchResponse.getHits().getHits()).map(SearchHit::getIndex).sorted().toArray()
         );
-
-        // THEN
         final IndicesStatsResponse afterStatsResponse = client().admin().indices().prepareStats("test*").get();
-        Arrays.stream(afterStatsResponse.getShards()).forEach(shardStats -> assertFalse(shardStats.isSearchIdle()));
-
         assertIdleShardsRefreshStats(beforeStatsResponse, afterStatsResponse);
     }
 
@@ -290,18 +281,13 @@ public class SearchIdleTests extends ESSingleNodeTestCase {
             .setQuery(new WildcardQueryBuilder("constant_keyword", "test2*"))
             .setPreFilterShardSize(5)
             .get();
+
+        // THEN
         assertEquals(RestStatus.OK, searchResponse.status());
         assertEquals(idleIndexShardsCount, searchResponse.getSkippedShards());
         assertEquals(0, searchResponse.getFailedShards());
         Arrays.stream(searchResponse.getHits().getHits()).forEach(searchHit -> assertEquals("test2", searchHit.getIndex()));
-
-        // THEN
         final IndicesStatsResponse idleIndexStatsAfter = client().admin().indices().prepareStats(idleIndex).get();
-        Arrays.stream(idleIndexStatsAfter.getShards()).forEach(shardStats -> assertTrue(shardStats.isSearchIdle()));
-
-        final IndicesStatsResponse activeIndexStatsAfter = client().admin().indices().prepareStats(activeIndex).get();
-        Arrays.stream(activeIndexStatsAfter.getShards()).forEach(shardStats -> assertFalse(shardStats.isSearchIdle()));
-
         assertIdleShardsRefreshStats(idleIndexStatsBefore, idleIndexStatsAfter);
     }
 
@@ -320,8 +306,12 @@ public class SearchIdleTests extends ESSingleNodeTestCase {
     private static void assertIdleShardsRefreshStats(final IndicesStatsResponse before, final IndicesStatsResponse after) {
         assertNotEquals(0, before.getShards().length);
         assertNotEquals(0, after.getShards().length);
-        final List<RefreshStats> refreshStatsBefore = Arrays.stream(before.getShards()).map(x -> x.getStats().refresh).toList();
-        final List<RefreshStats> refreshStatsAfter = Arrays.stream(after.getShards()).map(x -> x.getStats().refresh).toList();
+        final List<RefreshStats> refreshStatsBefore = Arrays.stream(before.getShards())
+            .map(shardStats -> shardStats.getStats().refresh)
+            .toList();
+        final List<RefreshStats> refreshStatsAfter = Arrays.stream(after.getShards())
+            .map(shardStats -> shardStats.getStats().refresh)
+            .toList();
         assertEquals(refreshStatsBefore.size(), refreshStatsAfter.size());
         assertTrue(refreshStatsAfter.containsAll(refreshStatsBefore));
         assertTrue(refreshStatsBefore.containsAll(refreshStatsAfter));

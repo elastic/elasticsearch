@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -49,9 +50,14 @@ import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsAccounting;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.mapper.NodeMappingStats;
+import org.elasticsearch.index.mapper.RuntimeField;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.SearchIndexNameMatcher;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
@@ -76,6 +82,7 @@ import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.Closeable;
@@ -662,6 +669,46 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     }
 
     /**
+     * Creates a new {@link QueryRewriteContext}.
+     * This class is used to rewrite queries before we are able to get a a valid {@link SearchExecutionContext} and
+     * allows us to anticipate rewriting queries before the query is executed on the data node. Not using a full
+     * SearhcExecutionContext allows us to save on query latency and IO operations.
+     */
+    public QueryRewriteContext newQueryRewriteContext(
+        final LongSupplier nowInMillis,
+        final Map<String, Object> runtimeMappings,
+        final String clusterAlias
+    ) {
+        final SearchIndexNameMatcher indexNameMatcher = new SearchIndexNameMatcher(
+            index().getName(),
+            clusterAlias,
+            clusterService,
+            expressionResolver
+        );
+        final MapperService mapperService = mapperService();
+        final MappingLookup mappingLookup = mapperService().mappingLookup();
+        return new QueryRewriteContext(
+            parserConfiguration,
+            client,
+            nowInMillis,
+            mapperService,
+            mappingLookup,
+            parseRuntimeMappings(runtimeMappings, mapperService, indexSettings, mappingLookup),
+            null,
+            indexSettings,
+            new Index(
+                RemoteClusterAware.buildRemoteIndexName(clusterAlias, indexSettings.getIndex().getName()),
+                indexSettings.getIndex().getUUID()
+            ),
+            indexNameMatcher,
+            namedWriteableRegistry,
+            valuesSourceRegistry,
+            allowExpensiveQueries,
+            scriptService
+        );
+    }
+
+    /**
      * The {@link ThreadPool} to use for this index.
      */
     public ThreadPool getThreadPool() {
@@ -1210,6 +1257,30 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             }
         }
         return clearedAtLeastOne;
+    }
+
+    public static Map<String, MappedFieldType> parseRuntimeMappings(
+        Map<String, Object> runtimeMappings,
+        MapperService mapperService,
+        IndexSettings indexSettings,
+        MappingLookup lookup
+    ) {
+        if (runtimeMappings.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        // TODO add specific tests to SearchExecutionTests similar to the ones in FieldTypeLookupTests
+        MappingParserContext parserContext = mapperService.parserContext();
+        Map<String, RuntimeField> runtimeFields = RuntimeField.parseRuntimeFields(new HashMap<>(runtimeMappings), parserContext, false);
+        Map<String, MappedFieldType> runtimeFieldTypes = RuntimeField.collectFieldTypes(runtimeFields.values());
+        if (false == indexSettings.getIndexMetadata().getRoutingPaths().isEmpty()) {
+            for (String r : runtimeMappings.keySet()) {
+                if (Regex.simpleMatch(indexSettings.getIndexMetadata().getRoutingPaths(), r)) {
+                    throw new IllegalArgumentException("runtime fields may not match [routing_path] but [" + r + "] matched");
+                }
+            }
+        }
+        runtimeFieldTypes.keySet().forEach(lookup::validateDoesNotShadow);
+        return runtimeFieldTypes;
     }
 
 }

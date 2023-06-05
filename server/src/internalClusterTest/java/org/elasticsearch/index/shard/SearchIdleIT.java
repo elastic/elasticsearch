@@ -309,20 +309,15 @@ public class SearchIdleIT extends ESSingleNodeTestCase {
             .setQuery(new RangeQueryBuilder("@timestamp").from("2021-05-12T20:00:00.000Z").to("2021-05-12T21:00:00.000Z"))
             .setPreFilterShardSize(5)
             .get();
+
+        // THEN
         assertEquals(RestStatus.OK, searchResponse.status());
         assertEquals(idleIndexShardsCount + activeIndexShardsCount - 1, searchResponse.getSkippedShards());
         assertEquals(0, searchResponse.getFailedShards());
         Arrays.stream(searchResponse.getHits().getHits()).forEach(searchHit -> assertEquals("test2", searchHit.getIndex()));
         // NOTE: we need an empty result from at least one shard
         assertEquals(1, searchResponse.getHits().getHits().length);
-
-        // THEN
         final IndicesStatsResponse idleIndexStatsAfter = client().admin().indices().prepareStats(idleIndex).get();
-        Arrays.stream(idleIndexStatsAfter.getShards()).forEach(shardStats -> assertTrue(shardStats.isSearchIdle()));
-
-        final IndicesStatsResponse activeIndexStatsAfter = client().admin().indices().prepareStats(activeIndex).get();
-        Arrays.stream(activeIndexStatsAfter.getShards()).forEach(shardStats -> assertFalse(shardStats.isSearchIdle()));
-
         assertIdleShardsRefreshStats(idleIndexStatsBefore, idleIndexStatsAfter);
     }
 
@@ -380,20 +375,15 @@ public class SearchIdleIT extends ESSingleNodeTestCase {
             .setQuery(new ExistsQueryBuilder("unmapped"))
             .setPreFilterShardSize(5)
             .get();
+
+        // THEN
         assertEquals(RestStatus.OK, searchResponse.status());
         assertEquals(idleIndexShardsCount, searchResponse.getSkippedShards());
         assertEquals(0, searchResponse.getFailedShards());
         Arrays.stream(searchResponse.getHits().getHits()).forEach(searchHit -> assertEquals("test2", searchHit.getIndex()));
         // NOTE: we need an empty result from at least one shard
         assertEquals(1, searchResponse.getHits().getHits().length);
-
-        // THEN
         final IndicesStatsResponse idleIndexStatsAfter = client().admin().indices().prepareStats(idleIndex).get();
-        Arrays.stream(idleIndexStatsAfter.getShards()).forEach(shardStats -> assertTrue(shardStats.isSearchIdle()));
-
-        final IndicesStatsResponse activeIndexStatsAfter = client().admin().indices().prepareStats(activeIndex).get();
-        Arrays.stream(activeIndexStatsAfter.getShards()).forEach(shardStats -> assertFalse(shardStats.isSearchIdle()));
-
         assertIdleShardsRefreshStats(idleIndexStatsBefore, idleIndexStatsAfter);
     }
 

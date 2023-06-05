@@ -10,7 +10,6 @@ package org.elasticsearch.search.vectors;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -265,10 +264,10 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         }
         if (queryVectorBuilder != null) {
             SetOnce<float[]> toSet = new SetOnce<>();
-            ctx.registerAsyncAction((c, l) -> queryVectorBuilder.buildVector(c, ActionListener.wrap(v -> {
+            ctx.registerAsyncAction((c, l) -> queryVectorBuilder.buildVector(c, l.wrapResponse((ll, v) -> {
                 toSet.set(v);
                 if (v == null) {
-                    l.onFailure(
+                    ll.onFailure(
                         new IllegalArgumentException(
                             format(
                                 "[%s] with name [%s] returned null query_vector",
@@ -279,8 +278,8 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
                     );
                     return;
                 }
-                l.onResponse(null);
-            }, l::onFailure)));
+                ll.onResponse(null);
+            })));
             return new KnnSearchBuilder(field, toSet::get, k, numCands, filterQueries, similarity).boost(boost);
         }
         boolean changed = false;

@@ -160,7 +160,7 @@ final class RemoteClusterConnection implements Closeable {
             // we can't proceed with a search on a cluster level.
             // in the future we might want to just skip the remote nodes in such a case but that can already be implemented on the
             // caller end since they provide the listener.
-            ensureConnected(ActionListener.wrap((x) -> runnable.run(), listener::onFailure));
+            ensureConnected(listener.wrapResponse((l, x) -> runnable.run()));
         } catch (Exception ex) {
             listener.onFailure(ex);
         }

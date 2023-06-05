@@ -90,7 +90,7 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
         Rewriteable.rewriteAndFetch(
             original,
             searchService.getRewriteContext(timeProvider::absoluteStartMillis),
-            ActionListener.wrap(searchRequest -> {
+            listener.wrapResponse((delegate, searchRequest) -> {
                 Map<String, OriginalIndices> groupedIndices = remoteClusterService.groupIndices(
                     searchRequest.indicesOptions(),
                     searchRequest.indices()
@@ -118,7 +118,7 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
                     )
                 );
                 if (SearchService.canRewriteToMatchNone(searchRequest.source()) == false) {
-                    listener.onResponse(new SearchShardsResponse(toGroups(shardIts), clusterState.nodes().getAllNodes(), aliasFilters));
+                    delegate.onResponse(new SearchShardsResponse(toGroups(shardIts), clusterState.nodes().getAllNodes(), aliasFilters));
                 } else {
                     var canMatchPhase = new CanMatchPreFilterSearchPhase(logger, searchTransportService, (clusterAlias, node) -> {
                         assert Objects.equals(clusterAlias, searchShardsRequest.clusterAlias());
@@ -133,11 +133,11 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
                         (SearchTask) task,
                         false,
                         searchService.getCoordinatorRewriteContextProvider(timeProvider::absoluteStartMillis),
-                        listener.map(its -> new SearchShardsResponse(toGroups(its), clusterState.nodes().getAllNodes(), aliasFilters))
+                        delegate.map(its -> new SearchShardsResponse(toGroups(its), clusterState.nodes().getAllNodes(), aliasFilters))
                     );
                     canMatchPhase.start();
                 }
-            }, listener::onFailure)
+            })
         );
     }
 

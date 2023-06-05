@@ -146,13 +146,13 @@ public class MountSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
             storageType
         );
         mountSearchableSnapshotRequest.masterNodeTimeout(TimeValue.MAX_VALUE);
-        getClient().execute(MountSearchableSnapshotAction.INSTANCE, mountSearchableSnapshotRequest, ActionListener.wrap(response -> {
+        getClient().execute(MountSearchableSnapshotAction.INSTANCE, mountSearchableSnapshotRequest, listener.wrapResponse((l, response) -> {
             if (response.status() != RestStatus.OK && response.status() != RestStatus.ACCEPTED) {
                 logger.debug("mount snapshot response failed to complete");
                 throw new ElasticsearchException("mount snapshot response failed to complete, got response " + response.status());
             }
-            listener.onResponse(null);
-        }, listener::onFailure));
+            l.onResponse(null);
+        }));
     }
 
     /**

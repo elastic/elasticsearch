@@ -278,10 +278,7 @@ public class RestoreService implements ClusterStateApplier {
                 }
                 repository.getSnapshotInfo(
                     snapshotId,
-                    ActionListener.wrap(
-                        snapshotInfo -> startRestore(snapshotInfo, repository, request, repositoryData, updater, listener),
-                        listener::onFailure
-                    )
+                    listener.wrapResponse((l, snapshotInfo) -> startRestore(snapshotInfo, repository, request, repositoryData, updater, l))
                 );
             }, listener::onFailure), listener::onFailure);
         } catch (Exception e) {

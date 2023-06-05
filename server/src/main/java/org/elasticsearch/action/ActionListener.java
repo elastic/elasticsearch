@@ -10,6 +10,7 @@ package org.elasticsearch.action;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.CheckedConsumer;
@@ -87,6 +88,14 @@ public interface ActionListener<Response> {
      */
     default <T> ActionListener<T> delegateFailure(BiConsumer<ActionListener<Response>, T> bc) {
         return new ActionListenerImplementations.DelegatingFailureActionListener<>(this, bc);
+    }
+
+    /**
+     * Same as {@link #delegateFailure(BiConsumer)} with the exception that any failure thrown by {@code bc} or the delegate listener's
+     * {@link #onResponse} will be passed to the delegate listeners {@link #onFailure(Exception)}.
+     */
+    default <T> ActionListener<T> wrapResponse(CheckedBiConsumer<ActionListener<Response>, T, ? extends Exception> bc) {
+        return new ActionListenerImplementations.ResponseWrappingActionListener<>(this, bc);
     }
 
     /**

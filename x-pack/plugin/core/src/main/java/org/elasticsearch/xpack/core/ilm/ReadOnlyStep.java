@@ -40,12 +40,12 @@ public class ReadOnlyStep extends AsyncActionStep {
             .execute(
                 AddIndexBlockAction.INSTANCE,
                 new AddIndexBlockRequest(WRITE, indexMetadata.getIndex().getName()).masterNodeTimeout(TimeValue.MAX_VALUE),
-                ActionListener.wrap(response -> {
+                listener.wrapResponse((l, response) -> {
                     if (response.isAcknowledged() == false) {
                         throw new ElasticsearchException("read only add block index request failed to be acknowledged");
                     }
-                    listener.onResponse(null);
-                }, listener::onFailure)
+                    l.onResponse(null);
+                })
             );
     }
 

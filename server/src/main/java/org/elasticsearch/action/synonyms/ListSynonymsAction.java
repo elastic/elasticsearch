@@ -15,7 +15,7 @@ import org.elasticsearch.synonyms.SynonymSetSummary;
 import java.io.IOException;
 import java.util.function.IntFunction;
 
-public class ListSynonymsAction extends AbstractSynonymsRetrievalAction<ListSynonymsAction.Response> {
+public class ListSynonymsAction extends AbstractSynonymsPagedResultAction<ListSynonymsAction.Response> {
 
     public static final ListSynonymsAction INSTANCE = new ListSynonymsAction();
     public static final String NAME = "cluster:admin/synonyms/list";
@@ -24,7 +24,7 @@ public class ListSynonymsAction extends AbstractSynonymsRetrievalAction<ListSyno
         super(NAME, Response::new);
     }
 
-    public static class Request extends AbstractSynonymsRetrievalAction.Request {
+    public static class Request extends AbstractSynonymsPagedResultAction.Request {
         public Request(StreamInput in) throws IOException {
             super(in);
         }
@@ -34,7 +34,7 @@ public class ListSynonymsAction extends AbstractSynonymsRetrievalAction<ListSyno
         }
     }
 
-    public static class Response extends AbstractSynonymsRetrievalAction.AbstractPagedResultResponse<SynonymSetSummary> {
+    public static class Response extends AbstractSynonymsPagedResultAction.AbstractPagedResultResponse<SynonymSetSummary> {
 
         public static final String RESULTS_FIELD = "results";
 

@@ -32,12 +32,15 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  *
  * @param <T> Type to be returned by the response, wrapped in a {@link PagedResult}
  */
-public abstract class AbstractSynonymsRetrievalAction<T extends ActionResponse> extends ActionType<T> {
+public abstract class AbstractSynonymsPagedResultAction<T extends ActionResponse> extends ActionType<T> {
 
-    public AbstractSynonymsRetrievalAction(String name, Writeable.Reader<T> reader) {
+    public AbstractSynonymsPagedResultAction(String name, Writeable.Reader<T> reader) {
         super(name, reader);
     }
 
+    /**
+     * Base request class that includes support for pagination parameters
+     */
     public static class Request extends ActionRequest {
         private static final int MAX_SYNONYMS_RESULTS = 10_000;
         private final int from;
@@ -112,6 +115,12 @@ public abstract class AbstractSynonymsRetrievalAction<T extends ActionResponse> 
         }
     }
 
+    /**
+     * Response class that (de)serializes a {@link PagedResult}.
+     * Subclasses need to define the reader and array suppliers for the PagedResult type so it can be serialized and deserialized
+     *
+     * @param <T> type contained in the {@link PagedResult}
+     */
     public abstract static class AbstractPagedResultResponse<T extends Writeable> extends ActionResponse implements ToXContentObject {
 
         private final Writeable[] resultList;

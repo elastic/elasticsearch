@@ -18,7 +18,7 @@ import java.io.IOException;
 import java.util.Objects;
 import java.util.function.IntFunction;
 
-public class GetSynonymsAction extends AbstractSynonymsRetrievalAction<GetSynonymsAction.Response> {
+public class GetSynonymsAction extends AbstractSynonymsPagedResultAction<GetSynonymsAction.Response> {
 
     public static final GetSynonymsAction INSTANCE = new GetSynonymsAction();
     public static final String NAME = "cluster:admin/synonyms/get";
@@ -27,7 +27,7 @@ public class GetSynonymsAction extends AbstractSynonymsRetrievalAction<GetSynony
         super(NAME, Response::new);
     }
 
-    public static class Request extends AbstractSynonymsRetrievalAction.Request {
+    public static class Request extends AbstractSynonymsPagedResultAction.Request {
         private final String synonymsSetId;
 
         public Request(StreamInput in) throws IOException {

@@ -69,12 +69,11 @@ public final class RefCountingRunnable implements Releasable {
     private final RefCounted refCounted;
     private final AtomicBoolean originalRefReleased = new AtomicBoolean();
 
-    private class AcquiredRef implements Releasable {
-        private final AtomicBoolean released = new AtomicBoolean();
+    private class AcquiredRef extends AtomicBoolean implements Releasable {
 
         @Override
         public void close() {
-            releaseRef(released);
+            releaseRef(this);
         }
 
         @Override

@@ -13,22 +13,24 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
 
-import static org.elasticsearch.action.synonyms.SynonymsTestUtils.randomSynonymsSet;
-
-public class PutSynonymsActionRequestSerializingTests extends AbstractWireSerializingTestCase<PutSynonymsAction.Request> {
+public class GetSynonymsActionRequestSerializingTests extends AbstractWireSerializingTestCase<GetSynonymsAction.Request> {
 
     @Override
-    protected Writeable.Reader<PutSynonymsAction.Request> instanceReader() {
-        return PutSynonymsAction.Request::new;
+    protected Writeable.Reader<GetSynonymsAction.Request> instanceReader() {
+        return GetSynonymsAction.Request::new;
     }
 
     @Override
-    protected PutSynonymsAction.Request createTestInstance() {
-        return new PutSynonymsAction.Request(randomIdentifier(), randomSynonymsSet());
+    protected GetSynonymsAction.Request createTestInstance() {
+        return new GetSynonymsAction.Request(
+            randomIdentifier(),
+            randomIntBetween(0, Integer.MAX_VALUE),
+            randomIntBetween(0, Integer.MAX_VALUE)
+        );
     }
 
     @Override
-    protected PutSynonymsAction.Request mutateInstance(PutSynonymsAction.Request instance) throws IOException {
+    protected GetSynonymsAction.Request mutateInstance(GetSynonymsAction.Request instance) throws IOException {
         return randomValueOtherThan(instance, this::createTestInstance);
     }
 }

@@ -9,26 +9,29 @@
 package org.elasticsearch.action.synonyms;
 
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.synonyms.SynonymsManagementAPIService;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
 
 import static org.elasticsearch.action.synonyms.SynonymsTestUtils.randomSynonymsSet;
 
-public class PutSynonymsActionRequestSerializingTests extends AbstractWireSerializingTestCase<PutSynonymsAction.Request> {
+public class GetSynonymsActionResponseSerializingTests extends AbstractWireSerializingTestCase<GetSynonymsAction.Response> {
 
     @Override
-    protected Writeable.Reader<PutSynonymsAction.Request> instanceReader() {
-        return PutSynonymsAction.Request::new;
+    protected Writeable.Reader<GetSynonymsAction.Response> instanceReader() {
+        return GetSynonymsAction.Response::new;
     }
 
     @Override
-    protected PutSynonymsAction.Request createTestInstance() {
-        return new PutSynonymsAction.Request(randomIdentifier(), randomSynonymsSet());
+    protected GetSynonymsAction.Response createTestInstance() {
+        return new GetSynonymsAction.Response(
+            new SynonymsManagementAPIService.SynonymsSetResult(randomLongBetween(0, Long.MAX_VALUE), randomSynonymsSet())
+        );
     }
 
     @Override
-    protected PutSynonymsAction.Request mutateInstance(PutSynonymsAction.Request instance) throws IOException {
+    protected GetSynonymsAction.Response mutateInstance(GetSynonymsAction.Response instance) throws IOException {
         return randomValueOtherThan(instance, this::createTestInstance);
     }
 }

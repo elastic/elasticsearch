@@ -16,12 +16,10 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 
 /**
- * An allocation decider that prevents shards from being allocated to a
- * node that is in the process of shutting down.
+ * An allocation decider that prevents shards from being allocated to a node that is in the process of shutting down.
  *
- * In short: No shards can be allocated to, or remain on, a node which is
- * shutting down for removal. Primary shards cannot be allocated to, or remain
- * on, a node which is shutting down for restart.
+ * No shards can be allocated to or remain on a node which is shutting down for removal.
+ * Shards can be allocated to or remain on a node scheduled for a restart.
  */
 public class NodeShutdownAllocationDecider extends AllocationDecider {
 

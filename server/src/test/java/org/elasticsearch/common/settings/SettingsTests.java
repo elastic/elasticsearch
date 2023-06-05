@@ -11,7 +11,6 @@ package org.elasticsearch.common.settings;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.Diff;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -27,7 +26,6 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -485,43 +483,6 @@ public class SettingsTests extends ESTestCase {
         assertTrue(e.getMessage().contains("does not match the allowed setting name pattern"));
         e = expectThrows(IllegalArgumentException.class, () -> SecureSetting.secureFile("*IllegalName", null));
         assertTrue(e.getMessage().contains("does not match the allowed setting name pattern"));
-    }
-
-    public void testStatelessSecureSettingsWithoutStateless() {
-        Setting<?> setting = SecureSetting.secureString(StatelessSecureSettings.PREFIX + "key", null);
-
-        final Settings settings = Settings.builder()
-            .put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, false)
-            .put(setting.getKey(), "yaml.value")
-            .build();
-
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> StatelessSecureSettings.install(settings));
-        assertTrue(e.getMessage().contains("supported only in stateless"));
-    }
-
-    public void testStatelessSecureSettings() throws Exception {
-        boolean testFileSettingInsteadOfStringSetting = randomBoolean();
-
-        Setting<?> yamlSetting = Setting.simpleString(StatelessSecureSettings.PREFIX + "stateless.key");
-        Setting<?> secureSetting = testFileSettingInsteadOfStringSetting
-            ? SecureSetting.secureFile("stateless.key", null)
-            : SecureSetting.secureString("stateless.key", null);
-
-        final Settings settings = Settings.builder()
-            .put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, true)
-            .put(yamlSetting.getKey(), "stateless.yaml.value")
-            .build();
-
-        Settings newSettings = StatelessSecureSettings.install(settings);
-        assertTrue(secureSetting.exists(newSettings));
-        assertEquals(
-            "stateless.yaml.value",
-            testFileSettingInsteadOfStringSetting
-                ? new String(((InputStream) secureSetting.get(newSettings)).readAllBytes(), StandardCharsets.UTF_8)
-                : secureSetting.get(newSettings).toString()
-        );
-        assertTrue(yamlSetting.exists(newSettings));
-        assertEquals("stateless.yaml.value", yamlSetting.get(newSettings).toString());
     }
 
     public void testGetAsArrayFailsOnDuplicates() {

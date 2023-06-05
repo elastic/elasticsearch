@@ -1027,13 +1027,13 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
 
         CountDownLatch latch = new CountDownLatch(1);
         SearchShardTask task = new SearchShardTask(123L, "", "", "", null, Collections.emptyMap());
-        assertEquals(5, numWrapInvocations.get());
+        assertEquals(7, numWrapInvocations.get());
         service.executeQueryPhase(request, task, new ActionListener<SearchPhaseResult>() {
             @Override
             public void onResponse(SearchPhaseResult searchPhaseResult) {
                 try {
                     // make sure that the wrapper is called when the query is actually executed
-                    assertEquals(6, numWrapInvocations.get());
+                    assertEquals(8, numWrapInvocations.get());
                 } finally {
                     latch.countDown();
                 }

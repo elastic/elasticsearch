@@ -8,6 +8,7 @@
 
 package org.elasticsearch.synonyms;
 
+import org.apache.logging.log4j.core.appender.rolling.action.Action;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
@@ -26,6 +27,7 @@ import org.elasticsearch.cluster.routing.Preference;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -163,14 +165,7 @@ public class SynonymsManagementAPIService {
         // TODO Add synonym rules validation
 
         // Delete synonyms set if it existed previously. Avoid catching an index not found error by ignoring unavailable indices
-        DeleteByQueryRequest dbqRequest = new DeleteByQueryRequest(SYNONYMS_ALIAS_NAME).setQuery(
-            QueryBuilders.termQuery(SYNONYMS_SET_FIELD, resourceName)
-        ).setIndicesOptions(IndicesOptions.fromOptions(true, true, false, false));
-
-        client.execute(
-            DeleteByQueryAction.INSTANCE,
-            dbqRequest,
-            listener.delegateFailure((deleteByQueryResponseListener, bulkByScrollResponse) -> {
+        deleteSynonymSetRules(resourceName, listener.delegateFailure((deleteByQueryResponseListener, bulkByScrollResponse) -> {
                 boolean created = bulkByScrollResponse.getDeleted() == 0;
                 final List<BulkItemResponse.Failure> bulkFailures = bulkByScrollResponse.getBulkFailures();
                 if (bulkFailures.isEmpty() == false) {
@@ -219,13 +214,17 @@ public class SynonymsManagementAPIService {
         );
     }
 
-    public void deleteSynonymsSet(String resourceName, ActionListener<AcknowledgedResponse> listener) {
+    // Deletes a synonym set rules, using the supplied listener
+    private void deleteSynonymSetRules(String resourceName, ActionListener<BulkByScrollResponse> listener) {
         // Delete synonyms set if it existed previously. Avoid catching an index not found error by ignoring unavailable indices
         DeleteByQueryRequest dbqRequest = new DeleteByQueryRequest(SYNONYMS_ALIAS_NAME).setQuery(
             QueryBuilders.termQuery(SYNONYMS_SET_FIELD, resourceName)
-        );
+        ).setIndicesOptions(IndicesOptions.fromOptions(true, true, false, false));
 
-        client.execute(DeleteByQueryAction.INSTANCE, dbqRequest, listener.delegateFailure((l, bulkByScrollResponse) -> {
+        client.execute(DeleteByQueryAction.INSTANCE, dbqRequest, listener);
+    }
+    public void deleteSynonymsSet(String resourceName, ActionListener<AcknowledgedResponse> listener) {
+        deleteSynonymSetRules(resourceName, listener.delegateFailure((l, bulkByScrollResponse) -> {
             if (bulkByScrollResponse.getDeleted() == 0) {
                 // If nothing was deleted, synonym set did not exist
                 l.onFailure(new ResourceNotFoundException("Synonym set [" + resourceName + "] not found"));

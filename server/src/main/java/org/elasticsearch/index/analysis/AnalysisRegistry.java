@@ -477,7 +477,23 @@ public final class AnalysisRegistry implements Closeable {
                 }
             } else if (component == Component.NORMALIZER) {
                 if (typeName == null || typeName.equals("custom")) {
-                    T factory = (T) new CustomNormalizerProvider(settings, name, currentSettings);
+                    CustomNormalizerProvider.Builder builder = new CustomNormalizerProvider.Builder();
+                    T factory = (T) builder.indexSettings(settings).name(name).analyzerSettings(currentSettings).build();
+                    factories.put(name, factory);
+                    continue;
+                }
+                if (typeName.equals("pattern_replace")) {
+                    CustomNormalizerProvider.Builder builder = new CustomNormalizerProvider.Builder();
+                    T factory = (T) builder.indexSettings(settings)
+                        .name(name)
+                        .analyzerSettings(currentSettings)
+                        .notPreConfiguredCharFilterFactories(
+                            List.of(charFilters.get("pattern_replace").get(settings, environment, name, currentSettings))
+                        )
+                        .notPreConfiguredTokenFilterFactories(
+                            List.of(tokenFilters.get("pattern_replace").get(settings, environment, name, currentSettings))
+                        )
+                        .build();
                     factories.put(name, factory);
                     continue;
                 }

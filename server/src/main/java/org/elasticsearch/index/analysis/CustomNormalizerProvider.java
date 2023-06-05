@@ -26,9 +26,76 @@ public final class CustomNormalizerProvider extends AbstractIndexAnalyzerProvide
 
     private CustomAnalyzer customAnalyzer;
 
-    public CustomNormalizerProvider(IndexSettings indexSettings, String name, Settings settings) {
+    private List<CharFilterFactory> notPreConfiguredCharFilterFactories;
+
+    private List<TokenFilterFactory> notPreConfiguredTokenFilterFactories;
+
+    private CustomNormalizerProvider(
+        IndexSettings indexSettings,
+        String name,
+        Settings settings,
+        List<CharFilterFactory> notPreConfiguredCharFilterFactories,
+        List<TokenFilterFactory> notPreConfiguredTokenFilterFactories
+    ) {
         super(name, settings);
         this.analyzerSettings = settings;
+        this.notPreConfiguredCharFilterFactories = notPreConfiguredCharFilterFactories;
+        this.notPreConfiguredTokenFilterFactories = notPreConfiguredTokenFilterFactories;
+    }
+
+    public static class Builder {
+
+        private IndexSettings indexSettings;
+
+        private Settings analyzerSettings;
+
+        private String name;
+
+        private List<CharFilterFactory> notPreConfiguredCharFilterFactories;
+
+        private List<TokenFilterFactory> notPreConfiguredTokenFilterFactories;
+
+        public Builder() {
+
+        }
+
+        public Builder indexSettings(IndexSettings indexSettings) {
+            this.indexSettings = indexSettings;
+            return this;
+        }
+
+        public Builder analyzerSettings(Settings settings) {
+            this.analyzerSettings = settings;
+            return this;
+        }
+
+        public Builder name(String name) {
+            this.name = name;
+            return this;
+        }
+
+        public Builder notPreConfiguredCharFilterFactories(List<CharFilterFactory> notPreConfiguredCharFilterFactories) {
+            this.notPreConfiguredCharFilterFactories = notPreConfiguredCharFilterFactories;
+            return this;
+        }
+
+        public Builder notPreConfiguredTokenFilterFactories(List<TokenFilterFactory> notPreConfiguredCharFilterFactories) {
+            this.notPreConfiguredTokenFilterFactories = notPreConfiguredCharFilterFactories;
+            return this;
+        }
+
+        public CustomNormalizerProvider build() {
+
+            return new CustomNormalizerProvider(
+                indexSettings,
+                name,
+                analyzerSettings,
+                notPreConfiguredCharFilterFactories,
+                notPreConfiguredTokenFilterFactories
+            );
+
+        }
+
     }
 
     public void build(
@@ -68,6 +135,14 @@ public final class CustomNormalizerProvider extends AbstractIndexAnalyzerProvide
                 throw new IllegalArgumentException("Custom normalizer [" + name() + "] may not use filter [" + tokenFilterName + "]");
             }
             tokenFilterList.add(tokenFilter);
+        }
+
+        if (notPreConfiguredCharFilterFactories != null) {
+            charFiltersList.addAll(notPreConfiguredCharFilterFactories);
+        }
+
+        if (notPreConfiguredTokenFilterFactories != null) {
+            tokenFilterList.addAll(notPreConfiguredTokenFilterFactories);
         }
 
         this.customAnalyzer = new CustomAnalyzer(

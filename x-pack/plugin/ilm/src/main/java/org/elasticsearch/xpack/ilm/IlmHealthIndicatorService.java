@@ -103,29 +103,33 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
 
     static final Map<String, RuleConfig> RULES_BY_ACTION_CONFIG = Map.of(
         RolloverAction.NAME,
-        actionRule(RolloverAction.NAME).stepRules(stepRule(WaitForActiveShardsStep.NAME)),
+        actionRule(RolloverAction.NAME).stepRules(stepRule(WaitForActiveShardsStep.NAME, ONE_DAY)),
         //
         MigrateAction.NAME,
         actionRule(MigrateAction.NAME).maxTimeOnAction(ONE_DAY).noStepRules(),
         //
         SearchableSnapshotAction.NAME,
         actionRule(SearchableSnapshotAction.NAME).maxTimeOnAction(ONE_DAY)
-            .stepRules(stepRule(WaitForDataTierStep.NAME), stepRule(WaitForIndexColorStep.NAME), stepRule(WaitForNoFollowersStep.NAME)),
+            .stepRules(
+                stepRule(WaitForDataTierStep.NAME, ONE_DAY),
+                stepRule(WaitForIndexColorStep.NAME, ONE_DAY),
+                stepRule(WaitForNoFollowersStep.NAME, ONE_DAY)
+            ),
         //
         DeleteAction.NAME,
-        actionRule(DeleteAction.NAME).maxTimeOnAction(ONE_DAY).stepRules(stepRule(DeleteStep.NAME)),
+        actionRule(DeleteAction.NAME).maxTimeOnAction(ONE_DAY).stepRules(stepRule(DeleteStep.NAME, ONE_DAY)),
         //
         ShrinkAction.NAME,
-        actionRule(ShrinkAction.NAME).maxTimeOnAction(ONE_DAY).stepRules(stepRule(WaitForNoFollowersStep.NAME)),
+        actionRule(ShrinkAction.NAME).maxTimeOnAction(ONE_DAY).stepRules(stepRule(WaitForNoFollowersStep.NAME, ONE_DAY)),
         //
         AllocateAction.NAME,
         actionRule(AllocateAction.NAME).maxTimeOnAction(ONE_DAY).noStepRules(),
         //
         ForceMergeAction.NAME,
-        actionRule(ForceMergeAction.NAME).maxTimeOnAction(ONE_DAY).stepRules(stepRule(WaitForIndexColorStep.NAME)),
+        actionRule(ForceMergeAction.NAME).maxTimeOnAction(ONE_DAY).stepRules(stepRule(WaitForIndexColorStep.NAME, ONE_DAY)),
         //
         DownsampleAction.NAME,
-        actionRule(DownsampleAction.NAME).maxTimeOnAction(ONE_DAY).stepRules(stepRule(WaitForNoFollowersStep.NAME))
+        actionRule(DownsampleAction.NAME).maxTimeOnAction(ONE_DAY).stepRules(stepRule(WaitForNoFollowersStep.NAME, ONE_DAY))
     );
 
     public static final Collection<RuleConfig> ILM_RULE_EVALUATOR = RULES_BY_ACTION_CONFIG.values();
@@ -352,8 +356,8 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
     }
 
     public record StepRule(String step, TimeValue maxTimeOn, long maxRetries) implements RuleConfig {
-        static StepRule stepRule(String name) {
-            return new StepRule(name, ONE_DAY, 100);
+        static StepRule stepRule(String name, TimeValue maxTimeOn) {
+            return new StepRule(name, maxTimeOn, 100);
         }
 
         @Override

@@ -97,13 +97,14 @@ public class RuleConfigTests extends ESTestCase {
     public void testRuleConfigBuilder() {
         var now = System.currentTimeMillis();
         var lastExecutionTime = System.currentTimeMillis() - TimeValue.timeValueDays(2).millis();
+        var maxTimeOnStep = TimeValue.timeValueDays(1);
         var expectedAction = "some-action";
         var rules = IlmHealthIndicatorService.RuleConfig.Builder.actionRule(expectedAction)
             .maxTimeOnAction(TimeValue.timeValueDays(1))
             .stepRules(
-                IlmHealthIndicatorService.StepRule.stepRule("step-1"),
-                IlmHealthIndicatorService.StepRule.stepRule("step-2"),
-                IlmHealthIndicatorService.StepRule.stepRule("step-3")
+                IlmHealthIndicatorService.StepRule.stepRule("step-1", maxTimeOnStep),
+                IlmHealthIndicatorService.StepRule.stepRule("step-2", maxTimeOnStep),
+                IlmHealthIndicatorService.StepRule.stepRule("step-3", maxTimeOnStep)
             );
 
         // An unknown action should not satisfy the conditions

@@ -192,31 +192,3 @@ row ip_str = "1.1.1.1" | eval ip = to_ip(ip_str), not_ip = to_ip("blah") | where
 ip_str:keyword    |ip:ip   |not_ip:ip
 1.1.1.1           |1.1.1.1 |null
 ;
-
-pushDownIP
-from hosts | where ip1 == to_ip("::1");
-
-card:keyword   |host:keyword   |ip0:ip     |ip1:ip
-eth1           |alpha          |::1        |::1
-eth0           |beta           |127.0.0.1  |::1
-;
-
-pushDownIPWithIn
-from hosts | where ip1 in (to_ip("::1"), to_ip("127.0.0.1"));
-
-card:keyword   |host:keyword   |ip0:ip      |ip1:ip
-eth0           |alpha          |127.0.0.1   |127.0.0.1
-eth1           |alpha          |::1         |::1
-eth0           |beta           |127.0.0.1   |::1
-;
-
-pushDownIPWithComparision
-from hosts | where ip1 > to_ip("127.0.0.1") | project card, ip1;
-
-card:keyword   |ip1:ip
-eth1           |127.0.0.2
-eth1           |128.0.0.1
-lo0            |fe81::cae2:65ff:fece:feb9
-eth0           |127.0.0.3
-eth0           |fe80::cae2:65ff:fece:fec1
-;

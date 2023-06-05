@@ -7,9 +7,7 @@
 
 package org.elasticsearch.xpack.ql.planner;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
@@ -66,8 +64,6 @@ import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
-
-import static org.elasticsearch.xpack.ql.type.DataTypes.IP;
 
 public final class ExpressionTranslators {
 
@@ -293,8 +289,6 @@ public final class ExpressionTranslators {
                 }
                 format = formatter.pattern();
                 isDateLiteralComparison = true;
-            } else if (field.dataType() == IP && value instanceof BytesRef bytesRef) {
-                value = DocValueFormat.IP.format(bytesRef);
             }
 
             ZoneId zoneId = null;
@@ -397,14 +391,14 @@ public final class ExpressionTranslators {
 
         private static Query translate(In in, TranslatorHandler handler) {
             FieldAttribute field = checkIsFieldAttribute(in.value());
-            boolean needsTypeSpecificValueHandling = DataTypes.isDateTime(field.dataType()) || field.dataType() == IP;
+            boolean isDateTimeComparison = DataTypes.isDateTime(field.dataType());
 
             Set<Object> terms = new LinkedHashSet<>();
             List<Query> queries = new ArrayList<>();
 
             for (Expression rhs : in.list()) {
                 if (DataTypes.isNull(rhs.dataType()) == false) {
-                    if (needsTypeSpecificValueHandling) {
+                    if (isDateTimeComparison) {
                         // delegates to BinaryComparisons translator to ensure consistent handling of date and time values
                         Query query = BinaryComparisons.translate(new Equals(in.source(), in.value(), rhs, in.zoneId()), handler);
 

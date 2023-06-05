@@ -94,28 +94,74 @@ public class RuleConfigTests extends ESTestCase {
         assertEquals(IlmHealthIndicatorService.RuleConfig.getElapsedTime(a, null), TimeValue.ZERO);
     }
 
+    public void testRuleConfigBuilder() {
+        var now = System.currentTimeMillis();
+        var lastExecutionTime = System.currentTimeMillis() - TimeValue.timeValueDays(2).millis();
+        var expectedAction = "some-action";
+        var rules = IlmHealthIndicatorService.RuleConfig.Builder.actionRule(expectedAction)
+            .maxTimeOnAction(TimeValue.timeValueDays(1))
+            .stepRules(
+                IlmHealthIndicatorService.StepRule.stepRule("step-1"),
+                IlmHealthIndicatorService.StepRule.stepRule("step-2"),
+                IlmHealthIndicatorService.StepRule.stepRule("step-3")
+            );
+
+        // An unknown action should not satisfy the conditions
+        assertFalse(rules.test(now, metadataAlwaysOutOfRule(lastExecutionTime, randomAlphaOfLength(30), "step-1")));
+        // The following 3 steps should satisfy the conditions
+        assertTrue(rules.test(now, metadataAlwaysOutOfRule(lastExecutionTime, expectedAction, "step-1")));
+        assertTrue(rules.test(now, metadataAlwaysOutOfRule(lastExecutionTime, expectedAction, "step-2")));
+        assertTrue(rules.test(now, metadataAlwaysOutOfRule(lastExecutionTime, expectedAction, "step-3")));
+        // An unknown step should not satisfy the conditions
+        assertFalse(rules.test(now, metadataAlwaysOutOfRule(lastExecutionTime, expectedAction, randomAlphaOfLength(30))));
+
+        rules = IlmHealthIndicatorService.RuleConfig.Builder.actionRule(expectedAction)
+            .maxTimeOnAction(TimeValue.timeValueDays(1))
+            .noStepRules();
+
+        assertTrue(rules.test(now, metadataAlwaysOutOfRule(lastExecutionTime, expectedAction, randomAlphaOfLength(30))));
+        // An unknown action and step should satisfy the conditions
+        assertFalse(rules.test(now, metadataAlwaysOutOfRule(lastExecutionTime, randomAlphaOfLength(30), randomAlphaOfLength(30))));
+    }
+
     private IlmHealthIndicatorService.RuleConfig ruleAlwaysReturn(boolean shouldReturn) {
         return (now, indexMetadata) -> shouldReturn;
     }
 
-    private IndexMetadata metadataStep(String currentStep, long stepTime, long stepRetries) {
-        return IndexMetadata.builder("some-index")
-            .settings(settings(Version.CURRENT))
-            .putCustom(
-                ILM_CUSTOM_METADATA_KEY,
-                Map.of("step", currentStep, "step_time", String.valueOf(stepTime), "failed_step_retry_count", String.valueOf(stepRetries))
+    private IndexMetadata metadataAlwaysOutOfRule(long lastExecutionTime, String action, String step) {
+        return baseBuilder().putCustom(
+            ILM_CUSTOM_METADATA_KEY,
+            Map.of(
+                "action",
+                action,
+                "action_time",
+                String.valueOf(lastExecutionTime),
+                "step",
+                step,
+                "step_time",
+                String.valueOf(lastExecutionTime),
+                "failed_step_retry_count",
+                "200"
             )
-            .numberOfShards(randomIntBetween(1, 5))
-            .numberOfReplicas(randomIntBetween(0, 5))
-            .build();
+        ).build();
+    }
+
+    private IndexMetadata metadataStep(String currentStep, long stepTime, long stepRetries) {
+        return baseBuilder().putCustom(
+            ILM_CUSTOM_METADATA_KEY,
+            Map.of("step", currentStep, "step_time", String.valueOf(stepTime), "failed_step_retry_count", String.valueOf(stepRetries))
+        ).build();
     }
 
     private IndexMetadata metadataAction(String currentAction, long actionTime) {
+        return baseBuilder().putCustom(ILM_CUSTOM_METADATA_KEY, Map.of("action", currentAction, "action_time", String.valueOf(actionTime)))
+            .build();
+    }
+
+    private IndexMetadata.Builder baseBuilder() {
         return IndexMetadata.builder("some-index")
             .settings(settings(Version.CURRENT))
-            .putCustom(ILM_CUSTOM_METADATA_KEY, Map.of("action", currentAction, "action_time", String.valueOf(actionTime)))
             .numberOfShards(randomIntBetween(1, 5))
-            .numberOfReplicas(randomIntBetween(0, 5))
-            .build();
+            .numberOfReplicas(randomIntBetween(0, 5));
     }
 }

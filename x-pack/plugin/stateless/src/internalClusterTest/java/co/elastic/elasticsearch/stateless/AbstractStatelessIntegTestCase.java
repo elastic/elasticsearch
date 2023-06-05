@@ -259,7 +259,7 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
                         InputStream remote = blobContainerForFile.readBlob(
                             blobLocation.blobName(),
                             blobLocation.offset(),
-                            blobLocation.length()
+                            blobLocation.fileLength()
                         );
                     ) {
                         assertEquals("File [" + blobLocation + "] in object store has a different content than local file ", local, remote);

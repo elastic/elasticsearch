@@ -70,7 +70,7 @@ public record StatelessCompoundCommit(
             in.readVLong(),
             in.readVLong(),
             in.readString(),
-            in.readImmutableMap(StreamInput::readString, BlobLocation::new)
+            in.readImmutableMap(StreamInput::readString, BlobLocation::readFromTransport)
         );
     }
 
@@ -124,23 +124,9 @@ public record StatelessCompoundCommit(
 
         private long headerSize = -1;
 
-        public long write(OutputStream output, Directory directory) throws IOException {
-            headerSize = -1;
+        public long writeToStore(OutputStream output, Directory directory) throws IOException {
             PositionTrackingOutputStreamStreamOutput positionTracking = new PositionTrackingOutputStreamStreamOutput(output);
-            BufferedChecksumStreamOutput out = new BufferedChecksumStreamOutput(positionTracking);
-            CodecUtil.writeHeader(new OutputStreamDataOutput(out), SHARD_COMMIT_CODEC, CURRENT_VERSION);
-            TransportVersion.writeVersion(TransportVersion.CURRENT, out);
-            out.writeWriteable(shardId);
-            out.writeVLong(generation);
-            out.writeVLong(primaryTerm);
-            out.writeString(nodeEphemeralId);
-            out.writeMap(referencedBlobFiles, StreamOutput::writeString, StreamOutput::writeWriteable);
-            out.writeList(internalFiles);
-            // Add 8 bytes for the header size field and 4 bytes for the checksum
-            headerSize = positionTracking.position() + 8 + 4;
-            out.writeLong(headerSize);
-            out.writeInt((int) out.getChecksum());
-            out.flush();
+            writeHeader(positionTracking, CURRENT_VERSION);
 
             for (InternalFile internalFile : internalFiles) {
                 try (ChecksumIndexInput input = directory.openChecksumInput(internalFile.name(), IOContext.READONCE)) {
@@ -149,6 +135,28 @@ public record StatelessCompoundCommit(
             }
 
             return positionTracking.position();
+        }
+
+        void writeHeader(PositionTrackingOutputStreamStreamOutput positionTracking, int version) throws IOException {
+            BufferedChecksumStreamOutput out = new BufferedChecksumStreamOutput(positionTracking);
+            CodecUtil.writeHeader(new OutputStreamDataOutput(out), SHARD_COMMIT_CODEC, version);
+            TransportVersion.writeVersion(TransportVersion.CURRENT, out);
+            out.writeWriteable(shardId);
+            out.writeVLong(generation);
+            out.writeVLong(primaryTerm);
+            out.writeString(nodeEphemeralId);
+            out.writeMap(
+                referencedBlobFiles,
+                StreamOutput::writeString,
+                (so, v) -> v.writeToStore(so, version >= VERSION_WITH_BLOB_LENGTH)
+            );
+            out.writeList(internalFiles);
+            out.flush();
+            // Add 8 bytes for the header size field and 4 bytes for the checksum
+            headerSize = positionTracking.position() + 8 + 4;
+            out.writeLong(headerSize);
+            out.writeInt((int) out.getChecksum());
+            out.flush();
         }
 
         public StatelessCompoundCommit finish(String commitFileName) {
@@ -165,8 +173,9 @@ public record StatelessCompoundCommit(
     }
 
     private static final String SHARD_COMMIT_CODEC = "stateless_commit";
-    private static final int VERSION_WITH_COMMIT_FILES = 0;
-    private static final int CURRENT_VERSION = VERSION_WITH_COMMIT_FILES;
+    static final int VERSION_WITH_COMMIT_FILES = 0;
+    static final int VERSION_WITH_BLOB_LENGTH = 1;
+    static final int CURRENT_VERSION = VERSION_WITH_BLOB_LENGTH;
 
     public static StatelessCompoundCommit readFromStore(StreamInput input) throws IOException {
         try (BufferedChecksumStreamInput in = new BufferedChecksumStreamInput(input, SHARD_COMMIT_CODEC)) {
@@ -176,7 +185,6 @@ public record StatelessCompoundCommit(
                 VERSION_WITH_COMMIT_FILES,
                 CURRENT_VERSION
             );
-            assert version == VERSION_WITH_COMMIT_FILES;
             TransportVersion transportVersion = TransportVersion.readVersion(in);
             if (TransportVersion.isCompatible(transportVersion) == false) {
                 throw new IOException("Incompatible transport version: " + transportVersion);
@@ -185,7 +193,10 @@ public record StatelessCompoundCommit(
             long generation = in.readVLong();
             long primaryTerm = in.readVLong();
             String nodeEphemeralId = in.readString();
-            Map<String, BlobLocation> referencedBlobLocations = in.readMap(StreamInput::readString, BlobLocation::new);
+            Map<String, BlobLocation> referencedBlobLocations = in.readMap(
+                StreamInput::readString,
+                (is) -> BlobLocation.readFromStore(is, version >= VERSION_WITH_BLOB_LENGTH)
+            );
             List<Writer.InternalFile> internalFiles = in.readList(Writer.InternalFile::new);
             long headerSize = in.readLong();
             long expectedChecksum = in.getChecksum();
@@ -224,13 +235,17 @@ public record StatelessCompoundCommit(
         long startingOffset,
         Map<String, BlobLocation> referencedBlobFiles
     ) {
+        long blobLength = internalFiles.stream().mapToLong(Writer.InternalFile::length).sum() + startingOffset;
 
         var commitFiles = Maps.<String, BlobLocation>newHashMapWithExpectedSize(referencedBlobFiles.size() + internalFiles.size());
         commitFiles.putAll(referencedBlobFiles);
 
         long currentOffset = startingOffset;
         for (Writer.InternalFile internalFile : internalFiles) {
-            commitFiles.put(internalFile.name(), new BlobLocation(primaryTerm, commitFileName, currentOffset, internalFile.length()));
+            commitFiles.put(
+                internalFile.name(),
+                new BlobLocation(primaryTerm, commitFileName, blobLength, currentOffset, internalFile.length())
+            );
             currentOffset += internalFile.length();
         }
 

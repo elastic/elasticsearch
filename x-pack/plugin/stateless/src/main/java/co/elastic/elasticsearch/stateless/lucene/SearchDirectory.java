@@ -196,7 +196,7 @@ public class SearchDirectory extends BaseDirectory {
         if (location == null) {
             throw new FileNotFoundException(name);
         }
-        return location.length();
+        return location.fileLength();
     }
 
     @Override
@@ -246,11 +246,11 @@ public class SearchDirectory extends BaseDirectory {
         assert location != null : "unknown file [" + name + "] accessed";
         return new SearchIndexInput(
             name,
-            cacheService.getCacheFile(new FileCacheKey(shardId, location.blobName()), location.offset() + location.length()),
+            cacheService.getCacheFile(new FileCacheKey(shardId, location.blobName()), location.blobLength()),
             context,
             blobContainer.get().apply(location.primaryTerm()),
             cacheService,
-            location.length(),
+            location.fileLength(),
             location.offset()
         );
     }

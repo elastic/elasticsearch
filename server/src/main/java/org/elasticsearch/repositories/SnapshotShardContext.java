@@ -66,30 +66,7 @@ public final class SnapshotShardContext extends DelegatingActionListener<ShardSn
         final long snapshotStartTime,
         ActionListener<ShardSnapshotResult> listener
     ) {
-        super(new ActionListener<>() {
-            @Override
-            public void onResponse(ShardSnapshotResult shardSnapshotResult) {
-                commitRef.onCompletion(listener.map(ignored -> shardSnapshotResult));
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                commitRef.onCompletion(new ActionListener<>() {
-                    @Override
-                    public void onResponse(Void unused) {
-                        listener.onFailure(e);
-                    }
-
-                    @Override
-                    public void onFailure(Exception e2) {
-                        if (e2 != e) {
-                            e.addSuppressed(e2);
-                        }
-                        listener.onFailure(e);
-                    }
-                });
-            }
-        });
+        super(commitRef.closingBefore(listener));
         this.store = store;
         this.mapperService = mapperService;
         this.snapshotId = snapshotId;

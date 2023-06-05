@@ -43,7 +43,7 @@ public class SnapshotIndexCommit extends AbstractRefCounted {
      * Called after all other refs are released, to release the initial ref (if not already released) and expose any exception thrown
      * when the inner {@link IndexCommit} was closed.
      */
-    public void onCompletion(ActionListener<Void> completionListener) {
+    private void onCompletion(ActionListener<Void> completionListener) {
         releaseInitialRef.run();
         assert refCount() <= 1; // almost always zero here, but may not be if a concurrent abort has not run the last decRef() yet
         completionListeners.addListener(completionListener); // completed directly or by a concurrently-running aborting thread
@@ -59,5 +59,36 @@ public class SnapshotIndexCommit extends AbstractRefCounted {
     public IndexCommit indexCommit() {
         assert hasReferences();
         return commitRef.getIndexCommit();
+    }
+
+    /**
+     * Returns a listener which closes this commit before completing the delegate listener, marshalling exceptions to the delegate as
+     * appropriate.
+     */
+    public <T> ActionListener<T> closingBefore(ActionListener<T> delegate) {
+        return new ActionListener<T>() {
+            @Override
+            public void onResponse(T result) {
+                onCompletion(delegate.map(ignored -> result));
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                onCompletion(new ActionListener<>() {
+                    @Override
+                    public void onResponse(Void unused) {
+                        delegate.onFailure(e);
+                    }
+
+                    @Override
+                    public void onFailure(Exception e2) {
+                        if (e2 != e) {
+                            e.addSuppressed(e2);
+                        }
+                        delegate.onFailure(e);
+                    }
+                });
+            }
+        };
     }
 }

@@ -160,10 +160,6 @@ public class SynonymsManagementAPIService {
     }
 
     public void putSynonymsSet(String resourceName, SynonymRule[] synonymsSet, ActionListener<UpdateSynonymsResult> listener) {
-
-        // TODO Add synonym rules validation
-
-        // Delete synonyms set if it existed previously. Avoid catching an index not found error by ignoring unavailable indices
         deleteSynonymSetRules(resourceName, listener.delegateFailure((deleteByQueryResponseListener, bulkByScrollResponse) -> {
             boolean created = bulkByScrollResponse.getDeleted() == 0;
             final List<BulkItemResponse.Failure> bulkFailures = bulkByScrollResponse.getBulkFailures();
@@ -217,7 +213,7 @@ public class SynonymsManagementAPIService {
         // Delete synonyms set if it existed previously. Avoid catching an index not found error by ignoring unavailable indices
         DeleteByQueryRequest dbqRequest = new DeleteByQueryRequest(SYNONYMS_ALIAS_NAME).setQuery(
             QueryBuilders.termQuery(SYNONYMS_SET_FIELD, resourceName)
-        ).setIndicesOptions(IndicesOptions.fromOptions(true, true, false, false));
+        ).setRefresh(true).setIndicesOptions(IndicesOptions.fromOptions(true, true, false, false));
 
         client.execute(DeleteByQueryAction.INSTANCE, dbqRequest, listener);
     }

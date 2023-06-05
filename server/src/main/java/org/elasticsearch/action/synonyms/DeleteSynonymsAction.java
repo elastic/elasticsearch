@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.synonyms;
 
+import org.apache.logging.log4j.util.Strings;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
@@ -35,9 +36,11 @@ public class DeleteSynonymsAction extends ActionType<AcknowledgedResponse> {
             this.synonymsSetId = in.readString();
         }
 
-        public Request(String SynonymsSetId) {
-            Objects.requireNonNull(SynonymsSetId, "Synonym set ID cannot be null");
-            this.synonymsSetId = SynonymsSetId;
+        public Request(String synonymsSetId) {
+            if (Strings.isBlank(synonymsSetId)) {
+                throw new IllegalArgumentException("Synonym set ID cannot be null or blank");
+            }
+            this.synonymsSetId = synonymsSetId;
         }
 
         @Override

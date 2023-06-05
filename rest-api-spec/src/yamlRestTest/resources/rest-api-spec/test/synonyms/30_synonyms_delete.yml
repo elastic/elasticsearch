@@ -21,6 +21,11 @@ setup:
   - match:
       acknowledged: true
 
+  - do:
+      catch: missing
+      synonyms.get:
+        synonyms_set: test-get-synonyms
+
 ---
 "Delete synonyms set - not found":
   - do:

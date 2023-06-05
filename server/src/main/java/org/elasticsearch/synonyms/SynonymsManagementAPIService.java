@@ -18,6 +18,7 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -216,6 +217,33 @@ public class SynonymsManagementAPIService {
                     }));
             })
         );
+    }
+
+    public void deleteSynonymsSet(String resourceName, ActionListener<AcknowledgedResponse> listener) {
+        // Delete synonyms set if it existed previously. Avoid catching an index not found error by ignoring unavailable indices
+        DeleteByQueryRequest dbqRequest = new DeleteByQueryRequest(SYNONYMS_ALIAS_NAME).setQuery(
+            QueryBuilders.termQuery(SYNONYMS_SET_FIELD, resourceName)
+        );
+
+        client.execute(DeleteByQueryAction.INSTANCE, dbqRequest, listener.delegateFailure((l, bulkByScrollResponse) -> {
+            if (bulkByScrollResponse.getDeleted() == 0) {
+                // If nothing was deleted, synonym set did not exist
+                l.onFailure(new ResourceNotFoundException("Synonym set [" + resourceName + "] not found"));
+                return;
+            }
+            final List<BulkItemResponse.Failure> bulkFailures = bulkByScrollResponse.getBulkFailures();
+            if (bulkFailures.isEmpty() == false) {
+                listener.onFailure(
+                    new ElasticsearchException(
+                        "Error deleting synonym set: "
+                            + bulkFailures.stream().map(BulkItemResponse.Failure::getMessage).collect(Collectors.joining("\n"))
+                    )
+                );
+                return;
+            }
+
+            listener.onResponse(AcknowledgedResponse.of(true));
+        }));
     }
 
     static Settings settings() {

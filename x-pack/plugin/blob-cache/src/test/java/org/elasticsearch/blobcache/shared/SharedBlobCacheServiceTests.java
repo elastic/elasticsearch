@@ -87,7 +87,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 ByteRange.of(0L, 1L),
                 (channel, channelPos, relativePos, length) -> 1,
                 (channel, channelPos, relativePos, length, progressUpdater) -> progressUpdater.accept(length),
-                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
+                ThreadPool.Names.GENERIC,
                 bytesReadFuture
             );
             synchronized (cacheService) {

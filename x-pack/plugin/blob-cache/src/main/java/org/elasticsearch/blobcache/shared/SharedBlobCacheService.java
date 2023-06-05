@@ -48,7 +48,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -750,7 +749,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             final ByteRange rangeToRead,
             final RangeAvailableHandler reader,
             final RangeMissingHandler writer,
-            final Executor executor,
+            final String executor,
             final ActionListener<Integer> listener
         ) {
             assert rangeToRead.length() > 0;
@@ -764,13 +763,27 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                 final SharedBytes.IO fileChannel = sharedBytes.getFileChannel(sharedBytesPos);
                 resources[0] = Releasables.releaseOnce(fileChannel);
 
-                final ActionListener<Void> rangeListener = rangeListener(
-                    rangeToRead,
-                    reader,
-                    ActionListener.runBefore(listener, () -> Releasables.close(resources)),
-                    fileChannel
-                );
-                final List<SparseFileTracker.Gap> gaps = tracker.waitForRange(rangeToWrite, rangeToRead, rangeListener);
+                ActionListener<Integer> releasingListener = ActionListener.runBefore(listener, () -> Releasables.close(resources));
+                final List<SparseFileTracker.Gap> gaps = tracker.waitForRange(rangeToWrite, rangeToRead, ActionListener.wrap(success -> {
+                    final long physicalStartOffset = physicalStartOffset();
+                    assert regionOwners[sharedBytesPos].get() == this;
+                    final int read = reader.onRangeAvailable(
+                        fileChannel,
+                        physicalStartOffset + rangeToRead.start(),
+                        rangeToRead.start(),
+                        rangeToRead.length()
+                    );
+                    assert read == rangeToRead.length()
+                        : "partial read ["
+                            + read
+                            + "] does not match the range to read ["
+                            + rangeToRead.end()
+                            + '-'
+                            + rangeToRead.start()
+                            + ']';
+                    readCount.increment();
+                    releasingListener.onResponse(read);
+                }, releasingListener::onFailure));
 
                 if (gaps.isEmpty() == false) {
                     fillGaps(writer, executor, fileChannel, gaps);
@@ -780,9 +793,10 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             }
         }
 
-        private void fillGaps(RangeMissingHandler writer, Executor executor, SharedBytes.IO fileChannel, List<SparseFileTracker.Gap> gaps) {
+        private void fillGaps(RangeMissingHandler writer, String executor, SharedBytes.IO fileChannel, List<SparseFileTracker.Gap> gaps) {
+            final var exec = threadPool.executor(executor);
             for (SparseFileTracker.Gap gap : gaps) {
-                executor.execute(new AbstractRunnable() {
+                exec.execute(new AbstractRunnable() {
 
                     @Override
                     protected void doRun() throws Exception {
@@ -813,34 +827,6 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                     }
                 });
             }
-        }
-
-        private ActionListener<Void> rangeListener(
-            ByteRange rangeToRead,
-            RangeAvailableHandler reader,
-            ActionListener<Integer> listener,
-            SharedBytes.IO fileChannel
-        ) {
-            return ActionListener.wrap(success -> {
-                final long physicalStartOffset = physicalStartOffset();
-                assert regionOwners[sharedBytesPos].get() == CacheFileRegion.this;
-                final int read = reader.onRangeAvailable(
-                    fileChannel,
-                    physicalStartOffset + rangeToRead.start(),
-                    rangeToRead.start(),
-                    rangeToRead.length()
-                );
-                assert read == rangeToRead.length()
-                    : "partial read ["
-                        + read
-                        + "] does not match the range to read ["
-                        + rangeToRead.end()
-                        + '-'
-                        + rangeToRead.start()
-                        + ']';
-                readCount.increment();
-                listener.onResponse(read);
-            }, listener::onFailure);
         }
 
         private static void releaseAndFail(ActionListener<Integer> listener, Releasable decrementRef, Exception e) {
@@ -907,7 +893,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                         assert regionOwners[fileRegion.sharedBytesPos].get() == fileRegion;
                         assert channelPos >= fileRegion.physicalStartOffset() && channelPos + len <= fileRegion.physicalEndOffset();
                         writer.fillCacheRange(channel, channelPos, relativePos - writeOffset, len, progressUpdater);
-                    }, threadPool.executor(executor), listeners.acquire(i -> bytesRead.updateAndGet(j -> Math.addExact(i, j))));
+                    }, executor, listeners.acquire(i -> bytesRead.updateAndGet(j -> Math.addExact(i, j))));
                 }
             }
             readsComplete.get();

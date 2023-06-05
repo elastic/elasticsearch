@@ -74,7 +74,7 @@ public class SegmentInfoCachingDirectory extends BaseDirectory {
         if (blobLocation == null) {
             throw new FileNotFoundException(name);
         }
-        return blobLocation.length();
+        return blobLocation.fileLength();
     }
 
     @Override
@@ -124,8 +124,8 @@ public class SegmentInfoCachingDirectory extends BaseDirectory {
         try {
             return new BytesReferenceIndexInput(name, blobContentsByName.computeIfAbsent(name, n -> {
                 try (
-                    var bso = new BytesStreamOutput(Math.toIntExact(blobLocation.length()));
-                    var inputStream = blobContainer.readBlob(blobLocation.blobName(), blobLocation.offset(), blobLocation.length())
+                    var bso = new BytesStreamOutput(Math.toIntExact(blobLocation.fileLength()));
+                    var inputStream = blobContainer.readBlob(blobLocation.blobName(), blobLocation.offset(), blobLocation.fileLength())
                 ) {
                     Streams.copy(inputStream, bso, false);
                     return bso.bytes();

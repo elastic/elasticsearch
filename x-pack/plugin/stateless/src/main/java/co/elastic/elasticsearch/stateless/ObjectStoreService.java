@@ -544,7 +544,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
                         TimeValue.timeValueNanos(after - before).millis()
                     )
                 );
-                blobLocation = new BlobLocation(primaryTerm, name, 0, length);
+                blobLocation = new BlobLocation(primaryTerm, name, length, 0, length);
             } catch (IOException e) {
                 // TODO GoogleCloudStorageBlobStore should throw IOException too (https://github.com/elastic/elasticsearch/issues/92357)
                 onFailure(e);
@@ -600,7 +600,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
                 // method is only used for streaming serialization of repository metadata that is known to be of limited size at any point
                 // in time and across all concurrent invocations of this method."
                 blobContainer.writeMetadataBlob(commitFileName, false, true, out -> {
-                    long written = pendingCommit.write(out, directory);
+                    long written = pendingCommit.writeToStore(out, directory);
                     bytesWritten.set(written);
                 });
                 var after = threadPool.relativeTimeInMillis();

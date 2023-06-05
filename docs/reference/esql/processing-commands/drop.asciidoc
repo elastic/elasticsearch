@@ -1,0 +1,17 @@
+[[esql-drop]]
+=== `DROP`
+
+Use `DROP` to remove columns from a table:
+
+[source,esql]
+----
+include::{esql-specs}/docs.csv-spec[tag=dropheight]
+----
+
+Rather than specify each column by name, you can use wildcards to drop all
+columns with a name that matches a pattern:
+
+[source,esql]
+----
+include::{esql-specs}/docs.csv-spec[tag=dropheightwithwildcard]
+----

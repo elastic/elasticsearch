@@ -1,0 +1,16 @@
+[[esql-mv_expand]]
+=== `MV_EXPAND`
+
+The `MV_EXPAND` processing command expands multivalued fields into one row per value, duplicating other fields:
+
+[source,esql]
+----
+include::{esql-specs}/mv_expand.csv-spec[tag=simple]
+----
+
+Which returns:
+
+[%header,format=dsv,separator=|]
+|===
+include::{esql-specs}/mv_expand.csv-spec[tag=simple-result]
+|===

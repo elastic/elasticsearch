@@ -1,0 +1,36 @@
+[[esql-sort]]
+=== `SORT`
+Use the `SORT` command to sort rows on one or more fields:
+
+[source,esql]
+----
+include::{esql-specs}/docs.csv-spec[tag=sort]
+----
+
+The default sort order is ascending. Set an explicit sort order using `ASC` or
+`DESC`:
+
+[source,esql]
+----
+include::{esql-specs}/docs.csv-spec[tag=sortDesc]
+----
+
+If two rows have the same sort key, the original order will be preserved. You
+can provide additional sort expressions to act as tie breakers:
+
+[source,esql]
+----
+include::{esql-specs}/docs.csv-spec[tag=sortTie]
+----
+
+[discrete]
+==== `null` values
+By default, `null` values are treated as being larger than any other value. With
+an ascending sort order, `null` values are sorted last, and with a descending
+sort order, `null` values are sorted first. You can change that by providing
+`NULLS FIRST` or `NULLS LAST`:
+
+[source,esql]
+----
+include::{esql-specs}/docs.csv-spec[tag=sortNullsFirst]
+----

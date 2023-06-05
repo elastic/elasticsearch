@@ -1,0 +1,288 @@
+docsDropHeight
+// tag::dropheight[]
+FROM employees 
+| DROP height
+// end::dropheight[]
+| LIMIT 0;
+
+avg_worked_seconds:long | birth_date:date | emp_no:integer | first_name:keyword | gender:keyword | height.float:double | height.half_float:double | height.scaled_float:double | hire_date:date | is_rehired:boolean | job_positions:keyword | languages:integer | languages.byte:integer | languages.long:long | languages.short:integer | last_name:keyword | salary:integer | salary_change:double | salary_change.int:integer |salary_change.long:long | still_hired:boolean
+;
+
+docsDropHeightWithWildcard
+// tag::dropheightwithwildcard[]
+FROM employees 
+| DROP height*
+// end::dropheightwithwildcard[]
+| LIMIT 0;
+
+avg_worked_seconds:long | birth_date:date | emp_no:integer | first_name:keyword | gender:keyword | hire_date:date | is_rehired:boolean | job_positions:keyword | languages:integer | languages.byte:integer | languages.long:long | languages.short:integer | last_name:keyword | salary:integer | salary_change:double | salary_change.int:integer |salary_change.long:long | still_hired:boolean
+;
+
+docsEval
+// tag::eval[]
+FROM employees
+| PROJECT first_name, last_name, height
+| EVAL height_feet = height * 3.281, height_cm = height * 100
+// end::eval[]
+| WHERE first_name == "Georgi"
+| LIMIT 1;
+
+// tag::eval-result[]
+first_name:keyword | last_name:keyword | height:double | height_feet:double | height_cm:double
+Georgi |Facello | 2.03 | 6.66043 | 202.99999999999997
+// end::eval-result[]
+;
+
+docsEvalReplace
+// tag::evalReplace[]
+FROM employees
+| PROJECT first_name, last_name, height
+| EVAL height = height * 3.281
+// end::evalReplace[]
+| WHERE first_name == "Georgi"
+| LIMIT 1;
+
+// tag::evalReplace-result[]
+first_name:keyword | last_name:keyword | height:double
+Georgi | Facello | 6.66043
+// end::evalReplace-result[]
+;
+
+docsLimit
+// tag::limit[]
+FROM employees
+| LIMIT 5
+// end::limit[]
+| PROJECT emp_no
+| SORT emp_no ASC
+;
+
+emp_no:integer
+10001
+10002
+10003
+10004
+10005
+;
+
+docsProject
+// tag::project[]
+FROM employees
+| PROJECT emp_no, first_name, last_name, height
+// end::project[]
+| SORT emp_no ASC
+| LIMIT 5
+;
+
+// tag::project-result[]
+emp_no:integer | first_name:keyword | last_name:keyword | height:double
+10001          |Georgi         |Facello        |2.03
+10002          |Bezalel        |Simmel         |2.08
+10003          |Parto          |Bamford        |1.83
+10004          |Chirstian      |Koblick        |1.78
+10005          |Kyoichi        |Maliniak       |2.05
+// end::project-result[]
+;
+
+docsProjectWildcard
+// tag::projectWildcard[]
+FROM employees
+| PROJECT h*
+// end::projectWildcard[]
+| LIMIT 0;
+
+height:double | height.float:double | height.half_float:double | height.scaled_float:double | hire_date:date
+;
+
+docsProjectDoubleWildcard
+// tag::projectDoubleWildcard[]
+FROM employees
+| PROJECT h*, *
+// end::projectDoubleWildcard[]
+| LIMIT 0;
+
+height:double | height.float:double | height.half_float:double | height.scaled_float:double |       hire_date:date | avg_worked_seconds:long | birth_date:date | emp_no:integer | first_name:keyword | gender:keyword | is_rehired:boolean | job_positions:keyword | languages:integer | languages.byte:integer | languages.long:long | languages.short:integer | last_name:keyword | salary:integer | salary_change:double | salary_change.int:integer |salary_change.long:long | still_hired:boolean
+;
+
+docsRename
+// tag::rename[]
+FROM employees
+| PROJECT first_name, last_name, still_hired
+| RENAME employed = still_hired
+// end::rename[]
+| LIMIT 0;
+
+first_name:keyword | last_name:keyword | employed:boolean
+;
+
+docsRenameMultipleColumns
+// tag::renameMultipleColumns[]
+FROM employees
+| PROJECT first_name, last_name
+| RENAME fn = first_name, ln = last_name
+// end::renameMultipleColumns[]
+| LIMIT 0;
+
+fn:keyword | ln:keyword
+;
+
+docsSort
+// tag::sort[]
+FROM employees
+| PROJECT first_name, last_name, height
+| SORT height
+// end::sort[]
+| SORT height, first_name
+| LIMIT 3;
+
+first_name:keyword | last_name:keyword | height:double
+Mayuko         |Warwick        |1.41
+Breannda       |Billingsley    |1.42
+Vishv          |Zockler        |1.42
+;
+
+docsSortDesc
+// tag::sortDesc[]
+FROM employees
+| PROJECT first_name, last_name, height
+| SORT height DESC
+// end::sortDesc[]
+| SORT height DESC, first_name ASC
+| LIMIT 3;
+
+first_name:keyword | last_name:keyword | height:double
+Arumugam       |Ossenbruggen   |2.1
+Kwee           |Schusler       |2.1
+Saniya         |Kalloufi       |2.1
+;
+
+docsSortTie
+// tag::sortTie[]
+FROM employees
+| PROJECT first_name, last_name, height
+| SORT height DESC, first_name ASC
+// end::sortTie[]
+| LIMIT 3;
+
+first_name:keyword | last_name:keyword | height:double
+Arumugam       |Ossenbruggen   |2.1
+Kwee           |Schusler       |2.1
+Saniya         |Kalloufi       |2.1
+;
+
+docsSortNullsFirst
+// tag::sortNullsFirst[]
+FROM employees
+| PROJECT first_name, last_name, height
+| SORT first_name ASC NULLS FIRST
+// end::sortNullsFirst[]
+| SORT first_name ASC NULLS FIRST, height
+| LIMIT 3;
+
+first_name:keyword | last_name:keyword | height:double
+null           |Swan           |1.46
+null           |Lortz          |1.53
+null           |Brender        |1.55
+;
+
+docsStats
+// tag::stats[]
+FROM employees
+| STATS count = COUNT(languages) BY languages
+| SORT languages
+// end::stats[]
+;
+
+// tag::stats-result[]
+count:long | languages:integer
+15             |1
+19             |2
+17             |3
+18             |4
+21             |5
+// end::stats-result[]
+;
+
+docsStatsWithoutBy
+// tag::statsWithoutBy[]
+FROM employees
+| STATS avg_lang = AVG(languages)
+// end::statsWithoutBy[]
+;
+
+// tag::statsWithoutBy-result[]
+avg_lang:double
+3.1222222222222222
+// end::statsWithoutBy-result[]
+;
+
+docsStatsMultiple
+// tag::statsCalcMultipleValues[]
+FROM employees
+| STATS avg_lang = AVG(languages), max_lang = MAX(languages)
+// end::statsCalcMultipleValues[]
+;
+
+avg_lang:double | max_lang:integer
+3.1222222222222222|5
+;
+
+docsStatsGroupByMultipleValues
+// tag::statsGroupByMultipleValues[]
+FROM employees
+| EVAL hired = DATE_FORMAT(hire_date, "YYYY")
+| STATS avg_salary = AVG(salary) BY hired, languages.long
+| EVAL avg_salary = ROUND(avg_salary)
+| SORT hired, languages.long
+// end::statsGroupByMultipleValues[]
+| LIMIT 4
+;
+
+hired:keyword |languages.long:long | avg_salary:double
+1985           |1              |54668.0        
+1985           |3              |47723.0        
+1985           |4              |44817.0        
+1985           |5              |47720.0  
+;
+
+docsWhere
+// tag::where[]
+FROM employees
+| PROJECT first_name, last_name, still_hired
+| WHERE still_hired == true
+// end::where[]
+| STATS count = COUNT(last_name) BY still_hired
+;
+
+count:long | still_hired:boolean
+45             |true
+;
+
+docsWhereBoolean
+// tag::whereBoolean[]
+FROM employees
+| PROJECT first_name, last_name, still_hired
+| WHERE still_hired
+// end::whereBoolean[]
+| STATS count = COUNT(last_name) BY still_hired
+;
+
+count:long | still_hired:boolean
+45             |true
+;
+
+docsWhereFunction
+// tag::whereFunction[]
+FROM employees
+| PROJECT first_name, last_name, height
+| WHERE length(first_name) < 4
+// end::whereFunction[]
+| SORT first_name
+;
+
+first_name:keyword | last_name:keyword | height:double
+Gao            |Dolinsky       |1.94
+Tse            |Herber         |1.45
+Udi            |Jansch         |1.93
+Uri            |Lenart         |1.75
+;

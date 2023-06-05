@@ -15,10 +15,17 @@ foo bar   | null       | null
 
 
 complexPattern
-row a = "1953-01-23T12:15:00Z - some text - 127.0.0.1;" | dissect a "%{Y}-%{M}-%{D}T%{h}:%{m}:%{s}Z - %{msg} - %{ip};" | project Y, M, D, h, m, s, msg, ip;
+// tag::dissect[]
+ROW a = "1953-01-23T12:15:00Z - some text - 127.0.0.1;" 
+| DISSECT a "%{Y}-%{M}-%{D}T%{h}:%{m}:%{s}Z - %{msg} - %{ip};" 
+| PROJECT Y, M, D, h, m, s, msg, ip
+// end::dissect[]
+;
 
+// tag::dissect-result[]
 Y:keyword | M:keyword | D:keyword | h:keyword | m:keyword | s:keyword | msg:keyword  | ip:keyword
 1953      | 01        | 23        | 12        | 15        | 00        | some text    | 127.0.0.1
+// end::dissect-result[]
 ;
 
 

@@ -1,0 +1,21 @@
+[[esql-dissect]]
+=== `DISSECT`
+
+`DISSECT` enables you to extract structured data out of a string. `DISSECT`
+matches the string against a delimiter-based pattern, and extracts the specified
+keys as columns.
+
+Refer to the <<dissect-processor,dissect processor documentation>> for the
+syntax of dissect patterns.
+
+[source,esql]
+----
+include::{esql-specs}/dissect.csv-spec[tag=dissect]
+----
+
+Returns:
+
+[%header,format=dsv,separator=|]
+|===
+include::{esql-specs}/dissect.csv-spec[tag=dissect-result]
+|===

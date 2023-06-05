@@ -127,6 +127,8 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
             asyncFetch(discoNodesToFetch, fetchingRound);
         }
 
+        assert assertFetchingCountConsistent();
+
         // if we are still fetching, return null to indicate it
         if (hasAnyNodeFetching()) {
             return new FetchResult<>(shardId, null, emptySet());

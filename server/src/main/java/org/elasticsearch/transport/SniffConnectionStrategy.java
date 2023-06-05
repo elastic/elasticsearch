@@ -30,6 +30,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -495,6 +496,11 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
     }
 
     private static DiscoveryNode resolveSeedNode(String clusterAlias, String address, String proxyAddress) {
+        var seedVersion = new DiscoveryNode.VersionInformation(
+            Version.CURRENT.minimumCompatibilityVersion(),
+            IndexVersion.MINIMUM_COMPATIBLE,
+            IndexVersion.CURRENT
+        );
         if (proxyAddress == null || proxyAddress.isEmpty()) {
             TransportAddress transportAddress = new TransportAddress(parseConfiguredAddress(address));
             return new DiscoveryNode(
@@ -503,7 +509,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
                 transportAddress,
                 Collections.emptyMap(),
                 DiscoveryNodeRole.roles(),
-                Version.CURRENT.minimumCompatibilityVersion()
+                seedVersion
             );
         } else {
             TransportAddress transportAddress = new TransportAddress(parseConfiguredAddress(proxyAddress));
@@ -517,7 +523,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
                 transportAddress,
                 Collections.singletonMap("server_name", hostName),
                 DiscoveryNodeRole.roles(),
-                Version.CURRENT.minimumCompatibilityVersion()
+                seedVersion
             );
         }
     }
@@ -547,7 +553,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
                 new TransportAddress(proxyInetAddress),
                 node.getAttributes(),
                 node.getRoles(),
-                node.getVersion()
+                node.getVersionInformation()
             );
         }
     }

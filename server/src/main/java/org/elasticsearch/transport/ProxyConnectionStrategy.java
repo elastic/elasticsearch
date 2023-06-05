@@ -23,6 +23,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -297,7 +298,11 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
                     resolved,
                     attributes,
                     DiscoveryNodeRole.roles(),
-                    Version.CURRENT.minimumCompatibilityVersion()
+                    new DiscoveryNode.VersionInformation(
+                        Version.CURRENT.minimumCompatibilityVersion(),
+                        IndexVersion.MINIMUM_COMPATIBLE,
+                        IndexVersion.CURRENT
+                    )
                 );
 
                 connectionManager.connectToRemoteClusterNode(node, clusterNameValidator, compositeListener.delegateResponse((l, e) -> {

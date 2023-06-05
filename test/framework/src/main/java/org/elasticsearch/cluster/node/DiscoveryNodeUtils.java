@@ -61,6 +61,10 @@ public class DiscoveryNodeUtils {
         return builder(nodeId).name(nodeName).address(address).attributes(attributes).roles(roles).build();
     }
 
+    public static DiscoveryNode.VersionInformation versionInfo(Version releaseVersion) {
+        return new DiscoveryNode.VersionInformation(releaseVersion, IndexVersion.MINIMUM_COMPATIBLE, IndexVersion.CURRENT);
+    }
+
     public static Builder builder(String id) {
         return new Builder(id);
     }

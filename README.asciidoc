@@ -2,6 +2,8 @@
 
 Elasticsearch is the distributed, RESTful search and analytics engine at the
 heart of the https://www.elastic.co/products[Elastic Stack]. You can use
+
+
 Elasticsearch to store, search, and manage data for:
 
 * Logs
@@ -23,13 +25,13 @@ https://www.elastic.co/cloud/as-a-service[Elasticsearch Service on Elastic
 Cloud].
 
 If you prefer to install and manage Elasticsearch yourself, you can download
-the latest version from 
+the latest version from
 https://www.elastic.co/downloads/elasticsearch[elastic.co/downloads/elasticsearch].
 
 === Run Elasticsearch locally
 
-//// 
-IMPORTANT: This content is replicated in the Elasticsearch guide. 
+////
+IMPORTANT: This content is replicated in the Elasticsearch guide.
 If you make changes, you must also update setup/set-up-local-dev-deployment.asciidoc.
 ////
 
@@ -37,9 +39,9 @@ To try out Elasticsearch on your own machine, we recommend using Docker
 and running both Elasticsearch and Kibana.
 Docker images are available from the https://www.docker.elastic.co[Elastic Docker registry].
 
-NOTE: Starting in Elasticsearch 8.0, security is enabled by default. 
-The first time you start Elasticsearch, TLS encryption is configured automatically, 
-a password is generated for the `elastic` user, 
+NOTE: Starting in Elasticsearch 8.0, security is enabled by default.
+The first time you start Elasticsearch, TLS encryption is configured automatically,
+a password is generated for the `elastic` user,
 and a Kibana enrollment token is created so you can connect Kibana to your secured cluster.
 
 For other installation options, see the
@@ -62,10 +64,10 @@ docker run --name elasticsearch --net elastic -p 9200:9200 -p 9300:9300 -e "disc
 When you start Elasticsearch for the first time, the generated `elastic` user password and
 Kibana enrollment token are output to the terminal.
 +
-NOTE: You might need to scroll back a bit in the terminal to view the password 
+NOTE: You might need to scroll back a bit in the terminal to view the password
 and enrollment token.
 
-. Copy the generated password and enrollment token and save them in a secure 
+. Copy the generated password and enrollment token and save them in a secure
 location. These values are shown only when you start Elasticsearch for the first time.
 You'll use these to enroll Kibana with your Elasticsearch cluster and log in.
 
@@ -93,23 +95,23 @@ When you start Kibana, a unique URL is output to your terminal.
 
 **Send requests to Elasticsearch**
 
-You send data and other requests to Elasticsearch through REST APIs. 
-You can interact with Elasticsearch using any client that sends HTTP requests, 
+You send data and other requests to Elasticsearch through REST APIs.
+You can interact with Elasticsearch using any client that sends HTTP requests,
 such as the https://www.elastic.co/guide/en/elasticsearch/client/index.html[Elasticsearch
-language clients] and https://curl.se[curl]. 
-Kibana's developer console provides an easy way to experiment and test requests. 
+language clients] and https://curl.se[curl].
+Kibana's developer console provides an easy way to experiment and test requests.
 To access the console, go to **Management > Dev Tools**.
 
 **Add data**
 
-You index data into Elasticsearch by sending JSON objects (documents) through the REST APIs.  
-Whether you have structured or unstructured text, numerical data, or geospatial data, 
-Elasticsearch efficiently stores and indexes it in a way that supports fast searches. 
+You index data into Elasticsearch by sending JSON objects (documents) through the REST APIs.
+Whether you have structured or unstructured text, numerical data, or geospatial data,
+Elasticsearch efficiently stores and indexes it in a way that supports fast searches.
 
 For timestamped data such as logs and metrics, you typically add documents to a
 data stream made up of multiple auto-generated backing indices.
 
-To add a single document to an index, submit an HTTP post request that targets the index. 
+To add a single document to an index, submit an HTTP post request that targets the index.
 
 ----
 POST /customer/_doc/1
@@ -119,11 +121,11 @@ POST /customer/_doc/1
 }
 ----
 
-This request automatically creates the `customer` index if it doesn't exist, 
-adds a new document that has an ID of 1, and 
+This request automatically creates the `customer` index if it doesn't exist,
+adds a new document that has an ID of 1, and
 stores and indexes the `firstname` and `lastname` fields.
 
-The new document is available immediately from any node in the cluster. 
+The new document is available immediately from any node in the cluster.
 You can retrieve it with a GET request that specifies its document ID:
 
 ----
@@ -131,7 +133,7 @@ GET /customer/_doc/1
 ----
 
 To add multiple documents in one request, use the `_bulk` API.
-Bulk data must be newline-delimited JSON (NDJSON). 
+Bulk data must be newline-delimited JSON (NDJSON).
 Each line must end in a newline character (`\n`), including the last line.
 
 ----
@@ -148,15 +150,15 @@ PUT customer/_bulk
 
 **Search**
 
-Indexed documents are available for search in near real-time. 
-The following search matches all customers with a first name of _Jennifer_ 
+Indexed documents are available for search in near real-time.
+The following search matches all customers with a first name of _Jennifer_
 in the `customer` index.
 
 ----
 GET customer/_search
 {
   "query" : {
-    "match" : { "firstname": "Jennifer" }  
+    "match" : { "firstname": "Jennifer" }
   }
 }
 ----
@@ -171,9 +173,9 @@ data streams, or index aliases.
 
 . Go to **Management > Stack Management > Kibana > Data Views**.
 . Select **Create data view**.
-. Enter a name for the data view and a pattern that matches one or more indices, 
-such as _customer_. 
-. Select **Save data view to Kibana**.  
+. Enter a name for the data view and a pattern that matches one or more indices,
+such as _customer_.
+. Select **Save data view to Kibana**.
 
 To start exploring, go to **Analytics > Discover**.
 
@@ -223,7 +225,7 @@ xref:docs/README.asciidoc[docs README].
 [[contribute]]
 == Contribute
 
-For contribution guidelines, see xref:CONTRIBUTING.md[CONTRIBUTING]. 
+For contribution guidelines, see xref:CONTRIBUTING.md[CONTRIBUTING].
 
 [[questions]]
 == Questions? Problems? Suggestions?

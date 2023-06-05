@@ -886,8 +886,10 @@ public class Security extends Plugin
 
         final AuthenticationFailureHandler failureHandler = createAuthenticationFailureHandler(realms, extensionComponents);
 
-        // operator privileges are enabled either explicitly via the setting or if an SPI entry for an alternative registry is found
-        final boolean operatorPrivilegesEnabled = OPERATOR_PRIVILEGES_ENABLED.get(settings) || operatorOnlyRegistry.get() != null;
+        // operator privileges are enabled either explicitly via the setting or if running serverless
+        // TODO: consider removing DiscoveryNode.isServerless() in favor of operatorOnlyRegistry.get() != null; //enable if SPI found
+        final boolean operatorPrivilegesEnabled = OPERATOR_PRIVILEGES_ENABLED.get(settings) || DiscoveryNode.isServerless();
+
         if (operatorPrivilegesEnabled) {
             logger.info("operator privileges are enabled");
             if (operatorOnlyRegistry.get() == null) {

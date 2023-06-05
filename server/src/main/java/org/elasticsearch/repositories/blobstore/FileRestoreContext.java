@@ -159,7 +159,7 @@ public abstract class FileRestoreContext {
                     }
                 }
 
-                restoreFiles(filesToRecover, store, listener.wrapResponse((l, v) -> {
+                restoreFiles(filesToRecover, store, listener.wrapFailure((l, v) -> {
                     store.incRef();
                     try {
                         afterRestore(snapshotFiles, store);

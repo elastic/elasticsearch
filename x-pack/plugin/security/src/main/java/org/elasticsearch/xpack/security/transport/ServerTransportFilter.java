@@ -101,7 +101,7 @@ class ServerTransportFilter {
         }
 
         TransportVersion version = transportChannel.getVersion();
-        authenticate(securityAction, request, listener.wrapResponse((l, authentication) -> {
+        authenticate(securityAction, request, listener.wrapFailure((l, authentication) -> {
             if (authentication != null) {
                 if (securityAction.equals(TransportService.HANDSHAKE_ACTION_NAME)
                     && SystemUser.is(authentication.getEffectiveSubject().getUser()) == false) {

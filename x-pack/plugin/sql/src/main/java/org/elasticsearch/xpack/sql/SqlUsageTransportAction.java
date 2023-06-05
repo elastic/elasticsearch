@@ -60,7 +60,7 @@ public class SqlUsageTransportAction extends XPackUsageFeatureTransportAction {
         SqlStatsRequest sqlRequest = new SqlStatsRequest();
         sqlRequest.includeStats(true);
         sqlRequest.setParentTask(clusterService.localNode().getId(), task.getId());
-        client.execute(SqlStatsAction.INSTANCE, sqlRequest, listener.wrapResponse((l, r) -> {
+        client.execute(SqlStatsAction.INSTANCE, sqlRequest, listener.wrapFailure((l, r) -> {
             List<Counters> countersPerNode = r.getNodes()
                 .stream()
                 .map(SqlStatsResponse.NodeStatsResponse::getStats)

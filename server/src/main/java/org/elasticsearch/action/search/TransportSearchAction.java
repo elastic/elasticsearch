@@ -1094,7 +1094,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     task,
                     true,
                     searchService.getCoordinatorRewriteContextProvider(timeProvider::absoluteStartMillis),
-                    listener.wrapResponse((l, iters) -> {
+                    listener.wrapFailure((l, iters) -> {
                         SearchPhase action = newSearchPhase(
                             task,
                             searchRequest,

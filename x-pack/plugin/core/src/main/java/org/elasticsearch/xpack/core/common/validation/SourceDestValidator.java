@@ -318,7 +318,7 @@ public final class SourceDestValidator {
             license
         );
 
-        ActionListener<Context> validationListener = listener.wrapResponse((l, c) -> {
+        ActionListener<Context> validationListener = listener.wrapFailure((l, c) -> {
             if (c.getValidationException() != null) {
                 l.onFailure(c.getValidationException());
             } else {
@@ -329,7 +329,7 @@ public final class SourceDestValidator {
         // We traverse the validations in reverse order as we chain the listeners from back to front
         for (int i = validations.size() - 1; i >= 0; i--) {
             SourceDestValidation validation = validations.get(i);
-            validationListener = validationListener.wrapResponse((l, c) -> validation.validate(c, l));
+            validationListener = validationListener.wrapFailure((l, c) -> validation.validate(c, l));
         }
 
         validationListener.onResponse(context);

@@ -88,7 +88,7 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
                 Arrays.asList(context),
                 nodes,
                 searchTransportService,
-                listener.wrapResponse((l, lookup) -> run(lookup, context))
+                listener.wrapFailure((l, lookup) -> run(lookup, context))
             );
         }
     }

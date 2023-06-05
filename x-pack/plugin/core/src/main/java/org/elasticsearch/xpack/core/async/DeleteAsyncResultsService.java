@@ -93,7 +93,7 @@ public class DeleteAsyncResultsService {
                 } else {
                     store.ensureAuthenticatedUserCanDeleteFromIndex(
                         searchId,
-                        listener.wrapResponse((l, res) -> deleteResponseFromIndex(searchId, false, l))
+                        listener.wrapFailure((l, res) -> deleteResponseFromIndex(searchId, false, l))
                     );
                 }
             }

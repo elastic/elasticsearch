@@ -145,7 +145,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                 // fork to snapshot meta since building the response is expensive for large snapshots
                 new ThreadedActionListener<>(
                     threadPool.executor(ThreadPool.Names.SNAPSHOT_META),
-                    listener.wrapResponse(
+                    listener.wrapFailure(
                         (l, nodeSnapshotStatuses) -> buildResponse(
                             snapshotsInProgress,
                             request,

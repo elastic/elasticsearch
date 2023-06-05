@@ -90,7 +90,7 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
         Rewriteable.rewriteAndFetch(
             original,
             searchService.getRewriteContext(timeProvider::absoluteStartMillis),
-            listener.wrapResponse((delegate, searchRequest) -> {
+            listener.wrapFailure((delegate, searchRequest) -> {
                 Map<String, OriginalIndices> groupedIndices = remoteClusterService.groupIndices(
                     searchRequest.indicesOptions(),
                     searchRequest.indices()

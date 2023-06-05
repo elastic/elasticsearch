@@ -78,7 +78,7 @@ public class TransportMultiSearchTemplateAction extends HandledTransportAction<M
             }
         }
 
-        client.multiSearch(multiSearchRequest, listener.wrapResponse((l, r) -> {
+        client.multiSearch(multiSearchRequest, listener.wrapFailure((l, r) -> {
             for (int i = 0; i < r.getResponses().length; i++) {
                 MultiSearchResponse.Item item = r.getResponses()[i];
                 int originalSlot = originalSlots.get(i);

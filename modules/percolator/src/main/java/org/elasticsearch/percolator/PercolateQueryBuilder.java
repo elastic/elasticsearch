@@ -444,7 +444,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         }
         SetOnce<BytesReference> docSupplier = new SetOnce<>();
         queryRewriteContext.registerAsyncAction((client, listener) -> {
-            client.get(getRequest, listener.wrapResponse((l, getResponse) -> {
+            client.get(getRequest, listener.wrapFailure((l, getResponse) -> {
                 if (getResponse.isExists() == false) {
                     throw new ResourceNotFoundException(
                         "indexed document [{}/{}] couldn't be found",

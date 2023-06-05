@@ -115,7 +115,7 @@ class AuthenticatorChain {
         // Depending on the authentication result from each Authenticator, the iteration may stop earlier
         // because of either a successful authentication or a not-continuable failure.
         final IteratingActionListener<AuthenticationResult<Authentication>, Authenticator> iterListener = new IteratingActionListener<>(
-            listener.wrapResponse((l, result) -> {
+            listener.wrapFailure((l, result) -> {
                 assert result.getStatus() != AuthenticationResult.Status.TERMINATE
                     : "terminate should already be handled by each individual authenticator";
                 if (result.getStatus() == AuthenticationResult.Status.SUCCESS) {
@@ -211,7 +211,7 @@ class AuthenticatorChain {
         }
 
         // Now we have a valid runAsUsername
-        realmsAuthenticator.lookupRunAsUser(context, authentication, listener.wrapResponse((l, tuple) -> {
+        realmsAuthenticator.lookupRunAsUser(context, authentication, listener.wrapFailure((l, tuple) -> {
             final Authentication finalAuth;
             if (tuple == null) {
                 logger.debug(

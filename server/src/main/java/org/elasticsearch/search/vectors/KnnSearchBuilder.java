@@ -264,7 +264,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         }
         if (queryVectorBuilder != null) {
             SetOnce<float[]> toSet = new SetOnce<>();
-            ctx.registerAsyncAction((c, l) -> queryVectorBuilder.buildVector(c, l.wrapResponse((ll, v) -> {
+            ctx.registerAsyncAction((c, l) -> queryVectorBuilder.buildVector(c, l.wrapFailure((ll, v) -> {
                 toSet.set(v);
                 if (v == null) {
                     ll.onFailure(

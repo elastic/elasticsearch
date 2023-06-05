@@ -101,7 +101,7 @@ public interface Rewriteable<T> {
                     T finalBuilder = builder;
                     final int currentIterationNumber = iteration;
                     context.executeAsyncActions(
-                        rewriteResponse.wrapResponse((l, n) -> rewriteAndFetch(finalBuilder, context, l, currentIterationNumber))
+                        rewriteResponse.wrapFailure((l, n) -> rewriteAndFetch(finalBuilder, context, l, currentIterationNumber))
                     );
                     return;
                 }

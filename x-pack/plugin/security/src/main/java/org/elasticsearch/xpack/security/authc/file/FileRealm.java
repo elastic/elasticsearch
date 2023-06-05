@@ -56,7 +56,7 @@ public class FileRealm extends CachingUsernamePasswordRealm {
 
     @Override
     public void usageStats(ActionListener<Map<String, Object>> listener) {
-        super.usageStats(listener.wrapResponse((l, stats) -> {
+        super.usageStats(listener.wrapFailure((l, stats) -> {
             stats.put("size", userPasswdStore.usersCount());
             l.onResponse(stats);
         }));

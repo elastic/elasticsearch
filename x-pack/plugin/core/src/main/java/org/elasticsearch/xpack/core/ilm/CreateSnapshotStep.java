@@ -108,7 +108,7 @@ public class CreateSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
         request.waitForCompletion(true);
         request.includeGlobalState(false);
         request.masterNodeTimeout(TimeValue.MAX_VALUE);
-        getClient().admin().cluster().createSnapshot(request, listener.wrapResponse((l, response) -> {
+        getClient().admin().cluster().createSnapshot(request, listener.wrapFailure((l, response) -> {
             logger.debug(
                 "create snapshot response for policy [{}] and index [{}] is: {}",
                 policyName,

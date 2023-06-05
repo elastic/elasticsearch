@@ -95,7 +95,7 @@ public abstract class CachingServiceAccountTokenStore implements ServiceAccountT
                 return new ListenableFuture<>();
             });
             if (valueAlreadyInCache.get()) {
-                listenableCacheEntry.addListener(listener.wrapResponse((l, result) -> {
+                listenableCacheEntry.addListener(listener.wrapFailure((l, result) -> {
                     if (result.success) {
                         l.onResponse(new StoreAuthenticationResult(result.verify(token), getTokenSource()));
                     } else if (result.verify(token)) {

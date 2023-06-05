@@ -317,7 +317,7 @@ public class AuthorizationService {
                 );
                 final AuthorizationEngine engine = getAuthorizationEngine(authentication);
                 final ActionListener<AuthorizationInfo> authzInfoListener = wrapPreservingContext(
-                    listener.wrapResponse((l, authorizationInfo) -> {
+                    listener.wrapFailure((l, authorizationInfo) -> {
                         threadContext.putTransient(AUTHORIZATION_INFO_KEY, authorizationInfo);
                         maybeAuthorizeRunAs(requestInfo, auditId, authorizationInfo, l);
                     }),
@@ -444,7 +444,7 @@ public class AuthorizationService {
                 }, listener::onFailure, requestInfo, requestId, authzInfo),
                 threadContext
             );
-            authzEngine.authorizeClusterAction(requestInfo, authzInfo, clusterAuthzListener.wrapResponse((l, result) -> {
+            authzEngine.authorizeClusterAction(requestInfo, authzInfo, clusterAuthzListener.wrapFailure((l, result) -> {
                 if (false == result.isGranted() && QueryApiKeyAction.NAME.equals(action)) {
                     assert request instanceof QueryApiKeyRequest : "request does not match action";
                     final QueryApiKeyRequest queryApiKeyRequest = (QueryApiKeyRequest) request;
@@ -581,7 +581,7 @@ public class AuthorizationService {
                 metadata,
                 requestId,
                 wrapPreservingContext(
-                    listener.wrapResponse((l, ignore) -> runRequestInterceptors(requestInfo, authzInfo, authorizationEngine, l)),
+                    listener.wrapFailure((l, ignore) -> runRequestInterceptors(requestInfo, authzInfo, authorizationEngine, l)),
                     threadContext
                 )
             );
@@ -855,7 +855,7 @@ public class AuthorizationService {
                     authzInfo,
                     ril -> ril.onResponse(new ResolvedIndices(new ArrayList<>(indices), Collections.emptyList())),
                     metadata.getIndicesLookup(),
-                    groupedActionListener.wrapResponse(
+                    groupedActionListener.wrapFailure(
                         (l, indexAuthorizationResult) -> l.onResponse(new Tuple<>(bulkItemAction, indexAuthorizationResult))
                     )
                 );

@@ -95,7 +95,7 @@ public final class ClearScrollController implements Runnable {
     }
 
     void cleanScrollIds(List<SearchContextIdForNode> contextIds) {
-        SearchScrollAsyncAction.collectNodesAndRun(contextIds, nodes, searchTransportService, listener.wrapResponse((l, lookup) -> {
+        SearchScrollAsyncAction.collectNodesAndRun(contextIds, nodes, searchTransportService, listener.wrapFailure((l, lookup) -> {
             try {
                 for (SearchContextIdForNode target : contextIds) {
                     final DiscoveryNode node = lookup.apply(target.getClusterAlias(), target.getNode());

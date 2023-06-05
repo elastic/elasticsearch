@@ -58,7 +58,7 @@ public class AnalyticsUsageTransportAction extends XPackUsageFeatureTransportAct
         client.execute(
             AnalyticsStatsAction.INSTANCE,
             statsRequest,
-            listener.wrapResponse((l, r) -> l.onResponse(new XPackUsageFeatureResponse(new AnalyticsFeatureSetUsage(true, true, r))))
+            listener.wrapFailure((l, r) -> l.onResponse(new XPackUsageFeatureResponse(new AnalyticsFeatureSetUsage(true, true, r))))
         );
     }
 }

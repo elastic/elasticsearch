@@ -45,7 +45,7 @@ final class RemoteClusterAwareClient extends AbstractClient {
         Request request,
         ActionListener<Response> listener
     ) {
-        maybeEnsureConnected(listener.wrapResponse((delegateListener, v) -> {
+        maybeEnsureConnected(listener.wrapFailure((delegateListener, v) -> {
             final Transport.Connection connection;
             try {
                 if (request instanceof RemoteClusterAwareRequest) {

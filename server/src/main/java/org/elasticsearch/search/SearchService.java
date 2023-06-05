@@ -1625,7 +1625,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     @SuppressWarnings({ "rawtypes", "unchecked" })
     private void rewriteAndFetchShardRequest(IndexShard shard, ShardSearchRequest request, ActionListener<ShardSearchRequest> listener) {
-        ActionListener<Rewriteable> actionListener = listener.wrapResponse((l, r) -> {
+        ActionListener<Rewriteable> actionListener = listener.wrapFailure((l, r) -> {
             if (request.readerId() != null) {
                 l.onResponse(request);
             } else {

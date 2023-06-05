@@ -82,7 +82,7 @@ public class MetadataMigrateToDataStreamService {
     ) {
         metadataCreateIndexService.getSystemIndices().validateDataStreamAccess(request.aliasName, threadContext);
         AtomicReference<String> writeIndexRef = new AtomicReference<>();
-        ActionListener<AcknowledgedResponse> listener = finalListener.wrapResponse((delegate, response) -> {
+        ActionListener<AcknowledgedResponse> listener = finalListener.wrapFailure((delegate, response) -> {
             if (response.isAcknowledged()) {
                 String writeIndexName = writeIndexRef.get();
                 assert writeIndexName != null;

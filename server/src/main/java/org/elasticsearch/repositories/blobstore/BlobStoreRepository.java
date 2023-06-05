@@ -1205,7 +1205,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     repositoryStateId,
                     repositoryMetaVersion,
                     Function.identity(),
-                    listener.wrapResponse(
+                    listener.wrapFailure(
                         (l, v) -> cleanupStaleBlobs(
                             Collections.emptyList(),
                             foundIndices,
@@ -1972,11 +1972,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         e.addSuppressed(ex);
                     }
                     final Tuple<Long, String> finalLastInfo = previousWriterInformation;
-                    markRepoCorrupted(
-                        genToLoad,
-                        e,
-                        listener.wrapResponse((l, v) -> l.onFailure(corruptedStateException(e, finalLastInfo)))
-                    );
+                    markRepoCorrupted(genToLoad, e, listener.wrapFailure((l, v) -> l.onFailure(corruptedStateException(e, finalLastInfo))));
                 } else {
                     listener.onFailure(e);
                 }

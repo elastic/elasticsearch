@@ -110,6 +110,6 @@ public class MappingUpdatedAction {
         putMappingRequest.source(mappingUpdate.toString(), XContentType.JSON);
         putMappingRequest.masterNodeTimeout(dynamicMappingUpdateTimeout);
         putMappingRequest.timeout(TimeValue.ZERO);
-        client.execute(AutoPutMappingAction.INSTANCE, putMappingRequest, listener.wrapResponse((l, r) -> l.onResponse(null)));
+        client.execute(AutoPutMappingAction.INSTANCE, putMappingRequest, listener.wrapFailure((l, r) -> l.onResponse(null)));
     }
 }

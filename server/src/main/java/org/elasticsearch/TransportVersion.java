@@ -136,7 +136,7 @@ public record TransportVersion(int id) implements Comparable<TransportVersion> {
      * Reference to the most recent transport version.
      * This should be the transport version with the highest id.
      */
-    public static final TransportVersion CURRENT = V_8_500_007;
+    public static final TransportVersion CURRENT = findCurrent(V_8_500_007);
 
     /**
      * Reference to the earliest compatible transport version to this version of the codebase.
@@ -264,7 +264,7 @@ public record TransportVersion(int id) implements Comparable<TransportVersion> {
         return TransportVersion.fromId(Integer.parseInt(str));
     }
 
-    // finds the pluggable current version, or falls back to the locally defined current
+    // finds the pluggable current version, or uses the given fallback
     private static TransportVersion findCurrent(TransportVersion fallback) {
         var versionExtension = VersionExtension.load();
         if (versionExtension == null) {

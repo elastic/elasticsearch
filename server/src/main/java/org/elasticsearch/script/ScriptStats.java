@@ -51,6 +51,8 @@ public record ScriptStats(
     TimeSeries cacheEvictionsHistory
 ) implements Writeable, ChunkedToXContent {
 
+    public static final ScriptStats IDENTITY = new ScriptStats(0, 0, 0, new TimeSeries(0), new TimeSeries(0));
+
     public ScriptStats(
         long compilations,
         long cacheEvictions,
@@ -188,6 +190,10 @@ public record ScriptStats(
             ChunkedToXContentHelper.array(CONTEXTS, contextStats.iterator()),
             ChunkedToXContentHelper.endObject()
         );
+    }
+
+    public static ScriptStats merge(ScriptStats first, ScriptStats second) {
+        return IDENTITY;
     }
 
     static final class Fields {

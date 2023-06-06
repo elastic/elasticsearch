@@ -50,7 +50,6 @@ import org.elasticsearch.xpack.core.termsenum.action.SimpleTermCountEnum;
 import java.io.IOException;
 import java.time.ZoneId;
 import java.util.Collections;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -150,7 +149,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
 
-            return value == null ? (lookup, doc, ignoredValues) -> List.of() : (lookup, doc, ignoredValues) -> List.of(value);
+            return value == null ? ValueFetcher.EMPTY : ValueFetcher.singleton(value);
         }
 
         @Override

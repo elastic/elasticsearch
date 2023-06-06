@@ -400,7 +400,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         // Since there's no kNN search action at the transport layer, we just emulate
         // how the action works (it builds a kNN query under the hood)
         float[] queryVector = new float[] { 0.0f, 0.0f, 0.0f };
-        KnnVectorQueryBuilder query = new KnnVectorQueryBuilder("vector", queryVector, 10);
+        KnnVectorQueryBuilder query = new KnnVectorQueryBuilder("vector", queryVector, 10, null);
 
         // user1 has access to vector field, so the query should match with the document:
         SearchResponse response = client().filterWithHeader(
@@ -426,7 +426,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         assertNull(response.getHits().getAt(0).field("vector"));
 
         // user1 can access field1, so the filtered query should match with the document:
-        KnnVectorQueryBuilder filterQuery1 = new KnnVectorQueryBuilder("vector", queryVector, 10).addFilterQuery(
+        KnnVectorQueryBuilder filterQuery1 = new KnnVectorQueryBuilder("vector", queryVector, 10, null).addFilterQuery(
             QueryBuilders.matchQuery("field1", "value1")
         );
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
@@ -436,7 +436,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         assertHitCount(response, 1);
 
         // user1 cannot access field2, so the filtered query should not match with the document:
-        KnnVectorQueryBuilder filterQuery2 = new KnnVectorQueryBuilder("vector", queryVector, 10).addFilterQuery(
+        KnnVectorQueryBuilder filterQuery2 = new KnnVectorQueryBuilder("vector", queryVector, 10, null).addFilterQuery(
             QueryBuilders.matchQuery("field2", "value2")
         );
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))

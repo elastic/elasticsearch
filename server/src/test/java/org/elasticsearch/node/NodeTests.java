@@ -78,8 +78,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.test.NodeRoles.dataNode;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -307,13 +305,7 @@ public class NodeTests extends ESTestCase {
         Node node = new MockNode(baseSettings().build(), basePlugins());
         node.start();
         IndicesService indicesService = node.injector().getInstance(IndicesService.class);
-        assertAcked(
-            node.client()
-                .admin()
-                .indices()
-                .prepareCreate("test")
-                .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0))
-        );
+        assertAcked(node.client().admin().indices().prepareCreate("test").setSettings(indexSettings(1, 0)));
         IndexService indexService = indicesService.iterator().next();
         IndexShard shard = indexService.getShard(0);
         Searcher searcher = shard.acquireSearcher("test");
@@ -328,13 +320,7 @@ public class NodeTests extends ESTestCase {
         Node node = new MockNode(baseSettings().build(), basePlugins());
         node.start();
         IndicesService indicesService = node.injector().getInstance(IndicesService.class);
-        assertAcked(
-            node.client()
-                .admin()
-                .indices()
-                .prepareCreate("test")
-                .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0))
-        );
+        assertAcked(node.client().admin().indices().prepareCreate("test").setSettings(indexSettings(1, 0)));
         IndexService indexService = indicesService.iterator().next();
         IndexShard shard = indexService.getShard(0);
         shard.store().incRef();
@@ -647,8 +633,13 @@ public class NodeTests extends ESTestCase {
         @Override
         public Optional<PersistedClusterStateServiceFactory> getPersistedClusterStateServiceFactory() {
             return Optional.of(
-                (nodeEnvironment, namedXContentRegistry, clusterSettings, relativeTimeMillisSupplier) -> persistedClusterStateService =
-                    new PersistedClusterStateService(nodeEnvironment, namedXContentRegistry, clusterSettings, relativeTimeMillisSupplier)
+                (nodeEnvironment, namedXContentRegistry, clusterSettings, threadPool) -> persistedClusterStateService =
+                    new PersistedClusterStateService(
+                        nodeEnvironment,
+                        namedXContentRegistry,
+                        clusterSettings,
+                        threadPool::relativeTimeInMillis
+                    )
             );
         }
     }

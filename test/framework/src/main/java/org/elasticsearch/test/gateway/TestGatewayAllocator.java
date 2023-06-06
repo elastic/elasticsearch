@@ -31,6 +31,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.routing.RoutingNodesHelper.assignedShardsIn;
+
 /**
  * A gateway allocator implementation that keeps an in memory list of started shard allocation
  * that are used as replies to the, normally async, fetch data requests. The in memory list
@@ -97,7 +99,7 @@ public class TestGatewayAllocator extends GatewayAllocator {
     @Override
     public void applyStartedShards(List<ShardRouting> startedShards, RoutingAllocation allocation) {
         currentNodes = allocation.nodes();
-        allocation.routingNodes().shards(ShardRouting::active).forEach(this::addKnownAllocation);
+        assignedShardsIn(allocation.routingNodes()).filter(ShardRouting::active).forEach(this::addKnownAllocation);
     }
 
     @Override

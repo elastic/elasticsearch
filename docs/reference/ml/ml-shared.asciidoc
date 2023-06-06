@@ -498,6 +498,10 @@ that document will not be used for training, but a prediction with the trained
 model will be generated for it. It is also known as continuous target variable.
 end::dependent-variable[]
 
+tag::deployment-id[]
+A unique identifier for the deployment of the model.
+end::deployment-id[]
+
 tag::desc-results[]
 If true, the results are sorted in descending order.
 end::desc-results[]
@@ -887,7 +891,7 @@ For example:
    "ignore_throttled": true
 }
 ```
-For more information about these options, see <<multi-index>>.
+For more information about these options, see <<api-multi-index>>.
 --
 end::indices-options[]
 
@@ -1069,6 +1073,10 @@ numbers. These embeddings capture not simply tokens, but semantic meanings and
 context. These embeddings can be used in a <<dense-vector,dense vector>> field
 for powerful insights.
 end::inference-config-text-embedding[]
+
+tag::inference-config-text-embedding-size[]
+The number of dimensions in the embedding vector produced by the model.
+end::inference-config-text-embedding-size[]
 
 tag::inference-config-text-similarity[]
 Text similarity takes an input sequence and compares it with another input sequence. This is commonly referred to

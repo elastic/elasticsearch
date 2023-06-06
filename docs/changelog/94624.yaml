@@ -1,5 +1,0 @@
-pr: 94624
-summary: Stop processing `TransportDownsampleAction` on failure
-area: Rollup
-type: bug
-issues: []

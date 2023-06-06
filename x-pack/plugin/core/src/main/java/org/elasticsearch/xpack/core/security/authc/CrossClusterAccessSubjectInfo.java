@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.core.security.authc;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -22,8 +24,12 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
+import org.elasticsearch.xpack.core.security.user.InternalUser;
+import org.elasticsearch.xpack.core.security.user.InternalUsers;
+import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -37,7 +43,22 @@ import java.util.Objects;
 import java.util.Set;
 
 public final class CrossClusterAccessSubjectInfo {
+
     public static final String CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY = "_cross_cluster_access_subject_info";
+    private static final Logger logger = LogManager.getLogger(CrossClusterAccessSubjectInfo.class);
+    private static final Set<String> API_KEY_AUTHENTICATION_METADATA_TO_KEEP = Set.of(
+        AuthenticationField.API_KEY_ID_KEY,
+        // These are required for complete audit log entries
+        AuthenticationField.API_KEY_NAME_KEY,
+        AuthenticationField.API_KEY_CREATOR_REALM_NAME,
+        AuthenticationField.API_KEY_CREATOR_REALM_TYPE
+    );
+    private static final Set<String> SERVICE_ACCOUNT_AUTHENTICATION_METADATA_TO_KEEP = Set.of(
+        // These are required for complete audit log entries
+        ServiceAccountSettings.TOKEN_NAME_FIELD,
+        ServiceAccountSettings.TOKEN_SOURCE_FIELD
+    );
+
     private final Authentication authentication;
     private final List<RoleDescriptorsBytes> roleDescriptorsBytesList;
 
@@ -67,6 +88,24 @@ public final class CrossClusterAccessSubjectInfo {
 
     public Authentication getAuthentication() {
         return authentication;
+    }
+
+    public CrossClusterAccessSubjectInfo cleanAndValidate() {
+        // Need to do this first. Otherwise, the `copyWithFilteredMetadataFields` call in `copyAuthenticationWithCleanMetadata` may fail
+        // with a confusing error message for unsupported types
+        if (authentication.isCrossClusterAccess()) {
+            final Subject effectiveSubject = authentication.getEffectiveSubject();
+            throw new IllegalArgumentException(
+                "subject ["
+                    + effectiveSubject.getUser().principal()
+                    + "] has type ["
+                    + effectiveSubject.getType()
+                    + "] but nested cross cluster access is not supported"
+            );
+        }
+        final var cleanCopy = new CrossClusterAccessSubjectInfo(copyAuthenticationWithCleanMetadata(), roleDescriptorsBytesList);
+        cleanCopy.validate();
+        return cleanCopy;
     }
 
     public List<RoleDescriptorsBytes> getRoleDescriptorsBytesList() {
@@ -149,6 +188,36 @@ public final class CrossClusterAccessSubjectInfo {
         copy.put(AuthenticationField.CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY, getAuthentication());
         copy.put(AuthenticationField.CROSS_CLUSTER_ACCESS_ROLE_DESCRIPTORS_KEY, getRoleDescriptorsBytesList());
         return Collections.unmodifiableMap(copy);
+    }
+
+    private Authentication copyAuthenticationWithCleanMetadata() {
+        assert false == authentication.isCrossClusterAccess();
+        if (authentication.isAuthenticatedAsApiKey()) {
+            return authentication.copyWithFilteredMetadataFields(API_KEY_AUTHENTICATION_METADATA_TO_KEEP);
+        } else if (authentication.isServiceAccount()) {
+            return authentication.copyWithFilteredMetadataFields(SERVICE_ACCOUNT_AUTHENTICATION_METADATA_TO_KEEP);
+        } else {
+            return authentication.copyWithEmptyMetadata();
+        }
+    }
+
+    private void validate() {
+        assert false == authentication.isCrossClusterAccess();
+        authentication.checkConsistency();
+        final User user = authentication.getEffectiveSubject().getUser();
+        if (user == InternalUsers.CROSS_CLUSTER_ACCESS_USER) {
+            if (false == getRoleDescriptorsBytesList().isEmpty()) {
+                logger.warn(
+                    "Received non-empty role descriptors bytes list for internal cross cluster access user. "
+                        + "These will be ignored during authorization."
+                );
+                assert false : "role descriptors bytes list for internal cross cluster access user must be empty";
+            }
+        } else if (user instanceof InternalUser) {
+            throw new IllegalArgumentException(
+                "received cross cluster request from an unexpected internal user [" + user.principal() + "]"
+            );
+        }
     }
 
     public static final class RoleDescriptorsBytes implements Writeable {

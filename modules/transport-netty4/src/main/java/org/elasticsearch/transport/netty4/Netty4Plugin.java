@@ -18,11 +18,14 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.http.HttpPreRequest;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.netty4.Netty4HttpServerTransport;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.Transport;
@@ -32,6 +35,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
 public class Netty4Plugin extends Plugin implements NetworkPlugin {
@@ -99,6 +103,7 @@ public class Netty4Plugin extends Plugin implements NetworkPlugin {
         NamedXContentRegistry xContentRegistry,
         NetworkService networkService,
         HttpServerTransport.Dispatcher dispatcher,
+        BiConsumer<HttpPreRequest, ThreadContext> perRequestThreadContext,
         ClusterSettings clusterSettings,
         Tracer tracer
     ) {
@@ -114,8 +119,14 @@ public class Netty4Plugin extends Plugin implements NetworkPlugin {
                 getSharedGroupFactory(settings),
                 tracer,
                 TLSConfig.noTLS(),
+                null,
                 null
-            )
+            ) {
+                @Override
+                protected void populatePerRequestThreadContext(RestRequest restRequest, ThreadContext threadContext) {
+                    perRequestThreadContext.accept(restRequest.getHttpRequest(), threadContext);
+                }
+            }
         );
     }
 

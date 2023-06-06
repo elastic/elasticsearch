@@ -50,7 +50,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
@@ -163,16 +162,12 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
 
     public static final String ALLOW_NONE = "none";
 
-    public static final Setting<List<String>> TYPES_ALLOWED_SETTING = Setting.listSetting(
+    public static final Setting<List<String>> TYPES_ALLOWED_SETTING = Setting.stringListSetting(
         "script.allowed_types",
-        Collections.emptyList(),
-        Function.identity(),
         Setting.Property.NodeScope
     );
-    public static final Setting<List<String>> CONTEXTS_ALLOWED_SETTING = Setting.listSetting(
+    public static final Setting<List<String>> CONTEXTS_ALLOWED_SETTING = Setting.stringListSetting(
         "script.allowed_contexts",
-        Collections.emptyList(),
-        Function.identity(),
         Setting.Property.NodeScope
     );
 

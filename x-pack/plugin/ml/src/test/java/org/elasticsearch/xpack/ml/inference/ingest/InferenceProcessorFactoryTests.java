@@ -13,7 +13,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.service.ClusterApplierService;
@@ -42,6 +42,8 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.QuestionAnsweringC
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfigUpdate;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextSimilarityConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ZeroShotClassificationConfig;
 import org.junit.Before;
 
@@ -146,7 +148,8 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
                 equalTo(
                     "unrecognized inference configuration type [unknown_type]."
                         + " Supported types [classification, regression, fill_mask, ner, pass_through, "
-                        + "text_classification, text_embedding, zero_shot_classification]"
+                        + "question_answering, text_classification, text_embedding, text_expansion, "
+                        + "text_similarity, zero_shot_classification]"
                 )
             );
 
@@ -262,8 +265,11 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
                 FillMaskConfig.NAME,
                 NerConfig.NAME,
                 PassThroughConfig.NAME,
+                QuestionAnsweringConfig.NAME,
                 TextClassificationConfig.NAME,
                 TextEmbeddingConfig.NAME,
+                TextExpansionConfigUpdate.NAME,
+                TextSimilarityConfig.NAME,
                 ZeroShotClassificationConfig.NAME
             )) {
                 ElasticsearchException ex = expectThrows(
@@ -273,6 +279,17 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
                 assertThat(
                     ex.getMessage(),
                     equalTo("Configuration [" + name + "] requires minimum node version [8.0.0] (current minimum node version [7.5.0]")
+                );
+            }
+
+            for (String name : List.of(ClassificationConfig.NAME.getPreferredName(), RegressionConfig.NAME.getPreferredName())) {
+                ElasticsearchException ex = expectThrows(
+                    ElasticsearchException.class,
+                    () -> processorFactory.inferenceConfigUpdateFromMap(Map.of(name, Map.of()))
+                );
+                assertThat(
+                    ex.getMessage(),
+                    equalTo("Configuration [" + name + "] requires minimum node version [7.6.0] (current minimum node version [7.5.0]")
                 );
             }
         });
@@ -447,9 +464,11 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
             .metadata(Metadata.builder().putCustom(IngestMetadata.TYPE, ingestMetadata))
             .nodes(
                 DiscoveryNodes.builder()
-                    .add(new DiscoveryNode("min_node", new TransportAddress(InetAddress.getLoopbackAddress(), 9300), minNodeVersion))
-                    .add(new DiscoveryNode("current_node", new TransportAddress(InetAddress.getLoopbackAddress(), 9302), Version.CURRENT))
-                    .add(new DiscoveryNode("_node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9304), Version.CURRENT))
+                    .add(
+                        DiscoveryNodeUtils.create("min_node", new TransportAddress(InetAddress.getLoopbackAddress(), 9300), minNodeVersion)
+                    )
+                    .add(DiscoveryNodeUtils.create("current_node", new TransportAddress(InetAddress.getLoopbackAddress(), 9302)))
+                    .add(DiscoveryNodeUtils.create("_node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9304)))
                     .localNodeId("_node_id")
                     .masterNodeId("_node_id")
             )

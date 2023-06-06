@@ -228,8 +228,8 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         if (randomBoolean()) {
             // open and close the index to increase the primary terms
             for (int i = 0; i < randomInt(3); i++) {
-                assertAcked(client().admin().indices().prepareClose(indexName));
-                assertAcked(client().admin().indices().prepareOpen(indexName));
+                assertAcked(indicesAdmin().prepareClose(indexName));
+                assertAcked(indicesAdmin().prepareOpen(indexName));
             }
         }
 
@@ -250,7 +250,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         createRepository("test-repo", "fs");
         createSnapshot("test-repo", "test-snap", Collections.singletonList(indexName));
 
-        assertAcked(client().admin().indices().prepareClose(indexName));
+        assertAcked(indicesAdmin().prepareClose(indexName));
 
         final RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot("test-repo", "test-snap")
             .setWaitForCompletion(true)
@@ -289,7 +289,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         NumShards numShards = getNumShards("test-idx");
 
-        assertAcked(client().admin().indices().preparePutMapping("test-idx").setSource("baz", "type=text"));
+        assertAcked(indicesAdmin().preparePutMapping("test-idx").setSource("baz", "type=text"));
         ensureGreen();
 
         createSnapshot("test-repo", "test-snap", Collections.singletonList("test-idx"));
@@ -297,20 +297,13 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> delete the index and recreate it with foo field");
         cluster().wipeIndices("test-idx");
         assertAcked(
-            prepareCreate(
-                "test-idx",
-                2,
-                Settings.builder()
-                    .put(SETTING_NUMBER_OF_SHARDS, numShards.numPrimaries)
-                    .put(SETTING_NUMBER_OF_REPLICAS, between(0, 1))
-                    .put("refresh_interval", 5, TimeUnit.SECONDS)
-            )
+            prepareCreate("test-idx", 2, indexSettings(numShards.numPrimaries, between(0, 1)).put("refresh_interval", 5, TimeUnit.SECONDS))
         );
-        assertAcked(client().admin().indices().preparePutMapping("test-idx").setSource("foo", "type=text"));
+        assertAcked(indicesAdmin().preparePutMapping("test-idx").setSource("foo", "type=text"));
         ensureGreen();
 
         logger.info("--> close index");
-        client().admin().indices().prepareClose("test-idx").get();
+        indicesAdmin().prepareClose("test-idx").get();
 
         logger.info("--> restore all indices from the snapshot");
         RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot("test-repo", "test-snap")
@@ -325,7 +318,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertThat(mappings.sourceAsMap().toString(), not(containsString("foo")));
 
         logger.info("--> assert that old settings are restored");
-        GetSettingsResponse getSettingsResponse = client().admin().indices().prepareGetSettings("test-idx").execute().actionGet();
+        GetSettingsResponse getSettingsResponse = indicesAdmin().prepareGetSettings("test-idx").execute().actionGet();
         assertThat(getSettingsResponse.getSetting("test-idx", "index.refresh_interval"), equalTo("10s"));
     }
 
@@ -338,9 +331,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         logger.info("--> create aliases");
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareAliases()
+            indicesAdmin().prepareAliases()
                 .addAlias("test-idx-1", "alias-123")
                 .addAlias("test-idx-2", "alias-123")
                 .addAlias("test-idx-3", "alias-123")
@@ -348,14 +339,14 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
                 .get()
         );
 
-        assertFalse(client().admin().indices().prepareGetAliases("alias-123").get().getAliases().isEmpty());
+        assertFalse(indicesAdmin().prepareGetAliases("alias-123").get().getAliases().isEmpty());
 
         createSnapshot("test-repo", "test-snap", Collections.emptyList());
 
         logger.info("-->  delete all indices");
         cluster().wipeIndices("test-idx-1", "test-idx-2", "test-idx-3");
-        assertTrue(client().admin().indices().prepareGetAliases("alias-123").get().getAliases().isEmpty());
-        assertTrue(client().admin().indices().prepareGetAliases("alias-1").get().getAliases().isEmpty());
+        assertTrue(indicesAdmin().prepareGetAliases("alias-123").get().getAliases().isEmpty());
+        assertTrue(indicesAdmin().prepareGetAliases("alias-1").get().getAliases().isEmpty());
 
         logger.info("--> restore snapshot with aliases");
         RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot("test-repo", "test-snap")
@@ -370,18 +361,18 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         );
 
         logger.info("--> check that aliases are restored");
-        assertFalse(client().admin().indices().prepareGetAliases("alias-123").get().getAliases().isEmpty());
-        assertFalse(client().admin().indices().prepareGetAliases("alias-1").get().getAliases().isEmpty());
+        assertFalse(indicesAdmin().prepareGetAliases("alias-123").get().getAliases().isEmpty());
+        assertFalse(indicesAdmin().prepareGetAliases("alias-1").get().getAliases().isEmpty());
 
         logger.info("-->  update aliases");
-        assertAcked(client().admin().indices().prepareAliases().removeAlias("test-idx-3", "alias-123"));
-        assertAcked(client().admin().indices().prepareAliases().addAlias("test-idx-3", "alias-3"));
+        assertAcked(indicesAdmin().prepareAliases().removeAlias("test-idx-3", "alias-123"));
+        assertAcked(indicesAdmin().prepareAliases().addAlias("test-idx-3", "alias-3"));
 
         logger.info("-->  delete and close indices");
         cluster().wipeIndices("test-idx-1", "test-idx-2");
-        assertAcked(client().admin().indices().prepareClose("test-idx-3"));
-        assertTrue(client().admin().indices().prepareGetAliases("alias-123").get().getAliases().isEmpty());
-        assertTrue(client().admin().indices().prepareGetAliases("alias-1").get().getAliases().isEmpty());
+        assertAcked(indicesAdmin().prepareClose("test-idx-3"));
+        assertTrue(indicesAdmin().prepareGetAliases("alias-123").get().getAliases().isEmpty());
+        assertTrue(indicesAdmin().prepareGetAliases("alias-1").get().getAliases().isEmpty());
 
         logger.info("--> restore snapshot without aliases");
         restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot("test-repo", "test-snap")
@@ -397,9 +388,9 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         );
 
         logger.info("--> check that aliases are not restored and existing aliases still exist");
-        assertTrue(client().admin().indices().prepareGetAliases("alias-123").get().getAliases().isEmpty());
-        assertTrue(client().admin().indices().prepareGetAliases("alias-1").get().getAliases().isEmpty());
-        assertFalse(client().admin().indices().prepareGetAliases("alias-3").get().getAliases().isEmpty());
+        assertTrue(indicesAdmin().prepareGetAliases("alias-123").get().getAliases().isEmpty());
+        assertTrue(indicesAdmin().prepareGetAliases("alias-1").get().getAliases().isEmpty());
+        assertFalse(indicesAdmin().prepareGetAliases("alias-3").get().getAliases().isEmpty());
     }
 
     public void testRestoreTemplates() throws Exception {
@@ -407,9 +398,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         logger.info("-->  creating test template");
         assertThat(
-            client().admin()
-                .indices()
-                .preparePutTemplate("test-template")
+            indicesAdmin().preparePutTemplate("test-template")
                 .setPatterns(Collections.singletonList("te*"))
                 .setMapping(
                     XContentFactory.jsonBuilder()
@@ -437,8 +426,8 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertThat(getSnapshot("test-repo", "test-snap").state(), equalTo(SnapshotState.SUCCESS));
 
         logger.info("-->  delete test template");
-        assertThat(client().admin().indices().prepareDeleteTemplate("test-template").get().isAcknowledged(), equalTo(true));
-        GetIndexTemplatesResponse getIndexTemplatesResponse = client().admin().indices().prepareGetTemplates().get();
+        assertThat(indicesAdmin().prepareDeleteTemplate("test-template").get().isAcknowledged(), equalTo(true));
+        GetIndexTemplatesResponse getIndexTemplatesResponse = indicesAdmin().prepareGetTemplates().get();
         assertIndexTemplateMissing(getIndexTemplatesResponse, "test-template");
 
         logger.info("--> restore cluster state");
@@ -451,7 +440,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), equalTo(0));
 
         logger.info("--> check that template is restored");
-        getIndexTemplatesResponse = client().admin().indices().prepareGetTemplates().get();
+        getIndexTemplatesResponse = indicesAdmin().prepareGetTemplates().get();
         assertIndexTemplateExists(getIndexTemplatesResponse, "test-template");
     }
 
@@ -692,10 +681,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         int numberOfShards = getNumShards("test-idx").numPrimaries;
         assertAcked(
-            client().admin()
-                .indices()
-                .preparePutMapping("test-idx")
-                .setSource("field1", "type=text,analyzer=standard,search_analyzer=my_analyzer")
+            indicesAdmin().preparePutMapping("test-idx").setSource("field1", "type=text,analyzer=standard,search_analyzer=my_analyzer")
         );
         final int numdocs = randomIntBetween(10, 100);
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numdocs];
@@ -923,7 +909,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         final String oldSnapshot = initWithSnapshotVersion(repoName, repoPath, oldVersion);
         final SnapshotRestoreException snapshotRestoreException = expectThrows(
             SnapshotRestoreException.class,
-            () -> client().admin().cluster().prepareRestoreSnapshot(repoName, oldSnapshot).execute().actionGet()
+            () -> clusterAdmin().prepareRestoreSnapshot(repoName, oldSnapshot).execute().actionGet()
         );
         assertThat(
             snapshotRestoreException.getMessage(),

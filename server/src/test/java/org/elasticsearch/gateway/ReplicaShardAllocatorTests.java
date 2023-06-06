@@ -12,6 +12,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterInfo;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -65,7 +66,9 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
-    private static final String MIN_SUPPORTED_LUCENE_VERSION = Version.CURRENT.minimumIndexCompatibilityVersion().luceneVersion.toString();
+    private static final String MIN_SUPPORTED_LUCENE_VERSION = Version.CURRENT.minimumIndexCompatibilityVersion()
+        .luceneVersion()
+        .toString();
 
     private final ShardId shardId = new ShardId("test", "_na_", 0);
     private final DiscoveryNode node1 = newNode("node1");
@@ -567,7 +570,7 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
                     )
             )
             .build();
-        ClusterState state = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(metadata)
             .routingTable(routingTable)
             .nodes(DiscoveryNodes.builder().add(node1).add(node2).add(node3))
@@ -611,7 +614,7 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
                     )
             )
             .build();
-        ClusterState state = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(metadata)
             .routingTable(routingTable)
             .nodes(DiscoveryNodes.builder().add(node1).add(node2).add(node3))

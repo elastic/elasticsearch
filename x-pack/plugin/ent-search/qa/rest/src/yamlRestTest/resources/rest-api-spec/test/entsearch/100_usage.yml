@@ -1,0 +1,112 @@
+setup:
+  - do:
+      indices.create:
+        index: test-index1
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+              number_of_replicas: 0
+
+---
+teardown:
+  - do:
+      search_application.delete:
+        name: test-search-application-1
+        ignore: 404
+
+  - do:
+      search_application.delete:
+        name: test-search-application-2
+        ignore: 404
+
+  - do:
+      indices.delete:
+        index: test-index1
+        ignore: 404
+
+---
+"xpack usage includes Enterprise Search":
+  - do:
+      xpack.usage: {}
+
+  - match: {
+    enterprise_search: {
+      enabled: true,
+      available: true,
+      search_applications: { count: 0 },
+      analytics_collections: { count: 0 }
+    }
+  }
+
+  - do:
+      search_application.put:
+        name: test-search-application-1
+        body:
+          indices: [ "test-index1" ]
+
+  - do:
+      xpack.usage: {}
+
+  - match: {
+    enterprise_search: {
+      enabled: true,
+      available: true,
+      search_applications: { count: 1 },
+      analytics_collections: { count: 0 }
+    }
+  }
+
+  - do:
+      search_application.put:
+        name: test-search-application-2
+        body:
+          indices: [ "test-index1" ]
+
+  - do:
+      search_application.put_behavioral_analytics:
+        name: test-analytics-collection
+
+  - do:
+      xpack.usage: {}
+
+  - match: {
+    enterprise_search: {
+      enabled: true,
+      available: true,
+      search_applications: { count: 2 },
+      analytics_collections: { count: 1 }
+    }
+  }
+
+  - do:
+      search_application.delete:
+        name: test-search-application-2
+
+  - do:
+      xpack.usage: {}
+
+  - match: {
+    enterprise_search: {
+      enabled: true,
+      available: true,
+      search_applications: { count: 1 },
+      analytics_collections: { count: 1 }
+    }
+  }
+
+  - do:
+      search_application.delete_behavioral_analytics:
+        name: test-analytics-collection
+
+  - do:
+      xpack.usage: {}
+
+  - match: {
+    enterprise_search: {
+      enabled: true,
+      available: true,
+      search_applications: { count: 1 },
+      analytics_collections: { count: 0 }
+    }
+  }

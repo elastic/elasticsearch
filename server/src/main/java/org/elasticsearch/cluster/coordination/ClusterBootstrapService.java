@@ -33,7 +33,6 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -46,10 +45,8 @@ import static org.elasticsearch.discovery.SettingsBasedSeedHostsProvider.DISCOVE
 
 public class ClusterBootstrapService implements Coordinator.PeerFinderListener {
 
-    public static final Setting<List<String>> INITIAL_MASTER_NODES_SETTING = Setting.listSetting(
+    public static final Setting<List<String>> INITIAL_MASTER_NODES_SETTING = Setting.stringListSetting(
         "cluster.initial_master_nodes",
-        emptyList(),
-        Function.identity(),
         Property.NodeScope
     );
 

@@ -99,7 +99,7 @@ public class FileRolesStoreTests extends ESTestCase {
             xContentRegistry()
         );
         assertThat(roles, notNullValue());
-        assertThat(roles.size(), is(9));
+        assertThat(roles.size(), is(TcpTransport.isUntrustedRemoteClusterEnabled() ? 10 : 9));
 
         RoleDescriptor descriptor = roles.get("role1");
         assertNotNull(descriptor);
@@ -355,13 +355,13 @@ public class FileRolesStoreTests extends ESTestCase {
             xContentRegistry()
         );
         assertThat(roles, notNullValue());
-        assertThat(roles.size(), is(6));
+        assertThat(roles.size(), is(TcpTransport.isUntrustedRemoteClusterEnabled() ? 7 : 6));
         assertThat(roles.get("role_fields"), nullValue());
         assertThat(roles.get("role_query"), nullValue());
         assertThat(roles.get("role_query_fields"), nullValue());
         assertThat(roles.get("role_query_invalid"), nullValue());
 
-        assertThat(events, hasSize(4));
+        assertThat(events, hasSize(TcpTransport.isUntrustedRemoteClusterEnabled() ? 4 : 5));
         assertThat(
             events.get(0),
             startsWith(
@@ -394,6 +394,9 @@ public class FileRolesStoreTests extends ESTestCase {
                     + "]. document and field level security is not enabled."
             )
         );
+        if (false == TcpTransport.isUntrustedRemoteClusterEnabled()) {
+            assertThat(events.get(4), startsWith("failed to parse role [role_remote_indices]. unexpected field [remote_indices]"));
+        }
     }
 
     public void testParseFileWithFLSAndDLSUnlicensed() throws Exception {
@@ -405,7 +408,7 @@ public class FileRolesStoreTests extends ESTestCase {
         when(licenseState.isAllowed(DOCUMENT_LEVEL_SECURITY_FEATURE)).thenReturn(false);
         Map<String, RoleDescriptor> roles = FileRolesStore.parseFile(path, logger, Settings.EMPTY, licenseState, xContentRegistry());
         assertThat(roles, notNullValue());
-        assertThat(roles.size(), is(9));
+        assertThat(roles.size(), is(TcpTransport.isUntrustedRemoteClusterEnabled() ? 10 : 9));
         assertNotNull(roles.get("role_fields"));
         assertNotNull(roles.get("role_query"));
         assertNotNull(roles.get("role_query_fields"));
@@ -614,7 +617,7 @@ public class FileRolesStoreTests extends ESTestCase {
         assertThat(role, notNullValue());
         assertThat(role.names(), equalTo(new String[] { "valid_role" }));
 
-        assertThat(entries, hasSize(6));
+        assertThat(entries, hasSize(7));
         assertThat(
             entries.get(0),
             startsWith("invalid role definition [fóóbár] in roles file [" + path.toAbsolutePath() + "]. invalid role name")
@@ -624,6 +627,7 @@ public class FileRolesStoreTests extends ESTestCase {
         assertThat(entries.get(3), startsWith("failed to parse role [role3]"));
         assertThat(entries.get(4), startsWith("failed to parse role [role4]"));
         assertThat(entries.get(5), startsWith("failed to parse indices privileges for role [role5]"));
+        assertThat(entries.get(6), startsWith("failed to parse role [role6]. unexpected field [restriction]"));
     }
 
     public void testThatRoleNamesDoesNotResolvePermissions() throws Exception {
@@ -632,8 +636,8 @@ public class FileRolesStoreTests extends ESTestCase {
         List<String> events = CapturingLogger.output(logger.getName(), Level.ERROR);
         events.clear();
         Set<String> roleNames = FileRolesStore.parseFileForRoleNames(path, logger);
-        assertThat(roleNames.size(), is(6));
-        assertThat(roleNames, containsInAnyOrder("valid_role", "role1", "role2", "role3", "role4", "role5"));
+        assertThat(roleNames.size(), is(7));
+        assertThat(roleNames, containsInAnyOrder("valid_role", "role1", "role2", "role3", "role4", "role5", "role6"));
 
         assertThat(events, hasSize(1));
         assertThat(
@@ -693,7 +697,12 @@ public class FileRolesStoreTests extends ESTestCase {
 
         Map<String, Object> usageStats = store.usageStats();
 
-        assertThat(usageStats.get("size"), is(flsDlsEnabled ? 9 : 6));
+        if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
+            assertThat(usageStats.get("size"), is(flsDlsEnabled ? 10 : 7));
+            assertThat(usageStats.get("remote_indices"), is(1L));
+        } else {
+            assertThat(usageStats.get("size"), is(flsDlsEnabled ? 9 : 6));
+        }
         assertThat(usageStats.get("fls"), is(flsDlsEnabled));
         assertThat(usageStats.get("dls"), is(flsDlsEnabled));
     }

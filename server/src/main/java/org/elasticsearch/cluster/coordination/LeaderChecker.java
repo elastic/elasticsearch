@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Setting;
@@ -160,7 +161,8 @@ public class LeaderChecker {
      * publication targets, and also called if a leader becomes a non-leader.
      */
     void setCurrentNodes(DiscoveryNodes discoveryNodes) {
-        logger.trace("setCurrentNodes: {}", discoveryNodes);
+        // Sorting the nodes for deterministic logging until https://github.com/elastic/elasticsearch/issues/94946 is fixed
+        logger.trace(() -> Strings.format("setCurrentNodes: {}", discoveryNodes.mastersFirstStream().toList()));
         this.discoveryNodes = discoveryNodes;
     }
 

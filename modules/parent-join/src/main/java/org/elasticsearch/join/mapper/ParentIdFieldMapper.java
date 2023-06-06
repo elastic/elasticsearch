@@ -29,7 +29,6 @@ import org.elasticsearch.script.field.DelegateDocValuesField;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -75,7 +74,7 @@ public final class ParentIdFieldMapper extends FieldMapper {
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             // Although this is an internal field, we return it in the list of all field types. So we
             // provide an empty value fetcher here instead of throwing an error.
-            return (lookup, doc, ignoredValues) -> List.of();
+            return ValueFetcher.EMPTY;
         }
 
         @Override

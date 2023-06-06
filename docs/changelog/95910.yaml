@@ -1,0 +1,5 @@
+pr: 95910
+summary: Don't generate stacktrace in `EarlyTerminationException` and `TimeExceededException`
+area: Search
+type: enhancement
+issues: []

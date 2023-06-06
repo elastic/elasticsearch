@@ -473,10 +473,9 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         MapperService mapperService = createMapperService(topMapping(b -> b.field("subobjects", false)));
         DocumentMapper mapper = mapperService.documentMapper();
         assertNull(mapper.mapping().getRoot().dynamic());
-        Mapping mergeWith = mapperService.parseMapping(
-            "_doc",
-            new CompressedXContent(BytesReference.bytes(topMapping(b -> { b.field("subobjects", true); })))
-        );
+        Mapping mergeWith = mapperService.parseMapping("_doc", new CompressedXContent(BytesReference.bytes(topMapping(b -> {
+            b.field("subobjects", true);
+        }))));
         MapperException exception = expectThrows(
             MapperException.class,
             () -> mapper.mapping().merge(mergeWith, MergeReason.MAPPING_UPDATE)

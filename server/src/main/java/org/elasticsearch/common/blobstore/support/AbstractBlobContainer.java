@@ -39,4 +39,8 @@ public abstract class AbstractBlobContainer implements BlobContainer {
         return this.path;
     }
 
+    @Override
+    public String toString() {
+        return getClass() + "{" + path + "}";
+    }
 }

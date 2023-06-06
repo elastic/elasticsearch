@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.common.settings;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -22,6 +21,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexingSlowLog;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.MergeSchedulerConfig;
@@ -166,6 +166,10 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         ShardLimitValidator.INDEX_SETTING_SHARD_LIMIT_GROUP,
         DataTier.TIER_PREFERENCE_SETTING,
         IndexSettings.BLOOM_FILTER_ID_FIELD_ENABLED_SETTING,
+        IndexSettings.LIFECYCLE_ORIGINATION_DATE_SETTING,
+        IndexSettings.LIFECYCLE_PARSE_ORIGINATION_DATE_SETTING,
+        IndexSettings.TIME_SERIES_ES87TSDB_CODEC_ENABLED_SETTING,
+        IndexSettings.PREFER_ILM_SETTING,
 
         // validate that built-in similarities don't get redefined
         Setting.groupSetting("index.similarity.", (s) -> {
@@ -241,12 +245,13 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
 
     @Override
     protected void validateDeprecatedAndRemovedSettingV7(Settings settings, Setting<?> setting) {
-        Version indexVersion = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings);
+        IndexVersion indexVersion = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings);
         // At various stages in settings verification we will perform validation without having the
         // IndexMetadata at hand, in which case the setting version will be empty. We don't want to
         // error out on those validations, we will check with the creation version present at index
         // creation time, as well as on index update settings.
-        if (indexVersion.equals(Version.V_EMPTY) == false && indexVersion.major != Version.V_7_0_0.major) {
+        if (indexVersion.equals(IndexVersion.ZERO) == false
+            && (indexVersion.before(IndexVersion.V_7_0_0) || indexVersion.onOrAfter(IndexVersion.V_8_0_0))) {
             throw new IllegalArgumentException("unknown setting [" + setting.getKey() + "]");
         }
     }

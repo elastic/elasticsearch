@@ -1,6 +1,0 @@
-pr: 92558
-summary: Protect `NodeConnectionsService` from stale conns
-area: Network
-type: bug
-issues:
- - 92029

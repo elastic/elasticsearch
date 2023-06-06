@@ -17,6 +17,7 @@ import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.component.Lifecycle;
@@ -49,7 +50,6 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -77,9 +77,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         List<DiscoveryNode> nodes = new ArrayList<>();
         for (int i = randomIntBetween(20, 50); i > 0; i--) {
             Set<DiscoveryNodeRole> roles = new HashSet<>(randomSubsetOf(DiscoveryNodeRole.roles()));
-            nodes.add(
-                new DiscoveryNode("node_" + i, "" + i, buildNewFakeTransportAddress(), Collections.emptyMap(), roles, Version.CURRENT)
-            );
+            nodes.add(DiscoveryNodeUtils.builder("" + i).name("node_" + i).roles(roles).build());
         }
         return nodes;
     }
@@ -145,7 +143,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         }, "reconnection thread");
         reconnectionThread.start();
 
-        final var node = new DiscoveryNode("node", buildNewFakeTransportAddress(), Map.of(), Set.of(), Version.CURRENT);
+        final var node = DiscoveryNodeUtils.create("node", buildNewFakeTransportAddress(), Map.of(), Set.of());
         final var nodes = discoveryNodesFromList(List.of(node));
 
         final Thread disruptionThread = new Thread(() -> {
@@ -260,7 +258,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         });
 
         // connect to one node
-        final DiscoveryNode node0 = new DiscoveryNode("node0", buildNewFakeTransportAddress(), Version.CURRENT);
+        final DiscoveryNode node0 = DiscoveryNodeUtils.create("node0");
         final DiscoveryNodes nodes0 = DiscoveryNodes.builder().add(node0).build();
         connectToNodes(service, nodes0);
         assertConnectedExactlyToNodes(nodes0);
@@ -272,7 +270,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
             transportService.disconnectFromNode(node0);
 
             // can still connect to another node without blocking
-            final DiscoveryNode node1 = new DiscoveryNode("node1", buildNewFakeTransportAddress(), Version.CURRENT);
+            final DiscoveryNode node1 = DiscoveryNodeUtils.create("node1");
             final DiscoveryNodes nodes1 = DiscoveryNodes.builder().add(node1).build();
             final DiscoveryNodes nodes01 = DiscoveryNodes.builder(nodes0).add(node1).build();
             connectToNodes(service, nodes01);

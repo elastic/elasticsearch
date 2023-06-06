@@ -8,8 +8,8 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
-import org.elasticsearch.action.admin.indices.rollover.RolloverConditionsTests;
+import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
+import org.elasticsearch.action.admin.indices.rollover.RolloverConfigurationTests;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -112,18 +112,20 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
     }
 
     private static Settings randomSettings() {
-        return Settings.builder()
-            .put(IndexMetadata.SETTING_BLOCKS_READ, randomBoolean())
+        return indexSettings(randomIntBetween(1, 10), randomIntBetween(0, 5)).put(IndexMetadata.SETTING_BLOCKS_READ, randomBoolean())
             .put(IndexMetadata.SETTING_BLOCKS_WRITE, randomBoolean())
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10))
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 5))
             .put(IndexMetadata.SETTING_BLOCKS_WRITE, randomBoolean())
             .put(IndexMetadata.SETTING_PRIORITY, randomIntBetween(0, 100000))
             .build();
     }
 
     private static DataLifecycle randomLifecycle() {
-        return new DataLifecycle(randomMillisUpToYear9999());
+        return switch (randomIntBetween(0, 3)) {
+            case 0 -> DataLifecycleTests.IMPLICIT_INFINITE_RETENTION;
+            case 1 -> Template.NO_LIFECYCLE;
+            case 2 -> DataLifecycleTests.EXPLICIT_INFINITE_RETENTION;
+            default -> new DataLifecycle(randomMillisUpToYear9999());
+        };
     }
 
     private static Map<String, Object> randomMeta() {
@@ -263,7 +265,7 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
         if (randomBoolean()) {
             aliases = randomAliases();
         }
-        DataLifecycle lifecycle = randomLifecycle();
+        DataLifecycle lifecycle = new DataLifecycle(randomMillisUpToYear9999());
         ComponentTemplate template = new ComponentTemplate(
             new Template(settings, mappings, aliases, lifecycle),
             randomNonNegativeLong(),
@@ -272,11 +274,13 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
 
         try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
             builder.humanReadable(true);
-            RolloverConditions rolloverConditions = RolloverConditionsTests.randomRolloverConditions();
-            template.toXContent(builder, ToXContent.EMPTY_PARAMS, rolloverConditions);
+            RolloverConfiguration rolloverConfiguration = RolloverConfigurationTests.randomRolloverConditions();
+            template.toXContent(builder, ToXContent.EMPTY_PARAMS, rolloverConfiguration);
             String serialized = Strings.toString(builder);
             assertThat(serialized, containsString("rollover"));
-            for (String label : rolloverConditions.getConditions().keySet()) {
+            for (String label : rolloverConfiguration.resolveRolloverConditions(lifecycle.getEffectiveDataRetention())
+                .getConditions()
+                .keySet()) {
                 assertThat(serialized, containsString(label));
             }
         }

@@ -1351,6 +1351,13 @@
                         },
                         "evictions": {
                           "type": "long"
+                        },
+                        "global_ordinals": {
+                          "properties": {
+                            "build_time_in_millis": {
+                              "type": "long"
+                            }
+                          }
                         }
                       }
                     },
@@ -2042,7 +2049,26 @@
                   "type": "keyword"
                 },
                 "read_exceptions": {
-                  "type": "nested"
+                  "type": "nested",
+                  "properties": {
+                    "from_seq_no": {
+                      "type": "long"
+                    },
+                    "retries": {
+                      "type": "integer"
+                    },
+                    "exception": {
+                      "type": "object",
+                      "properties": {
+                        "type" : {
+                          "type": "keyword"
+                        },
+                        "reason": {
+                          "type": "text"
+                        }
+                      }
+                    }
+                  }
                 },
                 "shard_id": {
                   "type": "long"

@@ -7,10 +7,13 @@
 
 package org.elasticsearch.xpack.ql;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 public final class TestNodes extends HashMap<String, TestNode> {
@@ -33,7 +36,16 @@ public final class TestNodes extends HashMap<String, TestNode> {
         if (isEmpty()) {
             throw new IllegalStateException("no nodes available");
         }
-        return Version.fromId(values().stream().mapToInt(node -> node.version().id).min().getAsInt());
+        return values().stream().map(TestNode::version).min(Comparator.naturalOrder()).get();
+    }
+
+    public TransportVersion getBWCTransportVersion() {
+        if (isEmpty()) {
+            throw new IllegalStateException("no nodes available");
+        }
+        // there will be either at least one node with version <8.8.0, and so a mapped TransportVersion will be set,
+        // or all >=8.8.0,so TransportVersion will always be there
+        return values().stream().map(TestNode::transportVersion).filter(Objects::nonNull).min(Comparator.naturalOrder()).get();
     }
 
     @Override

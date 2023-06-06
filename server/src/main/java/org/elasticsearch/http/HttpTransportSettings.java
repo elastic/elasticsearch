@@ -16,14 +16,13 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
 
-import static java.util.Collections.emptyList;
 import static org.elasticsearch.common.settings.Setting.boolSetting;
 import static org.elasticsearch.common.settings.Setting.intSetting;
 import static org.elasticsearch.common.settings.Setting.listSetting;
+import static org.elasticsearch.common.settings.Setting.stringListSetting;
 
 public final class HttpTransportSettings {
 
@@ -67,12 +66,7 @@ public final class HttpTransportSettings {
     // we intentionally use a different compression level as Netty here as our benchmarks have shown that a compression level of 3 is the
     // best compromise between reduction in network traffic and added latency. For more details please check #7309.
     public static final Setting<Integer> SETTING_HTTP_COMPRESSION_LEVEL = intSetting("http.compression_level", 3, Property.NodeScope);
-    public static final Setting<List<String>> SETTING_HTTP_HOST = listSetting(
-        "http.host",
-        emptyList(),
-        Function.identity(),
-        Property.NodeScope
-    );
+    public static final Setting<List<String>> SETTING_HTTP_HOST = stringListSetting("http.host", Property.NodeScope);
     public static final Setting<List<String>> SETTING_HTTP_PUBLISH_HOST = listSetting(
         "http.publish_host",
         SETTING_HTTP_HOST,
@@ -191,17 +185,13 @@ public final class HttpTransportSettings {
         Setting.Property.NodeScope
     );
 
-    public static final Setting<List<String>> SETTING_HTTP_TRACE_LOG_INCLUDE = Setting.listSetting(
+    public static final Setting<List<String>> SETTING_HTTP_TRACE_LOG_INCLUDE = Setting.stringListSetting(
         "http.tracer.include",
-        Collections.emptyList(),
-        Function.identity(),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
-    public static final Setting<List<String>> SETTING_HTTP_TRACE_LOG_EXCLUDE = Setting.listSetting(
+    public static final Setting<List<String>> SETTING_HTTP_TRACE_LOG_EXCLUDE = Setting.stringListSetting(
         "http.tracer.exclude",
-        Collections.emptyList(),
-        Function.identity(),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );

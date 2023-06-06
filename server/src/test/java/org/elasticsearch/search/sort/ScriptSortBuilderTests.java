@@ -20,7 +20,6 @@ import org.elasticsearch.index.mapper.NestedPathFieldMapper;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.Script;
@@ -356,7 +355,7 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
         ScriptSortBuilder sortBuilder = new ScriptSortBuilder(mockScript("something"), ScriptSortType.STRING);
         RangeQueryBuilder rangeQuery = new RangeQueryBuilder("fieldName") {
             @Override
-            public QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+            public QueryBuilder doSearchRewrite(SearchExecutionContext context) {
                 return new MatchNoneQueryBuilder();
             }
         };
@@ -372,7 +371,7 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
         ScriptSortBuilder sortBuilder = new ScriptSortBuilder(mockScript("something"), ScriptSortType.STRING);
         RangeQueryBuilder rangeQuery = new RangeQueryBuilder("fieldName") {
             @Override
-            public QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+            public QueryBuilder doSearchRewrite(SearchExecutionContext context) {
                 return new MatchNoneQueryBuilder();
             }
         };

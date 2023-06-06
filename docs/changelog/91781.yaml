@@ -1,5 +1,0 @@
-pr: 91781
-summary: JWT realm - Initial support for access tokens
-area: Authentication
-type: enhancement
-issues: []

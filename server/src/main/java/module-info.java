@@ -27,6 +27,7 @@ module org.elasticsearch.server {
     requires org.elasticsearch.logging;
     requires org.elasticsearch.plugin;
     requires org.elasticsearch.plugin.analysis;
+    requires org.elasticsearch.grok;
 
     requires com.sun.jna;
     requires hppc;
@@ -133,7 +134,6 @@ module org.elasticsearch.server {
     exports org.elasticsearch.action.get;
     exports org.elasticsearch.action.index;
     exports org.elasticsearch.action.ingest;
-    exports org.elasticsearch.action.main;
     exports org.elasticsearch.action.resync;
     exports org.elasticsearch.action.search;
     exports org.elasticsearch.action.support;
@@ -160,6 +160,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.cluster.action.shard;
     exports org.elasticsearch.cluster.block;
     exports org.elasticsearch.cluster.coordination;
+    exports org.elasticsearch.cluster.coordination.stateless;
     exports org.elasticsearch.cluster.health;
     exports org.elasticsearch.cluster.metadata;
     exports org.elasticsearch.cluster.node;
@@ -181,6 +182,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.common.component;
     exports org.elasticsearch.common.compress;
     exports org.elasticsearch.common.document;
+    exports org.elasticsearch.common.file;
     exports org.elasticsearch.common.filesystem;
     exports org.elasticsearch.common.geo;
     exports org.elasticsearch.common.hash;
@@ -275,6 +277,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.indices.recovery.plan;
     exports org.elasticsearch.indices.store;
     exports org.elasticsearch.ingest;
+    exports org.elasticsearch.internal to org.elasticsearch.serverless.version;
     exports org.elasticsearch.lucene.analysis.miscellaneous;
     exports org.elasticsearch.lucene.grouping;
     exports org.elasticsearch.lucene.queries;
@@ -288,11 +291,13 @@ module org.elasticsearch.server {
     exports org.elasticsearch.monitor.os;
     exports org.elasticsearch.monitor.process;
     exports org.elasticsearch.node;
+    exports org.elasticsearch.node.internal to org.elasticsearch.internal.sigterm;
     exports org.elasticsearch.persistent;
     exports org.elasticsearch.persistent.decider;
     exports org.elasticsearch.plugins;
     exports org.elasticsearch.plugins.interceptor to org.elasticsearch.security;
     exports org.elasticsearch.plugins.spi;
+    exports org.elasticsearch.plugins.internal to org.elasticsearch.settings.secure;
     exports org.elasticsearch.repositories;
     exports org.elasticsearch.repositories.blobstore;
     exports org.elasticsearch.repositories.fs;
@@ -340,6 +345,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.search.profile.dfs;
     exports org.elasticsearch.search.profile.query;
     exports org.elasticsearch.search.query;
+    exports org.elasticsearch.search.rank;
     exports org.elasticsearch.search.rescore;
     exports org.elasticsearch.search.runtime;
     exports org.elasticsearch.search.searchafter;
@@ -353,9 +359,9 @@ module org.elasticsearch.server {
     exports org.elasticsearch.search.vectors;
     exports org.elasticsearch.shutdown;
     exports org.elasticsearch.snapshots;
+    exports org.elasticsearch.synonyms;
     exports org.elasticsearch.tasks;
     exports org.elasticsearch.threadpool;
-    exports org.elasticsearch.timeseries.support;
     exports org.elasticsearch.tracing;
     exports org.elasticsearch.transport;
     exports org.elasticsearch.upgrades;
@@ -375,6 +381,9 @@ module org.elasticsearch.server {
             org.elasticsearch.index.shard.ShardToolCliProvider;
 
     uses org.elasticsearch.reservedstate.ReservedClusterStateHandlerProvider;
+    uses org.elasticsearch.jdk.ModuleQualifiedExportsService;
+    uses org.elasticsearch.node.internal.TerminationHandlerProvider;
+    uses org.elasticsearch.internal.VersionExtension;
 
     provides org.apache.lucene.codecs.PostingsFormat
         with

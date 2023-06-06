@@ -194,6 +194,10 @@ public class LocalClusterSpec implements ClusterSpec {
             return getSetting("node.roles", "master").contains("master");
         }
 
+        public boolean hasRole(String role) {
+            return getSetting("node.roles", "[]").contains(role);
+        }
+
         /**
          * Return node configured setting or the provided default if no explicit value has been configured. This method returns all
          * settings, to include security settings provided to the keystore

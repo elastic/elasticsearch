@@ -65,10 +65,11 @@ public class SearchableSnapshotIndexEventListener implements IndexEventListener 
     }
 
     private static void ensureSnapshotIsLoaded(IndexShard indexShard) {
-        final SearchableSnapshotDirectory directory = unwrapDirectory(indexShard.store().directory());
+        final var store = indexShard.store();
+        final SearchableSnapshotDirectory directory = unwrapDirectory(store.directory());
         assert directory != null;
         final StepListener<Void> preWarmListener = new StepListener<>();
-        final boolean success = directory.loadSnapshot(indexShard.recoveryState(), preWarmListener);
+        final boolean success = directory.loadSnapshot(indexShard.recoveryState(), store::isClosing, preWarmListener);
         final ShardRouting shardRouting = indexShard.routingEntry();
         if (success && shardRouting.isRelocationTarget()) {
             final Runnable preWarmCondition = indexShard.addCleanFilesDependency();

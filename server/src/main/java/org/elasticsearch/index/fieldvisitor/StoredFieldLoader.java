@@ -14,6 +14,7 @@ import org.apache.lucene.index.StoredFields;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
+import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -40,6 +41,16 @@ public abstract class StoredFieldLoader {
      * @return a list of fields that will be loaded for each document
      */
     public abstract List<String> fieldsToLoad();
+
+    /**
+     * Creates a new StoredFieldLoader using a StoredFieldsSpec
+     */
+    public static StoredFieldLoader fromSpec(StoredFieldsSpec spec) {
+        if (spec.noRequirements()) {
+            return StoredFieldLoader.empty();
+        }
+        return create(spec.requiresSource(), spec.requiredStoredFields());
+    }
 
     /**
      * Creates a new StoredFieldLoader

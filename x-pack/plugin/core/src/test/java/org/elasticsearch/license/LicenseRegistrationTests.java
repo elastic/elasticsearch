@@ -21,13 +21,13 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class LicenseRegistrationTests extends AbstractLicenseServiceTestCase {
+public class LicenseRegistrationTests extends AbstractClusterStateLicenseServiceTestCase {
 
     public void testSelfGeneratedTrialLicense() throws Exception {
         XPackLicenseState licenseState = TestUtils.newTestLicenseState();
         setInitialState(null, licenseState, Settings.EMPTY, "trial");
         when(discoveryNodes.isLocalNodeElectedMaster()).thenReturn(true);
-        clusterStateLicenseService.start();
+        licenseService.start();
 
         ClusterState state = ClusterState.builder(new ClusterName("a")).build();
         ArgumentCaptor<ClusterStateUpdateTask> stateUpdater = ArgumentCaptor.forClass(ClusterStateUpdateTask.class);
@@ -48,7 +48,7 @@ public class LicenseRegistrationTests extends AbstractLicenseServiceTestCase {
         XPackLicenseState licenseState = TestUtils.newTestLicenseState();
         setInitialState(null, licenseState, Settings.EMPTY, "basic");
         when(discoveryNodes.isLocalNodeElectedMaster()).thenReturn(true);
-        clusterStateLicenseService.start();
+        licenseService.start();
 
         ClusterState state = ClusterState.builder(new ClusterName("a")).build();
         ArgumentCaptor<ClusterStateUpdateTask> stateUpdater = ArgumentCaptor.forClass(ClusterStateUpdateTask.class);
@@ -80,7 +80,7 @@ public class LicenseRegistrationTests extends AbstractLicenseServiceTestCase {
         XPackLicenseState licenseState = TestUtils.newTestLicenseState();
         setInitialState(license, licenseState, Settings.EMPTY);
         when(discoveryNodes.isLocalNodeElectedMaster()).thenReturn(true);
-        clusterStateLicenseService.start();
+        licenseService.start();
 
         Metadata.Builder mdBuilder = Metadata.builder();
         mdBuilder.putCustom(LicensesMetadata.TYPE, new LicensesMetadata(license, null));
@@ -112,7 +112,7 @@ public class LicenseRegistrationTests extends AbstractLicenseServiceTestCase {
         XPackLicenseState licenseState = TestUtils.newTestLicenseState();
         setInitialState(license, licenseState, Settings.EMPTY);
         when(discoveryNodes.isLocalNodeElectedMaster()).thenReturn(true);
-        clusterStateLicenseService.start();
+        licenseService.start();
 
         Metadata.Builder mdBuilder = Metadata.builder();
         mdBuilder.putCustom(LicensesMetadata.TYPE, new LicensesMetadata(license, null));

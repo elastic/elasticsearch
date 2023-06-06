@@ -8,21 +8,25 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -68,14 +72,25 @@ public class TypeParsersTests extends ESTestCase {
         Map<String, Object> fieldNode = XContentHelper.convertToMap(BytesReference.bytes(mapping), true, mapping.contentType()).v2();
 
         MapperService mapperService = mock(MapperService.class);
-        IndexAnalyzers indexAnalyzers = new IndexAnalyzers(defaultAnalyzers(), Collections.emptyMap(), Collections.emptyMap());
+        IndexAnalyzers indexAnalyzers = IndexAnalyzers.of(defaultAnalyzers());
         when(mapperService.getIndexAnalyzers()).thenReturn(indexAnalyzers);
+
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .build();
+        IndexMetadata metadata = IndexMetadata.builder("test").settings(settings).build();
+        IndexSettings indexSettings = new IndexSettings(metadata, Settings.EMPTY);
+        when(mapperService.getIndexSettings()).thenReturn(indexSettings);
+
         Version olderVersion = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
         MappingParserContext olderContext = new MappingParserContext(
             null,
             type -> typeParser,
             type -> null,
             olderVersion,
+            () -> TransportVersion.MINIMUM_COMPATIBLE,
             null,
             ScriptCompiler.NONE,
             mapperService.getIndexAnalyzers(),
@@ -96,11 +111,17 @@ public class TypeParsersTests extends ESTestCase {
         Map<String, Object> fieldNodeCopy = XContentHelper.convertToMap(BytesReference.bytes(mapping), true, mapping.contentType()).v2();
 
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_8_0_0, Version.CURRENT);
+        TransportVersion transportVersion = TransportVersionUtils.randomVersionBetween(
+            random(),
+            TransportVersion.V_8_0_0,
+            TransportVersion.CURRENT
+        );
         MappingParserContext context = new MappingParserContext(
             null,
             type -> typeParser,
             type -> null,
             version,
+            () -> transportVersion,
             null,
             ScriptCompiler.NONE,
             mapperService.getIndexAnalyzers(),
@@ -108,10 +129,9 @@ public class TypeParsersTests extends ESTestCase {
             ProvidedIdFieldMapper.NO_FIELD_DATA
         );
 
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> { TextFieldMapper.PARSER.parse("textField", fieldNodeCopy, context); }
-        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+            TextFieldMapper.PARSER.parse("textField", fieldNodeCopy, context);
+        });
         assertThat(
             e.getMessage(),
             equalTo(

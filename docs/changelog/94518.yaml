@@ -1,5 +1,0 @@
-pr: 94518
-summary: Use keyword analyzer for untokenized fields in `TermVectorsService`
-area: Search
-type: bug
-issues: []

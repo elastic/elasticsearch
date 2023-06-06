@@ -97,7 +97,8 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         .build(),
                     "*"
                 ) }
-            : null
+            : null,
+        null
     );
     private static final Map<String, RoleDescriptor> RESERVED_ROLES = initializeReservedRoles();
 
@@ -141,6 +142,10 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                             .privileges("read", "read_cross_cluster")
                             .build(),
                         RoleDescriptor.IndicesPrivileges.builder()
+                            .indices("/metrics-(beats|elasticsearch|enterprisesearch|kibana|logstash).*/")
+                            .privileges("read", "read_cross_cluster")
+                            .build(),
+                        RoleDescriptor.IndicesPrivileges.builder()
                             .indices("metricbeat-*")
                             .privileges("read", "read_cross_cluster")
                             .build() },
@@ -157,8 +162,10 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     TcpTransport.isUntrustedRemoteClusterEnabled()
                         ? new RoleDescriptor.RemoteIndicesPrivileges[] {
                             getRemoteIndicesReadPrivileges(".monitoring-*"),
+                            getRemoteIndicesReadPrivileges("/metrics-(beats|elasticsearch|enterprisesearch|kibana|logstash).*/"),
                             getRemoteIndicesReadPrivileges("metricbeat-*") }
-                        : null
+                        : null,
+                    null
                 )
             )
             .put(
@@ -759,6 +766,13 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges("view_index_metadata", "monitor").build(),
                 // Endpoint diagnostic information. Kibana reads from these indices to send telemetry
                 RoleDescriptor.IndicesPrivileges.builder().indices(".logs-endpoint.diagnostic.collection-*").privileges("read").build(),
+                // Fleet secrets, Kibana can only write to this index.
+                // This definition must come before .fleet* below.
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".fleet-secrets*")
+                    .privileges("write", "delete", "create_index")
+                    .allowRestrictedIndices(true)
+                    .build(),
                 // Fleet Server indices. Kibana create this indice before Fleet Server use them.
                 // Fleet Server indices. Kibana read and write to this indice to manage Elastic Agents
                 RoleDescriptor.IndicesPrivileges.builder().indices(".fleet*").allowRestrictedIndices(true).privileges("all").build(),
@@ -805,7 +819,8 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         ".logs-endpoint.diagnostic.collection-*",
                         ".logs-endpoint.actions-*",
                         ".logs-osquery_manager.actions-*",
-                        ".logs-osquery_manager.action.responses-*"
+                        ".logs-osquery_manager.action.responses-*",
+                        "profiling-*"
                     )
                     .privileges(UpdateSettingsAction.NAME, PutMappingAction.NAME, RolloverAction.NAME)
                     .build(),
@@ -858,6 +873,32 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     )
                     .privileges("create_index", "delete_index", "read", "index", IndicesAliasesAction.NAME, UpdateSettingsAction.NAME)
                     .build(),
+                // For destination indices of the Threat Intel (ti_*) packages that ships a transform for supporting IOC expiration
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices("logs-ti_*_latest.*")
+                    .privileges(
+                        // Require "create_index", "delete_index", "read", "index", "delete", IndicesAliasesAction.NAME, and
+                        // UpdateSettingsAction.NAME for transform
+                        "create_index",
+                        "delete_index",
+                        "read",
+                        "index",
+                        "delete",
+                        IndicesAliasesAction.NAME,
+                        UpdateSettingsAction.NAME
+                    )
+                    .build(),
+                // For source indices of the Threat Intel (ti_*) packages that ships a transform for supporting IOC expiration
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices("logs-ti_*.*-*")
+                    .privileges(
+                        // Require "delete_index" to perform ILM policy actions
+                        DeleteIndexAction.NAME,
+                        // Require "read" and "view_index_metadata" for transform
+                        "read",
+                        "view_index_metadata"
+                    )
+                    .build(),
                 // For src/dest indices of the example transform package
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("kibana_sample_data_*")
@@ -899,7 +940,8 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     getRemoteIndicesReadPrivileges("metrics-apm.*"),
                     getRemoteIndicesReadPrivileges("traces-apm.*"),
                     getRemoteIndicesReadPrivileges("traces-apm-*") }
-                : null
+                : null,
+            null
         );
     }
 

@@ -13,10 +13,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.ClusterStatePublisher.AckListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportResponse;
@@ -38,7 +38,7 @@ public abstract class Publication {
     private final LongSupplier currentTimeSupplier;
     private final long startTime;
 
-    private Optional<ListenableFuture<ApplyCommitRequest>> applyCommitRequest; // set when state is committed
+    private Optional<SubscribableListener<ApplyCommitRequest>> applyCommitRequest; // set when state is committed
     private boolean isCompleted; // set when publication is completed
     private boolean cancelled; // set when publication is cancelled
 
@@ -174,7 +174,7 @@ public abstract class Publication {
 
     protected abstract boolean isPublishQuorum(CoordinationState.VoteCollection votes);
 
-    protected abstract Optional<ListenableFuture<ApplyCommitRequest>> handlePublishResponse(
+    protected abstract Optional<SubscribableListener<ApplyCommitRequest>> handlePublishResponse(
         DiscoveryNode sourceNode,
         PublishResponse publishResponse
     );
@@ -395,7 +395,7 @@ public abstract class Publication {
 
         private Exception getRootCause(Exception e) {
             if (e instanceof final TransportException transportException) {
-                if (transportException.getRootCause()instanceof final Exception rootCause) {
+                if (transportException.getRootCause() instanceof final Exception rootCause) {
                     return rootCause;
                 } else {
                     assert false : e;

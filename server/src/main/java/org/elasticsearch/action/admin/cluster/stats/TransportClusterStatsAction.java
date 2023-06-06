@@ -222,7 +222,9 @@ public class TransportClusterStatsAction extends TransportNodesAction<
                             CommonStats.getShardLevelStats(indicesService.getIndicesQueryCache(), indexShard, SHARD_STATS_FLAGS),
                             commitStats,
                             seqNoStats,
-                            retentionLeaseStats
+                            retentionLeaseStats,
+                            indexShard.isSearchIdle(),
+                            indexShard.searchIdleTime()
                         )
                     );
                 }

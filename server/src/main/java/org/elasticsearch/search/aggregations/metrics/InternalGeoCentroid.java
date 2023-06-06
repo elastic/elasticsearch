@@ -58,6 +58,10 @@ public class InternalGeoCentroid extends InternalCentroid implements GeoCentroid
         super(in, new FieldExtractor("lat", SpatialPoint::getY), new FieldExtractor("lon", SpatialPoint::getX));
     }
 
+    public static InternalGeoCentroid empty(String name, Map<String, Object> metadata) {
+        return new InternalGeoCentroid(name, null, 0L, metadata);
+    }
+
     @Override
     protected GeoPoint centroidFromStream(StreamInput in) throws IOException {
         if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_2_0)) {

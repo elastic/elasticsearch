@@ -8,6 +8,14 @@ experimental::[]
 
 Retrieves the current data lifecycle status for one or more data stream backing indices.
 
+[[explain-lifecycle-api-prereqs]]
+==== {api-prereq-title}
+
+* Nit: would rephrase as:
+
+If the {es} {security-features} are enabled, you must have at least the `manage_dlm` index privilege or
+`view_index_metadata` index privilege to use this API. For more information, see <<security-privileges>>.
+
 [[dlm-explain-lifecycle-request]]
 ==== {api-request-title}
 
@@ -82,10 +90,10 @@ shown.
 data stream)
 <7> The generation time of the index represents the time since the index started progressing
 towards the user configurable / business specific parts of the lifecycle (e.g. retention).
-Every index will have to wait for it to be rolled over before being able to progress to the
-business-specific part of the lifecycle (i.e. the index advances in its lifecycle after it
-stops being the write index of a data stream). If the index has not been rolled over the
-`generation_time` will not be reported.
+The `generation_time` is calculated from the origination date if it exists, or from the
+rollover date if it exists, or from the creation date if neither of the other two exist.
+If the index is the write index the `generation_time` will not be reported because it is not
+eligible for retention or other parts of the lifecycle.
 
 The `explain` will also report any errors related to the lifecycle execution for the target
 index:

@@ -15,12 +15,13 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContentFragment;
 
 import java.util.Arrays;
+import java.util.Map;
 
 public class TransportStatsTests extends ESTestCase {
     public void testToXContent() {
         assertEquals(
             Strings.toString(
-                new TransportStats(1, 2, 3, ByteSizeUnit.MB.toBytes(4), 5, ByteSizeUnit.MB.toBytes(6), new long[0], new long[0]),
+                new TransportStats(1, 2, 3, ByteSizeUnit.MB.toBytes(4), 5, ByteSizeUnit.MB.toBytes(6), new long[0], new long[0], Map.of()),
                 false,
                 true
             ),
@@ -34,7 +35,7 @@ public class TransportStatsTests extends ESTestCase {
         final var histogram = new long[HandlingTimeTracker.BUCKET_COUNT];
         assertEquals(
             Strings.toString(
-                new TransportStats(1, 2, 3, ByteSizeUnit.MB.toBytes(4), 5, ByteSizeUnit.MB.toBytes(6), histogram, histogram),
+                new TransportStats(1, 2, 3, ByteSizeUnit.MB.toBytes(4), 5, ByteSizeUnit.MB.toBytes(6), histogram, histogram, Map.of()),
                 false,
                 true
             ),
@@ -50,7 +51,7 @@ public class TransportStatsTests extends ESTestCase {
         histogram[4] = 10;
         assertEquals(
             Strings.toString(
-                new TransportStats(1, 2, 3, ByteSizeUnit.MB.toBytes(4), 5, ByteSizeUnit.MB.toBytes(6), histogram, histogram),
+                new TransportStats(1, 2, 3, ByteSizeUnit.MB.toBytes(4), 5, ByteSizeUnit.MB.toBytes(6), histogram, histogram, Map.of()),
                 false,
                 true
             ),
@@ -61,6 +62,39 @@ public class TransportStatsTests extends ESTestCase {
                 "inbound_handling_time_histogram":[{"ge":"8ms","ge_millis":8,"lt":"16ms","lt_millis":16,"count":10}],\
                 "outbound_handling_time_histogram":[{"ge":"8ms","ge_millis":8,"lt":"16ms","lt_millis":16,"count":10}]\
                 }}"""
+        );
+
+        final var requestSizeHistogram = new long[29];
+        requestSizeHistogram[2] = 9;
+        requestSizeHistogram[4] = 10;
+
+        final var responseSizeHistogram = new long[29];
+        responseSizeHistogram[3] = 13;
+        responseSizeHistogram[5] = 14;
+
+        final var exampleActionStats = new TransportActionStats(7, 8, requestSizeHistogram, 11, 12, responseSizeHistogram);
+
+        assertEquals(
+            Strings.toString(
+                new TransportStats(
+                    1,
+                    2,
+                    3,
+                    ByteSizeUnit.MB.toBytes(4),
+                    5,
+                    ByteSizeUnit.MB.toBytes(6),
+                    new long[0],
+                    new long[0],
+                    Map.of("internal:test/action", exampleActionStats)
+                ),
+                false,
+                true
+            ),
+            Strings.format("""
+                {"transport":{"server_open":1,"total_outbound_connections":2,\
+                "rx_count":3,"rx_size":"4mb","rx_size_in_bytes":4194304,\
+                "tx_count":5,"tx_size":"6mb","tx_size_in_bytes":6291456,\
+                "actions":{"internal:test/action":%s}}}""", Strings.toString(exampleActionStats, false, true))
         );
     }
 

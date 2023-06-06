@@ -17,6 +17,7 @@ import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
@@ -64,18 +65,23 @@ public class QueryBuilderStoreTests extends ESTestCase {
             BinaryFieldMapper fieldMapper = PercolatorFieldMapper.Builder.createQueryBuilderFieldBuilder(MapperBuilderContext.root(false));
             MappedFieldType.FielddataOperation fielddataOperation = MappedFieldType.FielddataOperation.SEARCH;
 
-            Version version = Version.CURRENT;
             try (IndexWriter indexWriter = new IndexWriter(directory, config)) {
                 for (int i = 0; i < queryBuilders.length; i++) {
                     queryBuilders[i] = new TermQueryBuilder(randomAlphaOfLength(4), randomAlphaOfLength(8));
                     DocumentParserContext documentParserContext = new TestDocumentParserContext();
-                    PercolatorFieldMapper.createQueryBuilderField(version, fieldMapper, queryBuilders[i], documentParserContext);
+                    PercolatorFieldMapper.createQueryBuilderField(
+                        Version.CURRENT,
+                        TransportVersion.CURRENT,
+                        fieldMapper,
+                        queryBuilders[i],
+                        documentParserContext
+                    );
                     indexWriter.addDocument(documentParserContext.doc());
                 }
             }
 
             SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
-            when(searchExecutionContext.indexVersionCreated()).thenReturn(version);
+            when(searchExecutionContext.indexVersionCreated()).thenReturn(Version.CURRENT);
             when(searchExecutionContext.getWriteableRegistry()).thenReturn(writableRegistry());
             when(searchExecutionContext.getParserConfig()).thenReturn(parserConfig());
             when(searchExecutionContext.getForField(fieldMapper.fieldType(), fielddataOperation)).thenReturn(

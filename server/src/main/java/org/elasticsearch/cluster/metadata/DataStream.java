@@ -13,7 +13,7 @@ import org.apache.lucene.index.PointValues;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
+import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.Diff;
@@ -61,6 +61,8 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.elasticsearch.index.IndexSettings.LIFECYCLE_ORIGINATION_DATE;
+import static org.elasticsearch.index.IndexSettings.PREFER_ILM_SETTING;
 
 public final class DataStream implements SimpleDiffable<DataStream>, ToXContentObject, IndexAbstraction {
 
@@ -611,31 +613,27 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      * is treated differently for the write index (i.e. they first need to be rolled over)
      */
     public List<Index> getIndicesPastRetention(Function<String, IndexMetadata> indexMetadataSupplier, LongSupplier nowSupplier) {
-        if (lifecycle == null || lifecycle.getDataRetention() == null) {
+        if (lifecycle == null || lifecycle.getEffectiveDataRetention() == null) {
             return List.of();
         }
 
-        List<Index> indicesPastRetention = getIndicesOlderThan(
-            lifecycle.getDataRetention(),
+        List<Index> indicesPastRetention = getNonWriteIndicesOlderThan(
+            lifecycle.getEffectiveDataRetention(),
             indexMetadataSupplier,
             this::isIndexManagedByDLM,
             nowSupplier
         );
-        // when it comes to executing retention the write index should be excluded (a data stream must always have a write index)
-        indicesPastRetention.remove(getWriteIndex());
         return indicesPastRetention;
     }
 
     /**
-     * Returns the backing indices that are older than the provided age.
-     * The index age is calculated from the rollover or index creation date.
-     * Note that the write index is also evaluated and could be returned in the list
-     * of results.
+     * Returns the non-write backing indices that are older than the provided age, *excluding the write index*.
+     * The index age is calculated from the rollover or index creation date (or the origination date if present).
      * If an indices predicate is provided the returned list of indices will be filtered
      * according to the predicate definition. This is useful for things like "return only
      * the backing indices that are managed by DLM".
      */
-    public List<Index> getIndicesOlderThan(
+    public List<Index> getNonWriteIndicesOlderThan(
         TimeValue age,
         Function<String, IndexMetadata> indexMetadataSupplier,
         @Nullable Predicate<IndexMetadata> indicesPredicate,
@@ -649,11 +647,13 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
                 // so let's ignore deleted indices
                 continue;
             }
-            TimeValue indexLifecycleDate = getCreationOrRolloverDate(name, indexMetadata);
-            long nowMillis = nowSupplier.getAsLong();
-            if (nowMillis >= indexLifecycleDate.getMillis() + age.getMillis()) {
-                if (indicesPredicate == null || indicesPredicate.test(indexMetadata)) {
-                    olderIndices.add(index);
+            TimeValue indexLifecycleDate = getGenerationLifecycleDate(indexMetadata);
+            if (indexLifecycleDate != null) {
+                long nowMillis = nowSupplier.getAsLong();
+                if (nowMillis >= indexLifecycleDate.getMillis() + age.getMillis()) {
+                    if (indicesPredicate == null || indicesPredicate.test(indexMetadata)) {
+                        olderIndices.add(index);
+                    }
                 }
             }
         }
@@ -678,27 +678,42 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     }
 
     /**
-     * This is the raw defintion of an index being managed by DLM. It's currently quite a shallow method
-     * but more logic will land here once we'll have a setting to control if ILM takes precedence or not.
+     * This is the raw defintion of an index being managed by DLM. An index is managed by DLM if it's part of a data stream
+     * that has a DLM lifecycle configured and depending on the value of {@link org.elasticsearch.index.IndexSettings#PREFER_ILM_SETTING}
+     * having an ILM policy configured will play into the decision.
      * This method also skips any validation to make sure the index is part of this data stream, hence the private
      * access method.
      */
     private boolean isIndexManagedByDLM(IndexMetadata indexMetadata) {
-        return indexMetadata.getLifecyclePolicyName() == null && lifecycle != null;
+        boolean preferIlm = PREFER_ILM_SETTING.get(indexMetadata.getSettings());
+        if (indexMetadata.getLifecyclePolicyName() != null && lifecycle != null) {
+            // when both ILM and DLM are configured, choose depending on the configured preference for this backing index
+            return preferIlm == false;
+        }
+        return lifecycle != null;
     }
 
     /**
-     * Returns the rollover or creation date for the provided index.
-     * We look for the rollover information for the provided data stream name as the
-     * rollover target. If the index has not been rolled over for the provided
-     * data stream name we return the index creation date.
+     * Returns the generation date of the index whose metadata is passed. The generation date of the index represents the time at which the
+     * index started progressing towards the user configurable / business specific parts of the lifecycle (e.g. retention).
+     * The generation date is the origination date if it exists, or the rollover date if it exists and the origination date does not, or
+     * the creation date if neither the origination date nor the rollover date exist.
+     * If the index is the write index the generation date will be null because it is not eligible for retention or other parts of the
+     * lifecycle.
+     * @param indexMetadata The metadata of the index whose generation date is returned
+     * @return The generation date of the index, or null if this is the write index
      */
-    static TimeValue getCreationOrRolloverDate(String dataStreamName, IndexMetadata index) {
-        RolloverInfo rolloverInfo = index.getRolloverInfos().get(dataStreamName);
+    @Nullable
+    public TimeValue getGenerationLifecycleDate(IndexMetadata indexMetadata) {
+        if (indexMetadata.getIndex().equals(getWriteIndex())) {
+            return null;
+        }
+        Long originationDate = indexMetadata.getSettings().getAsLong(LIFECYCLE_ORIGINATION_DATE, null);
+        RolloverInfo rolloverInfo = indexMetadata.getRolloverInfos().get(getName());
         if (rolloverInfo != null) {
-            return TimeValue.timeValueMillis(rolloverInfo.getTime());
+            return TimeValue.timeValueMillis(Objects.requireNonNullElseGet(originationDate, rolloverInfo::getTime));
         } else {
-            return TimeValue.timeValueMillis(index.getCreationDate());
+            return TimeValue.timeValueMillis(Objects.requireNonNullElseGet(originationDate, indexMetadata::getCreationDate));
         }
     }
 
@@ -837,7 +852,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     /**
      * Converts the data stream to XContent and passes the RolloverConditions, when provided, to the lifecycle.
      */
-    public XContentBuilder toXContent(XContentBuilder builder, Params params, @Nullable RolloverConditions rolloverConditions)
+    public XContentBuilder toXContent(XContentBuilder builder, Params params, @Nullable RolloverConfiguration rolloverConfiguration)
         throws IOException {
         builder.startObject();
         builder.field(NAME_FIELD.getPreferredName(), name);
@@ -856,7 +871,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         }
         if (lifecycle != null) {
             builder.field(LIFECYCLE.getPreferredName());
-            lifecycle.toXContent(builder, params, rolloverConditions);
+            lifecycle.toXContent(builder, params, rolloverConfiguration);
         }
         builder.endObject();
         return builder;
@@ -901,7 +916,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         } else {
             timestamp = getTimestampFromParser(request.source(), request.getContentType());
         }
-        timestamp = timestamp.truncatedTo(ChronoUnit.SECONDS);
+        timestamp = getCanonicalTimestampBound(timestamp);
         Index result = selectTimeSeriesWriteIndex(timestamp, metadata);
         if (result == null) {
             String timestampAsString = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(timestamp);
@@ -1045,5 +1060,16 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         public int hashCode() {
             return Objects.hash(name);
         }
+    }
+
+    /**
+     * Modifies the passed Instant object to be used as a bound for a timestamp field in TimeSeries. It needs to be called in both backing
+     * index construction (rollover) and index selection for doc insertion. Failure to do so may lead to errors due to document timestamps
+     * exceeding the end time of the selected backing index for insertion.
+     * @param time The initial Instant object that's used to generate the canonical time
+     * @return A canonical Instant object to be used as a timestamp bound
+     */
+    public static Instant getCanonicalTimestampBound(Instant time) {
+        return time.truncatedTo(ChronoUnit.SECONDS);
     }
 }

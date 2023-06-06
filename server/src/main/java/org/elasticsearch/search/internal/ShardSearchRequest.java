@@ -53,6 +53,7 @@ import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -85,6 +86,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
     // these are the only mutable fields, as they are subject to rewriting
     private AliasFilter aliasFilter;
     private SearchSourceBuilder source;
+    private List<QueryBuilder> rankQueryBuilders;
     private final ShardSearchContextId readerId;
     private final TimeValue keepAlive;
 
@@ -225,6 +227,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         this.numberOfShards = numberOfShards;
         this.searchType = searchType;
         this.source(source);
+        this.rankQueryBuilders = List.of();
         this.requestCache = requestCache;
         this.aliasFilter = aliasFilter;
         this.indexBoost = indexBoost;
@@ -249,6 +252,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         this.numberOfShards = clone.numberOfShards;
         this.scroll = clone.scroll;
         this.source(clone.source);
+        this.rankQueryBuilders = clone.rankQueryBuilders;
         this.aliasFilter = clone.aliasFilter;
         this.indexBoost = clone.indexBoost;
         this.nowInMillis = clone.nowInMillis;
@@ -274,6 +278,11 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         numberOfShards = in.readVInt();
         scroll = in.readOptionalWriteable(Scroll::new);
         source = in.readOptionalWriteable(SearchSourceBuilder::new);
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+            rankQueryBuilders = in.readNamedWriteableList(QueryBuilder.class);
+        } else {
+            rankQueryBuilders = List.of();
+        }
         if (in.getTransportVersion().before(TransportVersion.V_8_0_0)) {
             // types no longer relevant so ignore
             String[] types = in.readStringArray();
@@ -344,6 +353,11 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         }
         out.writeOptionalWriteable(scroll);
         out.writeOptionalWriteable(source);
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+            out.writeNamedWriteableList(rankQueryBuilders);
+        } else if (rankQueryBuilders.isEmpty() == false) {
+            throw new IllegalArgumentException("cannot serialize [rank] to version [" + out.getTransportVersion() + "]");
+        }
         if (out.getTransportVersion().before(TransportVersion.V_8_0_0)) {
             // types not supported so send an empty array to previous versions
             out.writeStringArray(Strings.EMPTY_ARRAY);
@@ -412,6 +426,14 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
 
     public SearchSourceBuilder source() {
         return source;
+    }
+
+    public List<QueryBuilder> rankQueryBuilders() {
+        return rankQueryBuilders;
+    }
+
+    public void rankQueryBuilders(List<QueryBuilder> rankQueryBuilders) {
+        this.rankQueryBuilders = rankQueryBuilders;
     }
 
     public AliasFilter getAliasFilter() {
@@ -574,6 +596,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         public Rewriteable rewrite(QueryRewriteContext ctx) throws IOException {
             SearchSourceBuilder newSource = request.source() == null ? null : Rewriteable.rewrite(request.source(), ctx);
             AliasFilter newAliasFilter = Rewriteable.rewrite(request.getAliasFilter(), ctx);
+            List<QueryBuilder> rankQueryBuilders = Rewriteable.rewrite(request.rankQueryBuilders(), ctx);
 
             SearchExecutionContext searchExecutionContext = ctx.convertToSearchExecutionContext();
 
@@ -593,11 +616,14 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
                 request.setBottomSortValues(null);
             }
 
-            if (newSource == request.source() && newAliasFilter == request.getAliasFilter()) {
+            if (newSource == request.source()
+                && newAliasFilter == request.getAliasFilter()
+                && rankQueryBuilders == request.rankQueryBuilders()) {
                 return this;
             } else {
                 request.source(newSource);
                 request.setAliasFilter(newAliasFilter);
+                request.rankQueryBuilders(rankQueryBuilders);
                 return new RequestRewritable(request);
             }
         }

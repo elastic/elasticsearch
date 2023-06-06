@@ -42,7 +42,6 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.license.LicenseStateListener;
 import org.elasticsearch.license.MockLicenseState;
@@ -51,6 +50,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequest.Empty;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -92,13 +92,10 @@ import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 import org.elasticsearch.xpack.core.security.test.TestRestrictedIndices;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
-import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
-import org.elasticsearch.xpack.core.security.user.CrossClusterAccessUser;
-import org.elasticsearch.xpack.core.security.user.SecurityProfileUser;
+import org.elasticsearch.xpack.core.security.user.InternalUser;
+import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
-import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchAction;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
@@ -141,11 +138,13 @@ import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.AP
 import static org.elasticsearch.xpack.security.authc.ApiKeyServiceTests.Utils.createApiKeyAuthentication;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -958,7 +957,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
             null,
             new RoleDescriptor.RemoteIndicesPrivileges[] {
                 RoleDescriptor.RemoteIndicesPrivileges.builder("remote-*", "remote").indices("abc-*", "xyz-*").privileges("read").build(),
-                RoleDescriptor.RemoteIndicesPrivileges.builder("remote-*").indices("remote-idx-1-*").privileges("read").build(), }
+                RoleDescriptor.RemoteIndicesPrivileges.builder("remote-*").indices("remote-idx-1-*").privileges("read").build(), },
+            null
         );
 
         ConfigurableClusterPrivilege ccp2 = new MockConfigurableClusterPrivilege() {
@@ -985,7 +985,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
             null,
             new RoleDescriptor.RemoteIndicesPrivileges[] {
                 RoleDescriptor.RemoteIndicesPrivileges.builder("*").indices("remote-idx-2-*").privileges("read").build(),
-                RoleDescriptor.RemoteIndicesPrivileges.builder("remote-*").indices("remote-idx-3-*").privileges("read").build() }
+                RoleDescriptor.RemoteIndicesPrivileges.builder("remote-*").indices("remote-idx-3-*").privileges("read").build() },
+            null
         );
 
         FieldPermissionsCache cache = new FieldPermissionsCache(Settings.EMPTY);
@@ -1702,18 +1703,12 @@ public class CompositeRolesStoreTests extends ESTestCase {
         );
         verify(fileRolesStore).addListener(anyConsumer()); // adds a listener in ctor
 
-        for (var userAndRole : List.of(
-            new Tuple<>(XPackUser.INSTANCE, compositeRolesStore.getXpackUserRole()),
-            new Tuple<>(AsyncSearchUser.INSTANCE, compositeRolesStore.getAsyncSearchUserRole()),
-            new Tuple<>(XPackSecurityUser.INSTANCE, compositeRolesStore.getXpackSecurityRole()),
-            new Tuple<>(SecurityProfileUser.INSTANCE, compositeRolesStore.getSecurityProfileRole())
-        )) {
-            User internalUser = userAndRole.v1();
+        for (var internalUser : AuthenticationTestHelper.internalUsersWithLocalRoleDescriptor()) {
+            Role expectedRole = compositeRolesStore.getInternalUserRole(internalUser);
             Subject subject = new Subject(internalUser, new RealmRef("name", "type", "node"));
             PlainActionFuture<Role> rolesFuture = new PlainActionFuture<>();
             compositeRolesStore.getRole(subject, rolesFuture);
             Role roles = rolesFuture.actionGet();
-            Role expectedRole = userAndRole.v2();
 
             assertThat(roles, equalTo(expectedRole));
             assertThat(effectiveRoleDescriptors.get(), is(nullValue()));
@@ -1741,19 +1736,23 @@ public class CompositeRolesStoreTests extends ESTestCase {
         assertThat(role.application().getApplicationNames(), empty());
         assertThat(role.cluster().privileges(), empty());
         assertThat(role.indices(), is(IndicesPermission.NONE));
-        assertThat(
-            role,
-            not(
-                is(
-                    oneOf(
-                        compositeRolesStore.getAsyncSearchUserRole(),
-                        compositeRolesStore.getSecurityProfileRole(),
-                        compositeRolesStore.getXpackUserRole(),
-                        compositeRolesStore.getXpackSecurityRole()
-                    )
-                )
-            )
-        );
+
+        final InternalUser internalUser = InternalUsers.getUser(roleName);
+        assertThat(internalUser, notNullValue());
+        if (internalUser.getLocalClusterRoleDescriptor().isPresent()) {
+            Role internalRole = compositeRolesStore.getInternalUserRole(internalUser);
+            assertThat(internalRole, notNullValue());
+            assertThat(role, not(internalRole));
+        }
+
+        final Role[] internalRoles = InternalUsers.get()
+            .stream()
+            .filter(u -> u.getLocalClusterRoleDescriptor().isPresent())
+            .map(compositeRolesStore::getInternalUserRole)
+            .toArray(Role[]::new);
+        // Check that we're actually testing something here...
+        assertThat(internalRoles, arrayWithSize(greaterThan(1)));
+        assertThat(role, not(is(oneOf(internalRoles))));
     }
 
     public void testGetRolesForSystemUserThrowsException() {
@@ -1787,12 +1786,12 @@ public class CompositeRolesStoreTests extends ESTestCase {
         IllegalArgumentException iae = expectThrows(
             IllegalArgumentException.class,
             () -> compositeRolesStore.getRole(
-                new Subject(SystemUser.INSTANCE, new RealmRef("__attach", "__attach", randomAlphaOfLengthBetween(3, 8))),
+                new Subject(InternalUsers.SYSTEM_USER, new RealmRef("__attach", "__attach", randomAlphaOfLengthBetween(3, 8))),
                 null
             )
         );
         assertThat(effectiveRoleDescriptors.get(), is(nullValue()));
-        assertEquals("the user [_system] is the system user and we should never try to get its roles", iae.getMessage());
+        assertEquals("the internal user [_system] should never have its roles resolved", iae.getMessage());
     }
 
     public void testGetRolesForCrossClusterAccessUserThrowsException() {
@@ -1826,15 +1825,15 @@ public class CompositeRolesStoreTests extends ESTestCase {
         IllegalArgumentException iae = expectThrows(
             IllegalArgumentException.class,
             () -> compositeRolesStore.getRole(
-                new Subject(CrossClusterAccessUser.INSTANCE, new RealmRef("__attach", "__attach", randomAlphaOfLengthBetween(3, 8))),
+                new Subject(
+                    InternalUsers.CROSS_CLUSTER_ACCESS_USER,
+                    new RealmRef("__attach", "__attach", randomAlphaOfLengthBetween(3, 8))
+                ),
                 null
             )
         );
         assertThat(effectiveRoleDescriptors.get(), is(nullValue()));
-        assertEquals(
-            "the user [_cross_cluster_access] is the cross cluster access user and we should never try to get its roles",
-            iae.getMessage()
-        );
+        assertEquals("the internal user [_cross_cluster_access] should never have its roles resolved", iae.getMessage());
     }
 
     public void testApiKeyAuthUsesApiKeyService() throws Exception {
@@ -2021,6 +2020,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
     }
 
     public void testGetRoleForCrossClusterAccessAuthentication() throws Exception {
+        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
         final FileRolesStore fileRolesStore = mock(FileRolesStore.class);
         doCallRealMethod().when(fileRolesStore).accept(anySet(), anyActionListener());
         final NativeRolesStore nativeRolesStore = mock(NativeRolesStore.class);
@@ -2072,25 +2072,18 @@ public class CompositeRolesStoreTests extends ESTestCase {
             effectiveRoleDescriptors::set
         );
         AuditUtil.getOrGenerateRequestId(threadContext);
-        final TransportVersion version = TransportVersion.CURRENT;
-        final String apiKeyRoleName = "user_role_" + randomAlphaOfLength(4);
-        final Authentication apiKeyAuthentication = createApiKeyAuthentication(
-            apiKeyService,
-            randomValueOtherThanMany(
-                authc -> authc.getAuthenticationType() == AuthenticationType.API_KEY,
-                () -> AuthenticationTestHelper.builder().build()
-            ),
-            Collections.singleton(
-                new RoleDescriptor(
-                    apiKeyRoleName,
-                    null,
-                    new IndicesPrivileges[] { IndicesPrivileges.builder().indices("index*").privileges("all").build() },
-                    null
-                )
-            ),
-            null,
-            version
-        );
+        final Authentication apiKeyAuthentication = AuthenticationTestHelper.builder()
+            .crossClusterApiKey(randomAlphaOfLength(20))
+            .metadata(Map.of(API_KEY_ROLE_DESCRIPTORS_KEY, new BytesArray("""
+                {
+                  "cross_cluster": {
+                    "cluster": ["cross_cluster_search"],
+                    "indices": [
+                      { "names":["index*"], "privileges":["read","read_cross_cluster","view_index_metadata"] }
+                    ]
+                  }
+                }""")))
+            .build(false);
         final boolean emptyRemoteRole = randomBoolean();
         Authentication authentication = apiKeyAuthentication.toCrossClusterAccess(
             AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo(
@@ -2102,6 +2095,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
                             null,
                             new RoleDescriptor.IndicesPrivileges[] {
                                 RoleDescriptor.IndicesPrivileges.builder().indices("index1").privileges("read").build() },
+                            null,
                             null,
                             null,
                             null,
@@ -2129,7 +2123,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
 
         verify(apiKeyService, times(1)).parseRoleDescriptorsBytes(anyString(), any(BytesReference.class), any());
         assertThat(role.names().length, is(1));
-        assertThat(role.names()[0], equalTo(apiKeyRoleName));
+        assertThat(role.names()[0], equalTo("cross_cluster"));
 
         // Smoke-test for authorization
         final Metadata indexMetadata = Metadata.builder()
@@ -2419,7 +2413,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         }
 
         final Subject subject = mock(Subject.class);
-        when(subject.getUser()).thenReturn(SecurityProfileUser.INSTANCE);
+        when(subject.getUser()).thenReturn(InternalUsers.SECURITY_PROFILE_USER);
         assertThat(CompositeRolesStore.tryGetRoleDescriptorForInternalUser(subject).get().getClusterPrivileges(), emptyArray());
     }
 
@@ -2510,25 +2504,28 @@ public class CompositeRolesStoreTests extends ESTestCase {
         );
 
         final Subject subject = mock(Subject.class);
-        when(subject.getUser()).thenReturn(SystemUser.INSTANCE);
+        when(subject.getUser()).thenReturn(InternalUsers.SYSTEM_USER);
         final IllegalArgumentException e1 = expectThrows(
             IllegalArgumentException.class,
             () -> compositeRolesStore.getRoleDescriptorsList(subject, new PlainActionFuture<>())
         );
-        assertThat(e1.getMessage(), containsString("system user and we should never try to get its role descriptors"));
+        assertThat(e1.getMessage(), equalTo("should never try to get the roles for internal user [" + SystemUser.NAME + "]"));
 
-        for (var userAndDescriptor : List.of(
-            new Tuple<>(XPackUser.INSTANCE, XPackUser.ROLE_DESCRIPTOR),
-            new Tuple<>(AsyncSearchUser.INSTANCE, AsyncSearchUser.ROLE_DESCRIPTOR),
-            new Tuple<>(XPackSecurityUser.INSTANCE, XPackSecurityUser.ROLE_DESCRIPTOR),
-            new Tuple<>(SecurityProfileUser.INSTANCE, SecurityProfileUser.ROLE_DESCRIPTOR)
-        )) {
-            User internalUser = userAndDescriptor.v1();
+        when(subject.getUser()).thenReturn(InternalUsers.CROSS_CLUSTER_ACCESS_USER);
+        final IllegalArgumentException e2 = expectThrows(
+            IllegalArgumentException.class,
+            () -> compositeRolesStore.getRoleDescriptorsList(subject, new PlainActionFuture<>())
+        );
+        assertThat(
+            e2.getMessage(),
+            equalTo("should never try to get the roles for internal user [" + InternalUsers.CROSS_CLUSTER_ACCESS_USER.principal() + "]")
+        );
+
+        for (var internalUser : AuthenticationTestHelper.internalUsersWithLocalRoleDescriptor()) {
             when(subject.getUser()).thenReturn(internalUser);
             final PlainActionFuture<Collection<Set<RoleDescriptor>>> future = new PlainActionFuture<>();
             compositeRolesStore.getRoleDescriptorsList(subject, future);
-            RoleDescriptor expectedRoleDescriptor = userAndDescriptor.v2();
-            assertThat(future.actionGet(), equalTo(List.of(Set.of(expectedRoleDescriptor))));
+            assertThat(future.actionGet(), equalTo(List.of(Set.of(internalUser.getLocalClusterRoleDescriptor().get()))));
         }
     }
 
@@ -2561,19 +2558,19 @@ public class CompositeRolesStoreTests extends ESTestCase {
     }
 
     private Role getXPackSecurityRole() {
-        return getInternalUserRole(XPackSecurityUser.INSTANCE);
+        return getInternalUserRole(InternalUsers.XPACK_SECURITY_USER);
     }
 
     private Role getSecurityProfileRole() {
-        return getInternalUserRole(SecurityProfileUser.INSTANCE);
+        return getInternalUserRole(InternalUsers.SECURITY_PROFILE_USER);
     }
 
     private Role getXPackUserRole() {
-        return getInternalUserRole(XPackUser.INSTANCE);
+        return getInternalUserRole(InternalUsers.XPACK_USER);
     }
 
     private Role getAsyncSearchUserRole() {
-        return getInternalUserRole(AsyncSearchUser.INSTANCE);
+        return getInternalUserRole(InternalUsers.ASYNC_SEARCH_USER);
     }
 
     private Role getInternalUserRole(User internalUser) {
@@ -2796,7 +2793,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         final RoleDescriptor.RemoteIndicesPrivileges[] rips,
         final IndicesPrivileges[] ips
     ) {
-        return new RoleDescriptor(name, null, ips, null, null, null, null, null, rips);
+        return new RoleDescriptor(name, null, ips, null, null, null, null, null, rips, null);
     }
 
     private Role buildRole(final RoleDescriptor... roleDescriptors) {

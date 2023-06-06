@@ -156,9 +156,7 @@ public class ShardLockFailureIT extends ESIntegTestCase {
 
             updateIndexSettings(Settings.builder().putNull(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name"), indexName);
             assertBusy(mockLogAppender::assertAllExpectationsMatched);
-            final var clusterHealthResponse = client().admin()
-                .cluster()
-                .prepareHealth(indexName)
+            final var clusterHealthResponse = clusterAdmin().prepareHealth(indexName)
                 .setWaitForEvents(Priority.LANGUID)
                 .setTimeout(TimeValue.timeValueSeconds(10))
                 .setWaitForNoInitializingShards(true)

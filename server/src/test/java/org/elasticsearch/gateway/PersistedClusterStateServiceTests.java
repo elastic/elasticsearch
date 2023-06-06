@@ -43,6 +43,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
@@ -97,6 +98,7 @@ import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
@@ -549,7 +551,13 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                     if (randomBoolean()) {
                         writeState(writer, newTerm, newState, clusterState);
                     } else {
-                        writer.commit(newTerm, newState.version(), newState.metadata().oldestIndexVersion());
+                        writer.commit(
+                            newTerm,
+                            newState.version(),
+                            newState.metadata().oldestIndexVersion(),
+                            newState.metadata().clusterUUID(),
+                            newState.metadata().clusterUUIDCommitted()
+                        );
                     }
                 }).getMessage(), containsString("simulated"));
                 assertFalse(writer.isOpen());
@@ -600,7 +608,13 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                     if (randomBoolean()) {
                         writeState(writer, newTerm, newState, clusterState);
                     } else {
-                        writer.commit(newTerm, newState.version(), newState.metadata().oldestIndexVersion());
+                        writer.commit(
+                            newTerm,
+                            newState.version(),
+                            newState.metadata().oldestIndexVersion(),
+                            newState.metadata().clusterUUID(),
+                            newState.metadata().clusterUUIDCommitted()
+                        );
                     }
                 }).getMessage(), containsString("simulated"));
                 assertFalse(writer.isOpen());
@@ -1145,7 +1159,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                 .build();
         }
 
-        final DiscoveryNode localNode = new DiscoveryNode("node", buildNewFakeTransportAddress(), Version.CURRENT);
+        final DiscoveryNode localNode = DiscoveryNodeUtils.create("node");
         final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()))
             .build();
@@ -1758,6 +1772,25 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                 assertThat(hashes.size(), equalTo(1));
                 assertThat(clusterState.metadata().getMappingsByHash().keySet(), equalTo(hashes));
             }
+        }
+    }
+
+    public void testClusterUUIDIsStoredInCommitUserData() throws Exception {
+        final Path dataPath = createTempDir();
+        try (NodeEnvironment nodeEnvironment = newNodeEnvironment(new Path[] { dataPath })) {
+            final PersistedClusterStateService persistedClusterStateService = newPersistedClusterStateService(nodeEnvironment);
+            String clusterUUID = UUIDs.randomBase64UUID();
+            boolean clusterUUIDCommitted = randomBoolean();
+            try (Writer writer = persistedClusterStateService.createWriter()) {
+                ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+                    .metadata(Metadata.builder().clusterUUID(clusterUUID).clusterUUIDCommitted(clusterUUIDCommitted))
+                    .build();
+                writer.writeFullStateAndCommit(0, clusterState);
+            }
+
+            var onDiskState = persistedClusterStateService.loadBestOnDiskState();
+            assertThat(onDiskState.clusterUUID, is(equalTo(clusterUUID)));
+            assertThat(onDiskState.clusterUUIDCommitted, is(clusterUUIDCommitted));
         }
     }
 

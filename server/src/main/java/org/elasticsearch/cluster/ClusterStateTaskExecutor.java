@@ -197,7 +197,7 @@ public interface ClusterStateTaskExecutor<T extends ClusterStateTaskListener> {
      *                                   emitted response headers, for cases where things like deprecation warnings may be emitted but
      *                                   cannot be associated with any specific task.
      */
-    record BatchExecutionContext<T extends ClusterStateTaskListener> (
+    record BatchExecutionContext<T extends ClusterStateTaskListener>(
         ClusterState initialState,
         List<? extends TaskContext<T>> taskContexts,
         Supplier<Releasable> dropHeadersContextSupplier

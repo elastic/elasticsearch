@@ -21,6 +21,8 @@ import java.util.Locale;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static com.carrotsearch.randomizedtesting.RandomizedTest.getRandom;
+import static org.elasticsearch.common.Strings.INVALID_CHARS;
 import static org.elasticsearch.common.Strings.cleanTruncate;
 import static org.elasticsearch.common.Strings.collectionToDelimitedString;
 import static org.elasticsearch.common.Strings.collectionToDelimitedStringWithLimit;
@@ -32,6 +34,7 @@ import static org.elasticsearch.common.Strings.isAllOrWildcard;
 import static org.elasticsearch.common.Strings.isEmpty;
 import static org.elasticsearch.common.Strings.padStart;
 import static org.elasticsearch.common.Strings.spaceify;
+import static org.elasticsearch.common.Strings.stripDisallowedChars;
 import static org.elasticsearch.common.Strings.substring;
 import static org.elasticsearch.common.Strings.toLowercaseAscii;
 import static org.elasticsearch.common.Strings.tokenizeByCommaToSet;
@@ -339,6 +342,26 @@ public class StringsTests extends ESTestCase {
 
         // sling in some unicode too
         assertThat(toLowercaseAscii(testStr = randomUnicodeOfCodepointLength(20)), equalTo(lowercaseAsciiOnly(testStr)));
+    }
+
+    public void testStripDisallowedChars() {
+        var validFileName = randomAlphaOfLength(INVALID_CHARS.size());
+        var invalidChars = new ArrayList<>(INVALID_CHARS);
+        Collections.shuffle(invalidChars, getRandom());
+
+        var invalidFileName = new StringBuilder();
+
+        // randomly build an invalid file name merging both sets of valid and invalid chars
+        for (var i = 0; i < invalidChars.size(); i++) {
+            if (randomBoolean()) {
+                invalidFileName.append(validFileName.charAt(i)).append(invalidChars.get(i));
+            } else {
+                invalidFileName.append(invalidChars.get(i)).append(validFileName.charAt(i));
+            }
+        }
+
+        assertNotEquals(validFileName, invalidFileName.toString());
+        assertEquals(validFileName, stripDisallowedChars(invalidFileName.toString()));
     }
 
     private static String lowercaseAsciiOnly(String s) {

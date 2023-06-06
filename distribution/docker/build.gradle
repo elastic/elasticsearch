@@ -69,8 +69,20 @@ if(useDra == false) {
 testFixtures.useFixture()
 
 configurations {
-  aarch64DockerSource
-  dockerSource
+  aarch64DockerSource {
+    attributes {
+      attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE)
+    }
+  }
+  dockerSource {
+    attributes {
+      attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE)
+    }
+  }
+  // Iron bank images require a tarball
+  aarch64DockerSourceTar
+  dockerSourceTar
+
   log4jConfig
   tini
   allPlugins
@@ -83,8 +95,10 @@ configurations {
 String tiniArch = Architecture.current() == Architecture.AARCH64 ? 'arm64' : 'amd64'
 
 dependencies {
-  aarch64DockerSource project(path: ":distribution:archives:linux-aarch64-tar", configuration: 'default')
-  dockerSource project(path: ":distribution:archives:linux-tar", configuration: 'default')
+  aarch64DockerSource project(":distribution:archives:linux-aarch64-tar")
+  aarch64DockerSourceTar project(path: ":distribution:archives:linux-aarch64-tar", configuration:"default")
+  dockerSource project(":distribution:archives:linux-tar")
+  dockerSourceTar project(path: ":distribution:archives:linux-tar", configuration:"default")
   log4jConfig project(path: ":distribution", configuration: 'log4jConfig')
   tini "krallin:tini:0.19.0:${tiniArch}"
   allPlugins project(path: ':plugins', configuration: 'allPlugins')
@@ -271,7 +285,7 @@ void addBuildDockerContextTask(Architecture architecture, DockerBase base) {
         // If we're performing a release build, but `build.id` hasn't been set, we can
         // infer that we're not at the Docker building stage of the build, and therefore
         // we should skip the beats part of the build.
-        String buildId = providers.systemProperty('build.id').forUseAtConfigurationTime().getOrNull()
+        String buildId = providers.systemProperty('build.id').getOrNull()
         boolean includeBeats = VersionProperties.isElasticsearchSnapshot() == true || buildId != null || useDra
 
         if (includeBeats) {
@@ -282,7 +296,7 @@ void addBuildDockerContextTask(Architecture architecture, DockerBase base) {
         rename ~/((?:file|metric)beat)-.*\.tar\.gz$/, "\$1-${VersionProperties.elasticsearch}.tar.gz"
       }
 
-      onlyIf { isArchitectureSupported(architecture) }
+      onlyIf("$architecture supported") { isArchitectureSupported(architecture) }
     }
 
   if (base == DockerBase.IRON_BANK) {
@@ -299,13 +313,18 @@ void addTransformDockerContextTask(Architecture architecture, DockerBase base) {
 
     String arch = architecture == Architecture.AARCH64 ? '-aarch64' : ''
     String archiveName = "elasticsearch${base.suffix}-${VersionProperties.elasticsearch}-docker-build-context${arch}"
-    String distributionName = "elasticsearch-${VersionProperties.elasticsearch}-linux-${architecture.classifier}.tar.gz"
+    String distributionFolderName = "elasticsearch-${VersionProperties.elasticsearch}"
 
     from(tarTree("${project.buildDir}/distributions/${archiveName}.tar.gz")) {
-      eachFile { FileCopyDetails details ->
-        if (details.name.equals("Dockerfile")) {
-          filter { String contents ->
-            return contents.replaceAll('^RUN curl.*artifacts-no-kpi.*$', "COPY ${distributionName} /tmp/elasticsearch.tar.gz")
+
+      if (base != DockerBase.IRON_BANK) {
+        // iron bank always needs a COPY with the tarball file path
+        eachFile { FileCopyDetails details ->
+          if (details.name.equals("Dockerfile")) {
+            filter { String contents ->
+              return contents.replaceAll('^RUN curl.*artifacts-no-kpi.*$', "COPY $distributionFolderName .")
+                .replaceAll('^RUN tar -zxf /tmp/elasticsearch.tar.gz --strip-components=1$', "")
+            }
           }
         }
       }
@@ -313,23 +332,20 @@ void addTransformDockerContextTask(Architecture architecture, DockerBase base) {
     into "${project.buildDir}/docker-context/${archiveName}"
 
     // Since we replaced the remote URL in the Dockerfile, copy in the required file
-    if (architecture == Architecture.AARCH64) {
-      from configurations.aarch64DockerSource
-    } else {
-      from configurations.dockerSource
-    }
-
-    if (base == DockerBase.IRON_BANK) {
+    if(base == DockerBase.IRON_BANK) {
+      from(architecture == Architecture.AARCH64 ? configurations.aarch64DockerSourceTar : configurations.dockerSourceTar)
       from (configurations.tini) {
         rename { _ -> 'tini' }
       }
+    } else {
+      from(architecture == Architecture.AARCH64 ? configurations.aarch64DockerSource : configurations.dockerSource)
     }
 
     expansions(architecture, base).findAll { it.key != 'build_date' }.each { k, v ->
       inputs.property(k, { v.toString() })
     }
 
-    onlyIf { isArchitectureSupported(architecture) }
+    onlyIf("$architecture supported") { isArchitectureSupported(architecture) }
   }
 
   // Register transformed context as a project artifact
@@ -401,7 +417,7 @@ void addBuildDockerImageTask(Architecture architecture, DockerBase base) {
         baseImages = [base.image]
       }
 
-      onlyIf { isArchitectureSupported(architecture) }
+      onlyIf("$architecture supported") { isArchitectureSupported(architecture) }
     }
 
   if (base != DockerBase.IRON_BANK && base != DockerBase.CLOUD && base != DockerBase.CLOUD_ESS) {
@@ -448,7 +464,7 @@ void addBuildEssDockerImageTask(Architecture architecture) {
       tags = generateTags(base, architecture)
       platform = architecture.dockerPlatform
 
-      onlyIf { isArchitectureSupported(architecture) }
+      onlyIf("$architecture supported") { isArchitectureSupported(architecture) }
     }
 
   tasks.named("assemble").configure {
@@ -518,7 +534,7 @@ subprojects { Project subProject ->
         tarFile,
         "elasticsearch${base.suffix}:${architecture.classifier}"
       dependsOn(parent.path + ":" + buildTaskName)
-      onlyIf { isArchitectureSupported(architecture) }
+      onlyIf("$architecture supported") { isArchitectureSupported(architecture) }
     }
 
     exportDockerImages.configure {

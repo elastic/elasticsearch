@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -45,9 +46,6 @@ import java.util.function.Function;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_CREATION_DATE;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
 import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.RED;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
@@ -77,23 +75,15 @@ public class ShardsCapacityHealthIndicatorServiceTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
 
-        dataNode = new DiscoveryNode(
-            "data_node",
-            "data_node",
-            ESTestCase.buildNewFakeTransportAddress(),
-            Map.of(),
-            Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE),
-            Version.CURRENT
-        );
+        dataNode = DiscoveryNodeUtils.builder("data_node")
+            .name("data_node")
+            .roles(Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE))
+            .build();
 
-        frozenNode = new DiscoveryNode(
-            "frozen_node",
-            "frozen_node",
-            ESTestCase.buildNewFakeTransportAddress(),
-            Map.of(),
-            Set.of(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE),
-            Version.CURRENT
-        );
+        frozenNode = DiscoveryNodeUtils.builder("frozen_node")
+            .name("frozen_node")
+            .roles(Set.of(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE))
+            .build();
 
         clusterService = ClusterServiceUtils.createClusterService(threadPool);
     }
@@ -421,11 +411,7 @@ public class ShardsCapacityHealthIndicatorServiceTests extends ESTestCase {
     private static IndexMetadata.Builder createIndex(int shards, String group) {
         return IndexMetadata.builder("index-" + randomAlphaOfLength(20))
             .settings(
-                Settings.builder()
-                    .put(SETTING_VERSION_CREATED, Version.CURRENT)
-                    .put(SETTING_NUMBER_OF_SHARDS, shards)
-                    .put(SETTING_NUMBER_OF_REPLICAS, 1)
-                    .put(SETTING_CREATION_DATE, System.currentTimeMillis())
+                indexSettings(Version.CURRENT, shards, 1).put(SETTING_CREATION_DATE, System.currentTimeMillis())
                     .put(INDEX_SETTING_SHARD_LIMIT_GROUP.getKey(), group)
             );
     }

@@ -8,21 +8,28 @@
 package org.elasticsearch.xpack.core.security.user;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
+import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Optional;
 
-public class CrossClusterAccessUser extends User {
-    public static final String NAME = UsernamesField.CROSS_CLUSTER_ACCESS_NAME;
+public class CrossClusterAccessUser extends InternalUser {
 
-    private static final RoleDescriptor ROLE_DESCRIPTOR = new RoleDescriptor(
+    private static final RoleDescriptor REMOTE_ACCESS_ROLE_DESCRIPTOR = new RoleDescriptor(
         UsernamesField.CROSS_CLUSTER_ACCESS_ROLE,
-        new String[] { "cross_cluster_access" },
+        new String[] { "cross_cluster_search", "cross_cluster_replication" },
+        // Needed for CCR background jobs (with system user)
+        new RoleDescriptor.IndicesPrivileges[] {
+            RoleDescriptor.IndicesPrivileges.builder()
+                .indices("*")
+                .privileges("cross_cluster_replication", "cross_cluster_replication_internal")
+                .allowRestrictedIndices(true)
+                .build() },
         null,
         null,
         null,
@@ -32,47 +39,33 @@ public class CrossClusterAccessUser extends User {
         null
     );
 
-    public static final User INSTANCE = new CrossClusterAccessUser();
+    /**
+     * Package protected to enforce a singleton (private constructor) - use {@link InternalUsers#CROSS_CLUSTER_ACCESS_USER} instead
+     */
+    static final InternalUser INSTANCE = new CrossClusterAccessUser();
 
     private CrossClusterAccessUser() {
-        super(NAME, Strings.EMPTY_ARRAY);
-        // the following traits, and especially the run-as one, go with all the internal users
-        // TODO abstract in a base `InternalUser` class
-        assert enabled();
-        assert roles() != null && roles().length == 0;
+        super(
+            UsernamesField.CROSS_CLUSTER_ACCESS_NAME,
+            /**
+             *  this user is not permitted to execute actions that originate on the local cluster,
+             *  its only purpose is to execute actions from a remote cluster
+             */
+            Optional.empty(),
+            Optional.of(REMOTE_ACCESS_ROLE_DESCRIPTOR)
+        );
     }
 
-    @Override
-    public boolean equals(Object o) {
-        return INSTANCE == o;
-    }
-
-    @Override
-    public int hashCode() {
-        return System.identityHashCode(this);
-    }
-
-    public static boolean is(User user) {
-        return INSTANCE.equals(user);
-    }
-
-    public static CrossClusterAccessSubjectInfo subjectInfoWithRoleDescriptors(TransportVersion transportVersion, String nodeName) {
-        return subjectInfo(transportVersion, nodeName, new RoleDescriptorsIntersection(ROLE_DESCRIPTOR));
-    }
-
-    public static CrossClusterAccessSubjectInfo subjectInfoWithEmptyRoleDescriptors(TransportVersion transportVersion, String nodeName) {
-        return subjectInfo(transportVersion, nodeName, RoleDescriptorsIntersection.EMPTY);
-    }
-
-    private static CrossClusterAccessSubjectInfo subjectInfo(
-        TransportVersion transportVersion,
-        String nodeName,
-        RoleDescriptorsIntersection roleDescriptorsIntersection
-    ) {
+    /**
+     * The role descriptor intersection in the returned subject info is always empty. Because the privileges of the cross cluster access
+     * internal user are static, we set them during role reference resolution instead of needlessly deserializing the role descriptor
+     * intersection (see flow starting at {@link Subject#getRoleReferenceIntersection(AnonymousUser)})
+     */
+    public static CrossClusterAccessSubjectInfo subjectInfo(TransportVersion transportVersion, String nodeName) {
         try {
             return new CrossClusterAccessSubjectInfo(
-                Authentication.newInternalAuthentication(INSTANCE, transportVersion, nodeName),
-                roleDescriptorsIntersection
+                Authentication.newInternalAuthentication(InternalUsers.CROSS_CLUSTER_ACCESS_USER, transportVersion, nodeName),
+                RoleDescriptorsIntersection.EMPTY
             );
         } catch (IOException e) {
             throw new UncheckedIOException(e);

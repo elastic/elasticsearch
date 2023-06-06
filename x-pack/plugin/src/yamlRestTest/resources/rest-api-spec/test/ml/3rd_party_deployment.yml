@@ -230,6 +230,26 @@ setup:
       ml.stop_trained_model_deployment:
         model_id: test_model
   - match: { stopped: true }
+
+  - do:
+      ml.start_trained_model_deployment:
+        model_id: test_model
+        deployment_id: test_model_deployment
+        wait_for: started
+  - match: { assignment.assignment_state: started }
+  - match: { assignment.task_parameters.model_id: test_model }
+  - match: { assignment.task_parameters.number_of_allocations: 1 }
+
+  - do:
+      # We update to the same value of 1 as if the test runs on a node with just 1 processor it would fail otherwise
+      ml.update_trained_model_deployment:
+        model_id: test_model_deployment
+        body: >
+          {
+            "number_of_allocations": 1
+          }
+  - match: { assignment.task_parameters.model_id: test_model }
+  - match: { assignment.task_parameters.number_of_allocations: 1 }
 ---
 "Test clear deployment cache":
   - skip:
@@ -238,6 +258,7 @@ setup:
   - do:
       ml.start_trained_model_deployment:
         model_id: test_model
+        deployment_id: test_model_deployment_cache_test
         cache_size: 10kb
         wait_for: started
   - match: {assignment.assignment_state: started}
@@ -290,7 +311,7 @@ setup:
 
   - do:
       ml.clear_trained_model_deployment_cache:
-        model_id: test_model
+        model_id: test_model_deployment_cache_test
   - match: { cleared: true }
 
   - do:
@@ -379,3 +400,156 @@ setup:
         model_alias: "pytorch"
         model_id: "another_test_model"
         reassign: true
+
+---
+"Test include model definition status":
+  - do:
+      ml.get_trained_models:
+        model_id: test_model
+        include: definition_status
+  - match: { trained_model_configs.0.fully_defined: true }
+
+---
+"Test stop deployments with allow_no_match":
+  - do:
+      ml.start_trained_model_deployment:
+        model_id: test_model
+        deployment_id: test_model_for_search
+        wait_for: started
+  - match: {assignment.assignment_state: started}
+
+  - do:
+      ml.stop_trained_model_deployment:
+        model_id: test_model_for_search
+  - match: { stopped: true }
+
+  - do:
+      catch: missing
+      ml.stop_trained_model_deployment:
+        allow_no_match: false
+        model_id: test_model_for_search
+  - match: { error.reason: "No known model deployment with id [test_model_for_search]" }
+
+  - do:
+      ml.stop_trained_model_deployment:
+        allow_no_match: true
+        model_id: test_model_for_search
+  - match: { stopped: true }
+
+---
+"Test start and stop multiple deployments":
+  - skip:
+      features: allowed_warnings
+  - do:
+      ml.start_trained_model_deployment:
+        model_id: test_model
+        deployment_id: test_model_for_search
+        priority: low
+        wait_for: started
+  - match: {assignment.assignment_state: started}
+  - match: {assignment.task_parameters.model_id: test_model}
+  - match: {assignment.task_parameters.deployment_id: test_model_for_search}
+  - do:
+      allowed_warnings:
+        - '[POST /_ml/trained_models/{model_id}/deployment/_infer] is deprecated! Use [POST /_ml/trained_models/{model_id}/_infer] instead.'
+      ml.infer_trained_model:
+        model_id: "test_model_for_search"
+        body: >
+          {
+            "docs": [
+              { "input": "words" }
+            ]
+          }
+
+  - do:
+      ml.start_trained_model_deployment:
+        model_id: test_model
+        deployment_id: test_model_for_ingest
+        priority: low
+        wait_for: started
+  - match: {assignment.assignment_state: started}
+  - match: {assignment.task_parameters.model_id: test_model}
+  - match: {assignment.task_parameters.deployment_id: test_model_for_ingest}
+  - do:
+      allowed_warnings:
+        - '[POST /_ml/trained_models/{model_id}/deployment/_infer] is deprecated! Use [POST /_ml/trained_models/{model_id}/_infer] instead.'
+      ml.infer_trained_model:
+        model_id: "test_model_for_ingest"
+        body: >
+          {
+            "docs": [
+              { "input": "words" }
+            ]
+          }
+  - do:
+      ml.get_trained_models_stats:
+        model_id: test_model
+  - match: { count: 1 } # one model matched
+  - match: { trained_model_stats.0.model_id: test_model }
+  - match: { trained_model_stats.0.deployment_stats.deployment_id: test_model_for_ingest }
+  - match: { trained_model_stats.1.model_id: test_model }
+  - match: { trained_model_stats.1.deployment_stats.deployment_id: test_model_for_search }
+
+  - do:
+      ml.stop_trained_model_deployment:
+        model_id: test_model_for_search
+  - match: { stopped: true }
+  - do:
+      ml.stop_trained_model_deployment:
+        model_id: test_model_for_ingest
+  - match: { stopped: true }
+
+---
+"Test cannot start 2 deployments with the same Id":
+  - do:
+      ml.start_trained_model_deployment:
+        model_id: test_model
+        deployment_id: test_model_deployment
+        wait_for: started
+  - match: {assignment.assignment_state: started}
+
+  - do:
+      catch: /Could not start model deployment because an existing deployment with the same id \[test_model_deployment\] exist/
+      ml.start_trained_model_deployment:
+        model_id: test_model
+        deployment_id: test_model_deployment
+        wait_for: started
+
+---
+"Test cannot start when deployment Id matches a different model":
+  - do:
+      catch: /Deployment id \[another_test_model\] is the same as an another model which is not the model being deployed. Deployment id can be the same as the model being deployed but cannot match a different model/
+      ml.start_trained_model_deployment:
+        model_id: test_model
+        deployment_id: another_test_model
+
+---
+"Test start deployment with default Id":
+  - do:
+      ml.start_trained_model_deployment:
+        model_id: test_model
+        wait_for: started
+  - match: {assignment.assignment_state: started}
+  - match: {assignment.task_parameters.model_id: test_model}
+  - match: {assignment.task_parameters.deployment_id: test_model}
+
+---
+"Test cannot create model with a deployment Id":
+  - do:
+      ml.start_trained_model_deployment:
+        model_id: test_model
+        wait_for: started
+        deployment_id: test_model_deployment
+  - match: {assignment.assignment_state: started}
+
+  - do:
+      catch: /Cannot create model \[test_model_deployment\] the id is the same as an current model deployment/
+      ml.put_trained_model:
+        model_id: test_model_deployment
+        body: >
+          {
+            "model_type": "pytorch",
+            "inference_config": {
+              "ner": { }
+            }
+          }

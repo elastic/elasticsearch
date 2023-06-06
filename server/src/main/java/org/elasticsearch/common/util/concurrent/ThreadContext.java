@@ -640,7 +640,7 @@ public final class ThreadContext implements Writeable {
     /**
      * Returns true if the current context is the default context.
      */
-    boolean isDefaultContext() {
+    public boolean isDefaultContext() {
         return threadLocal.get() == DEFAULT_CONTEXT;
     }
 

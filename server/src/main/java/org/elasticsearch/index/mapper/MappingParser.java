@@ -25,18 +25,18 @@ import java.util.function.Supplier;
  * Parser for {@link Mapping} provided in {@link CompressedXContent} format
  */
 public final class MappingParser {
-    private final MappingParserContext mappingParserContext;
+    private final Supplier<MappingParserContext> mappingParserContextSupplier;
     private final Supplier<Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper>> metadataMappersSupplier;
     private final Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers;
     private final Function<String, String> documentTypeResolver;
 
     MappingParser(
-        MappingParserContext mappingParserContext,
+        Supplier<MappingParserContext> mappingParserContextSupplier,
         Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers,
         Supplier<Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper>> metadataMappersSupplier,
         Function<String, String> documentTypeResolver
     ) {
-        this.mappingParserContext = mappingParserContext;
+        this.mappingParserContextSupplier = mappingParserContextSupplier;
         this.metadataMapperParsers = metadataMapperParsers;
         this.metadataMappersSupplier = metadataMappersSupplier;
         this.documentTypeResolver = documentTypeResolver;
@@ -97,8 +97,9 @@ public final class MappingParser {
     }
 
     private Mapping parse(String type, Map<String, Object> mapping) throws MapperParsingException {
+        final MappingParserContext mappingParserContext = mappingParserContextSupplier.get();
 
-        RootObjectMapper.Builder rootObjectMapper = RootObjectMapper.parse(type, mapping, this.mappingParserContext);
+        RootObjectMapper.Builder rootObjectMapper = RootObjectMapper.parse(type, mapping, mappingParserContext);
 
         Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers = metadataMappersSupplier.get();
         Map<String, Object> meta = null;
@@ -118,7 +119,7 @@ public final class MappingParser {
                 }
                 @SuppressWarnings("unchecked")
                 Map<String, Object> fieldNodeMap = (Map<String, Object>) fieldNode;
-                MetadataFieldMapper metadataFieldMapper = typeParser.parse(fieldName, fieldNodeMap, this.mappingParserContext)
+                MetadataFieldMapper metadataFieldMapper = typeParser.parse(fieldName, fieldNodeMap, mappingParserContext)
                     .build(MapperBuilderContext.forMetadata());
                 metadataMappers.put(metadataFieldMapper.getClass(), metadataFieldMapper);
                 assert fieldNodeMap.isEmpty();
@@ -147,7 +148,7 @@ public final class MappingParser {
              */
             meta = Collections.unmodifiableMap(new HashMap<>(removed));
         }
-        if (this.mappingParserContext.indexVersionCreated().isLegacyIndexVersion() == false) {
+        if (mappingParserContext.indexVersionCreated().isLegacyIndexVersion() == false) {
             // legacy indices are allowed to have extra definitions that we ignore (we will drop them on import)
             checkNoRemainingFields(mapping, "Root mapping definition has unsupported parameters: ");
         }

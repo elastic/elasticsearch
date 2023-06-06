@@ -59,10 +59,8 @@ public final class IndexSortConfig {
     /**
      * The list of field names
      */
-    public static final Setting<List<String>> INDEX_SORT_FIELD_SETTING = Setting.listSetting(
+    public static final Setting<List<String>> INDEX_SORT_FIELD_SETTING = Setting.stringListSetting(
         "index.sort.field",
-        Collections.emptyList(),
-        Function.identity(),
         Setting.Property.IndexScope,
         Setting.Property.Final
     );
@@ -247,10 +245,9 @@ public final class IndexSortConfig {
             }
             IndexFieldData<?> fieldData;
             try {
-                fieldData = fieldDataLookup.apply(
-                    ft,
-                    () -> { throw new UnsupportedOperationException("index sorting not supported on runtime field [" + ft.name() + "]"); }
-                );
+                fieldData = fieldDataLookup.apply(ft, () -> {
+                    throw new UnsupportedOperationException("index sorting not supported on runtime field [" + ft.name() + "]");
+                });
             } catch (Exception e) {
                 throw new IllegalArgumentException("docvalues not found for index sort field:[" + sortSpec.field + "]", e);
             }

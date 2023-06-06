@@ -11,22 +11,30 @@ package org.elasticsearch.dlm;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ResultDeduplicator;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
-import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
+import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
+import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.ClusterStateTaskListener;
+import org.elasticsearch.cluster.SimpleBatchedExecutor;
 import org.elasticsearch.cluster.metadata.DataLifecycle;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.scheduler.SchedulerEngine;
 import org.elasticsearch.common.scheduler.TimeValueSchedule;
@@ -35,6 +43,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -44,10 +53,16 @@ import org.elasticsearch.transport.TransportRequest;
 
 import java.io.Closeable;
 import java.time.Clock;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.function.LongSupplier;
+import java.util.stream.Collectors;
 
 /**
  * This service will implement the needed actions (e.g. rollover, retention) to manage the data streams with a DLM lifecycle configured.
@@ -63,24 +78,46 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
+
     private static final Logger logger = LogManager.getLogger(DataLifecycleService.class);
     /**
      * Name constant for the job DLM schedules
      */
     private static final String DATA_LIFECYCLE_JOB_NAME = "dlm";
+    /*
+     * This is the key for DLM-related custom index metadata.
+     */
+    static final String DLM_CUSTOM_INDEX_METADATA_KEY = "dlm";
+    static final String FORCE_MERGE_COMPLETED_TIMESTAMP_METADATA_KEY = "force_merge_completed_timestamp";
 
     private final Settings settings;
     private final Client client;
     private final ClusterService clusterService;
-    private final ResultDeduplicator<TransportRequest, Void> transportActionsDeduplicator;
+    private final ThreadPool threadPool;
+    final ResultDeduplicator<TransportRequest, Void> transportActionsDeduplicator;
     private final LongSupplier nowSupplier;
     private final Clock clock;
     private final DataLifecycleErrorStore errorStore;
     private volatile boolean isMaster = false;
     private volatile TimeValue pollInterval;
-    private volatile RolloverConditions rolloverConditions;
+    private volatile RolloverConfiguration rolloverConfiguration;
     private SchedulerEngine.Job scheduledJob;
     private final SetOnce<SchedulerEngine> scheduler = new SetOnce<>();
+    private final MasterServiceTaskQueue<UpdateForceMergeCompleteTask> forceMergeClusterStateUpdateTaskQueue;
+
+    private static final SimpleBatchedExecutor<UpdateForceMergeCompleteTask, Void> FORCE_MERGE_STATE_UPDATE_TASK_EXECUTOR =
+        new SimpleBatchedExecutor<>() {
+            @Override
+            public Tuple<ClusterState, Void> executeTask(UpdateForceMergeCompleteTask task, ClusterState clusterState) throws Exception {
+                return Tuple.tuple(task.execute(clusterState), null);
+            }
+
+            @Override
+            public void taskSucceeded(UpdateForceMergeCompleteTask task, Void unused) {
+                logger.trace("Updated cluster state for force merge of index [{}]", task.targetIndex);
+                task.listener.onResponse(null);
+            }
+        };
 
     public DataLifecycleService(
         Settings settings,
@@ -95,12 +132,18 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
         this.client = client;
         this.clusterService = clusterService;
         this.clock = clock;
+        this.threadPool = threadPool;
         this.transportActionsDeduplicator = new ResultDeduplicator<>(threadPool.getThreadContext());
         this.nowSupplier = nowSupplier;
         this.errorStore = errorStore;
         this.scheduledJob = null;
         this.pollInterval = DLM_POLL_INTERVAL_SETTING.get(settings);
-        this.rolloverConditions = clusterService.getClusterSettings().get(DataLifecycle.CLUSTER_DLM_DEFAULT_ROLLOVER_SETTING);
+        this.rolloverConfiguration = clusterService.getClusterSettings().get(DataLifecycle.CLUSTER_DLM_DEFAULT_ROLLOVER_SETTING);
+        this.forceMergeClusterStateUpdateTaskQueue = clusterService.createTaskQueue(
+            "dlm-forcemerge-state-update",
+            Priority.LOW,
+            FORCE_MERGE_STATE_UPDATE_TASK_EXECUTOR
+        );
     }
 
     /**
@@ -110,7 +153,7 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
         clusterService.addListener(this);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(DLM_POLL_INTERVAL_SETTING, this::updatePollInterval);
         clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(DataLifecycle.CLUSTER_DLM_DEFAULT_ROLLOVER_SETTING, this::updateRolloverConditions);
+            .addSettingsUpdateConsumer(DataLifecycle.CLUSTER_DLM_DEFAULT_ROLLOVER_SETTING, this::updateRolloverConfiguration);
     }
 
     @Override
@@ -167,28 +210,58 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
                 continue;
             }
 
-            String writeIndex = dataStream.getWriteIndex().getName();
+            /*
+             * This is the pre-rollover write index. It may or may not be the write index after maybeExecuteRollover has executed, depending
+             * on rollover criteria. We're keeping a reference to it because regardless of whether it's rolled over or not we want to
+             * exclude it from force merging later in this DLM run.
+             */
+            Index originalWriteIndex = dataStream.getWriteIndex();
             try {
                 maybeExecuteRollover(state, dataStream);
             } catch (Exception e) {
                 logger.error(() -> String.format(Locale.ROOT, "DLM failed to rollver data stream [%s]", dataStream.getName()), e);
                 DataStream latestDataStream = clusterService.state().metadata().dataStreams().get(dataStream.getName());
                 if (latestDataStream != null) {
-                    if (latestDataStream.getWriteIndex().getName().equals(writeIndex)) {
+                    if (latestDataStream.getWriteIndex().getName().equals(originalWriteIndex.getName())) {
                         // data stream has not been rolled over in the meantime so record the error against the write index we
                         // attempted the rollover
-                        errorStore.recordError(writeIndex, e);
+                        errorStore.recordError(originalWriteIndex.getName(), e);
                     }
                 }
             }
-
+            Set<Index> indicesBeingRemoved;
             try {
-                maybeExecuteRetention(state, dataStream);
+                indicesBeingRemoved = maybeExecuteRetention(state, dataStream);
             } catch (Exception e) {
+                indicesBeingRemoved = Set.of();
                 // individual index errors would be reported via the API action listener for every delete call
                 // we could potentially record errors at a data stream level and expose it via the _data_stream API?
                 logger.error(
                     () -> String.format(Locale.ROOT, "DLM failed to execute retention for data stream [%s]", dataStream.getName()),
+                    e
+                );
+            }
+
+            try {
+                /*
+                 * When considering indices for force merge, we want to exclude several indices: (1) We exclude the current write index
+                 * because obviously it is still likely to get writes, (2) we exclude the most recent previous write index because since
+                 * we just switched over it might still be getting some writes, and (3) we exclude any indices that we're in the process
+                 * of deleting because they'll be gone soon anyway.
+                 */
+                Set<Index> indicesToExclude = new HashSet<>();
+                Index currentWriteIndex = dataStream.getWriteIndex();
+                indicesToExclude.add(currentWriteIndex);
+                indicesToExclude.add(originalWriteIndex); // Could be the same as currentWriteIndex, but that's fine
+                indicesToExclude.addAll(indicesBeingRemoved);
+                List<Index> potentialForceMergeIndices = dataStream.getIndices()
+                    .stream()
+                    .filter(index -> indicesToExclude.contains(index) == false)
+                    .toList();
+                maybeExecuteForceMerge(state, dataStream, potentialForceMergeIndices);
+            } catch (Exception e) {
+                logger.error(
+                    () -> String.format(Locale.ROOT, "DLM failed to execute force merge for data stream [%s]", dataStream.getName()),
                     e
                 );
             }
@@ -214,7 +287,11 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
     private void maybeExecuteRollover(ClusterState state, DataStream dataStream) {
         Index writeIndex = dataStream.getWriteIndex();
         if (dataStream.isIndexManagedByDLM(writeIndex, state.metadata()::index)) {
-            RolloverRequest rolloverRequest = getDefaultRolloverRequest(dataStream.getName());
+            RolloverRequest rolloverRequest = getDefaultRolloverRequest(
+                rolloverConfiguration,
+                dataStream.getName(),
+                dataStream.getLifecycle().getEffectiveDataRetention()
+            );
             transportActionsDeduplicator.executeOnce(
                 rolloverRequest,
                 new ErrorRecordingActionListener(writeIndex.getName(), errorStore),
@@ -223,13 +300,22 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
         }
     }
 
-    private void maybeExecuteRetention(ClusterState state, DataStream dataStream) {
+    /**
+     * This method sends requests to delete any indices in the datastream that exceed its retention policy. It returns the set of indices
+     * it has sent delete requests for.
+     * @param state The cluster state from which to get index metadata
+     * @param dataStream The datastream
+     * @return The set of indices that delete requests have been sent for
+     */
+    private Set<Index> maybeExecuteRetention(ClusterState state, DataStream dataStream) {
         TimeValue retention = getRetentionConfiguration(dataStream);
+        Set<Index> indicesToBeRemoved = new HashSet<>();
         if (retention != null) {
             Metadata metadata = state.metadata();
             List<Index> backingIndicesOlderThanRetention = dataStream.getIndicesPastRetention(metadata::index, nowSupplier);
 
             for (Index index : backingIndicesOlderThanRetention) {
+                indicesToBeRemoved.add(index);
                 IndexMetadata backingIndex = metadata.index(index);
                 assert backingIndex != null : "the data stream backing indices must exist";
 
@@ -243,6 +329,34 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
                     deleteRequest,
                     new ErrorRecordingActionListener(indexName, errorStore),
                     (req, reqListener) -> deleteIndex(deleteRequest, retention, reqListener)
+                );
+            }
+        }
+        return indicesToBeRemoved;
+    }
+
+    /*
+     * This method force merges the given indices in the datastream. It writes a timestamp in the cluster state upon completion of the
+     * force merge.
+     */
+    private void maybeExecuteForceMerge(ClusterState state, DataStream dataStream, List<Index> indices) {
+        Metadata metadata = state.metadata();
+        for (Index index : indices) {
+            if (dataStream.isIndexManagedByDLM(index, state.metadata()::index)) {
+                IndexMetadata backingIndex = metadata.index(index);
+                assert backingIndex != null : "the data stream backing indices must exist";
+                String indexName = index.getName();
+                boolean alreadyForceMerged = isForceMergeComplete(backingIndex);
+                if (alreadyForceMerged) {
+                    logger.trace("Already force merged {}", indexName);
+                    continue;
+                }
+                ForceMergeRequest forceMergeRequest = new ForceMergeRequest(indexName);
+                // time to force merge the index
+                transportActionsDeduplicator.executeOnce(
+                    new ForceMergeRequestWrapper(forceMergeRequest),
+                    new ErrorRecordingActionListener(indexName, errorStore),
+                    (req, reqListener) -> forceMergeIndex(forceMergeRequest, reqListener)
                 );
             }
         }
@@ -327,12 +441,91 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
         });
     }
 
+    /*
+     * This method executes the given force merge request. Once the request has completed successfully it writes a timestamp as custom
+     * metadata in the cluster state indicating when the force merge has completed. The listener is notified after the cluster state
+     * update has been made, or when the forcemerge fails or the write of the to the cluster state fails.
+     */
+    private void forceMergeIndex(ForceMergeRequest forceMergeRequest, ActionListener<Void> listener) {
+        assert forceMergeRequest.indices() != null && forceMergeRequest.indices().length == 1 : "DLM force merges one index at a time";
+        final String targetIndex = forceMergeRequest.indices()[0];
+        logger.info("DLM is issuing a request to force merge index [{}]", targetIndex);
+        client.admin().indices().forceMerge(forceMergeRequest, new ActionListener<>() {
+            @Override
+            public void onResponse(ForceMergeResponse forceMergeResponse) {
+                if (forceMergeResponse.getFailedShards() > 0) {
+                    DefaultShardOperationFailedException[] failures = forceMergeResponse.getShardFailures();
+                    String message = Strings.format(
+                        "DLM failed to forcemerge %d shards for index [%s] due to failures [%s]",
+                        forceMergeResponse.getFailedShards(),
+                        targetIndex,
+                        failures == null
+                            ? "unknown"
+                            : Arrays.stream(failures).map(DefaultShardOperationFailedException::toString).collect(Collectors.joining(","))
+                    );
+                    onFailure(new ElasticsearchException(message));
+                } else if (forceMergeResponse.getTotalShards() != forceMergeResponse.getSuccessfulShards()) {
+                    String message = Strings.format(
+                        "Force merge request only had %d successful shards out of a total of %d",
+                        forceMergeResponse.getSuccessfulShards(),
+                        forceMergeResponse.getTotalShards()
+                    );
+                    onFailure(new ElasticsearchException(message));
+                } else {
+                    logger.info("DLM successfully force merged index [{}]", targetIndex);
+                    setForceMergeCompletedTimestamp(targetIndex, listener);
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                String previousError = errorStore.getError(targetIndex);
+                /*
+                 * Note that this call to onFailure has to happen before the logging because we choose whether to log or not based on a
+                 * side effect of the onFailure call (it updates the error in the errorStore).
+                 */
+                listener.onFailure(e);
+                // To avoid spamming our logs, we only want to log the error once.
+                if (previousError == null || previousError.equals(errorStore.getError(targetIndex)) == false) {
+                    logger.warn(
+                        () -> Strings.format(
+                            "DLM encountered an error trying to force merge index [%s]. DLM will attempt to force merge the index on its "
+                                + "next run.",
+                            targetIndex
+                        ),
+                        e
+                    );
+                }
+            }
+        });
+    }
+
+    /*
+     * This method sets the value of the custom index metadata field "force_merge_completed_timestamp" within the field "dlm" to value. The
+     * method returns immediately, but the update happens asynchronously and listener is notified on success or failure.
+     */
+    private void setForceMergeCompletedTimestamp(String targetIndex, ActionListener<Void> listener) {
+        forceMergeClusterStateUpdateTaskQueue.submitTask(
+            Strings.format("Adding force merge complete marker to cluster state for [%s]", targetIndex),
+            new UpdateForceMergeCompleteTask(listener, targetIndex, threadPool),
+            null
+        );
+    }
+
+    /*
+     * Returns true if a value has been set for the custom index metadata field "force_merge_completed_timestamp" within the field "dlm".
+     */
+    private boolean isForceMergeComplete(IndexMetadata backingIndex) {
+        Map<String, String> customMetadata = backingIndex.getCustomData(DLM_CUSTOM_INDEX_METADATA_KEY);
+        return customMetadata != null && customMetadata.containsKey(FORCE_MERGE_COMPLETED_TIMESTAMP_METADATA_KEY);
+    }
+
     @Nullable
     static TimeValue getRetentionConfiguration(DataStream dataStream) {
         if (dataStream.getLifecycle() == null) {
             return null;
         }
-        return dataStream.getLifecycle().getDataRetention();
+        return dataStream.getLifecycle().getEffectiveDataRetention();
     }
 
     /**
@@ -360,9 +553,13 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
         }
     }
 
-    private RolloverRequest getDefaultRolloverRequest(String dataStream) {
+    static RolloverRequest getDefaultRolloverRequest(
+        RolloverConfiguration rolloverConfiguration,
+        String dataStream,
+        TimeValue dataRetention
+    ) {
         RolloverRequest rolloverRequest = new RolloverRequest(dataStream, null).masterNodeTimeout(TimeValue.MAX_VALUE);
-        rolloverRequest.setConditions(rolloverConditions);
+        rolloverRequest.setConditions(rolloverConfiguration.resolveRolloverConditions(dataRetention));
         return rolloverRequest;
     }
 
@@ -371,8 +568,8 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
         maybeScheduleJob();
     }
 
-    private void updateRolloverConditions(RolloverConditions newRolloverConditions) {
-        this.rolloverConditions = newRolloverConditions;
+    private void updateRolloverConfiguration(RolloverConfiguration newRolloverConfiguration) {
+        this.rolloverConfiguration = newRolloverConfiguration;
     }
 
     private void cancelJob() {
@@ -408,8 +605,101 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
         scheduler.get().add(scheduledJob);
     }
 
-    // package visibility for testing
-    DataLifecycleErrorStore getErrorStore() {
+    // public visibility for testing
+    public DataLifecycleErrorStore getErrorStore() {
         return errorStore;
+    }
+
+    /**
+     * This is a ClusterStateTaskListener that writes the force_merge_completed_timestamp into the cluster state. It is meant to run in
+     * STATE_UPDATE_TASK_EXECUTOR.
+     */
+    static class UpdateForceMergeCompleteTask implements ClusterStateTaskListener {
+        private final ActionListener<Void> listener;
+        private final String targetIndex;
+        private final ThreadPool threadPool;
+
+        UpdateForceMergeCompleteTask(ActionListener<Void> listener, String targetIndex, ThreadPool threadPool) {
+            this.listener = listener;
+            this.targetIndex = targetIndex;
+            this.threadPool = threadPool;
+        }
+
+        ClusterState execute(ClusterState currentState) throws Exception {
+            logger.debug("Updating cluster state with force merge complete marker for {}", targetIndex);
+            IndexMetadata indexMetadata = currentState.metadata().index(targetIndex);
+            Map<String, String> customMetadata = indexMetadata.getCustomData(DLM_CUSTOM_INDEX_METADATA_KEY);
+            Map<String, String> newCustomMetadata = new HashMap<>();
+            if (customMetadata != null) {
+                newCustomMetadata.putAll(customMetadata);
+            }
+            newCustomMetadata.put(FORCE_MERGE_COMPLETED_TIMESTAMP_METADATA_KEY, Long.toString(threadPool.absoluteTimeInMillis()));
+            IndexMetadata updatededIndexMetadata = new IndexMetadata.Builder(indexMetadata).putCustom(
+                DLM_CUSTOM_INDEX_METADATA_KEY,
+                newCustomMetadata
+            ).build();
+            Metadata metadata = Metadata.builder(currentState.metadata()).put(updatededIndexMetadata, true).build();
+            return ClusterState.builder(currentState).metadata(metadata).build();
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            listener.onFailure(e);
+        }
+    }
+
+    /**
+     * This wrapper exists only to provide equals and hashCode implementations of a ForceMergeRequest for transportActionsDeduplicator.
+     * It intentionally ignores forceMergeUUID (which ForceMergeRequest's equals/hashCode would have to if they existed) because we don't
+     * care about it for DLM deduplication. This class is non-private for the sake of unit testing, but should not be used outside of
+     * DataLifecycleService.
+     */
+    static final class ForceMergeRequestWrapper extends ForceMergeRequest {
+        ForceMergeRequestWrapper(ForceMergeRequest original) {
+            super(original.indices());
+            this.maxNumSegments(original.maxNumSegments());
+            this.onlyExpungeDeletes(original.onlyExpungeDeletes());
+            this.flush(original.flush());
+            this.indicesOptions(original.indicesOptions());
+            this.setShouldStoreResult(original.getShouldStoreResult());
+            this.setRequestId(original.getRequestId());
+            this.timeout(original.timeout());
+            this.setParentTask(original.getParentTask());
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            ForceMergeRequest that = (ForceMergeRequest) o;
+            return Arrays.equals(indices, that.indices())
+                && maxNumSegments() == that.maxNumSegments()
+                && onlyExpungeDeletes() == that.onlyExpungeDeletes()
+                && flush() == that.flush()
+                && Objects.equals(indicesOptions(), that.indicesOptions())
+                && getShouldStoreResult() == that.getShouldStoreResult()
+                && getRequestId() == that.getRequestId()
+                && Objects.equals(timeout(), that.timeout())
+                && Objects.equals(getParentTask(), that.getParentTask());
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(
+                Arrays.hashCode(indices),
+                maxNumSegments(),
+                onlyExpungeDeletes(),
+                flush(),
+                indicesOptions(),
+                getShouldStoreResult(),
+                getRequestId(),
+                timeout(),
+                getParentTask()
+            );
+        }
     }
 }

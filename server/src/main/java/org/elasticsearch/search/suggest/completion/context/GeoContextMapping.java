@@ -176,7 +176,7 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
         final Set<String> geohashes = new HashSet<>();
 
         if (fieldName != null) {
-            IndexableField[] fields = document.getFields(fieldName);
+            List<IndexableField> fields = document.getFields(fieldName);
             GeoPoint spare = new GeoPoint();
             for (IndexableField field : fields) {
                 if (field instanceof StringField) {

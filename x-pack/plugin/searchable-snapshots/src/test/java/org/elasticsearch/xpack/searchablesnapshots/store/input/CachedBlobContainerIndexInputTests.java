@@ -75,14 +75,13 @@ public class CachedBlobContainerIndexInputTests extends AbstractSearchableSnapsh
                     fileName,
                     input.length,
                     checksum,
-                    Version.CURRENT.luceneVersion.toString()
+                    Version.CURRENT.luceneVersion().toString()
                 );
 
                 final int partSize = randomBoolean() ? input.length : randomIntBetween(1, input.length);
 
                 final BlobStoreIndexShardSnapshot snapshot = new BlobStoreIndexShardSnapshot(
                     snapshotId.getName(),
-                    0L,
                     List.of(new BlobStoreIndexShardSnapshot.FileInfo(blobName, metadata, ByteSizeValue.ofBytes(partSize))),
                     0L,
                     0L,
@@ -127,7 +126,7 @@ public class CachedBlobContainerIndexInputTests extends AbstractSearchableSnapsh
                 ) {
                     RecoveryState recoveryState = createRecoveryState(recoveryFinalizedDone);
                     final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
-                    final boolean loaded = directory.loadSnapshot(recoveryState, future);
+                    final boolean loaded = directory.loadSnapshot(recoveryState, () -> false, future);
                     if (randomBoolean()) {
                         // randomly wait for pre-warm before running the below reads
                         future.get();
@@ -195,12 +194,11 @@ public class CachedBlobContainerIndexInputTests extends AbstractSearchableSnapsh
                 fileName,
                 input.length,
                 checksum,
-                Version.CURRENT.luceneVersion.toString()
+                Version.CURRENT.luceneVersion().toString()
             );
 
             final BlobStoreIndexShardSnapshot snapshot = new BlobStoreIndexShardSnapshot(
                 snapshotId.getName(),
-                0L,
                 List.of(new BlobStoreIndexShardSnapshot.FileInfo(blobName, metadata, ByteSizeValue.ofBytes(input.length + 1))),
                 0L,
                 0L,
@@ -233,7 +231,7 @@ public class CachedBlobContainerIndexInputTests extends AbstractSearchableSnapsh
             ) {
                 RecoveryState recoveryState = createRecoveryState(randomBoolean());
                 final PlainActionFuture<Void> f = PlainActionFuture.newFuture();
-                final boolean loaded = searchableSnapshotDirectory.loadSnapshot(recoveryState, f);
+                final boolean loaded = searchableSnapshotDirectory.loadSnapshot(recoveryState, () -> false, f);
                 try {
                     f.get();
                 } catch (ExecutionException e) {

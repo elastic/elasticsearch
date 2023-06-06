@@ -46,13 +46,9 @@ import org.elasticsearch.xpack.core.security.authz.store.RoleReferenceIntersecti
 import org.elasticsearch.xpack.core.security.authz.store.RolesRetrievalResult;
 import org.elasticsearch.xpack.core.security.support.CacheIteratorHelper;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
-import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
-import org.elasticsearch.xpack.core.security.user.CrossClusterAccessUser;
-import org.elasticsearch.xpack.core.security.user.SecurityProfileUser;
-import org.elasticsearch.xpack.core.security.user.SystemUser;
+import org.elasticsearch.xpack.core.security.user.InternalUser;
+import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
-import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
@@ -105,10 +101,7 @@ public class CompositeRolesStore {
     private final AtomicLong numInvalidation = new AtomicLong();
     private final RoleDescriptorStore roleReferenceResolver;
     private final Role superuserRole;
-    private final Role xpackSecurityRole;
-    private final Role securityProfileRole;
-    private final Role xpackUserRole;
-    private final Role asyncSearchUserRole;
+    private final Map<String, Role> internalUserRoles;
     private final RestrictedIndices restrictedIndices;
 
     public CompositeRolesStore(
@@ -159,23 +152,19 @@ public class CompositeRolesStore {
             fieldPermissionsCache,
             this.restrictedIndices
         );
-        this.xpackSecurityRole = Role.buildFromRoleDescriptor(
-            XPackSecurityUser.ROLE_DESCRIPTOR,
-            fieldPermissionsCache,
-            this.restrictedIndices
-        );
-        this.securityProfileRole = Role.buildFromRoleDescriptor(
-            SecurityProfileUser.ROLE_DESCRIPTOR,
-            fieldPermissionsCache,
-            this.restrictedIndices
-        );
-        this.xpackUserRole = Role.buildFromRoleDescriptor(XPackUser.ROLE_DESCRIPTOR, fieldPermissionsCache, this.restrictedIndices);
-        this.asyncSearchUserRole = Role.buildFromRoleDescriptor(
-            AsyncSearchUser.ROLE_DESCRIPTOR,
-            fieldPermissionsCache,
-            this.restrictedIndices
-        );
-
+        this.internalUserRoles = InternalUsers.get()
+            .stream()
+            .filter(u -> u.getLocalClusterRoleDescriptor().isPresent())
+            .collect(
+                Collectors.toMap(
+                    u -> u.principal(),
+                    u -> Role.buildFromRoleDescriptor(
+                        u.getLocalClusterRoleDescriptor().get(),
+                        fieldPermissionsCache,
+                        this.restrictedIndices
+                    )
+                )
+            );
         this.roleReferenceResolver = new RoleDescriptorStore(
             roleProviders,
             apiKeyService,
@@ -211,7 +200,7 @@ public class CompositeRolesStore {
             return;
         }
 
-        assert false == User.isInternal(subject.getUser()) : "Internal user should not pass here";
+        assert false == subject.getUser() instanceof InternalUser : "Internal user [" + subject.getUser() + "] should not pass here";
 
         final RoleReferenceIntersection roleReferenceIntersection = subject.getRoleReferenceIntersection(anonymousUser);
         roleReferenceIntersection.buildRole(this::buildRoleFromRoleReference, roleActionListener);
@@ -226,29 +215,20 @@ public class CompositeRolesStore {
         // method.
         // The other internal users have directly assigned roles that are handled with special cases here
         final User user = subject.getUser();
-        if (SystemUser.is(user)) {
-            throw new IllegalArgumentException(
-                "the user [" + user.principal() + "] is the system user and we should never try to get its roles"
-            );
-        }
-        if (CrossClusterAccessUser.is(user)) {
-            throw new IllegalArgumentException(
-                "the user [" + user.principal() + "] is the cross cluster access user and we should never try to get its roles"
-            );
-        }
-        if (XPackUser.is(user)) {
-            return xpackUserRole;
-        }
-        if (XPackSecurityUser.is(user)) {
-            return xpackSecurityRole;
-        }
-        if (SecurityProfileUser.is(user)) {
-            return securityProfileRole;
-        }
-        if (AsyncSearchUser.is(user)) {
-            return asyncSearchUserRole;
+        if (user instanceof InternalUser internal) {
+            return getInternalUserRole(internal);
         }
         return null;
+    }
+
+    // Accessible for testing
+    protected Role getInternalUserRole(InternalUser user) {
+        String name = user.principal();
+        final Role role = this.internalUserRoles.get(name);
+        if (role == null) {
+            throw new IllegalArgumentException("the internal user [" + name + "] should never have its roles resolved");
+        }
+        return role;
     }
 
     public void buildRoleFromRoleReference(RoleReference roleReference, ActionListener<Role> roleActionListener) {
@@ -319,26 +299,6 @@ public class CompositeRolesStore {
         return roleReferenceResolver;
     }
 
-    // for testing
-    Role getXpackUserRole() {
-        return xpackUserRole;
-    }
-
-    // for testing
-    Role getAsyncSearchUserRole() {
-        return asyncSearchUserRole;
-    }
-
-    // for testing
-    Role getXpackSecurityRole() {
-        return xpackSecurityRole;
-    }
-
-    // for testing
-    Role getSecurityProfileRole() {
-        return securityProfileRole;
-    }
-
     private void buildThenMaybeCacheRole(
         RoleKey roleKey,
         Collection<RoleDescriptor> roleDescriptors,
@@ -401,25 +361,17 @@ public class CompositeRolesStore {
 
     // Package private for testing
     static Optional<RoleDescriptor> tryGetRoleDescriptorForInternalUser(Subject subject) {
-        final User user = subject.getUser();
-        if (SystemUser.is(user)) {
-            throw new IllegalArgumentException(
-                "the user [" + user.principal() + "] is the system user and we should never try to get its role descriptors"
-            );
+        if (subject.getUser() instanceof InternalUser internalUser) {
+            final Optional<RoleDescriptor> roleDescriptor = internalUser.getLocalClusterRoleDescriptor();
+            if (roleDescriptor.isEmpty()) {
+                throw new IllegalArgumentException(
+                    "should never try to get the roles for internal user [" + internalUser.principal() + "]"
+                );
+            }
+            return roleDescriptor;
+        } else {
+            return Optional.empty();
         }
-        if (XPackUser.is(user)) {
-            return Optional.of(XPackUser.ROLE_DESCRIPTOR);
-        }
-        if (XPackSecurityUser.is(user)) {
-            return Optional.of(XPackSecurityUser.ROLE_DESCRIPTOR);
-        }
-        if (SecurityProfileUser.is(user)) {
-            return Optional.of(SecurityProfileUser.ROLE_DESCRIPTOR);
-        }
-        if (AsyncSearchUser.is(user)) {
-            return Optional.of(AsyncSearchUser.ROLE_DESCRIPTOR);
-        }
-        return Optional.empty();
     }
 
     public static void buildRoleFromDescriptors(

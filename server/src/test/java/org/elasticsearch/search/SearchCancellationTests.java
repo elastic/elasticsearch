@@ -10,7 +10,6 @@ package org.elasticsearch.search;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.IntPoint;
-import org.apache.lucene.document.KnnFloatVectorField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexReader;
@@ -28,6 +27,7 @@ import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.index.mapper.vectors.XKnnFloatVectorField;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
@@ -67,7 +67,7 @@ public class SearchCancellationTests extends ESTestCase {
             Document doc = new Document();
             doc.add(new StringField(STRING_FIELD_NAME, "a".repeat(i), Field.Store.NO));
             doc.add(new IntPoint(POINT_FIELD_NAME, i, i + 1));
-            doc.add(new KnnFloatVectorField(KNN_FIELD_NAME, new float[] { 1.0f, 0.5f, 42.0f }));
+            doc.add(new XKnnFloatVectorField(KNN_FIELD_NAME, new float[] { 1.0f, 0.5f, 42.0f }));
             w.addDocument(doc);
         }
     }

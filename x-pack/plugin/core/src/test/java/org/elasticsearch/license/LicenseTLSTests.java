@@ -6,10 +6,10 @@
  */
 package org.elasticsearch.license;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.core.TimeValue;
@@ -25,7 +25,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
-public class LicenseTLSTests extends AbstractLicenseServiceTestCase {
+public class LicenseTLSTests extends AbstractClusterStateLicenseServiceTestCase {
 
     private InetAddress inetAddress;
 
@@ -39,9 +39,9 @@ public class LicenseTLSTests extends AbstractLicenseServiceTestCase {
         inetAddress = InetAddress.getLoopbackAddress();
 
         setInitialState(null, licenseState, settings);
-        clusterStateLicenseService.start();
+        licenseService.start();
         PlainActionFuture<PutLicenseResponse> responseFuture = new PlainActionFuture<>();
-        clusterStateLicenseService.registerLicense(request, responseFuture);
+        licenseService.registerLicense(request, responseFuture);
         verify(clusterService).submitUnbatchedStateUpdateTask(any(String.class), any(ClusterStateUpdateTask.class));
 
         inetAddress = TransportAddress.META_ADDRESS;
@@ -49,22 +49,21 @@ public class LicenseTLSTests extends AbstractLicenseServiceTestCase {
             .put("xpack.security.enabled", true)
             .put(DISCOVERY_TYPE_SETTING.getKey(), SINGLE_NODE_DISCOVERY_TYPE)
             .build();
-        clusterStateLicenseService.stop();
+        licenseService.stop();
         licenseState = new XPackLicenseState(() -> 0);
         setInitialState(null, licenseState, settings);
-        clusterStateLicenseService.start();
-        clusterStateLicenseService.registerLicense(request, responseFuture);
+        licenseService.start();
+        licenseService.registerLicense(request, responseFuture);
         verify(clusterService, times(2)).submitUnbatchedStateUpdateTask(any(String.class), any(ClusterStateUpdateTask.class));
     }
 
     @Override
     protected DiscoveryNode getLocalNode() {
-        return new DiscoveryNode(
+        return DiscoveryNodeUtils.create(
             "localnode",
             new TransportAddress(inetAddress, randomIntBetween(9300, 9399)),
             emptyMap(),
-            emptySet(),
-            Version.CURRENT
+            emptySet()
         );
     }
 }

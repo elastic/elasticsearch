@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -24,7 +25,6 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.health.Diagnosis;
@@ -42,7 +42,6 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -54,9 +53,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_CREATION_DATE;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
 import static org.elasticsearch.health.HealthIndicatorService.MAX_AFFECTED_RESOURCES_COUNT;
 import static org.elasticsearch.health.ImpactArea.DEPLOYMENT_MANAGEMENT;
 import static org.elasticsearch.health.node.DiskHealthIndicatorService.DiskHealthAnalyzer.INDICES_WITH_READONLY_BLOCK;
@@ -514,16 +510,7 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
     public void testMissingHealthInfo() {
         Set<DiscoveryNode> discoveryNodes = createNodesWithAllRoles();
         Set<DiscoveryNode> discoveryNodesInClusterState = new HashSet<>(discoveryNodes);
-        discoveryNodesInClusterState.add(
-            new DiscoveryNode(
-                randomAlphaOfLength(30),
-                UUID.randomUUID().toString(),
-                buildNewFakeTransportAddress(),
-                Collections.emptyMap(),
-                DiscoveryNodeRole.roles(),
-                Version.CURRENT
-            )
-        );
+        discoveryNodesInClusterState.add(DiscoveryNodeUtils.create(randomAlphaOfLength(30), UUID.randomUUID().toString()));
         ClusterService clusterService = createClusterService(discoveryNodesInClusterState, false);
         DiskHealthIndicatorService diskHealthIndicatorService = new DiskHealthIndicatorService(clusterService);
         {
@@ -1003,16 +990,7 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
     private Set<DiscoveryNode> createNodes(int numberOfNodes, Set<DiscoveryNodeRole> roles) {
         Set<DiscoveryNode> discoveryNodes = new HashSet<>();
         for (int i = 0; i < numberOfNodes; i++) {
-            discoveryNodes.add(
-                new DiscoveryNode(
-                    randomAlphaOfLength(30),
-                    UUID.randomUUID().toString(),
-                    buildNewFakeTransportAddress(),
-                    Collections.emptyMap(),
-                    roles,
-                    Version.CURRENT
-                )
-            );
+            discoveryNodes.add(DiscoveryNodeUtils.builder(UUID.randomUUID().toString()).name(randomAlphaOfLength(30)).roles(roles).build());
         }
         return discoveryNodes;
     }
@@ -1091,11 +1069,7 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
             int numberOfShards = indexNameToNodeIdsMap.get(index).size() == 0 ? 1 : indexNameToNodeIdsMap.get(index).size();
             IndexMetadata indexMetadata = IndexMetadata.builder(index)
                 .settings(
-                    Settings.builder()
-                        .put(SETTING_VERSION_CREATED, Version.CURRENT)
-                        .put(SETTING_NUMBER_OF_SHARDS, numberOfShards)
-                        .put(SETTING_NUMBER_OF_REPLICAS, 0)
-                        .put(SETTING_CREATION_DATE, System.currentTimeMillis())
+                    indexSettings(Version.CURRENT, numberOfShards, 0).put(SETTING_CREATION_DATE, System.currentTimeMillis())
                         .put(IndexMetadata.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), blockedIndices.contains(index))
                 )
                 .build();

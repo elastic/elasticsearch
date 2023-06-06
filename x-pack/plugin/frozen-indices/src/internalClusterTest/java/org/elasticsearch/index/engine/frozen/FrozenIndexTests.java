@@ -62,7 +62,6 @@ import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.time.Instant;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.EnumSet;
 
@@ -187,36 +186,32 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
         assertAcked(client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest(indexName)).actionGet());
         int numRequests = randomIntBetween(20, 50);
         int numRefreshes = 0;
+        int numSearches = 0;
         for (int i = 0; i < numRequests; i++) {
             numRefreshes++;
             // make sure that we don't share the frozen reader in concurrent requests since we acquire the
             // searcher and rewrite the request outside of the search-throttle thread pool
-            switch (randomFrom(Arrays.asList(0, 1, 2))) {
-                case 0:
-                    client().prepareGet(indexName, "" + randomIntBetween(0, 9)).get();
-                    break;
-                case 1:
+            switch (between(0, 3)) {
+                case 0 -> client().prepareGet(indexName, "" + randomIntBetween(0, 9)).get();
+                case 1 -> {
+                    numSearches++;
                     client().prepareSearch(indexName)
                         .setIndicesOptions(IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED)
                         .setSearchType(SearchType.QUERY_THEN_FETCH)
                         .get();
                     // in total 4 refreshes 1x query & 1x fetch per shard (we have 2)
                     numRefreshes += 3;
-                    break;
-                case 2:
-                    client().prepareTermVectors(indexName, "" + randomIntBetween(0, 9)).get();
-                    break;
-                case 3:
-                    client().prepareExplain(indexName, "" + randomIntBetween(0, 9)).setQuery(new MatchAllQueryBuilder()).get();
-                    break;
-
-                default:
-                    assert false;
+                }
+                case 2 -> client().prepareTermVectors(indexName, "" + randomIntBetween(0, 9)).get();
+                case 3 -> client().prepareExplain(indexName, "" + randomIntBetween(0, 9)).setQuery(new MatchAllQueryBuilder()).get();
+                default -> throw new AssertionError("unexpected value");
             }
         }
         IndicesStatsResponse index = client().admin().indices().prepareStats(indexName).clear().setRefresh(true).get();
         assertEquals(numRefreshes, index.getTotal().refresh.getTotal());
-        assertWarnings(TransportSearchAction.FROZEN_INDICES_DEPRECATION_MESSAGE.replace("{}", indexName));
+        if (numSearches > 0) {
+            assertWarnings(TransportSearchAction.FROZEN_INDICES_DEPRECATION_MESSAGE.replace("{}", indexName));
+        }
     }
 
     public void testFreezeAndUnfreeze() {
@@ -522,7 +517,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
 
     public void testFreezeIndexIncreasesIndexSettingsVersion() {
         final String index = "test";
-        createIndex(index, Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0).build());
+        createIndex(index, indexSettings(1, 0).build());
         client().prepareIndex(index).setSource("field", "value").execute().actionGet();
 
         final long settingsVersion = client().admin()
@@ -544,14 +539,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
 
     public void testFreezeEmptyIndexWithTranslogOps() throws Exception {
         final String indexName = "empty";
-        createIndex(
-            indexName,
-            Settings.builder()
-                .put("index.number_of_shards", 1)
-                .put("index.number_of_replicas", 0)
-                .put("index.refresh_interval", TimeValue.MINUS_ONE)
-                .build()
-        );
+        createIndex(indexName, indexSettings(1, 0).put("index.refresh_interval", TimeValue.MINUS_ONE).build());
 
         final long nbNoOps = randomIntBetween(1, 10);
         for (long i = 0; i < nbNoOps; i++) {

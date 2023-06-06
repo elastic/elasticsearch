@@ -14,12 +14,12 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.nio.file.FileStore;
 import java.util.Iterator;
 import java.util.Set;
 
@@ -28,18 +28,17 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
     public static class Path implements Writeable, ToXContentObject {
 
         String path;
-        @Nullable
-        String mount;
-        /** File system type from {@code java.nio.file.FileStore type()}, if available. */
-        @Nullable
-        String type;
+        /** File system string from {@link FileStore#toString()}. The concrete subclasses of FileStore have meaningful toString methods. */
+        String mount; // e.g. "/app (/dev/mapper/lxc-data)", "/System/Volumes/Data (/dev/disk1s2)", "Local Disk (C:)", etc.
+        /** File system type from {@link FileStore#type()}. */
+        String type; // e.g. "xfs", "apfs", "NTFS", etc.
         long total = -1;
         long free = -1;
         long available = -1;
 
         public Path() {}
 
-        public Path(String path, @Nullable String mount, long total, long free, long available) {
+        public Path(String path, String mount, long total, long free, long available) {
             this.path = path;
             this.mount = mount;
             this.total = total;
@@ -51,7 +50,7 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
          * Read from a stream.
          */
         public Path(StreamInput in) throws IOException {
-            path = in.readOptionalString();
+            path = in.readOptionalString(); // total aggregates do not have a path, mount, or type
             mount = in.readOptionalString();
             type = in.readOptionalString();
             total = in.readLong();
@@ -61,7 +60,7 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeOptionalString(path); // total aggregates do not have a path
+            out.writeOptionalString(path); // total aggregates do not have a path, mount, or type
             out.writeOptionalString(mount);
             out.writeOptionalString(type);
             out.writeLong(total);
@@ -476,8 +475,8 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
         Path res = new Path();
         Set<String> seenDevices = Sets.newHashSetWithExpectedSize(paths.length);
         for (Path subPath : paths) {
-            if (subPath.path != null) {
-                if (seenDevices.add(subPath.path) == false) {
+            if (subPath.mount != null) {
+                if (seenDevices.add(subPath.mount) == false) {
                     continue; // already added numbers for this device;
                 }
             }

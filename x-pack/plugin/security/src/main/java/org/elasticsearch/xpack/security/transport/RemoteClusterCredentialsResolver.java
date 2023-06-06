@@ -42,5 +42,10 @@ public class RemoteClusterCredentialsResolver {
         }
     }
 
-    record RemoteClusterCredentials(String clusterAlias, String credentials) {}
+    record RemoteClusterCredentials(String clusterAlias, String credentials) {
+        @Override
+        public String toString() {
+            return "RemoteClusterCredentials{clusterAlias='" + clusterAlias + "', credentials='::es_redacted::'}";
+        }
+    }
 }

@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource.EmptyStoreRecoverySource;
@@ -49,7 +50,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE;
@@ -78,29 +78,14 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"),
             ShardRouting.Role.DEFAULT
         );
-        DiscoveryNode node_0 = new DiscoveryNode(
-            "node_0",
-            buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            new HashSet<>(DiscoveryNodeRole.roles()),
-            Version.CURRENT
-        );
-        DiscoveryNode node_1 = new DiscoveryNode(
-            "node_1",
-            buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            new HashSet<>(DiscoveryNodeRole.roles()),
-            Version.CURRENT
-        );
+        DiscoveryNode node_0 = DiscoveryNodeUtils.builder("node_0").roles(new HashSet<>(DiscoveryNodeRole.roles())).build();
+        DiscoveryNode node_1 = DiscoveryNodeUtils.builder("node_1").roles(new HashSet<>(DiscoveryNodeRole.roles())).build();
 
         RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
             .addAsNew(metadata.index("test"))
             .build();
 
-        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-            .metadata(metadata)
-            .routingTable(routingTable)
-            .build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(routingTable).build();
 
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(node_0).add(node_1)).build();
 
@@ -162,29 +147,14 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"),
             ShardRouting.Role.DEFAULT
         );
-        DiscoveryNode node_0 = new DiscoveryNode(
-            "node_0",
-            buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            new HashSet<>(DiscoveryNodeRole.roles()),
-            Version.CURRENT
-        );
-        DiscoveryNode node_1 = new DiscoveryNode(
-            "node_1",
-            buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            new HashSet<>(DiscoveryNodeRole.roles()),
-            Version.CURRENT
-        );
+        DiscoveryNode node_0 = DiscoveryNodeUtils.builder("node_0").roles(new HashSet<>(DiscoveryNodeRole.roles())).build();
+        DiscoveryNode node_1 = DiscoveryNodeUtils.builder("node_1").roles(new HashSet<>(DiscoveryNodeRole.roles())).build();
 
         RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
             .addAsNew(metadata.index("test"))
             .build();
 
-        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-            .metadata(metadata)
-            .routingTable(routingTable)
-            .build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(routingTable).build();
 
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(node_0).add(node_1)).build();
 
@@ -263,20 +233,8 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         DiskThresholdDecider decider = new DiskThresholdDecider(Settings.EMPTY, nss);
         Map<ClusterInfo.NodeAndShard, String> shardRoutingMap = new HashMap<>();
 
-        DiscoveryNode node_0 = new DiscoveryNode(
-            "node_0",
-            buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            new HashSet<>(DiscoveryNodeRole.roles()),
-            Version.CURRENT
-        );
-        DiscoveryNode node_1 = new DiscoveryNode(
-            "node_1",
-            buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            new HashSet<>(DiscoveryNodeRole.roles()),
-            Version.CURRENT
-        );
+        DiscoveryNode node_0 = DiscoveryNodeUtils.builder("node_0").roles(new HashSet<>(DiscoveryNodeRole.roles())).build();
+        DiscoveryNode node_1 = DiscoveryNodeUtils.builder("node_1").roles(new HashSet<>(DiscoveryNodeRole.roles())).build();
 
         Metadata metadata = Metadata.builder()
             .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
@@ -329,9 +287,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
 
         RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(indexMetadata).build();
 
-        ClusterState clusterState = ClusterState.builder(
-            org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)
-        ).metadata(metadata).routingTable(routingTable).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(routingTable).build();
 
         logger.info("--> adding two nodes");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(node_0).add(node_1)).build();
@@ -464,9 +420,10 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
         routingTableBuilder.addAsNew(metadata.index("test"));
         routingTableBuilder.addAsNew(metadata.index("other"));
-        ClusterState clusterState = ClusterState.builder(
-            org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)
-        ).metadata(metadata).routingTable(routingTableBuilder.build()).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(metadata)
+            .routingTable(routingTableBuilder.build())
+            .build();
         RoutingAllocation allocation = new RoutingAllocation(null, clusterState, info, null, 0);
 
         final Index index = new Index("test", "1234");
@@ -508,7 +465,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
 
         RoutingNode node = RoutingNodesHelper.routingNode(
             "node1",
-            new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
+            DiscoveryNodeUtils.builder("node1").roles(emptySet()).build(),
             test_0,
             test_1.getTargetRelocatingShard(),
             test_2
@@ -543,7 +500,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
 
         node = RoutingNodesHelper.routingNode(
             "node1",
-            new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
+            DiscoveryNodeUtils.builder("node1").roles(emptySet()).build(),
             test_0,
             test_1.getTargetRelocatingShard(),
             test_2,
@@ -612,15 +569,9 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             }
         }
 
-        DiscoveryNode node = new DiscoveryNode(nodeId, buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
-        DiscoveryNode anotherNode = new DiscoveryNode(
-            anotherNodeId,
-            buildNewFakeTransportAddress(),
-            emptyMap(),
-            emptySet(),
-            Version.CURRENT
-        );
-        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+        DiscoveryNode node = DiscoveryNodeUtils.builder(nodeId).roles(emptySet()).build();
+        DiscoveryNode anotherNode = DiscoveryNodeUtils.builder(anotherNodeId).roles(emptySet()).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(metadata)
             .routingTable(
                 RoutingTable.builder()
@@ -719,9 +670,10 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         routingTableBuilder.addAsNew(metadata.index("test"));
         routingTableBuilder.addAsNew(metadata.index("target"));
         routingTableBuilder.addAsNew(metadata.index("target2"));
-        ClusterState clusterState = ClusterState.builder(
-            org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)
-        ).metadata(metadata).routingTable(routingTableBuilder.build()).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(metadata)
+            .routingTable(routingTableBuilder.build())
+            .build();
 
         AllocationService allocationService = createAllocationService();
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(newNode("node1"))).build();
@@ -902,29 +854,14 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"),
             ShardRouting.Role.DEFAULT
         );
-        DiscoveryNode node_0 = new DiscoveryNode(
-            "node_0",
-            buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            new HashSet<>(DiscoveryNodeRole.roles()),
-            Version.CURRENT
-        );
-        DiscoveryNode node_1 = new DiscoveryNode(
-            "node_1",
-            buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            new HashSet<>(DiscoveryNodeRole.roles()),
-            Version.CURRENT
-        );
+        DiscoveryNode node_0 = DiscoveryNodeUtils.builder("node_0").roles(new HashSet<>(DiscoveryNodeRole.roles())).build();
+        DiscoveryNode node_1 = DiscoveryNodeUtils.builder("node_1").roles(new HashSet<>(DiscoveryNodeRole.roles())).build();
 
         RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
             .addAsNew(metadata.index("test"))
             .build();
 
-        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-            .metadata(metadata)
-            .routingTable(routingTable)
-            .build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(routingTable).build();
 
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(node_0).add(node_1)).build();
 
@@ -981,29 +918,14 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"),
             ShardRouting.Role.DEFAULT
         );
-        DiscoveryNode node_0 = new DiscoveryNode(
-            "node_0",
-            buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            new HashSet<>(DiscoveryNodeRole.roles()),
-            Version.CURRENT
-        );
-        DiscoveryNode node_1 = new DiscoveryNode(
-            "node_1",
-            buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            new HashSet<>(DiscoveryNodeRole.roles()),
-            Version.CURRENT
-        );
+        DiscoveryNode node_0 = DiscoveryNodeUtils.builder("node_0").roles(new HashSet<>(DiscoveryNodeRole.roles())).build();
+        DiscoveryNode node_1 = DiscoveryNodeUtils.builder("node_1").roles(new HashSet<>(DiscoveryNodeRole.roles())).build();
 
         RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
             .addAsNew(metadata.index("test"))
             .build();
 
-        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-            .metadata(metadata)
-            .routingTable(routingTable)
-            .build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(routingTable).build();
 
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(node_0).add(node_1)).build();
 

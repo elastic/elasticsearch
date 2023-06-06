@@ -60,8 +60,14 @@ public class GenerateSnapshotNameStepTests extends AbstractStepTestCase<Generate
     }
 
     public void testPerformAction() {
+        testPerformAction("test-ilm-policy", "test-ilm-policy");
+        // in case the policy name contains disallowed characters ({@link org.elasticsearch.common.Strings.INVALID_CHARS}), they should
+        // be stripped off
+        testPerformAction("invalid-policy\\\\/*?\"<>|,-name", "invalid-policy-name");
+    }
+
+    private void testPerformAction(String policyName, String expectedPolicyName) {
         String indexName = randomAlphaOfLength(10);
-        String policyName = "test-ilm-policy";
         final IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
             .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
             .numberOfShards(randomIntBetween(1, 5))
@@ -95,7 +101,7 @@ public class GenerateSnapshotNameStepTests extends AbstractStepTestCase<Generate
         );
         assertThat(executionState.snapshotRepository(), is(generateSnapshotNameStep.getSnapshotRepository()));
         assertThat(executionState.snapshotName(), containsString(indexName.toLowerCase(Locale.ROOT)));
-        assertThat(executionState.snapshotName(), containsString(policyName.toLowerCase(Locale.ROOT)));
+        assertThat(executionState.snapshotName(), containsString(expectedPolicyName));
 
         // re-running this step results in no change to the important outputs
         newClusterState = generateSnapshotNameStep.performAction(indexMetadata.getIndex(), newClusterState);

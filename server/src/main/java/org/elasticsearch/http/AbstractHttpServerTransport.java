@@ -34,6 +34,7 @@ import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.tracing.Tracer;
@@ -90,6 +91,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
 
     private final HttpTracer httpLogger;
     private final Tracer tracer;
+    private volatile boolean gracefullyCloseConnections;
 
     private volatile long slowLogThresholdMs;
 
@@ -156,7 +158,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
 
     @Override
     public HttpStats stats() {
-        return new HttpStats(httpClientStatsTracker.getClientStats(), httpChannels.size(), totalChannelsAccepted.get());
+        return new HttpStats(httpChannels.size(), totalChannelsAccepted.get(), httpClientStatsTracker.getClientStats());
     }
 
     protected void bindServer() {
@@ -376,10 +378,26 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
             if (badRequestCause != null) {
                 dispatcher.dispatchBadRequest(channel, threadContext, badRequestCause);
             } else {
+                populatePerRequestThreadContext0(restRequest, channel, threadContext);
                 dispatcher.dispatchRequest(restRequest, channel, threadContext);
             }
         }
     }
+
+    private void populatePerRequestThreadContext0(RestRequest restRequest, RestChannel channel, ThreadContext threadContext) {
+        try {
+            populatePerRequestThreadContext(restRequest, threadContext);
+        } catch (Exception e) {
+            try {
+                channel.sendResponse(new RestResponse(channel, e));
+            } catch (Exception inner) {
+                inner.addSuppressed(e);
+                logger.error(() -> "failed to send failure response for uri [" + restRequest.uri() + "]", inner);
+            }
+        }
+    }
+
+    protected void populatePerRequestThreadContext(RestRequest restRequest, ThreadContext threadContext) {}
 
     private void handleIncomingRequest(final HttpRequest httpRequest, final HttpChannel httpChannel, final Exception exception) {
         if (exception == null) {
@@ -437,7 +455,8 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
                     threadContext,
                     corsHandler,
                     maybeHttpLogger,
-                    tracer
+                    tracer,
+                    gracefullyCloseConnections
                 );
             } catch (final IllegalArgumentException e) {
                 badRequestCause = ExceptionsHelper.useOrSuppress(badRequestCause, e);
@@ -451,7 +470,8 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
                     threadContext,
                     corsHandler,
                     httpLogger,
-                    tracer
+                    tracer,
+                    gracefullyCloseConnections
                 );
             }
             channel = innerChannel;
@@ -492,5 +512,9 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
 
     public ThreadPool getThreadPool() {
         return threadPool;
+    }
+
+    public void gracefullyCloseConnections() {
+        gracefullyCloseConnections = true;
     }
 }

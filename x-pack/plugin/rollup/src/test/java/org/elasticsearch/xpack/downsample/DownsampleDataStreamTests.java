@@ -186,10 +186,7 @@ public class DownsampleDataStreamTests extends ESSingleNodeTestCase {
     private void putComposableIndexTemplate(final String id, final List<String> patterns) throws IOException {
         final PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request(id);
         final Template template = new Template(
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+            indexSettings(1, 0).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
                 .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), List.of("routing_field"))
                 .build(),
             new CompressedXContent("""

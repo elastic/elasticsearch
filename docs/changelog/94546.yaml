@@ -1,6 +1,0 @@
-pr: 94546
-summary: Add null check for sort fields over collapse fields
-area: Search
-type: bug
-issues:
- - 94407

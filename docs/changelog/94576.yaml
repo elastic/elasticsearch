@@ -1,6 +1,0 @@
-pr: 94576
-summary: Add support for custom endpoints in the Azure repository
-area: Snapshot/Restore
-type: enhancement
-issues:
- - 94537

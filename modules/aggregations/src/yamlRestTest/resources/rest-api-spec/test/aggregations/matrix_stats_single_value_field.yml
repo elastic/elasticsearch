@@ -135,7 +135,8 @@ setup:
 
 ---
 "Partially unmapped":
-
+  - skip:
+      features: close_to
   - do:
       search:
         rest_total_hits_as_int: true
@@ -145,11 +146,12 @@ setup:
   - match: {hits.total: 15}
   - match: {aggregations.mfs.doc_count: 14}
   - match: {aggregations.mfs.fields.0.count: 14}
-  - match: {aggregations.mfs.fields.2.correlation.val2: 0.9569513137793205}
+  - close_to: {aggregations.mfs.fields.2.correlation.val2: {value: 0.9569513137793205, error: 0.00000000001}}
 
 ---
 "Partially unmapped with missing default":
-
+  - skip:
+      features: close_to
   - do:
       search:
         rest_total_hits_as_int: true
@@ -159,7 +161,7 @@ setup:
   - match: {hits.total: 15}
   - match: {aggregations.mfs.doc_count: 15}
   - match: {aggregations.mfs.fields.0.count: 15}
-  - match: {aggregations.mfs.fields.2.correlation.val2: 0.9567970467908384}
+  - close_to: {aggregations.mfs.fields.2.correlation.val2: {value: 0.9567970467908384, error: 0.00000000001}}
 
 ---
 "With script":

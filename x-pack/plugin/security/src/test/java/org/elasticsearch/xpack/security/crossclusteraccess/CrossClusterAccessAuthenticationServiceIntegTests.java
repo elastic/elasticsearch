@@ -16,14 +16,14 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xpack.core.security.SecurityContext;
-import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyResponse;
+import org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
-import org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
-import org.elasticsearch.xpack.core.security.user.CrossClusterAccessUser;
+import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.CrossClusterAccessAuthenticationService;
 import org.elasticsearch.xpack.security.authc.CrossClusterAccessHeaders;
@@ -99,7 +99,10 @@ public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityI
         }
 
         try (var ignored = threadContext.stashContext()) {
-            final var internalUser = randomValueOtherThan(CrossClusterAccessUser.INSTANCE, AuthenticationTestHelper::randomInternalUser);
+            final var internalUser = randomValueOtherThan(
+                InternalUsers.CROSS_CLUSTER_ACCESS_USER,
+                AuthenticationTestHelper::randomInternalUser
+            );
             new CrossClusterAccessHeaders(
                 encodedCrossClusterAccessApiKey,
                 new CrossClusterAccessSubjectInfo(
@@ -112,33 +115,6 @@ public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityI
                 msg -> assertThat(
                     msg,
                     equalTo("received cross cluster request from an unexpected internal user [" + internalUser.principal() + "]")
-                )
-            );
-        }
-
-        try (var ignored = threadContext.stashContext()) {
-            new CrossClusterAccessHeaders(
-                encodedCrossClusterAccessApiKey,
-                AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo(
-                    new RoleDescriptorsIntersection(
-                        randomValueOtherThanMany(
-                            rd -> false == (rd.hasClusterPrivileges()
-                                || rd.hasApplicationPrivileges()
-                                || rd.hasConfigurableClusterPrivileges()
-                                || rd.hasRunAs()
-                                || rd.hasRemoteIndicesPrivileges()),
-                            () -> RoleDescriptorTests.randomRoleDescriptor()
-                        )
-                    )
-                )
-            ).writeToContext(threadContext);
-            authenticateAndAssertExpectedErrorMessage(
-                service,
-                msg -> assertThat(
-                    msg,
-                    containsString(
-                        "role descriptor for cross cluster access can only contain index privileges but other privileges found for subject"
-                    )
                 )
             );
         }
@@ -159,16 +135,17 @@ public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityI
                             + authentication.getEffectiveSubject().getUser().principal()
                             + "] has type ["
                             + authentication.getEffectiveSubject().getType()
-                            + "] which is not supported for cross cluster access"
+                            + "] but nested cross cluster access is not supported"
                     )
                 )
             );
         }
     }
 
-    private String getEncodedCrossClusterAccessApiKey() {
-        final CreateApiKeyResponse response = new CreateApiKeyRequestBuilder(client().admin().cluster()).setName("cross_cluster_access_key")
-            .get();
+    private String getEncodedCrossClusterAccessApiKey() throws IOException {
+        final CreateCrossClusterApiKeyRequest request = CreateCrossClusterApiKeyRequest.withNameAndAccess("cross_cluster_access_key", """
+            {"search": [{"names": ["*"]}]}""");
+        final CreateApiKeyResponse response = client().execute(CreateCrossClusterApiKeyAction.INSTANCE, request).actionGet();
         return ApiKeyService.withApiKeyPrefix(
             Base64.getEncoder().encodeToString((response.getId() + ":" + response.getKey()).getBytes(StandardCharsets.UTF_8))
         );

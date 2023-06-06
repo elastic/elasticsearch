@@ -194,18 +194,18 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "wildcard").field("ignore_above", 5)));
 
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "elk")));
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(2, fields.length);
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(2, fields.size());
         fields = doc.rootDoc().getFields("_ignored");
-        assertEquals(0, fields.length);
+        assertEquals(0, fields.size());
 
         doc = mapper.parse(source(b -> b.field("field", "elasticsearch")));
         fields = doc.rootDoc().getFields("field");
-        assertEquals(0, fields.length);
+        assertEquals(0, fields.size());
 
         fields = doc.rootDoc().getFields("_ignored");
-        assertEquals(1, fields.length);
-        assertEquals("field", fields[0].stringValue());
+        assertEquals(1, fields.size());
+        assertEquals("field", fields.get(0).stringValue());
     }
 
     public void testBWCIndexVersion() throws IOException {
@@ -259,7 +259,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         iw.close();
 
         // Test wildcard query
-        String queryString = randomABString((BooleanQuery.getMaxClauseCount() * 2) + 1);
+        String queryString = randomABString((IndexSearcher.getMaxClauseCount() * 2) + 1);
         Query wildcardFieldQuery = wildcardFieldType.fieldType().wildcardQuery(queryString, null, null);
         TopDocs wildcardFieldTopDocs = searcher.search(wildcardFieldQuery, 10, Sort.INDEXORDER);
         assertThat(wildcardFieldTopDocs.totalHits.value, equalTo(0L));
@@ -898,7 +898,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         int numRewrites = 0;
         int maxNumRewrites = 100;
         for (; numRewrites < maxNumRewrites; numRewrites++) {
-            Query newApprox = approximationQuery.rewrite(rewriteReader);
+            Query newApprox = approximationQuery.rewrite(new IndexSearcher(rewriteReader));
             if (newApprox == approximationQuery) {
                 break;
             }

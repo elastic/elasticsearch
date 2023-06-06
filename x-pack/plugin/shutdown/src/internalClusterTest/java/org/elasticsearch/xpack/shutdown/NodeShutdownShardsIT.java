@@ -14,7 +14,6 @@ import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNodesHelper;
@@ -120,10 +119,8 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
 
         final String indexName = "test";
         prepareCreate(indexName).setSettings(
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1) // <- Ensure we have a copy of the shard on both nodes
-                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), 0) // Disable "normal" delayed allocation
+            // Ensure we have a copy of the shard on both nodes and disable "normal" delayed allocation
+            indexSettings(1, 1).put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), 0)
         ).get();
         ensureGreen(indexName);
         indexRandomData(indexName);
@@ -200,14 +197,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         String nodeA = internalCluster().startNode(Settings.builder().put("node.name", "node-a"));
         // Create an index and pin it to nodeA, when we replace it with nodeB,
         // it'll move the data, overridding the `_name` allocation filter
-        createIndex(
-            "myindex",
-            Settings.builder()
-                .put("index.routing.allocation.require._name", nodeA)
-                .put("index.number_of_shards", 3)
-                .put("index.number_of_replicas", 0)
-                .build()
-        );
+        createIndex("myindex", indexSettings(3, 0).put("index.routing.allocation.require._name", nodeA).build());
         final String nodeAId = getNodeId(nodeA);
         final String nodeB = "node_t2"; // TODO: fix this to so it's actually overrideable
 
@@ -270,14 +260,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         String nodeA = internalCluster().startNode(Settings.builder().put("node.name", "node-a"));
         // Create an index on nodeA, then create allocation filter that could not be satisfied.
         // when we replace it with nodeB, it'll move the data, overridding the `_name` allocation filter
-        createIndex(
-            "myindex",
-            Settings.builder()
-                .put("index.routing.allocation.require._name", nodeA)
-                .put("index.number_of_shards", 3)
-                .put("index.number_of_replicas", 0)
-                .build()
-        );
+        createIndex("myindex", indexSettings(3, 0).put("index.routing.allocation.require._name", nodeA).build());
 
         var fakeNodeName = UUIDs.randomBase64UUID();
         updateIndexSettings(Settings.builder().put("index.routing.allocation.require._name", fakeNodeName), "myindex");
@@ -414,7 +397,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         final String nodeA = internalCluster().startNode();
         final String nodeAId = getNodeId(nodeA);
 
-        createIndex("index", 1, 0);
+        createIndex("index", indexSettings(1, 0).put("index.routing.allocation.include._name", nodeA).build());
 
         ensureYellow("index");
 
@@ -469,7 +452,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         assertAcked(
             client().execute(
                 PutShutdownNodeAction.INSTANCE,
-                new PutShutdownNodeAction.Request(nodeId, type, this.getTestName(), null, nodeReplacementName)
+                new PutShutdownNodeAction.Request(nodeId, type, this.getTestName(), null, nodeReplacementName, null)
             ).get()
         );
     }

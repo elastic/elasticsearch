@@ -9,12 +9,14 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.Source;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Value fetcher that loads from stored values.
@@ -24,10 +26,12 @@ public class StoredValueFetcher implements ValueFetcher {
     private final SearchLookup lookup;
     private LeafSearchLookup leafSearchLookup;
     private final String fieldname;
+    private final StoredFieldsSpec storedFieldsSpec;
 
     public StoredValueFetcher(SearchLookup lookup, String fieldname) {
         this.lookup = lookup;
         this.fieldname = fieldname;
+        this.storedFieldsSpec = new StoredFieldsSpec(false, false, Set.of(fieldname));
     }
 
     @Override
@@ -53,4 +57,8 @@ public class StoredValueFetcher implements ValueFetcher {
         return values;
     }
 
+    @Override
+    public StoredFieldsSpec storedFieldsSpec() {
+        return storedFieldsSpec;
+    }
 }

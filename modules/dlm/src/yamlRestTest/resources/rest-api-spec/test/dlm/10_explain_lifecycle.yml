@@ -33,7 +33,7 @@
       data_streams.0.indices.0.index_name: backing_index
 
   - do:
-      dlm.explain_lifecycle:
+      indices.explain_data_lifecycle:
         index: $backing_index
   - match: { indices.$backing_index.managed_by_dlm: true }
   - match: { indices.$backing_index.lifecycle.data_retention: '30d' }
@@ -41,7 +41,7 @@
 
 
   - do:
-      dlm.explain_lifecycle:
+      indices.explain_data_lifecycle:
         index: $backing_index
         include_defaults: true
   - match: { indices.$backing_index.managed_by_dlm: true }

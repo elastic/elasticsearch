@@ -9,34 +9,42 @@ package fixture.azure;
 
 import com.sun.net.httpserver.HttpServer;
 
+import org.junit.rules.ExternalResource;
+
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 
-public class AzureHttpFixture {
+public class AzureHttpFixture extends ExternalResource {
 
-    private final HttpServer server;
+    private final boolean enabled;
+    private final String account;
+    private final String container;
+    private HttpServer server;
 
-    private AzureHttpFixture(final String address, final int port, final String account, final String container) throws IOException {
-        this.server = HttpServer.create(new InetSocketAddress(InetAddress.getByName(address), port), 0);
-        server.createContext("/" + account, new AzureHttpHandler(account, container));
+    public AzureHttpFixture(boolean enabled, String account, String container) {
+        this.enabled = enabled;
+        this.account = account;
+        this.container = container;
     }
 
-    private void start() throws Exception {
-        try {
+    public String getAddress() {
+        return "http://" + server.getAddress().getHostString() + ":" + server.getAddress().getPort() + "/" + account;
+    }
+
+    @Override
+    protected void before() throws IOException {
+        if (enabled) {
+            this.server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
+            server.createContext("/" + account, new AzureHttpHandler(account, container));
             server.start();
-            // wait to be killed
-            Thread.sleep(Long.MAX_VALUE);
-        } finally {
+        }
+    }
+
+    @Override
+    protected void after() {
+        if (enabled) {
             server.stop(0);
         }
-    }
-
-    public static void main(final String[] args) throws Exception {
-        if (args == null || args.length != 4) {
-            throw new IllegalArgumentException("AzureHttpFixture expects 4 arguments [address, port, account, container]");
-        }
-        final AzureHttpFixture fixture = new AzureHttpFixture(args[0], Integer.parseInt(args[1]), args[2], args[3]);
-        fixture.start();
     }
 }

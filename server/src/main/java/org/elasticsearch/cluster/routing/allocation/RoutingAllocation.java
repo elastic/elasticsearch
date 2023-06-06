@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.RestoreService.RestoreInProgressUpdater;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
@@ -64,6 +65,7 @@ public class RoutingAllocation {
 
     private final long currentNanoTime;
     private final boolean isSimulating;
+    private boolean isReconciling;
 
     private final IndexMetadataUpdater indexMetadataUpdater = new IndexMetadataUpdater();
     private final RoutingNodesChangedObserver nodesChangedObserver = new RoutingNodesChangedObserver();
@@ -145,7 +147,7 @@ public class RoutingAllocation {
 
     private static Map<String, SingleNodeShutdownMetadata> nodeReplacementTargets(ClusterState clusterState) {
         Map<String, SingleNodeShutdownMetadata> nodeReplacementTargets = new HashMap<>();
-        for (SingleNodeShutdownMetadata shutdown : clusterState.metadata().nodeShutdowns().values()) {
+        for (SingleNodeShutdownMetadata shutdown : clusterState.metadata().nodeShutdowns().getAll().values()) {
             if (shutdown.getType() == SingleNodeShutdownMetadata.Type.REPLACE) {
                 nodeReplacementTargets.put(shutdown.getTargetNodeName(), shutdown);
             }
@@ -246,15 +248,6 @@ public class RoutingAllocation {
      */
     public Map<String, SingleNodeShutdownMetadata> replacementTargetShutdowns() {
         return this.nodeReplacementTargets;
-    }
-
-    @SuppressWarnings("unchecked")
-    public <T extends ClusterState.Custom> T custom(String key) {
-        return (T) clusterState.customs().get(key);
-    }
-
-    public Map<String, ClusterState.Custom> getCustoms() {
-        return clusterState.getCustoms();
     }
 
     public void ignoreDisable(boolean ignoreDisable) {
@@ -399,6 +392,23 @@ public class RoutingAllocation {
      */
     public boolean isSimulating() {
         return isSimulating;
+    }
+
+    /**
+     * @return {@code true} if this allocation computation is trying to reconcile towards a previously-computed allocation and therefore
+     *                      path-dependent allocation blockers should be ignored.
+     */
+    public boolean isReconciling() {
+        return isReconciling;
+    }
+
+    /**
+     * Set the {@link #isReconciling} flag, and return a {@link Releasable} which clears it again.
+     */
+    public Releasable withReconcilingFlag() {
+        assert isReconciling == false : "already reconciling";
+        isReconciling = true;
+        return () -> isReconciling = false;
     }
 
     public void setSimulatedClusterInfo(ClusterInfo clusterInfo) {

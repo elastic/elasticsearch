@@ -1,5 +1,0 @@
-pr: 93590
-summary: "[Profiling] Reduce GC pressure"
-area: Search
-type: enhancement
-issues: []

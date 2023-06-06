@@ -13,7 +13,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalTDigestPercentileRanks;
 import org.elasticsearch.search.aggregations.metrics.TDigestState;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
 import java.io.IOException;
 import java.util.Map;
@@ -22,7 +22,7 @@ public class HistoBackedTDigestPercentileRanksAggregator extends AbstractHistoBa
 
     public HistoBackedTDigestPercentileRanksAggregator(
         String name,
-        ValuesSource valuesSource,
+        ValuesSourceConfig config,
         AggregationContext context,
         Aggregator parent,
         double[] percents,
@@ -31,7 +31,7 @@ public class HistoBackedTDigestPercentileRanksAggregator extends AbstractHistoBa
         DocValueFormat formatter,
         Map<String, Object> metadata
     ) throws IOException {
-        super(name, valuesSource, context, parent, percents, compression, keyed, formatter, metadata);
+        super(name, config, context, parent, percents, compression, keyed, formatter, metadata);
     }
 
     @Override
@@ -46,7 +46,7 @@ public class HistoBackedTDigestPercentileRanksAggregator extends AbstractHistoBa
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalTDigestPercentileRanks(name, keys, new TDigestState(compression), keyed, formatter, metadata());
+        return InternalTDigestPercentileRanks.empty(name, keys, compression, keyed, formatter, metadata());
     }
 
     @Override

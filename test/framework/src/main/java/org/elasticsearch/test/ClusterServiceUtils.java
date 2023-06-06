@@ -10,7 +10,7 @@ package org.elasticsearch.test;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.util.Throwables;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
@@ -22,12 +22,13 @@ import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.ClusterStatePublisher;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterApplier;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -110,14 +111,7 @@ public class ClusterServiceUtils {
     }
 
     public static ClusterService createClusterService(ThreadPool threadPool, ClusterSettings clusterSettings) {
-        DiscoveryNode discoveryNode = new DiscoveryNode(
-            "node",
-            "node",
-            ESTestCase.buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            DiscoveryNodeRole.roles(),
-            Version.CURRENT
-        );
+        DiscoveryNode discoveryNode = DiscoveryNodeUtils.create("node", "node");
         return createClusterService(threadPool, discoveryNode, clusterSettings);
     }
 
@@ -132,6 +126,7 @@ public class ClusterServiceUtils {
         clusterService.setNodeConnectionsService(createNoOpNodeConnectionsService());
         ClusterState initialClusterState = ClusterState.builder(new ClusterName(ClusterServiceUtils.class.getSimpleName()))
             .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).masterNodeId(localNode.getId()))
+            .putTransportVersion(localNode.getId(), TransportVersion.CURRENT)
             .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK)
             .build();
         clusterService.getClusterApplierService().setInitialState(initialClusterState);
@@ -225,5 +220,31 @@ public class ClusterServiceUtils {
             }, statePredicate);
             future.get(30L, TimeUnit.SECONDS);
         }
+    }
+
+    public static void awaitNoPendingTasks(ClusterService clusterService) {
+        PlainActionFuture.<Void, RuntimeException>get(
+            fut -> clusterService.submitUnbatchedStateUpdateTask(
+                "await-queue-empty",
+                new ClusterStateUpdateTask(Priority.LANGUID, TimeValue.timeValueSeconds(10)) {
+                    @Override
+                    public ClusterState execute(ClusterState currentState) {
+                        return currentState;
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        fut.onFailure(e);
+                    }
+
+                    @Override
+                    public void clusterStateProcessed(ClusterState initialState, ClusterState newState) {
+                        fut.onResponse(null);
+                    }
+                }
+            ),
+            10,
+            TimeUnit.SECONDS
+        );
     }
 }

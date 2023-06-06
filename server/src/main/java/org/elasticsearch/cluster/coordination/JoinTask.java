@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cluster.coordination;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
@@ -21,8 +22,14 @@ public record JoinTask(List<NodeJoinTask> nodeJoinTasks, boolean isBecomingMaste
     implements
         ClusterStateTaskListener {
 
-    public static JoinTask singleNode(DiscoveryNode node, JoinReason reason, ActionListener<Void> listener, long term) {
-        return new JoinTask(List.of(new NodeJoinTask(node, reason, listener)), false, term, null);
+    public static JoinTask singleNode(
+        DiscoveryNode node,
+        TransportVersion transportVersion,
+        JoinReason reason,
+        ActionListener<Void> listener,
+        long term
+    ) {
+        return new JoinTask(List.of(new NodeJoinTask(node, transportVersion, reason, listener)), false, term, null);
     }
 
     public static JoinTask completingElection(Stream<NodeJoinTask> nodeJoinTaskStream, long term) {
@@ -67,10 +74,11 @@ public record JoinTask(List<NodeJoinTask> nodeJoinTasks, boolean isBecomingMaste
         return new JoinTask(nodeJoinTasks, isBecomingMaster, term, latestState);
     }
 
-    public record NodeJoinTask(DiscoveryNode node, JoinReason reason, ActionListener<Void> listener) {
+    public record NodeJoinTask(DiscoveryNode node, TransportVersion transportVersion, JoinReason reason, ActionListener<Void> listener) {
 
-        public NodeJoinTask(DiscoveryNode node, JoinReason reason, ActionListener<Void> listener) {
+        public NodeJoinTask(DiscoveryNode node, TransportVersion transportVersion, JoinReason reason, ActionListener<Void> listener) {
             this.node = Objects.requireNonNull(node);
+            this.transportVersion = Objects.requireNonNull(transportVersion);
             this.reason = reason;
             this.listener = listener;
         }

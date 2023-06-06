@@ -444,18 +444,12 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
     private void populateTimeRangeIndices() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(2);
         assertAcked(
-            prepareCreate("log-index-1").setSettings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5))
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            ).setMapping("timestamp", "type=date", "field1", "type=keyword")
+            prepareCreate("log-index-1").setSettings(indexSettings(between(1, 5), 1))
+                .setMapping("timestamp", "type=date", "field1", "type=keyword")
         );
         assertAcked(
-            prepareCreate("log-index-2").setSettings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5))
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            ).setMapping("timestamp", "type=date", "field1", "type=long")
+            prepareCreate("log-index-2").setSettings(indexSettings(between(1, 5), 1))
+                .setMapping("timestamp", "type=date", "field1", "type=long")
         );
         List<IndexRequestBuilder> reqs = new ArrayList<>();
         reqs.add(client().prepareIndex("log-index-1").setSource("timestamp", "2015-07-08"));
@@ -510,10 +504,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
     public void testNoActiveCopy() throws Exception {
         assertAcked(
             prepareCreate("log-index-inactive").setSettings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5))
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                    .put("index.routing.allocation.require._id", "unknown")
+                indexSettings(between(1, 5), 1).put("index.routing.allocation.require._id", "unknown")
             ).setWaitForActiveShards(ActiveShardCount.NONE).setMapping("timestamp", "type=date", "field1", "type=keyword")
         );
         {
@@ -566,9 +557,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
                     }
                     assertNotNull(fromNode);
                     assertNotNull(toNode);
-                    client().admin()
-                        .cluster()
-                        .prepareReroute()
+                    clusterAdmin().prepareReroute()
                         .add(new MoveAllocationCommand(shardId.getIndexName(), shardId.id(), fromNode.getId(), toNode.getId()))
                         .execute()
                         .actionGet();
@@ -701,9 +690,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
             Cancellable cancellable = getRestClient().performRequestAsync(restRequest, wrapAsRestResponseListener(future));
             logger.info("--> waiting for field-caps tasks to be started");
             assertBusy(() -> {
-                List<TaskInfo> tasks = client().admin()
-                    .cluster()
-                    .prepareListTasks()
+                List<TaskInfo> tasks = clusterAdmin().prepareListTasks()
                     .setActions("indices:data/read/field_caps", "indices:data/read/field_caps[n]")
                     .get()
                     .getTasks();
@@ -717,9 +704,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
             assertBusy(logAppender::assertAllExpectationsMatched);
             logger.info("--> waiting for field-caps tasks to be cancelled");
             assertBusy(() -> {
-                List<TaskInfo> tasks = client().admin()
-                    .cluster()
-                    .prepareListTasks()
+                List<TaskInfo> tasks = clusterAdmin().prepareListTasks()
                     .setActions("indices:data/read/field_caps", "indices:data/read/field_caps[n]")
                     .get()
                     .getTasks();

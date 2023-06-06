@@ -1,12 +1,10 @@
 import org.elasticsearch.gradle.internal.conventions.util.Util
 
 apply plugin: 'elasticsearch.java'
-apply plugin: 'com.github.johnrengelman.shadow'
 
 dependencies {
-  shadow "junit:junit:${versions.junit}"
-  shadow "org.apache.logging.log4j:log4j-api:${versions.log4j}"
-
+  api "junit:junit:${versions.junit}"
+  implementation "org.apache.logging.log4j:log4j-api:${versions.log4j}"
   implementation "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
   implementation "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
   implementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
@@ -14,5 +12,5 @@ dependencies {
 }
 
 tasks.named("processResources").configure {
-  from(new File(Util.locateElasticsearchWorkspace(gradle), "build-tools-internal/version.properties"))
+  from(new File(Util.locateElasticsearchWorkspace(project.gradle), "build-tools-internal/version.properties"))
 }

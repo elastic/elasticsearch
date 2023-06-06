@@ -12,7 +12,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -101,6 +100,7 @@ import org.elasticsearch.cluster.coordination.ElectionStrategy;
 import org.elasticsearch.cluster.coordination.InMemoryPersistedState;
 import org.elasticsearch.cluster.coordination.LeaderHeartbeatService;
 import org.elasticsearch.cluster.coordination.Reconfigurator;
+import org.elasticsearch.cluster.coordination.StatefulPreVoteCollector;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -109,6 +109,7 @@ import org.elasticsearch.cluster.metadata.MetadataDeleteIndexService;
 import org.elasticsearch.cluster.metadata.MetadataMappingService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.BatchedRerouteService;
 import org.elasticsearch.cluster.routing.RerouteService;
@@ -1312,7 +1313,6 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     .forEach(
                         n -> n.transportService.connectToNode(
                             node.node,
-                            null,
                             ActionTestUtils.assertNoFailureListener(c -> logger.info("--> Connected [{}] to [{}]", n.node, node.node))
                         )
                     )
@@ -1464,14 +1464,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
         private TestClusterNode newNode(String nodeName, DiscoveryNodeRole role) throws IOException {
             return new TestClusterNode(
-                new DiscoveryNode(
-                    nodeName,
-                    randomAlphaOfLength(10),
-                    buildNewFakeTransportAddress(),
-                    emptyMap(),
-                    Collections.singleton(role),
-                    Version.CURRENT
-                )
+                DiscoveryNodeUtils.builder(randomAlphaOfLength(10)).name(nodeName).roles(Collections.singleton(role)).build()
             );
         }
 
@@ -1617,7 +1610,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 this.node = node;
                 final Environment environment = createEnvironment(node.getName());
                 threadPool = deterministicTaskQueue.getThreadPool(runnable -> DeterministicTaskQueue.onNodeLog(node, runnable));
-                masterService = new FakeThreadPoolMasterService(node.getName(), "test", threadPool, deterministicTaskQueue::scheduleNow);
+                masterService = new FakeThreadPoolMasterService(node.getName(), threadPool, deterministicTaskQueue::scheduleNow);
                 final Settings settings = environment.settings();
                 final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
                 clusterService = new ClusterService(
@@ -1933,7 +1926,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                             scriptService,
                             new AnalysisModule(environment, Collections.emptyList(), new StablePluginsRegistry()).getAnalysisRegistry(),
                             Collections.emptyList(),
-                            client
+                            client,
+                            null
                         ),
                         client,
                         actionFilters,
@@ -1962,7 +1956,14 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     allocationService,
                     metadataCreateIndexService,
                     new MetadataDeleteIndexService(settings, clusterService, allocationService),
-                    new IndexMetadataVerifier(settings, namedXContentRegistry, mapperRegistry, indexScopedSettings, ScriptCompiler.NONE),
+                    new IndexMetadataVerifier(
+                        settings,
+                        clusterService,
+                        namedXContentRegistry,
+                        mapperRegistry,
+                        indexScopedSettings,
+                        ScriptCompiler.NONE
+                    ),
                     shardLimitValidator,
                     EmptySystemIndices.INSTANCE,
                     indicesService,
@@ -2142,7 +2143,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 scheduleSoon(() -> {
                     try {
                         final TestClusterNode restartedNode = new TestClusterNode(
-                            new DiscoveryNode(node.getName(), node.getId(), node.getAddress(), emptyMap(), node.getRoles(), Version.CURRENT)
+                            DiscoveryNodeUtils.create(node.getName(), node.getId(), node.getAddress(), emptyMap(), node.getRoles())
                         );
                         nodes.put(node.getName(), restartedNode);
                         restartedNode.start(oldState);
@@ -2194,7 +2195,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     () -> new StatusInfo(HEALTHY, "healthy-info"),
                     new NoneCircuitBreakerService(),
                     new Reconfigurator(clusterService.getSettings(), clusterService.getClusterSettings()),
-                    LeaderHeartbeatService.NO_OP
+                    LeaderHeartbeatService.NO_OP,
+                    StatefulPreVoteCollector::new
                 );
                 masterService.setClusterStatePublisher(coordinator);
                 coordinator.start();

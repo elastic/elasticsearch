@@ -7,7 +7,13 @@
  */
 package org.elasticsearch.dlm;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.admin.indices.flush.FlushRequest;
+import org.elasticsearch.action.admin.indices.flush.FlushResponse;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -15,39 +21,46 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
+import org.elasticsearch.action.datastreams.ModifyDataStreamsAction;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataLifecycle;
 import org.elasticsearch.cluster.metadata.DataStream;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.DataStreamAction;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
+import org.elasticsearch.dlm.action.PutDataLifecycleAction;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.backingIndexEqualTo;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock.READ_ONLY;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.DEFAULT_TIMESTAMP_FIELD;
+import static org.elasticsearch.index.IndexSettings.LIFECYCLE_ORIGINATION_DATE;
 import static org.elasticsearch.indices.ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -57,6 +70,7 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 public class DataLifecycleServiceIT extends ESIntegTestCase {
+    private static final Logger logger = LogManager.getLogger(DataLifecycleServiceIT.class);
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -133,11 +147,233 @@ public class DataLifecycleServiceIT extends ESIntegTestCase {
         });
     }
 
-    public void testErrorRecordingOnRollover() throws Exception {
-        // empty lifecycle contains the default rollover
+    public void testOriginationDate() throws Exception {
+        /*
+         * In this test, we set up a datastream with 7 day retention. Then we add two indices to it -- one with an origination date 365
+         * days ago, and one with an origination date 1 day ago. After DLM runs, we expect the one with the old origination date to have
+         * been deleted, and the one with the newer origination date to remain.
+         */
+        DataLifecycle lifecycle = new DataLifecycle(TimeValue.timeValueDays(7).millis());
+
+        putComposableIndexTemplate("id1", null, List.of("metrics-foo*"), null, null, lifecycle);
+
+        String dataStreamName = "metrics-foo";
+        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
+        client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
+
+        indexDocs(dataStreamName, 1);
+
+        String mapping = """
+             {
+                "properties":{
+                    "@timestamp": {
+                        "type": "date"
+                    }
+                }
+            }""";
+        PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request("id2");
+        request.indexTemplate(
+            new ComposableIndexTemplate(
+                List.of("index_*"),
+                new Template(null, CompressedXContent.fromJSON(mapping), null, null),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+            )
+        );
+        client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet();
+
+        String indexWithOldOriginationDate = "index_old";
+        long originTimeMillis = System.currentTimeMillis() - TimeValue.timeValueDays(365).millis();
+        createIndex(indexWithOldOriginationDate, Settings.builder().put(LIFECYCLE_ORIGINATION_DATE, originTimeMillis).build());
+        client().execute(
+            ModifyDataStreamsAction.INSTANCE,
+            new ModifyDataStreamsAction.Request(List.of(DataStreamAction.addBackingIndex(dataStreamName, indexWithOldOriginationDate)))
+        ).get();
+
+        String indexWithNewOriginationDate = "index_new";
+        originTimeMillis = System.currentTimeMillis() - TimeValue.timeValueDays(1).millis();
+        createIndex(indexWithNewOriginationDate, Settings.builder().put(LIFECYCLE_ORIGINATION_DATE, originTimeMillis).build());
+        client().execute(
+            ModifyDataStreamsAction.INSTANCE,
+            new ModifyDataStreamsAction.Request(List.of(DataStreamAction.addBackingIndex(dataStreamName, indexWithNewOriginationDate)))
+        ).get();
+
+        assertBusy(() -> {
+            GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { dataStreamName });
+            GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
+                .actionGet();
+            assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
+            assertThat(getDataStreamResponse.getDataStreams().get(0).getDataStream().getName(), equalTo(dataStreamName));
+            List<Index> backingIndices = getDataStreamResponse.getDataStreams().get(0).getDataStream().getIndices();
+            Set<String> indexNames = backingIndices.stream().map(index -> index.getName()).collect(Collectors.toSet());
+            assertTrue(indexNames.contains("index_new"));
+            assertFalse(indexNames.contains("index_old"));
+        });
+    }
+
+    public void testUpdatingLifecycleAppliesToAllBackingIndices() throws Exception {
         DataLifecycle lifecycle = new DataLifecycle();
 
         putComposableIndexTemplate("id1", null, List.of("metrics-foo*"), null, null, lifecycle);
+
+        String dataStreamName = "metrics-foo";
+        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
+        client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
+
+        int finalGeneration = randomIntBetween(2, 20);
+        for (int currentGeneration = 1; currentGeneration < finalGeneration; currentGeneration++) {
+            indexDocs(dataStreamName, 1);
+            int currentBackingIndexCount = currentGeneration;
+            assertBusy(() -> {
+                GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { dataStreamName });
+                GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
+                    .actionGet();
+                assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
+                DataStream dataStream = getDataStreamResponse.getDataStreams().get(0).getDataStream();
+                assertThat(dataStream.getName(), equalTo(dataStreamName));
+                List<Index> backingIndices = dataStream.getIndices();
+                assertThat(backingIndices.size(), equalTo(currentBackingIndexCount + 1));
+                String writeIndex = dataStream.getWriteIndex().getName();
+                assertThat(writeIndex, backingIndexEqualTo(dataStreamName, currentBackingIndexCount + 1));
+            });
+        }
+        // Update the lifecycle of the data stream
+        updateLifecycle(dataStreamName, TimeValue.timeValueMillis(1));
+        // Verify that the retention has changed for all backing indices
+        assertBusy(() -> {
+            GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { dataStreamName });
+            GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
+                .actionGet();
+            assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
+            DataStream dataStream = getDataStreamResponse.getDataStreams().get(0).getDataStream();
+            assertThat(dataStream.getName(), equalTo(dataStreamName));
+            List<Index> backingIndices = dataStream.getIndices();
+            assertThat(backingIndices.size(), equalTo(1));
+            String writeIndex = dataStream.getWriteIndex().getName();
+            assertThat(writeIndex, backingIndexEqualTo(dataStreamName, finalGeneration));
+        });
+    }
+
+    public void testAutomaticForceMerge() throws Exception {
+        /*
+         * This test makes sure that (1) DLM does _not_ call forcemerge on an index in the same DLM pass when it rolls over the index and
+         * that (2) it _does_ call forcemerge on an index that was rolled over in a previous DLM pass.
+         * It's harder than you would think to detect through the REST API that forcemerge has been called. The reason is that segment
+         * merging happens automatically during indexing, and when forcemerge is called it likely does nothing because all nececssary
+         * merging has already happened automatically. So in order to detect whether forcemerge has been called, we use a
+         * SendRequestBehavior in the MockTransportService to detect it.
+         */
+        DataLifecycle lifecycle = new DataLifecycle();
+        disableDLM();
+        String dataStreamName = "metrics-foo";
+        putComposableIndexTemplate(
+            "id1",
+            null,
+            List.of(dataStreamName + "*"),
+            Settings.builder().put("index.number_of_replicas", 1).put("index.number_of_shards", 1).build(),
+            null,
+            lifecycle
+        );
+        // This is the set of all indices against which a ForceMergeAction has been run:
+        final Set<String> forceMergedIndices = new HashSet<>();
+        // Here we update the transport service on each node to record when a forcemerge action is called for an index:
+        for (DiscoveryNode node : internalCluster().getInstance(ClusterService.class, internalCluster().getMasterName())
+            .state()
+            .getNodes()) {
+            final MockTransportService transportService = (MockTransportService) internalCluster().getInstance(
+                TransportService.class,
+                node.getName()
+            );
+            transportService.addRequestHandlingBehavior(ForceMergeAction.NAME + "[n]", (handler, request, channel, task) -> {
+                String index = ((IndicesRequest) request).indices()[0];
+                forceMergedIndices.add(index);
+                logger.info("Force merging {}", index);
+                handler.messageReceived(request, channel, task);
+            });
+        }
+
+        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
+        client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
+        int finalGeneration = randomIntBetween(2, 10);
+        for (int currentGeneration = 1; currentGeneration < finalGeneration; currentGeneration++) {
+            // This is currently the write index, but it will be rolled over as soon as DLM runs:
+            final String toBeRolledOverIndex = DataStream.getDefaultBackingIndexName(dataStreamName, currentGeneration);
+            for (int i = 0; i < randomIntBetween(10, 50); i++) {
+                indexDocs(dataStreamName, randomIntBetween(1, 300));
+                // Make sure the segments get written:
+                FlushResponse flushResponse = client().admin().indices().flush(new FlushRequest(toBeRolledOverIndex)).actionGet();
+                assertThat(flushResponse.getStatus(), equalTo(RestStatus.OK));
+            }
+
+            final String toBeForceMergedIndex;
+            if (currentGeneration == 1) {
+                toBeForceMergedIndex = null; // Not going to be used
+            } else {
+                toBeForceMergedIndex = DataStream.getDefaultBackingIndexName(dataStreamName, currentGeneration - 1);
+            }
+            int currentBackingIndexCount = currentGeneration;
+            DataLifecycleService dataLifecycleService = internalCluster().getInstance(
+                DataLifecycleService.class,
+                internalCluster().getMasterName()
+            );
+            ClusterService clusterService = internalCluster().getInstance(ClusterService.class, internalCluster().getMasterName());
+            // run DLM once
+            dataLifecycleService.run(clusterService.state());
+            assertBusy(() -> {
+                GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { dataStreamName });
+                GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
+                    .actionGet();
+                assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
+                DataStream dataStream = getDataStreamResponse.getDataStreams().get(0).getDataStream();
+                assertThat(dataStream.getName(), equalTo(dataStreamName));
+                List<Index> backingIndices = dataStream.getIndices();
+                assertThat(backingIndices.size(), equalTo(currentBackingIndexCount + 1));
+                String writeIndex = dataStream.getWriteIndex().getName();
+                assertThat(writeIndex, backingIndexEqualTo(dataStreamName, currentBackingIndexCount + 1));
+                /*
+                 * We only expect forcemerge to happen on the 2nd DLM run and later, since on the first there's only the single write
+                 * index to be rolled over.
+                 */
+                if (currentBackingIndexCount > 1) {
+                    assertThat(
+                        "The segments for " + toBeForceMergedIndex + " were not merged",
+                        forceMergedIndices.contains(toBeForceMergedIndex),
+                        equalTo(true)
+                    );
+                }
+                // We want to assert that when DLM rolls over the write index it, it doesn't forcemerge it on that iteration:
+                assertThat(
+                    "The segments for " + toBeRolledOverIndex + " were unexpectedly merged",
+                    forceMergedIndices.contains(toBeRolledOverIndex),
+                    equalTo(false)
+                );
+            });
+        }
+    }
+
+    private static void disableDLM() {
+        updateClusterSettings(Settings.builder().put(DataLifecycleService.DLM_POLL_INTERVAL, TimeValue.MAX_VALUE));
+    }
+
+    public void testErrorRecordingOnRollover() throws Exception {
+        // empty lifecycle contains the default rollover
+        DataLifecycle lifecycle = new DataLifecycle();
+        /*
+         * We set index.auto_expand_replicas to 0-1 so that if we get a single-node cluster it is not yellow. The cluster being yellow
+         * could result in DLM's automatic forcemerge failing, which would result in an unexpected error in the error store.
+         */
+        putComposableIndexTemplate(
+            "id1",
+            null,
+            List.of("metrics-foo*"),
+            Settings.builder().put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1").build(),
+            null,
+            lifecycle
+        );
         Iterable<DataLifecycleService> dataLifecycleServices = internalCluster().getInstances(DataLifecycleService.class);
 
         String dataStreamName = "metrics-foo";
@@ -213,7 +449,18 @@ public class DataLifecycleServiceIT extends ESIntegTestCase {
         // that its retention execution fails
         DataLifecycle lifecycle = new DataLifecycle();
 
-        putComposableIndexTemplate("id1", null, List.of("metrics-foo*"), null, null, lifecycle);
+        /*
+         * We set index.auto_expand_replicas to 0-1 so that if we get a single-node cluster it is not yellow. The cluster being yellow
+         * could result in DLM's automatic forcemerge failing, which would result in an unexpected error in the error store.
+         */
+        putComposableIndexTemplate(
+            "id1",
+            null,
+            List.of("metrics-foo*"),
+            Settings.builder().put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1").build(),
+            null,
+            lifecycle
+        );
         Iterable<DataLifecycleService> dataLifecycleServices = internalCluster().getInstances(DataLifecycleService.class);
 
         String dataStreamName = "metrics-foo";
@@ -241,50 +488,7 @@ public class DataLifecycleServiceIT extends ESIntegTestCase {
         // mark the first generation index as read-only so deletion fails when we enable the retention configuration
         updateIndexSettings(Settings.builder().put(READ_ONLY.settingName(), true), firstGenerationIndex);
         try {
-            // TODO replace this with an API call to update the lifecycle for the data stream once available
-            PlainActionFuture.get(
-                fut -> internalCluster().getCurrentMasterNodeInstance(ClusterService.class)
-                    .submitUnbatchedStateUpdateTask("update the data stream retention", new ClusterStateUpdateTask() {
-
-                        @Override
-                        public ClusterState execute(ClusterState state) {
-                            DataStream dataStream = state.metadata().dataStreams().get(dataStreamName);
-                            assert dataStream != null : "data stream must exist";
-                            Metadata.Builder builder = Metadata.builder(state.metadata());
-                            DataStream updatedDataStream = new DataStream(
-                                dataStreamName,
-                                dataStream.getIndices(),
-                                dataStream.getGeneration(),
-                                dataStream.getMetadata(),
-                                dataStream.isHidden(),
-                                dataStream.isReplicated(),
-                                dataStream.isSystem(),
-                                dataStream.isAllowCustomRouting(),
-                                dataStream.getIndexMode(),
-                                new DataLifecycle(TimeValue.timeValueSeconds(1))
-                            );
-                            builder.put(updatedDataStream);
-                            return ClusterState.builder(state).metadata(builder).build();
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            logger.error(e.getMessage(), e);
-                            fail(
-                                "unable to update the retention policy for data stream ["
-                                    + dataStreamName
-                                    + "] due to ["
-                                    + e.getMessage()
-                                    + "]"
-                            );
-                        }
-
-                        @Override
-                        public void clusterStateProcessed(ClusterState initialState, ClusterState newState) {
-                            fut.onResponse(null);
-                        }
-                    })
-            );
+            updateLifecycle(dataStreamName, TimeValue.timeValueSeconds(1));
 
             assertBusy(() -> {
                 GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { dataStreamName });
@@ -385,4 +589,13 @@ public class DataLifecycleServiceIT extends ESIntegTestCase {
         client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet();
     }
 
+    static void updateLifecycle(String dataStreamName, TimeValue dataRetention) {
+        PutDataLifecycleAction.Request putDataLifecycleRequest = new PutDataLifecycleAction.Request(
+            new String[] { dataStreamName },
+            dataRetention
+        );
+        AcknowledgedResponse putDataLifecycleResponse = client().execute(PutDataLifecycleAction.INSTANCE, putDataLifecycleRequest)
+            .actionGet();
+        assertThat(putDataLifecycleResponse.isAcknowledged(), equalTo(true));
+    }
 }

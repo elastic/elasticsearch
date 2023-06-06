@@ -13,7 +13,13 @@ apply plugin: 'elasticsearch.rest-resources'
 apply plugin: 'elasticsearch.bwc-test'
 
 dependencies {
+  javaRestTestImplementation project(':x-pack:plugin:core')
+  javaRestTestImplementation project(':x-pack:plugin:security')
+  javaRestTestImplementation project(':x-pack:plugin:ccr')
   clusterModules(project(":modules:analysis-common"))
+  clusterModules project(':x-pack:plugin:ccr')
+  clusterModules(project(":modules:reindex")) // need for deleting transform jobs
+  clusterModules(project(":x-pack:plugin:transform"))
 }
 
 tasks.named("javaRestTest") {

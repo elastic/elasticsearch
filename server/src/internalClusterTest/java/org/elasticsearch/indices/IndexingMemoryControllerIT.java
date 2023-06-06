@@ -93,10 +93,7 @@ public class IndexingMemoryControllerIT extends ESSingleNodeTestCase {
 
     // #10312
     public void testDeletesAloneCanTriggerRefresh() throws Exception {
-        IndexService indexService = createIndex(
-            "index",
-            Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0).put("index.refresh_interval", -1).build()
-        );
+        IndexService indexService = createIndex("index", indexSettings(1, 0).put("index.refresh_interval", -1).build());
         IndexShard shard = indexService.getShard(0);
         for (int i = 0; i < 100; i++) {
             client().prepareIndex("index").setId(Integer.toString(i)).setSource("field", "value").get();

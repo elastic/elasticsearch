@@ -1,5 +1,0 @@
-pr: 94528
-summary: Fix _id field fetch issue.
-area: Search
-type: bug
-issues: [94515]

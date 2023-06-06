@@ -488,7 +488,7 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
 
     public void testProvideWrongId() {
         String wrongId = testCase.expectedId + "wrong";
-        Exception e = expectThrows(MapperParsingException.class, () -> parse(wrongId, mapperService(), testCase.source));
+        Exception e = expectThrows(DocumentParsingException.class, () -> parse(wrongId, mapperService(), testCase.source));
         assertThat(
             e.getCause().getMessage(),
             equalTo(

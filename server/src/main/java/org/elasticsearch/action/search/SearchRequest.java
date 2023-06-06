@@ -23,6 +23,7 @@ import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.Scroll;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.SearchContext;
@@ -360,6 +361,57 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         if (source != null) {
             if (source.aggregations() != null) {
                 validationException = source.aggregations().validate(validationException);
+            }
+            if (source.rankBuilder() != null) {
+                int size = source.size() == -1 ? SearchService.DEFAULT_SIZE : source.size();
+                if (size == 0) {
+                    validationException = addValidationError("[rank] requires [size] greater than [0]", validationException);
+                }
+                if (size > source.rankBuilder().windowSize()) {
+                    validationException = addValidationError(
+                        "[rank] requires [window_size: "
+                            + source.rankBuilder().windowSize()
+                            + "]"
+                            + " be greater than or equal to [size: "
+                            + size
+                            + "]",
+                        validationException
+                    );
+                }
+                if (source.knnSearch().isEmpty() || source.query() == null && source.knnSearch().size() < 2) {
+                    validationException = addValidationError(
+                        "[rank] requires a minimum of [2] result sets which"
+                            + " either needs at minimum [a query and a knn search] or [multiple knn searches]",
+                        validationException
+                    );
+                }
+                if (scroll) {
+                    validationException = addValidationError("[rank] cannot be used in a scroll context", validationException);
+                }
+                if (source.rescores() != null && source.rescores().isEmpty() == false) {
+                    validationException = addValidationError("[rank] cannot be used with [rescore]", validationException);
+                }
+                if (source.sorts() != null && source.sorts().isEmpty() == false) {
+                    validationException = addValidationError("[rank] cannot be used with [sort]", validationException);
+                }
+                if (source.collapse() != null) {
+                    validationException = addValidationError("[rank] cannot be used with [collapse]", validationException);
+                }
+                if (source.suggest() != null && source.suggest().getSuggestions().isEmpty() == false) {
+                    validationException = addValidationError("[rank] cannot be used with [suggest]", validationException);
+                }
+                if (source.highlighter() != null) {
+                    validationException = addValidationError("[rank] cannot be used with [highlighter]", validationException);
+                }
+                if (source.pointInTimeBuilder() != null) {
+                    validationException = addValidationError("[rank] cannot be used with [point in time]", validationException);
+                }
+                if (source.profile()) {
+                    validationException = addValidationError("[rank] requires [profile] is [false]", validationException);
+                }
+                if (source.explain() != null && source.explain()) {
+                    validationException = addValidationError("[rank] requires [explain] is [false]", validationException);
+                }
             }
         }
         if (pointInTimeBuilder() != null) {

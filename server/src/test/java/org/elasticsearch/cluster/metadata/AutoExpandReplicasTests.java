@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -16,6 +17,7 @@ import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNodesHelper;
@@ -102,7 +104,7 @@ public class AutoExpandReplicasTests extends ESTestCase {
         Set<DiscoveryNodeRole> roles = new HashSet<>(randomSubsetOf(DiscoveryNodeRole.roles()));
         Collections.addAll(roles, mustHaveRoles);
         final String id = Strings.format("node_%03d", nodeIdGenerator.incrementAndGet());
-        return new DiscoveryNode(id, id, buildNewFakeTransportAddress(), Collections.emptyMap(), roles, version);
+        return DiscoveryNodeUtils.builder(id).name(id).roles(roles).version(version).build();
     }
 
     protected DiscoveryNode createNode(DiscoveryNodeRole... mustHaveRoles) {
@@ -194,7 +196,7 @@ public class AutoExpandReplicasTests extends ESTestCase {
                     nodesToAdd.add(createNode(DiscoveryNodeRole.DATA_ROLE));
                 }
 
-                state = cluster.joinNodesAndBecomeMaster(state, nodesToAdd);
+                state = cluster.joinNodesAndBecomeMaster(state, nodesToAdd, TransportVersion.CURRENT);
                 postTable = state.routingTable().index("index").shard(0);
             }
 
@@ -232,7 +234,12 @@ public class AutoExpandReplicasTests extends ESTestCase {
             ); // local node is the master
             allNodes.add(localNode);
             allNodes.add(oldNode);
-            ClusterState state = ClusterStateCreationUtils.state(localNode, localNode, allNodes.toArray(new DiscoveryNode[0]));
+            ClusterState state = ClusterStateCreationUtils.state(
+                localNode,
+                localNode,
+                allNodes.toArray(new DiscoveryNode[0]),
+                TransportVersion.V_7_0_0
+            );
 
             CreateIndexRequest request = new CreateIndexRequest(
                 "index",
@@ -253,7 +260,7 @@ public class AutoExpandReplicasTests extends ESTestCase {
                                                                                                                              // is the
                                                                                                                              // master
 
-            state = cluster.addNode(state, newNode);
+            state = cluster.addNode(state, newNode, TransportVersion.V_7_6_0);
 
             // use allocation filtering
             state = cluster.updateSettings(

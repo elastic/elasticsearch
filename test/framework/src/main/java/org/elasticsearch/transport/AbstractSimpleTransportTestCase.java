@@ -22,6 +22,8 @@ import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -34,6 +36,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.IOUtils;
@@ -87,12 +90,14 @@ import java.util.stream.Collectors;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.transport.TransportService.HANDSHAKE_ACTION_NAME;
 import static org.elasticsearch.transport.TransportService.NOOP_TRANSPORT_INTERCEPTOR;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
@@ -118,7 +123,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     protected ClusterSettings clusterSettingsA;
 
     protected static final Version version1 = Version.fromId(version0.id + 1);
-    protected static final TransportVersion transportVersion1 = TransportVersion.fromId(transportVersion0.id + 1);
+    protected static final TransportVersion transportVersion1 = TransportVersion.fromId(transportVersion0.id() + 1);
     protected volatile DiscoveryNode nodeB;
     protected volatile MockTransportService serviceB;
 
@@ -2168,7 +2173,9 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             "internal:action1",
             randomFrom(ThreadPool.Names.SAME, ThreadPool.Names.GENERIC),
             TestRequest::new,
-            (request, message, task) -> { throw new AssertionError("boom"); }
+            (request, message, task) -> {
+                throw new AssertionError("boom");
+            }
         );
         expectThrows(
             IllegalArgumentException.class,
@@ -2176,7 +2183,9 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 "internal:action1",
                 randomFrom(ThreadPool.Names.SAME, ThreadPool.Names.GENERIC),
                 TestRequest::new,
-                (request, message, task) -> { throw new AssertionError("boom"); }
+                (request, message, task) -> {
+                    throw new AssertionError("boom");
+                }
             )
         );
 
@@ -2184,13 +2193,15 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             "internal:action1",
             randomFrom(ThreadPool.Names.SAME, ThreadPool.Names.GENERIC),
             TestRequest::new,
-            (request, message, task) -> { throw new AssertionError("boom"); }
+            (request, message, task) -> {
+                throw new AssertionError("boom");
+            }
         );
     }
 
     public void testHandshakeWithIncompatVersion() {
         assumeTrue("only tcp transport has a handshake method", serviceA.getOriginalTransport() instanceof TcpTransport);
-        TransportVersion transportVersion = TransportVersion.fromId(TransportVersion.MINIMUM_COMPATIBLE.id - 1);
+        TransportVersion transportVersion = TransportVersion.fromId(TransportVersion.MINIMUM_COMPATIBLE.id() - 1);
         try (
             MockTransportService service = buildService(
                 "TS_C",
@@ -2295,7 +2306,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         try (ServerSocket socket = new MockServerSocket()) {
             socket.bind(getLocalEphemeral(), 1);
             socket.setReuseAddress(true);
-            DiscoveryNode dummy = new DiscoveryNode(
+            DiscoveryNode dummy = DiscoveryNodeUtils.create(
                 "TEST",
                 new TransportAddress(socket.getInetAddress(), socket.getLocalPort()),
                 emptyMap(),
@@ -2324,7 +2335,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         try (ServerSocket socket = new MockServerSocket()) {
             socket.bind(getLocalEphemeral(), 1);
             socket.setReuseAddress(true);
-            DiscoveryNode dummy = new DiscoveryNode(
+            DiscoveryNode dummy = DiscoveryNodeUtils.create(
                 "TEST",
                 new TransportAddress(socket.getInetAddress(), socket.getLocalPort()),
                 emptyMap(),
@@ -3072,6 +3083,119 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             10,
             TimeUnit.SECONDS
         );
+    }
+
+    public void testActionStats() throws Exception {
+        final String ACTION = "internal:action";
+
+        class Request extends TransportRequest {
+            final int refSize;
+
+            Request(int refSize) {
+                this.refSize = refSize;
+            }
+
+            Request(StreamInput in) throws IOException {
+                super(in);
+                refSize = in.readBytesReference().length();
+            }
+
+            @Override
+            public void writeTo(StreamOutput out) throws IOException {
+                super.writeTo(out);
+                writeZeroes(refSize, out);
+            }
+
+            static void writeZeroes(int refSize, StreamOutput out) throws IOException {
+                out.writeBytesReference(new BytesArray(new byte[refSize]));
+            }
+        }
+
+        class Response extends TransportResponse {
+            final int refSize;
+
+            Response(int refSize) {
+                this.refSize = refSize;
+            }
+
+            Response(StreamInput in) throws IOException {
+                refSize = in.readBytesReference().length();
+            }
+
+            @Override
+            public void writeTo(StreamOutput out) throws IOException {
+                Request.writeZeroes(refSize, out);
+            }
+        }
+
+        final var statsBeforeRequest = serviceB.transport().getStats().getTransportActionStats();
+        assertEquals(Set.of(HANDSHAKE_ACTION_NAME), statsBeforeRequest.keySet());
+        final var handshakeStats = statsBeforeRequest.get(HANDSHAKE_ACTION_NAME);
+        assertEquals(1, handshakeStats.requestCount());
+        assertEquals(1, handshakeStats.responseCount());
+        assertThat(handshakeStats.totalRequestSize(), greaterThanOrEqualTo(16L));
+        assertThat(handshakeStats.totalResponseSize(), greaterThanOrEqualTo(16L));
+
+        final var requestSize = between(0, ByteSizeUnit.MB.toIntBytes(1));
+        final var responseSize = between(0, ByteSizeUnit.MB.toIntBytes(1));
+
+        serviceB.registerRequestHandler(ACTION, ThreadPool.Names.SAME, Request::new, (request, channel, task) -> {
+            assertEquals(requestSize, request.refSize);
+            channel.sendResponse(new Response(responseSize));
+        });
+
+        var actualRequestSize = -1L;
+        var actualResponseSize = -1L;
+
+        for (int iteration = 1; iteration <= 5; iteration++) {
+            assertEquals(
+                responseSize,
+                PlainActionFuture.<Response, Exception>get(
+                    f -> submitRequest(
+                        serviceA,
+                        serviceB.getLocalNode(),
+                        ACTION,
+                        new Request(requestSize),
+                        new ActionListenerResponseHandler<>(f, Response::new)
+                    ),
+                    10,
+                    TimeUnit.SECONDS
+                ).refSize
+            );
+
+            final var allTransportActionStats = serviceB.transport().getStats().getTransportActionStats();
+            // using a sorted map, so the keys are in a deterministic order:
+            assertEquals(List.of(ACTION, HANDSHAKE_ACTION_NAME), allTransportActionStats.keySet().stream().toList());
+
+            final var transportActionStats = allTransportActionStats.get(ACTION);
+            assertEquals(iteration, transportActionStats.requestCount());
+            assertEquals(iteration, transportActionStats.responseCount());
+            if (iteration == 1) {
+                actualRequestSize = transportActionStats.totalRequestSize();
+                actualResponseSize = transportActionStats.totalResponseSize();
+                assertThat(actualRequestSize, allOf(greaterThan(requestSize + 16L), lessThan(requestSize + 256L)));
+                assertThat(actualResponseSize, allOf(greaterThan(responseSize + 16L), lessThan(responseSize + 256L)));
+            }
+            assertEquals(iteration * actualRequestSize, transportActionStats.totalRequestSize());
+            assertEquals(iteration * actualResponseSize, transportActionStats.totalResponseSize());
+            assertArrayEquals(getConstantMessageSizeHistogram(iteration, actualRequestSize), transportActionStats.requestSizeHistogram());
+            assertArrayEquals(getConstantMessageSizeHistogram(iteration, actualResponseSize), transportActionStats.responseSizeHistogram());
+        }
+    }
+
+    private long[] getConstantMessageSizeHistogram(int count, long size) {
+        final var histogram = new long[29];
+        int bucket = 0;
+        long bucketLowerBound = 8;
+        while (bucket < histogram.length) {
+            if (size <= bucketLowerBound) {
+                histogram[bucket] = count;
+                return histogram;
+            }
+            bucket++;
+            bucketLowerBound <<= 1;
+        }
+        throw new AssertionError("no bucket found");
     }
 
     // test that the response handler is invoked on a failure to send

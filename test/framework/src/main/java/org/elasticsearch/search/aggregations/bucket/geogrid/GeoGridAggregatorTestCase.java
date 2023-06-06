@@ -111,7 +111,9 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
             randomPrecision(),
             null,
             geoGrid -> { assertEquals(0, geoGrid.getBuckets().size()); },
-            iw -> { iw.addDocument(Collections.singleton(new LatLonDocValuesField(FIELD_NAME, 10D, 10D))); }
+            iw -> {
+                iw.addDocument(Collections.singleton(new LatLonDocValuesField(FIELD_NAME, 10D, 10D)));
+            }
         );
     }
 

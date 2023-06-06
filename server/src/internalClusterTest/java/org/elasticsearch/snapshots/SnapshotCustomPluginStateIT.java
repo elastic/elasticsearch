@@ -53,9 +53,7 @@ public class SnapshotCustomPluginStateIT extends AbstractSnapshotIntegTestCase {
         if (testTemplate) {
             logger.info("-->  creating test template");
             assertThat(
-                client().admin()
-                    .indices()
-                    .preparePutTemplate("test-template")
+                indicesAdmin().preparePutTemplate("test-template")
                     .setPatterns(Collections.singletonList("te*"))
                     .setMapping(
                         XContentFactory.jsonBuilder()

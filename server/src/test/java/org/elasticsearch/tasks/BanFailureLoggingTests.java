@@ -206,6 +206,11 @@ public class BanFailureLoggingTests extends TaskManagerTestCase {
         }
 
         @Override
+        public void setRequestId(long requestId) {
+            fail("setRequestId should not be called");
+        }
+
+        @Override
         public TaskId getParentTask() {
             return TaskId.EMPTY_TASK_ID;
         }

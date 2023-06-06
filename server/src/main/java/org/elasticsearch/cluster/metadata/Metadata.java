@@ -60,7 +60,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.AbstractCollection;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -87,6 +86,7 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
+import static org.elasticsearch.index.IndexSettings.PREFER_ILM_SETTING;
 
 /**
  * {@link Metadata} is the part of the {@link ClusterState} which persists across restarts. This persistence is XContent-based, so a
@@ -95,7 +95,7 @@ import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
  * The details of how this is persisted are covered in {@link org.elasticsearch.gateway.PersistedClusterStateService}.
  * </p>
  */
-public class Metadata extends AbstractCollection<IndexMetadata> implements Diffable<Metadata>, ChunkedToXContent {
+public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, ChunkedToXContent {
 
     private static final Logger logger = LogManager.getLogger(Metadata.class);
 
@@ -1264,8 +1264,33 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         return this.custom(DataStreamMetadata.TYPE, DataStreamMetadata.EMPTY).getDataStreamAliases();
     }
 
-    public Map<String, SingleNodeShutdownMetadata> nodeShutdowns() {
-        return this.custom(NodesShutdownMetadata.TYPE, NodesShutdownMetadata.EMPTY).getAllNodeMetadataMap();
+    public NodesShutdownMetadata nodeShutdowns() {
+        return custom(NodesShutdownMetadata.TYPE, NodesShutdownMetadata.EMPTY);
+    }
+
+    /**
+     * Indicates if the provided index is managed by ILM. This takes into account if the index is part of
+     * data stream that's potentially managed by DLM and the value of the {@link org.elasticsearch.index.IndexSettings#PREFER_ILM_SETTING}
+     */
+    public boolean isIndexManagedByILM(IndexMetadata indexMetadata) {
+        if (Strings.hasText(indexMetadata.getLifecyclePolicyName()) == false) {
+            // no ILM policy configured so short circuit this to *not* managed by ILM
+            return false;
+        }
+
+        IndexAbstraction indexAbstraction = getIndicesLookup().get(indexMetadata.getIndex().getName());
+        if (indexAbstraction == null) {
+            // index doesn't exist anymore
+            return false;
+        }
+
+        DataStream parentDataStream = indexAbstraction.getParentDataStream();
+        if (parentDataStream != null && parentDataStream.getLifecycle() != null) {
+            // index has both ILM and DLM configured so let's check which is preferred
+            return PREFER_ILM_SETTING.get(indexMetadata.getSettings());
+        }
+
+        return true;
     }
 
     public Map<String, Custom> customs() {
@@ -1321,7 +1346,10 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         return indices.values().iterator();
     }
 
-    @Override
+    public Stream<IndexMetadata> stream() {
+        return indices.values().stream();
+    }
+
     public int size() {
         return indices.size();
     }

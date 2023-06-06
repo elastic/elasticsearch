@@ -72,7 +72,10 @@ public class RestSearchTemplateAction extends BaseRestHandler {
             searchTemplateRequest = SearchTemplateRequest.fromXContent(parser);
         }
         searchTemplateRequest.setRequest(searchRequest);
-
+        // This param is parsed within the search request
+        if (searchRequest.source().explain() != null) {
+            searchTemplateRequest.setExplain(searchRequest.source().explain());
+        }
         return channel -> client.execute(SearchTemplateAction.INSTANCE, searchTemplateRequest, new RestStatusToXContentListener<>(channel));
     }
 

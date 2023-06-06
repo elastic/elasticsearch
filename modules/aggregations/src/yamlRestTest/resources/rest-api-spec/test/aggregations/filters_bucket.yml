@@ -138,6 +138,45 @@ setup:
   - match: { aggregations.the_filter.buckets.1.the_avg.value: 151.0 }
 
 ---
+"named filters with bucket sort test":
+  - skip:
+      version: " - 8.7.99"
+      reason: introduced in 8.8.0
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          size: 0
+          aggs:
+            the_filter:
+              filters:
+                keyed: false
+                filters:
+                  first_filter:
+                    match:
+                      int_field: 101
+                  second_filter:
+                    match:
+                      int_field: 151
+              aggs:
+                the_max:
+                  max:
+                    field: int_field
+                sort_by_the_max:
+                  bucket_sort:
+                    sort:
+                      - the_max: desc
+
+  - match: { hits.total: 4 }
+  - length: { hits.hits: 0 }
+  - match: { aggregations.the_filter.buckets.0.key: second_filter }
+  - match: { aggregations.the_filter.buckets.0.doc_count: 1 }
+  - match: { aggregations.the_filter.buckets.0.the_max.value: 151.0 }
+  - match: { aggregations.the_filter.buckets.1.key: first_filter }
+  - match: { aggregations.the_filter.buckets.1.doc_count: 1 }
+  - match: { aggregations.the_filter.buckets.1.the_max.value: 101.0 }
+
+---
 "Only aggs test":
 
   - do:

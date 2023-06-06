@@ -14,17 +14,20 @@ import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.remote.RemoteClusterNodesAction;
-import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsAction;
-import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
-import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
-import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchShardsAction;
+import org.elasticsearch.action.search.SearchShardsRequest;
+import org.elasticsearch.action.search.SearchShardsResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -35,6 +38,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.internal.InternalSearchResponse;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -76,8 +80,10 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicenseRestTestCase {
     @BeforeClass
@@ -192,6 +198,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                         null,
                         null,
                         null,
+                        null,
                         null
                     )
                 )
@@ -259,6 +266,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                         null,
                         null,
                         null,
+                        null,
                         null
                     )
                 )
@@ -284,6 +292,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                                         .indices("index-b")
                                         .privileges("read", "read_cross_cluster")
                                         .build() },
+                                null,
                                 null,
                                 null,
                                 null,
@@ -394,6 +403,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                                 null,
                                 null,
                                 null,
+                                null,
                                 null
                             )
                         ),
@@ -407,6 +417,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                                         .indices("index-a")
                                         .privileges("read", "read_cross_cluster")
                                         .build() },
+                                null,
                                 null,
                                 null,
                                 null,
@@ -438,6 +449,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                                 null,
                                 null,
                                 null,
+                                null,
                                 null
                             )
                         ),
@@ -454,6 +466,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                                         .indices("index-b")
                                         .privileges("read", "read_cross_cluster")
                                         .build() },
+                                null,
                                 null,
                                 null,
                                 null,
@@ -537,6 +550,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                                 null,
                                 null,
                                 null,
+                                null,
                                 null
                             )
                         ),
@@ -550,6 +564,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                                         .indices("index-a")
                                         .privileges("read", "read_cross_cluster")
                                         .build() },
+                                null,
                                 null,
                                 null,
                                 null,
@@ -572,6 +587,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                                         .indices("index-a")
                                         .privileges("read", "read_cross_cluster")
                                         .build() },
+                                null,
                                 null,
                                 null,
                                 null,
@@ -651,6 +667,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                                 null,
                                 null,
                                 null,
+                                null,
                                 null
                             )
                         ),
@@ -664,6 +681,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                                         .indices("index-a")
                                         .privileges("read", "read_cross_cluster")
                                         .build() },
+                                null,
                                 null,
                                 null,
                                 null,
@@ -691,6 +709,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                                 null,
                                 null,
                                 null,
+                                null,
                                 null
                             )
                         )
@@ -703,6 +722,119 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                 expectedRoleDescriptorsIntersection
             );
         }
+    }
+
+    public void testRemoteClustersXPackUsage() throws IOException {
+        try (MockTransportService remoteTransport = startTransport("remoteNodeA", threadPool, ConcurrentCollections.newBlockingQueue())) {
+            final TransportAddress transportPortAddress = remoteTransport.getOriginalTransport().boundAddress().publishAddress();
+            final TransportAddress remoteClusterServerPortAddress = remoteTransport.getOriginalTransport()
+                .boundRemoteIngressAddress()
+                .publishAddress();
+            final int numberOfRemoteClusters = randomIntBetween(0, 5);
+            final int numberOfApiKeySecured = randomIntBetween(0, Math.min(2, numberOfRemoteClusters));
+            final int numberOfCertSecured = numberOfRemoteClusters - numberOfApiKeySecured;
+            final List<Boolean> useProxyModes = randomList(numberOfRemoteClusters, numberOfRemoteClusters, ESTestCase::randomBoolean);
+
+            // Remote clusters with new configurable model
+            switch (numberOfApiKeySecured) {
+                case 0 -> {
+                }
+                case 1 -> setupClusterSettings(CLUSTER_A, remoteClusterServerPortAddress, useProxyModes.get(0));
+                case 2 -> {
+                    setupClusterSettings(CLUSTER_A, remoteClusterServerPortAddress, useProxyModes.get(0));
+                    setupClusterSettings(CLUSTER_B, remoteClusterServerPortAddress, useProxyModes.get(1));
+                }
+                default -> throw new IllegalArgumentException("invalid number of api_key secured remote clusters");
+            }
+
+            // Remote clusters with basic model
+            for (int i = 0; i < numberOfCertSecured; i++) {
+                setupClusterSettings("basic_cluster_" + i, transportPortAddress, useProxyModes.get(i + numberOfApiKeySecured));
+            }
+
+            final Request xPackUsageRequest = new Request("GET", "/_xpack/usage");
+            final Response xPackUsageResponse = adminClient().performRequest(xPackUsageRequest);
+            assertOK(xPackUsageResponse);
+            final ObjectPath path = ObjectPath.createFromResponse(xPackUsageResponse);
+
+            assertThat(path.evaluate("remote_clusters.size"), equalTo(numberOfRemoteClusters));
+            final int numberOfProxyModes = (int) useProxyModes.stream().filter(e -> e).count();
+            assertThat(path.evaluate("remote_clusters.mode.proxy"), equalTo(numberOfProxyModes));
+            assertThat(path.evaluate("remote_clusters.mode.sniff"), equalTo(numberOfRemoteClusters - numberOfProxyModes));
+            assertThat(path.evaluate("remote_clusters.security.cert"), equalTo(numberOfCertSecured));
+            assertThat(path.evaluate("remote_clusters.security.api_key"), equalTo(numberOfApiKeySecured));
+
+            assertThat(path.evaluate("security.remote_cluster_server.available"), is(true));
+            assertThat(path.evaluate("security.remote_cluster_server.enabled"), is(false));
+            assertThat(path.evaluate("security.ssl.remote_cluster_server.enabled"), nullValue());
+            assertThat(path.evaluate("security.ssl.remote_cluster_client.enabled"), is(false));
+        }
+    }
+
+    public void testCrossClusterApiKeyUsage() throws IOException {
+        // Randomly create REST API keys
+        for (int i = 0; i < randomIntBetween(0, 2); i++) {
+            createOrGrantApiKey(Strings.format("""
+                {
+                  "name": "my-rest-key-%s"
+                }
+                """, i));
+        }
+
+        // Randomly create cross-cluster API keys
+        final int ccsKeys = randomIntBetween(0, 2);
+        for (int i = 0; i < ccsKeys; i++) {
+            final Request request = new Request("POST", "/_security/cross_cluster/api_key");
+            request.setJsonEntity(Strings.format("""
+                {
+                  "name": "my-ccs-key-%s",
+                  "access": {
+                    "search": [ {
+                      "names": [ "logs*" ]
+                    } ]
+                  }
+                }""", i));
+            assertOK(adminClient().performRequest(request));
+        }
+        final int ccrKeys = randomIntBetween(0, 2);
+        for (int i = 0; i < ccrKeys; i++) {
+            final Request request = new Request("POST", "/_security/cross_cluster/api_key");
+            request.setJsonEntity(Strings.format("""
+                {
+                  "name": "my-ccr-key-%s",
+                  "access": {
+                    "replication": [ {
+                      "names": [ "archive*" ]
+                    } ]
+                  }
+                }""", i));
+            assertOK(adminClient().performRequest(request));
+        }
+        final int ccsCcrKeys = randomIntBetween(0, 2);
+        for (int i = 0; i < ccsCcrKeys; i++) {
+            final Request request = new Request("POST", "/_security/cross_cluster/api_key");
+            request.setJsonEntity(Strings.format("""
+                {
+                  "name": "my-ccs-ccr-key-%s",
+                  "access": {
+                    "search": [ {
+                      "names": [ "logs*" ]
+                    } ],
+                    "replication": [ {
+                      "names": [ "archive*" ]
+                    } ]
+                  }
+                }""", i));
+            assertOK(adminClient().performRequest(request));
+        }
+
+        final Request xPackUsageRequest = new Request("GET", "/_xpack/usage");
+        final ObjectPath path = assertOKAndCreateObjectPath(adminClient().performRequest(xPackUsageRequest));
+
+        assertThat(path.evaluate("security.remote_cluster_server.api_keys.ccs"), equalTo(ccsKeys));
+        assertThat(path.evaluate("security.remote_cluster_server.api_keys.ccr"), equalTo(ccrKeys));
+        assertThat(path.evaluate("security.remote_cluster_server.api_keys.ccs_ccr"), equalTo(ccsCcrKeys));
+        assertThat(path.evaluate("security.remote_cluster_server.api_keys.total"), equalTo(ccsKeys + ccrKeys + ccsCcrKeys));
     }
 
     private void testCcsWithApiKeyCrossClusterAccessAuthenticationAgainstSingleCluster(
@@ -910,7 +1042,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
         if (minimizeRoundtrips) {
             expectedActions.add(SearchAction.NAME);
         } else {
-            expectedActions.add(ClusterSearchShardsAction.NAME);
+            expectedActions.add(SearchShardsAction.NAME);
         }
         if (false == useProxyMode) {
             expectedActions.add(RemoteClusterNodesAction.NAME);
@@ -931,7 +1063,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                     final var actualCrossClusterAccessSubjectInfo = CrossClusterAccessSubjectInfo.decode(
                         actual.headers().get(CrossClusterAccessSubjectInfo.CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY)
                     );
-                    final var expectedCrossClusterAccessSubjectInfo = CrossClusterAccessUser.subjectInfoWithEmptyRoleDescriptors(
+                    final var expectedCrossClusterAccessSubjectInfo = CrossClusterAccessUser.subjectInfo(
                         TransportVersion.CURRENT,
                         // Since we are running on a multi-node cluster the actual node name may be different between runs
                         // so just copy the one from the actual result
@@ -939,7 +1071,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                     );
                     assertThat(actualCrossClusterAccessSubjectInfo, equalTo(expectedCrossClusterAccessSubjectInfo));
                 }
-                case SearchAction.NAME, ClusterSearchShardsAction.NAME -> {
+                case SearchAction.NAME, SearchShardsAction.NAME -> {
                     assertContainsHeadersExpectedForCrossClusterAccess(actual.headers());
                     assertContainsCrossClusterAccessCredentialsHeader(encodedCredential, actual);
                     final var actualCrossClusterAccessSubjectInfo = CrossClusterAccessSubjectInfo.decode(
@@ -981,6 +1113,19 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
         );
         try {
             service.registerRequestHandler(
+                ClusterStateAction.NAME,
+                ThreadPool.Names.SAME,
+                ClusterStateRequest::new,
+                (request, channel, task) -> {
+                    capturedHeaders.add(
+                        new CapturedActionWithHeaders(task.getAction(), Map.copyOf(threadPool.getThreadContext().getHeaders()))
+                    );
+                    channel.sendResponse(
+                        new ClusterStateResponse(ClusterName.DEFAULT, ClusterState.builder(ClusterName.DEFAULT).build(), false)
+                    );
+                }
+            );
+            service.registerRequestHandler(
                 RemoteClusterNodesAction.NAME,
                 ThreadPool.Names.SAME,
                 RemoteClusterNodesAction.Request::new,
@@ -992,16 +1137,14 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                 }
             );
             service.registerRequestHandler(
-                ClusterSearchShardsAction.NAME,
+                SearchShardsAction.NAME,
                 ThreadPool.Names.SAME,
-                ClusterSearchShardsRequest::new,
+                SearchShardsRequest::new,
                 (request, channel, task) -> {
                     capturedHeaders.add(
                         new CapturedActionWithHeaders(task.getAction(), Map.copyOf(threadPool.getThreadContext().getHeaders()))
                     );
-                    channel.sendResponse(
-                        new ClusterSearchShardsResponse(new ClusterSearchShardsGroup[0], new DiscoveryNode[0], Collections.emptyMap())
-                    );
+                    channel.sendResponse(new SearchShardsResponse(List.of(), List.of(), Collections.emptyMap()));
                 }
             );
             service.registerRequestHandler(SearchAction.NAME, ThreadPool.Names.SAME, SearchRequest::new, (request, channel, task) -> {

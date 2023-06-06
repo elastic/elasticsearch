@@ -53,12 +53,14 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -69,7 +71,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
@@ -77,8 +78,10 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
 import java.util.function.Predicate;
@@ -110,6 +113,18 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     private final IngestMetric totalMetrics = new IngestMetric();
     private final List<Consumer<ClusterState>> ingestClusterStateListeners = new CopyOnWriteArrayList<>();
     private volatile ClusterState state;
+
+    private static BiFunction<Long, Runnable, Scheduler.ScheduledCancellable> createScheduler(ThreadPool threadPool) {
+        return (delay, command) -> threadPool.schedule(command, TimeValue.timeValueMillis(delay), ThreadPool.Names.GENERIC);
+    }
+
+    public static MatcherWatchdog createGrokThreadWatchdog(Environment env, ThreadPool threadPool) {
+        final Settings settings = env.settings();
+        final BiFunction<Long, Runnable, Scheduler.ScheduledCancellable> scheduler = createScheduler(threadPool);
+        long intervalMillis = IngestSettings.GROK_WATCHDOG_INTERVAL.get(settings).getMillis();
+        long maxExecutionTimeMillis = IngestSettings.GROK_WATCHDOG_INTERVAL.get(settings).getMillis();
+        return MatcherWatchdog.newInstance(intervalMillis, maxExecutionTimeMillis, threadPool::relativeTimeInMillis, scheduler::apply);
+    }
 
     /**
      * Cluster state task executor for ingest pipeline operations
@@ -161,7 +176,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         ScriptService scriptService,
         AnalysisRegistry analysisRegistry,
         List<IngestPlugin> ingestPlugins,
-        Client client
+        Client client,
+        MatcherWatchdog matcherWatchdog
     ) {
         this.clusterService = clusterService;
         this.scriptService = scriptService;
@@ -173,19 +189,19 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 analysisRegistry,
                 threadPool.getThreadContext(),
                 threadPool::relativeTimeInMillis,
-                (delay, command) -> threadPool.schedule(command, TimeValue.timeValueMillis(delay), ThreadPool.Names.GENERIC),
+                createScheduler(threadPool),
                 this,
                 client,
-                threadPool.generic()::execute
+                threadPool.generic()::execute,
+                matcherWatchdog
             )
         );
-
         this.threadPool = threadPool;
         this.taskQueue = clusterService.createTaskQueue("ingest-pipelines", Priority.NORMAL, PIPELINE_TASK_EXECUTOR);
     }
 
     private static Map<String, Processor.Factory> processorFactories(List<IngestPlugin> ingestPlugins, Processor.Parameters parameters) {
-        Map<String, Processor.Factory> processorFactories = new HashMap<>();
+        Map<String, Processor.Factory> processorFactories = new TreeMap<>();
         for (IngestPlugin ingestPlugin : ingestPlugins) {
             Map<String, Processor.Factory> newProcessors = ingestPlugin.getProcessors(parameters);
             for (Map.Entry<String, Processor.Factory> entry : newProcessors.entrySet()) {
@@ -194,7 +210,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 }
             }
         }
-        return Collections.unmodifiableMap(processorFactories);
+        logger.debug("registered ingest processor types: {}", processorFactories.keySet());
+        return Map.copyOf(processorFactories);
     }
 
     /**
@@ -363,7 +380,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
     static List<PipelineConfiguration> innerGetPipelines(IngestMetadata ingestMetadata, String... ids) {
         if (ingestMetadata == null) {
-            return Collections.emptyList();
+            return List.of();
         }
 
         // if we didn't ask for _any_ ID, then we get them all (this is the same as if they ask for '*')
@@ -403,15 +420,15 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             return;
         }
 
-        nodeInfoListener.accept(ActionListener.wrap(nodeInfos -> {
+        nodeInfoListener.accept(listener.delegateFailureAndWrap((l, nodeInfos) -> {
             validatePipelineRequest(request, nodeInfos);
 
             taskQueue.submitTask(
                 "put-pipeline-" + request.getId(),
-                new PutPipelineClusterStateUpdateTask(listener, request),
+                new PutPipelineClusterStateUpdateTask(l, request),
                 request.masterNodeTimeout()
             );
-        }, listener::onFailure));
+        }));
     }
 
     public void validatePipelineRequest(PutPipelineRequest request, NodesInfoResponse nodeInfos) throws Exception {
@@ -610,6 +627,14 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         Pipeline pipeline = Pipeline.create(pipelineId, pipelineConfig, processorFactories, scriptService);
         List<Exception> exceptions = new ArrayList<>();
         for (Processor processor : pipeline.flattenAllProcessors()) {
+
+            // run post-construction extra validation (if any, the default implementation from the Processor interface is a no-op)
+            try {
+                processor.extraValidation();
+            } catch (Exception e) {
+                exceptions.add(e);
+            }
+
             for (Map.Entry<DiscoveryNode, IngestInfo> entry : ingestInfos.entrySet()) {
                 String type = processor.getType();
                 if (entry.getValue().containsProcessor(type) == false && ConditionalProcessor.TYPE.equals(type) == false) {
@@ -686,9 +711,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         });
 
                         IngestDocument ingestDocument = newIngestDocument(indexRequest);
-                        LinkedHashSet<String> indexRecursionDetection = new LinkedHashSet<>();
-                        indexRecursionDetection.add(indexRequest.index());
-                        executePipelines(pipelines, indexRequest, ingestDocument, documentListener, indexRecursionDetection);
+                        executePipelines(pipelines, indexRequest, ingestDocument, documentListener);
                         i++;
                     }
                 }
@@ -772,8 +795,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         final PipelineIterator pipelines,
         final IndexRequest indexRequest,
         final IngestDocument ingestDocument,
-        final ActionListener<Boolean> listener,
-        final Set<String> indexRecursionDetection
+        final ActionListener<Boolean> listener
     ) {
         assert pipelines.hasNext();
         PipelineSlot slot = pipelines.next();
@@ -857,17 +879,18 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         return; // document failed!
                     }
 
-                    // check for cycles in the visited indices
-                    if (indexRecursionDetection.add(newIndex) == false) {
-                        List<String> indexRoute = new ArrayList<>(indexRecursionDetection);
-                        indexRoute.add(newIndex);
+                    // add the index to the document's index history, and check for cycles in the visited indices
+                    boolean cycle = ingestDocument.updateIndexHistory(newIndex) == false;
+                    if (cycle) {
+                        List<String> indexCycle = new ArrayList<>(ingestDocument.getIndexHistory());
+                        indexCycle.add(newIndex);
                         listener.onFailure(
                             new IllegalStateException(
                                 format(
                                     "index cycle detected while processing pipeline [%s] for document [%s]: %s",
                                     pipelineId,
                                     indexRequest.id(),
-                                    indexRoute
+                                    indexCycle
                                 )
                             )
                         );
@@ -888,7 +911,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 }
 
                 if (newPipelines.hasNext()) {
-                    executePipelines(newPipelines, indexRequest, ingestDocument, listener, indexRecursionDetection);
+                    executePipelines(newPipelines, indexRequest, ingestDocument, listener);
                 } else {
                     // update the index request's source and (potentially) cache the timestamp for TSDB
                     updateIndexRequestSource(indexRequest, ingestDocument);

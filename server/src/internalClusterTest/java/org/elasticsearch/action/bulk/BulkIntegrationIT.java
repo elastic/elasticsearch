@@ -71,21 +71,12 @@ public class BulkIntegrationIT extends ESIntegTestCase {
      */
     public void testBulkWithWriteIndexAndRouting() {
         Map<String, Integer> twoShardsSettings = Collections.singletonMap(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2);
-        client().admin()
-            .indices()
-            .prepareCreate("index1")
-            .addAlias(new Alias("alias1").indexRouting("0"))
-            .setSettings(twoShardsSettings)
-            .get();
-        client().admin()
-            .indices()
-            .prepareCreate("index2")
+        indicesAdmin().prepareCreate("index1").addAlias(new Alias("alias1").indexRouting("0")).setSettings(twoShardsSettings).get();
+        indicesAdmin().prepareCreate("index2")
             .addAlias(new Alias("alias1").indexRouting("0").writeIndex(randomFrom(false, null)))
             .setSettings(twoShardsSettings)
             .get();
-        client().admin()
-            .indices()
-            .prepareCreate("index3")
+        indicesAdmin().prepareCreate("index3")
             .addAlias(new Alias("alias1").indexRouting("1").writeIndex(true))
             .setSettings(twoShardsSettings)
             .get();
@@ -154,10 +145,9 @@ public class BulkIntegrationIT extends ESIntegTestCase {
             .endArray()
             .endObject();
 
-        AcknowledgedResponse acknowledgedResponse = client().admin()
-            .cluster()
-            .putPipeline(new PutPipelineRequest(pipelineId, BytesReference.bytes(pipeline), XContentType.JSON))
-            .get();
+        AcknowledgedResponse acknowledgedResponse = clusterAdmin().putPipeline(
+            new PutPipelineRequest(pipelineId, BytesReference.bytes(pipeline), XContentType.JSON)
+        ).get();
 
         assertTrue(acknowledgedResponse.isAcknowledged());
     }

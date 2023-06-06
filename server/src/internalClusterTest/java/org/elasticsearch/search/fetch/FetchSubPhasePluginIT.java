@@ -52,9 +52,7 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
 
     @SuppressWarnings("unchecked")
     public void testPlugin() throws Exception {
-        client().admin()
-            .indices()
-            .prepareCreate("test")
+        indicesAdmin().prepareCreate("test")
             .setMapping(
                 jsonBuilder().startObject()
                     .startObject("_doc")

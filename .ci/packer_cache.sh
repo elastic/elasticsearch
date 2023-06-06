@@ -36,7 +36,7 @@ else
   rm -rf checkout/6.8
   git clone --reference $(dirname "${SCRIPT}")/../.git https://github.com/elastic/elasticsearch.git --branch 6.8 --single-branch checkout/6.8
   export JAVA_HOME="${JAVA11_HOME}"
-  ./checkout/6.8/gradlew --project-dir ./checkout/6.8 --parallel clean --scan -Porg.elasticsearch.acceptScanTOS=true --stacktrace resolveAllDependencies
+  ./checkout/6.8/gradlew --project-dir ./checkout/6.8 --parallel clean --stacktrace resolveAllDependencies
   rm -rf ./checkout/6.8
 fi
 

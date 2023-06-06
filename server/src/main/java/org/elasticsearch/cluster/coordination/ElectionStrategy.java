@@ -88,8 +88,8 @@ public abstract class ElectionStrategy {
         VoteCollection joinVotes
     );
 
-    public void onNewElection(DiscoveryNode localNode, long proposedTerm, ActionListener<Void> listener) {
-        listener.onResponse(null);
+    public void onNewElection(DiscoveryNode candidateMasterNode, long proposedTerm, ActionListener<StartJoinRequest> listener) {
+        listener.onResponse(new StartJoinRequest(candidateMasterNode, proposedTerm));
     }
 
     public boolean isInvalidReconfiguration(
@@ -103,9 +103,5 @@ public abstract class ElectionStrategy {
 
     public void beforeCommit(long term, long version, ActionListener<Void> listener) {
         listener.onResponse(null);
-    }
-
-    public long getMaxTermSeen() {
-        return 0;
     }
 }

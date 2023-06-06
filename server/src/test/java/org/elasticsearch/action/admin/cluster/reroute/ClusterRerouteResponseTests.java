@@ -8,19 +8,19 @@
 
 package org.elasticsearch.action.admin.cluster.reroute;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.RerouteExplanation;
 import org.elasticsearch.cluster.routing.allocation.RoutingExplanations;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateReplicaAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -83,7 +83,7 @@ public class ClusterRerouteResponseTests extends ESTestCase {
 
     public void testToXContentWithDeprecatedClusterState() {
         var clusterState = createClusterState();
-        assertXContent(createClusterRerouteResponse(clusterState), ToXContent.EMPTY_PARAMS, 32, Strings.format("""
+        assertXContent(createClusterRerouteResponse(clusterState), ToXContent.EMPTY_PARAMS, 35, Strings.format("""
             {
               "acknowledged": true,
               "state": {
@@ -118,6 +118,12 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                     "version": "%s"
                   }
                 },
+                "transport_versions": [
+                  {
+                    "node_id": "node0",
+                    "transport_version": "8000099"
+                  }
+                ],
                 "metadata": {
                   "cluster_uuid": "_na_",
                   "cluster_uuid_committed": false,
@@ -294,19 +300,17 @@ public class ClusterRerouteResponseTests extends ESTestCase {
     }
 
     private static ClusterState createClusterState() {
-        var node0 = new DiscoveryNode("node0", new TransportAddress(TransportAddress.META_ADDRESS, 9000), Version.CURRENT);
+        var node0 = DiscoveryNodeUtils.create("node0", new TransportAddress(TransportAddress.META_ADDRESS, 9000));
         return ClusterState.builder(new ClusterName("test"))
             .nodes(new DiscoveryNodes.Builder().add(node0).masterNodeId(node0.getId()).build())
+            .putTransportVersion(node0.getId(), TransportVersion.V_8_0_0)
             .metadata(
                 Metadata.builder()
                     .put(
                         IndexMetadata.builder("index")
                             .settings(
-                                Settings.builder()
-                                    .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), true)
+                                indexSettings(1, 0).put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), true)
                                     .put(IndexSettings.MAX_SCRIPT_FIELDS_SETTING.getKey(), 10)
-                                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                                     .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
                                     .build()
                             )

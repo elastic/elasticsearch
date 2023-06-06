@@ -16,6 +16,7 @@ dependencies {
   api project(':libs:elasticsearch-ssl-config')
   api project(":server")
   api project(":libs:elasticsearch-cli")
+  api project(':libs:elasticsearch-preallocate')
   api "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
   api "junit:junit:${versions.junit}"
   api "org.hamcrest:hamcrest:${versions.hamcrest}"
@@ -93,5 +94,5 @@ tasks.register("verifyVersions") {
 
 tasks.named('splitPackagesAudit').configure {
   // for now we always run tests with the classpath, so we are ok with split packages for tests
-  onlyIf { false }
+  enabled = false
 }

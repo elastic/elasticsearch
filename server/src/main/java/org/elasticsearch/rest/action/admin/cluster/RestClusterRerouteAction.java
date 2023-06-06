@@ -17,6 +17,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestChunkedToXContentListener;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ObjectParser.ValueType;
@@ -30,6 +32,7 @@ import java.util.Set;
 import static org.elasticsearch.common.util.set.Sets.addToCopy;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
+@ServerlessScope(Scope.INTERNAL)
 public class RestClusterRerouteAction extends BaseRestHandler {
 
     private static final Set<String> RESPONSE_PARAMS = addToCopy(Settings.FORMAT_PARAMS, "metric");

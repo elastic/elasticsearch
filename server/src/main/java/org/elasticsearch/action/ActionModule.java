@@ -11,8 +11,10 @@ package org.elasticsearch.action;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainAction;
+import org.elasticsearch.action.admin.cluster.allocation.DeleteDesiredBalanceAction;
 import org.elasticsearch.action.admin.cluster.allocation.GetDesiredBalanceAction;
 import org.elasticsearch.action.admin.cluster.allocation.TransportClusterAllocationExplainAction;
+import org.elasticsearch.action.admin.cluster.allocation.TransportDeleteDesiredBalanceAction;
 import org.elasticsearch.action.admin.cluster.allocation.TransportGetDesiredBalanceAction;
 import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsAction;
@@ -227,8 +229,6 @@ import org.elasticsearch.action.ingest.PutPipelineAction;
 import org.elasticsearch.action.ingest.PutPipelineTransportAction;
 import org.elasticsearch.action.ingest.SimulatePipelineAction;
 import org.elasticsearch.action.ingest.SimulatePipelineTransportAction;
-import org.elasticsearch.action.main.MainAction;
-import org.elasticsearch.action.main.TransportMainAction;
 import org.elasticsearch.action.search.ClearScrollAction;
 import org.elasticsearch.action.search.ClosePointInTimeAction;
 import org.elasticsearch.action.search.MultiSearchAction;
@@ -237,16 +237,24 @@ import org.elasticsearch.action.search.RestClosePointInTimeAction;
 import org.elasticsearch.action.search.RestOpenPointInTimeAction;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchScrollAction;
+import org.elasticsearch.action.search.SearchShardsAction;
 import org.elasticsearch.action.search.TransportClearScrollAction;
 import org.elasticsearch.action.search.TransportClosePointInTimeAction;
 import org.elasticsearch.action.search.TransportMultiSearchAction;
 import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.search.TransportSearchScrollAction;
+import org.elasticsearch.action.search.TransportSearchShardsAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.TransportAction;
+import org.elasticsearch.action.synonyms.DeleteSynonymsAction;
+import org.elasticsearch.action.synonyms.GetSynonymsAction;
+import org.elasticsearch.action.synonyms.PutSynonymsAction;
+import org.elasticsearch.action.synonyms.TransportDeleteSynonymsAction;
+import org.elasticsearch.action.synonyms.TransportGetSynonymsAction;
+import org.elasticsearch.action.synonyms.TransportPutSynonymsAction;
 import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
 import org.elasticsearch.action.termvectors.TermVectorsAction;
 import org.elasticsearch.action.termvectors.TransportMultiTermVectorsAction;
@@ -267,6 +275,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards;
 import org.elasticsearch.health.GetHealthAction;
 import org.elasticsearch.health.RestGetHealthAction;
@@ -274,6 +283,7 @@ import org.elasticsearch.health.node.FetchHealthInfoCacheAction;
 import org.elasticsearch.health.node.UpdateHealthInfoCacheAction;
 import org.elasticsearch.health.stats.HealthApiStatsAction;
 import org.elasticsearch.health.stats.HealthApiStatsTransportAction;
+import org.elasticsearch.http.HttpPreRequest;
 import org.elasticsearch.index.seqno.GlobalCheckpointSyncAction;
 import org.elasticsearch.index.seqno.RetentionLeaseActions;
 import org.elasticsearch.indices.SystemIndices;
@@ -291,8 +301,8 @@ import org.elasticsearch.reservedstate.service.ReservedClusterStateService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestHeaderDefinition;
+import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.action.RestFieldCapabilitiesAction;
-import org.elasticsearch.rest.action.RestMainAction;
 import org.elasticsearch.rest.action.admin.cluster.RestAddVotingConfigExclusionAction;
 import org.elasticsearch.rest.action.admin.cluster.RestCancelTasksAction;
 import org.elasticsearch.rest.action.admin.cluster.RestCleanupRepositoryAction;
@@ -307,6 +317,7 @@ import org.elasticsearch.rest.action.admin.cluster.RestClusterStateAction;
 import org.elasticsearch.rest.action.admin.cluster.RestClusterStatsAction;
 import org.elasticsearch.rest.action.admin.cluster.RestClusterUpdateSettingsAction;
 import org.elasticsearch.rest.action.admin.cluster.RestCreateSnapshotAction;
+import org.elasticsearch.rest.action.admin.cluster.RestDeleteDesiredBalanceAction;
 import org.elasticsearch.rest.action.admin.cluster.RestDeleteDesiredNodesAction;
 import org.elasticsearch.rest.action.admin.cluster.RestDeleteRepositoryAction;
 import org.elasticsearch.rest.action.admin.cluster.RestDeleteSnapshotAction;
@@ -415,6 +426,7 @@ import org.elasticsearch.rest.action.document.RestMultiGetAction;
 import org.elasticsearch.rest.action.document.RestMultiTermVectorsAction;
 import org.elasticsearch.rest.action.document.RestTermVectorsAction;
 import org.elasticsearch.rest.action.document.RestUpdateAction;
+import org.elasticsearch.rest.action.info.RestClusterInfoAction;
 import org.elasticsearch.rest.action.ingest.RestDeletePipelineAction;
 import org.elasticsearch.rest.action.ingest.RestGetPipelineAction;
 import org.elasticsearch.rest.action.ingest.RestPutPipelineAction;
@@ -426,15 +438,21 @@ import org.elasticsearch.rest.action.search.RestKnnSearchAction;
 import org.elasticsearch.rest.action.search.RestMultiSearchAction;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.rest.action.search.RestSearchScrollAction;
+import org.elasticsearch.rest.action.synonyms.RestDeleteSynonymsAction;
+import org.elasticsearch.rest.action.synonyms.RestGetSynonymsAction;
+import org.elasticsearch.rest.action.synonyms.RestPutSynonymsAction;
+import org.elasticsearch.synonyms.SynonymsAPI;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.usage.UsageService;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -468,6 +486,8 @@ public class ActionModule extends AbstractModule {
     private final AutoCreateIndex autoCreateIndex;
     private final DestructiveOperations destructiveOperations;
     private final RestController restController;
+    /** Rest headers that are copied to internal requests made during a rest request. */
+    private final Set<RestHeaderDefinition> headersToCopy;
     private final RequestValidators<PutMappingRequest> mappingRequestValidators;
     private final RequestValidators<IndicesAliasesRequest> indicesAliasesRequestRequestValidators;
     private final ThreadPool threadPool;
@@ -539,17 +559,41 @@ public class ActionModule extends AbstractModule {
         indicesAliasesRequestRequestValidators = new RequestValidators<>(
             actionPlugins.stream().flatMap(p -> p.indicesAliasesRequestValidators().stream()).toList()
         );
-
-        restController = new RestController(
-            headers,
-            restInterceptor,
-            nodeClient,
-            circuitBreakerService,
-            usageService,
-            tracer,
-            serverlessEnabled
-        );
+        headersToCopy = headers;
+        restController = new RestController(restInterceptor, nodeClient, circuitBreakerService, usageService, tracer, serverlessEnabled);
         reservedClusterStateService = new ReservedClusterStateService(clusterService, reservedStateHandlers);
+    }
+
+    /**
+     * Certain request header values need to be copied in the thread context under which request handlers are to be dispatched.
+     * Careful that this method modifies the thread context. The thread context must be reinstated after the request handler
+     * finishes and returns.
+     */
+    public void copyRequestHeadersToThreadContext(HttpPreRequest request, ThreadContext threadContext) {
+        // the request's thread-context must always be populated (by calling this method) before undergoing any request related processing
+        // we use this opportunity to first record the request processing start time
+        threadContext.putTransient(Task.TRACE_START_TIME, Instant.ofEpochMilli(threadPool.absoluteTimeInMillis()));
+        for (final RestHeaderDefinition restHeader : headersToCopy) {
+            final String name = restHeader.getName();
+            final List<String> headerValues = request.getHeaders().get(name);
+            if (headerValues != null && headerValues.isEmpty() == false) {
+                final List<String> distinctHeaderValues = headerValues.stream().distinct().toList();
+                if (restHeader.isMultiValueAllowed() == false && distinctHeaderValues.size() > 1) {
+                    throw new IllegalArgumentException("multiple values for single-valued header [" + name + "].");
+                } else if (name.equals(Task.TRACE_PARENT_HTTP_HEADER)) {
+                    String traceparent = distinctHeaderValues.get(0);
+                    Optional<String> traceId = RestUtils.extractTraceId(traceparent);
+                    if (traceId.isPresent()) {
+                        threadContext.putHeader(Task.TRACE_ID, traceId.get());
+                        threadContext.putTransient("parent_" + Task.TRACE_PARENT_HTTP_HEADER, traceparent);
+                    }
+                } else if (name.equals(Task.TRACE_STATE)) {
+                    threadContext.putTransient("parent_" + Task.TRACE_STATE, distinctHeaderValues.get(0));
+                } else {
+                    threadContext.putHeader(name, String.join(",", distinctHeaderValues));
+                }
+            }
+        }
     }
 
     public Map<String, ActionHandler<?, ?>> getActions() {
@@ -576,7 +620,6 @@ public class ActionModule extends AbstractModule {
         }
         ActionRegistry actions = new ActionRegistry();
 
-        actions.register(MainAction.INSTANCE, TransportMainAction.class);
         actions.register(NodesInfoAction.INSTANCE, TransportNodesInfoAction.class);
         actions.register(RemoteInfoAction.INSTANCE, TransportRemoteInfoAction.class);
         actions.register(RemoteClusterNodesAction.INSTANCE, RemoteClusterNodesAction.TransportAction.class);
@@ -594,6 +637,7 @@ public class ActionModule extends AbstractModule {
         actions.register(ClearVotingConfigExclusionsAction.INSTANCE, TransportClearVotingConfigExclusionsAction.class);
         actions.register(ClusterAllocationExplainAction.INSTANCE, TransportClusterAllocationExplainAction.class);
         actions.register(GetDesiredBalanceAction.INSTANCE, TransportGetDesiredBalanceAction.class);
+        actions.register(DeleteDesiredBalanceAction.INSTANCE, TransportDeleteDesiredBalanceAction.class);
         actions.register(ClusterStatsAction.INSTANCE, TransportClusterStatsAction.class);
         actions.register(ClusterStateAction.INSTANCE, TransportClusterStateAction.class);
         actions.register(ClusterHealthAction.INSTANCE, TransportClusterHealthAction.class);
@@ -673,6 +717,7 @@ public class ActionModule extends AbstractModule {
         actions.register(SearchScrollAction.INSTANCE, TransportSearchScrollAction.class);
         actions.register(OpenPointInTimeAction.INSTANCE, TransportOpenPointInTimeAction.class);
         actions.register(ClosePointInTimeAction.INSTANCE, TransportClosePointInTimeAction.class);
+        actions.register(SearchShardsAction.INSTANCE, TransportSearchShardsAction.class);
         actions.register(MultiSearchAction.INSTANCE, TransportMultiSearchAction.class);
         actions.register(ExplainAction.INSTANCE, TransportExplainAction.class);
         actions.register(ClearScrollAction.INSTANCE, TransportClearScrollAction.class);
@@ -737,6 +782,13 @@ public class ActionModule extends AbstractModule {
         actions.register(UpdateHealthInfoCacheAction.INSTANCE, UpdateHealthInfoCacheAction.TransportAction.class);
         actions.register(FetchHealthInfoCacheAction.INSTANCE, FetchHealthInfoCacheAction.TransportAction.class);
 
+        // Synonyms
+        if (SynonymsAPI.isEnabled()) {
+            actions.register(PutSynonymsAction.INSTANCE, TransportPutSynonymsAction.class);
+            actions.register(GetSynonymsAction.INSTANCE, TransportGetSynonymsAction.class);
+            actions.register(DeleteSynonymsAction.INSTANCE, TransportDeleteSynonymsAction.class);
+        }
+
         return unmodifiableMap(actions.getRegistry());
     }
 
@@ -764,7 +816,6 @@ public class ActionModule extends AbstractModule {
         };
         registerHandler.accept(new RestAddVotingConfigExclusionAction());
         registerHandler.accept(new RestClearVotingConfigExclusionsAction());
-        registerHandler.accept(new RestMainAction());
         registerHandler.accept(new RestNodesInfoAction(settingsFilter));
         registerHandler.accept(new RestRemoteClusterInfoAction());
         registerHandler.accept(new RestNodesStatsAction());
@@ -772,6 +823,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestNodesHotThreadsAction());
         registerHandler.accept(new RestClusterAllocationExplainAction());
         registerHandler.accept(new RestGetDesiredBalanceAction());
+        registerHandler.accept(new RestDeleteDesiredBalanceAction());
         registerHandler.accept(new RestClusterStatsAction());
         registerHandler.accept(new RestClusterStateAction(settingsFilter, threadPool));
         registerHandler.accept(new RestClusterHealthAction());
@@ -901,6 +953,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestShardsAction());
         registerHandler.accept(new RestMasterAction());
         registerHandler.accept(new RestNodesAction());
+        registerHandler.accept(new RestClusterInfoAction());
         registerHandler.accept(new RestTasksAction(nodesInCluster));
         registerHandler.accept(new RestIndicesAction());
         registerHandler.accept(new RestSegmentsAction());
@@ -943,6 +996,13 @@ public class ActionModule extends AbstractModule {
             }
         }
         registerHandler.accept(new RestCatAction(catActions));
+
+        // Synonyms
+        if (SynonymsAPI.isEnabled()) {
+            registerHandler.accept(new RestPutSynonymsAction());
+            registerHandler.accept(new RestGetSynonymsAction());
+            registerHandler.accept(new RestDeleteSynonymsAction());
+        }
     }
 
     /**

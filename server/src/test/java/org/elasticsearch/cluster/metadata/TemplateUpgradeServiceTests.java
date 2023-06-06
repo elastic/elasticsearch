@@ -18,8 +18,8 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.IndicesAdminClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -47,7 +47,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.IntStream;
 
-import static java.util.Collections.emptyMap;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.Matchers.containsString;
@@ -334,9 +333,7 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
         ClusterState state = ClusterState.builder(prevState)
             .nodes(
                 DiscoveryNodes.builder()
-                    .add(
-                        new DiscoveryNode("node1", "node1", buildNewFakeTransportAddress(), emptyMap(), MASTER_DATA_ROLES, Version.CURRENT)
-                    )
+                    .add(DiscoveryNodeUtils.builder("node1").name("node1").roles(MASTER_DATA_ROLES).build())
                     .localNodeId("node1")
                     .masterNodeId("node1")
                     .build()

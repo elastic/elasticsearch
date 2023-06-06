@@ -359,14 +359,7 @@ public class ClusterStateLicenseServiceTests extends ESTestCase {
     private void assertExpiryWarning(long adjustment, String msg) {
         long now = System.currentTimeMillis();
         long expiration = now + adjustment;
-        final ClusterStateLicenseService service = new ClusterStateLicenseService(
-            Settings.EMPTY,
-            mock(ThreadPool.class),
-            mockDefaultClusterService(),
-            mock(Clock.class),
-            mock(XPackLicenseState.class)
-        );
-        String warning = service.getExpiryWarning(expiration, now);
+        String warning = LicenseUtils.getExpiryWarning(expiration, now);
         if (msg == null) {
             assertThat(warning, is(nullValue()));
         } else {

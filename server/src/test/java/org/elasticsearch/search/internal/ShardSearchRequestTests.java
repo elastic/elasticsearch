@@ -231,6 +231,9 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
             if (Optional.ofNullable(request.source()).map(SearchSourceBuilder::knnSearch).map(List::size).orElse(0) > 1) {
                 version = TransportVersionUtils.randomVersionBetween(random(), TransportVersion.V_8_7_0, TransportVersion.CURRENT);
             }
+            if (request.source() != null && request.source().rankBuilder() != null) {
+                version = TransportVersionUtils.randomVersionBetween(random(), TransportVersion.V_8_8_0, TransportVersion.CURRENT);
+            }
             request = copyWriteable(request, namedWriteableRegistry, ShardSearchRequest::new, version);
             channelVersion = TransportVersion.min(channelVersion, version);
             assertThat(request.getChannelVersion(), equalTo(channelVersion));
@@ -253,6 +256,9 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
 
     public void testForceSyntheticUnsupported() throws IOException {
         SearchRequest request = createSearchRequest();
+        if (request.source() != null) {
+            request.source().rankBuilder(null);
+        }
         request.setForceSyntheticSource(true);
         ShardSearchRequest shardRequest = createShardSearchReqest(request);
         StreamOutput out = new BytesStreamOutput();

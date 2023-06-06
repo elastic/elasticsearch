@@ -8,7 +8,10 @@
 
 package org.elasticsearch.action.admin.indices.template.post;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
+import org.elasticsearch.cluster.metadata.DataLifecycle;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -41,9 +44,21 @@ public class SimulateIndexTemplateResponse extends ActionResponse implements ToX
     // a map of template names and their index patterns that would overlap when matching the given index name
     private Map<String, List<String>> overlappingTemplates;
 
+    @Nullable
+    private RolloverConfiguration rolloverConfiguration = null;
+
     public SimulateIndexTemplateResponse(@Nullable Template resolvedTemplate, @Nullable Map<String, List<String>> overlappingTemplates) {
+        this(resolvedTemplate, overlappingTemplates, null);
+    }
+
+    public SimulateIndexTemplateResponse(
+        @Nullable Template resolvedTemplate,
+        @Nullable Map<String, List<String>> overlappingTemplates,
+        @Nullable RolloverConfiguration rolloverConfiguration
+    ) {
         this.resolvedTemplate = resolvedTemplate;
         this.overlappingTemplates = overlappingTemplates;
+        this.rolloverConfiguration = rolloverConfiguration;
     }
 
     public SimulateIndexTemplateResponse(StreamInput in) throws IOException {
@@ -58,6 +73,9 @@ public class SimulateIndexTemplateResponse extends ActionResponse implements ToX
             }
         } else {
             this.overlappingTemplates = null;
+        }
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0) && DataLifecycle.isEnabled()) {
+            rolloverConfiguration = in.readOptionalWriteable(RolloverConfiguration::new);
         }
     }
 
@@ -74,13 +92,17 @@ public class SimulateIndexTemplateResponse extends ActionResponse implements ToX
         } else {
             out.writeBoolean(false);
         }
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0) && DataLifecycle.isEnabled()) {
+            out.writeOptionalWriteable(rolloverConfiguration);
+        }
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         if (this.resolvedTemplate != null) {
-            builder.field(TEMPLATE.getPreferredName(), this.resolvedTemplate);
+            builder.field(TEMPLATE.getPreferredName());
+            this.resolvedTemplate.toXContent(builder, params, rolloverConfiguration);
         }
         if (this.overlappingTemplates != null) {
             builder.startArray(OVERLAPPING.getPreferredName());

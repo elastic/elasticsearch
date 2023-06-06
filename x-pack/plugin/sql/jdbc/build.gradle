@@ -14,6 +14,7 @@ dependencies {
   api project(':x-pack:plugin:sql:sql-client')
   testImplementation project(":test:framework")
   testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation project(':modules:rest-root')
 }
 
 tasks.named("compileJava").configure {

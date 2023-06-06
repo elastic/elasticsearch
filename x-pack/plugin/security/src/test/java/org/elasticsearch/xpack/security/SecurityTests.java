@@ -19,12 +19,14 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
@@ -38,9 +40,12 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
+import org.elasticsearch.license.ClusterStateLicenseService;
 import org.elasticsearch.license.License;
+import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.internal.XPackLicenseStatus;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.script.ScriptService;
@@ -114,6 +119,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -364,7 +370,7 @@ public class SecurityTests extends ESTestCase {
     }
 
     public void testJoinValidatorForFIPSOnAllowedLicense() throws Exception {
-        DiscoveryNode node = new DiscoveryNode(
+        DiscoveryNode node = DiscoveryNodeUtils.create(
             "foo",
             buildNewFakeTransportAddress(),
             VersionUtils.randomVersionBetween(random(), null, Version.CURRENT)
@@ -375,15 +381,23 @@ public class SecurityTests extends ESTestCase {
             TimeValue.timeValueHours(24)
         );
         TestUtils.putLicense(builder, license);
+        LicenseService licenseService;
+        if (randomBoolean()) {
+            licenseService = mock(ClusterStateLicenseService.class);
+            when(((ClusterStateLicenseService) licenseService).getLicense(any())).thenReturn(license);
+        } else {
+            licenseService = mock(LicenseService.class);
+            when(licenseService.getLicense()).thenReturn(license);
+        }
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(builder.build()).build();
-        new Security.ValidateLicenseForFIPS(false).accept(node, state);
+        new Security.ValidateLicenseForFIPS(false, licenseService).accept(node, state);
         // no exception thrown
-        new Security.ValidateLicenseForFIPS(true).accept(node, state);
+        new Security.ValidateLicenseForFIPS(true, licenseService).accept(node, state);
         // no exception thrown
     }
 
     public void testJoinValidatorForFIPSOnForbiddenLicense() throws Exception {
-        DiscoveryNode node = new DiscoveryNode(
+        DiscoveryNode node = DiscoveryNodeUtils.create(
             "foo",
             buildNewFakeTransportAddress(),
             VersionUtils.randomVersionBetween(random(), null, Version.CURRENT)
@@ -398,11 +412,13 @@ public class SecurityTests extends ESTestCase {
         License license = TestUtils.generateSignedLicense(forbiddenLicenseType, TimeValue.timeValueHours(24));
         TestUtils.putLicense(builder, license);
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(builder.build()).build();
-        new Security.ValidateLicenseForFIPS(false).accept(node, state);
+        ClusterStateLicenseService licenseService = mock(ClusterStateLicenseService.class);
+        when(licenseService.getLicense(any())).thenReturn(license);
+        new Security.ValidateLicenseForFIPS(false, licenseService).accept(node, state);
         // no exception thrown
         IllegalStateException e = expectThrows(
             IllegalStateException.class,
-            () -> new Security.ValidateLicenseForFIPS(true).accept(node, state)
+            () -> new Security.ValidateLicenseForFIPS(true, licenseService).accept(node, state)
         );
         assertThat(e.getMessage(), containsString("FIPS mode cannot be used"));
 
@@ -412,14 +428,14 @@ public class SecurityTests extends ESTestCase {
         createComponents(Settings.EMPTY);
         BiConsumer<DiscoveryNode, ClusterState> joinValidator = security.getJoinValidator();
         assertNotNull(joinValidator);
-        DiscoveryNode node = new DiscoveryNode("foo", buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode node = DiscoveryNodeUtils.create("foo");
         int indexFormat = randomBoolean() ? INTERNAL_MAIN_INDEX_FORMAT : INTERNAL_MAIN_INDEX_FORMAT - 1;
         IndexMetadata indexMetadata = IndexMetadata.builder(SECURITY_MAIN_ALIAS)
             .settings(settings(VersionUtils.randomIndexCompatibleVersion(random())).put(INDEX_FORMAT_SETTING.getKey(), indexFormat))
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
-        DiscoveryNode existingOtherNode = new DiscoveryNode("bar", buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode existingOtherNode = DiscoveryNodeUtils.create("bar");
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(existingOtherNode).build();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(discoveryNodes)
@@ -433,13 +449,13 @@ public class SecurityTests extends ESTestCase {
         BiConsumer<DiscoveryNode, ClusterState> joinValidator = security.getJoinValidator();
         assertNotNull(joinValidator);
         Version version = VersionUtils.randomIndexCompatibleVersion(random());
-        DiscoveryNode node = new DiscoveryNode("foo", buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode node = DiscoveryNodeUtils.create("foo");
         IndexMetadata indexMetadata = IndexMetadata.builder(SECURITY_MAIN_ALIAS)
             .settings(settings(version).put(INDEX_FORMAT_SETTING.getKey(), INTERNAL_MAIN_INDEX_FORMAT))
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
-        DiscoveryNode existingOtherNode = new DiscoveryNode("bar", buildNewFakeTransportAddress(), version);
+        DiscoveryNode existingOtherNode = DiscoveryNodeUtils.create("bar", buildNewFakeTransportAddress(), version);
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(existingOtherNode).build();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(discoveryNodes)
@@ -452,8 +468,8 @@ public class SecurityTests extends ESTestCase {
         createComponents(Settings.EMPTY);
         BiConsumer<DiscoveryNode, ClusterState> joinValidator = security.getJoinValidator();
         assertNotNull(joinValidator);
-        DiscoveryNode node = new DiscoveryNode("foo", buildNewFakeTransportAddress(), Version.CURRENT);
-        DiscoveryNode existingOtherNode = new DiscoveryNode(
+        DiscoveryNode node = DiscoveryNodeUtils.create("foo");
+        DiscoveryNode existingOtherNode = DiscoveryNodeUtils.create(
             "bar",
             buildNewFakeTransportAddress(),
             VersionUtils.randomCompatibleVersion(random(), Version.CURRENT)
@@ -502,9 +518,11 @@ public class SecurityTests extends ESTestCase {
         Function<String, Predicate<String>> fieldFilter = security.getFieldFilter();
         assertNotSame(MapperPlugin.NOOP_FIELD_FILTER, fieldFilter);
         licenseState.update(
-            randomFrom(License.OperationMode.BASIC, License.OperationMode.STANDARD, License.OperationMode.GOLD),
-            true,
-            null
+            new XPackLicenseStatus(
+                randomFrom(License.OperationMode.BASIC, License.OperationMode.STANDARD, License.OperationMode.GOLD),
+                true,
+                null
+            )
         );
         assertNotSame(MapperPlugin.NOOP_FIELD_FILTER, fieldFilter);
         assertSame(MapperPlugin.NOOP_FIELD_PREDICATE, fieldFilter.apply(randomAlphaOfLengthBetween(3, 6)));
@@ -705,16 +723,27 @@ public class SecurityTests extends ESTestCase {
         assertNotNull(service);
         RestRequest request = new FakeRestRequest();
         final AtomicBoolean completed = new AtomicBoolean(false);
-        service.authenticate(request, ActionListener.wrap(result -> { assertTrue(completed.compareAndSet(false, true)); }, e -> {
-            // On trial license, kerberos is allowed and the WWW-Authenticate response header should reflect that
-            verifyHasAuthenticationHeaderValue(e, "Basic realm=\"" + XPackField.SECURITY + "\" charset=\"UTF-8\"", "Negotiate", "ApiKey");
-        }));
+        service.authenticate(
+            request.getHttpRequest(),
+            ActionListener.wrap(result -> { assertTrue(completed.compareAndSet(false, true)); }, e -> {
+                // On trial license, kerberos is allowed and the WWW-Authenticate response header should reflect that
+                verifyHasAuthenticationHeaderValue(
+                    e,
+                    "Basic realm=\"" + XPackField.SECURITY + "\" charset=\"UTF-8\"",
+                    "Negotiate",
+                    "ApiKey"
+                );
+            })
+        );
         threadContext.stashContext();
-        licenseState.update(randomFrom(License.OperationMode.GOLD, License.OperationMode.BASIC), true, null);
-        service.authenticate(request, ActionListener.wrap(result -> { assertTrue(completed.compareAndSet(false, true)); }, e -> {
-            // On basic or gold license, kerberos is not allowed and the WWW-Authenticate response header should also reflect that
-            verifyHasAuthenticationHeaderValue(e, "Basic realm=\"" + XPackField.SECURITY + "\" charset=\"UTF-8\"", "ApiKey");
-        }));
+        licenseState.update(new XPackLicenseStatus(randomFrom(License.OperationMode.GOLD, License.OperationMode.BASIC), true, null));
+        service.authenticate(
+            request.getHttpRequest(),
+            ActionListener.wrap(result -> { assertTrue(completed.compareAndSet(false, true)); }, e -> {
+                // On basic or gold license, kerberos is not allowed and the WWW-Authenticate response header should also reflect that
+                verifyHasAuthenticationHeaderValue(e, "Basic realm=\"" + XPackField.SECURITY + "\" charset=\"UTF-8\"", "ApiKey");
+            })
+        );
         if (completed.get()) {
             fail("authentication succeeded but it shouldn't");
         }
@@ -818,6 +847,60 @@ public class SecurityTests extends ESTestCase {
             appender.stop();
             Loggers.removeAppender(mockLogger, appender);
         }
+    }
+
+    public void testSecurityMustBeEnableToConnectRemoteClusterWithCredentials() {
+        // Security on, no remote cluster with credentials
+        final Settings.Builder builder1 = Settings.builder();
+        if (randomBoolean()) {
+            builder1.put("xpack.security.enabled", "true");
+        }
+        try {
+            new Security(builder1.build());
+        } catch (Exception e) {
+            fail("Security should have been successfully initialized, but got " + e.getMessage());
+        }
+
+        // Security off, no remote cluster with credentials
+        final Settings.Builder builder2 = Settings.builder().put("xpack.security.enabled", "false");
+        try {
+            new Security(builder2.build());
+        } catch (Exception e) {
+            fail("Security should have been successfully initialized, but got " + e.getMessage());
+        }
+
+        // Security on, remote cluster with credentials
+        final Settings.Builder builder3 = Settings.builder();
+        final MockSecureSettings secureSettings3 = new MockSecureSettings();
+        final String clusterCredentials3 = randomAlphaOfLength(20);
+        secureSettings3.setString("cluster.remote.my1.credentials", clusterCredentials3);
+        builder3.setSecureSettings(secureSettings3);
+        if (randomBoolean()) {
+            builder3.put("xpack.security.enabled", "true");
+        }
+        final Settings settings3 = builder3.build();
+        try {
+            new Security(settings3);
+        } catch (Exception e) {
+            fail("Security should have been successfully initialized, but got " + e.getMessage());
+        }
+
+        // Security off, remote cluster with credentials
+        final Settings.Builder builder4 = Settings.builder();
+        final MockSecureSettings secureSettings4 = new MockSecureSettings();
+        secureSettings4.setString("cluster.remote.my1.credentials", randomAlphaOfLength(20));
+        secureSettings4.setString("cluster.remote.my2.credentials", randomAlphaOfLength(20));
+        builder4.setSecureSettings(secureSettings4);
+        final Settings settings4 = builder4.put("xpack.security.enabled", "false").build();
+        final IllegalArgumentException e4 = expectThrows(IllegalArgumentException.class, () -> new Security(settings4));
+        assertThat(
+            e4.getMessage(),
+            containsString(
+                "Found [2] remote clusters with credentials [cluster.remote.my1.credentials,cluster.remote.my2.credentials]. "
+                    + "Security [xpack.security.enabled] must be enabled to connect to them. "
+                    + "Please either enable security or remove these settings from the keystore."
+            )
+        );
     }
 
     private void verifyHasAuthenticationHeaderValue(Exception e, String... expectedValues) {

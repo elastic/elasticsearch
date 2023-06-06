@@ -45,6 +45,9 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
         {
           "_doc":{
             "properties": {
+              "@timestamp" : {
+                "type": "date"
+              },
               "metricset": {
                 "type": "keyword",
                 "time_series_dimension": true
@@ -86,28 +89,18 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
     }
 
     public void testTimeRanges() throws Exception {
-        var mappingTemplate = """
-            {
-              "_doc":{
-                "properties": {
-                  "metricset": {
-                    "type": "keyword",
-                    "time_series_dimension": true
-                  }
-                }
-              }
-            }""";
         var templateSettings = Settings.builder().put("index.mode", "time_series");
         if (randomBoolean()) {
             templateSettings.put("index.routing_path", "metricset");
         }
+        var mapping = new CompressedXContent(randomBoolean() ? MAPPING_TEMPLATE : MAPPING_TEMPLATE.replace("date", "date_nanos"));
 
         if (randomBoolean()) {
             var request = new PutComposableIndexTemplateAction.Request("id");
             request.indexTemplate(
                 new ComposableIndexTemplate(
                     List.of("k8s*"),
-                    new Template(templateSettings.build(), new CompressedXContent(mappingTemplate), null),
+                    new Template(templateSettings.build(), mapping, null),
                     null,
                     null,
                     null,
@@ -119,9 +112,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
             client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet();
         } else {
             var putComponentTemplateRequest = new PutComponentTemplateAction.Request("1");
-            putComponentTemplateRequest.componentTemplate(
-                new ComponentTemplate(new Template(null, new CompressedXContent(mappingTemplate), null), null, null)
-            );
+            putComponentTemplateRequest.componentTemplate(new ComponentTemplate(new Template(null, mapping, null), null, null));
             client().execute(PutComponentTemplateAction.INSTANCE, putComponentTemplateRequest).actionGet();
 
             var putTemplateRequest = new PutComposableIndexTemplateAction.Request("id");
@@ -194,8 +185,22 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
         Instant newStartTime = IndexSettings.TIME_SERIES_START_TIME.get(getIndexResponse.getSettings().get(newBackingIndexName));
         Instant newEndTime = IndexSettings.TIME_SERIES_END_TIME.get(getIndexResponse.getSettings().get(newBackingIndexName));
 
-        // Check whether the document lands in the newest backing index:
+        // Check whether documents land in the newest backing index, covering the [newStartTime, newEndtime) timestamp range:
+        time = newStartTime;
+        {
+            var indexRequest = new IndexRequest("k8s").opType(DocWriteRequest.OpType.CREATE);
+            indexRequest.source(DOC.replace("$time", formatInstant(time)), XContentType.JSON);
+            var indexResponse = client().index(indexRequest).actionGet();
+            assertThat(indexResponse.getIndex(), equalTo(newBackingIndexName));
+        }
         time = Instant.ofEpochMilli(randomLongBetween(newStartTime.toEpochMilli(), newEndTime.toEpochMilli() - 1));
+        {
+            var indexRequest = new IndexRequest("k8s").opType(DocWriteRequest.OpType.CREATE);
+            indexRequest.source(DOC.replace("$time", formatInstant(time)), XContentType.JSON);
+            var indexResponse = client().index(indexRequest).actionGet();
+            assertThat(indexResponse.getIndex(), equalTo(newBackingIndexName));
+        }
+        time = Instant.ofEpochMilli(newEndTime.toEpochMilli() - 1);
         {
             var indexRequest = new IndexRequest("k8s").opType(DocWriteRequest.OpType.CREATE);
             indexRequest.source(DOC.replace("$time", formatInstant(time)), XContentType.JSON);
@@ -249,8 +254,9 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
             assertThat(
                 e.getCause().getCause().getMessage(),
                 equalTo(
-                    "All fields that match routing_path must be keywords with [time_series_dimension: true] and "
-                        + "without the [script] parameter. [metricset] was not [time_series_dimension: true]."
+                    "All fields that match routing_path must be keywords with [time_series_dimension: true] "
+                        + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
+                        + "without the [script] parameter. [metricset] was not a dimension."
                 )
             );
         }
@@ -316,7 +322,8 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
         assertThat(
             e.getCause().getCause().getMessage(),
             equalTo(
-                "All fields that match routing_path must be keywords with [time_series_dimension: true] and "
+                "All fields that match routing_path must be keywords with [time_series_dimension: true] "
+                    + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
                     + "without the [script] parameter. [metricset] was [long]."
             )
         );
@@ -360,13 +367,14 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
 
     public void testSkippingShards() throws Exception {
         Instant time = Instant.now();
+        var mapping = new CompressedXContent(randomBoolean() ? MAPPING_TEMPLATE : MAPPING_TEMPLATE.replace("date", "date_nanos"));
         {
             var templateSettings = Settings.builder().put("index.mode", "time_series").put("index.routing_path", "metricset").build();
             var request = new PutComposableIndexTemplateAction.Request("id1");
             request.indexTemplate(
                 new ComposableIndexTemplate(
                     List.of("pattern-1"),
-                    new Template(templateSettings, new CompressedXContent(MAPPING_TEMPLATE), null),
+                    new Template(templateSettings, mapping, null),
                     null,
                     null,
                     null,
@@ -385,7 +393,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
             request.indexTemplate(
                 new ComposableIndexTemplate(
                     List.of("pattern-2"),
-                    new Template(null, new CompressedXContent(MAPPING_TEMPLATE), null),
+                    new Template(null, mapping, null),
                     null,
                     null,
                     null,

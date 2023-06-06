@@ -1,0 +1,62 @@
+[role="xpack"]
+[[post-analytics-collection-event]]
+=== Post Event to an Analytics Collection
+
+++++
+<titleabbrev>Post Analytics Collection Event</titleabbrev>
+++++
+
+Post an event to an Analytics Collection.
+
+[[post-analytics-collection-event-request]]
+==== {api-request-title}
+
+`POST _application/analytics/<collection_name>/event/<event_type>`
+
+[[post-analytics-collection-event-path-params]]
+==== {api-path-parms-title}
+
+`<collection_name>`::
+(Required, string) Analytics collection name you want to ingest event in.
+
+`<event_type>`::
+(Required, string) Analytics event type. Can be one of `page_view`, `search`, `click`
+
+[[post-analytics-collection-event-prereqs]]
+==== {api-prereq-title}
+
+Requires the `post_behavioral_analytics_event` cluster privilege.
+
+[[post-analytics-collection-event-response-codes]]
+==== {api-response-codes-title}
+
+`202`::
+Event has been accepted and will be ingested.
+
+`404`::
+Analytics Collection `<collection_name>` does not exists.
+
+`400`::
+Occurs either when the event type is unknown or when event payload contains invalid data.
+
+[[post-analytics-collection-event-example]]
+==== {api-examples-title}
+
+The following example send a `page_view` event to an Analytics Collection called `my_analytics_collection`:
+
+[source,console]
+----
+POST _application/analytics/my_analytics_collection/event/page_view
+{
+  "session": {
+    "id": "1797ca95-91c9-4e2e-b1bd-9c38e6f386a9"
+  },
+  "user": {
+    "id": "5f26f01a-bbee-4202-9298-81261067abbd"
+  },
+  "page": {
+    "url": "https://www.elastic.co/"
+  }
+}
+----
+// TEST[skip:TBD]

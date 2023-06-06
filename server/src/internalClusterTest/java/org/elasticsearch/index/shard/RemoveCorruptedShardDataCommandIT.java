@@ -29,7 +29,6 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
@@ -107,10 +106,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         final String indexName = "index42";
         assertAcked(
             prepareCreate(indexName).setSettings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                    .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
+                indexSettings(1, 0).put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
                     .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "-1")
                     .put(MockEngineSupport.DISABLE_FLUSH_ON_CLOSE.getKey(), true)
                     .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), "checksum")
@@ -177,9 +173,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
 
         // shard should be failed due to a corrupted index
         assertBusy(() -> {
-            final ClusterAllocationExplanation explanation = client().admin()
-                .cluster()
-                .prepareAllocationExplain()
+            final ClusterAllocationExplanation explanation = clusterAdmin().prepareAllocationExplain()
                 .setIndex(indexName)
                 .setShard(0)
                 .setPrimary(true)
@@ -225,9 +219,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
 
         // there is only _stale_ primary (due to new allocation id)
         assertBusy(() -> {
-            final ClusterAllocationExplanation explanation = client().admin()
-                .cluster()
-                .prepareAllocationExplain()
+            final ClusterAllocationExplanation explanation = clusterAdmin().prepareAllocationExplain()
                 .setIndex(indexName)
                 .setShard(0)
                 .setPrimary(true)
@@ -245,9 +237,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         client().admin().cluster().prepareReroute().add(new AllocateStalePrimaryAllocationCommand(indexName, 0, nodeId, true)).get();
 
         assertBusy(() -> {
-            final ClusterAllocationExplanation explanation = client().admin()
-                .cluster()
-                .prepareAllocationExplain()
+            final ClusterAllocationExplanation explanation = clusterAdmin().prepareAllocationExplain()
                 .setIndex(indexName)
                 .setShard(0)
                 .setPrimary(true)
@@ -277,10 +267,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         final String indexName = "test";
         assertAcked(
             prepareCreate(indexName).setSettings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                    .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "-1")
+                indexSettings(1, 1).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "-1")
                     .put(MockEngineSupport.DISABLE_FLUSH_ON_CLOSE.getKey(), true) // never flush - always recover from translog
                     .put("index.routing.allocation.exclude._name", node2)
             )
@@ -344,9 +331,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
 
         // all shards should be failed due to a corrupted translog
         assertBusy(() -> {
-            final UnassignedInfo unassignedInfo = client().admin()
-                .cluster()
-                .prepareAllocationExplain()
+            final UnassignedInfo unassignedInfo = clusterAdmin().prepareAllocationExplain()
                 .setIndex(indexName)
                 .setShard(0)
                 .setPrimary(true)
@@ -407,9 +392,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
 
         // there is only _stale_ primary (due to new allocation id)
         assertBusy(() -> {
-            final ClusterAllocationExplanation explanation = client().admin()
-                .cluster()
-                .prepareAllocationExplain()
+            final ClusterAllocationExplanation explanation = clusterAdmin().prepareAllocationExplain()
                 .setIndex(indexName)
                 .setShard(0)
                 .setPrimary(true)
@@ -427,9 +410,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         client().admin().cluster().prepareReroute().add(new AllocateStalePrimaryAllocationCommand(indexName, 0, primaryNodeId, true)).get();
 
         assertBusy(() -> {
-            final ClusterAllocationExplanation explanation = client().admin()
-                .cluster()
-                .prepareAllocationExplain()
+            final ClusterAllocationExplanation explanation = clusterAdmin().prepareAllocationExplain()
                 .setIndex(indexName)
                 .setShard(0)
                 .setPrimary(true)
@@ -476,10 +457,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         final String indexName = "test";
         assertAcked(
             prepareCreate(indexName).setSettings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                    .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "-1")
+                indexSettings(1, 1).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "-1")
                     .put(MockEngineSupport.DISABLE_FLUSH_ON_CLOSE.getKey(), true) // never flush - always recover from translog
                     .put("index.routing.allocation.exclude._name", node2)
             )
@@ -582,19 +560,13 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         final List<String> nodeNames = internalCluster().startNodes(numOfNodes, Settings.EMPTY);
 
         final String indexName = "test" + randomInt(100);
-        assertAcked(
-            prepareCreate(indexName).setSettings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numOfNodes - 1)
-            )
-        );
+        assertAcked(prepareCreate(indexName).setSettings(indexSettings(1, numOfNodes - 1)));
         flush(indexName);
 
         ensureGreen(indexName);
 
         final Map<String, String> nodeNameToNodeId = new HashMap<>();
-        final ClusterState state = client().admin().cluster().prepareState().get().getState();
+        final ClusterState state = clusterAdmin().prepareState().get().getState();
         final DiscoveryNodes nodes = state.nodes();
         for (Map.Entry<String, DiscoveryNode> cursor : nodes.getNodes().entrySet()) {
             nodeNameToNodeId.put(cursor.getValue().getName(), cursor.getKey());
@@ -654,7 +626,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
     }
 
     public static Path getPathToShardData(String nodeId, ShardId shardId, String shardPathSubdirectory) {
-        final NodesStatsResponse nodeStatsResponse = client().admin().cluster().prepareNodesStats(nodeId).setFs(true).get();
+        final NodesStatsResponse nodeStatsResponse = clusterAdmin().prepareNodesStats(nodeId).setFs(true).get();
         final Set<Path> paths = StreamSupport.stream(nodeStatsResponse.getNodes().get(0).getFs().spliterator(), false)
             .map(
                 dataPath -> PathUtils.get(dataPath.getPath())

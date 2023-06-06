@@ -52,13 +52,19 @@ public class HandshakingTransportAddressConnector implements TransportAddressCon
     );
 
     private final TransportService transportService;
-    private final TimeValue probeConnectTimeout;
-    private final TimeValue probeHandshakeTimeout;
+
+    private final ConnectionProfile handshakeConnectionProfile;
 
     public HandshakingTransportAddressConnector(Settings settings, TransportService transportService) {
         this.transportService = transportService;
-        probeConnectTimeout = PROBE_CONNECT_TIMEOUT_SETTING.get(settings);
-        probeHandshakeTimeout = PROBE_HANDSHAKE_TIMEOUT_SETTING.get(settings);
+        handshakeConnectionProfile = ConnectionProfile.buildSingleChannelProfile(
+            Type.REG,
+            PROBE_CONNECT_TIMEOUT_SETTING.get(settings),
+            PROBE_HANDSHAKE_TIMEOUT_SETTING.get(settings),
+            TimeValue.MINUS_ONE,
+            null,
+            null
+        );
     }
 
     @Override
@@ -81,17 +87,10 @@ public class HandshakingTransportAddressConnector implements TransportAddressCon
                     emptySet(),
                     Version.CURRENT.minimumCompatibilityVersion()
                 ),
-                ConnectionProfile.buildSingleChannelProfile(
-                    Type.REG,
-                    probeConnectTimeout,
-                    probeHandshakeTimeout,
-                    TimeValue.MINUS_ONE,
-                    null,
-                    null
-                ),
+                handshakeConnectionProfile,
                 listener.delegateFailure((l, connection) -> {
                     logger.trace("[{}] opened probe connection", transportAddress);
-
+                    final var probeHandshakeTimeout = handshakeConnectionProfile.getHandshakeTimeout();
                     // use NotifyOnceListener to make sure the following line does not result in onFailure being called when
                     // the connection is closed in the onResponse handler
                     transportService.handshake(connection, probeHandshakeTimeout, ActionListener.notifyOnce(new ActionListener<>() {

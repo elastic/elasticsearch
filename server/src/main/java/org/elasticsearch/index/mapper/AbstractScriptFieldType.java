@@ -23,6 +23,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.CompositeFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -176,7 +177,11 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
 
     @Override
     public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-        return new DocValueFetcher(docValueFormat(format, null), context.getForField(this, FielddataOperation.SEARCH));
+        return new DocValueFetcher(
+            docValueFormat(format, null),
+            context.getForField(this, FielddataOperation.SEARCH),
+            StoredFieldsSpec.NEEDS_SOURCE       // for now we assume runtime fields need source
+        );
     }
 
     /**
@@ -199,9 +204,11 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
     }
 
     @Override
-    public void validateMatchedRoutingPath() {
+    public void validateMatchedRoutingPath(final String routingPath) {
         throw new IllegalArgumentException(
-            "All fields that match routing_path must be keywords with [time_series_dimension: true] "
+            "All fields that match routing_path "
+                + "must be keywords with [time_series_dimension: true] "
+                + "or flattened fields with a list of dimensions in [time_series_dimensions] "
                 + "and without the [script] parameter. ["
                 + name()
                 + "] was a runtime ["

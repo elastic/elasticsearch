@@ -142,10 +142,10 @@ public class AuditTrailServiceTests extends ESTestCase {
 
     public void testAuthenticationFailedRestNoToken() throws Exception {
         final String requestId = randomAlphaOfLengthBetween(6, 12);
-        service.get().authenticationFailed(requestId, restRequest);
+        service.get().authenticationFailed(requestId, restRequest.getHttpRequest());
         verify(licenseState).isAllowed(Security.AUDITING_FEATURE);
         if (isAuditingAllowed) {
-            verify(auditTrail).authenticationFailed(requestId, restRequest);
+            verify(auditTrail).authenticationFailed(requestId, restRequest.getHttpRequest());
         } else {
             verifyNoMoreInteractions(auditTrail);
         }
@@ -153,10 +153,10 @@ public class AuditTrailServiceTests extends ESTestCase {
 
     public void testAuthenticationFailedRest() throws Exception {
         final String requestId = randomAlphaOfLengthBetween(6, 12);
-        service.get().authenticationFailed(requestId, token, restRequest);
+        service.get().authenticationFailed(requestId, token, restRequest.getHttpRequest());
         verify(licenseState).isAllowed(Security.AUDITING_FEATURE);
         if (isAuditingAllowed) {
-            verify(auditTrail).authenticationFailed(requestId, token, restRequest);
+            verify(auditTrail).authenticationFailed(requestId, token, restRequest.getHttpRequest());
         } else {
             verifyNoMoreInteractions(auditTrail);
         }
@@ -175,10 +175,10 @@ public class AuditTrailServiceTests extends ESTestCase {
 
     public void testAuthenticationFailedRestRealm() throws Exception {
         final String requestId = randomAlphaOfLengthBetween(6, 12);
-        service.get().authenticationFailed(requestId, "_realm", token, restRequest);
+        service.get().authenticationFailed(requestId, "_realm", token, restRequest.getHttpRequest());
         verify(licenseState).isAllowed(Security.AUDITING_FEATURE);
         if (isAuditingAllowed) {
-            verify(auditTrail).authenticationFailed(requestId, "_realm", token, restRequest);
+            verify(auditTrail).authenticationFailed(requestId, "_realm", token, restRequest.getHttpRequest());
         } else {
             verifyNoMoreInteractions(auditTrail);
         }
@@ -272,10 +272,10 @@ public class AuditTrailServiceTests extends ESTestCase {
             .realmRef(new RealmRef("_look", "_type", "node", null))
             .build();
         final String requestId = randomAlphaOfLengthBetween(6, 12);
-        service.get().authenticationSuccess(requestId, authentication, restRequest);
+        service.get().authenticationSuccess(restRequest);
         verify(licenseState).isAllowed(Security.AUDITING_FEATURE);
         if (isAuditingAllowed) {
-            verify(auditTrail).authenticationSuccess(requestId, authentication, restRequest);
+            verify(auditTrail).authenticationSuccess(restRequest);
         } else {
             verifyNoMoreInteractions(auditTrail);
         }

@@ -50,7 +50,7 @@ public class LikePattern extends AbstractStringPattern {
     }
 
     @Override
-    Automaton createAutomaton() {
+    public Automaton createAutomaton() {
         Automaton automaton = WildcardQuery.toAutomaton(new Term(null, wildcard));
         return MinimizationOperations.minimize(automaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
     }

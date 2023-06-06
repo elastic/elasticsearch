@@ -1,0 +1,41 @@
+{
+  "template": {
+    "settings": {
+      "index": {
+        "number_of_replicas": 0,
+        "auto_expand_replicas": "0-1",
+        "refresh_interval": "10s",
+        "sort": {
+          "field": [
+            "project.id",
+            "@timestamp",
+            "host.id"
+          ]
+        }
+      },
+      "codec": "best_compression"
+    },
+    "mappings": {
+      "_source": {
+        "enabled": false
+      },
+      "properties": {
+        "ecs.version": {
+          "type": "keyword",
+          "index": true
+        },
+        "project.id": {
+          "type": "keyword"
+        },
+        "host.id": {
+          "type": "keyword"
+        },
+        "@timestamp": {
+          "type": "date",
+          "format": "epoch_second"
+        }
+      }
+    }
+  },
+  "version": ${xpack.profiling.template.version}
+}

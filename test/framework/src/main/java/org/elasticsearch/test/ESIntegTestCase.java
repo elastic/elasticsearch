@@ -58,6 +58,7 @@ import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.internal.AdminClient;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ClusterAdminClient;
+import org.elasticsearch.client.internal.IndicesAdminClient;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterInfoServiceUtils;
 import org.elasticsearch.cluster.ClusterModule;
@@ -67,6 +68,7 @@ import org.elasticsearch.cluster.coordination.ElasticsearchNodeCommand;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -99,6 +101,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.gateway.PersistedClusterStateService;
+import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
@@ -711,11 +714,11 @@ public abstract class ESIntegTestCase extends ESTestCase {
         Settings.Builder builder = Settings.builder();
         int numberOfShards = numberOfShards();
         if (numberOfShards > 0) {
-            builder.put(SETTING_NUMBER_OF_SHARDS, numberOfShards).build();
+            builder.put(SETTING_NUMBER_OF_SHARDS, numberOfShards);
         }
         int numberOfReplicas = numberOfReplicas();
         if (numberOfReplicas >= 0) {
-            builder.put(SETTING_NUMBER_OF_REPLICAS, numberOfReplicas).build();
+            builder.put(SETTING_NUMBER_OF_REPLICAS, numberOfReplicas);
         }
         // 30% of the time
         if (randomInt(9) < 3) {
@@ -774,7 +777,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * creates an index with the given shard and replica counts
      */
     public final void createIndex(String name, int shards, int replicas) {
-        createIndex(name, Settings.builder().put(SETTING_NUMBER_OF_SHARDS, shards).put(SETTING_NUMBER_OF_REPLICAS, replicas).build());
+        createIndex(name, indexSettings(shards, replicas).build());
     }
 
     /**
@@ -1084,6 +1087,34 @@ public abstract class ESIntegTestCase extends ESTestCase {
             return List.of();
         }
         return tasks.tasks().stream().filter(t -> taskNames.contains(t.getTaskName())).toList();
+    }
+
+    /**
+     * Waits for the health node to be assigned and returns the node
+     * that it is assigned to.
+     * Returns null if the health node is not assigned in due time.
+     */
+    @Nullable
+    public static DiscoveryNode waitAndGetHealthNode(InternalTestCluster internalCluster) {
+        DiscoveryNode[] healthNode = new DiscoveryNode[1];
+        try {
+            waitUntil(() -> {
+                ClusterState state = internalCluster.client()
+                    .admin()
+                    .cluster()
+                    .prepareState()
+                    .clear()
+                    .setMetadata(true)
+                    .setNodes(true)
+                    .get()
+                    .getState();
+                healthNode[0] = HealthNode.findHealthNode(state);
+                return healthNode[0] != null;
+            }, 15, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+        return healthNode[0];
     }
 
     /**
@@ -1487,6 +1518,13 @@ public abstract class ESIntegTestCase extends ESTestCase {
      */
     protected static ClusterAdminClient clusterAdmin() {
         return admin().cluster();
+    }
+
+    /**
+     * Returns a random indices admin client. This client can be pointing to any of the nodes in the cluster.
+     */
+    protected static IndicesAdminClient indicesAdmin() {
+        return admin().indices();
     }
 
     public void indexRandom(boolean forceRefresh, String index, int numDocs) throws InterruptedException {

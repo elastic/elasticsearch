@@ -263,3 +263,38 @@ setup:
   - match: { hits.total: 2 }
   - length: { hits.hits: 2 }
   - match: { aggregations.the_counter_max.value: 4 }
+
+---
+"Partially unmapped":
+
+  - do:
+      search:
+        index: test_1,date_test_2
+        rest_total_hits_as_int: true
+        body:
+          aggs:
+            the_int_max:
+              max:
+                field: int_field
+
+  - match: { hits.total: 5 }
+  - length: { hits.hits: 5 }
+  - match: { aggregations.the_int_max.value: 151.0 }
+
+---
+"Partially unmapped with missing":
+
+  - do:
+      search:
+        index: test_1,date_test_2
+        rest_total_hits_as_int: true
+        body:
+          aggs:
+            the_int_max:
+              max:
+                field: int_field
+                missing: 100000
+
+  - match: { hits.total: 5 }
+  - length: { hits.hits: 5 }
+  - match: { aggregations.the_int_max.value: 100000 }

@@ -386,9 +386,6 @@ public final class InternalTestCluster extends TestCluster {
         if (Strings.hasLength(System.getProperty("tests.es.logger.level"))) {
             builder.put("logger.level", System.getProperty("tests.es.logger.level"));
         }
-        if (Strings.hasLength(System.getProperty("es.logger.prefix"))) {
-            builder.put("logger.prefix", System.getProperty("es.logger.prefix"));
-        }
         // Default the watermarks to absurdly low to prevent the tests
         // from failing on nodes without enough disk space
         builder.put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "1b");
@@ -1312,17 +1309,7 @@ public final class InternalTestCluster extends TestCluster {
                 IndicesService indexServices = getInstance(IndicesService.class, nodeAndClient.name);
                 for (IndexService indexService : indexServices) {
                     for (IndexShard indexShard : indexService) {
-                        List<String> operations = indexShard.getActiveOperations();
-                        if (operations.size() > 0) {
-                            throw new AssertionError(
-                                "shard "
-                                    + indexShard.shardId()
-                                    + " on node ["
-                                    + nodeAndClient.name
-                                    + "] has pending operations:\n --> "
-                                    + String.join("\n --> ", operations)
-                            );
-                        }
+                        assertEquals(0, indexShard.getActiveOperationsCount());
                     }
                 }
             }

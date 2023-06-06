@@ -641,6 +641,12 @@ public class LimitedRoleTests extends ESTestCase {
 
         {
             Role limitedByRole = Role.builder(EMPTY_RESTRICTED_INDICES, "limited-role").add(IndexPrivilege.READ, "ind-1", "ind-2").build();
+            if (randomBoolean()) {
+                final Role nestedLimitedRole = Role.builder(EMPTY_RESTRICTED_INDICES, "nested-limited-role")
+                    .add(IndexPrivilege.READ, "*")
+                    .build();
+                limitedByRole = randomBoolean() ? limitedByRole.limitedBy(nestedLimitedRole) : nestedLimitedRole.limitedBy(limitedByRole);
+            }
 
             verifyResourcesPrivileges(
                 limitedByRole,
@@ -717,6 +723,12 @@ public class LimitedRoleTests extends ESTestCase {
             );
 
             Role limitedByRole = Role.builder(EMPTY_RESTRICTED_INDICES, "limited-role").add(IndexPrivilege.READ, "ind-1", "ind-2").build();
+            if (randomBoolean()) {
+                final Role nestedLimitedRole = Role.builder(EMPTY_RESTRICTED_INDICES, "nested-limited-role")
+                    .add(IndexPrivilege.READ, "*")
+                    .build();
+                limitedByRole = randomBoolean() ? limitedByRole.limitedBy(nestedLimitedRole) : nestedLimitedRole.limitedBy(limitedByRole);
+            }
 
             verifyResourcesPrivileges(
                 limitedByRole,

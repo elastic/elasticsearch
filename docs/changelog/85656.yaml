@@ -1,6 +1,0 @@
-pr: 85656
-summary: Instrument Weight#count in ProfileWeight
-area: Search
-type: enhancement
-issues:
-  - 85203

@@ -1,0 +1,116 @@
+setup:
+  - do:
+      indices.create:
+        index: test-index1
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+              number_of_replicas: 0
+
+  - do:
+      indices.create:
+        index: test-index2
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+              number_of_replicas: 0
+
+  - do:
+      search_application.put:
+        name: test-search-application-1
+        body:
+          indices: [ "test-index1", "test-index2" ]
+          analytics_collection_name: "test-analytics"
+          template:
+            script:
+              source:
+                query:
+                  query_string:
+                    query: "{{query_string}}"
+            dictionary:
+              query_string:
+                type: string
+
+  - do:
+      search_application.put:
+        name: test-search-application-2
+        body:
+          indices: [ "test-index1", "test-index2" ]
+          analytics_collection_name: "test-analytics"
+
+---
+teardown:
+  - do:
+      search_application.delete:
+        name: test-search-application-1
+        ignore: 404
+  - do:
+      search_application.delete:
+        name: test-search-application-2
+        ignore: 404
+
+---
+"Get Search Application with template":
+  - do:
+      search_application.get:
+        name: test-search-application-1
+
+  - match: { name: "test-search-application-1" }
+  - match: { indices: [ "test-index1", "test-index2" ] }
+  - match: { analytics_collection_name: "test-analytics" }
+  - match: {
+    template: {
+      script: {
+        source: {
+          query: {
+            query_string: {
+              query: "{{query_string}}"
+            }
+          }
+        },
+        lang: "mustache",
+        options: {
+          content_type: "application/json;charset=utf-8"
+        }
+      },
+      dictionary: {
+        query_string: {
+          type: string
+        }
+      }
+    }
+  }
+  - gte: { updated_at_millis: 0 }
+
+---
+"Get Search Application with no template specified returns default template":
+  - do:
+      search_application.get:
+        name: test-search-application-2
+
+  - match: { name: "test-search-application-2" }
+  - match: { indices: [ "test-index1", "test-index2" ] }
+  - match: { analytics_collection_name: "test-analytics" }
+  - match: {
+    template: {
+      script: {
+        source:  "{\n  \"query\": {\n    \"query_string\": {\n        \"query\": \"{{query_string}}\",\n        \"default_field\": \"{{default_field}}\"\n        }\n    }\n}\n",
+        params: {
+            query_string: "*",
+            default_field: "*"
+        },
+        lang: "mustache"
+      }
+    }
+  }
+  - gte: { updated_at_millis: 0 }
+
+---
+"Get Search Application - Resource does not exist":
+  - do:
+      catch: "missing"
+      search_application.get:
+        name: test-nonexistent-search-application
+

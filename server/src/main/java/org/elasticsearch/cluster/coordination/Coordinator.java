@@ -11,10 +11,13 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.ListenableActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -202,7 +205,8 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         NodeHealthService nodeHealthService,
         CircuitBreakerService circuitBreakerService,
         Reconfigurator reconfigurator,
-        LeaderHeartbeatService leaderHeartbeatService
+        LeaderHeartbeatService leaderHeartbeatService,
+        PreVoteCollector.Factory preVoteCollectorFactory
     ) {
         this.settings = settings;
         this.transportService = transportService;
@@ -243,12 +247,13 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         this.singleNodeClusterSeedHostsCheckInterval = SINGLE_NODE_CLUSTER_SEED_HOSTS_CHECK_INTERVAL_SETTING.get(settings);
         this.random = random;
         this.electionSchedulerFactory = new ElectionSchedulerFactory(settings, random, transportService.getThreadPool());
-        this.preVoteCollector = new PreVoteCollector(
+        this.preVoteCollector = preVoteCollectorFactory.create(
             transportService,
             this::startElection,
             this::updateMaxTermSeen,
             electionStrategy,
-            nodeHealthService
+            nodeHealthService,
+            leaderHeartbeatService
         );
         configuredHostsResolver = new SeedHostsResolver(nodeName, settings, transportService, seedHostsProvider);
         this.peerFinder = new CoordinatorPeerFinder(
@@ -510,6 +515,11 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         }
     }
 
+    private long getTermForNewElection() {
+        assert Thread.holdsLock(mutex);
+        return Math.max(getCurrentTerm(), maxTermSeen) + 1;
+    }
+
     private void startElection() {
         synchronized (mutex) {
             // The preVoteCollector is only active while we are candidate, but it does not call this method with synchronisation, so we have
@@ -520,24 +530,27 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                     return;
                 }
 
-                final StartJoinRequest startJoinRequest = new StartJoinRequest(getLocalNode(), Math.max(getCurrentTerm(), maxTermSeen) + 1);
-                logger.debug("starting election with {}", startJoinRequest);
-                broadcastStartJoinRequest(startJoinRequest, getDiscoveredNodes());
+                final var electionTerm = getTermForNewElection();
+                logger.debug("starting election for {} in term {}", getLocalNode(), electionTerm);
+                broadcastStartJoinRequest(getLocalNode(), electionTerm, getDiscoveredNodes());
             }
         }
     }
 
-    private void broadcastStartJoinRequest(StartJoinRequest startJoinRequest, List<DiscoveryNode> discoveredNodes) {
-        electionStrategy.onNewElection(startJoinRequest.getSourceNode(), startJoinRequest.getTerm(), new ActionListener<>() {
+    private void broadcastStartJoinRequest(DiscoveryNode candidateMasterNode, long term, List<DiscoveryNode> discoveredNodes) {
+        electionStrategy.onNewElection(candidateMasterNode, term, new ActionListener<>() {
             @Override
-            public void onResponse(Void unused) {
+            public void onResponse(StartJoinRequest startJoinRequest) {
                 discoveredNodes.forEach(node -> joinHelper.sendStartJoinRequest(startJoinRequest, node));
             }
 
             @Override
             public void onFailure(Exception e) {
-                updateMaxTermSeen(electionStrategy.getMaxTermSeen());
-                logger.debug(Strings.format("election attempt failed, dropping [%s]", startJoinRequest), e);
+                logger.log(
+                    e instanceof CoordinationStateRejectedException ? Level.DEBUG : Level.WARN,
+                    Strings.format("election attempt for [%s] in term [%d] failed", candidateMasterNode, term),
+                    e
+                );
             }
         });
     }
@@ -546,9 +559,9 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         assert Thread.holdsLock(mutex);
         assert mode == Mode.LEADER : "expected to be leader on abdication but was " + mode;
         assert newMaster.isMasterNode() : "should only abdicate to master-eligible node but was " + newMaster;
-        final StartJoinRequest startJoinRequest = new StartJoinRequest(newMaster, Math.max(getCurrentTerm(), maxTermSeen) + 1);
-        logger.info("abdicating to {} with term {}", newMaster, startJoinRequest.getTerm());
-        broadcastStartJoinRequest(startJoinRequest, getLastAcceptedState().nodes().mastersFirstStream().toList());
+        final var electionTerm = getTermForNewElection();
+        logger.info("abdicating to {} with term {}", newMaster, electionTerm);
+        broadcastStartJoinRequest(newMaster, electionTerm, getLastAcceptedState().nodes().mastersFirstStream().toList());
         // handling of start join messages on the local node will be dispatched to the coordination thread-pool
         assert mode == Mode.LEADER : "should still be leader after sending abdication messages " + mode;
         // explicitly move node to candidate state so that the next cluster state update task yields an onNoLongerMaster event
@@ -760,7 +773,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                 final boolean prevElectionWon = coordState.electionWon();
 
                 optionalJoin.ifPresent(this::handleJoin);
-                joinAccumulator.handleJoinRequest(joinRequest.getSourceNode(), joinListener);
+                joinAccumulator.handleJoinRequest(joinRequest.getSourceNode(), joinRequest.getTransportVersion(), joinListener);
 
                 if (prevElectionWon == false && coordState.electionWon()) {
                     becomeLeader();
@@ -870,9 +883,10 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         assert mode == Mode.CANDIDATE : "expected candidate but was " + mode;
         assert getLocalNode().isMasterNode() : getLocalNode() + " became a leader but is not master-eligible";
 
+        final var leaderTerm = getCurrentTerm();
         logger.debug(
             "handleJoinRequest: coordinator becoming LEADER in term {} (was {}, lastKnownLeader was [{}])",
-            getCurrentTerm(),
+            leaderTerm,
             mode,
             lastKnownLeader
         );
@@ -886,10 +900,36 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         clusterFormationFailureHelper.stop();
         closePrevotingAndElectionScheduler();
         preVoteCollector.update(getPreVoteResponse(), getLocalNode());
-        leaderHeartbeatService.start(getLocalNode(), getCurrentTerm());
+        leaderHeartbeatService.start(
+            getLocalNode(),
+            leaderTerm,
+            new ThreadedActionListener<>(transportService.getThreadPool().executor(Names.CLUSTER_COORDINATION), new ActionListener<>() {
+                @Override
+                public void onResponse(Long newTerm) {
+                    assert newTerm != null && newTerm > leaderTerm : newTerm + " vs " + leaderTerm;
+                    updateMaxTermSeen(newTerm);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // TODO tests for heartbeat failures
+                    logger.warn(() -> Strings.format("failed to write heartbeat for term [%s]", leaderTerm), e);
+                    synchronized (mutex) {
+                        if (getCurrentTerm() == leaderTerm) {
+                            becomeCandidate("leaderHeartbeatService");
+                        }
+                    }
+                }
+
+                @Override
+                public String toString() {
+                    return "term change heartbeat listener";
+                }
+            })
+        );
 
         assert leaderChecker.leader() == null : leaderChecker.leader();
-        followersChecker.updateFastResponseState(getCurrentTerm(), mode);
+        followersChecker.updateFastResponseState(leaderTerm, mode);
 
         updateSingleNodeClusterChecker();
     }
@@ -1025,6 +1065,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                         .addGlobalBlock(noMasterBlockService.getNoMasterBlock())
                 )
                 .nodes(DiscoveryNodes.builder().add(getLocalNode()).localNodeId(getLocalNode().getId()))
+                .putTransportVersion(getLocalNode().getId(), TransportVersion.CURRENT)
                 .metadata(metadata)
                 .build();
             applierState = initialState;
@@ -1380,14 +1421,17 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         }
     }
 
-    private void getLatestStoredStateAfterWinningAnElection(ActionListener<ClusterState> listener) {
-        persistedStateSupplier.get().getLatestStoredState(listener.delegateResponse((delegate, e) -> {
+    private void getLatestStoredStateAfterWinningAnElection(ActionListener<ClusterState> listener, long joiningTerm) {
+        // using a SubscribableListener to stay on the current thread if (and only if) nothing async happened
+        final var latestStoredStateListener = new SubscribableListener<ClusterState>();
+        persistedStateSupplier.get().getLatestStoredState(joiningTerm, latestStoredStateListener);
+        latestStoredStateListener.addListener(listener.delegateResponse((delegate, e) -> {
             synchronized (mutex) {
                 // TODO: add test coverage for this branch
                 becomeCandidate("failed fetching latest stored state");
             }
             delegate.onFailure(e);
-        }));
+        }), transportService.getThreadPool().executor(Names.CLUSTER_COORDINATION), null);
     }
 
     @Nullable
@@ -1504,6 +1548,9 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                     followersChecker.setCurrentNodes(publishNodes);
                     lagDetector.setTrackedNodes(publishNodes);
                     publication.start(followersChecker.getFaultyNodes());
+                } catch (Exception e) {
+                    assert currentPublication.isEmpty() : e; // should not fail after setting currentPublication
+                    becomeCandidate("publish");
                 } finally {
                     publicationContext.decRef();
                 }
@@ -1906,7 +1953,15 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                     removePublicationAndPossiblyBecomeCandidate("Publication.onCompletion(false)");
                     cancelTimeoutHandlers();
 
-                    final FailedToCommitClusterStateException exception = new FailedToCommitClusterStateException("publication failed", e);
+                    final FailedToCommitClusterStateException exception = new FailedToCommitClusterStateException(
+                        Strings.format(
+                            "publication of cluster state version [%d] in term [%d] failed [committed={}]",
+                            publishRequest.getAcceptedState().version(),
+                            publishRequest.getAcceptedState().term(),
+                            committed
+                        ),
+                        e
+                    );
                     ackListener.onNodeAck(getLocalNode(), exception); // other nodes have acked, but not the master.
                     publishListener.onFailure(exception);
                 }
@@ -1934,15 +1989,32 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         }
 
         @Override
-        protected Optional<ListenableFuture<ApplyCommitRequest>> handlePublishResponse(
+        protected Optional<SubscribableListener<ApplyCommitRequest>> handlePublishResponse(
             DiscoveryNode sourceNode,
             PublishResponse publishResponse
         ) {
             assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
             assert getCurrentTerm() >= publishResponse.getTerm();
             return coordinationState.get().handlePublishResponse(sourceNode, publishResponse).map(applyCommitRequest -> {
-                final var future = new ListenableFuture<ApplyCommitRequest>();
+                final var future = new SubscribableListener<ApplyCommitRequest>();
                 beforeCommit(applyCommitRequest.getTerm(), applyCommitRequest.getVersion(), future.map(ignored -> applyCommitRequest));
+                future.addListener(new ActionListener<>() {
+                    @Override
+                    public void onResponse(ApplyCommitRequest applyCommitRequest) {}
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.log(
+                            e instanceof CoordinationStateRejectedException ? Level.DEBUG : Level.WARN,
+                            Strings.format(
+                                "publication of cluster state version [%d] in term [%d] failed to commit after reaching quorum",
+                                publishRequest.getAcceptedState().version(),
+                                publishRequest.getAcceptedState().term()
+                            ),
+                            e
+                        );
+                    }
+                });
                 return future;
             });
         }

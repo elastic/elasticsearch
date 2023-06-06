@@ -9,7 +9,9 @@ package org.elasticsearch.xpack.stack;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Version;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -23,6 +25,7 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 import org.elasticsearch.xpack.core.template.IndexTemplateRegistry;
+import org.elasticsearch.xpack.core.template.IngestPipelineConfig;
 import org.elasticsearch.xpack.core.template.LifecyclePolicyConfig;
 
 import java.io.IOException;
@@ -35,9 +38,12 @@ import java.util.stream.Stream;
 public class StackTemplateRegistry extends IndexTemplateRegistry {
     private static final Logger logger = LogManager.getLogger(StackTemplateRegistry.class);
 
+    // Current version of the registry requires all nodes to be at least 8.9.0.
+    public static final Version MIN_NODE_VERSION = Version.V_8_9_0;
+
     // The stack template registry version. This number must be incremented when we make changes
     // to built-in templates.
-    public static final int REGISTRY_VERSION = 2;
+    public static final int REGISTRY_VERSION = 3;
 
     public static final String TEMPLATE_VERSION_VARIABLE = "xpack.stack.template.version";
     public static final Setting<Boolean> STACK_TEMPLATES_ENABLED = Setting.boolSetting(
@@ -221,6 +227,22 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
         }
     }
 
+    private static final List<IngestPipelineConfig> INGEST_PIPELINE_CONFIGS = List.of(
+        new IngestPipelineConfig("logs@json-message", "/logs-json-message-pipeline.json", REGISTRY_VERSION, TEMPLATE_VERSION_VARIABLE),
+        new IngestPipelineConfig(
+            "logs-default-pipeline",
+            "/logs-default-pipeline.json",
+            REGISTRY_VERSION,
+            TEMPLATE_VERSION_VARIABLE,
+            Collections.singletonList("logs@json-message")
+        )
+    );
+
+    @Override
+    protected List<IngestPipelineConfig> getIngestPipelines() {
+        return INGEST_PIPELINE_CONFIGS;
+    }
+
     @Override
     protected String getOrigin() {
         return ClientHelper.STACK_ORIGIN;
@@ -235,5 +257,14 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
         // are only installed via elected master node then the APIs are always
         // there and the ActionNotFoundTransportException errors are then prevented.
         return true;
+    }
+
+    @Override
+    protected boolean isClusterReady(ClusterChangedEvent event) {
+        // Ensure current version of the components are installed only once all nodes are updated to 8.9.0.
+        // This is necessary to prevent an error caused nby the usage of the ignore_missing_pipeline property
+        // in the pipeline processor, which has been introduced only in 8.9.0
+        Version minNodeVersion = event.state().nodes().getMinNodeVersion();
+        return minNodeVersion.onOrAfter(MIN_NODE_VERSION);
     }
 }

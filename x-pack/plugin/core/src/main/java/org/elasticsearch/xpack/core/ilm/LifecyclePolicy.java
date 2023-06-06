@@ -58,12 +58,9 @@ public class LifecyclePolicy implements SimpleDiffable<LifecyclePolicy>, ToXCont
         }
     );
     static {
-        PARSER.declareNamedObjects(
-            ConstructingObjectParser.constructorArg(),
-            (p, c, n) -> Phase.parse(p, n),
-            v -> { throw new IllegalArgumentException("ordered " + PHASES_FIELD.getPreferredName() + " are not supported"); },
-            PHASES_FIELD
-        );
+        PARSER.declareNamedObjects(ConstructingObjectParser.constructorArg(), (p, c, n) -> Phase.parse(p, n), v -> {
+            throw new IllegalArgumentException("ordered " + PHASES_FIELD.getPreferredName() + " are not supported");
+        }, PHASES_FIELD);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(), METADATA);
     }
 

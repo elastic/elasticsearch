@@ -126,7 +126,7 @@ public final class UserToken implements Writeable, ToXContentObject {
         builder.startObject();
         builder.field("id", id);
         builder.field("expiration_time", expirationTime.toEpochMilli());
-        builder.field("version", version.id);
+        builder.field("version", version.id());
         builder.field("metadata", metadata);
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             output.setTransportVersion(version);

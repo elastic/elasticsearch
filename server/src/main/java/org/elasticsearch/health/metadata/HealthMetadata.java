@@ -252,11 +252,6 @@ public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Cus
         }
 
         @Override
-        public boolean isFragment() {
-            return true;
-        }
-
-        @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field(HIGH_WATERMARK_FIELD.getPreferredName(), describeHighWatermark());
             builder.field(HIGH_MAX_HEADROOM_FIELD.getPreferredName(), highMaxHeadroom);

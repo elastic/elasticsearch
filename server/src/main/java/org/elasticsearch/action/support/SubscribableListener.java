@@ -10,6 +10,7 @@ package org.elasticsearch.action.support;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -17,6 +18,8 @@ import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
@@ -261,7 +264,7 @@ public class SubscribableListener<T> implements ActionListener<T> {
         }
     }
 
-    private record SuccessResult<T> (T result) {
+    private record SuccessResult<T>(T result) {
         public void complete(ActionListener<T> listener) {
             try {
                 listener.onResponse(result);
@@ -288,6 +291,35 @@ public class SubscribableListener<T> implements ActionListener<T> {
                 assert false : innerException;
                 // nothing more can be done here
             }
+        }
+    }
+
+    /**
+     * Adds a timeout to this listener, such that if the timeout elapses before the listener is completed then it will be completed with an
+     * {@link ElasticsearchTimeoutException}.
+     * <p>
+     * The process which is racing against this timeout should stop and clean up promptly when the timeout occurs to avoid unnecessary
+     * work. For instance, it could check that the race is not lost by calling {@link #isDone} whenever appropriate, or it could subscribe
+     * another listener which performs any necessary cleanup steps.
+     */
+    public void addTimeout(TimeValue timeout, ThreadPool threadPool, String timeoutExecutor) {
+        if (isDone()) {
+            return;
+        }
+        addListener(ActionListener.running(scheduleTimeout(timeout, threadPool, timeoutExecutor)));
+    }
+
+    private Runnable scheduleTimeout(TimeValue timeout, ThreadPool threadPool, String timeoutExecutor) {
+        try {
+            final var cancellable = threadPool.schedule(
+                () -> onFailure(new ElasticsearchTimeoutException(Strings.format("timed out after [%s/%dms]", timeout, timeout.millis()))),
+                timeout,
+                timeoutExecutor
+            );
+            return cancellable::cancel;
+        } catch (Exception e) {
+            onFailure(e);
+            return () -> {};
         }
     }
 }

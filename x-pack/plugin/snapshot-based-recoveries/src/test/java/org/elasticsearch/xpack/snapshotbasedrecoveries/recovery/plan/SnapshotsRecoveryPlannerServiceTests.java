@@ -216,13 +216,10 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
                 // If snapshotVersion is not present,
                 // then lucene version must be < RecoverySettings.SEQ_NO_SNAPSHOT_RECOVERIES_SUPPORTED_VERSION
                 if (snapshotVersion == null) {
-                    luceneVersion = randomVersionBetween(
-                        random(),
-                        Version.V_7_0_0,
-                        RecoverySettings.SNAPSHOT_RECOVERIES_SUPPORTED_VERSION
-                    ).luceneVersion;
+                    luceneVersion = randomVersionBetween(random(), Version.V_7_0_0, RecoverySettings.SNAPSHOT_RECOVERIES_SUPPORTED_VERSION)
+                        .luceneVersion();
                 } else {
-                    luceneVersion = randomCompatibleVersion(random(), Version.CURRENT).luceneVersion;
+                    luceneVersion = randomCompatibleVersion(random(), Version.CURRENT).luceneVersion();
                 }
             } else {
                 snapshotVersion = Version.fromId(Integer.MAX_VALUE);
@@ -603,7 +600,7 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
     }
 
     private ShardSnapshot createShardSnapshotThatDoNotShareSegmentFiles(String repoName) {
-        return createShardSnapshotThatDoNotShareSegmentFiles(repoName, Version.CURRENT, Version.CURRENT.luceneVersion);
+        return createShardSnapshotThatDoNotShareSegmentFiles(repoName, Version.CURRENT, Version.CURRENT.luceneVersion());
     }
 
     private ShardSnapshot createShardSnapshotThatDoNotShareSegmentFiles(
@@ -632,7 +629,7 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
             );
             snapshotFiles.add(fileInfo);
         }
-        return createShardSnapshot(repository, snapshotFiles, Version.CURRENT, Version.CURRENT.luceneVersion);
+        return createShardSnapshot(repository, snapshotFiles, Version.CURRENT, Version.CURRENT.luceneVersion());
     }
 
     private ShardSnapshot createShardSnapshot(

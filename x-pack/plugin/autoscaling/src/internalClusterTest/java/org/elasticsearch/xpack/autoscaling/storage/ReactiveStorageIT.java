@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
+import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
@@ -39,6 +40,8 @@ import java.util.stream.IntStream;
 
 import static org.elasticsearch.index.store.Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.autoscaling.storage.ReactiveStorageDeciderService.AllocationState.MAX_AMOUNT_OF_SHARD_DECISIONS;
+import static org.hamcrest.CoreMatchers.startsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -104,6 +107,30 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
         assertThat(
             response.results().get(policyName).requiredCapacity().node().storage().getBytes(),
             equalTo(maxShardSize + ReactiveStorageDeciderService.NODE_DISK_OVERHEAD + LOW_WATERMARK_BYTES)
+        );
+        var reactiveReason = (ReactiveStorageDeciderService.ReactiveReason) response.results()
+            .get(policyName)
+            .results()
+            .get("reactive_storage")
+            .reason();
+        assertEquals(
+            reactiveReason.assignedShardIds().stream().limit(MAX_AMOUNT_OF_SHARD_DECISIONS).collect(Collectors.toSet()),
+            reactiveReason.assignedNodeDecisions().keySet()
+        );
+        NodeDecision canRemainNodeDecision = reactiveReason.assignedNodeDecisions()
+            .get(reactiveReason.assignedShardIds().first())
+            .canRemainDecision();
+        Decision decision = canRemainNodeDecision.decision()
+            .getDecisions()
+            .stream()
+            .filter(d -> d.type() == Decision.Type.NO)
+            .findFirst()
+            .orElseThrow(() -> new IllegalStateException("Unable to find NO can_remain decision"));
+        assertEquals(Decision.Type.NO, decision.type());
+        assertEquals("disk_threshold", decision.label());
+        assertThat(
+            decision.getExplanation(),
+            startsWith("the shard cannot remain on this node because it is above the high watermark cluster setting")
         );
     }
 

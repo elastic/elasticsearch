@@ -9,13 +9,13 @@ IPv4 or IPv6 address.
 
 [[geoip-automatic-updates]]
 By default, the processor uses the GeoLite2 City, GeoLite2 Country, and GeoLite2
-ASN GeoIP2 databases from
-http://dev.maxmind.com/geoip/geoip2/geolite2/[MaxMind], shared under the
-CC BY-SA 4.0 license. It automatically downloads these databases if either
-`ingest.geoip.downloader.eager.download` is set to true, or your cluster
-has at least one pipeline with a `geoip` processor. {es}
-automatically downloads updates for
-these databases from the Elastic GeoIP endpoint:
+ASN GeoIP2 databases from http://dev.maxmind.com/geoip/geoip2/geolite2/[MaxMind], shared under the
+CC BY-SA 4.0 license. It automatically downloads these databases if your nodes can connect to `storage.googleapis.com` domain and either:
+
+* `ingest.geoip.downloader.eager.download` is set to true
+* your cluster has at least one pipeline with a `geoip` processor
+ 
+{es} automatically downloads updates for these databases from the Elastic GeoIP endpoint:
 https://geoip.elastic.co/v1/database. To get download statistics for these
 updates, use the <<geoip-stats-api,GeoIP stats API>>.
 
@@ -416,6 +416,7 @@ from the `ingest.geoip.downloader.endpoint`. If `false`, {es} does not download
 updates and deletes all downloaded databases. Defaults to `true`.
 
 [[ingest-geoip-downloader-eager-download]]
+`ingest.geoip.downloader.eager.download`::
 (<<dynamic-cluster-setting,Dynamic>>, Boolean)
 If `true`, {es} downloads GeoIP2 databases immediately, regardless of whether a
 pipeline exists with a geoip processor. If `false`, {es} only begins downloading

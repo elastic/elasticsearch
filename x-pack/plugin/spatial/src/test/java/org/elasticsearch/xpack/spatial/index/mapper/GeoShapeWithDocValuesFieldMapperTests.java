@@ -14,6 +14,7 @@ import org.elasticsearch.index.mapper.AbstractGeometryFieldMapper;
 import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
 import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper.AbstractShapeGeometryFieldType;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -271,10 +272,9 @@ public class GeoShapeWithDocValuesFieldMapperTests extends GeoFieldMapperTests {
     public void testInvalidCurrentVersion() {
         MapperParsingException e = expectThrows(
             MapperParsingException.class,
-            () -> super.createMapperService(
-                Version.CURRENT,
-                fieldMapping((b) -> { b.field("type", getFieldName()).field("strategy", "recursive"); })
-            )
+            () -> super.createMapperService(Version.CURRENT, fieldMapping((b) -> {
+                b.field("type", getFieldName()).field("strategy", "recursive");
+            }))
         );
         assertThat(
             e.getMessage(),
@@ -376,9 +376,9 @@ public class GeoShapeWithDocValuesFieldMapperTests extends GeoFieldMapperTests {
 
         ParsedDocument document = mapper.parse(sourceToParse);
         assertThat(document.docs(), hasSize(1));
-        IndexableField[] fields = document.docs().get(0).getFields(FIELD_NAME);
+        List<IndexableField> fields = document.docs().get(0).getFields(FIELD_NAME);
         // 2 BKD points, 2 stored fields and 1 doc value
-        assertThat(fields.length, equalTo(5));
+        assertThat(fields, hasSize(5));
     }
 
     public void testMultiFieldsDeprecationWarning() throws Exception {
@@ -393,8 +393,8 @@ public class GeoShapeWithDocValuesFieldMapperTests extends GeoFieldMapperTests {
 
     public void testSelfIntersectPolygon() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
-        MapperParsingException ex = expectThrows(
-            MapperParsingException.class,
+        DocumentParsingException ex = expectThrows(
+            DocumentParsingException.class,
             () -> mapper.parse(source(b -> b.field("field", "POLYGON((0 0, 1 1, 0 1, 1 0, 0 0))")))
         );
         assertThat(ex.getCause().getMessage(), containsString("Polygon self-intersection at lat=0.5 lon=0.5"));

@@ -318,9 +318,7 @@ public class AutoCreateIndexTests extends ESTestCase {
         for (String index : indices) {
             metadata.put(IndexMetadata.builder(index).settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1));
         }
-        return ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-            .metadata(metadata)
-            .build();
+        return ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
     }
 
     private AutoCreateIndex newAutoCreateIndex(Settings settings) {

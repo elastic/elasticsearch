@@ -21,8 +21,8 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.license.ClusterStateLicenseService;
 import org.elasticsearch.license.License;
+import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
@@ -59,7 +59,7 @@ public class ClusterStatsCollector extends Collector {
 
     private final Settings settings;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
-    private final ClusterStateLicenseService clusterStateLicenseService;
+    private final LicenseService licenseService;
     private final Client client;
 
     public ClusterStatsCollector(
@@ -67,13 +67,13 @@ public class ClusterStatsCollector extends Collector {
         final ClusterService clusterService,
         final XPackLicenseState licenseState,
         final Client client,
-        final ClusterStateLicenseService clusterStateLicenseService,
+        final LicenseService licenseService,
         final IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(ClusterStatsMonitoringDoc.TYPE, clusterService, CLUSTER_STATS_TIMEOUT, licenseState);
         this.settings = settings;
         this.client = client;
-        this.clusterStateLicenseService = clusterStateLicenseService;
+        this.licenseService = licenseService;
         this.indexNameExpressionResolver = Objects.requireNonNull(indexNameExpressionResolver);
     }
 
@@ -93,7 +93,7 @@ public class ClusterStatsCollector extends Collector {
         final String clusterName = clusterService.getClusterName().value();
         final String clusterUuid = clusterUuid(clusterState);
         final String version = Version.CURRENT.toString();
-        final License license = clusterStateLicenseService.getLicense();
+        final License license = licenseService.getLicense();
         final List<XPackFeatureSet.Usage> xpackUsage = collect(usageSupplier);
         final boolean apmIndicesExist = doAPMIndicesExist(clusterState);
         // if they have any other type of license, then they are either okay or already know

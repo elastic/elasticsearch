@@ -339,6 +339,21 @@ public class FileUtils {
             try {
                 Files.delete(path);
             } catch (IOException e) {
+                if (Platforms.WINDOWS) {
+                    // Windows has race conditions with processes exiting and releasing
+                    // files that were opened (eg as redirects of stdout/stderr). Even though
+                    // the process as exited, Windows may still think the files are open.
+                    // Here we give a small delay before retrying.
+                    try {
+                        Thread.sleep(2000);
+                        Files.delete(path);
+                    } catch (InterruptedException ie) {
+                        throw new AssertionError(ie);
+                    } catch (IOException e2) {
+                        e.addSuppressed(e2);
+                        throw new UncheckedIOException("could not delete file on windows after waiting", e);
+                    }
+                }
                 throw new UncheckedIOException(e);
             }
         }

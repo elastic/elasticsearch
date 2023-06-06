@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.admin.indices.template.get;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;

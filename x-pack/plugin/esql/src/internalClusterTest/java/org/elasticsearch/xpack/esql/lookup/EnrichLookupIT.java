@@ -23,7 +23,6 @@ import org.elasticsearch.compute.operator.OutputOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
@@ -38,7 +37,6 @@ import org.elasticsearch.xpack.ql.type.EsField;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
@@ -124,9 +122,8 @@ public class EnrichLookupIT extends AbstractEsqlIntegTestCase {
 
         DateFormatter dateFmt = DateFormatter.forPattern("yyyy-MM-dd");
 
-        ExecutorService executor = internalCluster().getInstance(TransportService.class).getThreadPool().executor(ThreadPool.Names.GENERIC);
         DriverRunner.runToCompletion(
-            executor,
+            internalCluster().getInstance(TransportService.class).getThreadPool(),
             List.of(new Driver(new DriverContext(), sourceOperator, List.of(enrichOperator), outputOperator, () -> {}))
         );
         transportService.getTaskManager().unregister(parentTask);

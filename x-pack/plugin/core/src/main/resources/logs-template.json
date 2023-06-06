@@ -6,7 +6,7 @@
     "logs-mappings",
     "logs-settings",
     "logs@custom",
-    "ecs@dynamic-mappings"
+    "ecs@dynamic_templates"
   ],
   "ignore_missing_component_templates": ["logs@custom"],
   "allow_auto_create": true,

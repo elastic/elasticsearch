@@ -55,7 +55,7 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
     public static final String DATA_STREAMS_MAPPINGS_COMPONENT_TEMPLATE_NAME = "data-streams-mappings";
 
     // ECS dynamic mappings
-    public static final String ECS_DYNAMIC_MAPPINGS_COMPONENT_TEMPLATE_NAME = "ecs@dynamic-mappings";
+    public static final String ECS_DYNAMIC_MAPPINGS_COMPONENT_TEMPLATE_NAME = "ecs@dynamic_templates";
 
     //////////////////////////////////////////////////////////
     // Built in ILM policies for users to use

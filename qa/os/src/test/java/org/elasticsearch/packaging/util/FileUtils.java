@@ -345,7 +345,7 @@ public class FileUtils {
                     // the process as exited, Windows may still think the files are open.
                     // Here we give a small delay before retrying.
                     try {
-                        Thread.sleep(2000);
+                        Thread.sleep(3000);
                         Files.delete(path);
                     } catch (InterruptedException ie) {
                         throw new AssertionError(ie);
@@ -353,8 +353,9 @@ public class FileUtils {
                         e.addSuppressed(e2);
                         throw new UncheckedIOException("could not delete file on windows after waiting", e);
                     }
+                } else {
+                    throw new UncheckedIOException(e);
                 }
-                throw new UncheckedIOException(e);
             }
         }
     }

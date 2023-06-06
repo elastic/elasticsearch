@@ -1101,7 +1101,6 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/96632")
     public void testForceClosesOpenChannels() {
         try (TestHttpServerTransport transport = new TestHttpServerTransport(gracePeriod(100))) {
             transport.bindServer();

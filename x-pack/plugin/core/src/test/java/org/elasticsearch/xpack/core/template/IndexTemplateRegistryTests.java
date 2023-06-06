@@ -24,8 +24,8 @@ import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -84,7 +84,7 @@ public class IndexTemplateRegistryTests extends ESTestCase {
     }
 
     public void testThatIndependentPipelinesAreAddedImmediately() throws Exception {
-        DiscoveryNode node = TestDiscoveryNode.create("node");
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         AtomicInteger calledTimes = new AtomicInteger(0);
@@ -106,7 +106,7 @@ public class IndexTemplateRegistryTests extends ESTestCase {
     }
 
     public void testThatDependentPipelinesAreAddedIfDependenciesExist() throws Exception {
-        DiscoveryNode node = TestDiscoveryNode.create("node");
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         AtomicInteger calledTimes = new AtomicInteger(0);
@@ -133,7 +133,7 @@ public class IndexTemplateRegistryTests extends ESTestCase {
     }
 
     public void testThatTemplateIsAddedIfAllDependenciesExist() throws Exception {
-        DiscoveryNode node = TestDiscoveryNode.create("node");
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         AtomicInteger calledTimes = new AtomicInteger(0);
@@ -159,7 +159,7 @@ public class IndexTemplateRegistryTests extends ESTestCase {
     }
 
     public void testThatTemplateIsNotAddedIfNotAllDependenciesExist() throws Exception {
-        DiscoveryNode node = TestDiscoveryNode.create("node");
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         AtomicInteger calledTimes = new AtomicInteger(0);
@@ -185,7 +185,7 @@ public class IndexTemplateRegistryTests extends ESTestCase {
     }
 
     public void testThatComposableTemplateIsAddedIfDependenciesExist() throws Exception {
-        DiscoveryNode node = TestDiscoveryNode.create("node");
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         AtomicInteger calledTimes = new AtomicInteger(0);
@@ -209,7 +209,7 @@ public class IndexTemplateRegistryTests extends ESTestCase {
     }
 
     public void testThatTemplatesAreUpgradedWhenNeeded() throws Exception {
-        DiscoveryNode node = TestDiscoveryNode.create("node");
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         AtomicInteger calledTimes = new AtomicInteger(0);
@@ -247,7 +247,7 @@ public class IndexTemplateRegistryTests extends ESTestCase {
     }
 
     public void testThatTemplatesAreNotUpgradedWhenNotNeeded() throws Exception {
-        DiscoveryNode node = TestDiscoveryNode.create("node");
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         AtomicInteger calledTimes = new AtomicInteger(0);

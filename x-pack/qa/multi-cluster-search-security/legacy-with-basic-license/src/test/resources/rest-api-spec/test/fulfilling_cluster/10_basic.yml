@@ -23,7 +23,7 @@ setup:
               "indices": [
                 {
                   "names": ["single_doc_index", "secure_alias", "test_index", "aliased_test_index", "field_caps_index_1",
-                  "field_caps_index_3", "point_in_time_index"],
+                  "field_caps_index_3", "point_in_time_index", "simple-data-stream1", "simple-data-stream2"],
                   "privileges": ["read", "read_cross_cluster"]
                 }
               ]
@@ -46,7 +46,7 @@ setup:
               "indices": [
                 {
                   "names": ["single_doc_index", "secure_alias", "test_index", "aliased_test_index", "field_caps_index_1",
-                  "field_caps_index_3", "point_in_time_index"],
+                  "field_caps_index_3", "point_in_time_index", "simple-data-stream1", "simple-data-stream2"],
                   "privileges": ["read", "read_cross_cluster"]
                 }
               ]
@@ -127,6 +127,8 @@ setup:
               properties:
                 '@timestamp':
                   type: date
+            settings:
+              'index.number_of_shards': 1
           data_stream: {}
 
   - do:
@@ -141,6 +143,8 @@ setup:
               properties:
                 '@timestamp':
                   type: date
+            settings:
+              'index.number_of_shards': 1
           data_stream: {}
 
   - do:
@@ -148,8 +152,27 @@ setup:
         name: simple-data-stream1
 
   - do:
+      bulk:
+        refresh: true
+        index: simple-data-stream1
+        body:
+          - '{"create":{ }}'
+          - '{"@timestamp": "2023-05-31", "value": 1}'
+          - '{"create":{ }}'
+          - '{"@timestamp": "2023-07-31", "value": 2}'
+
+  - do:
       indices.create_data_stream:
         name: simple-data-stream2
+  - do:
+      bulk:
+        refresh: true
+        index: simple-data-stream2
+        body:
+          - '{"create":{ }}'
+          - '{"@timestamp": "2020-02-11", "value": 1}'
+          - '{"create":{ }}'
+          - '{"@timestamp": "2020-03-01", "value": 2}'
 
   - do:
       indices.rollover:

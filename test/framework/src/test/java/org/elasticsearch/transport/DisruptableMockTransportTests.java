@@ -13,7 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.coordination.CleanableResponseHandler;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -87,8 +87,8 @@ public class DisruptableMockTransportTests extends ESTestCase {
 
     @Before
     public void initTransports() {
-        node1 = TestDiscoveryNode.create("node1");
-        node2 = TestDiscoveryNode.create("node2");
+        node1 = DiscoveryNodeUtils.create("node1");
+        node2 = DiscoveryNodeUtils.create("node2");
 
         disconnectedLinks = new HashSet<>();
         blackholedLinks = new HashSet<>();
@@ -584,7 +584,7 @@ public class DisruptableMockTransportTests extends ESTestCase {
         );
         blackholedRequestLinks.clear();
 
-        final DiscoveryNode node3 = TestDiscoveryNode.create("node3");
+        final DiscoveryNode node3 = DiscoveryNodeUtils.create("node3");
         assertThat(
             expectThrows(ConnectTransportException.class, () -> AbstractSimpleTransportTestCase.connectToNode(service1, node3))
                 .getMessage(),

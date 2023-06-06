@@ -66,6 +66,10 @@ class EarlyTerminatingCollector extends FilterCollector {
         this.forceTermination = forceTermination;
     }
 
+    Collector getInnerCollector() {
+        return in;
+    }
+
     @Override
     public ScoreMode scoreMode() {
         // Let the query know that this collector doesn't intend to collect all hits.

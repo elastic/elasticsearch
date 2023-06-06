@@ -38,6 +38,7 @@ import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.search.TopFieldCollector;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TopScoreDocCollector;
+import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.search.MaxScoreCollector;
 import org.elasticsearch.common.lucene.Lucene;
@@ -79,7 +80,7 @@ abstract class TopDocsCollectorManagerFactory {
     /**
      * Returns the collector manager used to collect top hits, created depending on the incoming request options
      */
-    CollectorManager<? extends Collector, ?> collectorManager() {
+    CollectorManager<? extends Collector, Void> collectorManager() {
         return new SingleThreadCollectorManager(collector());
     }
 
@@ -96,7 +97,7 @@ abstract class TopDocsCollectorManagerFactory {
 
     static class EmptyTopDocsCollectorManagerFactory extends TopDocsCollectorManagerFactory {
         private final Sort sort;
-        private final CollectorManager<? extends Collector, ?> collectorManager;
+        private final CollectorManager<? extends Collector, Void> collectorManager;
         private final Supplier<TotalHits> hitCountSupplier;
 
         /**
@@ -108,7 +109,7 @@ abstract class TopDocsCollectorManagerFactory {
             super(REASON_SEARCH_COUNT, null);
             this.sort = sortAndFormats == null ? null : sortAndFormats.sort;
             if (trackTotalHitsUpTo == SearchContext.TRACK_TOTAL_HITS_DISABLED) {
-                this.collectorManager = new EarlyTerminatingCollectorManager(new TotalHitCountCollectorManager(), 0);
+                this.collectorManager = new EarlyTerminatingCollectorManager<>(new TotalHitCountCollectorManager(), 0);
                 // for bwc hit count is set to 0, it will be converted to -1 by the coordinating node
                 this.hitCountSupplier = () -> new TotalHits(0, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO);
             } else {
@@ -120,10 +121,8 @@ abstract class TopDocsCollectorManagerFactory {
                         TotalHits.Relation.EQUAL_TO
                     );
                 } else {
-                    EarlyTerminatingCollectorManager earlyTerminatingCollectorManager = new EarlyTerminatingCollectorManager(
-                        totalHitCountCollectorManager,
-                        trackTotalHitsUpTo
-                    );
+                    EarlyTerminatingCollectorManager<TotalHitCountCollector> earlyTerminatingCollectorManager =
+                        new EarlyTerminatingCollectorManager<>(totalHitCountCollectorManager, trackTotalHitsUpTo);
                     this.collectorManager = earlyTerminatingCollectorManager;
                     this.hitCountSupplier = () -> new TotalHits(
                         totalHitCountCollectorManager.getTotalHitCount(),
@@ -141,7 +140,7 @@ abstract class TopDocsCollectorManagerFactory {
         }
 
         @Override
-        CollectorManager<? extends Collector, ?> collectorManager() {
+        CollectorManager<? extends Collector, Void> collectorManager() {
             return collectorManager;
         }
 

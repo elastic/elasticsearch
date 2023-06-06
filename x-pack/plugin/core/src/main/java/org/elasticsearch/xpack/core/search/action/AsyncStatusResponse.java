@@ -84,6 +84,7 @@ public class AsyncStatusResponse extends ActionResponse implements SearchStatusR
         int successfulShards = 0;
         int skippedShards = 0;
         int failedShards = 0;
+        SearchResponse.Clusters clusters = null;
         RestStatus completionStatus = null;
         SearchResponse searchResponse = asyncSearchResponse.getSearchResponse();
         if (searchResponse != null) {
@@ -91,20 +92,19 @@ public class AsyncStatusResponse extends ActionResponse implements SearchStatusR
             successfulShards = searchResponse.getSuccessfulShards();
             skippedShards = searchResponse.getSkippedShards();
             failedShards = searchResponse.getFailedShards();
-        }
-        if (asyncSearchResponse.isRunning() == false) {
-            if (searchResponse != null) {
-                completionStatus = searchResponse.status();
-            } else {
-                Exception failure = asyncSearchResponse.getFailure();
-                if (failure != null) {
-                    completionStatus = ExceptionsHelper.status(ExceptionsHelper.unwrapCause(failure));
-                }
+            if (searchResponse.getClusters() != null && searchResponse.getClusters() != SearchResponse.Clusters.EMPTY) {
+                clusters = searchResponse.getClusters();
             }
         }
-        SearchResponse.Clusters clusters = null;
-        if (searchResponse.getClusters() != null || searchResponse.getClusters() != SearchResponse.Clusters.EMPTY) {
-            clusters = searchResponse.getClusters();
+        if (asyncSearchResponse.isRunning() == false) {
+            Exception failure = asyncSearchResponse.getFailure();
+            if (failure != null) {
+                completionStatus = ExceptionsHelper.status(ExceptionsHelper.unwrapCause(failure));
+            } else if (searchResponse != null) {
+                completionStatus = searchResponse.status();
+            } else {
+                throw new IllegalStateException("Unable to retrieve async_search status. No SearchResponse or Exception could be found.");
+            }
         }
         return new AsyncStatusResponse(
             id,

@@ -191,7 +191,7 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
         var shardId = new ShardId(indexMetadata.getIndex(), 0);
 
         var state = ClusterState.builder(ClusterName.DEFAULT)
-            .nodes(DiscoveryNodes.builder().add(NODE_A).add(NODE_B).add(NODE_C).build())
+            .nodes(DiscoveryNodes.builder().add(NODE_A).add(NODE_C).build())
             .metadata(
                 Metadata.builder()
                     .put(IndexMetadata.builder(indexMetadata))
@@ -208,30 +208,60 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
             )
             .build();
 
-        var allocation = createRoutingAllocation(state);
+        // before replacement node has joined
+        {
+            var allocation = createRoutingAllocation(state);
+            assertThat(indexMetadata.getAutoExpandReplicas().getDesiredNumberOfReplicas(indexMetadata, allocation), equalTo(0));
+            assertThatDecision(
+                decider.shouldAutoExpandToNode(indexMetadata, NODE_A, allocation),
+                Decision.Type.NO,
+                "node [" + NODE_A.getId() + "] is being replaced by [" + NODE_B.getId() + "], shards cannot auto expand to be on it"
+            );
+            assertThat(allocation.getClusterState().nodes().hasByName(NODE_B.getName()), equalTo(false));
+            assertThatDecision(
+                decider.shouldAutoExpandToNode(indexMetadata, NODE_B, allocation),
+                Decision.Type.NO,
+                "node ["
+                    + NODE_B.getId()
+                    + "] is a node replacement target for node ["
+                    + NODE_A.getId()
+                    + "], "
+                    + "shards cannot auto expand to be on it until the replacement is complete"
 
-        // index is already allocated on both nodes
-        assertThat(indexMetadata.getAutoExpandReplicas().getDesiredNumberOfReplicas(indexMetadata, allocation), equalTo(0));
-        assertThatDecision(
-            decider.shouldAutoExpandToNode(indexMetadata, NODE_A, allocation),
-            Decision.Type.NO,
-            "node [" + NODE_A.getId() + "] is being replaced by [" + NODE_B.getId() + "], shards cannot auto expand to be on it"
-        );
-        assertThatDecision(
-            decider.shouldAutoExpandToNode(indexMetadata, NODE_B, allocation),
-            Decision.Type.NO,
-            "node ["
-                + NODE_B.getId()
-                + "] is a node replacement target for node ["
-                + NODE_A.getId()
-                + "], "
-                + "shards cannot auto expand to be on it until the replacement is complete"
+            );
+            assertThat(
+                decider.shouldAutoExpandToNode(indexMetadata, NODE_C, allocation),
+                equalTo(NodeReplacementAllocationDecider.YES__NO_APPLICABLE_REPLACEMENTS)
+            );
+        }
 
-        );
-        assertThat(
-            decider.shouldAutoExpandToNode(indexMetadata, NODE_C, allocation),
-            equalTo(NodeReplacementAllocationDecider.YES__NO_APPLICABLE_REPLACEMENTS)
-        );
+        state = ClusterState.builder(state).nodes(DiscoveryNodes.builder().add(NODE_A).add(NODE_B).add(NODE_C).build()).build();
+
+        // after replacement node has joined
+        {
+            var allocation = createRoutingAllocation(state);
+            assertThat(indexMetadata.getAutoExpandReplicas().getDesiredNumberOfReplicas(indexMetadata, allocation), equalTo(0));
+            assertThatDecision(
+                decider.shouldAutoExpandToNode(indexMetadata, NODE_A, allocation),
+                Decision.Type.NO,
+                "node [" + NODE_A.getId() + "] is being replaced by [" + NODE_B.getId() + "], shards cannot auto expand to be on it"
+            );
+            assertThatDecision(
+                decider.shouldAutoExpandToNode(indexMetadata, NODE_B, allocation),
+                Decision.Type.NO,
+                "node ["
+                    + NODE_B.getId()
+                    + "] is a node replacement target for node ["
+                    + NODE_A.getId()
+                    + "], "
+                    + "shards cannot auto expand to be on it until the replacement is complete"
+
+            );
+            assertThat(
+                decider.shouldAutoExpandToNode(indexMetadata, NODE_C, allocation),
+                equalTo(NodeReplacementAllocationDecider.YES__NO_APPLICABLE_REPLACEMENTS)
+            );
+        }
     }
 
     public void testShouldNotContractAutoExpandReplicasDuringNodeReplacement() {

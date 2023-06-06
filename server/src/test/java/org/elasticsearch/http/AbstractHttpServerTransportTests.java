@@ -1003,18 +1003,20 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
         }
     }
 
-    public void testStopForceClosesConnectionDuringRequest() {
+    public void testStopForceClosesConnectionDuringRequest() throws Exception {
         final Logger mockLogger = LogManager.getLogger(AbstractHttpServerTransport.class);
         Loggers.setLevel(mockLogger, Level.WARN);
         final MockLogAppender appender = new MockLogAppender();
         final var inDispatch = new CountDownLatch(1);
-        final var blockingDispatch = new CountDownLatch(1);
-        try (TestHttpServerTransport transport = new TestHttpServerTransport(gracePeriod(10), () -> {
-            inDispatch.countDown();
-            try {
-                blockingDispatch.await();
-            } catch (InterruptedException ie) {
-                fail("interrupted");
+        try (TestHttpServerTransport transport = new TestHttpServerTransport(gracePeriod(10), new HttpServerTransport.Dispatcher() {
+            @Override
+            public void dispatchRequest(RestRequest request, RestChannel channel, ThreadContext threadContext) {
+                inDispatch.countDown();
+            }
+
+            @Override
+            public void dispatchBadRequest(RestChannel channel, ThreadContext threadContext, Throwable cause) {
+                channel.sendResponse(emptyResponse(RestStatus.BAD_REQUEST));
             }
         })) {
             Loggers.addAppender(mockLogger, appender);
@@ -1037,11 +1039,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 () -> transport.incomingRequest(httpRequest, httpChannel),
                 "testStopForceClosesConnectionDuringRequest -> incomingRequest"
             ).start();
-            try {
-                inDispatch.await();
-            } catch (InterruptedException ie) {
-                fail("interrupted");
-            }
+            inDispatch.await();
             assertTrue(httpChannel.isOpen());
             transport.doStop();
             assertFalse(httpChannel.isOpen());
@@ -1052,7 +1050,6 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
         } finally {
             appender.stop();
             Loggers.removeAppender(mockLogger, appender);
-            blockingDispatch.countDown();
         }
     }
 
@@ -1199,32 +1196,31 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
         public TestHttpChannel testHttpServerChannel = new TestHttpChannel(false);
         public CountDownLatch gracefullyCloseCalled = new CountDownLatch(1);
 
-        TestHttpServerTransport(Settings settings, Runnable dispatchCallback) {
+        TestHttpServerTransport(Settings settings, HttpServerTransport.Dispatcher dispatcher) {
             super(
                 Settings.builder().put(settings).put(SETTING_HTTP_CLIENT_STATS_ENABLED.getKey(), false).build(),
                 AbstractHttpServerTransportTests.this.networkService,
                 AbstractHttpServerTransportTests.this.recycler,
                 AbstractHttpServerTransportTests.this.threadPool,
                 xContentRegistry(),
-                new HttpServerTransport.Dispatcher() {
-                    @Override
-                    public void dispatchRequest(RestRequest request, RestChannel channel, ThreadContext threadContext) {
-                        dispatchCallback.run();
-                        channel.sendResponse(emptyResponse(RestStatus.OK));
-                    }
-
-                    @Override
-                    public void dispatchBadRequest(RestChannel channel, ThreadContext threadContext, Throwable cause) {
-                        channel.sendResponse(emptyResponse(RestStatus.BAD_REQUEST));
-                    }
-                },
+                dispatcher,
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                 Tracer.NOOP
             );
         }
 
         TestHttpServerTransport(Settings settings) {
-            this(settings, () -> {});
+            this(settings, new HttpServerTransport.Dispatcher() {
+                @Override
+                public void dispatchRequest(RestRequest request, RestChannel channel, ThreadContext threadContext) {
+                    channel.sendResponse(emptyResponse(RestStatus.OK));
+                }
+
+                @Override
+                public void dispatchBadRequest(RestChannel channel, ThreadContext threadContext, Throwable cause) {
+                    channel.sendResponse(emptyResponse(RestStatus.BAD_REQUEST));
+                }
+            });
         }
 
         @Override

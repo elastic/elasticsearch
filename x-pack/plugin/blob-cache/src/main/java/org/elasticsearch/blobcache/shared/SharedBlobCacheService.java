@@ -49,6 +49,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -241,6 +242,9 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
     private final ConcurrentHashMap<RegionKey<KeyType>, Entry<CacheFileRegion>> keyMapping;
     private final ThreadPool threadPool;
 
+    // executor to run reading from the blobstore on
+    private final Executor ioExecutor;
+
     private final SharedBytes sharedBytes;
     private final long cacheSize;
     private final long regionSize;
@@ -266,8 +270,9 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
     private final LongAdder evictCount = new LongAdder();
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
-    public SharedBlobCacheService(NodeEnvironment environment, Settings settings, ThreadPool threadPool) {
+    public SharedBlobCacheService(NodeEnvironment environment, Settings settings, ThreadPool threadPool, String ioExecutor) {
         this.threadPool = threadPool;
+        this.ioExecutor = threadPool.executor(ioExecutor);
         long totalFsSize;
         try {
             totalFsSize = FsProbe.getTotal(Environment.getFileStore(environment.nodeDataPaths()[0]));
@@ -750,7 +755,6 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             final ByteRange rangeToRead,
             final RangeAvailableHandler reader,
             final RangeMissingHandler writer,
-            final String executor,
             final ActionListener<Integer> listener
         ) {
             assert rangeToRead.length() > 0;
@@ -790,17 +794,16 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                 );
 
                 if (gaps.isEmpty() == false) {
-                    fillGaps(writer, executor, fileChannel, gaps);
+                    fillGaps(writer, fileChannel, gaps);
                 }
             } catch (Exception e) {
                 releaseAndFail(listener, Releasables.wrap(resources), e);
             }
         }
 
-        private void fillGaps(RangeMissingHandler writer, String executor, SharedBytes.IO fileChannel, List<SparseFileTracker.Gap> gaps) {
-            final var exec = threadPool.executor(executor);
+        private void fillGaps(RangeMissingHandler writer, SharedBytes.IO fileChannel, List<SparseFileTracker.Gap> gaps) {
             for (SparseFileTracker.Gap gap : gaps) {
-                exec.execute(new AbstractRunnable() {
+                ioExecutor.execute(new AbstractRunnable() {
 
                     @Override
                     protected void doRun() throws Exception {
@@ -870,8 +873,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             final ByteRange rangeToWrite,
             final ByteRange rangeToRead,
             final RangeAvailableHandler reader,
-            final RangeMissingHandler writer,
-            final String executor
+            final RangeMissingHandler writer
         ) throws Exception {
             if (rangeToRead.length() == 0L) {
                 // nothing to read, skip
@@ -880,9 +882,9 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             final int startRegion = getRegion(rangeToWrite.start());
             final int endRegion = getEndingRegion(rangeToWrite.end());
             if (startRegion == endRegion) {
-                return readSingleRegion(rangeToWrite, rangeToRead, reader, writer, executor, startRegion);
+                return readSingleRegion(rangeToWrite, rangeToRead, reader, writer, startRegion);
             }
-            return readMultiRegions(rangeToWrite, rangeToRead, reader, writer, executor, startRegion, endRegion);
+            return readMultiRegions(rangeToWrite, rangeToRead, reader, writer, startRegion, endRegion);
         }
 
         private int readSingleRegion(
@@ -890,7 +892,6 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             ByteRange rangeToRead,
             RangeAvailableHandler reader,
             RangeMissingHandler writer,
-            String executor,
             int region
         ) throws InterruptedException, ExecutionException {
             final PlainActionFuture<Integer> readFuture = PlainActionFuture.newFuture();
@@ -901,7 +902,6 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                 mapSubRangeToRegion(rangeToRead, region),
                 readerWithOffset(reader, fileRegion, rangeToRead.start() - regionStart),
                 writerWithOffset(writer, fileRegion, rangeToWrite.start() - regionStart),
-                executor,
                 readFuture
             );
             return readFuture.get();
@@ -912,7 +912,6 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             ByteRange rangeToRead,
             RangeAvailableHandler reader,
             RangeMissingHandler writer,
-            String executor,
             int startRegion,
             int endRegion
         ) throws InterruptedException, ExecutionException {
@@ -932,7 +931,6 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                         subRangeToRead,
                         readerWithOffset(reader, fileRegion, rangeToRead.start() - regionStart),
                         writerWithOffset(writer, fileRegion, rangeToWrite.start() - regionStart),
-                        executor,
                         listeners.acquire(i -> bytesRead.updateAndGet(j -> Math.addExact(i, j)))
                     );
                 }

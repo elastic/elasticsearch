@@ -822,7 +822,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             ActionListener<Integer> listener,
             SharedBytes.IO fileChannel
         ) {
-            return ActionListener.wrap(success -> {
+            return listener.delegateFailureAndWrap((delegate, success) -> {
                 final long physicalStartOffset = physicalStartOffset();
                 assert regionOwners[sharedBytesPos].get() == CacheFileRegion.this;
                 final int read = reader.onRangeAvailable(
@@ -840,8 +840,8 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                         + rangeToRead.start()
                         + ']';
                 readCount.increment();
-                listener.onResponse(read);
-            }, listener::onFailure);
+                delegate.onResponse(read);
+            });
         }
 
         private static void releaseAndFail(ActionListener<Integer> listener, Releasable decrementRef, Exception e) {

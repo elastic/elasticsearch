@@ -106,18 +106,14 @@ public class QueryRulesIndexServiceTests extends ESSingleNodeTestCase {
             "my_rule1",
             QueryRuleType.PINNED,
             List.of(new QueryRuleCriteria(CriteriaType.EXACT, CriteriaMetadata.QUERY_STRING, "foo")),
-            Map.of("docs", List.of(
-                Map.of("_index", "my_index1", "_id", "id1"),
-                Map.of("_index", "my_index2", "_id", "id2")
-            )));
+            Map.of("docs", List.of(Map.of("_index", "my_index1", "_id", "id1"), Map.of("_index", "my_index2", "_id", "id2")))
+        );
         final QueryRule myQueryRule2 = new QueryRule(
             "my_rule2",
             QueryRuleType.PINNED,
             List.of(new QueryRuleCriteria(CriteriaType.EXACT, CriteriaMetadata.QUERY_STRING, "bar")),
-            Map.of("docs", List.of(
-                Map.of("_index", "my_index1", "_id", "id3"),
-                Map.of("_index", "my_index2", "_id", "id4")
-            )));
+            Map.of("docs", List.of(Map.of("_index", "my_index1", "_id", "id3"), Map.of("_index", "my_index2", "_id", "id4")))
+        );
         final QueryRuleset myQueryRuleset = new QueryRuleset("my_ruleset", List.of(myQueryRule1, myQueryRule2));
         IndexResponse newResp = awaitPutQueryRuleset(myQueryRuleset, false);
         assertThat(newResp.status(), equalTo(RestStatus.OK));

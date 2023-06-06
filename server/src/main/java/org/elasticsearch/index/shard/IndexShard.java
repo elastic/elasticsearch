@@ -3836,7 +3836,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      *                 <code>true</code> if the listener was registered to wait for a refresh.
      */
     public final void ensureShardSearchActive(Consumer<Boolean> listener) {
-        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH, ThreadPool.Names.GET);
         markSearcherAccessed(); // move the shard into non-search idle
         final Translog.Location location = pendingRefreshLocation.get();
         if (location != null) {
@@ -3848,7 +3847,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             // (The if statement should avoid doing an additional refresh if scheduled refresh was invoked between getting
             // the current refresh location and adding a refresh listener.)
             if (location == pendingRefreshLocation.get()) {
-                getEngine().maybeRefresh("ensure-shard-search-active");
+                // This method may be called from many different threads including transport_worker threads and
+                // a refresh can be a costly operation, so we should fork to a refresh thread to be safe:
+                threadPool.executor(ThreadPool.Names.REFRESH).execute(() -> {
+                    if (location == pendingRefreshLocation.get()) {
+                        getEngine().maybeRefresh("ensure-shard-search-active");
+                    }
+                });
             }
         } else {
             listener.accept(false);

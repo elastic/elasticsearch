@@ -141,6 +141,11 @@ public class SecurityRestFilter implements RestHandler {
         return restHandler.routes();
     }
 
+    // for testing
+    OperatorPrivileges.OperatorPrivilegesService getOperatorPrivilegesService() {
+        return operatorPrivilegesService;
+    }
+
     private RestRequest maybeWrapRestRequest(RestRequest restRequest) {
         if (restHandler instanceof RestRequestFilter) {
             return ((RestRequestFilter) restHandler).getFilteredRequest(restRequest);

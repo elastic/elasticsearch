@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Median;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.MedianAbsoluteDeviation;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
@@ -287,6 +288,7 @@ public final class PlanNamedTypes {
             of(AggregateFunction.class, Max.class, PlanNamedTypes::writeAggFunction, PlanNamedTypes::readAggFunction),
             of(AggregateFunction.class, Median.class, PlanNamedTypes::writeAggFunction, PlanNamedTypes::readAggFunction),
             of(AggregateFunction.class, MedianAbsoluteDeviation.class, PlanNamedTypes::writeAggFunction, PlanNamedTypes::readAggFunction),
+            of(AggregateFunction.class, Percentile.class, PlanNamedTypes::writePercentile, PlanNamedTypes::readPercentile),
             of(AggregateFunction.class, Sum.class, PlanNamedTypes::writeAggFunction, PlanNamedTypes::readAggFunction),
             // Multivalue functions
             of(ScalarFunction.class, MvAvg.class, PlanNamedTypes::writeMvFunction, PlanNamedTypes::readMvFunction),
@@ -991,6 +993,17 @@ public final class PlanNamedTypes {
     static void writePow(PlanStreamOutput out, Pow pow) throws IOException {
         out.writeExpression(pow.base());
         out.writeExpression(pow.exponent());
+    }
+
+    static Percentile readPercentile(PlanStreamInput in) throws IOException {
+        return new Percentile(Source.EMPTY, in.readExpression(), in.readExpression());
+    }
+
+    static void writePercentile(PlanStreamOutput out, Percentile percentile) throws IOException {
+        List<Expression> fields = percentile.children();
+        assert fields.size() == 2 : "percentile() aggregation must have two arguments";
+        out.writeExpression(fields.get(0));
+        out.writeExpression(fields.get(1));
     }
 
     static StartsWith readStartsWith(PlanStreamInput in) throws IOException {

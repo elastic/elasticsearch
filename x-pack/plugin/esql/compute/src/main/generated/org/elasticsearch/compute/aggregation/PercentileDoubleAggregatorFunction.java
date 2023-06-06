@@ -19,26 +19,26 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.Vector;
 
 /**
- * {@link AggregatorFunction} implementation for {@link MedianDoubleAggregator}.
+ * {@link AggregatorFunction} implementation for {@link PercentileDoubleAggregator}.
  * This class is generated. Do not edit it.
  */
-public final class MedianDoubleAggregatorFunction implements AggregatorFunction {
+public final class PercentileDoubleAggregatorFunction implements AggregatorFunction {
   private final QuantileStates.SingleState state;
 
   private final int channel;
 
   private final Object[] parameters;
 
-  public MedianDoubleAggregatorFunction(int channel, QuantileStates.SingleState state,
+  public PercentileDoubleAggregatorFunction(int channel, QuantileStates.SingleState state,
       Object[] parameters) {
     this.channel = channel;
     this.state = state;
     this.parameters = parameters;
   }
 
-  public static MedianDoubleAggregatorFunction create(BigArrays bigArrays, int channel,
+  public static PercentileDoubleAggregatorFunction create(BigArrays bigArrays, int channel,
       Object[] parameters) {
-    return new MedianDoubleAggregatorFunction(channel, MedianDoubleAggregator.initSingle(), parameters);
+    return new PercentileDoubleAggregatorFunction(channel, PercentileDoubleAggregator.initSingle(parameters), parameters);
   }
 
   @Override
@@ -59,7 +59,7 @@ public final class MedianDoubleAggregatorFunction implements AggregatorFunction 
 
   private void addRawVector(DoubleVector vector) {
     for (int i = 0; i < vector.getPositionCount(); i++) {
-      MedianDoubleAggregator.combine(state, vector.getDouble(i));
+      PercentileDoubleAggregator.combine(state, vector.getDouble(i));
     }
   }
 
@@ -71,7 +71,7 @@ public final class MedianDoubleAggregatorFunction implements AggregatorFunction 
       int start = block.getFirstValueIndex(p);
       int end = start + block.getValueCount(p);
       for (int i = start; i < end; i++) {
-        MedianDoubleAggregator.combine(state, block.getDouble(i));
+        PercentileDoubleAggregator.combine(state, block.getDouble(i));
       }
     }
   }
@@ -86,10 +86,10 @@ public final class MedianDoubleAggregatorFunction implements AggregatorFunction 
     @SuppressWarnings("unchecked") AggregatorStateVector<QuantileStates.SingleState> blobVector = (AggregatorStateVector<QuantileStates.SingleState>) vector;
     // TODO exchange big arrays directly without funny serialization - no more copying
     BigArrays bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
-    QuantileStates.SingleState tmpState = MedianDoubleAggregator.initSingle();
+    QuantileStates.SingleState tmpState = PercentileDoubleAggregator.initSingle(parameters);
     for (int i = 0; i < block.getPositionCount(); i++) {
       blobVector.get(i, tmpState);
-      MedianDoubleAggregator.combineStates(state, tmpState);
+      PercentileDoubleAggregator.combineStates(state, tmpState);
     }
     tmpState.close();
   }
@@ -104,7 +104,7 @@ public final class MedianDoubleAggregatorFunction implements AggregatorFunction 
 
   @Override
   public Block evaluateFinal() {
-    return MedianDoubleAggregator.evaluateFinal(state);
+    return PercentileDoubleAggregator.evaluateFinal(state);
   }
 
   @Override

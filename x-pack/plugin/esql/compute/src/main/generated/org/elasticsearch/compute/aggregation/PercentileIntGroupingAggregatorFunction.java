@@ -19,26 +19,26 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.Vector;
 
 /**
- * {@link GroupingAggregatorFunction} implementation for {@link MedianIntAggregator}.
+ * {@link GroupingAggregatorFunction} implementation for {@link PercentileIntAggregator}.
  * This class is generated. Do not edit it.
  */
-public final class MedianIntGroupingAggregatorFunction implements GroupingAggregatorFunction {
+public final class PercentileIntGroupingAggregatorFunction implements GroupingAggregatorFunction {
   private final QuantileStates.GroupingState state;
 
   private final int channel;
 
   private final Object[] parameters;
 
-  public MedianIntGroupingAggregatorFunction(int channel, QuantileStates.GroupingState state,
+  public PercentileIntGroupingAggregatorFunction(int channel, QuantileStates.GroupingState state,
       Object[] parameters) {
     this.channel = channel;
     this.state = state;
     this.parameters = parameters;
   }
 
-  public static MedianIntGroupingAggregatorFunction create(BigArrays bigArrays, int channel,
+  public static PercentileIntGroupingAggregatorFunction create(BigArrays bigArrays, int channel,
       Object[] parameters) {
-    return new MedianIntGroupingAggregatorFunction(channel, MedianIntAggregator.initGrouping(bigArrays), parameters);
+    return new PercentileIntGroupingAggregatorFunction(channel, PercentileIntAggregator.initGrouping(bigArrays, parameters), parameters);
   }
 
   @Override
@@ -63,7 +63,7 @@ public final class MedianIntGroupingAggregatorFunction implements GroupingAggreg
       int valuesStart = values.getFirstValueIndex(position);
       int valuesEnd = valuesStart + values.getValueCount(position);
       for (int v = valuesStart; v < valuesEnd; v++) {
-        MedianIntAggregator.combine(state, groupId, values.getInt(v));
+        PercentileIntAggregator.combine(state, groupId, values.getInt(v));
       }
     }
   }
@@ -71,7 +71,7 @@ public final class MedianIntGroupingAggregatorFunction implements GroupingAggreg
   private void addRawInput(LongVector groups, IntVector values) {
     for (int position = 0; position < groups.getPositionCount(); position++) {
       int groupId = Math.toIntExact(groups.getLong(position));
-      MedianIntAggregator.combine(state, groupId, values.getInt(position));
+      PercentileIntAggregator.combine(state, groupId, values.getInt(position));
     }
   }
 
@@ -103,7 +103,7 @@ public final class MedianIntGroupingAggregatorFunction implements GroupingAggreg
         int valuesStart = values.getFirstValueIndex(position);
         int valuesEnd = valuesStart + values.getValueCount(position);
         for (int v = valuesStart; v < valuesEnd; v++) {
-          MedianIntAggregator.combine(state, groupId, values.getInt(v));
+          PercentileIntAggregator.combine(state, groupId, values.getInt(v));
         }
       }
     }
@@ -118,7 +118,7 @@ public final class MedianIntGroupingAggregatorFunction implements GroupingAggreg
       int groupEnd = groupStart + groups.getValueCount(position);
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = Math.toIntExact(groups.getLong(g));
-        MedianIntAggregator.combine(state, groupId, values.getInt(position));
+        PercentileIntAggregator.combine(state, groupId, values.getInt(position));
       }
     }
   }
@@ -133,11 +133,11 @@ public final class MedianIntGroupingAggregatorFunction implements GroupingAggreg
     @SuppressWarnings("unchecked") AggregatorStateVector<QuantileStates.GroupingState> blobVector = (AggregatorStateVector<QuantileStates.GroupingState>) vector;
     // TODO exchange big arrays directly without funny serialization - no more copying
     BigArrays bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
-    QuantileStates.GroupingState inState = MedianIntAggregator.initGrouping(bigArrays);
+    QuantileStates.GroupingState inState = PercentileIntAggregator.initGrouping(bigArrays, parameters);
     blobVector.get(0, inState);
     for (int position = 0; position < groupIdVector.getPositionCount(); position++) {
       int groupId = Math.toIntExact(groupIdVector.getLong(position));
-      MedianIntAggregator.combineStates(state, groupId, inState, position);
+      PercentileIntAggregator.combineStates(state, groupId, inState, position);
     }
     inState.close();
   }
@@ -147,8 +147,8 @@ public final class MedianIntGroupingAggregatorFunction implements GroupingAggreg
     if (input.getClass() != getClass()) {
       throw new IllegalArgumentException("expected " + getClass() + "; got " + input.getClass());
     }
-    QuantileStates.GroupingState inState = ((MedianIntGroupingAggregatorFunction) input).state;
-    MedianIntAggregator.combineStates(state, groupId, inState, position);
+    QuantileStates.GroupingState inState = ((PercentileIntGroupingAggregatorFunction) input).state;
+    PercentileIntAggregator.combineStates(state, groupId, inState, position);
   }
 
   @Override
@@ -161,7 +161,7 @@ public final class MedianIntGroupingAggregatorFunction implements GroupingAggreg
 
   @Override
   public Block evaluateFinal(IntVector selected) {
-    return MedianIntAggregator.evaluateFinal(state, selected);
+    return PercentileIntAggregator.evaluateFinal(state, selected);
   }
 
   @Override

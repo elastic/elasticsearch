@@ -12,33 +12,32 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.AggregatorStateVector;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
-import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.Vector;
 
 /**
- * {@link AggregatorFunction} implementation for {@link MedianLongAggregator}.
+ * {@link AggregatorFunction} implementation for {@link PercentileIntAggregator}.
  * This class is generated. Do not edit it.
  */
-public final class MedianLongAggregatorFunction implements AggregatorFunction {
+public final class PercentileIntAggregatorFunction implements AggregatorFunction {
   private final QuantileStates.SingleState state;
 
   private final int channel;
 
   private final Object[] parameters;
 
-  public MedianLongAggregatorFunction(int channel, QuantileStates.SingleState state,
+  public PercentileIntAggregatorFunction(int channel, QuantileStates.SingleState state,
       Object[] parameters) {
     this.channel = channel;
     this.state = state;
     this.parameters = parameters;
   }
 
-  public static MedianLongAggregatorFunction create(BigArrays bigArrays, int channel,
+  public static PercentileIntAggregatorFunction create(BigArrays bigArrays, int channel,
       Object[] parameters) {
-    return new MedianLongAggregatorFunction(channel, MedianLongAggregator.initSingle(), parameters);
+    return new PercentileIntAggregatorFunction(channel, PercentileIntAggregator.initSingle(parameters), parameters);
   }
 
   @Override
@@ -48,8 +47,8 @@ public final class MedianLongAggregatorFunction implements AggregatorFunction {
     if (type == ElementType.NULL) {
       return;
     }
-    LongBlock block = page.getBlock(channel);
-    LongVector vector = block.asVector();
+    IntBlock block = page.getBlock(channel);
+    IntVector vector = block.asVector();
     if (vector != null) {
       addRawVector(vector);
     } else {
@@ -57,13 +56,13 @@ public final class MedianLongAggregatorFunction implements AggregatorFunction {
     }
   }
 
-  private void addRawVector(LongVector vector) {
+  private void addRawVector(IntVector vector) {
     for (int i = 0; i < vector.getPositionCount(); i++) {
-      MedianLongAggregator.combine(state, vector.getLong(i));
+      PercentileIntAggregator.combine(state, vector.getInt(i));
     }
   }
 
-  private void addRawBlock(LongBlock block) {
+  private void addRawBlock(IntBlock block) {
     for (int p = 0; p < block.getPositionCount(); p++) {
       if (block.isNull(p)) {
         continue;
@@ -71,7 +70,7 @@ public final class MedianLongAggregatorFunction implements AggregatorFunction {
       int start = block.getFirstValueIndex(p);
       int end = start + block.getValueCount(p);
       for (int i = start; i < end; i++) {
-        MedianLongAggregator.combine(state, block.getLong(i));
+        PercentileIntAggregator.combine(state, block.getInt(i));
       }
     }
   }
@@ -86,10 +85,10 @@ public final class MedianLongAggregatorFunction implements AggregatorFunction {
     @SuppressWarnings("unchecked") AggregatorStateVector<QuantileStates.SingleState> blobVector = (AggregatorStateVector<QuantileStates.SingleState>) vector;
     // TODO exchange big arrays directly without funny serialization - no more copying
     BigArrays bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
-    QuantileStates.SingleState tmpState = MedianLongAggregator.initSingle();
+    QuantileStates.SingleState tmpState = PercentileIntAggregator.initSingle(parameters);
     for (int i = 0; i < block.getPositionCount(); i++) {
       blobVector.get(i, tmpState);
-      MedianLongAggregator.combineStates(state, tmpState);
+      PercentileIntAggregator.combineStates(state, tmpState);
     }
     tmpState.close();
   }
@@ -104,7 +103,7 @@ public final class MedianLongAggregatorFunction implements AggregatorFunction {
 
   @Override
   public Block evaluateFinal() {
-    return MedianLongAggregator.evaluateFinal(state);
+    return PercentileIntAggregator.evaluateFinal(state);
   }
 
   @Override

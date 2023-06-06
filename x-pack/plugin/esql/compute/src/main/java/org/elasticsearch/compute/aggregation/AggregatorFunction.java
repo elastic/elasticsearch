@@ -22,6 +22,7 @@ import static org.elasticsearch.compute.aggregation.AggregationName.max;
 import static org.elasticsearch.compute.aggregation.AggregationName.median;
 import static org.elasticsearch.compute.aggregation.AggregationName.median_absolute_deviation;
 import static org.elasticsearch.compute.aggregation.AggregationName.min;
+import static org.elasticsearch.compute.aggregation.AggregationName.percentile;
 import static org.elasticsearch.compute.aggregation.AggregationName.sum;
 import static org.elasticsearch.compute.aggregation.AggregationType.agnostic;
 import static org.elasticsearch.compute.aggregation.AggregationType.booleans;
@@ -78,6 +79,7 @@ public interface AggregatorFunction extends Releasable {
                 case median -> MEDIAN_INTS;
                 case median_absolute_deviation -> MEDIAN_ABSOLUTE_DEVIATION_INTS;
                 case min -> MIN_INTS;
+                case percentile -> PERCENTILE_INTS;
                 case sum -> SUM_INTS;
             };
             case longs -> switch (name) {
@@ -88,6 +90,7 @@ public interface AggregatorFunction extends Releasable {
                 case median -> MEDIAN_LONGS;
                 case median_absolute_deviation -> MEDIAN_ABSOLUTE_DEVIATION_LONGS;
                 case min -> MIN_LONGS;
+                case percentile -> PERCENTILE_LONGS;
                 case sum -> SUM_LONGS;
             };
             case doubles -> switch (name) {
@@ -98,6 +101,7 @@ public interface AggregatorFunction extends Releasable {
                 case median -> MEDIAN_DOUBLES;
                 case median_absolute_deviation -> MEDIAN_ABSOLUTE_DEVIATION_DOUBLES;
                 case min -> MIN_DOUBLES;
+                case percentile -> PERCENTILE_DOUBLES;
                 case sum -> SUM_DOUBLES;
             };
         };
@@ -119,9 +123,9 @@ public interface AggregatorFunction extends Releasable {
     Factory MAX_LONGS = new Factory(max, longs, MaxLongAggregatorFunction::create);
     Factory MAX_INTS = new Factory(max, ints, MaxIntAggregatorFunction::create);
 
-    Factory MEDIAN_DOUBLES = new Factory(median, doubles, MedianDoubleAggregatorFunction::create);
-    Factory MEDIAN_LONGS = new Factory(median, longs, MedianLongAggregatorFunction::create);
-    Factory MEDIAN_INTS = new Factory(median, ints, MedianIntAggregatorFunction::create);
+    Factory MEDIAN_DOUBLES = new Factory(median, doubles, PercentileDoubleAggregatorFunction::create);
+    Factory MEDIAN_LONGS = new Factory(median, longs, PercentileLongAggregatorFunction::create);
+    Factory MEDIAN_INTS = new Factory(median, ints, PercentileIntAggregatorFunction::create);
 
     Factory MEDIAN_ABSOLUTE_DEVIATION_DOUBLES = new Factory(
         median_absolute_deviation,
@@ -142,6 +146,10 @@ public interface AggregatorFunction extends Releasable {
     Factory MIN_DOUBLES = new Factory(min, doubles, MinDoubleAggregatorFunction::create);
     Factory MIN_LONGS = new Factory(min, longs, MinLongAggregatorFunction::create);
     Factory MIN_INTS = new Factory(min, ints, MinIntAggregatorFunction::create);
+
+    Factory PERCENTILE_DOUBLES = new Factory(percentile, doubles, PercentileDoubleAggregatorFunction::create);
+    Factory PERCENTILE_LONGS = new Factory(percentile, longs, PercentileLongAggregatorFunction::create);
+    Factory PERCENTILE_INTS = new Factory(percentile, ints, PercentileIntAggregatorFunction::create);
 
     Factory SUM_DOUBLES = new Factory(sum, doubles, SumDoubleAggregatorFunction::create);
     Factory SUM_LONGS = new Factory(sum, longs, SumLongAggregatorFunction::create);

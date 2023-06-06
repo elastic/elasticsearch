@@ -1,0 +1,119 @@
+percentileOfLong
+from employees | stats p0 = percentile(salary_change.long, 0), p50 = percentile(salary_change.long, 50), p99 = percentile(salary_change.long, 99);
+
+p0:double   | p50:double  | p99:double
+-9           | 0           | 14
+;
+
+
+percentileOfInteger
+from employees | stats p0 = percentile(salary, 0), p50 = percentile(salary, 50), p99 = percentile(salary, 99);
+
+p0:double   | p50:double  | p99:double
+25324       | 47003       | 74984.5
+;
+
+
+percentileOfDouble
+from employees | stats p0 = percentile(salary_change, 0), p50 = percentile(salary_change, 50), p99 = percentile(salary_change, 99);
+
+p0:double   | p50:double  | p99:double
+-9.81       | 0.75        | 14.663499999999999
+;
+
+
+percentileOfLongByKeyword
+from employees | stats p90 = percentile(salary_change.long, 90) by job_positions | sort p90 | limit 4;
+
+p90:double         | job_positions:keyword
+ 7                 | "Python Developer"
+10.399999999999999 | "Business Analyst"
+11                 | "Accountant"
+11                 | "Tech Lead"
+;
+
+percentileOfIntegerByKeyword
+from employees | stats p90 = percentile(salary, 90) by job_positions | sort p90 | limit 4;
+
+p90:double      | job_positions:keyword
+53397.8         | "Business Analyst"
+56840.4         | "Support Engineer"
+57565           | "Head Human Resources"
+61358           | "Reporting Analyst"
+;
+
+
+percentileOfDoubleByKeyword
+from employees | stats p90 = percentile(salary_change, 90) by job_positions | sort p90 | limit 4;
+
+p90:double            | job_positions:keyword
+7.652                 | "Python Developer"
+10.994999999999997    | "Business Analyst"
+11.301000000000002    | "Senior Team Lead"
+11.514000000000001    | "Data Scientist"
+;
+
+
+invalidPercentile
+from employees | stats x = percentile(salary_change, 110);
+
+x:double
+NULL
+;
+
+
+medianOfLong
+from employees | stats m = median(salary_change.long), p50 = percentile(salary_change.long, 50);
+
+m:double   | p50:double
+0          | 0 
+;
+
+
+medianOfInteger
+from employees | stats m = median(salary), p50 = percentile(salary, 50);
+
+m:double   | p50:double
+47003       | 47003    
+;
+
+
+medianOfDouble
+from employees | stats m = median(salary_change), p50 = percentile(salary_change, 50);
+
+m:double   | p50:double
+0.75       | 0.75
+;
+
+
+medianOfLongByKeyword
+from employees | stats m = median(salary_change.long), p50 = percentile(salary_change.long, 50) by job_positions | sort m desc | limit 4;
+
+m:double   | p50:double        | job_positions:keyword
+5          | 5                 | "Accountant"
+4.5        | 4.5               | "Reporting Analyst"
+4          | 4                 | "Support Engineer"
+3.5        | 3.5               | "Architect"
+;
+
+
+medianOfIntegerByKeyword
+from employees | stats m = median(salary), p50 = percentile(salary, 50) by job_positions | sort m | limit 4;
+
+m:double   | p50:double      | job_positions:keyword
+38992      | 38992           | "Python Developer"
+39638      | 39638           | "Business Analyst"
+40031      | 40031           | "Tech Lead"
+41933      | 41933           | "Support Engineer"
+;
+
+
+medianOfDoubleByKeyword
+from employees | stats m = median(salary_change), p50 = percentile(salary_change, 50)by job_positions | sort m desc | limit 4;
+
+m:double           | p50:double           | job_positions:keyword
+5.94               | 5.94                 | "Accountant"
+4.87               | 4.87                 | "Reporting Analyst"
+4.62               | 4.62                 | "Support Engineer"
+3.9299999999999997 | 3.9299999999999997   | "Architect"
+;

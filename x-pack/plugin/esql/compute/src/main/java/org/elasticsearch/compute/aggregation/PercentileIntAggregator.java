@@ -15,13 +15,12 @@ import org.elasticsearch.compute.data.IntVector;
 
 @Aggregator
 @GroupingAggregator
-class MedianDoubleAggregator {
-
-    public static QuantileStates.SingleState initSingle() {
-        return new QuantileStates.SingleState();
+class PercentileIntAggregator {
+    public static QuantileStates.SingleState initSingle(Object[] parameters) {
+        return new QuantileStates.SingleState(parameters);
     }
 
-    public static void combine(QuantileStates.SingleState current, double v) {
+    public static void combine(QuantileStates.SingleState current, int v) {
         current.add(v);
     }
 
@@ -30,14 +29,14 @@ class MedianDoubleAggregator {
     }
 
     public static Block evaluateFinal(QuantileStates.SingleState state) {
-        return state.evaluateMedian();
+        return state.evaluatePercentile();
     }
 
-    public static QuantileStates.GroupingState initGrouping(BigArrays bigArrays) {
-        return new QuantileStates.GroupingState(bigArrays);
+    public static QuantileStates.GroupingState initGrouping(BigArrays bigArrays, Object[] parameters) {
+        return new QuantileStates.GroupingState(bigArrays, parameters);
     }
 
-    public static void combine(QuantileStates.GroupingState state, int groupId, double v) {
+    public static void combine(QuantileStates.GroupingState state, int groupId, int v) {
         state.add(groupId, v);
     }
 
@@ -51,6 +50,6 @@ class MedianDoubleAggregator {
     }
 
     public static Block evaluateFinal(QuantileStates.GroupingState state, IntVector selected) {
-        return state.evaluateMedian(selected);
+        return state.evaluatePercentile(selected);
     }
 }

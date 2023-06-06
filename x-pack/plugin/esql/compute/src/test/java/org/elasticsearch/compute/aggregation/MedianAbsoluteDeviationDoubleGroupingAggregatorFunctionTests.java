@@ -21,7 +21,6 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.DoubleStream;
 
-import static org.elasticsearch.compute.aggregation.MedianDoubleGroupingAggregatorFunctionTests.median;
 import static org.hamcrest.Matchers.equalTo;
 
 public class MedianAbsoluteDeviationDoubleGroupingAggregatorFunctionTests extends GroupingAggregatorFunctionTestCase {
@@ -67,5 +66,15 @@ public class MedianAbsoluteDeviationDoubleGroupingAggregatorFunctionTests extend
         double[] data = s.toArray();
         double median = median(Arrays.stream(data));
         return median(Arrays.stream(data).map(d -> Math.abs(median - d)));
+    }
+
+    static double median(DoubleStream s) {
+        // The input data is small enough that tdigest will find the actual median.
+        double[] data = s.sorted().toArray();
+        if (data.length == 0) {
+            return 0;
+        }
+        int c = data.length / 2;
+        return data.length % 2 == 0 ? (data[c - 1] + data[c]) / 2 : data[c];
     }
 }

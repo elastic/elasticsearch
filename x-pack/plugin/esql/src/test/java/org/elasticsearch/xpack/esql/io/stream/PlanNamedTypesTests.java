@@ -19,10 +19,12 @@ import org.elasticsearch.xpack.esql.SerializationTestUtils;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.CountDistinct;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Median;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.MedianAbsoluteDeviation;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pow;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
@@ -438,8 +440,9 @@ public class PlanNamedTypesTests extends ESTestCase {
     }
 
     static AggregateFunction randomAggFunction() {
-        int v = randomIntBetween(0, 6);
+        int v = randomIntBetween(0, 8);
         var field = field(randomName(), randomDataType());
+        var right = field(randomName(), randomDataType());
         return switch (v) {
             case 0 -> new Avg(Source.EMPTY, field);
             case 1 -> new Count(Source.EMPTY, field);
@@ -448,6 +451,8 @@ public class PlanNamedTypesTests extends ESTestCase {
             case 4 -> new Max(Source.EMPTY, field);
             case 5 -> new Median(Source.EMPTY, field);
             case 6 -> new MedianAbsoluteDeviation(Source.EMPTY, field);
+            case 7 -> new CountDistinct(Source.EMPTY, field, right);
+            case 8 -> new Percentile(Source.EMPTY, field, right);
             default -> throw new AssertionError(v);
         };
     }

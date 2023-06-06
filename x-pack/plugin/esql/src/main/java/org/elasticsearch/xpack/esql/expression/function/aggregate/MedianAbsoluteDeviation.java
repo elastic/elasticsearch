@@ -17,7 +17,7 @@ import java.util.List;
 @Experimental
 public class MedianAbsoluteDeviation extends NumericAggregate {
 
-    // TODO: Add paramter
+    // TODO: Add parameter
     public MedianAbsoluteDeviation(Source source, Expression field) {
         super(source, field);
     }

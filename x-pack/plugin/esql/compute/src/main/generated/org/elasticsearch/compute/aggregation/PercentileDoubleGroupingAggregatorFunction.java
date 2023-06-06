@@ -11,6 +11,8 @@ import java.lang.StringBuilder;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.AggregatorStateVector;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
@@ -18,33 +20,33 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.Vector;
 
 /**
- * {@link GroupingAggregatorFunction} implementation for {@link MedianLongAggregator}.
+ * {@link GroupingAggregatorFunction} implementation for {@link PercentileDoubleAggregator}.
  * This class is generated. Do not edit it.
  */
-public final class MedianLongGroupingAggregatorFunction implements GroupingAggregatorFunction {
+public final class PercentileDoubleGroupingAggregatorFunction implements GroupingAggregatorFunction {
   private final QuantileStates.GroupingState state;
 
   private final int channel;
 
   private final Object[] parameters;
 
-  public MedianLongGroupingAggregatorFunction(int channel, QuantileStates.GroupingState state,
+  public PercentileDoubleGroupingAggregatorFunction(int channel, QuantileStates.GroupingState state,
       Object[] parameters) {
     this.channel = channel;
     this.state = state;
     this.parameters = parameters;
   }
 
-  public static MedianLongGroupingAggregatorFunction create(BigArrays bigArrays, int channel,
+  public static PercentileDoubleGroupingAggregatorFunction create(BigArrays bigArrays, int channel,
       Object[] parameters) {
-    return new MedianLongGroupingAggregatorFunction(channel, MedianLongAggregator.initGrouping(bigArrays), parameters);
+    return new PercentileDoubleGroupingAggregatorFunction(channel, PercentileDoubleAggregator.initGrouping(bigArrays, parameters), parameters);
   }
 
   @Override
   public void addRawInput(LongVector groups, Page page) {
-    LongBlock valuesBlock = page.getBlock(channel);
+    DoubleBlock valuesBlock = page.getBlock(channel);
     assert groups.getPositionCount() == page.getPositionCount();
-    LongVector valuesVector = valuesBlock.asVector();
+    DoubleVector valuesVector = valuesBlock.asVector();
     if (valuesVector == null) {
       addRawInput(groups, valuesBlock);
     } else {
@@ -52,7 +54,7 @@ public final class MedianLongGroupingAggregatorFunction implements GroupingAggre
     }
   }
 
-  private void addRawInput(LongVector groups, LongBlock values) {
+  private void addRawInput(LongVector groups, DoubleBlock values) {
     for (int position = 0; position < groups.getPositionCount(); position++) {
       int groupId = Math.toIntExact(groups.getLong(position));
       if (values.isNull(position)) {
@@ -62,23 +64,23 @@ public final class MedianLongGroupingAggregatorFunction implements GroupingAggre
       int valuesStart = values.getFirstValueIndex(position);
       int valuesEnd = valuesStart + values.getValueCount(position);
       for (int v = valuesStart; v < valuesEnd; v++) {
-        MedianLongAggregator.combine(state, groupId, values.getLong(v));
+        PercentileDoubleAggregator.combine(state, groupId, values.getDouble(v));
       }
     }
   }
 
-  private void addRawInput(LongVector groups, LongVector values) {
+  private void addRawInput(LongVector groups, DoubleVector values) {
     for (int position = 0; position < groups.getPositionCount(); position++) {
       int groupId = Math.toIntExact(groups.getLong(position));
-      MedianLongAggregator.combine(state, groupId, values.getLong(position));
+      PercentileDoubleAggregator.combine(state, groupId, values.getDouble(position));
     }
   }
 
   @Override
   public void addRawInput(LongBlock groups, Page page) {
-    LongBlock valuesBlock = page.getBlock(channel);
+    DoubleBlock valuesBlock = page.getBlock(channel);
     assert groups.getPositionCount() == page.getPositionCount();
-    LongVector valuesVector = valuesBlock.asVector();
+    DoubleVector valuesVector = valuesBlock.asVector();
     if (valuesVector == null) {
       addRawInput(groups, valuesBlock);
     } else {
@@ -86,7 +88,7 @@ public final class MedianLongGroupingAggregatorFunction implements GroupingAggre
     }
   }
 
-  private void addRawInput(LongBlock groups, LongBlock values) {
+  private void addRawInput(LongBlock groups, DoubleBlock values) {
     for (int position = 0; position < groups.getPositionCount(); position++) {
       if (groups.isNull(position)) {
         continue;
@@ -102,13 +104,13 @@ public final class MedianLongGroupingAggregatorFunction implements GroupingAggre
         int valuesStart = values.getFirstValueIndex(position);
         int valuesEnd = valuesStart + values.getValueCount(position);
         for (int v = valuesStart; v < valuesEnd; v++) {
-          MedianLongAggregator.combine(state, groupId, values.getLong(v));
+          PercentileDoubleAggregator.combine(state, groupId, values.getDouble(v));
         }
       }
     }
   }
 
-  private void addRawInput(LongBlock groups, LongVector values) {
+  private void addRawInput(LongBlock groups, DoubleVector values) {
     for (int position = 0; position < groups.getPositionCount(); position++) {
       if (groups.isNull(position)) {
         continue;
@@ -117,7 +119,7 @@ public final class MedianLongGroupingAggregatorFunction implements GroupingAggre
       int groupEnd = groupStart + groups.getValueCount(position);
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = Math.toIntExact(groups.getLong(g));
-        MedianLongAggregator.combine(state, groupId, values.getLong(position));
+        PercentileDoubleAggregator.combine(state, groupId, values.getDouble(position));
       }
     }
   }
@@ -132,11 +134,11 @@ public final class MedianLongGroupingAggregatorFunction implements GroupingAggre
     @SuppressWarnings("unchecked") AggregatorStateVector<QuantileStates.GroupingState> blobVector = (AggregatorStateVector<QuantileStates.GroupingState>) vector;
     // TODO exchange big arrays directly without funny serialization - no more copying
     BigArrays bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
-    QuantileStates.GroupingState inState = MedianLongAggregator.initGrouping(bigArrays);
+    QuantileStates.GroupingState inState = PercentileDoubleAggregator.initGrouping(bigArrays, parameters);
     blobVector.get(0, inState);
     for (int position = 0; position < groupIdVector.getPositionCount(); position++) {
       int groupId = Math.toIntExact(groupIdVector.getLong(position));
-      MedianLongAggregator.combineStates(state, groupId, inState, position);
+      PercentileDoubleAggregator.combineStates(state, groupId, inState, position);
     }
     inState.close();
   }
@@ -146,8 +148,8 @@ public final class MedianLongGroupingAggregatorFunction implements GroupingAggre
     if (input.getClass() != getClass()) {
       throw new IllegalArgumentException("expected " + getClass() + "; got " + input.getClass());
     }
-    QuantileStates.GroupingState inState = ((MedianLongGroupingAggregatorFunction) input).state;
-    MedianLongAggregator.combineStates(state, groupId, inState, position);
+    QuantileStates.GroupingState inState = ((PercentileDoubleGroupingAggregatorFunction) input).state;
+    PercentileDoubleAggregator.combineStates(state, groupId, inState, position);
   }
 
   @Override
@@ -160,7 +162,7 @@ public final class MedianLongGroupingAggregatorFunction implements GroupingAggre
 
   @Override
   public Block evaluateFinal(IntVector selected) {
-    return MedianLongAggregator.evaluateFinal(state, selected);
+    return PercentileDoubleAggregator.evaluateFinal(state, selected);
   }
 
   @Override

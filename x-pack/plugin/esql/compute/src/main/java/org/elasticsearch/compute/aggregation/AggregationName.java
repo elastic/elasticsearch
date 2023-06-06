@@ -24,6 +24,8 @@ public enum AggregationName {
 
     min,
 
+    percentile,
+
     sum;
 
     public static AggregationName of(String planName) {
@@ -35,6 +37,7 @@ public enum AggregationName {
             case "median" -> median;
             case "medianabsolutedeviation" -> median_absolute_deviation;
             case "min" -> min;
+            case "percentile" -> percentile;
             case "sum" -> sum;
             default -> throw new UnsupportedOperationException("unknown agg function:" + planName);
         };

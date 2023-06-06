@@ -58,17 +58,34 @@ final class QuantileStates {
         return digest;
     }
 
+    private static Double percentileParam(Object[] parameters) {
+        if (parameters.length == 0) {
+            return MEDIAN; // If there are no parameters, compute the median
+        }
+
+        double p = ((Number) parameters[0]).doubleValue() / 100;
+        // Percentile must be a double between 0 and 100 inclusive
+        // If percentile parameter is wrong, the aggregation will return NULL
+        return 0 <= p && p <= 1 ? p : null;
+    }
+
     static final double DEFAULT_COMPRESSION = 1000.0;
+    private static final double MEDIAN = 0.5;
+    static final Object[] MEDIAN_PARAMS = new Object[] { 50.0 };
 
     static class SingleState implements AggregatorState<SingleState> {
         private TDigestState digest;
+        private final Double percentile;
 
-        SingleState() {
-            this(new TDigestState(DEFAULT_COMPRESSION));
-        }
-
-        SingleState(TDigestState digest) {
-            this.digest = digest;
+        /**
+         *
+         * @param parameters an array of parameters. The first parameter is a double
+         *                   representing the percentile that will be computed.
+         *
+         */
+        SingleState(Object[] parameters) {
+            this.digest = new TDigestState(DEFAULT_COMPRESSION);
+            this.percentile = percentileParam(parameters);
         }
 
         @Override
@@ -90,12 +107,16 @@ final class QuantileStates {
         }
 
         Block evaluateMedianAbsoluteDeviation() {
+            assert percentile == MEDIAN : "Median must be 50th percentile [percentile = " + percentile + "]";
             double result = digest.computeMedianAbsoluteDeviation();
             return DoubleBlock.newConstantBlockWith(result, 1);
         }
 
-        Block evaluateMedian() {
-            double result = digest.quantile(0.5);
+        Block evaluatePercentile() {
+            if (percentile == null) {
+                return DoubleBlock.newBlockBuilder(1).appendNull().build();
+            }
+            double result = digest.quantile(percentile);
             return DoubleBlock.newConstantBlockWith(result, 1);
         }
 
@@ -129,11 +150,13 @@ final class QuantileStates {
         private long largestGroupId = -1;
         private ObjectArray<TDigestState> digests;
         private final BigArrays bigArrays;
+        private final Double percentile;
 
-        GroupingState(BigArrays bigArrays) {
+        GroupingState(BigArrays bigArrays, Object[] parameters) {
             this.bigArrays = bigArrays;
             this.serializer = new GroupingStateSerializer();
             this.digests = bigArrays.newObjectArray(1);
+            this.percentile = percentileParam(parameters);
         }
 
         private TDigestState getOrAddGroup(int groupId) {
@@ -166,6 +189,7 @@ final class QuantileStates {
         }
 
         Block evaluateMedianAbsoluteDeviation(IntVector selected) {
+            assert percentile == MEDIAN : "Median must be 50th percentile [percentile = " + percentile + "]";
             final DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(selected.getPositionCount());
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 final TDigestState digest = digests.get(selected.getInt(i));
@@ -178,12 +202,12 @@ final class QuantileStates {
             return builder.build();
         }
 
-        Block evaluateMedian(IntVector selected) {
+        Block evaluatePercentile(IntVector selected) {
             final DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(selected.getPositionCount());
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 final TDigestState digest = digests.get(selected.getInt(i));
-                if (digest != null && digest.size() > 0) {
-                    builder.appendDouble(digest.quantile(0.5));
+                if (percentile != null && digest != null && digest.size() > 0) {
+                    builder.appendDouble(digest.quantile(percentile));
                 } else {
                     builder.appendNull();
                 }

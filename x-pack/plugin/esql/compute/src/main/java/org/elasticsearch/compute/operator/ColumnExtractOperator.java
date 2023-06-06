@@ -26,7 +26,7 @@ public class ColumnExtractOperator extends AbstractPageMappingOperator {
     ) implements OperatorFactory {
 
         @Override
-        public Operator get() {
+        public Operator get(DriverContext driverContext) {
             return new ColumnExtractOperator(types, inputEvalSupplier.get(), evaluatorSupplier.get());
         }
 

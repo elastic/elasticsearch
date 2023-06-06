@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -35,7 +36,7 @@ public class ExchangeSourceOperator extends SourceOperator {
     public record ExchangeSourceOperatorFactory(Supplier<ExchangeSource> exchangeSources) implements SourceOperatorFactory {
 
         @Override
-        public SourceOperator get() {
+        public SourceOperator get(DriverContext driverContext) {
             return new ExchangeSourceOperator(exchangeSources.get());
         }
 

@@ -28,7 +28,7 @@ public abstract class SinkOperator implements Operator {
      */
     public interface SinkOperatorFactory extends Describable {
         /** Creates a new sink operator. */
-        SinkOperator get();
+        SinkOperator get(DriverContext driverContext);
     }
 
 }

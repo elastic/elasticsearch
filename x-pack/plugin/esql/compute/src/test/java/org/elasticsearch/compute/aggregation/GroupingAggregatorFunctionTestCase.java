@@ -19,6 +19,7 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CannedSourceOperator;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.ForkingOperatorTestCase;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.NullInsertingSourceOperator;
@@ -110,16 +111,18 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
     }
 
     public final void testIgnoresNullGroupsAndValues() {
+        DriverContext driverContext = new DriverContext();
         int end = between(50, 60);
         List<Page> input = CannedSourceOperator.collectPages(new NullInsertingSourceOperator(simpleInput(end)));
-        List<Page> results = drive(simple(nonBreakingBigArrays().withCircuitBreaking()).get(), input.iterator());
+        List<Page> results = drive(simple(nonBreakingBigArrays().withCircuitBreaking()).get(driverContext), input.iterator());
         assertSimpleOutput(input, results);
     }
 
     public final void testIgnoresNullGroups() {
+        DriverContext driverContext = new DriverContext();
         int end = between(50, 60);
         List<Page> input = CannedSourceOperator.collectPages(nullGroups(simpleInput(end)));
-        List<Page> results = drive(simple(nonBreakingBigArrays().withCircuitBreaking()).get(), input.iterator());
+        List<Page> results = drive(simple(nonBreakingBigArrays().withCircuitBreaking()).get(driverContext), input.iterator());
         assertSimpleOutput(input, results);
     }
 
@@ -137,9 +140,10 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
     }
 
     public final void testIgnoresNullValues() {
+        DriverContext driverContext = new DriverContext();
         int end = between(50, 60);
         List<Page> input = CannedSourceOperator.collectPages(nullValues(simpleInput(end)));
-        List<Page> results = drive(simple(nonBreakingBigArrays().withCircuitBreaking()).get(), input.iterator());
+        List<Page> results = drive(simple(nonBreakingBigArrays().withCircuitBreaking()).get(driverContext), input.iterator());
         assertSimpleOutput(input, results);
     }
 
@@ -157,30 +161,34 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
     }
 
     public final void testMultivalued() {
+        DriverContext driverContext = new DriverContext();
         int end = between(1_000, 100_000);
         List<Page> input = CannedSourceOperator.collectPages(mergeValues(simpleInput(end)));
-        List<Page> results = drive(simple(nonBreakingBigArrays().withCircuitBreaking()).get(), input.iterator());
+        List<Page> results = drive(simple(nonBreakingBigArrays().withCircuitBreaking()).get(driverContext), input.iterator());
         assertSimpleOutput(input, results);
     }
 
     public final void testMulitvaluedIgnoresNullGroupsAndValues() {
+        DriverContext driverContext = new DriverContext();
         int end = between(50, 60);
         List<Page> input = CannedSourceOperator.collectPages(new NullInsertingSourceOperator(mergeValues(simpleInput(end))));
-        List<Page> results = drive(simple(nonBreakingBigArrays().withCircuitBreaking()).get(), input.iterator());
+        List<Page> results = drive(simple(nonBreakingBigArrays().withCircuitBreaking()).get(driverContext), input.iterator());
         assertSimpleOutput(input, results);
     }
 
     public final void testMulitvaluedIgnoresNullGroups() {
+        DriverContext driverContext = new DriverContext();
         int end = between(50, 60);
         List<Page> input = CannedSourceOperator.collectPages(nullGroups(mergeValues(simpleInput(end))));
-        List<Page> results = drive(simple(nonBreakingBigArrays().withCircuitBreaking()).get(), input.iterator());
+        List<Page> results = drive(simple(nonBreakingBigArrays().withCircuitBreaking()).get(driverContext), input.iterator());
         assertSimpleOutput(input, results);
     }
 
     public final void testMulitvaluedIgnoresNullValues() {
+        DriverContext driverContext = new DriverContext();
         int end = between(50, 60);
         List<Page> input = CannedSourceOperator.collectPages(nullValues(mergeValues(simpleInput(end))));
-        List<Page> results = drive(simple(nonBreakingBigArrays().withCircuitBreaking()).get(), input.iterator());
+        List<Page> results = drive(simple(nonBreakingBigArrays().withCircuitBreaking()).get(driverContext), input.iterator());
         assertSimpleOutput(input, results);
     }
 

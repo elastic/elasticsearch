@@ -15,6 +15,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.OrdinalsGroupingOperator;
@@ -125,7 +126,7 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
         SourceOperator op = new TestSourceOperator();
 
         @Override
-        public SourceOperator get() {
+        public SourceOperator get(DriverContext driverContext) {
             return op;
         }
 
@@ -190,7 +191,7 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
         }
 
         @Override
-        public Operator get() {
+        public Operator get(DriverContext driverContext) {
             return op;
         }
 
@@ -207,9 +208,10 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
         TestHashAggregationOperator(
             List<GroupingAggregator.GroupingAggregatorFactory> aggregators,
             Supplier<BlockHash> blockHash,
-            String columnName
+            String columnName,
+            DriverContext driverContext
         ) {
-            super(aggregators, blockHash);
+            super(aggregators, blockHash, driverContext);
             this.columnName = columnName;
         }
 
@@ -245,11 +247,12 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
         }
 
         @Override
-        public Operator get() {
+        public Operator get(DriverContext driverContext) {
             return new TestHashAggregationOperator(
                 aggregators,
                 () -> BlockHash.build(List.of(new HashAggregationOperator.GroupSpec(groupByChannel, groupElementType)), bigArrays),
-                columnName
+                columnName,
+                driverContext
             );
         }
 

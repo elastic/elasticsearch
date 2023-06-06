@@ -29,6 +29,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.BlockOrdinalsReader;
 import org.elasticsearch.compute.lucene.ValueSourceInfo;
 import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
+import org.elasticsearch.compute.operator.HashAggregationOperator.GroupSpec;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -58,8 +59,8 @@ public class OrdinalsGroupingOperator implements Operator {
     ) implements OperatorFactory {
 
         @Override
-        public Operator get() {
-            return new OrdinalsGroupingOperator(sources, docChannel, groupingField, aggregators, bigArrays);
+        public Operator get(DriverContext driverContext) {
+            return new OrdinalsGroupingOperator(sources, docChannel, groupingField, aggregators, bigArrays, driverContext);
         }
 
         @Override
@@ -76,6 +77,8 @@ public class OrdinalsGroupingOperator implements Operator {
     private final Map<SegmentID, OrdinalSegmentAggregator> ordinalAggregators;
     private final BigArrays bigArrays;
 
+    private final DriverContext driverContext;
+
     private boolean finished = false;
 
     // used to extract and aggregate values
@@ -86,7 +89,8 @@ public class OrdinalsGroupingOperator implements Operator {
         int docChannel,
         String groupingField,
         List<GroupingAggregatorFactory> aggregatorFactories,
-        BigArrays bigArrays
+        BigArrays bigArrays,
+        DriverContext driverContext
     ) {
         Objects.requireNonNull(aggregatorFactories);
         boolean bytesValues = sources.get(0).source() instanceof ValuesSource.Bytes;
@@ -101,6 +105,7 @@ public class OrdinalsGroupingOperator implements Operator {
         this.aggregatorFactories = aggregatorFactories;
         this.ordinalAggregators = new HashMap<>();
         this.bigArrays = bigArrays;
+        this.driverContext = driverContext;
     }
 
     @Override
@@ -149,7 +154,15 @@ public class OrdinalsGroupingOperator implements Operator {
         } else {
             if (valuesAggregator == null) {
                 int channelIndex = page.getBlockCount(); // extractor will append a new block at the end
-                valuesAggregator = new ValuesAggregator(sources, docChannel, groupingField, channelIndex, aggregatorFactories, bigArrays);
+                valuesAggregator = new ValuesAggregator(
+                    sources,
+                    docChannel,
+                    groupingField,
+                    channelIndex,
+                    aggregatorFactories,
+                    bigArrays,
+                    driverContext
+                );
             }
             valuesAggregator.addInput(page);
         }
@@ -160,7 +173,7 @@ public class OrdinalsGroupingOperator implements Operator {
         List<GroupingAggregator> aggregators = new ArrayList<>(aggregatorFactories.size());
         try {
             for (GroupingAggregatorFactory aggregatorFactory : aggregatorFactories) {
-                aggregators.add(aggregatorFactory.get());
+                aggregators.add(aggregatorFactory.apply(driverContext));
             }
             success = true;
             return aggregators;
@@ -374,12 +387,14 @@ public class OrdinalsGroupingOperator implements Operator {
             String groupingField,
             int channelIndex,
             List<GroupingAggregatorFactory> aggregatorFactories,
-            BigArrays bigArrays
+            BigArrays bigArrays,
+            DriverContext driverContext
         ) {
             this.extractor = new ValuesSourceReaderOperator(sources, docChannel, groupingField);
             this.aggregator = new HashAggregationOperator(
                 aggregatorFactories,
-                () -> BlockHash.build(List.of(new HashAggregationOperator.GroupSpec(channelIndex, sources.get(0).elementType())), bigArrays)
+                () -> BlockHash.build(List.of(new GroupSpec(channelIndex, sources.get(0).elementType())), bigArrays),
+                driverContext
             );
         }
 

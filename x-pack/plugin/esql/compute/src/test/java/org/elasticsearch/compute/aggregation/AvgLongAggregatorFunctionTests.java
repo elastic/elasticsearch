@@ -10,6 +10,7 @@ package org.elasticsearch.compute.aggregation;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.operator.Driver;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.operator.SequenceLongBlockSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
@@ -44,16 +45,19 @@ public class AvgLongAggregatorFunctionTests extends AggregatorFunctionTestCase {
     }
 
     public void testOverflowFails() {
+        DriverContext driverContext = new DriverContext();
         try (
             Driver d = new Driver(
+                driverContext,
                 new SequenceLongBlockSourceOperator(LongStream.of(Long.MAX_VALUE - 1, 2)),
-                List.of(simple(nonBreakingBigArrays()).get()),
+                List.of(simple(nonBreakingBigArrays()).get(driverContext)),
                 new PageConsumerOperator(page -> fail("shouldn't have made it this far")),
                 () -> {}
             )
         ) {
             Exception e = expectThrows(ArithmeticException.class, d::run);
             assertThat(e.getMessage(), equalTo("long overflow"));
+            assertDriverContext(driverContext);
         }
     }
 }

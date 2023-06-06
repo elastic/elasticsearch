@@ -253,7 +253,7 @@ public class TopNOperator implements Operator {
     public record TopNOperatorFactory(int topCount, List<SortOrder> sortOrders) implements OperatorFactory {
 
         @Override
-        public Operator get() {
+        public Operator get(DriverContext driverContext) {
             return new TopNOperator(topCount, sortOrders);
         }
 

@@ -44,7 +44,7 @@ public class AggregationOperator implements Operator {
 
     public record AggregationOperatorFactory(List<AggregatorFactory> aggregators, AggregatorMode mode) implements OperatorFactory {
         @Override
-        public Operator get() {
+        public Operator get(DriverContext driverContext) {
             return new AggregationOperator(aggregators.stream().map(AggregatorFactory::get).toList());
         }
 

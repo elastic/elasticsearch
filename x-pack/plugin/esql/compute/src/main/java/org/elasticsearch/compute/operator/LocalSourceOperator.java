@@ -22,7 +22,7 @@ public class LocalSourceOperator extends SourceOperator {
     public record LocalSourceFactory(Supplier<LocalSourceOperator> factory) implements SourceOperatorFactory {
 
         @Override
-        public SourceOperator get() {
+        public SourceOperator get(DriverContext driverContext) {
             return factory().get();
         }
 

@@ -31,7 +31,7 @@ public class StringExtractOperator extends AbstractPageMappingOperator {
     ) implements OperatorFactory {
 
         @Override
-        public Operator get() {
+        public Operator get(DriverContext driverContext) {
             return new StringExtractOperator(fieldNames, expressionEvaluator.get(), parserSupplier.get());
         }
 

@@ -21,7 +21,7 @@ public class FilterOperator extends AbstractPageMappingOperator {
     public record FilterOperatorFactory(Supplier<EvalOperator.ExpressionEvaluator> evaluatorSupplier) implements OperatorFactory {
 
         @Override
-        public Operator get() {
+        public Operator get(DriverContext driverContext) {
             return new FilterOperator(evaluatorSupplier.get());
         }
 

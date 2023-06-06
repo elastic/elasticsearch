@@ -19,7 +19,7 @@ public class RowOperator extends LocalSourceOperator {
     public record RowOperatorFactory(List<Object> objects) implements SourceOperatorFactory {
 
         @Override
-        public SourceOperator get() {
+        public SourceOperator get(DriverContext driverContext) {
             return new RowOperator(objects);
         }
 

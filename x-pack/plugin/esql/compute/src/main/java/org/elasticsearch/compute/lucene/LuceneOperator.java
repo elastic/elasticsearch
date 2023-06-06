@@ -20,6 +20,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.Nullable;
@@ -136,7 +137,7 @@ public abstract class LuceneOperator extends SourceOperator {
         }
 
         @Override
-        public final SourceOperator get() {
+        public final SourceOperator get(DriverContext driverContext) {
             if (iterator == null) {
                 iterator = sourceOperatorIterator();
             }

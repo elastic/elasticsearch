@@ -15,9 +15,10 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasable;
 
-import java.util.function.Supplier;
+import java.util.function.Function;
 
 @Experimental
 public class GroupingAggregator implements Releasable {
@@ -37,7 +38,7 @@ public class GroupingAggregator implements Releasable {
         Object[] parameters,
         AggregatorMode mode,
         int inputChannel
-    ) implements Supplier<GroupingAggregator>, Describable {
+    ) implements Function<DriverContext, GroupingAggregator>, Describable {
 
         public GroupingAggregatorFactory(
             BigArrays bigArrays,
@@ -59,7 +60,7 @@ public class GroupingAggregator implements Releasable {
         }
 
         @Override
-        public GroupingAggregator get() {
+        public GroupingAggregator apply(DriverContext driverContext) {
             return new GroupingAggregator(bigArrays, GroupingAggregatorFunction.of(aggName, aggType), parameters, mode, inputChannel);
         }
 

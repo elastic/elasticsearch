@@ -11,6 +11,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.util.concurrent.CountDown;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.util.List;
@@ -68,6 +69,9 @@ public abstract class DriverRunner {
 
                 private void done() {
                     if (counter.countDown()) {
+                        for (Driver d : drivers) {
+                            Releasables.close(d.driverContext().getSnapshot().releasables());
+                        }
                         Exception error = failure.get();
                         if (error != null) {
                             listener.onFailure(error);

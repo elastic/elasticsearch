@@ -32,7 +32,7 @@ public class OutputOperator extends SinkOperator {
             SinkOperatorFactory {
 
         @Override
-        public SinkOperator get() {
+        public SinkOperator get(DriverContext driverContext) {
             return new OutputOperator(columns, mapper, pageConsumer);
         }
 

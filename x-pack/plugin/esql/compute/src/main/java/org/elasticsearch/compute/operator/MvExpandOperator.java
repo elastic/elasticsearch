@@ -34,7 +34,7 @@ import java.util.Objects;
 public class MvExpandOperator extends AbstractPageMappingOperator {
     public record Factory(int channel) implements OperatorFactory {
         @Override
-        public Operator get() {
+        public Operator get(DriverContext driverContext) {
             return new MvExpandOperator(channel);
         }
 

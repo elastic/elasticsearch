@@ -29,6 +29,7 @@ import org.elasticsearch.compute.data.LongArrayVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.AggregationOperator;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -131,7 +132,8 @@ public class AggregatorBenchmark {
         GroupingAggregatorFunction.Factory factory = GroupingAggregatorFunction.of(aggName, aggType);
         return new HashAggregationOperator(
             List.of(new GroupingAggregator.GroupingAggregatorFactory(BIG_ARRAYS, factory, AggregatorMode.SINGLE, groups.size())),
-            () -> BlockHash.build(groups, BIG_ARRAYS)
+            () -> BlockHash.build(groups, BIG_ARRAYS),
+            new DriverContext()
         );
     }
 

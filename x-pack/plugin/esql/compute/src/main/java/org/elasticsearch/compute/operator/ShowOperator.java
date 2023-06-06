@@ -21,7 +21,7 @@ public class ShowOperator extends LocalSourceOperator {
         }
 
         @Override
-        public SourceOperator get() {
+        public SourceOperator get(DriverContext driverContext) {
             return new ShowOperator(() -> objects);
         }
     }

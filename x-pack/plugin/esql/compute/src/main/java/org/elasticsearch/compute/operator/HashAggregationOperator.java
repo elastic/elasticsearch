@@ -43,8 +43,8 @@ public class HashAggregationOperator implements Operator {
         BigArrays bigArrays
     ) implements OperatorFactory {
         @Override
-        public Operator get() {
-            return new HashAggregationOperator(aggregators, () -> BlockHash.build(groups, bigArrays));
+        public Operator get(DriverContext driverContext) {
+            return new HashAggregationOperator(aggregators, () -> BlockHash.build(groups, bigArrays), driverContext);
         }
 
         @Override
@@ -63,14 +63,18 @@ public class HashAggregationOperator implements Operator {
 
     private final List<GroupingAggregator> aggregators;
 
-    public HashAggregationOperator(List<GroupingAggregator.GroupingAggregatorFactory> aggregators, Supplier<BlockHash> blockHash) {
+    public HashAggregationOperator(
+        List<GroupingAggregator.GroupingAggregatorFactory> aggregators,
+        Supplier<BlockHash> blockHash,
+        DriverContext driverContext
+    ) {
         state = NEEDS_INPUT;
 
         this.aggregators = new ArrayList<>(aggregators.size());
         boolean success = false;
         try {
             for (GroupingAggregator.GroupingAggregatorFactory a : aggregators) {
-                this.aggregators.add(a.get());
+                this.aggregators.add(a.apply(driverContext));
             }
             this.blockHash = blockHash.get();
             success = true;

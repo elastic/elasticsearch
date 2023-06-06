@@ -91,7 +91,7 @@ public interface Operator extends Releasable {
      */
     interface OperatorFactory extends Describable {
         /** Creates a new intermediate operator. */
-        Operator get();
+        Operator get(DriverContext driverContext);
     }
 
     interface Status extends ToXContentObject, NamedWriteable {}

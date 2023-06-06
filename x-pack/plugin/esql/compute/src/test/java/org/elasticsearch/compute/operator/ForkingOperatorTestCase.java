@@ -50,54 +50,17 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
 
     public final void testInitialFinal() {
         BigArrays bigArrays = nonBreakingBigArrays();
+        DriverContext driverContext = new DriverContext();
         List<Page> input = CannedSourceOperator.collectPages(simpleInput(between(1_000, 100_000)));
         List<Page> results = new ArrayList<>();
 
         try (
             Driver d = new Driver(
-                new CannedSourceOperator(input.iterator()),
-                List.of(simpleWithMode(bigArrays, AggregatorMode.INITIAL).get(), simpleWithMode(bigArrays, AggregatorMode.FINAL).get()),
-                new PageConsumerOperator(page -> results.add(page)),
-                () -> {}
-            )
-        ) {
-            d.run();
-        }
-        assertSimpleOutput(input, results);
-    }
-
-    public final void testManyInitialFinal() {
-        BigArrays bigArrays = nonBreakingBigArrays();
-        List<Page> input = CannedSourceOperator.collectPages(simpleInput(between(1_000, 100_000)));
-
-        List<Page> partials = oneDriverPerPage(input, () -> List.of(simpleWithMode(bigArrays, AggregatorMode.INITIAL).get()));
-
-        List<Page> results = new ArrayList<>();
-        try (
-            Driver d = new Driver(
-                new CannedSourceOperator(partials.iterator()),
-                List.of(simpleWithMode(bigArrays, AggregatorMode.FINAL).get()),
-                new PageConsumerOperator(results::add),
-                () -> {}
-            )
-        ) {
-            d.run();
-        }
-        assertSimpleOutput(input, results);
-    }
-
-    public final void testInitialIntermediateFinal() {
-        BigArrays bigArrays = nonBreakingBigArrays();
-        List<Page> input = CannedSourceOperator.collectPages(simpleInput(between(1_000, 100_000)));
-        List<Page> results = new ArrayList<>();
-
-        try (
-            Driver d = new Driver(
+                driverContext,
                 new CannedSourceOperator(input.iterator()),
                 List.of(
-                    simpleWithMode(bigArrays, AggregatorMode.INITIAL).get(),
-                    simpleWithMode(bigArrays, AggregatorMode.INTERMEDIATE).get(),
-                    simpleWithMode(bigArrays, AggregatorMode.FINAL).get()
+                    simpleWithMode(bigArrays, AggregatorMode.INITIAL).get(driverContext),
+                    simpleWithMode(bigArrays, AggregatorMode.FINAL).get(driverContext)
                 ),
                 new PageConsumerOperator(page -> results.add(page)),
                 () -> {}
@@ -106,24 +69,20 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
             d.run();
         }
         assertSimpleOutput(input, results);
+        assertDriverContext(driverContext);
     }
 
-    public final void testManyInitialManyPartialFinal() {
+    public final void testManyInitialFinal() {
         BigArrays bigArrays = nonBreakingBigArrays();
+        DriverContext driverContext = new DriverContext();
         List<Page> input = CannedSourceOperator.collectPages(simpleInput(between(1_000, 100_000)));
-
-        List<Page> partials = oneDriverPerPage(input, () -> List.of(simpleWithMode(bigArrays, AggregatorMode.INITIAL).get()));
-        Collections.shuffle(partials, random());
-        List<Page> intermediates = oneDriverPerPageList(
-            randomSplits(partials).iterator(),
-            () -> List.of(simpleWithMode(bigArrays, AggregatorMode.INTERMEDIATE).get())
-        );
-
+        List<Page> partials = oneDriverPerPage(input, () -> List.of(simpleWithMode(bigArrays, AggregatorMode.INITIAL).get(driverContext)));
         List<Page> results = new ArrayList<>();
         try (
             Driver d = new Driver(
-                new CannedSourceOperator(intermediates.iterator()),
-                List.of(simpleWithMode(bigArrays, AggregatorMode.FINAL).get()),
+                driverContext,
+                new CannedSourceOperator(partials.iterator()),
+                List.of(simpleWithMode(bigArrays, AggregatorMode.FINAL).get(driverContext)),
                 new PageConsumerOperator(results::add),
                 () -> {}
             )
@@ -131,6 +90,60 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
             d.run();
         }
         assertSimpleOutput(input, results);
+        assertDriverContext(driverContext);
+    }
+
+    public final void testInitialIntermediateFinal() {
+        BigArrays bigArrays = nonBreakingBigArrays();
+        DriverContext driverContext = new DriverContext();
+        List<Page> input = CannedSourceOperator.collectPages(simpleInput(between(1_000, 100_000)));
+        List<Page> results = new ArrayList<>();
+
+        try (
+            Driver d = new Driver(
+                driverContext,
+                new CannedSourceOperator(input.iterator()),
+                List.of(
+                    simpleWithMode(bigArrays, AggregatorMode.INITIAL).get(driverContext),
+                    simpleWithMode(bigArrays, AggregatorMode.INTERMEDIATE).get(driverContext),
+                    simpleWithMode(bigArrays, AggregatorMode.FINAL).get(driverContext)
+                ),
+                new PageConsumerOperator(page -> results.add(page)),
+                () -> {}
+            )
+        ) {
+            d.run();
+        }
+        assertSimpleOutput(input, results);
+        assertDriverContext(driverContext);
+    }
+
+    public final void testManyInitialManyPartialFinal() {
+        BigArrays bigArrays = nonBreakingBigArrays();
+        DriverContext driverContext = new DriverContext();
+        List<Page> input = CannedSourceOperator.collectPages(simpleInput(between(1_000, 100_000)));
+
+        List<Page> partials = oneDriverPerPage(input, () -> List.of(simpleWithMode(bigArrays, AggregatorMode.INITIAL).get(driverContext)));
+        Collections.shuffle(partials, random());
+        List<Page> intermediates = oneDriverPerPageList(
+            randomSplits(partials).iterator(),
+            () -> List.of(simpleWithMode(bigArrays, AggregatorMode.INTERMEDIATE).get(driverContext))
+        );
+
+        List<Page> results = new ArrayList<>();
+        try (
+            Driver d = new Driver(
+                driverContext,
+                new CannedSourceOperator(intermediates.iterator()),
+                List.of(simpleWithMode(bigArrays, AggregatorMode.FINAL).get(driverContext)),
+                new PageConsumerOperator(results::add),
+                () -> {}
+            )
+        ) {
+            d.run();
+        }
+        assertSimpleOutput(input, results);
+        assertDriverContext(driverContext);
     }
 
     // Similar to testManyInitialManyPartialFinal, but uses with the DriverRunner infrastructure
@@ -151,6 +164,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
         runner.runToCompletion(drivers, future);
         future.actionGet(TimeValue.timeValueMinutes(1));
         assertSimpleOutput(input, results);
+        drivers.stream().map(Driver::driverContext).forEach(OperatorTestCase::assertDriverContext);
     }
 
     // Similar to testManyInitialManyPartialFinalRunner, but creates a pipeline that contains an
@@ -172,6 +186,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
         runner.runToCompletion(drivers, future);
         BadException e = expectThrows(BadException.class, () -> future.actionGet(TimeValue.timeValueMinutes(1)));
         assertThat(e.getMessage(), startsWith("bad exception from"));
+        drivers.stream().map(Driver::driverContext).forEach(OperatorTestCase::assertDriverContext);
     }
 
     // Creates a set of drivers that splits the execution into two separate sets of pipelines. The
@@ -199,14 +214,16 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
 
         List<Driver> drivers = new ArrayList<>();
         for (List<Page> pages : splitInput) {
+            DriverContext driver1Context = new DriverContext();
             drivers.add(
                 new Driver(
+                    driver1Context,
                     new CannedSourceOperator(pages.iterator()),
                     List.of(
                         intermediateOperatorItr.next(),
-                        simpleWithMode(bigArrays, AggregatorMode.INITIAL).get(),
+                        simpleWithMode(bigArrays, AggregatorMode.INITIAL).get(driver1Context),
                         intermediateOperatorItr.next(),
-                        simpleWithMode(bigArrays, AggregatorMode.INTERMEDIATE).get(),
+                        simpleWithMode(bigArrays, AggregatorMode.INTERMEDIATE).get(driver1Context),
                         intermediateOperatorItr.next()
                     ),
                     new ExchangeSinkOperator(sinkExchanger.createExchangeSink()),
@@ -214,14 +231,16 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
                 )
             );
         }
+        DriverContext driver2Context = new DriverContext();
         drivers.add(
             new Driver(
+                driver2Context,
                 new ExchangeSourceOperator(sourceExchanger.createExchangeSource()),
                 List.of(
                     intermediateOperatorItr.next(),
-                    simpleWithMode(bigArrays, AggregatorMode.INTERMEDIATE).get(),
+                    simpleWithMode(bigArrays, AggregatorMode.INTERMEDIATE).get(driver2Context),
                     intermediateOperatorItr.next(),
-                    simpleWithMode(bigArrays, AggregatorMode.FINAL).get(),
+                    simpleWithMode(bigArrays, AggregatorMode.FINAL).get(driver2Context),
                     intermediateOperatorItr.next()
                 ),
                 new PageConsumerOperator(results::add),

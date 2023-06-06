@@ -22,6 +22,7 @@ import org.elasticsearch.compute.data.ConstantIntVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Driver;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.DriverRunner;
 import org.elasticsearch.compute.operator.SinkOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
@@ -141,7 +142,7 @@ public class ExchangeServiceTests extends ESTestCase {
         }
 
         @Override
-        public SourceOperator get() {
+        public SourceOperator get(DriverContext driverContext) {
             return new SourceOperator() {
                 @Override
                 public void finish() {
@@ -194,7 +195,7 @@ public class ExchangeServiceTests extends ESTestCase {
         }
 
         @Override
-        public SinkOperator get() {
+        public SinkOperator get(DriverContext driverContext) {
             return new SinkOperator() {
                 private boolean finished = false;
 
@@ -251,13 +252,15 @@ public class ExchangeServiceTests extends ESTestCase {
         for (int i = 0; i < numSinks; i++) {
             String description = "sink-" + i;
             ExchangeSinkOperator sinkOperator = new ExchangeSinkOperator(exchangeSink.get());
-            Driver d = new Driver("test-session:1", () -> description, seqNoGenerator.get(), List.of(), sinkOperator, () -> {});
+            DriverContext dc = new DriverContext();
+            Driver d = new Driver("test-session:1", dc, () -> description, seqNoGenerator.get(dc), List.of(), sinkOperator, () -> {});
             drivers.add(d);
         }
         for (int i = 0; i < numSources; i++) {
             String description = "source-" + i;
             ExchangeSourceOperator sourceOperator = new ExchangeSourceOperator(exchangeSource.get());
-            Driver d = new Driver("test-session:2", () -> description, sourceOperator, List.of(), seqNoCollector.get(), () -> {});
+            DriverContext dc = new DriverContext();
+            Driver d = new Driver("test-session:2", dc, () -> description, sourceOperator, List.of(), seqNoCollector.get(dc), () -> {});
             drivers.add(d);
         }
         PlainActionFuture<Void> future = new PlainActionFuture<>();
@@ -440,7 +443,8 @@ public class ExchangeServiceTests extends ESTestCase {
                 for (int i = 0; i < numSources; i++) {
                     String description = "source-" + i;
                     ExchangeSourceOperator sourceOperator = new ExchangeSourceOperator(sourceHandler.createExchangeSource());
-                    Driver d = new Driver(description, () -> description, sourceOperator, List.of(), seqNoCollector.get(), () -> {});
+                    DriverContext dc = new DriverContext();
+                    Driver d = new Driver(description, dc, () -> description, sourceOperator, List.of(), seqNoCollector.get(dc), () -> {});
                     sourceDrivers.add(d);
                 }
                 new DriverRunner() {
@@ -461,7 +465,8 @@ public class ExchangeServiceTests extends ESTestCase {
                 for (int i = 0; i < numSinks; i++) {
                     String description = "sink-" + i;
                     ExchangeSinkOperator sinkOperator = new ExchangeSinkOperator(sinkHandler.createExchangeSink());
-                    Driver d = new Driver(description, () -> description, seqNoGenerator.get(), List.of(), sinkOperator, () -> {});
+                    DriverContext dc = new DriverContext();
+                    Driver d = new Driver(description, dc, () -> description, seqNoGenerator.get(dc), List.of(), sinkOperator, () -> {});
                     sinkDrivers.add(d);
                 }
                 new DriverRunner() {

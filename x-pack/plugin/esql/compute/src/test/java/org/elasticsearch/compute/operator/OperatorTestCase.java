@@ -25,6 +25,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.matchesPattern;
 
@@ -132,7 +133,8 @@ public abstract class OperatorTestCase extends ESTestCase {
         Operator.OperatorFactory factory = simple(nonBreakingBigArrays());
         String description = factory.describe();
         assertThat(description, equalTo(expectedDescriptionOfSimple()));
-        try (Operator op = factory.get()) {
+        DriverContext driverContext = new DriverContext();
+        try (Operator op = factory.get(driverContext)) {
             if (op instanceof GroupingAggregatorFunction) {
                 assertThat(description, matchesPattern(GROUPING_AGG_FUNCTION_DESCRIBE_PATTERN));
             } else {
@@ -145,7 +147,7 @@ public abstract class OperatorTestCase extends ESTestCase {
      * Makes sure the description of {@link #simple} matches the {@link #expectedDescriptionOfSimple}.
      */
     public final void testSimpleToString() {
-        try (Operator operator = simple(nonBreakingBigArrays()).get()) {
+        try (Operator operator = simple(nonBreakingBigArrays()).get(new DriverContext())) {
             assertThat(operator.toString(), equalTo(expectedToStringOfSimple()));
         }
     }
@@ -173,6 +175,7 @@ public abstract class OperatorTestCase extends ESTestCase {
             List<Page> in = source.next();
             try (
                 Driver d = new Driver(
+                    new DriverContext(),
                     new CannedSourceOperator(in.iterator()),
                     operators.get(),
                     new PageConsumerOperator(result::add),
@@ -187,7 +190,7 @@ public abstract class OperatorTestCase extends ESTestCase {
 
     private void assertSimple(BigArrays bigArrays, int size) {
         List<Page> input = CannedSourceOperator.collectPages(simpleInput(size));
-        List<Page> results = drive(simple(bigArrays.withCircuitBreaking()).get(), input.iterator());
+        List<Page> results = drive(simple(bigArrays.withCircuitBreaking()).get(new DriverContext()), input.iterator());
         assertSimpleOutput(input, results);
     }
 
@@ -195,6 +198,7 @@ public abstract class OperatorTestCase extends ESTestCase {
         List<Page> results = new ArrayList<>();
         try (
             Driver d = new Driver(
+                new DriverContext(),
                 new CannedSourceOperator(input),
                 List.of(operator),
                 new PageConsumerOperator(page -> results.add(page)),
@@ -204,5 +208,10 @@ public abstract class OperatorTestCase extends ESTestCase {
             d.run();
         }
         return results;
+    }
+
+    public static void assertDriverContext(DriverContext driverContext) {
+        assertTrue(driverContext.isFinished());
+        assertThat(driverContext.getSnapshot().releasables(), empty());
     }
 }

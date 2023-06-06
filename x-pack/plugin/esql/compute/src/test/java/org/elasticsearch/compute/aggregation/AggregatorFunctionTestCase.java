@@ -20,6 +20,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.AggregationOperator;
 import org.elasticsearch.compute.operator.CannedSourceOperator;
 import org.elasticsearch.compute.operator.Driver;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.ForkingOperatorTestCase;
 import org.elasticsearch.compute.operator.NullInsertingSourceOperator;
 import org.elasticsearch.compute.operator.Operator;
@@ -91,11 +92,13 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
         int end = between(1_000, 100_000);
         List<Page> results = new ArrayList<>();
         List<Page> input = CannedSourceOperator.collectPages(simpleInput(end));
+        DriverContext driverContext = new DriverContext();
 
         try (
             Driver d = new Driver(
+                driverContext,
                 new NullInsertingSourceOperator(new CannedSourceOperator(input.iterator())),
-                List.of(simple(nonBreakingBigArrays().withCircuitBreaking()).get()),
+                List.of(simple(nonBreakingBigArrays().withCircuitBreaking()).get(driverContext)),
                 new PageConsumerOperator(page -> results.add(page)),
                 () -> {}
             )
@@ -107,16 +110,18 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
 
     public final void testMultivalued() {
         int end = between(1_000, 100_000);
+        DriverContext driverContext = new DriverContext();
         List<Page> input = CannedSourceOperator.collectPages(new PositionMergingSourceOperator(simpleInput(end)));
-        assertSimpleOutput(input, drive(simple(BigArrays.NON_RECYCLING_INSTANCE).get(), input.iterator()));
+        assertSimpleOutput(input, drive(simple(BigArrays.NON_RECYCLING_INSTANCE).get(driverContext), input.iterator()));
     }
 
     public final void testMultivaluedWithNulls() {
         int end = between(1_000, 100_000);
+        DriverContext driverContext = new DriverContext();
         List<Page> input = CannedSourceOperator.collectPages(
             new NullInsertingSourceOperator(new PositionMergingSourceOperator(simpleInput(end)))
         );
-        assertSimpleOutput(input, drive(simple(BigArrays.NON_RECYCLING_INSTANCE).get(), input.iterator()));
+        assertSimpleOutput(input, drive(simple(BigArrays.NON_RECYCLING_INSTANCE).get(driverContext), input.iterator()));
     }
 
     protected static IntStream allValueOffsets(Block input) {

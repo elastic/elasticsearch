@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SinkOperator;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -33,7 +34,7 @@ public class ExchangeSinkOperator extends SinkOperator {
 
     public record ExchangeSinkOperatorFactory(Supplier<ExchangeSink> exchangeSinks) implements SinkOperatorFactory {
         @Override
-        public SinkOperator get() {
+        public SinkOperator get(DriverContext driverContext) {
             return new ExchangeSinkOperator(exchangeSinks.get());
         }
 

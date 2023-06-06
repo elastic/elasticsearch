@@ -13,6 +13,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
@@ -41,6 +42,7 @@ public class Driver implements Runnable, Releasable, Describable {
     public static final TimeValue DEFAULT_TIME_BEFORE_YIELDING = TimeValue.timeValueMillis(200);
 
     private final String sessionId;
+    private final DriverContext driverContext;
     private final Supplier<String> description;
     private final List<Operator> activeOperators;
     private final Releasable releasable;
@@ -51,6 +53,8 @@ public class Driver implements Runnable, Releasable, Describable {
 
     /**
      * Creates a new driver with a chain of operators.
+     * @param sessionId session Id
+     * @param driverContext the driver context
      * @param source source operator
      * @param intermediateOperators  the chain of operators to execute
      * @param sink sink operator
@@ -58,6 +62,7 @@ public class Driver implements Runnable, Releasable, Describable {
      */
     public Driver(
         String sessionId,
+        DriverContext driverContext,
         Supplier<String> description,
         SourceOperator source,
         List<Operator> intermediateOperators,
@@ -65,6 +70,7 @@ public class Driver implements Runnable, Releasable, Describable {
         Releasable releasable
     ) {
         this.sessionId = sessionId;
+        this.driverContext = driverContext;
         this.description = description;
         this.activeOperators = new ArrayList<>();
         this.activeOperators.add(source);
@@ -76,13 +82,24 @@ public class Driver implements Runnable, Releasable, Describable {
 
     /**
      * Creates a new driver with a chain of operators.
+     * @param driverContext the driver context
      * @param source source operator
      * @param intermediateOperators  the chain of operators to execute
      * @param sink sink operator
      * @param releasable a {@link Releasable} to invoked once the chain of operators has run to completion
      */
-    public Driver(SourceOperator source, List<Operator> intermediateOperators, SinkOperator sink, Releasable releasable) {
-        this("unset", () -> null, source, intermediateOperators, sink, releasable);
+    public Driver(
+        DriverContext driverContext,
+        SourceOperator source,
+        List<Operator> intermediateOperators,
+        SinkOperator sink,
+        Releasable releasable
+    ) {
+        this("unset", driverContext, () -> null, source, intermediateOperators, sink, releasable);
+    }
+
+    public DriverContext driverContext() {
+        return driverContext;
     }
 
     /**
@@ -91,9 +108,14 @@ public class Driver implements Runnable, Releasable, Describable {
      * blocked.
      */
     @Override
-    public void run() {   // TODO this is dangerous because it doesn't close the Driver.
-        while (run(TimeValue.MAX_VALUE, Integer.MAX_VALUE) != Operator.NOT_BLOCKED)
-            ;
+    public void run() {
+        try {
+            while (run(TimeValue.MAX_VALUE, Integer.MAX_VALUE) != Operator.NOT_BLOCKED)
+                ;
+        } catch (Exception e) {
+            close();
+            throw e;
+        }
     }
 
     /**
@@ -120,6 +142,7 @@ public class Driver implements Runnable, Releasable, Describable {
         }
         if (isFinished()) {
             status.set(buildStatus(DriverStatus.Status.DONE));  // Report status for the tasks API
+            driverContext.finish();
             releasable.close();
         } else {
             status.set(buildStatus(DriverStatus.Status.RUNNING));  // Report status for the tasks API
@@ -136,7 +159,7 @@ public class Driver implements Runnable, Releasable, Describable {
 
     @Override
     public void close() {
-        Releasables.close(activeOperators);
+        drainAndCloseOperators(null);
     }
 
     private ListenableActionFuture<Void> runSingleLoopIteration() {
@@ -226,16 +249,19 @@ public class Driver implements Runnable, Releasable, Describable {
     }
 
     // Drains all active operators and closes them.
-    private void drainAndCloseOperators(Exception e) {
+    private void drainAndCloseOperators(@Nullable Exception e) {
         Iterator<Operator> itr = activeOperators.iterator();
         while (itr.hasNext()) {
             try {
                 Releasables.closeWhileHandlingException(itr.next());
             } catch (Exception x) {
-                e.addSuppressed(x);
+                if (e != null) {
+                    e.addSuppressed(x);
+                }
             }
             itr.remove();
         }
+        driverContext.finish();
         Releasables.closeWhileHandlingException(releasable);
     }
 

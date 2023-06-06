@@ -38,6 +38,7 @@ import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CannedSourceOperator;
 import org.elasticsearch.compute.operator.Driver;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.OperatorTestCase;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
@@ -208,45 +209,51 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
     }
 
     private void loadSimpleAndAssert(List<Page> input) {
+        DriverContext driverContext = new DriverContext();
         List<Page> results = new ArrayList<>();
         List<Operator> operators = List.of(
             factory(
                 CoreValuesSourceType.NUMERIC,
                 ElementType.INT,
                 new NumberFieldMapper.NumberFieldType("key", NumberFieldMapper.NumberType.INTEGER)
-            ).get(),
+            ).get(driverContext),
             factory(
                 CoreValuesSourceType.NUMERIC,
                 ElementType.LONG,
                 new NumberFieldMapper.NumberFieldType("long", NumberFieldMapper.NumberType.LONG)
-            ).get(),
-            factory(CoreValuesSourceType.KEYWORD, ElementType.BYTES_REF, new KeywordFieldMapper.KeywordFieldType("kwd")).get(),
-            factory(CoreValuesSourceType.KEYWORD, ElementType.BYTES_REF, new KeywordFieldMapper.KeywordFieldType("mv_kwd")).get(),
-            factory(CoreValuesSourceType.BOOLEAN, ElementType.BOOLEAN, new BooleanFieldMapper.BooleanFieldType("bool")).get(),
-            factory(CoreValuesSourceType.BOOLEAN, ElementType.BOOLEAN, new BooleanFieldMapper.BooleanFieldType("mv_bool")).get(),
+            ).get(driverContext),
+            factory(CoreValuesSourceType.KEYWORD, ElementType.BYTES_REF, new KeywordFieldMapper.KeywordFieldType("kwd")).get(driverContext),
+            factory(CoreValuesSourceType.KEYWORD, ElementType.BYTES_REF, new KeywordFieldMapper.KeywordFieldType("mv_kwd")).get(
+                driverContext
+            ),
+            factory(CoreValuesSourceType.BOOLEAN, ElementType.BOOLEAN, new BooleanFieldMapper.BooleanFieldType("bool")).get(driverContext),
+            factory(CoreValuesSourceType.BOOLEAN, ElementType.BOOLEAN, new BooleanFieldMapper.BooleanFieldType("mv_bool")).get(
+                driverContext
+            ),
             factory(
                 CoreValuesSourceType.NUMERIC,
                 ElementType.INT,
                 new NumberFieldMapper.NumberFieldType("mv_key", NumberFieldMapper.NumberType.INTEGER)
-            ).get(),
+            ).get(driverContext),
             factory(
                 CoreValuesSourceType.NUMERIC,
                 ElementType.LONG,
                 new NumberFieldMapper.NumberFieldType("mv_long", NumberFieldMapper.NumberType.LONG)
-            ).get(),
+            ).get(driverContext),
             factory(
                 CoreValuesSourceType.NUMERIC,
                 ElementType.DOUBLE,
                 new NumberFieldMapper.NumberFieldType("double", NumberFieldMapper.NumberType.DOUBLE)
-            ).get(),
+            ).get(driverContext),
             factory(
                 CoreValuesSourceType.NUMERIC,
                 ElementType.DOUBLE,
                 new NumberFieldMapper.NumberFieldType("mv_double", NumberFieldMapper.NumberType.DOUBLE)
-            ).get()
+            ).get(driverContext)
         );
         try (
             Driver d = new Driver(
+                driverContext,
                 new CannedSourceOperator(input.iterator()),
                 operators,
                 new PageConsumerOperator(page -> results.add(page)),
@@ -324,6 +331,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         for (Operator op : operators) {
             assertThat(((ValuesSourceReaderOperator) op).status().pagesProcessed(), equalTo(input.size()));
         }
+        assertDriverContext(driverContext);
     }
 
     public void testValuesSourceReaderOperatorWithNulls() throws IOException {
@@ -355,33 +363,39 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             reader = w.getReader();
         }
 
-        Driver driver = new Driver(
-            new LuceneSourceOperator(reader, 0, new MatchAllDocsQuery()),
-            List.of(
-                factory(CoreValuesSourceType.NUMERIC, ElementType.INT, intFt).get(),
-                factory(CoreValuesSourceType.NUMERIC, ElementType.LONG, longFt).get(),
-                factory(CoreValuesSourceType.NUMERIC, ElementType.DOUBLE, doubleFt).get(),
-                factory(CoreValuesSourceType.KEYWORD, ElementType.BYTES_REF, kwFt).get()
-            ),
-            new PageConsumerOperator(page -> {
-                logger.debug("New page: {}", page);
-                IntBlock intValuesBlock = page.getBlock(1);
-                LongBlock longValuesBlock = page.getBlock(2);
-                DoubleBlock doubleValuesBlock = page.getBlock(3);
-                BytesRefBlock keywordValuesBlock = page.getBlock(4);
+        DriverContext driverContext = new DriverContext();
+        try (
+            Driver driver = new Driver(
+                driverContext,
+                new LuceneSourceOperator(reader, 0, new MatchAllDocsQuery()),
+                List.of(
+                    factory(CoreValuesSourceType.NUMERIC, ElementType.INT, intFt).get(driverContext),
+                    factory(CoreValuesSourceType.NUMERIC, ElementType.LONG, longFt).get(driverContext),
+                    factory(CoreValuesSourceType.NUMERIC, ElementType.DOUBLE, doubleFt).get(driverContext),
+                    factory(CoreValuesSourceType.KEYWORD, ElementType.BYTES_REF, kwFt).get(driverContext)
+                ),
+                new PageConsumerOperator(page -> {
+                    logger.debug("New page: {}", page);
+                    IntBlock intValuesBlock = page.getBlock(1);
+                    LongBlock longValuesBlock = page.getBlock(2);
+                    DoubleBlock doubleValuesBlock = page.getBlock(3);
+                    BytesRefBlock keywordValuesBlock = page.getBlock(4);
 
-                for (int i = 0; i < page.getPositionCount(); i++) {
-                    assertFalse(intValuesBlock.isNull(i));
-                    long j = intValuesBlock.getInt(i);
-                    // Every 100 documents we set fields to null
-                    boolean fieldIsEmpty = j % 100 == 0;
-                    assertEquals(fieldIsEmpty, longValuesBlock.isNull(i));
-                    assertEquals(fieldIsEmpty, doubleValuesBlock.isNull(i));
-                    assertEquals(fieldIsEmpty, keywordValuesBlock.isNull(i));
-                }
-            }),
-            () -> {}
-        );
-        driver.run();
+                    for (int i = 0; i < page.getPositionCount(); i++) {
+                        assertFalse(intValuesBlock.isNull(i));
+                        long j = intValuesBlock.getInt(i);
+                        // Every 100 documents we set fields to null
+                        boolean fieldIsEmpty = j % 100 == 0;
+                        assertEquals(fieldIsEmpty, longValuesBlock.isNull(i));
+                        assertEquals(fieldIsEmpty, doubleValuesBlock.isNull(i));
+                        assertEquals(fieldIsEmpty, keywordValuesBlock.isNull(i));
+                    }
+                }),
+                () -> {}
+            )
+        ) {
+            driver.run();
+        }
+        assertDriverContext(driverContext);
     }
 }

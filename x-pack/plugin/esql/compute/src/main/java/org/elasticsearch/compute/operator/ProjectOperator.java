@@ -23,7 +23,7 @@ public class ProjectOperator extends AbstractPageMappingOperator {
     public record ProjectOperatorFactory(BitSet mask) implements OperatorFactory {
 
         @Override
-        public Operator get() {
+        public Operator get(DriverContext driverContext) {
             return new ProjectOperator(mask);
         }
 

@@ -56,6 +56,7 @@ import org.elasticsearch.compute.lucene.ValueSourceInfo;
 import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
 import org.elasticsearch.compute.operator.Driver;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.LimitOperator;
 import org.elasticsearch.compute.operator.Operator;
@@ -99,6 +100,7 @@ import static org.elasticsearch.compute.aggregation.AggregatorMode.INITIAL;
 import static org.elasticsearch.compute.aggregation.AggregatorMode.INTERMEDIATE;
 import static org.elasticsearch.compute.operator.DriverRunner.runToCompletion;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 
 @Experimental
@@ -125,9 +127,10 @@ public class OperatorTests extends ESTestCase {
             try (IndexReader reader = w.getReader()) {
                 AtomicInteger rowCount = new AtomicInteger();
                 final int limit = randomIntBetween(1, numDocs);
-
+                DriverContext driverContext = new DriverContext();
                 try (
                     Driver driver = new Driver(
+                        driverContext,
                         new LuceneSourceOperator(reader, 0, new MatchAllDocsQuery(), randomIntBetween(1, numDocs), limit),
                         Collections.emptyList(),
                         new PageConsumerOperator(page -> rowCount.addAndGet(page.getPositionCount())),
@@ -137,6 +140,7 @@ public class OperatorTests extends ESTestCase {
                     driver.run();
                 }
                 assertEquals(limit, rowCount.get());
+                assertDriverContext(driverContext);
             }
         }
     }
@@ -160,9 +164,10 @@ public class OperatorTests extends ESTestCase {
                 AtomicInteger rowCount = new AtomicInteger();
                 Sort sort = new Sort(new SortField(fieldName, SortField.Type.LONG));
                 Holder<Long> expectedValue = new Holder<>(0L);
-
+                DriverContext driverContext = new DriverContext();
                 try (
                     Driver driver = new Driver(
+                        driverContext,
                         new LuceneTopNSourceOperator(reader, 0, sort, new MatchAllDocsQuery(), pageSize, limit),
                         List.of(
                             new ValuesSourceReaderOperator(
@@ -187,6 +192,7 @@ public class OperatorTests extends ESTestCase {
                     driver.run();
                 }
                 assertEquals(Math.min(limit, numDocs), rowCount.get());
+                assertDriverContext(driverContext);
             }
         }
     }
@@ -214,6 +220,7 @@ public class OperatorTests extends ESTestCase {
                     )) {
                         drivers.add(
                             new Driver(
+                                new DriverContext(),
                                 luceneSourceOperator,
                                 List.of(
                                     new ValuesSourceReaderOperator(
@@ -232,6 +239,7 @@ public class OperatorTests extends ESTestCase {
                     Releasables.close(drivers);
                 }
                 assertEquals(numDocs, rowCount.get());
+                drivers.stream().map(Driver::driverContext).forEach(OperatorTests::assertDriverContext);
             }
         }
     }
@@ -282,11 +290,12 @@ public class OperatorTests extends ESTestCase {
                             assertTrue("duplicated docId=" + docId, actualDocIds.add(docId));
                         }
                     });
-                    drivers.add(new Driver(queryOperator, List.of(), docCollector, () -> {}));
+                    drivers.add(new Driver(new DriverContext(), queryOperator, List.of(), docCollector, () -> {}));
                 }
                 runToCompletion(threadPool.executor("esql"), drivers);
                 Set<Integer> expectedDocIds = searchForDocIds(reader, query);
                 assertThat("query=" + query + ", partition=" + partition, actualDocIds, equalTo(expectedDocIds));
+                drivers.stream().map(Driver::driverContext).forEach(OperatorTests::assertDriverContext);
             } finally {
                 Releasables.close(drivers);
             }
@@ -312,10 +321,11 @@ public class OperatorTests extends ESTestCase {
         }
     }
 
-    private Operator groupByLongs(BigArrays bigArrays, int channel) {
+    private Operator groupByLongs(BigArrays bigArrays, int channel, DriverContext driverContext) {
         return new HashAggregationOperator(
             List.of(),
-            () -> BlockHash.build(List.of(new HashAggregationOperator.GroupSpec(channel, ElementType.LONG)), bigArrays)
+            () -> BlockHash.build(List.of(new HashAggregationOperator.GroupSpec(channel, ElementType.LONG)), bigArrays),
+            driverContext
         );
     }
 
@@ -347,10 +357,11 @@ public class OperatorTests extends ESTestCase {
                 AtomicInteger pageCount = new AtomicInteger();
                 AtomicInteger rowCount = new AtomicInteger();
                 AtomicReference<Page> lastPage = new AtomicReference<>();
-
+                DriverContext driverContext = new DriverContext();
                 // implements cardinality on value field
                 try (
                     Driver driver = new Driver(
+                        driverContext,
                         new LuceneSourceOperator(reader, 0, new MatchAllDocsQuery()),
                         List.of(
                             new ValuesSourceReaderOperator(
@@ -367,7 +378,8 @@ public class OperatorTests extends ESTestCase {
                                         1
                                     )
                                 ),
-                                () -> BlockHash.build(List.of(new HashAggregationOperator.GroupSpec(1, ElementType.LONG)), bigArrays)
+                                () -> BlockHash.build(List.of(new HashAggregationOperator.GroupSpec(1, ElementType.LONG)), bigArrays),
+                                driverContext
                             ),
                             new HashAggregationOperator(
                                 List.of(
@@ -378,13 +390,15 @@ public class OperatorTests extends ESTestCase {
                                         1
                                     )
                                 ),
-                                () -> BlockHash.build(List.of(new HashAggregationOperator.GroupSpec(0, ElementType.LONG)), bigArrays)
+                                () -> BlockHash.build(List.of(new HashAggregationOperator.GroupSpec(0, ElementType.LONG)), bigArrays),
+                                driverContext
                             ),
                             new HashAggregationOperator(
                                 List.of(
                                     new GroupingAggregator.GroupingAggregatorFactory(bigArrays, GroupingAggregatorFunction.COUNT, FINAL, 1)
                                 ),
-                                () -> BlockHash.build(List.of(new HashAggregationOperator.GroupSpec(0, ElementType.LONG)), bigArrays)
+                                () -> BlockHash.build(List.of(new HashAggregationOperator.GroupSpec(0, ElementType.LONG)), bigArrays),
+                                driverContext
                             )
                         ),
                         new PageConsumerOperator(page -> {
@@ -405,6 +419,7 @@ public class OperatorTests extends ESTestCase {
                 for (int i = 0; i < numDocs; i++) {
                     assertEquals(1, valuesBlock.getLong(i));
                 }
+                assertDriverContext(driverContext);
             }
         }
     }
@@ -475,7 +490,9 @@ public class OperatorTests extends ESTestCase {
             };
 
             try (DirectoryReader reader = writer.getReader()) {
+                DriverContext driverContext = new DriverContext();
                 Driver driver = new Driver(
+                    driverContext,
                     new LuceneSourceOperator(reader, 0, new MatchAllDocsQuery()),
                     List.of(shuffleDocsOperator, new AbstractPageMappingOperator() {
                         @Override
@@ -502,13 +519,15 @@ public class OperatorTests extends ESTestCase {
                             List.of(
                                 new GroupingAggregator.GroupingAggregatorFactory(bigArrays, GroupingAggregatorFunction.COUNT, INITIAL, 1)
                             ),
-                            bigArrays
+                            bigArrays,
+                            driverContext
                         ),
                         new HashAggregationOperator(
                             List.of(
                                 new GroupingAggregator.GroupingAggregatorFactory(bigArrays, GroupingAggregatorFunction.COUNT, FINAL, 1)
                             ),
-                            () -> BlockHash.build(List.of(new HashAggregationOperator.GroupSpec(0, ElementType.BYTES_REF)), bigArrays)
+                            () -> BlockHash.build(List.of(new HashAggregationOperator.GroupSpec(0, ElementType.BYTES_REF)), bigArrays),
+                            driverContext
                         )
                     ),
                     new PageConsumerOperator(page -> {
@@ -523,6 +542,7 @@ public class OperatorTests extends ESTestCase {
                 );
                 driver.run();
                 assertThat(actualCounts, equalTo(expectedCounts));
+                assertDriverContext(driverContext);
             }
         }
     }
@@ -533,11 +553,12 @@ public class OperatorTests extends ESTestCase {
         var values = randomList(positions, positions, ESTestCase::randomLong);
 
         var results = new ArrayList<Long>();
-
+        DriverContext driverContext = new DriverContext();
         try (
             var driver = new Driver(
+                driverContext,
                 new SequenceLongBlockSourceOperator(values, 100),
-                List.of(new LimitOperator(limit)),
+                List.of((new LimitOperator.LimitOperatorFactory(limit)).get(driverContext)),
                 new PageConsumerOperator(page -> {
                     LongBlock block = page.getBlock(0);
                     for (int i = 0; i < page.getPositionCount(); i++) {
@@ -551,6 +572,7 @@ public class OperatorTests extends ESTestCase {
         }
 
         assertThat(results, contains(values.stream().limit(limit).toArray()));
+        assertDriverContext(driverContext);
     }
 
     private static Set<Integer> searchForDocIds(IndexReader reader, Query query) throws IOException {
@@ -641,5 +663,10 @@ public class OperatorTests extends ESTestCase {
      */
     private BigArrays bigArrays() {
         return new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
+    }
+
+    public static void assertDriverContext(DriverContext driverContext) {
+        assertTrue(driverContext.isFinished());
+        assertThat(driverContext.getSnapshot().releasables(), empty());
     }
 }

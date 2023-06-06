@@ -112,7 +112,13 @@ public class AsyncOperatorTests extends ESTestCase {
             }
         });
         PlainActionFuture<Void> future = new PlainActionFuture<>();
-        Driver driver = new Driver(sourceOperator, List.of(asyncOperator), outputOperator, () -> assertFalse(it.hasNext()));
+        Driver driver = new Driver(
+            new DriverContext(),
+            sourceOperator,
+            List.of(asyncOperator),
+            outputOperator,
+            () -> assertFalse(it.hasNext())
+        );
         Driver.start(threadPool.executor("esql_test_executor"), driver, future);
         future.actionGet();
     }

@@ -14,6 +14,7 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CannedSourceOperator;
 import org.elasticsearch.compute.operator.Driver;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.operator.SequenceLongBlockSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
@@ -47,10 +48,12 @@ public class SumLongAggregatorFunctionTests extends AggregatorFunctionTestCase {
     }
 
     public void testOverflowFails() {
+        DriverContext driverContext = new DriverContext();
         try (
             Driver d = new Driver(
+                driverContext,
                 new SequenceLongBlockSourceOperator(LongStream.of(Long.MAX_VALUE - 1, 2)),
-                List.of(simple(nonBreakingBigArrays()).get()),
+                List.of(simple(nonBreakingBigArrays()).get(driverContext)),
                 new PageConsumerOperator(page -> fail("shouldn't have made it this far")),
                 () -> {}
             )
@@ -61,10 +64,12 @@ public class SumLongAggregatorFunctionTests extends AggregatorFunctionTestCase {
     }
 
     public void testRejectsDouble() {
+        DriverContext driverContext = new DriverContext();
         try (
             Driver d = new Driver(
+                driverContext,
                 new CannedSourceOperator(Iterators.single(new Page(new DoubleArrayVector(new double[] { 1.0 }, 1).asBlock()))),
-                List.of(simple(nonBreakingBigArrays()).get()),
+                List.of(simple(nonBreakingBigArrays()).get(driverContext)),
                 new PageConsumerOperator(page -> fail("shouldn't have made it this far")),
                 () -> {}
             )

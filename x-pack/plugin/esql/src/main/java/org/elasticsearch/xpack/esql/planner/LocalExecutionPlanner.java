@@ -16,6 +16,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.DataPartitioning;
 import org.elasticsearch.compute.operator.ColumnExtractOperator;
 import org.elasticsearch.compute.operator.Driver;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator.EvalOperatorFactory;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.FilterOperator.FilterOperatorFactory;
@@ -558,16 +559,16 @@ public class LocalExecutionPlanner {
             this.layout = layout;
         }
 
-        public SourceOperator source() {
-            return sourceOperatorFactory.get();
+        public SourceOperator source(DriverContext driverContext) {
+            return sourceOperatorFactory.get(driverContext);
         }
 
-        public void operators(List<Operator> operators) {
-            intermediateOperatorFactories.stream().map(OperatorFactory::get).forEach(operators::add);
+        public void operators(List<Operator> operators, DriverContext driverContext) {
+            intermediateOperatorFactories.stream().map(opFactory -> opFactory.get(driverContext)).forEach(operators::add);
         }
 
-        public SinkOperator sink() {
-            return sinkOperatorFactory.get();
+        public SinkOperator sink(DriverContext driverContext) {
+            return sinkOperatorFactory.get(driverContext);
         }
 
         @Override
@@ -637,12 +638,13 @@ public class LocalExecutionPlanner {
             List<Operator> operators = new ArrayList<>();
             SinkOperator sink = null;
             boolean success = false;
+            var driverContext = new DriverContext();
             try {
-                source = physicalOperation.source();
-                physicalOperation.operators(operators);
-                sink = physicalOperation.sink();
+                source = physicalOperation.source(driverContext);
+                physicalOperation.operators(operators, driverContext);
+                sink = physicalOperation.sink(driverContext);
                 success = true;
-                return new Driver(sessionId, physicalOperation::describe, source, operators, sink, () -> {});
+                return new Driver(sessionId, driverContext, physicalOperation::describe, source, operators, sink, () -> {});
             } finally {
                 if (false == success) {
                     Releasables.close(source, () -> Releasables.close(operators), sink);

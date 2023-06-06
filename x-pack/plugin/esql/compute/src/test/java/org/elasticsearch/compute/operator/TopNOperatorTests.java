@@ -278,8 +278,10 @@ public class TopNOperatorTests extends OperatorTestCase {
         }
 
         List<List<Object>> actualTop = new ArrayList<>();
+        DriverContext driverContext = new DriverContext();
         try (
             Driver driver = new Driver(
+                driverContext,
                 new CannedSourceOperator(List.of(new Page(blocks.toArray(Block[]::new))).iterator()),
                 List.of(new TopNOperator(topCount, List.of(new TopNOperator.SortOrder(0, false, false)))),
                 new PageConsumerOperator(page -> readInto(actualTop, page)),
@@ -290,6 +292,7 @@ public class TopNOperatorTests extends OperatorTestCase {
         }
 
         assertMap(actualTop, matchesList(expectedTop));
+        assertDriverContext(driverContext);
     }
 
     public void testCollectAllValues_RandomMultiValues() {
@@ -342,9 +345,11 @@ public class TopNOperatorTests extends OperatorTestCase {
             expectedTop.add(eTop);
         }
 
+        DriverContext driverContext = new DriverContext();
         List<List<Object>> actualTop = new ArrayList<>();
         try (
             Driver driver = new Driver(
+                driverContext,
                 new CannedSourceOperator(List.of(new Page(blocks.toArray(Block[]::new))).iterator()),
                 List.of(new TopNOperator(topCount, List.of(new TopNOperator.SortOrder(0, false, false)))),
                 new PageConsumerOperator(page -> readInto(actualTop, page)),
@@ -355,6 +360,7 @@ public class TopNOperatorTests extends OperatorTestCase {
         }
 
         assertMap(actualTop, matchesList(expectedTop));
+        assertDriverContext(driverContext);
     }
 
     private List<Tuple<Long, Long>> topNTwoColumns(
@@ -362,9 +368,11 @@ public class TopNOperatorTests extends OperatorTestCase {
         int limit,
         List<TopNOperator.SortOrder> sortOrders
     ) {
+        DriverContext driverContext = new DriverContext();
         List<Tuple<Long, Long>> outputValues = new ArrayList<>();
         try (
             Driver driver = new Driver(
+                driverContext,
                 new TupleBlockSourceOperator(inputValues, randomIntBetween(1, 1000)),
                 List.of(new TopNOperator(limit, sortOrders)),
                 new PageConsumerOperator(page -> {
@@ -380,6 +388,7 @@ public class TopNOperatorTests extends OperatorTestCase {
             driver.run();
         }
         assertThat(outputValues, hasSize(Math.min(limit, inputValues.size())));
+        assertDriverContext(driverContext);
         return outputValues;
     }
 
@@ -392,7 +401,7 @@ public class TopNOperatorTests extends OperatorTestCase {
             .stream()
             .collect(Collectors.joining(", "));
         assertThat(factory.describe(), equalTo("TopNOperator[count = 10, sortOrders = [" + sorts + "]]"));
-        try (Operator operator = factory.get()) {
+        try (Operator operator = factory.get(new DriverContext())) {
             assertThat(operator.toString(), equalTo("TopNOperator[count = 0/10, sortOrders = [" + sorts + "]]"));
         }
     }

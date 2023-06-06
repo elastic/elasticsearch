@@ -23,7 +23,7 @@ public class EvalOperator extends AbstractPageMappingOperator {
     public record EvalOperatorFactory(Supplier<ExpressionEvaluator> evaluator) implements OperatorFactory {
 
         @Override
-        public Operator get() {
+        public Operator get(DriverContext driverContext) {
             return new EvalOperator(evaluator.get());
         }
 

@@ -21,7 +21,7 @@ public final class EmptySourceOperator extends SourceOperator {
         }
 
         @Override
-        public SourceOperator get() {
+        public SourceOperator get(DriverContext driverContext) {
             return new EmptySourceOperator();
         }
     }

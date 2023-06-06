@@ -18,6 +18,7 @@ import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -47,7 +48,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
         implements
             OperatorFactory {
         @Override
-        public Operator get() {
+        public Operator get(DriverContext driverContext) {
             return new ValuesSourceReaderOperator(sources, docChannel, field);
         }
 

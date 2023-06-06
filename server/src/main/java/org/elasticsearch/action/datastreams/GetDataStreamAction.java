@@ -71,11 +71,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             super(in);
             this.names = in.readOptionalStringArray();
             this.indicesOptions = IndicesOptions.readIndicesOptions(in);
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0) && false) {
-                this.includeDefaults = in.readBoolean();
-            } else {
-                this.includeDefaults = false;
-            }
+            this.includeDefaults = false;
         }
 
         @Override
@@ -83,9 +79,6 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             super.writeTo(out);
             out.writeOptionalStringArray(names);
             indicesOptions.writeIndicesOptions(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0) && false) {
-                out.writeBoolean(includeDefaults);
-            }
         }
 
         @Override
@@ -339,9 +332,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
         public Response(StreamInput in) throws IOException {
             this(
                 in.readList(DataStreamInfo::new),
-                in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0) && false
-                    ? in.readOptionalWriteable(RolloverConfiguration::new)
-                    : null
+                null
             );
         }
 
@@ -357,9 +348,6 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeList(dataStreams);
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0) && false) {
-                out.writeOptionalWriteable(rolloverConfiguration);
-            }
         }
 
         @Override

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
@@ -132,11 +131,7 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
         } else {
             this.aliases = null;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0) && false) {
-            this.lifecycle = in.readOptionalWriteable(DataLifecycle::new);
-        } else {
-            this.lifecycle = null;
-        }
+        this.lifecycle = null;
     }
 
     @Nullable
@@ -178,9 +173,6 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
         } else {
             out.writeBoolean(true);
             out.writeMap(this.aliases, StreamOutput::writeString, (stream, aliasMetadata) -> aliasMetadata.writeTo(stream));
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0) && false) {
-            out.writeOptionalWriteable(lifecycle);
         }
     }
 

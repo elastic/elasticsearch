@@ -57,20 +57,13 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
         public Request(StreamInput in) throws IOException {
             super(in);
             name = in.readOptionalString();
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0) && false) {
-                includeDefaults = in.readBoolean();
-            } else {
-                includeDefaults = false;
-            }
+            includeDefaults = false;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeOptionalString(name);
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0) && false) {
-                out.writeBoolean(includeDefaults);
-            }
         }
 
         @Override

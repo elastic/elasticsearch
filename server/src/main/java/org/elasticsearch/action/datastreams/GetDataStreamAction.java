@@ -330,10 +330,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
         }
 
         public Response(StreamInput in) throws IOException {
-            this(
-                in.readList(DataStreamInfo::new),
-                null
-            );
+            this(in.readList(DataStreamInfo::new), null);
         }
 
         public List<DataStreamInfo> getDataStreams() {

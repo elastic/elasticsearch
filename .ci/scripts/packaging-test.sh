@@ -42,6 +42,7 @@ if [ -f "/etc/os-release" ] ; then
         # Work around incorrect lintian version
         #  https://github.com/elastic/elasticsearch/issues/48573
         if [ $VERSION_ID == 10 ] ; then
+            sudo apt-get update -y
             sudo apt-get install -y --allow-downgrades lintian=2.15.0
         fi
     fi

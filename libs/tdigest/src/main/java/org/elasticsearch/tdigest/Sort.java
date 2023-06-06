@@ -22,7 +22,6 @@
 package org.elasticsearch.tdigest;
 
 import java.util.Arrays;
-import java.util.Locale;
 import java.util.Random;
 
 /**
@@ -38,7 +37,6 @@ public class Sort {
      * @param values  The values to sort.
      * @param n       The number of values to sort
      */
-    @SuppressWarnings("WeakerAccess")
     public static void stableSort(int[] order, double[] values, int n) {
         for (int i = 0; i < n; i++) {
             order[i] = i;
@@ -56,7 +54,6 @@ public class Sort {
      * @param n       The number of values to sort
      * @return true if the values were already sorted
      */
-    @SuppressWarnings("WeakerAccess")
     public static boolean sort(int[] order, double[] values, double[] weights, int n) {
         if (weights == null) {
             weights = Arrays.copyOf(values, values.length);
@@ -128,7 +125,6 @@ public class Sort {
      * @param n       The number of values to sort
      * @return True if the values were in order without sorting
      */
-    @SuppressWarnings("WeakerAccess")
     private static boolean sort(int[] order, double[] values, double[] weights, int start, int n) {
         boolean inOrder = true;
         for (int i = start; i < start + n; i++) {
@@ -345,7 +341,6 @@ public class Sort {
      * @param key    Values to sort on
      * @param values The auxiliary values to sort.
      */
-    @SuppressWarnings("WeakerAccess")
     public static void sort(double[] key, double[]... values) {
         sort(key, 0, key.length, values);
     }
@@ -358,7 +353,6 @@ public class Sort {
      * @param n      The number of values to sort
      * @param values The auxiliary values to sort.
      */
-    @SuppressWarnings("WeakerAccess")
     public static void sort(double[] key, int start, int n, double[]... values) {
         quickSort(key, values, start, start + n, 8);
         insertionSort(key, values, start, start + n, 8);
@@ -507,7 +501,6 @@ public class Sort {
      * @param end    The ending point of the sort
      * @param limit  The largest amount of disorder
      */
-    @SuppressWarnings("SameParameterValue")
     private static void insertionSort(double[] key, double[][] values, int start, int end, int limit) {
         // loop invariant: all values start ... i-1 are ordered
         for (int i = start + 1; i < end; i++) {
@@ -549,48 +542,6 @@ public class Sort {
     }
 
     /**
-     * Check that a partition step was done correctly.  For debugging and testing.
-     *
-     * @param order      The array of indexes representing a permutation of the keys.
-     * @param values     The keys to sort.
-     * @param pivotValue The value that splits the data
-     * @param start      The beginning of the data of interest.
-     * @param low        Values from start (inclusive) to low (exclusive) are &lt; pivotValue.
-     * @param high       Values from low to high are equal to the pivot.
-     * @param end        Values from high to end are above the pivot.
-     */
-    @SuppressWarnings("UnusedDeclaration")
-    public static void checkPartition(int[] order, double[] values, double pivotValue, int start, int low, int high, int end) {
-        if (order.length != values.length) {
-            throw new IllegalArgumentException("Arguments must be same size");
-        }
-
-        if ((start >= 0 && low >= start && high >= low && end >= high) == false) {
-            throw new IllegalArgumentException(String.format(Locale.ROOT, "Invalid indices %d, %d, %d, %d", start, low, high, end));
-        }
-
-        for (int i = 0; i < low; i++) {
-            double v = values[order[i]];
-            if (v >= pivotValue) {
-                throw new IllegalArgumentException(String.format(Locale.ROOT, "Value greater than pivot at %d", i));
-            }
-        }
-
-        for (int i = low; i < high; i++) {
-            if (values[order[i]] != pivotValue) {
-                throw new IllegalArgumentException(String.format(Locale.ROOT, "Non-pivot at %d", i));
-            }
-        }
-
-        for (int i = high; i < end; i++) {
-            double v = values[order[i]];
-            if (v <= pivotValue) {
-                throw new IllegalArgumentException(String.format(Locale.ROOT, "Value less than pivot at %d", i));
-            }
-        }
-    }
-
-    /**
      * Limited range insertion sort with primary and secondary key.  We assume that no
      * element has to move more than limit steps because quick sort has done its thing.
      *
@@ -605,7 +556,6 @@ public class Sort {
      * @param n       How many elements to sort
      * @param limit   The largest amount of disorder
      */
-    @SuppressWarnings("SameParameterValue")
     private static void insertionSort(int[] order, double[] values, double[] weights, int start, int n, int limit) {
         for (int i = start + 1; i < n; i++) {
             int t = order[i];
@@ -637,7 +587,6 @@ public class Sort {
      * @param n       How many elements to sort
      * @param limit   The largest amount of disorder
      */
-    @SuppressWarnings("SameParameterValue")
     private static void stableInsertionSort(int[] order, double[] values, int start, int n, int limit) {
         for (int i = start + 1; i < n; i++) {
             int t = order[i];
@@ -663,7 +612,6 @@ public class Sort {
      *
      * @param order The array to reverse
      */
-    @SuppressWarnings("WeakerAccess")
     public static void reverse(int[] order) {
         reverse(order, 0, order.length);
     }
@@ -675,7 +623,6 @@ public class Sort {
      * @param offset Where to start reversing.
      * @param length How many elements to reverse
      */
-    @SuppressWarnings("WeakerAccess")
     public static void reverse(int[] order, int offset, int length) {
         for (int i = 0; i < length / 2; i++) {
             int t = order[offset + i];
@@ -691,7 +638,6 @@ public class Sort {
      * @param offset Where to start reversing.
      * @param length How many elements to reverse
      */
-    @SuppressWarnings({ "WeakerAccess", "SameParameterValue" })
     public static void reverse(double[] order, int offset, int length) {
         for (int i = 0; i < length / 2; i++) {
             double t = order[offset + i];

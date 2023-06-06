@@ -31,24 +31,22 @@ import java.util.TreeMap;
 
 public class IntAVLTreeTests extends ESTestCase {
 
-    static class IntBag extends IntAVLTree {
+    static class IntegerBag extends IntAVLTree {
 
         int value;
         int[] values;
         int[] counts;
 
-        IntBag() {
+        IntegerBag() {
             values = new int[capacity()];
             counts = new int[capacity()];
         }
 
-        @SuppressWarnings("WeakerAccess")
         public boolean addValue(int value) {
             this.value = value;
             return super.add();
         }
 
-        @SuppressWarnings("WeakerAccess")
         public boolean removeValue(int value) {
             this.value = value;
             final int node = find();
@@ -89,7 +87,7 @@ public class IntAVLTreeTests extends ESTestCase {
     public void testDualAdd() {
         Random r = random();
         TreeMap<Integer, Integer> map = new TreeMap<>();
-        IntBag bag = new IntBag();
+        IntegerBag bag = new IntegerBag();
         for (int i = 0; i < 100000; ++i) {
             final int v = r.nextInt(100000);
             if (map.containsKey(v)) {
@@ -112,7 +110,7 @@ public class IntAVLTreeTests extends ESTestCase {
     public void testDualAddRemove() {
         Random r = random();
         TreeMap<Integer, Integer> map = new TreeMap<>();
-        IntBag bag = new IntBag();
+        IntegerBag bag = new IntegerBag();
         for (int i = 0; i < 100000; ++i) {
             final int v = r.nextInt(1000);
             if (r.nextBoolean()) {

@@ -10,8 +10,6 @@ package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
-import jdk.jfr.Description;
-
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.DoublePoint;
 import org.apache.lucene.document.FloatPoint;
@@ -747,14 +745,14 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         }
     }
 
-    public void testFieldFamilyTypeIsReportedCorrectly(){
+    public void testFieldFamilyTypeIsReportedCorrectly() {
         for (NumberFieldMapper.NumberType type : NumberFieldMapper.NumberType.values()) {
             NumberFieldMapper.NumberFieldType fieldType = new NumberFieldMapper.NumberFieldType("field", type);
             var floatFamilyTypes = Set.of(NumberType.FLOAT.typeName(), NumberType.HALF_FLOAT.typeName());
-            if (floatFamilyTypes.contains(fieldType.typeName())){
+            if (floatFamilyTypes.contains(fieldType.typeName())) {
                 assertEquals(NumberType.FLOAT.typeName(), type.familyTypeName());
-            }else{
-                assertEquals(type.typeName(),type.familyTypeName());
+            } else {
+                assertEquals(type.typeName(), type.familyTypeName());
             }
         }
     }

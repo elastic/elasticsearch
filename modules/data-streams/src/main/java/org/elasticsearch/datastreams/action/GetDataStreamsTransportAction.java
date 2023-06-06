@@ -129,10 +129,14 @@ public class GetDataStreamsTransportAction extends TransportMasterNodeReadAction
             if (dataStream.getIndexMode() == IndexMode.TIME_SERIES) {
                 List<Tuple<Instant, Instant>> ranges = new ArrayList<>();
                 Tuple<Instant, Instant> current = null;
+                String previousIndexName = null;
                 for (Index index : dataStream.getIndices()) {
                     IndexMetadata metadata = state.getMetadata().index(index);
-                    Instant start = IndexSettings.TIME_SERIES_START_TIME.get(metadata.getSettings());
-                    Instant end = IndexSettings.TIME_SERIES_END_TIME.get(metadata.getSettings());
+                    if (metadata.getIndexMode() != IndexMode.TIME_SERIES) {
+                        continue;
+                    }
+                    Instant start = metadata.getTimeSeriesStart();
+                    Instant end = metadata.getTimeSeriesEnd();
                     if (current == null) {
                         current = new Tuple<>(start, end);
                     } else if (current.v2().compareTo(start) == 0) {
@@ -142,10 +146,14 @@ public class GetDataStreamsTransportAction extends TransportMasterNodeReadAction
                         current = new Tuple<>(start, end);
                     } else {
                         String message = "previous backing index ["
+                            + previousIndexName
+                            + "] range ["
                             + current.v1()
                             + "/"
                             + current.v2()
-                            + "] range is colliding with current backing index range ["
+                            + "] range is colliding with current backing ["
+                            + index.getName()
+                            + "] index range ["
                             + start
                             + "/"
                             + end
@@ -153,6 +161,7 @@ public class GetDataStreamsTransportAction extends TransportMasterNodeReadAction
                         assert current.v2().compareTo(start) < 0 : message;
                         LOGGER.warn(message);
                     }
+                    previousIndexName = index.getName();
                 }
                 if (current != null) {
                     ranges.add(current);

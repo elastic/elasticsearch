@@ -17,7 +17,7 @@ import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.TimeValue;
@@ -87,8 +87,8 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
         if (request.getWaitForCompletion()) {
             final ListenableActionFuture<List<Task>> future = new ListenableActionFuture<>();
             final List<Task> processedTasks = new ArrayList<>();
-            final Set<Task> removedTasks = Sets.newConcurrentHashSet();
-            final Set<Task> matchedTasks = Sets.newConcurrentHashSet();
+            final Set<Task> removedTasks = ConcurrentCollections.newConcurrentSet();
+            final Set<Task> matchedTasks = ConcurrentCollections.newConcurrentSet();
             final RefCounted removalRefs = AbstractRefCounted.of(() -> {
                 matchedTasks.removeAll(removedTasks);
                 removedTasks.clear();

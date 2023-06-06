@@ -1,3 +1,9 @@
+agents:
+  provider: gcp
+  image: family/core-ubuntu-2204
+  buildDirectory: /dev/shm/bk
+  machineType: custom-32-98304
+  useVault: false
 steps:
   - label: third-party-tests-azure
     command: >-
@@ -21,12 +27,6 @@ steps:
 
 
       .ci/scripts/run-gradle.sh azureThirdPartyTest
-    agents:
-      provider: gcp
-      image: family/core-ubuntu-2204
-      buildDirectory: /dev/shm/bk
-      machineType: custom-32-98304
-      useVault: false
   - label: third-party-tests-azure-sas
     command: >-
       set -euo pipefail
@@ -49,12 +49,6 @@ steps:
 
 
       .ci/scripts/run-gradle.sh azureThirdPartyTest
-    agents:
-      provider: gcp
-      image: family/core-ubuntu-2204
-      buildDirectory: /dev/shm/bk
-      machineType: custom-32-98304
-      useVault: false
   - label: third-party-tests-gcs
     command: >-
       set -euo pipefail
@@ -76,12 +70,6 @@ steps:
 
 
       .ci/scripts/run-gradle.sh gcsThirdPartyTest
-    agents:
-      provider: gcp
-      image: family/core-ubuntu-2204
-      buildDirectory: /dev/shm/bk
-      machineType: custom-32-98304
-      useVault: false
   - label: third-party-tests-s3
     command: >-
       set -euo pipefail
@@ -105,18 +93,6 @@ steps:
 
 
       .ci/scripts/run-gradle.sh s3ThirdPartyTest
-    agents:
-      provider: gcp
-      image: family/core-ubuntu-2204
-      buildDirectory: /dev/shm/bk
-      machineType: custom-32-98304
-      useVault: false
   - label: third-party-tests-geoip
     command: .ci/scripts/run-gradle.sh :modules:ingest-geoip:internalClusterTest
       -Dgeoip_use_service=true
-    agents:
-      provider: gcp
-      image: family/core-ubuntu-2204
-      buildDirectory: /dev/shm/bk
-      machineType: custom-32-98304
-      useVault: false

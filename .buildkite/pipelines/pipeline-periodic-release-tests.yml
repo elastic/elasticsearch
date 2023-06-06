@@ -1,3 +1,9 @@
+agents:
+  provider: gcp
+  image: family/core-ubuntu-2204
+  buildDirectory: /dev/shm/bk
+  machineType: custom-32-98304
+  useVault: false
 steps:
   - label: release-tests
     command: >-
@@ -35,9 +41,3 @@ steps:
 
       .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dbuild.snapshot=false -Dbuild.ml_cpp.repo=file://$${ML_IVY_REPO} \
         -Dtests.jvm.argline=-Dbuild.snapshot=false -Dlicense.key=$${WORKSPACE}/x-pack/license-tools/src/test/resources/public.key -Dbuild.id=deadbeef build
-    agents:
-      provider: gcp
-      image: family/core-ubuntu-2204
-      buildDirectory: /dev/shm/bk
-      machineType: custom-32-98304
-      useVault: false

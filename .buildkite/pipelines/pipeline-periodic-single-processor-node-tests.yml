@@ -1,10 +1,10 @@
+agents:
+  provider: gcp
+  image: family/core-ubuntu-2204
+  buildDirectory: /dev/shm/bk
+  machineType: custom-32-98304
+  useVault: false
 steps:
   - label: single-processor-node-tests
     command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true
       -Dtests.configure_test_clusters_with_one_processor=true check
-    agents:
-      provider: gcp
-      image: family/core-ubuntu-2204
-      buildDirectory: /dev/shm/bk
-      machineType: custom-32-98304
-      useVault: false

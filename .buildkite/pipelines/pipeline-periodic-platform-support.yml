@@ -1,3 +1,9 @@
+agents:
+  provider: gcp
+  image: family/core-ubuntu-2204
+  buildDirectory: /dev/shm/bk
+  machineType: custom-32-98304
+  useVault: false
 steps:
   - group: platform-support-unix
     steps:

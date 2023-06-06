@@ -1,3 +1,9 @@
+agents:
+  provider: gcp
+  image: family/core-ubuntu-2204
+  buildDirectory: /dev/shm/bk
+  machineType: custom-32-98304
+  useVault: false
 steps:
   - label: eql-correctness
     command: >-
@@ -17,9 +23,3 @@ steps:
 
 
       .ci/scripts/run-gradle.sh :x-pack:plugin:eql:qa:correctness:check
-    agents:
-      provider: gcp
-      image: family/core-ubuntu-2204
-      buildDirectory: /dev/shm/bk
-      machineType: custom-32-98304
-      useVault: false

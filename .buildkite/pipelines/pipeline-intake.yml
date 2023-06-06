@@ -1,57 +1,33 @@
+agents:
+  provider: gcp
+  image: family/core-ubuntu-2204
+  buildDirectory: /dev/shm/bk
+  machineType: custom-32-98304
+  useVault: false
 steps:
   - label: sanity-check
     command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true
       -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed
       -Dscan.capture-task-input-files precommit
-    agents:
-      provider: gcp
-      image: family/core-ubuntu-2204
-      buildDirectory: /dev/shm/bk
-      machineType: custom-32-98304
-      useVault: false
   - wait: null
   - label: part1
     command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true
       -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed
       -Dscan.capture-task-input-files checkPart1
-    agents:
-      provider: gcp
-      image: family/core-ubuntu-2204
-      buildDirectory: /dev/shm/bk
-      machineType: custom-32-98304
-      useVault: false
   - label: part2
     command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true
       -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed
       -Dscan.capture-task-input-files checkPart2
-    agents:
-      provider: gcp
-      image: family/core-ubuntu-2204
-      buildDirectory: /dev/shm/bk
-      machineType: custom-32-98304
-      useVault: false
   - label: part3
     command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true
       -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed
       -Dscan.capture-task-input-files checkPart3
-    agents:
-      provider: gcp
-      image: family/core-ubuntu-2204
-      buildDirectory: /dev/shm/bk
-      machineType: custom-32-98304
-      useVault: false
   - group: bwc-snapshots
     steps:
       - label: bwc-snapshots
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true
           -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed
           -Dscan.capture-task-input-files v$$BWC_VERSION#bwcTest
-        agents:
-          provider: gcp
-          image: family/core-ubuntu-2204
-          buildDirectory: /dev/shm/bk
-          machineType: custom-32-98304
-          useVault: false
         matrix:
           setup:
             BWC_VERSION:
@@ -64,12 +40,6 @@ steps:
     command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true
       -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed
       -Dscan.capture-task-input-files checkRestCompat
-    agents:
-      provider: gcp
-      image: family/core-ubuntu-2204
-      buildDirectory: /dev/shm/bk
-      machineType: custom-32-98304
-      useVault: false
   - wait: null
   - label: dra-snapshot
     command: >-
@@ -145,12 +115,6 @@ steps:
              --artifact-set main \
              --dependency beats:https://artifacts-$${WORKFLOW}.elastic.co/beats/$${BEATS_BUILD_ID}/manifest-$${ES_VERSION}$${VERSION_SUFFIX}.json \
              --dependency ml-cpp:https://artifacts-$${WORKFLOW}.elastic.co/ml-cpp/$${ML_CPP_BUILD_ID}/manifest-$${ES_VERSION}$${VERSION_SUFFIX}.json
-    agents:
-      provider: gcp
-      image: family/core-ubuntu-2204
-      buildDirectory: /dev/shm/bk
-      machineType: custom-32-98304
-      useVault: false
   - wait: null
   - label: update-last-good-commit
     command: /usr/bin/true

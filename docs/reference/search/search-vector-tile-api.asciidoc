@@ -226,7 +226,7 @@ Defaults to `5`.
 aggregation.
 
 `geohex`::
-<<search-aggregations-bucket-geohexgrid-aggregation,`geohex_grid`>> aggregation.ß
+<<search-aggregations-bucket-geohexgrid-aggregation,`geohex_grid`>> aggregation.
 ====
 // end::grid-agg[]
 

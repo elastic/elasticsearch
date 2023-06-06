@@ -48,8 +48,8 @@ public class RerouteProcessorTests extends ESTestCase {
         RerouteProcessor processor = createRerouteProcessor(List.of("{{event.dataset}}"), List.of());
         processor.execute(ingestDocument);
         assertDataSetFields(ingestDocument, "logs", "foo", "default");
-        assertNull(ingestDocument.getCtxMap().get("event.dataset"));
-        assertThat(ingestDocument.getFieldValue("event.dataset", String.class), equalTo("foo"));
+        assertThat(ingestDocument.getCtxMap().get("event.dataset"), equalTo("foo"));
+        assertFalse(ingestDocument.getCtxMap().containsKey("event"));
     }
 
     public void testNoDataset() throws Exception {
@@ -94,6 +94,7 @@ public class RerouteProcessorTests extends ESTestCase {
 
     public void testDataStreamFieldsFromDocumentDottedNotation() throws Exception {
         IngestDocument ingestDocument = createIngestDocument("logs-generic-default");
+        ingestDocument.getCtxMap().put("data_stream.type", "logs");
         ingestDocument.getCtxMap().put("data_stream.dataset", "foo");
         ingestDocument.getCtxMap().put("data_stream.namespace", "bar");
 
@@ -271,12 +272,15 @@ public class RerouteProcessorTests extends ESTestCase {
     }
 
     private void assertDataSetFields(IngestDocument ingestDocument, String type, String dataset, String namespace) {
-        assertThat(ingestDocument.getFieldValue("data_stream.type", String.class), equalTo(type));
-        assertThat(ingestDocument.getFieldValue("data_stream.dataset", String.class), equalTo(dataset));
-        assertThat(ingestDocument.getFieldValue("data_stream.namespace", String.class), equalTo(namespace));
-        assertNull(ingestDocument.getCtxMap().get("data_stream.type"));
-        assertNull(ingestDocument.getCtxMap().get("data_stream.dataset"));
-        assertNull(ingestDocument.getCtxMap().get("data_stream.namespace"));
+        if (ingestDocument.hasField("data_stream")) {
+            assertThat(ingestDocument.getFieldValue("data_stream.type", String.class), equalTo(type));
+            assertThat(ingestDocument.getFieldValue("data_stream.dataset", String.class), equalTo(dataset));
+            assertThat(ingestDocument.getFieldValue("data_stream.namespace", String.class), equalTo(namespace));
+        } else {
+            assertThat(ingestDocument.getCtxMap().get("data_stream.type"), equalTo(type));
+            assertThat(ingestDocument.getCtxMap().get("data_stream.dataset"), equalTo(dataset));
+            assertThat(ingestDocument.getCtxMap().get("data_stream.namespace"), equalTo(namespace));
+        }
         assertThat(ingestDocument.getFieldValue("_index", String.class), equalTo(type + "-" + dataset + "-" + namespace));
         if (ingestDocument.hasField("event.dataset")) {
             assertThat(

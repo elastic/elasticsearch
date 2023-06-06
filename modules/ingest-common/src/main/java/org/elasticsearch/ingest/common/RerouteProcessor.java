@@ -91,20 +91,25 @@ public final class RerouteProcessor extends AbstractProcessor {
         String namespace = determineDataStreamField(ingestDocument, this.namespace, currentNamespace);
         String newTarget = type + "-" + dataset + "-" + namespace;
         ingestDocument.reroute(newTarget);
-        ingestDocument.setFieldValue(DATA_STREAM_TYPE, type);
-        ingestDocument.setFieldValue(DATA_STREAM_DATASET, dataset);
-        ingestDocument.setFieldValue(DATA_STREAM_NAMESPACE, namespace);
-        // remove fields with dotted field names
-        ingestDocument.getCtxMap().remove(DATA_STREAM_TYPE);
-        ingestDocument.getCtxMap().remove(DATA_STREAM_DATASET);
-        ingestDocument.getCtxMap().remove(DATA_STREAM_NAMESPACE);
+        setFieldValue(ingestDocument, DATA_STREAM_TYPE, type);
+        setFieldValue(ingestDocument, DATA_STREAM_DATASET, dataset);
+        setFieldValue(ingestDocument, DATA_STREAM_NAMESPACE, namespace);
         if (ingestDocument.getCtxMap().containsKey(EVENT_DATASET) || ingestDocument.hasField(EVENT_DATASET)) {
             // ECS specifies that "event.dataset should have the same value as data_stream.dataset"
             // not eagerly set event.dataset but only if the doc contains it already to ensure it's consistent with data_stream.dataset
-            ingestDocument.setFieldValue(EVENT_DATASET, dataset);
-            ingestDocument.getCtxMap().remove(EVENT_DATASET);
+            setFieldValue(ingestDocument, EVENT_DATASET, dataset);
         }
         return ingestDocument;
+    }
+
+    /* sets a field value in either dotted or nested notation, preserving the notation used in the document */
+    private static void setFieldValue(IngestDocument doc, String path, String value) {
+        Map<String, Object> source = doc.getSourceAndMetadata();
+        if (source.containsKey(path)) {
+            source.put(path, value);
+        } else {
+            doc.setFieldValue(path, value);
+        }
     }
 
     private static String parseDataStreamType(String dataStreamName, int indexOfFirstDash) {

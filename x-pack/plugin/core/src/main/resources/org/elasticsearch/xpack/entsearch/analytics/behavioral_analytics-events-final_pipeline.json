@@ -58,6 +58,13 @@
       }
     },
     {
+      "geoip": {
+        "field": "session.ip",
+        "target_field": "session.location",
+        "ignore_missing": true
+      }
+    },
+    {
       "remove": {
         "field": "session.ip",
         "ignore_missing": true

@@ -43,7 +43,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-public class OperatorPrivilegesTests extends ESTestCase {
+public class DefaultOperatorPrivilegesTests extends ESTestCase {
 
     private MockLicenseState xPackLicenseState;
     private FileOperatorUsersStore fileOperatorUsersStore;

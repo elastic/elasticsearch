@@ -37,7 +37,7 @@ public interface OperatorOnlyRegistry {
      * is variant (likley a restricted view) of the response provided. The caller must use the returned {@link RestRequest} when calling
      * the {@link RestHandler}
      * @param restHandler The {@link RestHandler} to check for any restrictions
-     * @param restRequest The {@link RestRequest} to check for any restrictions and
+     * @param restRequest The {@link RestRequest} to check for any restrictions
      * @return {@link RestRequest} to use when calling the {@link RestHandler}, can be same or different object as the passed in parameter
      */
     RestRequest checkRestPartial(RestHandler restHandler, RestRequest restRequest);

@@ -54,8 +54,27 @@ public class OperatorPrivileges {
             ThreadContext threadContext
         );
 
+        /**
+         * Checks to see if a given {@link RestHandler} is subject to restrictions. This method may return a {@link RestResponse} if the
+         * request is restricted due to operator privileges. Null will be returned if there are no restrictions. Callers must short-circuit
+         * the request and respond back to the client with the given {@link RestResponse} without ever calling the {@link RestHandler}.
+         * If null is returned the caller must proceed as normal and call the {@link RestHandler}.
+         * @param restHandler The {@link RestHandler} to check for any restrictions
+         * @param threadContext Reference to the current {@link ThreadContext}
+         * @return null if no restrictions should be enforced, {@link RestResponse} if the request is restricted
+         */
         RestResponse checkRestFull(RestHandler restHandler, ThreadContext threadContext);
 
+        /**
+         * Checks to see if a given {@link RestHandler} is subject to partial restrictions. A partial restriction still allows the request
+         * to proceed but will update/rewrite the provived {@link RestRequest} such that when the {@link RestHandler} is called the result
+         * is variant (likley a restricted view) of the response provided. The caller must use the returned {@link RestRequest} when calling
+         * the {@link RestHandler}
+         * @param restHandler The {@link RestHandler} to check for any restrictions
+         * @param restRequest The {@link RestRequest} to check for any restrictions
+         * @param threadContext Reference to the current {@link ThreadContext}
+         * @return {@link RestRequest} to use when calling the {@link RestHandler}, can be same or different object as the passed in parameter
+         */
         RestRequest checkRestPartial(RestHandler restHandler, RestRequest restRequest, ThreadContext threadContext);
 
         /**

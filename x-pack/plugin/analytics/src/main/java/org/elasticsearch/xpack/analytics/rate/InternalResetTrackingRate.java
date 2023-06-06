@@ -80,7 +80,7 @@ public class InternalResetTrackingRate extends InternalNumericMetricsAggregation
         out.writeLong(startTime);
         out.writeLong(endTime);
         out.writeDouble(resetCompensation);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_009)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_009) && rateUnit != null) {
             out.writeByte(rateUnit.getId());
         } else {
             out.writeByte(Rounding.DateTimeUnit.SECOND_OF_MINUTE.getId());
@@ -106,6 +106,7 @@ public class InternalResetTrackingRate extends InternalNumericMetricsAggregation
             }
             endValue = rate.endValue;
         }
+        final Rounding.DateTimeUnit rateUnit = toReduce.get(0).rateUnit;
         return new InternalResetTrackingRate(
             name,
             format,
@@ -115,7 +116,7 @@ public class InternalResetTrackingRate extends InternalNumericMetricsAggregation
             toReduce.get(0).startTime,
             toReduce.get(endIndex).endTime,
             resetComp,
-            toReduce.get(0).rateUnit
+            rateUnit
         );
     }
 
@@ -126,10 +127,10 @@ public class InternalResetTrackingRate extends InternalNumericMetricsAggregation
 
     @Override
     public double value() {
-        return (endValue - startValue + resetCompensation) / (endTime - startTime) * rateUnit.getField()
-            .getBaseUnit()
-            .getDuration()
-            .toSeconds();
+        long rateUnitSeconds = rateUnit == null
+            ? Rounding.DateTimeUnit.SECOND_OF_MINUTE.getField().getBaseUnit().getDuration().getSeconds()
+            : rateUnit.getField().getBaseUnit().getDuration().toSeconds();
+        return (endValue - startValue + resetCompensation) / (endTime - startTime) * rateUnitSeconds;
     }
 
     @Override

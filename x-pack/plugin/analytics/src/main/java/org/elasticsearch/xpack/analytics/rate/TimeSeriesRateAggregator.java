@@ -142,7 +142,7 @@ public class TimeSeriesRateAggregator extends NumericMetricsAggregator.SingleVal
             startTimes.get(owningBucketOrd),
             endTimes.get(owningBucketOrd),
             resetCompensations.get(owningBucketOrd),
-            rateUnit
+            rateUnit == null ? Rounding.DateTimeUnit.SECOND_OF_MINUTE : rateUnit
         );
     }
 

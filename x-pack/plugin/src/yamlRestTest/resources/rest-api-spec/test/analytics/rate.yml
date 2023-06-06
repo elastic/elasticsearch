@@ -272,6 +272,9 @@
               time_series:
                 keyed: false
               aggs:
+                rate-without-unit:
+                  rate:
+                    field: counter
                 rate-second:
                   rate:
                     field: counter
@@ -307,6 +310,7 @@
 
   - match: { hits.total.value: 10 }
   - length: { aggregations.ts.buckets: 1 }
+  - close_to: { aggregations.ts.buckets.0.rate-without-unit.value: { value: 0.0243, error: 0.0001 }}
   - close_to: { aggregations.ts.buckets.0.rate-second.value: { value: 0.0243, error: 0.0001 }}
   - close_to: { aggregations.ts.buckets.0.rate-minute.value: { value: 1.4592, error: 0.0001 }}
   - close_to: { aggregations.ts.buckets.0.rate-hour.value: { value: 87.5555, error: 0.0001 }}

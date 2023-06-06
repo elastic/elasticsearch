@@ -51,6 +51,7 @@ class EarlyTerminatingCollector extends FilterCollector {
         this.thresholdChecker = ThresholdChecker.create(maxCountHits);
         this.forceTermination = forceTermination;
     }
+
     /**
      * Creates a new early terminating collector.
      *
@@ -110,8 +111,11 @@ class EarlyTerminatingCollector extends FilterCollector {
 
     abstract static class ThresholdChecker {
         abstract boolean isThresholdReached();
+
         abstract void incrementHitCount();
+
         abstract void earlyTerminate();
+
         abstract boolean hasEarlyTerminated();
 
         static ThresholdChecker create(int numHitsThreshold) {

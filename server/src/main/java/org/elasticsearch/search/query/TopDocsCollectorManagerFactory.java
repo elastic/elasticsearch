@@ -38,7 +38,6 @@ import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.search.TopFieldCollector;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TopScoreDocCollector;
-import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.search.MaxScoreCollector;
 import org.elasticsearch.common.lucene.Lucene;
@@ -116,13 +115,21 @@ abstract class TopDocsCollectorManagerFactory {
                 TotalHitCountCollectorManager totalHitCountCollectorManager = new TotalHitCountCollectorManager();
                 if (trackTotalHitsUpTo == SearchContext.TRACK_TOTAL_HITS_ACCURATE) {
                     this.collectorManager = totalHitCountCollectorManager;
-                    this.hitCountSupplier = () -> new TotalHits(totalHitCountCollectorManager.getTotalHitCount(), TotalHits.Relation.EQUAL_TO);
+                    this.hitCountSupplier = () -> new TotalHits(
+                        totalHitCountCollectorManager.getTotalHitCount(),
+                        TotalHits.Relation.EQUAL_TO
+                    );
                 } else {
-                    EarlyTerminatingCollectorManager earlyTerminatingCollectorManager = new EarlyTerminatingCollectorManager(totalHitCountCollectorManager, trackTotalHitsUpTo);
+                    EarlyTerminatingCollectorManager earlyTerminatingCollectorManager = new EarlyTerminatingCollectorManager(
+                        totalHitCountCollectorManager,
+                        trackTotalHitsUpTo
+                    );
                     this.collectorManager = earlyTerminatingCollectorManager;
                     this.hitCountSupplier = () -> new TotalHits(
                         totalHitCountCollectorManager.getTotalHitCount(),
-                        earlyTerminatingCollectorManager.hasEarlyTerminated() ? TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO : TotalHits.Relation.EQUAL_TO
+                        earlyTerminatingCollectorManager.hasEarlyTerminated()
+                            ? TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO
+                            : TotalHits.Relation.EQUAL_TO
                     );
                 }
             }

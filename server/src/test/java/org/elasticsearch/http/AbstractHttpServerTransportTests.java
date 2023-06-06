@@ -1210,11 +1210,11 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
     private static class TestDispatcher implements HttpServerTransport.Dispatcher {
         private final Runnable predispatch;
 
-        public TestDispatcher(Runnable predispatch) {
+        TestDispatcher(Runnable predispatch) {
             this.predispatch = predispatch;
         }
 
-        public TestDispatcher() {
+        TestDispatcher() {
             this(() -> {});
         }
 

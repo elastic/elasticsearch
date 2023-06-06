@@ -520,25 +520,24 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public InternalEngine recoverFromTranslog(TranslogRecoveryRunner translogRecoveryRunner, long recoverUpToSeqNo) throws IOException {
-        try (ReleasableLock lock = readLock.acquire()) {
-            ensureOpen();
-            if (pendingTranslogRecovery.get() == false) {
-                throw new IllegalStateException("Engine has already been recovered");
-            }
-            try {
-                recoverFromTranslogInternal(translogRecoveryRunner, recoverUpToSeqNo);
-            } catch (Exception e) {
-                try {
-                    pendingTranslogRecovery.set(true); // just play safe and never allow commits on this see #ensureCanFlush
-                    failEngine("failed to recover from translog", e);
-                } catch (Exception inner) {
-                    e.addSuppressed(inner);
+    public void recoverFromTranslog(TranslogRecoveryRunner translogRecoveryRunner, long recoverUpToSeqNo, ActionListener<Void> listener) {
+        ActionListener.run(listener, l -> {
+            try (ReleasableLock lock = readLock.acquire()) {
+                ensureOpen();
+                if (pendingTranslogRecovery.get() == false) {
+                    throw new IllegalStateException("Engine has already been recovered");
                 }
-                throw e;
+                recoverFromTranslogInternal(translogRecoveryRunner, recoverUpToSeqNo, l.delegateResponse((ll, e) -> {
+                    try {
+                        pendingTranslogRecovery.set(true); // just play safe and never allow commits on this see #ensureCanFlush
+                        failEngine("failed to recover from translog", e);
+                    } catch (Exception inner) {
+                        e.addSuppressed(inner);
+                    }
+                    ll.onFailure(e);
+                }));
             }
-        }
-        return this;
+        });
     }
 
     @Override
@@ -547,33 +546,39 @@ public class InternalEngine extends Engine {
         pendingTranslogRecovery.set(false); // we are good - now we can commit
     }
 
-    private void recoverFromTranslogInternal(TranslogRecoveryRunner translogRecoveryRunner, long recoverUpToSeqNo) throws IOException {
-        final int opsRecovered;
-        final long localCheckpoint = getProcessedLocalCheckpoint();
-        if (localCheckpoint < recoverUpToSeqNo) {
-            try (Translog.Snapshot snapshot = newTranslogSnapshot(localCheckpoint + 1, recoverUpToSeqNo)) {
-                opsRecovered = translogRecoveryRunner.run(this, snapshot);
-            } catch (Exception e) {
-                throw new EngineException(shardId, "failed to recover from translog", e);
+    private void recoverFromTranslogInternal(
+        TranslogRecoveryRunner translogRecoveryRunner,
+        long recoverUpToSeqNo,
+        ActionListener<Void> listener
+    ) {
+        ActionListener.run(listener, l -> {
+            final int opsRecovered;
+            final long localCheckpoint = getProcessedLocalCheckpoint();
+            if (localCheckpoint < recoverUpToSeqNo) {
+                try (Translog.Snapshot snapshot = newTranslogSnapshot(localCheckpoint + 1, recoverUpToSeqNo)) {
+                    opsRecovered = translogRecoveryRunner.run(this, snapshot);
+                } catch (Exception e) {
+                    throw new EngineException(shardId, "failed to recover from translog", e);
+                }
+            } else {
+                opsRecovered = 0;
             }
-        } else {
-            opsRecovered = 0;
-        }
-        // flush if we recovered something or if we have references to older translogs
-        // note: if opsRecovered == 0 and we have older translogs it means they are corrupted or 0 length.
-        assert pendingTranslogRecovery.get() : "translogRecovery is not pending but should be";
-        pendingTranslogRecovery.set(false); // we are good - now we can commit
-        logger.trace(
-            () -> format(
-                "flushing post recovery from translog: ops recovered [%s], current translog generation [%s]",
-                opsRecovered,
-                translog.currentFileGeneration()
-            )
-        );
-        PlainActionFuture<FlushResult> future = PlainActionFuture.newFuture();
-        flush(false, true, future);
-        future.actionGet();
-        translog.trimUnreferencedReaders();
+            // flush if we recovered something or if we have references to older translogs
+            // note: if opsRecovered == 0 and we have older translogs it means they are corrupted or 0 length.
+            assert pendingTranslogRecovery.get() : "translogRecovery is not pending but should be";
+            pendingTranslogRecovery.set(false); // we are good - now we can commit
+            logger.trace(
+                () -> format(
+                    "flushing post recovery from translog: ops recovered [%s], current translog generation [%s]",
+                    opsRecovered,
+                    translog.currentFileGeneration()
+                )
+            );
+            flush(false, true, l.delegateFailureAndWrap((ll, r) -> {
+                translog.trimUnreferencedReaders();
+                ll.onResponse(null);
+            }));
+        });
     }
 
     protected Translog.Snapshot newTranslogSnapshot(long fromSeqNo, long toSeqNo) throws IOException {

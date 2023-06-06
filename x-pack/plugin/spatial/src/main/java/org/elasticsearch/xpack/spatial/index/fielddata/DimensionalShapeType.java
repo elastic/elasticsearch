@@ -12,6 +12,8 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.geometry.GeometryCollection;
 import org.elasticsearch.geometry.ShapeType;
 
+import java.io.IOException;
+
 /**
  * Like {@link ShapeType} but has specific
  * types for when the geometry is a {@link GeometryCollection} and
@@ -34,6 +36,10 @@ public enum DimensionalShapeType {
     }
 
     public static DimensionalShapeType readFrom(ByteArrayStreamInput in) {
-        return fromOrdinalByte(in.readByte());
+        try {
+            return fromOrdinalByte(in.readByte());
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 }

@@ -13,6 +13,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
@@ -20,7 +21,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.search.CanMatchNodeRequest;
 import org.elasticsearch.action.search.CanMatchNodeResponse;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.TransportActions;
@@ -133,7 +133,6 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
@@ -445,9 +444,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private DfsSearchResult executeDfsPhase(ShardSearchRequest request, SearchShardTask task) throws IOException {
         ReaderContext readerContext = createOrGetReaderContext(request);
         try (
-            Releasable scope = tracer.withScope("task-" + task.getId());
+            Releasable scope = tracer.withScope(task);
             Releasable ignored = readerContext.markAsUsed(getKeepAlive(request));
-            SearchContext context = createContext(readerContext, request, task, true)
+            SearchContext context = createContext(readerContext, request, task, ResultsType.DFS, false)
         ) {
             dfsPhase.execute(context);
             return context.dfsResult();
@@ -502,107 +501,89 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         CheckedSupplier<T, Exception> executable,
         ActionListener<T> listener
     ) {
-        final ActionRunnable<T> runnable = new ActionRunnable<>(listener) {
-            final Executor executor = getExecutor(shard);
+        final long waitForCheckpoint = request.waitForCheckpoint();
+        final Executor executor = getExecutor(shard);
+        try {
+            if (waitForCheckpoint <= UNASSIGNED_SEQ_NO) {
+                runAsync(executor, executable, listener);
+                return;
+            }
+            if (shard.indexSettings().getRefreshInterval().getMillis() <= 0) {
+                listener.onFailure(new IllegalArgumentException("Cannot use wait_for_checkpoints with [index.refresh_interval=-1]"));
+                return;
+            }
 
-            @Override
-            protected void doRun() {
-                final TimeValue timeout = request.getWaitForCheckpointsTimeout();
-                final long waitForCheckpoint = request.waitForCheckpoint();
-                if (waitForCheckpoint > UNASSIGNED_SEQ_NO) {
-                    if (shard.indexSettings().getRefreshInterval().getMillis() <= 0) {
-                        listener.onFailure(
-                            new IllegalArgumentException("Cannot use wait_for_checkpoints with [index.refresh_interval=-1]")
-                        );
+            final AtomicBoolean isDone = new AtomicBoolean(false);
+            // TODO: this logic should be improved, the timeout should be handled in a way that removes the listener from the logic in the
+            // index shard on timeout so that a timed-out listener does not use up any listener slots.
+            final TimeValue timeout = request.getWaitForCheckpointsTimeout();
+            final Scheduler.ScheduledCancellable timeoutTask = NO_TIMEOUT.equals(timeout) ? null : threadPool.schedule(() -> {
+                if (isDone.compareAndSet(false, true)) {
+                    listener.onFailure(
+                        new ElasticsearchTimeoutException("Wait for seq_no [{}] refreshed timed out [{}]", waitForCheckpoint, timeout)
+                    );
+                }
+            }, timeout, Names.SAME);
+
+            // allow waiting for not-yet-issued sequence number if shard isn't promotable to primary and the timeout is less than or equal
+            // to 30s
+            final boolean allowWaitForNotYetIssued = shard.routingEntry().isPromotableToPrimary() == false
+                && NO_TIMEOUT.equals(timeout) == false
+                && timeout.getSeconds() <= 30L;
+            shard.addRefreshListener(waitForCheckpoint, allowWaitForNotYetIssued, new ActionListener<>() {
+                @Override
+                public void onResponse(Void unused) {
+                    // We must check that the sequence number is smaller than or equal to the global checkpoint. If it is not,
+                    // it is possible that a stale shard could return uncommitted documents.
+                    if (shard.getLastKnownGlobalCheckpoint() >= waitForCheckpoint) {
+                        searchReady();
                         return;
                     }
-
-                    final AtomicBoolean isDone = new AtomicBoolean(false);
-                    final AtomicReference<Scheduler.ScheduledCancellable> timeoutTask = new AtomicReference<>();
-                    final ActionListener<Void> readyListener = new ActionListener<>() {
+                    shard.addGlobalCheckpointListener(waitForCheckpoint, new GlobalCheckpointListeners.GlobalCheckpointListener() {
                         @Override
-                        public void onResponse(Void unused) {
-                            // We must check that the sequence number is smaller than or equal to the global checkpoint. If it is not,
-                            // it is possible that a stale shard could return uncommitted documents.
-                            if (shard.getLastKnownGlobalCheckpoint() < waitForCheckpoint) {
-                                TimeValue gclTimeout = NO_TIMEOUT.equals(timeout) == false ? null : timeout;
-                                shard.addGlobalCheckpointListener(
-                                    waitForCheckpoint,
-                                    new GlobalCheckpointListeners.GlobalCheckpointListener() {
-                                        @Override
-                                        public Executor executor() {
-                                            return threadPool.executor(Names.SAME);
-                                        }
+                        public Executor executor() {
+                            return threadPool.executor(Names.SAME);
+                        }
 
-                                        @Override
-                                        public void accept(long g, Exception e) {
-                                            if (g != UNASSIGNED_SEQ_NO) {
-                                                assert waitForCheckpoint <= g
-                                                    : shard.shardId()
-                                                        + " only advanced to ["
-                                                        + g
-                                                        + "] while waiting for ["
-                                                        + waitForCheckpoint
-                                                        + "]";
-                                                searchReady();
-                                            } else {
-                                                assert e != null;
-                                                // Ignore TimeoutException, our scheduled timeout task will handle this
-                                                if (e instanceof TimeoutException == false) {
-                                                    onFailure(e);
-                                                }
-                                            }
-                                        }
-                                    },
-                                    gclTimeout
-                                );
-                            } else {
+                        @Override
+                        public void accept(long g, Exception e) {
+                            if (g != UNASSIGNED_SEQ_NO) {
+                                assert waitForCheckpoint <= g
+                                    : shard.shardId() + " only advanced to [" + g + "] while waiting for [" + waitForCheckpoint + "]";
                                 searchReady();
-                            }
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            if (isDone.compareAndSet(false, true)) {
-                                Scheduler.ScheduledCancellable localTimeoutTask = timeoutTask.get();
-                                if (localTimeoutTask != null) {
-                                    localTimeoutTask.cancel();
+                            } else {
+                                assert e != null;
+                                // Ignore TimeoutException, our scheduled timeout task will handle this
+                                if (e instanceof TimeoutException == false) {
+                                    onFailure(e);
                                 }
-                                listener.onFailure(e);
                             }
                         }
-
-                        private void searchReady() {
-                            if (isDone.compareAndSet(false, true)) {
-                                Scheduler.ScheduledCancellable localTimeoutTask = timeoutTask.get();
-                                if (localTimeoutTask != null) {
-                                    localTimeoutTask.cancel();
-                                }
-                                runAsync(executor, executable, listener);
-                            }
-                        }
-                    };
-                    if (NO_TIMEOUT.equals(timeout) == false && isDone.get() == false) {
-                        Scheduler.ScheduledCancellable scheduled = threadPool.schedule(
-                            () -> readyListener.onFailure(
-                                new ElasticsearchTimeoutException(
-                                    "Wait for seq_no [{}] refreshed timed out [{}]",
-                                    waitForCheckpoint,
-                                    timeout
-                                )
-                            ),
-                            timeout,
-                            Names.SAME
-                        );
-                        timeoutTask.set(scheduled);
-                    }
-                    shard.addRefreshListener(waitForCheckpoint, readyListener);
-                } else {
-                    runAsync(executor, executable, listener);
+                    }, NO_TIMEOUT.equals(timeout) == false ? null : timeout);
                 }
-            }
-        };
-        runnable.run();
+
+                @Override
+                public void onFailure(Exception e) {
+                    if (isDone.compareAndSet(false, true)) {
+                        if (timeoutTask != null) {
+                            timeoutTask.cancel();
+                        }
+                        listener.onFailure(e);
+                    }
+                }
+
+                private void searchReady() {
+                    if (isDone.compareAndSet(false, true)) {
+                        if (timeoutTask != null) {
+                            timeoutTask.cancel();
+                        }
+                        runAsync(executor, executable, listener);
+                    }
+                }
+            });
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
     }
 
     private IndexShard getShard(ShardSearchRequest request) {
@@ -619,15 +600,20 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     private static <T> void runAsync(Executor executor, CheckedSupplier<T, Exception> executable, ActionListener<T> listener) {
-        executor.execute(ActionRunnable.supply(listener, executable::get));
+        executor.execute(ActionRunnable.supply(listener, executable));
     }
 
+    /**
+     * The returned {@link SearchPhaseResult} will have had its ref count incremented by this method.
+     * It is the responsibility of the caller to ensure that the ref count is correctly decremented
+     * when the object is no longer needed.
+     */
     private SearchPhaseResult executeQueryPhase(ShardSearchRequest request, SearchShardTask task) throws Exception {
         final ReaderContext readerContext = createOrGetReaderContext(request);
         try (
-            Releasable scope = tracer.withScope("task-" + task.getId());
+            Releasable scope = tracer.withScope(task);
             Releasable ignored = readerContext.markAsUsed(getKeepAlive(request));
-            SearchContext context = createContext(readerContext, request, task, true)
+            SearchContext context = createContext(readerContext, request, task, ResultsType.QUERY, true)
         ) {
             tracer.startTrace("executeQueryPhase", Map.of());
             final long afterQueryTime;
@@ -641,6 +627,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 tracer.stopTrace();
             }
             if (request.numberOfShards() == 1) {
+                // we already have query results, but we can run fetch at the same time
+                context.addFetchResult();
                 return executeFetchPhase(readerContext, context, afterQueryTime);
             } else {
                 // Pass the rescoreDocIds to the queryResult to send them the coordinating node and receive them back in the fetch phase.
@@ -648,6 +636,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 final RescoreDocIds rescoreDocIds = context.rescoreDocIds();
                 context.queryResult().setRescoreDocIds(rescoreDocIds);
                 readerContext.setRescoreDocIds(rescoreDocIds);
+                context.queryResult().incRef();
                 return context.queryResult();
             }
         } catch (Exception e) {
@@ -665,7 +654,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private QueryFetchSearchResult executeFetchPhase(ReaderContext reader, SearchContext context, long afterQueryTime) {
         try (
-            Releasable scope = tracer.withScope("task-" + context.getTask().getId());
+            Releasable scope = tracer.withScope(context.getTask());
             SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(context, true, afterQueryTime)
         ) {
             shortcutDocIdsToLoad(context);
@@ -675,6 +664,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             }
             executor.success();
         }
+        // This will incRef the QuerySearchResult when it gets created
         return new QueryFetchSearchResult(context.queryResult(), context.fetchResult());
     }
 
@@ -695,7 +685,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         runAsync(getExecutor(readerContext.indexShard()), () -> {
             final ShardSearchRequest shardSearchRequest = readerContext.getShardSearchRequest(null);
             try (
-                SearchContext searchContext = createContext(readerContext, shardSearchRequest, task, false);
+                SearchContext searchContext = createContext(readerContext, shardSearchRequest, task, ResultsType.QUERY, false);
                 SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(searchContext)
             ) {
                 searchContext.searcher().setAggregatedDfs(readerContext.getAggregatedDfs(null));
@@ -703,6 +693,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 QueryPhase.execute(searchContext);
                 executor.success();
                 readerContext.setRescoreDocIds(searchContext.rescoreDocIds());
+                // ScrollQuerySearchResult will incRef the QuerySearchResult when it gets constructed.
                 return new ScrollQuerySearchResult(searchContext.queryResult(), searchContext.shardTarget());
             } catch (Exception e) {
                 logger.trace("Query phase failed", e);
@@ -712,6 +703,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }, wrapFailureListener(listener, readerContext, markAsUsed));
     }
 
+    /**
+     * The returned {@link SearchPhaseResult} will have had its ref count incremented by this method.
+     * It is the responsibility of the caller to ensure that the ref count is correctly decremented
+     * when the object is no longer needed.
+     */
     public void executeQueryPhase(QuerySearchRequest request, SearchShardTask task, ActionListener<QuerySearchResult> listener) {
         final ReaderContext readerContext = findReaderContext(request.contextId(), request.shardSearchRequest());
         final ShardSearchRequest shardSearchRequest = readerContext.getShardSearchRequest(request.shardSearchRequest());
@@ -719,7 +715,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         runAsync(getExecutor(readerContext.indexShard()), () -> {
             readerContext.setAggregatedDfs(request.dfs());
             try (
-                SearchContext searchContext = createContext(readerContext, shardSearchRequest, task, true);
+                SearchContext searchContext = createContext(readerContext, shardSearchRequest, task, ResultsType.QUERY, true);
                 SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(searchContext)
             ) {
                 searchContext.searcher().setAggregatedDfs(request.dfs());
@@ -734,6 +730,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 final RescoreDocIds rescoreDocIds = searchContext.rescoreDocIds();
                 searchContext.queryResult().setRescoreDocIds(rescoreDocIds);
                 readerContext.setRescoreDocIds(rescoreDocIds);
+                searchContext.queryResult().incRef();
                 return searchContext.queryResult();
             } catch (Exception e) {
                 assert TransportActions.isShardNotAvailableException(e) == false : new AssertionError(e);
@@ -774,12 +771,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         runAsync(getExecutor(readerContext.indexShard()), () -> {
             final ShardSearchRequest shardSearchRequest = readerContext.getShardSearchRequest(null);
             try (
-                SearchContext searchContext = createContext(readerContext, shardSearchRequest, task, false);
+                SearchContext searchContext = createContext(readerContext, shardSearchRequest, task, ResultsType.FETCH, false);
                 SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(searchContext)
             ) {
                 searchContext.assignRescoreDocIds(readerContext.getRescoreDocIds(null));
                 searchContext.searcher().setAggregatedDfs(readerContext.getAggregatedDfs(null));
                 processScroll(request, readerContext, searchContext);
+                searchContext.addQueryResult();
                 QueryPhase.execute(searchContext);
                 final long afterQueryTime = executor.success();
                 QueryFetchSearchResult fetchSearchResult = executeFetchPhase(readerContext, searchContext, afterQueryTime);
@@ -798,7 +796,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         final ShardSearchRequest shardSearchRequest = readerContext.getShardSearchRequest(request.getShardSearchRequest());
         final Releasable markAsUsed = readerContext.markAsUsed(getKeepAlive(shardSearchRequest));
         runAsync(getExecutor(readerContext.indexShard()), () -> {
-            try (SearchContext searchContext = createContext(readerContext, shardSearchRequest, task, false)) {
+            try (SearchContext searchContext = createContext(readerContext, shardSearchRequest, task, ResultsType.FETCH, false)) {
                 if (request.lastEmittedDoc() != null) {
                     searchContext.scrollContext().lastEmittedDoc = request.lastEmittedDoc();
                 }
@@ -975,10 +973,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         ReaderContext readerContext,
         ShardSearchRequest request,
         SearchShardTask task,
+        ResultsType resultsType,
         boolean includeAggregations
     ) throws IOException {
         checkCancelled(task);
         final DefaultSearchContext context = createSearchContext(readerContext, request, defaultSearchTimeout);
+        resultsType.addResultsObject(context);
         try {
             if (request.scroll() != null) {
                 context.scrollContext().scroll = request.scroll();
@@ -991,6 +991,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             }
             if (context.size() == -1) {
                 context.size(DEFAULT_SIZE);
+            }
+            if (request.rankQueryBuilders().isEmpty() == false) {
+                List<Query> rankQueries = new ArrayList<>();
+                for (QueryBuilder queryBuilder : request.rankQueryBuilders()) {
+                    rankQueries.add(queryBuilder.toQuery(context.getSearchExecutionContext()));
+                }
+                context.rankShardContext(request.source().rankBuilder().buildRankShardContext(rankQueries, context.from()));
             }
             context.setTask(task);
 
@@ -1228,7 +1235,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                  */
                 () -> context.rewrittenQuery() == null ? new MatchAllDocsQuery() : context.rewrittenQuery(),
                 context.getProfilers() == null ? null : context.getProfilers().getAggregationProfiler(),
-                multiBucketConsumerService.create(),
+                multiBucketConsumerService.getLimit(),
                 () -> new SubSearchContext(context).parsedQuery(context.parsedQuery()).fetchFieldsContext(context.fetchFieldsContext()),
                 context.bitsetFilterCache(),
                 context.indexShard().shardId().hashCode(),
@@ -1238,7 +1245,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 enableRewriteAggsToFilterByFilter,
                 source.aggregations().isInSortOrderExecutionRequired()
             );
-            context.addReleasable(aggContext);
+            context.addQuerySearchResultReleasable(aggContext);
             try {
                 AggregatorFactories factories = source.aggregations().build(aggContext, null);
                 context.aggregations(new SearchContextAggregations(factories));
@@ -1303,6 +1310,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             for (org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField field : source.scriptFields()) {
                 FieldScript.Factory factory = scriptService.compile(field.script(), FieldScript.CONTEXT);
                 SearchLookup lookup = context.getSearchExecutionContext().lookup();
+                // TODO delay this construction until the FetchPhase is executed so that we can
+                // use the more efficient lookup built there
                 FieldScript.LeafFactory searchScript = factory.newFactory(field.script().getParams(), lookup);
                 context.scriptFields().add(new ScriptField(field.fieldName(), searchScript, field.ignoreFailure()));
             }
@@ -1435,6 +1444,41 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     public ResponseCollectorService getResponseCollectorService() {
         return this.responseCollectorService;
+    }
+
+    /**
+     * Used to indicate which result object should be instantiated when creating a search context
+     */
+    protected enum ResultsType {
+        DFS {
+            @Override
+            void addResultsObject(SearchContext context) {
+                context.addDfsResult();
+            }
+        },
+        QUERY {
+            @Override
+            void addResultsObject(SearchContext context) {
+                context.addQueryResult();
+            }
+        },
+        FETCH {
+            @Override
+            void addResultsObject(SearchContext context) {
+                context.addFetchResult();
+            }
+        },
+        /**
+         * None is intended for use in testing, when we might not progress all the way to generating results
+         */
+        NONE {
+            @Override
+            void addResultsObject(SearchContext context) {
+                // this space intentionally left blank
+            }
+        };
+
+        abstract void addResultsObject(SearchContext context);
     }
 
     class Reaper implements Runnable {
@@ -1581,14 +1625,14 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     @SuppressWarnings({ "rawtypes", "unchecked" })
     private void rewriteAndFetchShardRequest(IndexShard shard, ShardSearchRequest request, ActionListener<ShardSearchRequest> listener) {
-        ActionListener<Rewriteable> actionListener = ActionListener.wrap(r -> {
+        ActionListener<Rewriteable> actionListener = listener.delegateFailureAndWrap((l, r) -> {
             if (request.readerId() != null) {
-                listener.onResponse(request);
+                l.onResponse(request);
             } else {
                 // now we need to check if there is a pending refresh and register
-                shard.awaitShardSearchActive(b -> listener.onResponse(request));
+                shard.awaitShardSearchActive(b -> l.onResponse(request));
             }
-        }, listener::onFailure);
+        });
         // we also do rewrite on the coordinating node (TransportSearchService) but we also need to do it here for BWC as well as
         // AliasFilters that might need to be rewritten. These are edge-cases but we are every efficient doing the rewrite here so it's not
         // adding a lot of overhead
@@ -1611,14 +1655,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     /**
-     * Returns a builder for {@link AggregationReduceContext}. This
-     * builder retains a reference to the provided {@link SearchRequest}.
+     * Returns a builder for {@link AggregationReduceContext}.
      */
-    public AggregationReduceContext.Builder aggReduceContextBuilder(Supplier<Boolean> isCanceled, SearchRequest request) {
+    public AggregationReduceContext.Builder aggReduceContextBuilder(Supplier<Boolean> isCanceled, AggregatorFactories.Builder aggs) {
         return new AggregationReduceContext.Builder() {
             @Override
             public AggregationReduceContext forPartialReduction() {
-                return new AggregationReduceContext.ForPartial(bigArrays, scriptService, isCanceled, request.source().aggregations());
+                return new AggregationReduceContext.ForPartial(bigArrays, scriptService, isCanceled, aggs);
             }
 
             @Override
@@ -1627,7 +1670,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     bigArrays,
                     scriptService,
                     isCanceled,
-                    request.source().aggregations(),
+                    aggs,
                     multiBucketConsumerService.create()
                 );
             }

@@ -32,8 +32,6 @@ import java.util.Objects;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 public class FindStructureAction extends ActionType<FindStructureAction.Response> {
-    public static final String ECS_COMPATIBILITY_DISABLED = GrokBuiltinPatterns.ECS_COMPATIBILITY_MODES[0];
-    public static final String ECS_COMPATIBILITY_V1 = GrokBuiltinPatterns.ECS_COMPATIBILITY_MODES[1];
 
     public static final FindStructureAction INSTANCE = new FindStructureAction();
     public static final String NAME = "cluster:monitor/text_structure/findstructure";

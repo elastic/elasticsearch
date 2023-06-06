@@ -5,9 +5,33 @@
  * 2.0.
  */
 
+import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
+
 apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.rest-resources'
+apply plugin: 'elasticsearch.bwc-test'
 
 dependencies {
+  javaRestTestImplementation project(':x-pack:plugin:core')
+  javaRestTestImplementation project(':x-pack:plugin:security')
+  javaRestTestImplementation project(':x-pack:plugin:ccr')
   clusterModules(project(":modules:analysis-common"))
+  clusterModules project(':x-pack:plugin:ccr')
+  clusterModules(project(":modules:reindex")) // need for deleting transform jobs
+  clusterModules(project(":x-pack:plugin:transform"))
+}
+
+tasks.named("javaRestTest") {
+  enabled = true
+  // This is tested explicitly in bwc test tasks.
+  exclude '**/RemoteClusterSecurityBwcRestIT.class'
+}
+
+BuildParams.bwcVersions.withWireCompatible(v -> v.before('8.8.0')) { bwcVersion, baseName ->
+  tasks.register(bwcTaskName(bwcVersion), StandaloneRestIntegTestTask) {
+    usesBwcDistribution(bwcVersion)
+    systemProperty("tests.old_cluster_version", bwcVersion)
+    include '**/RemoteClusterSecurityBwcRestIT.class'
+  }
 }

@@ -98,11 +98,7 @@ public class TransportMultiGetActionTests extends ESTestCase {
             .metadata(
                 new Metadata.Builder().put(
                     new IndexMetadata.Builder(index1.getName()).settings(
-                        Settings.builder()
-                            .put("index.version.created", Version.CURRENT)
-                            .put("index.number_of_shards", 1)
-                            .put("index.number_of_replicas", 1)
-                            .put(IndexMetadata.SETTING_INDEX_UUID, index1.getUUID())
+                        indexSettings(Version.CURRENT, 1, 1).put(IndexMetadata.SETTING_INDEX_UUID, index1.getUUID())
                     )
                         .putMapping(
                             XContentHelper.convertToJson(
@@ -123,11 +119,7 @@ public class TransportMultiGetActionTests extends ESTestCase {
                 )
                     .put(
                         new IndexMetadata.Builder(index2.getName()).settings(
-                            Settings.builder()
-                                .put("index.version.created", Version.CURRENT)
-                                .put("index.number_of_shards", 1)
-                                .put("index.number_of_replicas", 1)
-                                .put(IndexMetadata.SETTING_INDEX_UUID, index1.getUUID())
+                            indexSettings(Version.CURRENT, 1, 1).put(IndexMetadata.SETTING_INDEX_UUID, index1.getUUID())
                         )
                             .putMapping(
                                 XContentHelper.convertToJson(

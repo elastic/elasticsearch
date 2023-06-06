@@ -450,6 +450,69 @@ public class AzureStorageServiceTests extends ESTestCase {
         }
     }
 
+    public void testCreateClientWithEndpoints() throws IOException {
+        final Settings settings = Settings.builder()
+            .setSecureSettings(buildSecureSettings())
+            .put("azure.client.azure1.endpoint", "https://account1.zone.azure.net")
+
+            .put("azure.client.azure2.endpoint", "https://account2.zone.azure.net")
+            .put("azure.client.azure2.secondary_endpoint", "https://account2-secondary.zone.azure.net")
+            .build();
+        try (AzureRepositoryPlugin plugin = pluginWithSettingsValidation(settings)) {
+            final AzureStorageService azureStorageService = plugin.azureStoreService.get();
+
+            expectThrows(IllegalArgumentException.class, () -> azureStorageService.client("azure1", LocationMode.PRIMARY_THEN_SECONDARY));
+            expectThrows(IllegalArgumentException.class, () -> azureStorageService.client("azure1", LocationMode.SECONDARY_ONLY));
+            expectThrows(IllegalArgumentException.class, () -> azureStorageService.client("azure1", LocationMode.SECONDARY_THEN_PRIMARY));
+
+            AzureBlobServiceClient client1 = azureStorageService.client("azure1", LocationMode.PRIMARY_ONLY);
+            assertThat(client1.getSyncClient().getAccountUrl(), equalTo("https://account1.zone.azure.net"));
+
+            assertThat(
+                azureStorageService.client("azure2", randomBoolean() ? LocationMode.PRIMARY_ONLY : LocationMode.PRIMARY_THEN_SECONDARY)
+                    .getSyncClient()
+                    .getAccountUrl(),
+                equalTo("https://account2.zone.azure.net")
+            );
+
+            assertThat(
+                azureStorageService.client("azure2", randomBoolean() ? LocationMode.SECONDARY_ONLY : LocationMode.SECONDARY_THEN_PRIMARY)
+                    .getSyncClient()
+                    .getAccountUrl(),
+                equalTo("https://account2-secondary.zone.azure.net")
+            );
+        }
+    }
+
+    public void testEndpointSettingValidation() {
+        {
+            final SettingsException e = expectThrows(
+                SettingsException.class,
+                () -> storageServiceWithSettingsValidation(
+                    Settings.builder()
+                        .setSecureSettings(buildSecureSettings())
+                        .put("azure.client.azure1.secondary_endpoint", "https://account1.zone.azure.net")
+                        .build()
+                )
+            );
+            assertEquals("A primary endpoint is required when setting a secondary endpoint", e.getMessage());
+        }
+
+        {
+            final SettingsException e = expectThrows(
+                SettingsException.class,
+                () -> storageServiceWithSettingsValidation(
+                    Settings.builder()
+                        .setSecureSettings(buildSecureSettings())
+                        .put("azure.client.azure1.endpoint_suffix", "test")
+                        .put("azure.client.azure1.secondary_endpoint", "https://account1.zone.azure.net")
+                        .build()
+                )
+            );
+            assertEquals("Both an endpoint suffix as well as a secondary endpoint were set", e.getMessage());
+        }
+    }
+
     private static MockSecureSettings buildSecureSettings() {
         final MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("azure.client.azure1.account", "myaccount1");

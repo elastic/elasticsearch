@@ -29,7 +29,9 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.OptionalBytesReference;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -64,7 +66,6 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.OptionalLong;
 import java.util.Queue;
 import java.util.Random;
 import java.util.Set;
@@ -452,13 +453,14 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
 
             final String registerName = "test-register-" + UUIDs.randomBase64UUID(random);
             try (var registerRefs = new RefCountingRunnable(finalRegisterValueVerifier(registerName, random, requestRefs.acquire()))) {
-                final long registerOperations = Math.max(nodes.size(), request.getConcurrency());
+                final int registerOperations = Math.max(nodes.size(), request.getConcurrency());
                 for (int i = 0; i < registerOperations; i++) {
                     final RegisterAnalyzeAction.Request registerAnalyzeRequest = new RegisterAnalyzeAction.Request(
                         request.getRepositoryName(),
                         blobPath,
                         registerName,
-                        registerOperations
+                        registerOperations,
+                        random.nextInt((registerOperations + 1) * 2)
                     );
                     final DiscoveryNode node = nodes.get(i < nodes.size() ? i : random.nextInt(nodes.size()));
                     final Releasable registerRef = registerRefs.acquire();
@@ -596,11 +598,13 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
                     final var expectedFinalRegisterValue = expectedRegisterValue.get();
                     transportService.getThreadPool()
                         .executor(ThreadPool.Names.SNAPSHOT)
-                        .execute(ActionRunnable.wrap(ActionListener.releaseAfter(new ActionListener<OptionalLong>() {
+                        .execute(ActionRunnable.wrap(ActionListener.releaseAfter(new ActionListener<OptionalBytesReference>() {
                             @Override
-                            public void onResponse(OptionalLong actualFinalRegisterValue) {
-                                if (actualFinalRegisterValue.isEmpty()
-                                    || actualFinalRegisterValue.getAsLong() != expectedFinalRegisterValue) {
+                            public void onResponse(OptionalBytesReference actualFinalRegisterValue) {
+                                if (actualFinalRegisterValue.isPresent() == false
+                                    || RegisterAnalyzeAction.longFromBytes(
+                                        actualFinalRegisterValue.bytesReference()
+                                    ) != expectedFinalRegisterValue) {
                                     fail(
                                         new RepositoryVerificationException(
                                             request.getRepositoryName(),
@@ -627,15 +631,19 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
                                 case 0 -> getBlobContainer().getRegister(registerName, listener);
                                 case 1 -> getBlobContainer().compareAndExchangeRegister(
                                     registerName,
-                                    expectedFinalRegisterValue,
-                                    -1,
+                                    RegisterAnalyzeAction.bytesFromLong(expectedFinalRegisterValue),
+                                    new BytesArray(new byte[] { (byte) 0xff }),
                                     listener
                                 );
                                 case 2 -> getBlobContainer().compareAndSetRegister(
                                     registerName,
-                                    expectedFinalRegisterValue,
-                                    -1,
-                                    listener.map(b -> b ? OptionalLong.of(expectedFinalRegisterValue) : OptionalLong.empty())
+                                    RegisterAnalyzeAction.bytesFromLong(expectedFinalRegisterValue),
+                                    new BytesArray(new byte[] { (byte) 0xff }),
+                                    listener.map(
+                                        b -> b
+                                            ? OptionalBytesReference.of(RegisterAnalyzeAction.bytesFromLong(expectedFinalRegisterValue))
+                                            : OptionalBytesReference.MISSING
+                                    )
                                 );
                                 default -> {
                                     assert false;

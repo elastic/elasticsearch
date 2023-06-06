@@ -9,14 +9,13 @@ package org.elasticsearch.persistent;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.Metadata.Custom;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -51,11 +50,11 @@ import java.util.Optional;
 import static org.elasticsearch.cluster.metadata.Metadata.CONTEXT_MODE_GATEWAY;
 import static org.elasticsearch.cluster.metadata.Metadata.CONTEXT_MODE_SNAPSHOT;
 import static org.elasticsearch.persistent.PersistentTasksExecutor.NO_NODE_FOUND;
-import static org.elasticsearch.test.TransportVersionUtils.compatibleFutureVersion;
 import static org.elasticsearch.test.TransportVersionUtils.getFirstVersion;
+import static org.elasticsearch.test.TransportVersionUtils.getNextVersion;
 import static org.elasticsearch.test.TransportVersionUtils.getPreviousVersion;
 import static org.elasticsearch.test.TransportVersionUtils.randomVersionBetween;
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -276,7 +275,7 @@ public class PersistentTasksCustomMetadataTests extends ChunkedToXContentDiffabl
             TestPersistentTasksExecutor.NAME,
             new TestParams(
                 null,
-                randomVersionBetween(random(), compatibleFutureVersion(streamVersion), TransportVersion.CURRENT),
+                randomVersionBetween(random(), getNextVersion(streamVersion), TransportVersion.CURRENT),
                 randomBoolean() ? Optional.empty() : Optional.of("test")
             ),
             randomAssignment()
@@ -292,7 +291,7 @@ public class PersistentTasksCustomMetadataTests extends ChunkedToXContentDiffabl
             new NamedWriteableAwareStreamInput(input, getNamedWriteableRegistry())
         );
 
-        assertThat(read.taskMap().keySet(), equalTo(Collections.singleton("test_compatible_version")));
+        assertThat(read.taskMap().keySet(), contains("test_compatible_version"));
     }
 
     public void testDisassociateDeadNodes_givenNoPersistentTasks() {
@@ -303,7 +302,7 @@ public class PersistentTasksCustomMetadataTests extends ChunkedToXContentDiffabl
 
     public void testDisassociateDeadNodes_givenAssignedPersistentTask() {
         DiscoveryNodes nodes = DiscoveryNodes.builder()
-            .add(new DiscoveryNode("node1", buildNewFakeTransportAddress(), Version.CURRENT))
+            .add(DiscoveryNodeUtils.create("node1"))
             .localNodeId("node1")
             .masterNodeId("node1")
             .build();
@@ -331,7 +330,7 @@ public class PersistentTasksCustomMetadataTests extends ChunkedToXContentDiffabl
 
     public void testDisassociateDeadNodes() {
         DiscoveryNodes nodes = DiscoveryNodes.builder()
-            .add(new DiscoveryNode("node1", buildNewFakeTransportAddress(), Version.CURRENT))
+            .add(DiscoveryNodeUtils.create("node1"))
             .localNodeId("node1")
             .masterNodeId("node1")
             .build();

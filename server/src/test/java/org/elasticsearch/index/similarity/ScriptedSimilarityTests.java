@@ -87,10 +87,9 @@ public class ScriptedSimilarityTests extends ESTestCase {
                 ) {
 
                     StackTraceElement[] stackTraceElements = Thread.currentThread().getStackTrace();
-                    if (Arrays.stream(stackTraceElements)
-                        .anyMatch(
-                            ste -> { return ste.getClassName().endsWith(".TermScorer") && ste.getMethodName().equals("score"); }
-                        ) == false) {
+                    if (Arrays.stream(stackTraceElements).anyMatch(ste -> {
+                        return ste.getClassName().endsWith(".TermScorer") && ste.getMethodName().equals("score");
+                    }) == false) {
                         // this might happen when computing max scores
                         return Float.MAX_VALUE;
                     }
@@ -186,10 +185,9 @@ public class ScriptedSimilarityTests extends ESTestCase {
                 ) {
 
                     StackTraceElement[] stackTraceElements = Thread.currentThread().getStackTrace();
-                    if (Arrays.stream(stackTraceElements)
-                        .anyMatch(
-                            ste -> { return ste.getClassName().endsWith(".TermScorer") && ste.getMethodName().equals("score"); }
-                        ) == false) {
+                    if (Arrays.stream(stackTraceElements).anyMatch(ste -> {
+                        return ste.getClassName().endsWith(".TermScorer") && ste.getMethodName().equals("score");
+                    }) == false) {
                         // this might happen when computing max scores
                         return Float.MAX_VALUE;
                     }

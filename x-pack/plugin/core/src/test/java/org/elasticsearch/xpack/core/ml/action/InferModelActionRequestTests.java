@@ -27,12 +27,12 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.QuestionAnsweringC
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.QuestionAnsweringConfigUpdateTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfigUpdateTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ResultsFieldUpdateTests;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.SlimConfigUpdate;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.SlimConfigUpdateTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextClassificationConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextClassificationConfigUpdateTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfigUpdateTests;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfigUpdate;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfigUpdateTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ZeroShotClassificationConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ZeroShotClassificationConfigUpdateTests;
 
@@ -68,7 +68,7 @@ public class InferModelActionRequestTests extends AbstractBWCWireSerializationTe
     @Override
     protected Request mutateInstance(Request instance) {
 
-        var modelId = instance.getModelId();
+        var modelId = instance.getId();
         var objectsToInfer = instance.getObjectsToInfer();
         var highPriority = instance.isHighPriority();
         var textInput = instance.getTextInput();
@@ -170,8 +170,8 @@ public class InferModelActionRequestTests extends AbstractBWCWireSerializationTe
                 adjustedUpdate = PassThroughConfigUpdateTests.mutateForVersion(update, version);
             } else if (nlpConfigUpdate instanceof QuestionAnsweringConfigUpdate update) {
                 adjustedUpdate = QuestionAnsweringConfigUpdateTests.mutateForVersion(update, version);
-            } else if (nlpConfigUpdate instanceof SlimConfigUpdate update) {
-                adjustedUpdate = SlimConfigUpdateTests.mutateForVersion(update, version);
+            } else if (nlpConfigUpdate instanceof TextExpansionConfigUpdate update) {
+                adjustedUpdate = TextExpansionConfigUpdateTests.mutateForVersion(update, version);
             } else {
                 throw new IllegalArgumentException("Unknown update [" + currentUpdate.getName() + "]");
             }
@@ -181,7 +181,7 @@ public class InferModelActionRequestTests extends AbstractBWCWireSerializationTe
 
         if (version.before(TransportVersion.V_8_3_0)) {
             return new Request(
-                instance.getModelId(),
+                instance.getId(),
                 adjustedUpdate,
                 instance.getObjectsToInfer(),
                 null,
@@ -190,7 +190,7 @@ public class InferModelActionRequestTests extends AbstractBWCWireSerializationTe
             );
         } else if (version.before(TransportVersion.V_8_7_0)) {
             return new Request(
-                instance.getModelId(),
+                instance.getId(),
                 adjustedUpdate,
                 instance.getObjectsToInfer(),
                 null,
@@ -199,7 +199,7 @@ public class InferModelActionRequestTests extends AbstractBWCWireSerializationTe
             );
         } else if (version.before(TransportVersion.V_8_8_0)) {
             var r = new Request(
-                instance.getModelId(),
+                instance.getId(),
                 adjustedUpdate,
                 instance.getObjectsToInfer(),
                 instance.getTextInput(),

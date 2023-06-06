@@ -140,3 +140,32 @@
   - match: {component_templates.0.name: test-lifecycle}
   - match: {component_templates.0.component_template.version: 1}
   - match: {component_templates.0.component_template.template.lifecycle: {data_retention: "10d"}}
+
+---
+"Get data lifecycle with default rollover":
+  - skip:
+      version: " - 8.7.99"
+      reason: "Data Lifecycle template was added after 8.7"
+
+  - do:
+      cluster.put_component_template:
+        name: test-lifecycle
+        body:
+          template:
+            lifecycle:
+              data_retention: "10d"
+          version: 1
+          _meta:
+            foo: bar
+            baz:
+              eggplant: true
+
+  - do:
+      cluster.get_component_template:
+        name: test-lifecycle
+        include_defaults: true
+
+  - match: {component_templates.0.name: test-lifecycle}
+  - match: {component_templates.0.component_template.version: 1}
+  - match: {component_templates.0.component_template.template.lifecycle.data_retention: "10d"}
+  - is_true: component_templates.0.component_template.template.lifecycle.rollover

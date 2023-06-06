@@ -11,8 +11,10 @@ package org.elasticsearch.action.admin.cluster.node.stats;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.discovery.DiscoveryStats;
 import org.elasticsearch.http.HttpStats;
@@ -29,16 +31,17 @@ import org.elasticsearch.script.ScriptCacheStats;
 import org.elasticsearch.script.ScriptStats;
 import org.elasticsearch.threadpool.ThreadPoolStats;
 import org.elasticsearch.transport.TransportStats;
-import org.elasticsearch.xcontent.ToXContentFragment;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Node statistics (dynamic, changes depending on when created).
  */
-public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
+public class NodeStats extends BaseNodeResponse implements ChunkedToXContent {
 
     private final long timestamp;
 
@@ -275,72 +278,75 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params outerParams) {
 
-        builder.field("name", getNode().getName());
-        builder.field("transport_address", getNode().getAddress().toString());
-        builder.field("host", getNode().getHostName());
-        builder.field("ip", getNode().getAddress());
+        return Iterators.concat(
 
-        builder.startArray("roles");
-        for (DiscoveryNodeRole role : getNode().getRoles()) {
-            builder.value(role.roleName());
-        }
-        builder.endArray();
+            Iterators.single((builder, params) -> {
+                builder.field("name", getNode().getName());
+                builder.field("transport_address", getNode().getAddress().toString());
+                builder.field("host", getNode().getHostName());
+                builder.field("ip", getNode().getAddress());
 
-        if (getNode().getAttributes().isEmpty() == false) {
-            builder.startObject("attributes");
-            for (Map.Entry<String, String> attrEntry : getNode().getAttributes().entrySet()) {
-                builder.field(attrEntry.getKey(), attrEntry.getValue());
-            }
-            builder.endObject();
-        }
+                builder.startArray("roles");
+                for (DiscoveryNodeRole role : getNode().getRoles()) {
+                    builder.value(role.roleName());
+                }
+                builder.endArray();
 
-        if (getIndices() != null) {
-            getIndices().toXContent(builder, params);
-        }
-        if (getOs() != null) {
-            getOs().toXContent(builder, params);
-        }
-        if (getProcess() != null) {
-            getProcess().toXContent(builder, params);
-        }
-        if (getJvm() != null) {
-            getJvm().toXContent(builder, params);
-        }
-        if (getThreadPool() != null) {
-            getThreadPool().toXContent(builder, params);
-        }
-        if (getFs() != null) {
-            getFs().toXContent(builder, params);
-        }
-        if (getTransport() != null) {
-            getTransport().toXContent(builder, params);
-        }
-        if (getHttp() != null) {
-            getHttp().toXContent(builder, params);
-        }
-        if (getBreaker() != null) {
-            getBreaker().toXContent(builder, params);
-        }
-        if (getScriptStats() != null) {
-            getScriptStats().toXContent(builder, params);
-        }
-        if (getDiscoveryStats() != null) {
-            getDiscoveryStats().toXContent(builder, params);
-        }
-        if (getIngestStats() != null) {
-            getIngestStats().toXContent(builder, params);
-        }
-        if (getAdaptiveSelectionStats() != null) {
-            getAdaptiveSelectionStats().toXContent(builder, params);
-        }
-        if (getScriptCacheStats() != null) {
-            getScriptCacheStats().toXContent(builder, params);
-        }
-        if (getIndexingPressureStats() != null) {
-            getIndexingPressureStats().toXContent(builder, params);
-        }
-        return builder;
+                if (getNode().getAttributes().isEmpty() == false) {
+                    builder.startObject("attributes");
+                    for (Map.Entry<String, String> attrEntry : getNode().getAttributes().entrySet()) {
+                        builder.field(attrEntry.getKey(), attrEntry.getValue());
+                    }
+                    builder.endObject();
+                }
+
+                return builder;
+            }),
+
+            ifPresent(getIndices()).toXContentChunked(outerParams),
+
+            Iterators.single((builder, params) -> {
+                ifPresent(getOs()).toXContent(builder, params);
+                ifPresent(getProcess()).toXContent(builder, params);
+                ifPresent(getJvm()).toXContent(builder, params);
+                return builder;
+            }),
+
+            ifPresent(getThreadPool()).toXContentChunked(outerParams),
+
+            Iterators.single((builder, params) -> {
+                ifPresent(getFs()).toXContent(builder, params);
+                return builder;
+            }),
+
+            ifPresent(getTransport()).toXContentChunked(outerParams),
+            ifPresent(getHttp()).toXContentChunked(outerParams),
+
+            Iterators.single((builder, params) -> {
+                ifPresent(getBreaker()).toXContent(builder, params);
+                ifPresent(getScriptStats()).toXContent(builder, params);
+                ifPresent(getDiscoveryStats()).toXContent(builder, params);
+                return builder;
+            }),
+
+            ifPresent(getIngestStats()).toXContentChunked(outerParams),
+
+            Iterators.single((builder, params) -> {
+                ifPresent(getAdaptiveSelectionStats()).toXContent(builder, params);
+                ifPresent(getScriptCacheStats()).toXContent(builder, params);
+                ifPresent(getIndexingPressureStats()).toXContent(builder, params);
+                return builder;
+            })
+        );
+    }
+
+    private static ChunkedToXContent ifPresent(@Nullable ChunkedToXContent chunkedToXContent) {
+        return Objects.requireNonNullElse(chunkedToXContent, ChunkedToXContent.EMPTY);
+    }
+
+    private static ToXContent ifPresent(@Nullable ToXContent toXContent) {
+        return Objects.requireNonNullElse(toXContent, ToXContent.EMPTY);
     }
 }

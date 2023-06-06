@@ -81,18 +81,9 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
 
             scripts.put("ctx._source.field2 = 'value2'", vars -> srcScript(vars, source -> source.replace("field2", "value2")));
 
-            scripts.put(
-                "throw script exception on unknown var",
-                vars -> {
-                    throw new ScriptException(
-                        "message",
-                        null,
-                        Collections.emptyList(),
-                        "exception on unknown var",
-                        CustomScriptPlugin.NAME
-                    );
-                }
-            );
+            scripts.put("throw script exception on unknown var", vars -> {
+                throw new ScriptException("message", null, Collections.emptyList(), "exception on unknown var", CustomScriptPlugin.NAME);
+            });
 
             scripts.put("ctx.op = \"none\"", vars -> ((Map<String, Object>) vars.get("ctx")).put("op", "none"));
             scripts.put("ctx.op = \"delete\"", vars -> ((Map<String, Object>) vars.get("ctx")).put("op", "delete"));

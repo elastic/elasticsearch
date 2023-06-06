@@ -176,7 +176,7 @@ public class SimpleRole implements Role {
     }
 
     @Override
-    public RoleDescriptorsIntersection getRemoteAccessRoleDescriptorsIntersection(final String remoteClusterAlias) {
+    public RoleDescriptorsIntersection getRoleDescriptorsIntersectionForRemoteCluster(final String remoteClusterAlias) {
         final RemoteIndicesPermission remoteIndicesPermission = remoteIndices.forCluster(remoteClusterAlias);
         if (remoteIndicesPermission.remoteIndicesGroups().isEmpty()) {
             return RoleDescriptorsIntersection.EMPTY;
@@ -264,6 +264,11 @@ public class SimpleRole implements Role {
         int result = Objects.hash(cluster, indices, application, runAs);
         result = 31 * result + Arrays.hashCode(names);
         return result;
+    }
+
+    @Override
+    public String toString() {
+        return getClass().getName() + "{" + String.join(",", names) + "}";
     }
 
     private final AtomicReference<Cache<PrivilegesToCheck, PrivilegesCheckResult>> hasPrivilegesCacheReference = new AtomicReference<>();

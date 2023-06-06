@@ -19,6 +19,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.Accountable;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
@@ -57,7 +58,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.internal.SubSearchContext;
@@ -119,11 +119,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
     }
 
     protected static IndexAnalyzers createIndexAnalyzers() {
-        return new IndexAnalyzers(
-            Map.of("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer())),
-            Map.of(),
-            Map.of()
-        );
+        return IndexAnalyzers.of(Map.of("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer())));
     }
 
     protected final String randomIndexOptions() {
@@ -207,12 +203,15 @@ public abstract class MapperServiceTestCase extends ESTestCase {
 
         SimilarityService similarityService = new SimilarityService(indexSettings, null, Map.of());
         return new MapperService(
+            () -> TransportVersion.CURRENT,
             indexSettings,
             createIndexAnalyzers(indexSettings),
             parserConfig(),
             similarityService,
             mapperRegistry,
-            () -> { throw new UnsupportedOperationException(); },
+            () -> {
+                throw new UnsupportedOperationException();
+            },
             indexSettings.getMode().buildIdFieldMapper(idFieldDataEnabled),
             this::compileScript
         );
@@ -227,12 +226,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
     }
 
     protected static IndexSettings createIndexSettings(Version version, Settings settings) {
-        settings = Settings.builder()
-            .put("index.number_of_replicas", 0)
-            .put("index.number_of_shards", 1)
-            .put(settings)
-            .put("index.version.created", version)
-            .build();
+        settings = indexSettings(1, 0).put(settings).put("index.version.created", version).build();
         IndexMetadata meta = IndexMetadata.builder("index").settings(settings).build();
         return new IndexSettings(meta, settings);
     }
@@ -240,12 +234,12 @@ public abstract class MapperServiceTestCase extends ESTestCase {
     protected final void withLuceneIndex(
         MapperService mapperService,
         CheckedConsumer<RandomIndexWriter, IOException> builder,
-        CheckedConsumer<IndexReader, IOException> test
+        CheckedConsumer<DirectoryReader, IOException> test
     ) throws IOException {
         IndexWriterConfig iwc = new IndexWriterConfig(IndexShard.buildIndexAnalyzer(mapperService));
         try (Directory dir = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc)) {
             builder.accept(iw);
-            try (IndexReader reader = iw.getReader()) {
+            try (DirectoryReader reader = iw.getReader()) {
                 test.accept(reader);
             }
         }
@@ -371,7 +365,6 @@ public abstract class MapperServiceTestCase extends ESTestCase {
     ) {
         return new AggregationContext() {
             private final CircuitBreaker breaker = mock(CircuitBreaker.class);
-            private final MultiBucketConsumer multiBucketConsumer = new MultiBucketConsumer(Integer.MAX_VALUE, breaker);
 
             @Override
             public IndexSearcher searcher() {
@@ -497,8 +490,13 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             }
 
             @Override
-            public MultiBucketConsumer multiBucketConsumer() {
-                return multiBucketConsumer;
+            public void removeReleasable(Aggregator aggregator) {
+                // TODO we'll have to handle this in the tests eventually
+            }
+
+            @Override
+            public int maxBuckets() {
+                return Integer.MAX_VALUE;
             }
 
             @Override

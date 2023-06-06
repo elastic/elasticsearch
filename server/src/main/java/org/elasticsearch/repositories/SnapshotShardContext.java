@@ -11,9 +11,12 @@ package org.elasticsearch.repositories;
 import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.snapshots.IndexShardSnapshotFailedException;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.snapshots.SnapshotId;
@@ -23,13 +26,13 @@ import org.elasticsearch.snapshots.SnapshotId;
  * Wraps a {@link org.elasticsearch.index.engine.Engine.IndexCommitRef} that is released once this instances is completed by invoking
  * either its {@link #onResponse(ShardSnapshotResult)} or {@link #onFailure(Exception)} callback.
  */
-public final class SnapshotShardContext extends ActionListener.Delegating<ShardSnapshotResult, ShardSnapshotResult> {
+public final class SnapshotShardContext extends DelegatingActionListener<ShardSnapshotResult, ShardSnapshotResult> {
 
     private final Store store;
     private final MapperService mapperService;
     private final SnapshotId snapshotId;
     private final IndexId indexId;
-    private final Engine.IndexCommitRef commitRef;
+    private final SnapshotIndexCommit commitRef;
     @Nullable
     private final String shardStateIdentifier;
     private final IndexShardSnapshotStatus snapshotStatus;
@@ -56,14 +59,14 @@ public final class SnapshotShardContext extends ActionListener.Delegating<ShardS
         MapperService mapperService,
         SnapshotId snapshotId,
         IndexId indexId,
-        Engine.IndexCommitRef commitRef,
+        SnapshotIndexCommit commitRef,
         @Nullable String shardStateIdentifier,
         IndexShardSnapshotStatus snapshotStatus,
         Version repositoryMetaVersion,
         final long snapshotStartTime,
         ActionListener<ShardSnapshotResult> listener
     ) {
-        super(ActionListener.runBefore(listener, commitRef::close));
+        super(commitRef.closingBefore(listener));
         this.store = store;
         this.mapperService = mapperService;
         this.snapshotId = snapshotId;
@@ -92,7 +95,7 @@ public final class SnapshotShardContext extends ActionListener.Delegating<ShardS
     }
 
     public IndexCommit indexCommit() {
-        return commitRef.getIndexCommit();
+        return commitRef.indexCommit();
     }
 
     @Nullable
@@ -115,5 +118,16 @@ public final class SnapshotShardContext extends ActionListener.Delegating<ShardS
     @Override
     public void onResponse(ShardSnapshotResult result) {
         delegate.onResponse(result);
+    }
+
+    public Releasable withCommitRef() {
+        snapshotStatus.ensureNotAborted(); // check this first to avoid acquiring a ref when aborted even if refs are available
+        if (commitRef.tryIncRef()) {
+            return Releasables.releaseOnce(commitRef::decRef);
+        } else {
+            snapshotStatus.ensureNotAborted();
+            assert false : "commit ref closed early in state " + snapshotStatus;
+            throw new IndexShardSnapshotFailedException(store.shardId(), "Store got closed concurrently");
+        }
     }
 }

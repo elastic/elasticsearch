@@ -70,7 +70,7 @@ tasks.register("run-ccs", RunTask) {
     println "** Fulfilling cluster transport endpoints are: ${-> fulfillingCluster.get().getAllTransportPortURI().join(",")}"
     if (false == basicSecurityMode) {
       println "** Fulfilling cluster remote access endpoints are: ${-> fulfillingCluster.get().getAllRemoteAccessPortURI().join(",")}"
-      println "** NOTE: you must manually configure a remote access API key on the two clusters to run cross cluster operations"
+      println "** NOTE: you must manually configure a cross cluster access API key on the two clusters to run cross cluster operations"
     }
   }
 }

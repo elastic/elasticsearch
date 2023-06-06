@@ -1,7 +1,17 @@
+import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.internal.info.BuildParams
 
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.legacy-yaml-rest-test'
+apply plugin: 'elasticsearch.legacy-yaml-rest-compat-test'
+
+restResources {
+  restApi {
+    include  '_common', 'indices', 'index', 'cluster', 'data_stream', 'dlm'
+  }
+}
 
 esplugin {
   name 'dlm'
@@ -10,16 +20,37 @@ esplugin {
 }
 archivesBaseName = 'dlm'
 dependencies {
+  implementation project(path: ':modules:data-streams')
   testImplementation project(':modules:data-streams')
 }
 
-addQaCheckDependencies(project)
+testClusters.configureEach {
+  module ':modules:reindex'
+  testDistribution = 'DEFAULT'
+  // disable ILM history, since it disturbs tests using _all
+  setting 'indices.lifecycle.history_index_enabled', 'false'
+  setting 'xpack.security.enabled', 'true'
+  setting 'indices.dlm.poll_interval', '1000ms'
+  keystore 'bootstrap.password', 'x-pack-test-password'
+  user username: "x_pack_rest_user", password: "x-pack-test-password"
+  requiresFeature 'es.dlm_feature_flag_enabled', Version.fromString("8.8.0")
+}
+
+tasks.named('javaRestTest') {
+  usesDefaultDistribution()
+}
 
 if (BuildParams.isSnapshotBuild() == false) {
   tasks.named("test").configure {
     systemProperty 'es.dlm_feature_flag_enabled', 'true'
   }
   tasks.named("internalClusterTest").configure {
+    systemProperty 'es.dlm_feature_flag_enabled', 'true'
+  }
+  tasks.named("yamlRestTest").configure {
+    systemProperty 'es.dlm_feature_flag_enabled', 'true'
+  }
+  tasks.named("javaRestTest").configure {
     systemProperty 'es.dlm_feature_flag_enabled', 'true'
   }
 }

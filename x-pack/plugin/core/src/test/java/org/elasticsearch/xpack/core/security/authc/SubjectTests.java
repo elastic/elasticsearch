@@ -15,15 +15,19 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
+import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
+import org.elasticsearch.xpack.core.security.authz.store.RoleKey;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReference.ApiKeyRoleReference;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReference.BwcApiKeyRoleReference;
+import org.elasticsearch.xpack.core.security.authz.store.RoleReference.FixedRoleReference;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReference.NamedRoleReference;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReference.ServiceAccountRoleReference;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReferenceIntersection;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
+import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.util.Arrays;
@@ -31,15 +35,17 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_REALM_NAME;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_REALM_TYPE;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY;
-import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.REMOTE_ACCESS_REALM_NAME;
-import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.REMOTE_ACCESS_REALM_TYPE;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.CROSS_CLUSTER_ACCESS_REALM_NAME;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.CROSS_CLUSTER_ACCESS_REALM_TYPE;
 import static org.elasticsearch.xpack.core.security.authc.Subject.FLEET_SERVER_ROLE_DESCRIPTOR_BYTES_V_7_14;
-import static org.elasticsearch.xpack.core.security.authz.store.RoleReference.RemoteAccessRoleReference;
+import static org.elasticsearch.xpack.core.security.authz.store.RoleReference.CrossClusterAccessRoleReference;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
@@ -107,11 +113,12 @@ public class SubjectTests extends ESTestCase {
         assertThat(serviceAccountRoleReference.getPrincipal(), equalTo(serviceUser.principal()));
     }
 
-    public void testGetRoleReferencesForApiKey() {
+    public void testGetRoleReferencesForRestApiKey() {
         Map<String, Object> authMetadata = new HashMap<>();
         final String apiKeyId = randomAlphaOfLength(12);
         authMetadata.put(AuthenticationField.API_KEY_ID_KEY, apiKeyId);
         authMetadata.put(AuthenticationField.API_KEY_NAME_KEY, randomBoolean() ? null : randomAlphaOfLength(12));
+        authMetadata.put(AuthenticationField.API_KEY_TYPE_KEY, ApiKey.Type.REST.value());
         final BytesReference roleBytes = new BytesArray("{\"a role\": {\"cluster\": [\"all\"]}}");
         final BytesReference limitedByRoleBytes = new BytesArray("{\"limitedBy role\": {\"cluster\": [\"all\"]}}");
 
@@ -149,79 +156,130 @@ public class SubjectTests extends ESTestCase {
         }
     }
 
-    public void testGetRoleReferencesForRemoteAccess() {
+    public void testBuildRoleReferenceForCrossClusterApiKey() {
         Map<String, Object> authMetadata = new HashMap<>();
         final String apiKeyId = randomAlphaOfLength(12);
         authMetadata.put(AuthenticationField.API_KEY_ID_KEY, apiKeyId);
         authMetadata.put(AuthenticationField.API_KEY_NAME_KEY, randomBoolean() ? null : randomAlphaOfLength(12));
+        authMetadata.put(AuthenticationField.API_KEY_TYPE_KEY, ApiKey.Type.CROSS_CLUSTER.value());
         final BytesReference roleBytes = new BytesArray("""
-            {"role":{"indices":[{"names":["index*"],"privileges":["read"]}]}}""");
-        final BytesReference limitedByRoleBytes = new BytesArray("""
-            {"limited-by-role":{"indices":[{"names":["*"],"privileges":["all"]}]}}""");
-
-        final boolean emptyRoleBytes = randomBoolean();
-
-        authMetadata.put(
-            AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY,
-            emptyRoleBytes ? randomFrom(Arrays.asList(null, new BytesArray("{}"))) : roleBytes
-        );
-        authMetadata.put(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, limitedByRoleBytes);
-
-        final RemoteAccessAuthentication remoteAccessAuthentication = randomBoolean()
-            ? AuthenticationTestHelper.randomRemoteAccessAuthentication(RoleDescriptorsIntersection.EMPTY)
-            : AuthenticationTestHelper.randomRemoteAccessAuthentication();
-        authMetadata = remoteAccessAuthentication.copyWithRemoteAccessEntries(authMetadata);
+            {
+              "cross_cluster": {
+                "cluster": ["cross_cluster_search"],
+                "indices": [
+                  { "names":["index"], "privileges":["read","read_cross_cluster","view_index_metadata"] }
+                ]
+              }
+            }""");
+        authMetadata.put(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY, roleBytes);
+        authMetadata.put(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, new BytesArray("{}"));
 
         final Subject subject = new Subject(
             new User("joe"),
-            new Authentication.RealmRef(REMOTE_ACCESS_REALM_NAME, REMOTE_ACCESS_REALM_TYPE, "node"),
+            new Authentication.RealmRef(API_KEY_REALM_NAME, API_KEY_REALM_TYPE, "node"),
             TransportVersion.CURRENT,
             authMetadata
         );
 
+        final ApiKeyRoleReference roleReference = subject.buildRoleReferenceForCrossClusterApiKey();
+        assertThat(roleReference.getApiKeyId(), equalTo(apiKeyId));
+        assertThat(roleReference.getRoleDescriptorsBytes(), equalTo(authMetadata.get(API_KEY_ROLE_DESCRIPTORS_KEY)));
+    }
+
+    public void testGetRoleReferencesForCrossClusterAccess() {
+        Map<String, Object> authMetadata = new HashMap<>();
+        final String apiKeyId = randomAlphaOfLength(12);
+        authMetadata.put(AuthenticationField.API_KEY_ID_KEY, apiKeyId);
+        authMetadata.put(AuthenticationField.API_KEY_NAME_KEY, randomBoolean() ? null : randomAlphaOfLength(12));
+        authMetadata.put(AuthenticationField.API_KEY_TYPE_KEY, ApiKey.Type.CROSS_CLUSTER.value());
+        final BytesReference roleBytes = new BytesArray("""
+            {
+              "cross_cluster": {
+                "cluster": ["cross_cluster_replication"],
+                "indices": [
+                  { "names":["index*"],"privileges":["cross_cluster_replication","cross_cluster_replication_internal"] }
+                ]
+              }
+            }""");
+
+        authMetadata.put(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY, roleBytes);
+        authMetadata.put(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, new BytesArray("{}"));
+
+        final CrossClusterAccessSubjectInfo crossClusterAccessSubjectInfo = randomBoolean()
+            ? AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo(RoleDescriptorsIntersection.EMPTY)
+            : AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo();
+        authMetadata = crossClusterAccessSubjectInfo.copyWithCrossClusterAccessEntries(authMetadata);
+
+        final Subject subject = new Subject(
+            new User("joe"),
+            new Authentication.RealmRef(CROSS_CLUSTER_ACCESS_REALM_NAME, CROSS_CLUSTER_ACCESS_REALM_TYPE, "node"),
+            TransportVersion.CURRENT,
+            authMetadata
+        );
+
+        final Authentication authentication = crossClusterAccessSubjectInfo.getAuthentication();
+        final boolean isInternalUser = authentication.getEffectiveSubject().getUser() == InternalUsers.CROSS_CLUSTER_ACCESS_USER;
         final RoleReferenceIntersection roleReferenceIntersection = subject.getRoleReferenceIntersection(getAnonymousUser());
+        // Number of role references depends on the authentication and its number of roles.
+        // Test setup can randomly authentication with 0, 1 or 2 (in case of API key) role descriptors,
+        final int numberOfRemoteRoleDescriptors = crossClusterAccessSubjectInfo.getRoleDescriptorsBytesList().size();
+        assertThat(numberOfRemoteRoleDescriptors, anyOf(equalTo(0), equalTo(1), equalTo(2)));
         final List<RoleReference> roleReferences = roleReferenceIntersection.getRoleReferences();
-        if (emptyRoleBytes) {
-            assertThat(roleReferences, contains(isA(RemoteAccessRoleReference.class), isA(ApiKeyRoleReference.class)));
-
-            final RemoteAccessRoleReference remoteAccessRoleReference = (RemoteAccessRoleReference) roleReferences.get(0);
-            assertThat(
-                remoteAccessRoleReference.getRoleDescriptorsBytes(),
-                equalTo(
-                    remoteAccessAuthentication.getRoleDescriptorsBytesList().isEmpty()
-                        ? RemoteAccessAuthentication.RoleDescriptorsBytes.EMPTY
-                        : remoteAccessAuthentication.getRoleDescriptorsBytesList().get(0)
-                )
-            );
-
-            final ApiKeyRoleReference roleReference = (ApiKeyRoleReference) roleReferences.get(1);
-            assertThat(roleReference.getApiKeyId(), equalTo(apiKeyId));
-            assertThat(roleReference.getRoleDescriptorsBytes(), equalTo(authMetadata.get(API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY)));
-
-        } else {
+        if (numberOfRemoteRoleDescriptors == 2) {
+            // Two role references means we can't have a FixedRoleReference
             assertThat(
                 roleReferences,
-                contains(isA(RemoteAccessRoleReference.class), isA(ApiKeyRoleReference.class), isA(ApiKeyRoleReference.class))
-            );
-
-            final RemoteAccessRoleReference remoteAccessRoleReference = (RemoteAccessRoleReference) roleReferences.get(0);
-            assertThat(
-                remoteAccessRoleReference.getRoleDescriptorsBytes(),
-                equalTo(
-                    remoteAccessAuthentication.getRoleDescriptorsBytesList().isEmpty()
-                        ? RemoteAccessAuthentication.RoleDescriptorsBytes.EMPTY
-                        : remoteAccessAuthentication.getRoleDescriptorsBytesList().get(0)
+                contains(
+                    isA(CrossClusterAccessRoleReference.class),
+                    isA(CrossClusterAccessRoleReference.class),
+                    isA(ApiKeyRoleReference.class)
                 )
             );
+
+            expectCrossClusterAccessReferenceAtIndex(0, roleReferences, crossClusterAccessSubjectInfo);
+            expectCrossClusterAccessReferenceAtIndex(1, roleReferences, crossClusterAccessSubjectInfo);
+
+            final ApiKeyRoleReference roleReference = (ApiKeyRoleReference) roleReferences.get(2);
+            assertThat(roleReference.getApiKeyId(), equalTo(apiKeyId));
+            assertThat(roleReference.getRoleDescriptorsBytes(), equalTo(authMetadata.get(API_KEY_ROLE_DESCRIPTORS_KEY)));
+        } else {
+            if (isInternalUser) {
+                assertThat(roleReferences, contains(isA(FixedRoleReference.class), isA(ApiKeyRoleReference.class)));
+                expectFixedReferenceAtIndex(0, roleReferences);
+            } else {
+                assertThat(roleReferences, contains(isA(CrossClusterAccessRoleReference.class), isA(ApiKeyRoleReference.class)));
+                expectCrossClusterAccessReferenceAtIndex(0, roleReferences, crossClusterAccessSubjectInfo);
+            }
 
             final ApiKeyRoleReference roleReference = (ApiKeyRoleReference) roleReferences.get(1);
             assertThat(roleReference.getApiKeyId(), equalTo(apiKeyId));
             assertThat(roleReference.getRoleDescriptorsBytes(), equalTo(authMetadata.get(API_KEY_ROLE_DESCRIPTORS_KEY)));
-
-            final ApiKeyRoleReference limitedByRoleReference = (ApiKeyRoleReference) roleReferences.get(2);
-            assertThat(limitedByRoleReference.getApiKeyId(), equalTo(apiKeyId));
-            assertThat(limitedByRoleReference.getRoleDescriptorsBytes(), equalTo(authMetadata.get(API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY)));
         }
+    }
+
+    private static void expectCrossClusterAccessReferenceAtIndex(
+        int index,
+        List<RoleReference> roleReferences,
+        CrossClusterAccessSubjectInfo crossClusterAccessSubjectInfo
+    ) {
+        final CrossClusterAccessRoleReference reference = (CrossClusterAccessRoleReference) roleReferences.get(index);
+        assertThat(
+            reference.getRoleDescriptorsBytes(),
+            equalTo(
+                crossClusterAccessSubjectInfo.getRoleDescriptorsBytesList().isEmpty()
+                    ? CrossClusterAccessSubjectInfo.RoleDescriptorsBytes.EMPTY
+                    : crossClusterAccessSubjectInfo.getRoleDescriptorsBytesList().get(index)
+            )
+        );
+    }
+
+    private static void expectFixedReferenceAtIndex(int index, List<RoleReference> roleReferences) {
+        final FixedRoleReference fixedRoleReference = (FixedRoleReference) roleReferences.get(index);
+        final RoleKey expectedKey = new RoleKey(
+            Set.of(InternalUsers.CROSS_CLUSTER_ACCESS_USER.getRemoteAccessRoleDescriptor().get().getName()),
+            "cross_cluster_access_internal"
+        );
+        assertThat(fixedRoleReference.id(), equalTo(expectedKey));
     }
 
     public void testGetRoleReferencesForApiKeyBwc() {
@@ -282,6 +340,8 @@ public class SubjectTests extends ESTestCase {
                 randomAlphaOfLength(20),
                 AuthenticationField.API_KEY_NAME_KEY,
                 randomAlphaOfLength(12),
+                AuthenticationField.API_KEY_TYPE_KEY,
+                ApiKey.Type.REST.value(),
                 AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY,
                 roleBytes,
                 AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY,

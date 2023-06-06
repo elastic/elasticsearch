@@ -187,9 +187,6 @@ no _tsid in standard indices:
       indices.create:
         index: test
         body:
-          settings:
-            index:
-              number_of_shards: 2
           mappings:
             properties:
               "@timestamp":

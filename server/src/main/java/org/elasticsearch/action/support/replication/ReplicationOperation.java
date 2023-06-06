@@ -465,7 +465,7 @@ public class ReplicationOperation<
         if (finished.compareAndSet(false, true)) {
             final ReplicationResponse.ShardInfo.Failure[] failuresArray;
             if (shardReplicaFailures.isEmpty()) {
-                failuresArray = ReplicationResponse.EMPTY;
+                failuresArray = ReplicationResponse.NO_FAILURES;
             } else {
                 failuresArray = new ReplicationResponse.ShardInfo.Failure[shardReplicaFailures.size()];
                 shardReplicaFailures.toArray(failuresArray);

@@ -87,21 +87,15 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
         this.leastAvailableSpaceUsage = in.readImmutableMap(StreamInput::readString, DiskUsage::new);
         this.mostAvailableSpaceUsage = in.readImmutableMap(StreamInput::readString, DiskUsage::new);
         this.shardSizes = in.readImmutableMap(StreamInput::readString, StreamInput::readLong);
-        if (in.getTransportVersion().onOrAfter(DATA_SET_SIZE_SIZE_VERSION)) {
-            this.shardDataSetSizes = in.readImmutableMap(ShardId::new, StreamInput::readLong);
-        } else {
-            this.shardDataSetSizes = Map.of();
-        }
-        if (in.getTransportVersion().onOrAfter(DATA_PATH_NEW_KEY_VERSION)) {
-            this.dataPath = in.readImmutableMap(NodeAndShard::new, StreamInput::readString);
-        } else {
-            this.dataPath = in.readImmutableMap(nested -> NodeAndShard.from(new ShardRouting(nested)), StreamInput::readString);
-        }
-        if (in.getTransportVersion().onOrAfter(StoreStats.RESERVED_BYTES_VERSION)) {
-            this.reservedSpace = in.readImmutableMap(NodeAndPath::new, ReservedSpace::new);
-        } else {
-            this.reservedSpace = Map.of();
-        }
+        this.shardDataSetSizes = in.getTransportVersion().onOrAfter(DATA_SET_SIZE_SIZE_VERSION)
+            ? in.readImmutableMap(ShardId::new, StreamInput::readLong)
+            : Map.of();
+        this.dataPath = in.getTransportVersion().onOrAfter(DATA_PATH_NEW_KEY_VERSION)
+            ? in.readImmutableMap(NodeAndShard::new, StreamInput::readString)
+            : in.readImmutableMap(nested -> NodeAndShard.from(new ShardRouting(nested)), StreamInput::readString);
+        this.reservedSpace = in.getTransportVersion().onOrAfter(StoreStats.RESERVED_BYTES_VERSION)
+            ? in.readImmutableMap(NodeAndPath::new, ReservedSpace::new)
+            : Map.of();
     }
 
     @Override

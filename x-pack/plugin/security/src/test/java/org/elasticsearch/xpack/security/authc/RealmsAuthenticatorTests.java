@@ -92,7 +92,7 @@ public class RealmsAuthenticatorTests extends ESTestCase {
         when(realm3.realmRef()).thenReturn(new Authentication.RealmRef("realm3", "realm3", nodeName, domain3));
 
         request = randomBoolean()
-            ? mock(AuthenticationService.AuditableRestRequest.class)
+            ? mock(AuthenticationService.AuditableHttpRequest.class)
             : mock(AuthenticationService.AuditableTransportRequest.class);
         authenticationToken = mock(AuthenticationToken.class);
         username = randomAlphaOfLength(5);

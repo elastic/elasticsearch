@@ -176,8 +176,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
         final RestoreService restoreService = getFollowerCluster().getCurrentMasterNodeInstance(RestoreService.class);
         final ClusterService clusterService = getFollowerCluster().getCurrentMasterNodeInstance(ClusterService.class);
 
-        final PlainActionFuture<RestoreInfo> future = PlainActionFuture.newFuture();
-        restoreService.restoreSnapshot(restoreRequest, waitForRestore(clusterService, future));
+        final PlainActionFuture<RestoreInfo> future = startRestore(clusterService, restoreService, restoreRequest);
 
         // ensure that a retention lease has been put in place on each shard
         assertBusy(() -> {
@@ -235,8 +234,8 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                 senderNode.getName()
             );
             senderTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
-                if (ClearCcrRestoreSessionAction.NAME.equals(action)
-                    || TransportActionProxy.getProxyAction(ClearCcrRestoreSessionAction.NAME).equals(action)) {
+                if (ClearCcrRestoreSessionAction.INTERNAL_NAME.equals(action)
+                    || TransportActionProxy.getProxyAction(ClearCcrRestoreSessionAction.INTERNAL_NAME).equals(action)) {
                     try {
                         latch.await();
                     } catch (final InterruptedException e) {
@@ -247,8 +246,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
             });
         }
 
-        final PlainActionFuture<RestoreInfo> future = PlainActionFuture.newFuture();
-        restoreService.restoreSnapshot(restoreRequest, waitForRestore(clusterService, future));
+        final PlainActionFuture<RestoreInfo> future = startRestore(clusterService, restoreService, restoreRequest);
 
         try {
             assertRetentionLeaseRenewal(numberOfShards, numberOfReplicas, followerIndex, leaderIndex);
@@ -292,10 +290,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
         final RestoreService restoreService = getFollowerCluster().getCurrentMasterNodeInstance(RestoreService.class);
         final ClusterService clusterService = getFollowerCluster().getCurrentMasterNodeInstance(ClusterService.class);
 
-        final PlainActionFuture<RestoreInfo> future = PlainActionFuture.newFuture();
-        restoreService.restoreSnapshot(restoreRequest, waitForRestore(clusterService, future));
-
-        final RestoreInfo restoreInfo = future.actionGet();
+        final RestoreInfo restoreInfo = startRestore(clusterService, restoreService, restoreRequest).actionGet();
         final long start = System.nanoTime();
 
         /*

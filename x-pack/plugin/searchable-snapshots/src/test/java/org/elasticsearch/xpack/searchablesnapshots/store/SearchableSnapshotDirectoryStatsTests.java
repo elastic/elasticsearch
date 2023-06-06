@@ -15,6 +15,7 @@ import org.elasticsearch.blobcache.BlobCacheTestUtils;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -640,10 +641,10 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
             fileName,
             fileContent.length,
             fileChecksum,
-            Version.CURRENT.luceneVersion.toString()
+            Version.CURRENT.luceneVersion().toString()
         );
         final List<FileInfo> files = List.of(new FileInfo(blobName, metadata, ByteSizeValue.ofBytes(fileContent.length)));
-        final BlobStoreIndexShardSnapshot snapshot = new BlobStoreIndexShardSnapshot(snapshotId.getName(), 0L, files, 0L, 0L, 0, 0L);
+        final BlobStoreIndexShardSnapshot snapshot = new BlobStoreIndexShardSnapshot(snapshotId.getName(), files, 0L, 0L, 0, 0L);
         final Path shardDir = randomShardPath(shardId);
         final ShardPath shardPath = new ShardPath(false, shardDir, shardDir, shardId);
         final Path cacheDir = Files.createDirectories(resolveSnapshotCache(shardDir).resolve(snapshotId.getUUID()));
@@ -691,10 +692,10 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
                     new IndexId("some_index", UUIDs.randomBase64UUID(random()))
                 )
             );
-            DiscoveryNode targetNode = new DiscoveryNode("local", buildNewFakeTransportAddress(), Version.CURRENT);
+            DiscoveryNode targetNode = DiscoveryNodeUtils.create("local");
             RecoveryState recoveryState = new SearchableSnapshotRecoveryState(shardRouting, targetNode, null);
             final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
-            final boolean loaded = directory.loadSnapshot(recoveryState, future);
+            final boolean loaded = directory.loadSnapshot(recoveryState, () -> false, future);
             future.get();
             assertThat("Failed to load snapshot", loaded, is(true));
             assertThat("Snapshot should be loaded", directory.snapshot(), notNullValue());

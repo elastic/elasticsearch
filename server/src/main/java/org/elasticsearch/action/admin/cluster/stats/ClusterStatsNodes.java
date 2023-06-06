@@ -62,10 +62,10 @@ public class ClusterStatsNodes implements ToXContentFragment {
 
     ClusterStatsNodes(List<ClusterStatsNodeResponse> nodeResponses) {
         this.versions = new HashSet<>();
-        this.fs = new FsInfo.Path();
         this.plugins = new HashSet<>();
 
-        Set<InetAddress> seenAddresses = Sets.newHashSetWithExpectedSize(nodeResponses.size());
+        ClusterFsStatsDeduplicator deduplicator = new ClusterFsStatsDeduplicator(nodeResponses.size());
+
         List<NodeInfo> nodeInfos = new ArrayList<>(nodeResponses.size());
         List<NodeStats> nodeStats = new ArrayList<>(nodeResponses.size());
         for (ClusterStatsNodeResponse nodeResponse : nodeResponses) {
@@ -74,16 +74,12 @@ public class ClusterStatsNodes implements ToXContentFragment {
             this.versions.add(nodeResponse.nodeInfo().getVersion());
             this.plugins.addAll(nodeResponse.nodeInfo().getInfo(PluginsAndModules.class).getPluginInfos());
 
-            // now do the stats that should be deduped by hardware (implemented by ip deduping)
             TransportAddress publishAddress = nodeResponse.nodeInfo().getInfo(TransportInfo.class).address().publishAddress();
             final InetAddress inetAddress = publishAddress.address().getAddress();
-            if (seenAddresses.add(inetAddress) == false) {
-                continue;
-            }
-            if (nodeResponse.nodeStats().getFs() != null) {
-                this.fs.add(nodeResponse.nodeStats().getFs().getTotal());
-            }
+            deduplicator.add(inetAddress, nodeResponse.nodeStats().getFs());
         }
+        this.fs = deduplicator.getTotal();
+
         this.counts = new Counts(nodeInfos);
         this.os = new OsStats(nodeInfos, nodeStats);
         this.process = new ProcessStats(nodeStats);
@@ -719,23 +715,23 @@ public class ClusterStatsNodes implements ToXContentFragment {
                 if (nodeStat.getIngestStats() != null) {
                     for (Map.Entry<String, List<org.elasticsearch.ingest.IngestStats.ProcessorStat>> processorStats : nodeStat
                         .getIngestStats()
-                        .getProcessorStats()
+                        .processorStats()
                         .entrySet()) {
                         pipelineIds.add(processorStats.getKey());
                         for (org.elasticsearch.ingest.IngestStats.ProcessorStat stat : processorStats.getValue()) {
-                            stats.compute(stat.getType(), (k, v) -> {
-                                org.elasticsearch.ingest.IngestStats.Stats nodeIngestStats = stat.getStats();
+                            stats.compute(stat.type(), (k, v) -> {
+                                org.elasticsearch.ingest.IngestStats.Stats nodeIngestStats = stat.stats();
                                 if (v == null) {
                                     return new long[] {
-                                        nodeIngestStats.getIngestCount(),
-                                        nodeIngestStats.getIngestFailedCount(),
-                                        nodeIngestStats.getIngestCurrent(),
-                                        nodeIngestStats.getIngestTimeInMillis() };
+                                        nodeIngestStats.ingestCount(),
+                                        nodeIngestStats.ingestFailedCount(),
+                                        nodeIngestStats.ingestCurrent(),
+                                        nodeIngestStats.ingestTimeInMillis() };
                                 } else {
-                                    v[0] += nodeIngestStats.getIngestCount();
-                                    v[1] += nodeIngestStats.getIngestFailedCount();
-                                    v[2] += nodeIngestStats.getIngestCurrent();
-                                    v[3] += nodeIngestStats.getIngestTimeInMillis();
+                                    v[0] += nodeIngestStats.ingestCount();
+                                    v[1] += nodeIngestStats.ingestFailedCount();
+                                    v[2] += nodeIngestStats.ingestCurrent();
+                                    v[3] += nodeIngestStats.ingestTimeInMillis();
                                     return v;
                                 }
                             });
@@ -845,6 +841,52 @@ public class ClusterStatsNodes implements ToXContentFragment {
             return indexingPressureStats.toXContent(builder, params);
         }
 
+    }
+
+    static class ClusterFsStatsDeduplicator {
+
+        private record DedupEntry(InetAddress inetAddress, String mount, String path) {}
+
+        private final Set<DedupEntry> seenAddressesMountsPaths;
+
+        private final FsInfo.Path total = new FsInfo.Path();
+
+        ClusterFsStatsDeduplicator(int expectedSize) {
+            // each address+mount is stored twice (once without a path, and once with a path), thus 2x
+            seenAddressesMountsPaths = Sets.newHashSetWithExpectedSize(2 * expectedSize);
+        }
+
+        public void add(InetAddress inetAddress, FsInfo fsInfo) {
+            if (fsInfo != null) {
+                for (FsInfo.Path p : fsInfo) {
+                    final String mount = p.getMount();
+                    final String path = p.getPath();
+
+                    // this deduplication logic is hard to get right. it might be impossible to make it work correctly in
+                    // *all* circumstances. this is best-effort only, but it's aimed at trying to solve 90%+ of cases.
+
+                    // rule 0: we want to sum the unique mounts for each ip address, so if we *haven't* seen a particular
+                    // address and mount, then definitely add that to the total.
+
+                    // rule 1: however, as a special case, if we see the same address+mount+path triple more than once, then we
+                    // override the ip+mount de-duplication logic -- using that as indicator that we're seeing a special
+                    // containerization situation, in which case we assume the operator is maintaining different disks for each node.
+
+                    boolean seenAddressMount = seenAddressesMountsPaths.add(new DedupEntry(inetAddress, mount, null)) == false;
+                    boolean seenAddressMountPath = seenAddressesMountsPaths.add(new DedupEntry(inetAddress, mount, path)) == false;
+
+                    if ((seenAddressMount == false) || seenAddressMountPath) {
+                        total.add(p);
+                    }
+                }
+            }
+        }
+
+        public FsInfo.Path getTotal() {
+            FsInfo.Path result = new FsInfo.Path();
+            result.add(total);
+            return result;
+        }
     }
 
 }

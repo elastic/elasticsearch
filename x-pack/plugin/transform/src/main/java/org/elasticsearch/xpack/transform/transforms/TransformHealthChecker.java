@@ -9,36 +9,88 @@ package org.elasticsearch.xpack.transform.transforms;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
+import org.elasticsearch.xpack.core.transform.transforms.AuthorizationState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformHealth;
 import org.elasticsearch.xpack.core.transform.transforms.TransformHealthIssue;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
 
+import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * Check the health of a transform.
  */
 public final class TransformHealthChecker {
 
+    /**
+     * Describes all the known transform health issue types.
+     *
+     * The list of issue type can be extended over time, when we add additional health checks.
+     */
+    public enum IssueType {
+        ASSIGNMENT_FAILED("Failed to assign transform to a node"),
+        PRIVILEGES_CHECK_FAILED("Privileges check failed"),
+        TRANSFORM_TASK_FAILED("Transform task state is [failed]"),
+        TRANSFORM_INDEXER_FAILED("Transform indexer failed"),
+        TRANSFORM_INTERNAL_STATE_UPDATE_FAILED("Task encountered failures updating internal state");
+
+        private final String issue;
+
+        IssueType(String issue) {
+            this.issue = issue;
+        }
+
+        public TransformHealthIssue newIssue(@Nullable String details, int count, @Nullable Instant firstOccurrence) {
+            String type = name().toLowerCase(Locale.ROOT);
+            return new TransformHealthIssue(type, issue, details, count, firstOccurrence);
+        }
+    }
+
     // simple boundary to decide when to report a red status vs. a yellow status after consecutive retries
     static int RED_STATUS_FAILURE_COUNT_BOUNDARY = 5;
 
-    public static TransformHealth checkUnassignedTransform(String transformId, ClusterState clusterState) {
+    public static TransformHealth checkUnassignedTransform(
+        String transformId,
+        ClusterState clusterState,
+        @Nullable AuthorizationState authState
+    ) {
         final Assignment assignment = TransformNodes.getAssignment(transformId, clusterState);
+        final List<TransformHealthIssue> issues = new ArrayList<>(2);
+        issues.add(IssueType.ASSIGNMENT_FAILED.newIssue(assignment.getExplanation(), 1, null));
+        if (AuthorizationState.isNullOrGreen(authState) == false) {
+            issues.add(IssueType.PRIVILEGES_CHECK_FAILED.newIssue(authState.getLastAuthError(), 1, null));
+        }
+        return new TransformHealth(HealthStatus.RED, Collections.unmodifiableList(issues));
+    }
+
+    public static TransformHealth checkTransform(@Nullable AuthorizationState authState) {
+        // quick check
+        if (AuthorizationState.isNullOrGreen(authState)) {
+            return TransformHealth.GREEN;
+        }
+
         return new TransformHealth(
-            HealthStatus.RED,
-            List.of(new TransformHealthIssue("Failed to assign transform to a node", assignment.getExplanation(), 1, null))
+            authState.getStatus(),
+            List.of(IssueType.PRIVILEGES_CHECK_FAILED.newIssue(authState.getLastAuthError(), 1, null))
         );
     }
 
     public static TransformHealth checkTransform(TransformTask transformTask) {
+        return checkTransform(transformTask, null);
+    }
+
+    public static TransformHealth checkTransform(TransformTask transformTask, @Nullable AuthorizationState authState) {
         // quick check
         if (TransformTaskState.FAILED.equals(transformTask.getState().getTaskState()) == false
             && transformTask.getContext().getFailureCount() == 0
-            && transformTask.getContext().getStatePersistenceFailureCount() == 0) {
+            && transformTask.getContext().getStatePersistenceFailureCount() == 0
+            && AuthorizationState.isNullOrGreen(authState)) {
             return TransformHealth.GREEN;
         }
 
@@ -46,15 +98,15 @@ public final class TransformHealthChecker {
         List<TransformHealthIssue> issues = new ArrayList<>();
         HealthStatus maxStatus = HealthStatus.GREEN;
 
+        if (AuthorizationState.isNullOrGreen(authState) == false) {
+            maxStatus = authState.getStatus();
+            issues.add(IssueType.PRIVILEGES_CHECK_FAILED.newIssue(authState.getLastAuthError(), 1, null));
+        }
+
         if (TransformTaskState.FAILED.equals(transformTask.getState().getTaskState())) {
             maxStatus = HealthStatus.RED;
             issues.add(
-                new TransformHealthIssue(
-                    "Transform task state is [failed]",
-                    transformTask.getState().getReason(),
-                    1,
-                    transformContext.getStateFailureTime()
-                )
+                IssueType.TRANSFORM_TASK_FAILED.newIssue(transformTask.getState().getReason(), 1, transformContext.getStateFailureTime())
             );
         }
 
@@ -69,8 +121,7 @@ public final class TransformHealthChecker {
             }
 
             issues.add(
-                new TransformHealthIssue(
-                    "Transform indexer failed",
+                IssueType.TRANSFORM_INDEXER_FAILED.newIssue(
                     lastFailureMessage,
                     transformContext.getFailureCount(),
                     transformContext.getLastFailureStartTime()
@@ -86,8 +137,7 @@ public final class TransformHealthChecker {
             }
 
             issues.add(
-                new TransformHealthIssue(
-                    "Task encountered failures updating internal state",
+                IssueType.TRANSFORM_INTERNAL_STATE_UPDATE_FAILED.newIssue(
                     transformContext.getLastStatePersistenceFailure().getMessage(),
                     transformContext.getStatePersistenceFailureCount(),
                     transformContext.getLastStatePersistenceFailureStartTime()

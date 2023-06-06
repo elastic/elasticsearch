@@ -23,19 +23,14 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.transport.TransportInfo;
+import org.elasticsearch.transport.RemoteClusterServerInfo;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
-
-import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE;
-import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED;
 
 public class RemoteClusterNodesAction extends ActionType<RemoteClusterNodesAction.Response> {
 
@@ -99,7 +94,7 @@ public class RemoteClusterNodesAction extends ActionType<RemoteClusterNodesActio
         protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
             final NodesInfoRequest nodesInfoRequest = new NodesInfoRequest();
             nodesInfoRequest.clear();
-            nodesInfoRequest.addMetrics(NodesInfoRequest.Metric.SETTINGS.metricName(), NodesInfoRequest.Metric.TRANSPORT.metricName());
+            nodesInfoRequest.addMetrics(NodesInfoRequest.Metric.REMOTE_CLUSTER_SERVER.metricName());
             final ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
             try (var ignore = threadContext.stashContext()) {
                 threadContext.markAsSystemContext();
@@ -107,20 +102,16 @@ public class RemoteClusterNodesAction extends ActionType<RemoteClusterNodesActio
                     transportService.getLocalNode(),
                     NodesInfoAction.NAME,
                     nodesInfoRequest,
-                    new ActionListenerResponseHandler<>(ActionListener.wrap(response -> {
+                    new ActionListenerResponseHandler<>(listener.delegateFailureAndWrap((l, response) -> {
                         final List<DiscoveryNode> remoteClusterNodes = response.getNodes().stream().map(nodeInfo -> {
-                            if (false == REMOTE_CLUSTER_SERVER_ENABLED.get(nodeInfo.getSettings())) {
+                            final RemoteClusterServerInfo remoteClusterServerInfo = nodeInfo.getInfo(RemoteClusterServerInfo.class);
+                            if (remoteClusterServerInfo == null) {
                                 return null;
                             }
-                            final Map<String, BoundTransportAddress> profileAddresses = nodeInfo.getInfo(TransportInfo.class)
-                                .getProfileAddresses();
-                            final BoundTransportAddress remoteClusterServerAddress = profileAddresses.get(REMOTE_CLUSTER_PROFILE);
-                            assert remoteClusterServerAddress != null
-                                : "remote cluster server is enabled but corresponding transport profile is missing";
-                            return nodeInfo.getNode().withTransportAddress(remoteClusterServerAddress.publishAddress());
+                            return nodeInfo.getNode().withTransportAddress(remoteClusterServerInfo.getAddress().publishAddress());
                         }).filter(Objects::nonNull).toList();
-                        listener.onResponse(new Response(remoteClusterNodes));
-                    }, listener::onFailure), NodesInfoResponse::new)
+                        l.onResponse(new Response(remoteClusterNodes));
+                    }), NodesInfoResponse::new)
                 );
             }
         }

@@ -26,7 +26,7 @@ public class AggregateMetricFieldValueFetcher extends FieldValueFetcher {
         AggregateDoubleMetricFieldType aggMetricFieldType,
         IndexFieldData<?> fieldData
     ) {
-        super(fieldType, fieldData);
+        super(fieldType.name(), fieldType, fieldData);
         this.aggMetricFieldType = aggMetricFieldType;
         this.rollupFieldProducer = createRollupFieldProducer();
     }

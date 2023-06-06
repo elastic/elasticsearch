@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 import org.elasticsearch.xpack.core.template.IndexTemplateRegistry;
 import org.elasticsearch.xpack.core.template.LifecyclePolicyConfig;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -40,7 +41,7 @@ public class MlIndexTemplateRegistry extends IndexTemplateRegistry {
 
     private static final String ML_SIZE_BASED_ILM_POLICY_NAME = "ml-size-based-ilm-policy";
 
-    private static IndexTemplateConfig stateTemplate() {
+    private IndexTemplateConfig stateTemplate() {
         Map<String, String> variables = new HashMap<>();
         variables.put(VERSION_ID_PATTERN, String.valueOf(Version.CURRENT.id));
         variables.put(INDEX_LIFECYCLE_NAME, ML_SIZE_BASED_ILM_POLICY_NAME);
@@ -48,7 +49,7 @@ public class MlIndexTemplateRegistry extends IndexTemplateRegistry {
 
         return new IndexTemplateConfig(
             AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX,
-            ANOMALY_DETECTION_PATH + "state_index_template.json",
+            ANOMALY_DETECTION_PATH + ((useIlm == false) ? "state_index_template_no_ilm.json" : "state_index_template.json"),
             Version.CURRENT.id,
             VERSION_PATTERN,
             variables
@@ -83,7 +84,7 @@ public class MlIndexTemplateRegistry extends IndexTemplateRegistry {
         );
     }
 
-    private static IndexTemplateConfig statsTemplate() {
+    private IndexTemplateConfig statsTemplate() {
         Map<String, String> variables = new HashMap<>();
         variables.put(VERSION_ID_PATTERN, String.valueOf(Version.CURRENT.id));
         variables.put("xpack.ml.stats.mappings", MlStatsIndex.mapping());
@@ -92,21 +93,31 @@ public class MlIndexTemplateRegistry extends IndexTemplateRegistry {
 
         return new IndexTemplateConfig(
             MlStatsIndex.TEMPLATE_NAME,
-            ROOT_RESOURCE_PATH + "stats_index_template.json",
+            ROOT_RESOURCE_PATH + ((useIlm == false) ? "stats_index_template_no_ilm.json" : "stats_index_template.json"),
             Version.CURRENT.id,
             VERSION_PATTERN,
             variables
         );
     }
 
+    private final boolean useIlm;
+
     public MlIndexTemplateRegistry(
         Settings nodeSettings,
         ClusterService clusterService,
         ThreadPool threadPool,
         Client client,
+        boolean useIlm,
         NamedXContentRegistry xContentRegistry
     ) {
         super(nodeSettings, clusterService, threadPool, client, xContentRegistry);
+        this.useIlm = useIlm;
+        this.composableIndexTemplateConfigs = parseComposableTemplates(
+            anomalyDetectionResultsTemplate(),
+            stateTemplate(),
+            NOTIFICATIONS_TEMPLATE,
+            statsTemplate()
+        );
     }
 
     @Override
@@ -114,16 +125,11 @@ public class MlIndexTemplateRegistry extends IndexTemplateRegistry {
         return true;
     }
 
-    private static final Map<String, ComposableIndexTemplate> COMPOSABLE_INDEX_TEMPLATE_CONFIGS = parseComposableTemplates(
-        anomalyDetectionResultsTemplate(),
-        stateTemplate(),
-        NOTIFICATIONS_TEMPLATE,
-        statsTemplate()
-    );
+    private final Map<String, ComposableIndexTemplate> composableIndexTemplateConfigs;
 
     @Override
     protected Map<String, ComposableIndexTemplate> getComposableTemplateConfigs() {
-        return COMPOSABLE_INDEX_TEMPLATE_CONFIGS;
+        return composableIndexTemplateConfigs;
     }
 
     private static final List<LifecyclePolicy> LIFECYCLE_POLICIES = List.of(
@@ -134,6 +140,9 @@ public class MlIndexTemplateRegistry extends IndexTemplateRegistry {
 
     @Override
     protected List<LifecyclePolicy> getPolicyConfigs() {
+        if (useIlm == false) {
+            return Collections.emptyList();
+        }
         return LIFECYCLE_POLICIES;
     }
 

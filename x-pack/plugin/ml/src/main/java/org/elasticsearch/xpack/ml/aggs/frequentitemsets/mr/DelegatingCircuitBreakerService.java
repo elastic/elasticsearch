@@ -68,59 +68,66 @@ final class DelegatingCircuitBreakerService extends CircuitBreakerService {
             this.name = wrappedBreaker.getName();
         }
 
-        void disconnect() {
+        synchronized void disconnect() {
             wrappedBreaker = null;
         }
 
         @Override
         public void circuitBreak(String fieldName, long bytesNeeded) {
-            if (wrappedBreaker != null) {
-                wrappedBreaker.circuitBreak(fieldName, bytesNeeded);
+            CircuitBreaker theBreaker = wrappedBreaker;
+
+            if (theBreaker != null) {
+                theBreaker.circuitBreak(fieldName, bytesNeeded);
             }
         }
 
         @Override
         public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
             if (wrappedBreaker != null) {
-                addToBreakerOverwrite.accept(bytes);
+                doAddToBreakerOverwrite(bytes);
             }
         }
 
         @Override
         public void addWithoutBreaking(long bytes) {
             if (wrappedBreaker != null) {
-                addToBreakerOverwrite.accept(bytes);
+                doAddToBreakerOverwrite(bytes);
             }
         }
 
         @Override
         public long getUsed() {
-            if (wrappedBreaker != null) {
-                return wrappedBreaker.getUsed();
+            CircuitBreaker theBreaker = wrappedBreaker;
+
+            if (theBreaker != null) {
+                return theBreaker.getUsed();
             }
             return 0;
         }
 
         @Override
         public long getLimit() {
-            if (wrappedBreaker != null) {
-                return wrappedBreaker.getLimit();
+            CircuitBreaker theBreaker = wrappedBreaker;
+            if (theBreaker != null) {
+                return theBreaker.getLimit();
             }
             return 0;
         }
 
         @Override
         public double getOverhead() {
-            if (wrappedBreaker != null) {
-                return wrappedBreaker.getOverhead();
+            CircuitBreaker theBreaker = wrappedBreaker;
+            if (theBreaker != null) {
+                return theBreaker.getOverhead();
             }
             return 0.0;
         }
 
         @Override
         public long getTrippedCount() {
-            if (wrappedBreaker != null) {
-                return wrappedBreaker.getTrippedCount();
+            CircuitBreaker theBreaker = wrappedBreaker;
+            if (theBreaker != null) {
+                return theBreaker.getTrippedCount();
             }
             return 0;
         }
@@ -132,16 +139,24 @@ final class DelegatingCircuitBreakerService extends CircuitBreakerService {
 
         @Override
         public Durability getDurability() {
-            if (wrappedBreaker != null) {
-                return wrappedBreaker.getDurability();
+            CircuitBreaker theBreaker = wrappedBreaker;
+            if (theBreaker != null) {
+                return theBreaker.getDurability();
             }
             return Durability.TRANSIENT;
         }
 
         @Override
         public void setLimitAndOverhead(long limit, double overhead) {
+            CircuitBreaker theBreaker = wrappedBreaker;
+            if (theBreaker != null) {
+                theBreaker.setLimitAndOverhead(limit, overhead);
+            }
+        }
+
+        private synchronized void doAddToBreakerOverwrite(long bytes) {
             if (wrappedBreaker != null) {
-                wrappedBreaker.setLimitAndOverhead(limit, overhead);
+                addToBreakerOverwrite.accept(bytes);
             }
         }
     }

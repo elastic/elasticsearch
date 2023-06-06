@@ -102,7 +102,7 @@ final class OutboundHandler {
             assert false : "request [" + request + "] has been released already";
             throw new AlreadyClosedException("request [" + request + "] has been released already");
         }
-        sendMessage(channel, message, () -> {
+        sendMessage(channel, message, ResponseStatsConsumer.NONE, () -> {
             try {
                 messageListener.onRequestSent(node, requestId, action, request, options);
             } finally {
@@ -115,7 +115,7 @@ final class OutboundHandler {
      * Sends the response to the given channel. This method should be used to send {@link TransportResponse}
      * objects back to the caller.
      *
-     * @see #sendErrorResponse(TransportVersion, TcpChannel, long, String, Exception) for sending error responses
+     * @see #sendErrorResponse for sending error responses
      */
     void sendResponse(
         final TransportVersion transportVersion,
@@ -124,7 +124,8 @@ final class OutboundHandler {
         final String action,
         final TransportResponse response,
         final Compression.Scheme compressionScheme,
-        final boolean isHandshake
+        final boolean isHandshake,
+        final ResponseStatsConsumer responseStatsConsumer
     ) throws IOException {
         TransportVersion version = TransportVersion.min(this.version, transportVersion);
         OutboundMessage.Response message = new OutboundMessage.Response(
@@ -135,7 +136,7 @@ final class OutboundHandler {
             isHandshake,
             compressionScheme
         );
-        sendMessage(channel, message, () -> {
+        sendMessage(channel, message, responseStatsConsumer, () -> {
             try {
                 messageListener.onResponseSent(requestId, action, response);
             } finally {
@@ -152,15 +153,21 @@ final class OutboundHandler {
         final TcpChannel channel,
         final long requestId,
         final String action,
+        final ResponseStatsConsumer responseStatsConsumer,
         final Exception error
     ) throws IOException {
         TransportVersion version = TransportVersion.min(this.version, transportVersion);
         RemoteTransportException tx = new RemoteTransportException(nodeName, channel.getLocalAddress(), action, error);
         OutboundMessage.Response message = new OutboundMessage.Response(threadPool.getThreadContext(), tx, version, requestId, false, null);
-        sendMessage(channel, message, () -> messageListener.onResponseSent(requestId, action, error));
+        sendMessage(channel, message, responseStatsConsumer, () -> messageListener.onResponseSent(requestId, action, error));
     }
 
-    private void sendMessage(TcpChannel channel, OutboundMessage networkMessage, Releasable onAfter) throws IOException {
+    private void sendMessage(
+        TcpChannel channel,
+        OutboundMessage networkMessage,
+        ResponseStatsConsumer responseStatsConsumer,
+        Releasable onAfter
+    ) throws IOException {
         final RecyclerBytesStreamOutput byteStreamOutput;
         boolean bufferSuccess = false;
         try {
@@ -185,6 +192,7 @@ final class OutboundHandler {
                 release.close();
             }
         }
+        responseStatsConsumer.addResponseStats(message.length());
         internalSend(channel, message, networkMessage, ActionListener.running(release::close));
     }
 

@@ -18,11 +18,8 @@ import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
-import java.util.function.Consumer;
 
 public class RolloverConditionsTests extends AbstractXContentSerializingTestCase<RolloverConditions> {
 
@@ -38,6 +35,10 @@ public class RolloverConditionsTests extends AbstractXContentSerializingTestCase
 
     @Override
     protected RolloverConditions createTestInstance() {
+        return randomRolloverConditions();
+    }
+
+    public static RolloverConditions randomRolloverConditions() {
         ByteSizeValue maxSize = randomBoolean() ? randomByteSizeValue() : null;
         ByteSizeValue maxPrimaryShardSize = randomBoolean() ? randomByteSizeValue() : null;
         Long maxDocs = randomBoolean() ? randomNonNegativeLong() : null;
@@ -61,11 +62,6 @@ public class RolloverConditionsTests extends AbstractXContentSerializingTestCase
             .addMinIndexDocsCondition(minDocs)
             .addMinPrimaryShardDocsCondition(minPrimaryShardDocs)
             .build();
-    }
-
-    private ByteSizeValue randomByteSizeValue() {
-        ByteSizeUnit unit = randomFrom(ByteSizeUnit.values());
-        return new ByteSizeValue(randomNonNegativeLong() / unit.toBytes(1), unit);
     }
 
     @Override
@@ -131,13 +127,6 @@ public class RolloverConditionsTests extends AbstractXContentSerializingTestCase
         return RolloverConditions.fromXContent(parser);
     }
 
-    public void testSameConditionCanOnlyBeAddedOnce() {
-        RolloverConditions.Builder builder = RolloverConditions.newBuilder();
-        Consumer<RolloverConditions.Builder> rolloverRequestConsumer = randomFrom(conditionsGenerator);
-        rolloverRequestConsumer.accept(builder);
-        expectThrows(IllegalArgumentException.class, () -> rolloverRequestConsumer.accept(builder));
-    }
-
     public void testConditionsAreMet() {
         RolloverConditions rolloverConditions = new RolloverConditions();
         assertTrue(rolloverConditions.areConditionsMet(Collections.emptyMap()));
@@ -169,18 +158,4 @@ public class RolloverConditionsTests extends AbstractXContentSerializingTestCase
         assertFalse(rolloverConditions.areConditionsMet(Map.of(maxAgeCondition, true, minDocsCondition, true)));
         assertTrue(rolloverConditions.areConditionsMet(Map.of(maxAgeCondition, true, minDocsCondition, true, minAgeCondition, true)));
     }
-
-    private static final List<Consumer<RolloverConditions.Builder>> conditionsGenerator = Arrays.asList(
-        (builder) -> builder.addMaxIndexDocsCondition(randomNonNegativeLong()),
-        (builder) -> builder.addMaxIndexSizeCondition(ByteSizeValue.ofBytes(randomNonNegativeLong())),
-        (builder) -> builder.addMaxIndexAgeCondition(new TimeValue(randomNonNegativeLong())),
-        (builder) -> builder.addMaxPrimaryShardSizeCondition(ByteSizeValue.ofBytes(randomNonNegativeLong())),
-        (builder) -> builder.addMaxPrimaryShardDocsCondition(randomNonNegativeLong()),
-        (builder) -> builder.addMinIndexDocsCondition(randomNonNegativeLong()),
-        (builder) -> builder.addMinIndexSizeCondition(ByteSizeValue.ofBytes(randomNonNegativeLong())),
-        (builder) -> builder.addMinIndexAgeCondition(new TimeValue(randomNonNegativeLong())),
-        (builder) -> builder.addMinPrimaryShardSizeCondition(ByteSizeValue.ofBytes(randomNonNegativeLong())),
-        (builder) -> builder.addMinPrimaryShardDocsCondition(randomNonNegativeLong())
-    );
-
 }

@@ -47,13 +47,13 @@ public class IndexSnapshotsService {
         ShardId shardId,
         ActionListener<Optional<ShardSnapshotInfo>> originalListener
     ) {
-        final ActionListener<Optional<ShardSnapshotInfo>> listener = originalListener.delegateResponse(
-            (delegate, err) -> {
-                delegate.onFailure(
-                    new RepositoryException(repositoryName, "Unable to find the latest snapshot for shard [" + shardId + "]", err)
-                );
-            }
-        );
+        assert repositoryName != null;
+
+        final ActionListener<Optional<ShardSnapshotInfo>> listener = originalListener.delegateResponse((delegate, err) -> {
+            delegate.onFailure(
+                new RepositoryException(repositoryName, "Unable to find the latest snapshot for shard [" + shardId + "]", err)
+            );
+        });
 
         final Repository repository = getRepository(repositoryName);
         if (repository == null) {

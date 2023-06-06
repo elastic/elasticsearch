@@ -125,9 +125,7 @@ public class SystemIndexManagerIT extends ESIntegTestCase {
      * Note that in the case of the mappings, this is just a dumb string comparison, so order of keys matters.
      */
     private void assertMappingsAndSettings(String expectedMappings) {
-        final GetMappingsResponse getMappingsResponse = client().admin()
-            .indices()
-            .getMappings(new GetMappingsRequest().indices(INDEX_NAME))
+        final GetMappingsResponse getMappingsResponse = indicesAdmin().getMappings(new GetMappingsRequest().indices(INDEX_NAME))
             .actionGet();
 
         final Map<String, MappingMetadata> mappings = getMappingsResponse.getMappings();
@@ -144,9 +142,7 @@ public class SystemIndexManagerIT extends ESIntegTestCase {
             throw new UncheckedIOException(e);
         }
 
-        final GetSettingsResponse getSettingsResponse = client().admin()
-            .indices()
-            .getSettings(new GetSettingsRequest().indices(INDEX_NAME))
+        final GetSettingsResponse getSettingsResponse = indicesAdmin().getSettings(new GetSettingsRequest().indices(INDEX_NAME))
             .actionGet();
 
         final Settings actual = getSettingsResponse.getIndexToSettings().get(PRIMARY_INDEX_NAME);

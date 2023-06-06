@@ -162,7 +162,7 @@ public class SnapshotsRecoveryPlannerService implements RecoveryPlannerService {
             () -> Strings.format(
                 "%s attempting snapshot-based recovery of %s based on %s",
                 shardId,
-                snapshotFilesToRecover.getSnapshotFiles()
+                snapshotFilesToRecover.snapshotFiles()
                     .stream()
                     .map(BlobStoreIndexShardSnapshot.FileInfo::physicalName)
                     .collect(Collectors.joining(", ", "[", "]")),
@@ -187,8 +187,8 @@ public class SnapshotsRecoveryPlannerService implements RecoveryPlannerService {
         // NodeVersionAllocationDecider ensures that we only recover to a node that has newer or
         // same version.
         if (commitVersion == null) {
-            assert SEQ_NO_SNAPSHOT_RECOVERIES_SUPPORTED_VERSION.luceneVersion.onOrAfter(snapshot.getCommitLuceneVersion());
-            return Version.CURRENT.luceneVersion.onOrAfter(snapshot.getCommitLuceneVersion());
+            assert SEQ_NO_SNAPSHOT_RECOVERIES_SUPPORTED_VERSION.luceneVersion().onOrAfter(snapshot.getCommitLuceneVersion());
+            return Version.CURRENT.luceneVersion().onOrAfter(snapshot.getCommitLuceneVersion());
         }
         return commitVersion.onOrBefore(Version.CURRENT);
     }

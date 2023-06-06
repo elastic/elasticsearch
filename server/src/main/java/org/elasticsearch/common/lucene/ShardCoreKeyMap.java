@@ -10,7 +10,7 @@ package org.elasticsearch.common.lucene;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
-import org.elasticsearch.Assertions;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardUtils;
 

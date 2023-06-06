@@ -16,12 +16,10 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 
 /**
- * An allocation decider that prevents shards from being allocated to a
- * node that is in the process of shutting down.
+ * An allocation decider that prevents shards from being allocated to a node that is in the process of shutting down.
  *
- * In short: No shards can be allocated to, or remain on, a node which is
- * shutting down for removal. Primary shards cannot be allocated to, or remain
- * on, a node which is shutting down for restart.
+ * No shards can be allocated to or remain on a node which is shutting down for removal.
+ * Shards can be allocated to or remain on a node scheduled for a restart.
  */
 public class NodeShutdownAllocationDecider extends AllocationDecider {
 
@@ -57,7 +55,7 @@ public class NodeShutdownAllocationDecider extends AllocationDecider {
     }
 
     private static Decision getDecision(RoutingAllocation allocation, String nodeId) {
-        final var nodeShutdowns = allocation.metadata().nodeShutdowns();
+        final var nodeShutdowns = allocation.metadata().nodeShutdowns().getAll();
         if (nodeShutdowns.isEmpty()) {
             return YES_EMPTY_SHUTDOWN_METADATA;
         }
@@ -68,7 +66,12 @@ public class NodeShutdownAllocationDecider extends AllocationDecider {
         }
 
         return switch (thisNodeShutdownMetadata.getType()) {
-            case REPLACE, REMOVE -> allocation.decision(Decision.NO, NAME, "node [%s] is preparing to be removed from the cluster", nodeId);
+            case REPLACE, REMOVE, SIGTERM -> allocation.decision(
+                Decision.NO,
+                NAME,
+                "node [%s] is preparing to be removed from the cluster",
+                nodeId
+            );
             case RESTART -> allocation.decision(
                 Decision.YES,
                 NAME,

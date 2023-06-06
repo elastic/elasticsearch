@@ -20,7 +20,6 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.Requests;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -150,12 +149,12 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
         assertFailures(searchRequest, RestStatus.INTERNAL_SERVER_ERROR, containsString(errMsg));
 
         NodesStatsResponse stats = client.admin().cluster().prepareNodesStats().setBreaker(true).get();
-        int breaks = 0;
+        long breaks = 0;
         for (NodeStats stat : stats.getNodes()) {
             CircuitBreakerStats breakerStats = stat.getBreaker().getStats(CircuitBreaker.FIELDDATA);
             breaks += breakerStats.getTrippedCount();
         }
-        assertThat(breaks, greaterThanOrEqualTo(1));
+        assertThat(breaks, greaterThanOrEqualTo(1L));
     }
 
     public void testRamAccountingTermsEnum() throws Exception {
@@ -216,12 +215,12 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
         assertFailures(searchRequest, RestStatus.INTERNAL_SERVER_ERROR, containsString(errMsg));
 
         NodesStatsResponse stats = client.admin().cluster().prepareNodesStats().setBreaker(true).get();
-        int breaks = 0;
+        long breaks = 0;
         for (NodeStats stat : stats.getNodes()) {
             CircuitBreakerStats breakerStats = stat.getBreaker().getStats(CircuitBreaker.FIELDDATA);
             breaks += breakerStats.getTrippedCount();
         }
-        assertThat(breaks, greaterThanOrEqualTo(1));
+        assertThat(breaks, greaterThanOrEqualTo(1L));
     }
 
     public void testRequestBreaker() throws Exception {
@@ -296,12 +295,7 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
     public void clearFieldData() throws Exception {
         client().admin().indices().prepareClearCache().setFieldDataCache(true).execute().actionGet();
         assertBusy(() -> {
-            NodesStatsResponse resp = client().admin()
-                .cluster()
-                .prepareNodesStats()
-                .clear()
-                .setBreaker(true)
-                .get(new TimeValue(15, TimeUnit.SECONDS));
+            NodesStatsResponse resp = clusterAdmin().prepareNodesStats().clear().setBreaker(true).get(new TimeValue(15, TimeUnit.SECONDS));
             for (NodeStats nStats : resp.getNodes()) {
                 assertThat(
                     "fielddata breaker never reset back to 0",
@@ -326,9 +320,7 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
         reset();
 
         assertThat(
-            client().admin()
-                .cluster()
-                .prepareState()
+            clusterAdmin().prepareState()
                 .get()
                 .getState()
                 .metadata()
@@ -348,7 +340,7 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
 
         internalCluster().ensureAtLeastNumDataNodes(2);
 
-        NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats().get();
+        NodesStatsResponse nodeStats = clusterAdmin().prepareNodesStats().get();
         List<NodeStats> dataNodeStats = new ArrayList<>();
         for (NodeStats stat : nodeStats.getNodes()) {
             if (stat.getNode().canContainData()) {
@@ -365,10 +357,7 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
 
         assertAcked(
             prepareCreate("index").setSettings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put("index.routing.allocation.include._name", targetNode.getNode().getName())
+                indexSettings(1, 0).put("index.routing.allocation.include._name", targetNode.getNode().getName())
                     .put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
             )
         );

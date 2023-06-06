@@ -8,7 +8,6 @@
 
 package org.elasticsearch.readiness;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -17,6 +16,7 @@ import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -42,8 +42,6 @@ import java.nio.channels.ServerSocketChannel;
 import java.util.Collections;
 import java.util.Set;
 
-import static java.util.Collections.emptyMap;
-
 public class ReadinessServiceTests extends ESTestCase implements ReadinessClientProbe {
     private ClusterService clusterService;
     private ReadinessService readinessService;
@@ -55,14 +53,7 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
         final DiscoveryNode node;
 
         FakeHttpTransport() {
-            node = new DiscoveryNode(
-                "local",
-                "local",
-                buildNewFakeTransportAddress(),
-                emptyMap(),
-                Set.of(DiscoveryNodeRole.MASTER_ROLE),
-                Version.CURRENT
-            );
+            node = DiscoveryNodeUtils.builder("local").name("local").roles(Set.of(DiscoveryNodeRole.MASTER_ROLE)).build();
         }
 
         @Override
@@ -239,7 +230,7 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
             .build();
         ClusterChangedEvent event = new ClusterChangedEvent("test", newState, previousState);
         readinessService.clusterChanged(event);
-        readinessService.settingsChanged();
+        readinessService.watchedFileChanged();
 
         // sending a cluster state with active master should bring up the service
         assertTrue(readinessService.ready());

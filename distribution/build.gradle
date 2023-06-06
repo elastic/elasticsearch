@@ -268,6 +268,8 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
 
   dependencies {
     libs project(':server')
+    // this is a special circumstance of a jar that is not a dependency of server, but needs to be in the module path
+    libs project(':libs:elasticsearch-preallocate')
 
     libsVersionChecker project(':distribution:tools:java-version-checker')
     libsCliLauncher project(':distribution:tools:cli-launcher')
@@ -603,4 +605,9 @@ artifacts.add('log4jConfig', file("${defaultOutputs}/log4j2.properties")) {
   type 'file'
   name 'log4j2.properties'
   builtBy 'buildDefaultLog4jConfig'
+}
+
+tasks.named('resolveAllDependencies') {
+  // We don't want to build all our distribution artifacts when priming our dependency cache
+  configs = []
 }

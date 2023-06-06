@@ -10,9 +10,12 @@ package org.elasticsearch.xpack.core.ilm;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.rollover.Condition;
+import org.elasticsearch.action.admin.indices.rollover.MaxPrimaryShardDocsCondition;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -23,7 +26,9 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
+import java.util.HashMap;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -33,6 +38,8 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
     private static final Logger logger = LogManager.getLogger(WaitForRolloverReadyStep.class);
 
     public static final String NAME = "check-rollover-ready";
+
+    public static final long MAX_PRIMARY_SHARD_DOCS = 200_000_000L;
 
     private final RolloverConditions conditions;
 
@@ -81,7 +88,7 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
         IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(index.getName());
         assert indexAbstraction != null : "invalid cluster metadata. index [" + index.getName() + "] was not found";
         final String rolloverTarget;
-        IndexAbstraction.DataStream dataStream = indexAbstraction.getParentDataStream();
+        DataStream dataStream = indexAbstraction.getParentDataStream();
         if (dataStream != null) {
             assert dataStream.getWriteIndex() != null : "datastream " + dataStream.getName() + " has no write index";
             if (dataStream.getWriteIndex().equals(index) == false) {
@@ -215,12 +222,12 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
 
     /**
      * Builds a RolloverRequest that captures the various max_* and min_* conditions of this {@link WaitForRolloverReadyStep}.
-     *
+     * <p>
      * To prevent empty indices from rolling over, a `min_docs: 1` condition will be injected if `rolloverOnlyIfHasDocuments` is true
      * and the request doesn't already have an associated min_docs or min_primary_shard_docs condition.
      *
-     * @param rolloverTarget the index to rollover
-     * @param masterTimeout the master timeout to use with the request
+     * @param rolloverTarget             the index to rollover
+     * @param masterTimeout              the master timeout to use with the request
      * @param rolloverOnlyIfHasDocuments whether to inject a min_docs 1 condition if there is not already a min_docs
      *                                   (or min_primary_shard_docs) condition
      * @return A RolloverRequest suitable for passing to {@code rolloverIndex(...) }.
@@ -233,6 +240,14 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
             rolloverRequest.setConditions(RolloverConditions.newBuilder(conditions).addMinIndexDocsCondition(1L).build());
         } else {
             rolloverRequest.setConditions(conditions);
+        }
+        long currentMaxPrimaryShardDocs = rolloverRequest.getConditions().getMaxPrimaryShardDocs() != null
+            ? rolloverRequest.getConditions().getMaxPrimaryShardDocs()
+            : Long.MAX_VALUE;
+        if (currentMaxPrimaryShardDocs > MAX_PRIMARY_SHARD_DOCS) {
+            Map<String, Condition<?>> conditions = new HashMap<>(rolloverRequest.getConditions().getConditions());
+            conditions.put(MaxPrimaryShardDocsCondition.NAME, new MaxPrimaryShardDocsCondition(MAX_PRIMARY_SHARD_DOCS));
+            rolloverRequest.setConditions(new RolloverConditions(conditions));
         }
         return rolloverRequest;
     }

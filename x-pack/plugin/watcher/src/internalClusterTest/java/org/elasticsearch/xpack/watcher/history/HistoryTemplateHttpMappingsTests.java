@@ -124,7 +124,7 @@ public class HistoryTemplateHttpMappingsTests extends AbstractWatcherIntegration
         assertThat(webServer.requests().get(1).getUri().getPath(), is("/webhook/path"));
     }
 
-    public void testExceptionMapping() {
+    public void testExceptionMapping() throws Exception {
         // delete all history indices to ensure that we only need to check a single index
         assertAcked(client().admin().indices().prepareDelete(HistoryStoreField.INDEX_PREFIX + "*"));
 
@@ -163,12 +163,14 @@ public class HistoryTemplateHttpMappingsTests extends AbstractWatcherIntegration
         assertThat(putWatchResponse.isCreated(), is(true));
         new ExecuteWatchRequestBuilder(client(), id).setRecordExecution(true).get();
 
-        // ensure watcher history index has been written with this id
-        flushAndRefresh(HistoryStoreField.INDEX_PREFIX + "*");
-        SearchResponse searchResponse = client().prepareSearch(HistoryStoreField.INDEX_PREFIX + "*")
-            .setQuery(QueryBuilders.termQuery("watch_id", id))
-            .get();
-        assertHitCount(searchResponse, 1L);
+        assertBusy(() -> {
+            // ensure watcher history index has been written with this id
+            flushAndRefresh(HistoryStoreField.INDEX_PREFIX + "*");
+            SearchResponse searchResponse = client().prepareSearch(HistoryStoreField.INDEX_PREFIX + "*")
+                .setQuery(QueryBuilders.termQuery("watch_id", id))
+                .get();
+            assertHitCount(searchResponse, 1L);
+        });
 
         // ensure that enabled is set to false
         List<Boolean> indexed = new ArrayList<>();

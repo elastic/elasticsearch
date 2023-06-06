@@ -12,7 +12,7 @@ out/
 !.idea/eclipseCodeFormatter.xml
 !.idea/externalDependencies.xml
 !.idea/inspectionProfiles/Project_Default.xml
-!.idea/runConfigurations/Debug_Elasticsearch.xml
+!.idea/runConfigurations/
 !.idea/scopes/x_pack.xml
 
 # These files are generated in the main tree by IntelliJ

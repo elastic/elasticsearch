@@ -42,7 +42,6 @@ import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
-import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
@@ -54,7 +53,6 @@ public class RestTermsEnumActionTests extends ESTestCase {
 
     private static UsageService usageService = new UsageService();
     private static RestController controller = new RestController(
-        emptySet(),
         null,
         client,
         new NoneCircuitBreakerService(),

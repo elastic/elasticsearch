@@ -5,8 +5,10 @@
   "composed_of": [
     "logs-mappings",
     "data-streams-mappings",
-    "logs-settings"
+    "logs-settings",
+    "logs@custom"
   ],
+  "ignore_missing_component_templates": ["logs@custom"],
   "allow_auto_create": true,
   "_meta": {
     "description": "default logs template installed by x-pack",

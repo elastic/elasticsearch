@@ -11,6 +11,7 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
+import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -25,7 +26,6 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.IdFieldMapper;
-import org.elasticsearch.index.mapper.ProvidedIdFieldMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
@@ -65,7 +65,7 @@ public class VersionsTests extends ESTestCase {
         assertThat(timeSeriesLoadDocIdAndVersion(directoryReader, new Term(IdFieldMapper.NAME, "1"), randomBoolean()), nullValue());
 
         Document doc = new Document();
-        doc.add(new Field(IdFieldMapper.NAME, "1", ProvidedIdFieldMapper.Defaults.FIELD_TYPE));
+        doc.add(new StringField(IdFieldMapper.NAME, "1", Field.Store.YES));
         doc.add(new NumericDocValuesField(VersionFieldMapper.NAME, 1));
         doc.add(new NumericDocValuesField(SeqNoFieldMapper.NAME, randomNonNegativeLong()));
         doc.add(new NumericDocValuesField(SeqNoFieldMapper.PRIMARY_TERM_NAME, randomLongBetween(1, Long.MAX_VALUE)));
@@ -74,7 +74,7 @@ public class VersionsTests extends ESTestCase {
         assertThat(timeSeriesLoadDocIdAndVersion(directoryReader, new Term(IdFieldMapper.NAME, "1"), randomBoolean()).version, equalTo(1L));
 
         doc = new Document();
-        Field uid = new Field(IdFieldMapper.NAME, "1", ProvidedIdFieldMapper.Defaults.FIELD_TYPE);
+        Field uid = new StringField(IdFieldMapper.NAME, "1", Field.Store.YES);
         Field version = new NumericDocValuesField(VersionFieldMapper.NAME, 2);
         doc.add(uid);
         doc.add(version);
@@ -112,12 +112,12 @@ public class VersionsTests extends ESTestCase {
         for (int i = 0; i < 4; ++i) {
             // Nested
             Document doc = new Document();
-            doc.add(new Field(IdFieldMapper.NAME, "1", ProvidedIdFieldMapper.Defaults.NESTED_FIELD_TYPE));
+            doc.add(new StringField(IdFieldMapper.NAME, "1", Field.Store.NO));
             docs.add(doc);
         }
         // Root
         Document doc = new Document();
-        doc.add(new Field(IdFieldMapper.NAME, "1", ProvidedIdFieldMapper.Defaults.FIELD_TYPE));
+        doc.add(new StringField(IdFieldMapper.NAME, "1", Field.Store.YES));
         NumericDocValuesField version = new NumericDocValuesField(VersionFieldMapper.NAME, 5L);
         doc.add(version);
         doc.add(new NumericDocValuesField(SeqNoFieldMapper.NAME, randomNonNegativeLong()));
@@ -150,7 +150,7 @@ public class VersionsTests extends ESTestCase {
         Directory dir = newDirectory();
         IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
         Document doc = new Document();
-        doc.add(new Field(IdFieldMapper.NAME, "6", ProvidedIdFieldMapper.Defaults.FIELD_TYPE));
+        doc.add(new StringField(IdFieldMapper.NAME, "6", Field.Store.YES));
         doc.add(new NumericDocValuesField(VersionFieldMapper.NAME, 87));
         doc.add(new NumericDocValuesField(SeqNoFieldMapper.NAME, randomNonNegativeLong()));
         doc.add(new NumericDocValuesField(SeqNoFieldMapper.PRIMARY_TERM_NAME, randomLongBetween(1, Long.MAX_VALUE)));
@@ -177,7 +177,7 @@ public class VersionsTests extends ESTestCase {
         Directory dir = newDirectory();
         IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
         Document doc = new Document();
-        doc.add(new Field(IdFieldMapper.NAME, "6", ProvidedIdFieldMapper.Defaults.FIELD_TYPE));
+        doc.add(new StringField(IdFieldMapper.NAME, "6", Field.Store.YES));
         doc.add(new NumericDocValuesField(VersionFieldMapper.NAME, 87));
         doc.add(new NumericDocValuesField(SeqNoFieldMapper.NAME, randomNonNegativeLong()));
         doc.add(new NumericDocValuesField(SeqNoFieldMapper.PRIMARY_TERM_NAME, randomLongBetween(1, Long.MAX_VALUE)));
@@ -204,19 +204,19 @@ public class VersionsTests extends ESTestCase {
         final Version nextVersion = Version.fromId(version.id + 100);
         if (Version.getDeclaredVersions(Version.class).contains(nextVersion) == false) {
             // the version is not known, we make an assumption the Lucene version stays the same
-            assertEquals(nextVersion.luceneVersion, version.luceneVersion);
+            assertEquals(nextVersion.luceneVersion(), version.luceneVersion());
         } else {
             // the version is known, the most we can assert is that the Lucene version is not earlier
-            assertTrue(nextVersion.luceneVersion.onOrAfter(version.luceneVersion));
+            assertTrue(nextVersion.luceneVersion().onOrAfter(version.luceneVersion()));
         }
 
         // too old version, major should be the oldest supported lucene version minus 1
         version = Version.fromString("5.2.1");
-        assertEquals(VersionUtils.getFirstVersion().luceneVersion.major - 1, version.luceneVersion.major);
+        assertEquals(VersionUtils.getFirstVersion().luceneVersion().major - 1, version.luceneVersion().major);
 
         // future version, should be the same version as today
         version = Version.fromId(Version.CURRENT.id + 100);
-        assertEquals(Version.CURRENT.luceneVersion, version.luceneVersion);
+        assertEquals(Version.CURRENT.luceneVersion(), version.luceneVersion());
     }
 
     public void testTimeSeriesLoadDocIdAndVersion() throws Exception {
@@ -230,7 +230,7 @@ public class VersionsTests extends ESTestCase {
         );
 
         Document doc = new Document();
-        doc.add(new Field(IdFieldMapper.NAME, "1", ProvidedIdFieldMapper.Defaults.FIELD_TYPE));
+        doc.add(new StringField(IdFieldMapper.NAME, "1", Field.Store.YES));
         doc.add(new LongPoint(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD, 1_000));
         doc.add(new NumericDocValuesField(VersionFieldMapper.NAME, 1));
         doc.add(new NumericDocValuesField(SeqNoFieldMapper.NAME, 0L));
@@ -238,7 +238,7 @@ public class VersionsTests extends ESTestCase {
         writer.updateDocument(new Term(IdFieldMapper.NAME, "1"), doc);
 
         doc = new Document();
-        doc.add(new Field(IdFieldMapper.NAME, "2", ProvidedIdFieldMapper.Defaults.FIELD_TYPE));
+        doc.add(new StringField(IdFieldMapper.NAME, "2", Field.Store.YES));
         doc.add(new LongPoint(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD, 10_000));
         doc.add(new NumericDocValuesField(VersionFieldMapper.NAME, 1));
         doc.add(new NumericDocValuesField(SeqNoFieldMapper.NAME, 0L));

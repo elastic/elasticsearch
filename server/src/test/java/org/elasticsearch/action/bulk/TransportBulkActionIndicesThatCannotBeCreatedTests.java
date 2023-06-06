@@ -69,12 +69,9 @@ public class TransportBulkActionIndicesThatCannotBeCreatedTests extends ESTestCa
         bulkRequest.add(new IndexRequest("can't"));
         bulkRequest.add(new DeleteRequest("do").version(0).versionType(VersionType.EXTERNAL));
         bulkRequest.add(new UpdateRequest("nothin", randomAlphaOfLength(5)));
-        indicesThatCannotBeCreatedTestCase(
-            Set.of("no", "can't", "do", "nothin"),
-            bulkRequest,
-            index -> true,
-            index -> { throw new IndexNotFoundException("Can't make it because I say so"); }
-        );
+        indicesThatCannotBeCreatedTestCase(Set.of("no", "can't", "do", "nothin"), bulkRequest, index -> true, index -> {
+            throw new IndexNotFoundException("Can't make it because I say so");
+        });
     }
 
     public void testSomeFail() {

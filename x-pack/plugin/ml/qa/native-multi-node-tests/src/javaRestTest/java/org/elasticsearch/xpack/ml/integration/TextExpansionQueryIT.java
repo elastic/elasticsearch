@@ -128,14 +128,14 @@ public class TextExpansionQueryIT extends PyTorchModelRestTestCase {
             "washing machine smells"
         );
 
-        List<List<Map<String, Float>>> tokenWeights = new ArrayList<>();
+        List<Map<String, Float>> tokenWeights = new ArrayList<>();
         // Generate the rank feature weights via the inference API
         // then index them for search
         for (var input : inputs) {
             Response inference = infer(input, modelId);
             List<Map<String, Object>> responseMap = (List<Map<String, Object>>) entityAsMap(inference).get("inference_results");
             Map<String, Object> inferenceResult = responseMap.get(0);
-            var idWeights = (List<Map<String, Float>>) inferenceResult.get("predicted_value");
+            var idWeights = (Map<String, Float>) inferenceResult.get("predicted_value");
             tokenWeights.add(idWeights);
         }
 
@@ -146,22 +146,98 @@ public class TextExpansionQueryIT extends PyTorchModelRestTestCase {
         // Test text expansion search against the indexed rank features
         for (int i = 0; i < 5; i++) {
             int randomInput = randomIntBetween(0, inputs.size() - 1);
-            var textExpansionSearchResponse = textExpansionSearch(indexName, inputs.get(randomInput), modelId, "tokens");
+            var textExpansionSearchResponse = textExpansionSearch(indexName, inputs.get(randomInput), modelId, "ml.tokens");
             assertOkWithErrorMessage(textExpansionSearchResponse);
 
             Map<String, Object> responseMap = responseAsMap(textExpansionSearchResponse);
             List<Map<String, Object>> hits = (List<Map<String, Object>>) MapHelper.dig("hits.hits", responseMap);
             Map<String, Object> topHit = hits.get(0);
-            String sourceText = (String) MapHelper.dig("_source.source_text", topHit);
+            String sourceText = (String) MapHelper.dig("_source.text_field", topHit);
             assertEquals(inputs.get(randomInput), sourceText);
+        }
+    }
+
+    public void testWithPipelineIngest() throws IOException {
+        String modelId = "text-expansion-pipeline-test";
+        String indexName = modelId + "-index";
+
+        createTextExpansionModel(modelId);
+        putModelDefinition(modelId, BASE_64_ENCODED_MODEL, RAW_MODEL_SIZE);
+        putVocabulary(
+            List.of("these", "are", "my", "words", "the", "washing", "machine", "is", "leaking", "octopus", "comforter", "smells"),
+            modelId
+        );
+        startDeployment(modelId);
+
+        // All tokens have a weight of 1.0.
+        // By using unique combinations of words the top doc returned
+        // by the search should be the same as the query text
+        List<String> inputs = List.of(
+            "my words comforter",
+            "the machine is leaking",
+            "these are my words",
+            "the octopus comforter smells",
+            "the octopus comforter is leaking",
+            "washing machine smells"
+        );
+
+        // index tokens
+        createRankFeaturesIndex(indexName);
+        var pipelineId = putPipeline(modelId);
+        bulkIndexThroughPipeline(inputs, indexName, pipelineId);
+
+        // Test text expansion search against the indexed rank features
+        for (int i = 0; i < 5; i++) {
+            int randomInput = randomIntBetween(0, inputs.size() - 1);
+            var textExpansionSearchResponse = textExpansionSearch(indexName, inputs.get(randomInput), modelId, "ml.tokens");
+            assertOkWithErrorMessage(textExpansionSearchResponse);
+
+            Map<String, Object> responseMap = responseAsMap(textExpansionSearchResponse);
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> hits = (List<Map<String, Object>>) MapHelper.dig("hits.hits", responseMap);
+            Map<String, Object> topHit = hits.get(0);
+            String sourceText = (String) MapHelper.dig("_source.text_field", topHit);
+            assertEquals(inputs.get(randomInput), sourceText);
+        }
+    }
+
+    public void testWithDotsInTokenNames() throws IOException {
+        String modelId = "text-expansion-dots-in-tokens";
+        String indexName = modelId + "-index";
+
+        createTextExpansionModel(modelId);
+        putModelDefinition(modelId, BASE_64_ENCODED_MODEL, RAW_MODEL_SIZE);
+        putVocabulary(List.of("these", "are", "my", "words", "the", "washing", "machine", ".", "##."), modelId);
+        startDeployment(modelId);
+
+        // '.' are invalid rank feature field names and will be replaced with '__'
+        List<String> inputs = List.of("these are my words.");
+
+        // index tokens
+        createRankFeaturesIndex(indexName);
+        var pipelineId = putPipeline(modelId);
+        bulkIndexThroughPipeline(inputs, indexName, pipelineId);
+
+        // Test text expansion search against the indexed rank features
+        for (var input : inputs) {
+            var textExpansionSearchResponse = textExpansionSearch(indexName, input, modelId, "ml.tokens");
+            assertOkWithErrorMessage(textExpansionSearchResponse);
+            Map<String, Object> responseMap = responseAsMap(textExpansionSearchResponse);
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> hits = (List<Map<String, Object>>) MapHelper.dig("hits.hits", responseMap);
+            Map<String, Object> topHit = hits.get(0);
+            String sourceText = (String) MapHelper.dig("_source.text_field", topHit);
+            assertEquals(input, sourceText);
+            // check the token names containing dots have been changed
+            Object s = MapHelper.dig("_source.ml.tokens.__", topHit);
+            assertNotNull(s);
         }
     }
 
     public void testSearchWithMissingModel() throws IOException {
         String modelId = "missing-model";
         String indexName = modelId + "-index";
-
-        var e = expectThrows(ResponseException.class, () -> textExpansionSearch(indexName, "the machine is leaking", modelId, "tokens"));
+        var e = expectThrows(ResponseException.class, () -> textExpansionSearch(indexName, "the machine is leaking", modelId, "ml.tokens"));
         assertThat(e.getMessage(), containsString("Could not find trained model [missing-model]"));
     }
 
@@ -190,7 +266,7 @@ public class TextExpansionQueryIT extends PyTorchModelRestTestCase {
                "description": "a text expansion model",
                "model_type": "pytorch",
                "inference_config": {
-                 "slim": {
+                 "text_expansion": {
                    "tokenization": {
                      "bert": {
                        "with_special_tokens": false
@@ -208,10 +284,10 @@ public class TextExpansionQueryIT extends PyTorchModelRestTestCase {
             {
               "mappings": {
                 "properties": {
-                  "source_text": {
+                  "text_field": {
                     "type": "text"
                   },
-                  "tokens": {
+                  "ml.tokens": {
                     "type": "rank_features"
                   }
                 }
@@ -221,22 +297,20 @@ public class TextExpansionQueryIT extends PyTorchModelRestTestCase {
         assertOkWithErrorMessage(response);
     }
 
-    private void bulkIndexDocs(List<String> sourceText, List<List<Map<String, Float>>> tokenWeights, String indexName) throws IOException {
+    private void bulkIndexDocs(List<String> sourceText, List<Map<String, Float>> tokenWeights, String indexName) throws IOException {
         String createAction = "{\"create\": {\"_index\": \"" + indexName + "\"}}\n";
 
         StringBuilder bulkBuilder = new StringBuilder();
 
         for (int i = 0; i < sourceText.size(); i++) {
             bulkBuilder.append(createAction);
-            bulkBuilder.append("{\"source_text\": \"").append(sourceText.get(i)).append("\", \"tokens\":[");
+            bulkBuilder.append("{\"text_field\": \"").append(sourceText.get(i)).append("\", \"ml.tokens\":{");
 
-            for (int j = 0; j < tokenWeights.get(i).size() - 1; j++) {
-                var entry = tokenWeights.get(i).get(j).entrySet().iterator().next();
+            for (var entry : tokenWeights.get(i).entrySet()) {
                 writeToken(entry, bulkBuilder).append(',');
             }
-            var entry = tokenWeights.get(i).get(tokenWeights.get(i).size() - 1).entrySet().iterator().next();
-            writeToken(entry, bulkBuilder);
-            bulkBuilder.append("]}\n");
+            bulkBuilder.deleteCharAt(bulkBuilder.length() - 1); // delete the trailing ','
+            bulkBuilder.append("}}\n");
         }
 
         Request bulkRequest = new Request("POST", "/_bulk");
@@ -246,7 +320,51 @@ public class TextExpansionQueryIT extends PyTorchModelRestTestCase {
         assertOkWithErrorMessage(bulkResponse);
     }
 
+    private void bulkIndexThroughPipeline(List<String> sourceText, String indexName, String pipelineId) throws IOException {
+        String createAction = "{\"create\": {\"_index\": \"" + indexName + "\"}}\n";
+
+        StringBuilder bulkBuilder = new StringBuilder();
+
+        for (int i = 0; i < sourceText.size(); i++) {
+            bulkBuilder.append(createAction);
+            bulkBuilder.append("{\"text_field\": \"").append(sourceText.get(i)).append("\"}\n");
+        }
+
+        Request bulkRequest = new Request("POST", "/_bulk");
+        bulkRequest.setJsonEntity(bulkBuilder.toString());
+        bulkRequest.addParameter("refresh", "true");
+        bulkRequest.addParameter("pipeline", pipelineId);
+        var bulkResponse = client().performRequest(bulkRequest);
+        assertOkWithErrorMessage(bulkResponse);
+    }
+
     private StringBuilder writeToken(Map.Entry<String, Float> entry, StringBuilder builder) {
-        return builder.append("{\"").append(entry.getKey()).append("\":").append(entry.getValue()).append("}");
+        return builder.append("\"").append(entry.getKey()).append("\":").append(entry.getValue());
+    }
+
+    private String putPipeline(String modelId) throws IOException {
+        String def = Strings.format("""
+            {
+              "processors": [
+                {
+                  "inference": {
+                    "model_id": "%s",
+                    "field_map": {
+                      "text_field": "input"
+                    },
+                    "target_field": "ml",
+                    "inference_config": {
+                      "text_expansion": {
+                        "results_field": "tokens"
+                      }
+                    }
+                  }
+                }
+              ]
+            }""", modelId);
+        Request request = new Request("PUT", "_ingest/pipeline/" + modelId + "-pipeline");
+        request.setJsonEntity(def);
+        assertOkWithErrorMessage(client().performRequest(request));
+        return modelId + "-pipeline";
     }
 }

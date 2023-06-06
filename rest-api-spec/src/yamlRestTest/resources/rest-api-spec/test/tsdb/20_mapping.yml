@@ -114,11 +114,11 @@ top level wildcard dim object:
 ---
 exact match object type:
   - skip:
-      version: " - 8.1.99"
-      reason: routing_path object type check improve in 8.2.0
+      version: " - 8.7.99"
+      reason: routing_path error message updated in 8.8.0
 
   - do:
-      catch: '/All fields that match routing_path must be keywords with \[time_series_dimension: true\] and without the \[script\] parameter. \[dim\] was \[object\]./'
+      catch: '/All fields that match routing_path must be keywords with \[time_series_dimension: true\] or flattened fields with a list of dimensions in \[time_series_dimensions\] and without the \[script\] parameter. \[dim\] was \[object\]./'
       indices.create:
         index: tsdb_index
         body:
@@ -147,11 +147,11 @@ exact match object type:
 ---
 non keyword matches routing_path:
   - skip:
-      version: " - 8.0.99"
-      reason: introduced in 8.1.0
+      version: " - 8.7.99"
+      reason: routing_path error message updated in 8.8.0
 
   - do:
-      catch: '/All fields that match routing_path must be keywords with \[time_series_dimension: true\] and without the \[script\] parameter. \[@timestamp\] was \[date\]./'
+      catch: '/All fields that match routing_path must be keywords with \[time_series_dimension: true\] or flattened fields with a list of dimensions in \[time_series_dimensions\] and without the \[script\] parameter. \[@timestamp\] was \[date\]./'
       indices.create:
           index: test_index
           body:
@@ -234,8 +234,8 @@ runtime field matching routing path:
 ---
 "dynamic: runtime matches routing_path":
   - skip:
-      version: " - 8.1.99"
-      reason: tsdb indexing changed in 8.2.0
+      version: " - 8.7.99"
+      reason: routing_path error message updated in 8.8.0
 
   - do:
       indices.create:
@@ -266,7 +266,7 @@ runtime field matching routing path:
         body:
           - '{"index": {}}'
           - '{"@timestamp": "2021-04-28T18:50:04.467Z", "dim_kw": "dim", "dim": {"foo": "a"}}'
-  - match: {items.0.index.error.reason: "All fields that match routing_path must be keywords with [time_series_dimension: true] and without the [script] parameter. [dim.foo] was a runtime [keyword]."}
+  - match: {items.0.index.error.reason: "All fields that match routing_path must be keywords with [time_series_dimension: true] or flattened fields with a list of dimensions in [time_series_dimensions] and without the [script] parameter. [dim.foo] was a runtime [keyword]."}
 
 ---
 "dynamic: false matches routing_path":
@@ -539,8 +539,8 @@ source include/exclude:
 ---
 Unsupported metric type position:
   - skip:
-      version: " - 8.0.99, 8.8.0 - "
-      reason: index.mode and routing_path introduced in 8.1.0 and time series metric position introduced in 8.8.0
+      version: "all, - 8.0.99, 8.8.0 -"
+      reason: AwaitsFix https://github.com/elastic/elasticsearch/issues/94239, index.mode and routing_path introduced in 8.1.0 and time series metric position introduced in 8.8.0
 
   - do:
       catch: '/unknown parameter \[time_series_metric\] on mapper \[location\] of type \[geo_point\]/'

@@ -25,6 +25,7 @@
   - do:
       indices.get_data_stream:
         name: "dlm-managed-data-stream"
+        include_defaults: true
   - match: { data_streams.0.name: dlm-managed-data-stream }
   - match: { data_streams.0.timestamp_field.name: '@timestamp' }
   - match: { data_streams.0.generation: 1 }
@@ -34,3 +35,4 @@
   - match: { data_streams.0.template: 'template-with-lifecycle' }
   - match: { data_streams.0.hidden: false }
   - match: { data_streams.0.lifecycle.data_retention: '30d' }
+  - is_true: data_streams.0.lifecycle.rollover

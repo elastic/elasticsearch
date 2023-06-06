@@ -116,5 +116,37 @@ public class SizeMappingIT extends ESIntegTestCase {
         // this should not work when requesting fields via wildcard expression
         searchResponse = client().prepareSearch("test").addFetchField("*").get();
         assertNull(searchResponse.getHits().getHits()[0].getFields().get("_size"));
+
+        // This should STILL work
+        searchResponse = client().prepareSearch("test").addStoredField("*").get();
+        assertNotNull(searchResponse.getHits().getHits()[0].getFields().get("_size"));
+    }
+
+    public void testWildCardWithFieldsWhenDisabled() throws Exception {
+        assertAcked(prepareCreate("test").setMapping("_size", "enabled=false"));
+        final String source = "{\"f\":\"" + randomAlphaOfLengthBetween(1, 100) + "\"}";
+        indexRandom(true, client().prepareIndex("test").setId("1").setSource(source, XContentType.JSON));
+        SearchResponse searchResponse = client().prepareSearch("test").addFetchField("_size").get();
+        assertNull(searchResponse.getHits().getHits()[0].getFields().get("_size"));
+
+        searchResponse = client().prepareSearch("test").addFetchField("*").get();
+        assertNull(searchResponse.getHits().getHits()[0].getFields().get("_size"));
+
+        searchResponse = client().prepareSearch("test").addStoredField("*").get();
+        assertNull(searchResponse.getHits().getHits()[0].getFields().get("_size"));
+    }
+
+    public void testWildCardWithFieldsWhenNotProvided() throws Exception {
+        assertAcked(prepareCreate("test"));
+        final String source = "{\"f\":\"" + randomAlphaOfLengthBetween(1, 100) + "\"}";
+        indexRandom(true, client().prepareIndex("test").setId("1").setSource(source, XContentType.JSON));
+        SearchResponse searchResponse = client().prepareSearch("test").addFetchField("_size").get();
+        assertNull(searchResponse.getHits().getHits()[0].getFields().get("_size"));
+
+        searchResponse = client().prepareSearch("test").addFetchField("*").get();
+        assertNull(searchResponse.getHits().getHits()[0].getFields().get("_size"));
+
+        searchResponse = client().prepareSearch("test").addStoredField("*").get();
+        assertNull(searchResponse.getHits().getHits()[0].getFields().get("_size"));
     }
 }

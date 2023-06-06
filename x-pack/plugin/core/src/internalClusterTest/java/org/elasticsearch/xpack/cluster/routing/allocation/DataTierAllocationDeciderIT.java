@@ -389,21 +389,11 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
         client().admin()
             .indices()
             .prepareCreate(index)
-            .setSettings(
-                Settings.builder()
-                    .put(DataTier.TIER_PREFERENCE, "data_hot")
-                    .put("index.number_of_shards", 2)
-                    .put("index.number_of_replicas", 0)
-            )
+            .setSettings(indexSettings(2, 0).put(DataTier.TIER_PREFERENCE, "data_hot"))
             .setWaitForActiveShards(0)
             .get();
 
-        client().admin()
-            .indices()
-            .prepareCreate(index + "2")
-            .setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 1))
-            .setWaitForActiveShards(0)
-            .get();
+        client().admin().indices().prepareCreate(index + "2").setSettings(indexSettings(1, 1)).setWaitForActiveShards(0).get();
 
         ensureGreen();
         client().prepareIndex(index).setSource("foo", "bar").get();
@@ -436,26 +426,12 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> createIndex(
-                index,
-                Settings.builder()
-                    .put("index.number_of_shards", 1)
-                    .put("index.number_of_replicas", 0)
-                    .put(DataTier.TIER_PREFERENCE, DataTier.DATA_FROZEN)
-                    .build()
-            )
+            () -> createIndex(index, indexSettings(1, 0).put(DataTier.TIER_PREFERENCE, DataTier.DATA_FROZEN).build())
         );
         assertThat(e.getMessage(), equalTo("[data_frozen] tier can only be used for partial searchable snapshots"));
 
         String initialTier = randomFrom(DataTier.DATA_HOT, DataTier.DATA_WARM, DataTier.DATA_COLD);
-        createIndex(
-            index,
-            Settings.builder()
-                .put("index.number_of_shards", 1)
-                .put("index.number_of_replicas", 0)
-                .put(DataTier.TIER_PREFERENCE, initialTier)
-                .build()
-        );
+        createIndex(index, indexSettings(1, 0).put(DataTier.TIER_PREFERENCE, initialTier).build());
 
         IllegalArgumentException e2 = expectThrows(IllegalArgumentException.class, () -> updatePreference(DataTier.DATA_FROZEN));
         assertThat(e2.getMessage(), equalTo("[data_frozen] tier can only be used for partial searchable snapshots"));

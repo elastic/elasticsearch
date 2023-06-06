@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.cluster.remote;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
@@ -18,6 +19,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -25,14 +27,14 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportInfo;
+import org.elasticsearch.transport.RemoteClusterServerInfo;
+import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportService;
+import org.junit.BeforeClass;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -45,6 +47,11 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class RemoteClusterNodesActionTests extends ESTestCase {
+
+    @BeforeClass
+    public static void ensureFeatureFlag() {
+        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
+    }
 
     public void testDoExecute() {
         final ThreadPool threadPool = mock(ThreadPool.class);
@@ -63,46 +70,30 @@ public class RemoteClusterNodesActionTests extends ESTestCase {
         for (int i = 0; i < numberOfNodes; i++) {
             final DiscoveryNode node = randomNode(i);
             final boolean remoteServerEnabled = randomBoolean();
-            final Settings.Builder settingsBuilder = Settings.builder();
-            final Map<String, BoundTransportAddress> profileAddresses = new HashMap<>();
             final TransportAddress remoteClusterProfileAddress = buildNewFakeTransportAddress();
+            final RemoteClusterServerInfo remoteClusterServerInfo;
             if (remoteServerEnabled) {
                 expectedRemoteServerNodes.add(node.withTransportAddress(remoteClusterProfileAddress));
-                profileAddresses.put(
-                    "_remote_cluster",
+                remoteClusterServerInfo = new RemoteClusterServerInfo(
                     new BoundTransportAddress(new TransportAddress[] { remoteClusterProfileAddress }, remoteClusterProfileAddress)
                 );
-                settingsBuilder.put("remote_cluster_server.enabled", true);
             } else {
-                // By default remote cluster server is disabled, we randomly disable it explicitly
-                if (randomBoolean()) {
-                    settingsBuilder.put("remote_cluster_server.enabled", false);
-                }
-                if (randomBoolean()) {
-                    // randomly add a _remote_cluster profile when remote_cluster_server is disabled. This will just be a normal profile
-                    // and this node won't be reported as remote cluster server node
-                    profileAddresses.put(
-                        "_remote_cluster",
-                        new BoundTransportAddress(new TransportAddress[] { remoteClusterProfileAddress }, remoteClusterProfileAddress)
-                    );
-                }
+                remoteClusterServerInfo = null;
             }
             nodeInfos.add(
                 new NodeInfo(
                     Version.CURRENT,
+                    TransportVersion.CURRENT,
                     null,
                     node,
-                    settingsBuilder.build(),
                     null,
                     null,
                     null,
                     null,
-                    new TransportInfo(
-                        new BoundTransportAddress(new TransportAddress[] { node.getAddress() }, node.getAddress()),
-                        profileAddresses,
-                        false
-                    ),
                     null,
+                    null,
+                    null,
+                    remoteClusterServerInfo,
                     null,
                     null,
                     null,
@@ -119,10 +110,7 @@ public class RemoteClusterNodesActionTests extends ESTestCase {
 
         doAnswer(invocation -> {
             final NodesInfoRequest nodesInfoRequest = invocation.getArgument(2);
-            assertThat(
-                nodesInfoRequest.requestedMetrics(),
-                containsInAnyOrder(NodesInfoRequest.Metric.SETTINGS.metricName(), NodesInfoRequest.Metric.TRANSPORT.metricName())
-            );
+            assertThat(nodesInfoRequest.requestedMetrics(), containsInAnyOrder(NodesInfoRequest.Metric.REMOTE_CLUSTER_SERVER.metricName()));
             final ActionListenerResponseHandler<NodesInfoResponse> handler = invocation.getArgument(3);
             handler.handleResponse(nodesInfoResponse);
             return null;
@@ -145,7 +133,7 @@ public class RemoteClusterNodesActionTests extends ESTestCase {
     }
 
     private DiscoveryNode randomNode(final int id) {
-        return new DiscoveryNode("node-" + id, Integer.toString(id), buildNewFakeTransportAddress(), Map.of(), Set.of(), Version.CURRENT);
+        return DiscoveryNodeUtils.builder(Integer.toString(id)).name("node-" + id).roles(Set.of()).build();
     }
 
 }

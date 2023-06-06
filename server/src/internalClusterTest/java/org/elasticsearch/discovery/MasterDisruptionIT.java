@@ -14,7 +14,6 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
@@ -47,6 +46,8 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
      */
     public void testMasterNodeGCs() throws Exception {
         List<String> nodes = startCluster(3);
+        // NOTE: this assume must happen after starting the cluster, so that cleanup will have something to cleanup.
+        assumeFalse("jdk20 removed thread suspend/resume", Runtime.version().feature() >= 20);
 
         String oldMasterNode = internalCluster().getMasterName();
         // a very long GC, but it's OK as we remove the disruption when it has had an effect
@@ -85,13 +86,7 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
     public void testIsolateMasterAndVerifyClusterStateConsensus() throws Exception {
         final List<String> nodes = startCluster(3);
 
-        assertAcked(
-            prepareCreate("test").setSettings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1 + randomInt(2))
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomInt(2))
-            )
-        );
+        assertAcked(prepareCreate("test").setSettings(indexSettings(1 + randomInt(2), randomInt(2))));
 
         ensureGreen();
         String isolatedNode = internalCluster().getMasterName();
@@ -162,11 +157,7 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
         internalCluster().startNodes(3, Settings.builder().putNull(NoMasterBlockService.NO_MASTER_BLOCK_SETTING.getKey()).build());
 
         // Makes sure that the get request can be executed on each node locally:
-        assertAcked(
-            prepareCreate("test").setSettings(
-                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2)
-            )
-        );
+        assertAcked(prepareCreate("test").setSettings(indexSettings(1, 2)));
 
         // Everything is stable now, it is now time to simulate evil...
         // but first make sure we have no initializing shards and all is green
@@ -234,14 +225,7 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
 
     public void testMappingTimeout() throws Exception {
         startCluster(3);
-        createIndex(
-            "test",
-            Settings.builder()
-                .put("index.number_of_shards", 1)
-                .put("index.number_of_replicas", 1)
-                .put("index.routing.allocation.exclude._name", internalCluster().getMasterName())
-                .build()
-        );
+        createIndex("test", indexSettings(1, 1).put("index.routing.allocation.exclude._name", internalCluster().getMasterName()).build());
 
         // create one field
         index("test", "1", "{ \"f\": 1 }");

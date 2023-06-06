@@ -1,6 +1,0 @@
-pr: 93178
-summary: Restore printing bootstrap checks as errors
-area: Infra/CLI
-type: bug
-issues:
- - 93074

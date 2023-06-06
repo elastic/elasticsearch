@@ -245,17 +245,9 @@ public class SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests extends Base
 
         assertThat(numberOfEntriesInCache(), equalTo(0L));
 
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setTransientSettings(
-                    Settings.builder()
-                        .put(
-                            BlobStoreCacheMaintenanceService.SNAPSHOT_SNAPSHOT_CLEANUP_INTERVAL_SETTING.getKey(),
-                            TimeValue.timeValueSeconds(1L)
-                        )
-                )
+        updateClusterSettings(
+            Settings.builder()
+                .put(BlobStoreCacheMaintenanceService.SNAPSHOT_SNAPSHOT_CLEANUP_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(1L))
         );
         try {
             // restores the .snapshot-blob-cache index with - now obsolete - documents
@@ -290,16 +282,11 @@ public class SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests extends Base
             }, 30L, TimeUnit.SECONDS);
 
             // updating the retention period from 1H to immediate
-            assertAcked(
-                client().admin()
-                    .cluster()
-                    .prepareUpdateSettings()
-                    .setTransientSettings(
-                        Settings.builder()
-                            .put(
-                                BlobStoreCacheMaintenanceService.SNAPSHOT_SNAPSHOT_CLEANUP_RETENTION_PERIOD.getKey(),
-                                TimeValue.timeValueSeconds(0L)
-                            )
+            updateClusterSettings(
+                Settings.builder()
+                    .put(
+                        BlobStoreCacheMaintenanceService.SNAPSHOT_SNAPSHOT_CLEANUP_RETENTION_PERIOD.getKey(),
+                        TimeValue.timeValueSeconds(0L)
                     )
             );
 
@@ -316,15 +303,10 @@ public class SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests extends Base
             }, 30L, TimeUnit.SECONDS);
 
         } finally {
-            assertAcked(
-                client().admin()
-                    .cluster()
-                    .prepareUpdateSettings()
-                    .setTransientSettings(
-                        Settings.builder()
-                            .putNull(BlobStoreCacheMaintenanceService.SNAPSHOT_SNAPSHOT_CLEANUP_INTERVAL_SETTING.getKey())
-                            .putNull(BlobStoreCacheMaintenanceService.SNAPSHOT_SNAPSHOT_CLEANUP_RETENTION_PERIOD.getKey())
-                    )
+            updateClusterSettings(
+                Settings.builder()
+                    .putNull(BlobStoreCacheMaintenanceService.SNAPSHOT_SNAPSHOT_CLEANUP_INTERVAL_SETTING.getKey())
+                    .putNull(BlobStoreCacheMaintenanceService.SNAPSHOT_SNAPSHOT_CLEANUP_RETENTION_PERIOD.getKey())
             );
         }
     }

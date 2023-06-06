@@ -22,12 +22,14 @@ public final class ScrollQuerySearchResult extends SearchPhaseResult {
     public ScrollQuerySearchResult(StreamInput in) throws IOException {
         super(in);
         SearchShardTarget shardTarget = new SearchShardTarget(in);
+        // This was created with refCount = 1, doesn't need to be incRef'd
         result = new QuerySearchResult(in);
         setSearchShardTarget(shardTarget);
     }
 
     public ScrollQuerySearchResult(QuerySearchResult result, SearchShardTarget shardTarget) {
         this.result = result;
+        this.result.incRef(); // Since we now own a copy of this result
         setSearchShardTarget(shardTarget);
     }
 
@@ -52,5 +54,25 @@ public final class ScrollQuerySearchResult extends SearchPhaseResult {
     public void writeTo(StreamOutput out) throws IOException {
         getSearchShardTarget().writeTo(out);
         result.writeTo(out);
+    }
+
+    @Override
+    public void incRef() {
+        result.incRef();
+    }
+
+    @Override
+    public boolean tryIncRef() {
+        return result.tryIncRef();
+    }
+
+    @Override
+    public boolean decRef() {
+        return result.decRef();
+    }
+
+    @Override
+    public boolean hasReferences() {
+        return result.hasReferences();
     }
 }

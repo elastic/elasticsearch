@@ -384,7 +384,9 @@ public class TransformCheckpointServiceNodeTests extends TransformSingleNodeTest
                 );
                 Path path = createTempDir().resolve("indices").resolve(index.getUUID()).resolve(String.valueOf(i));
 
-                shardStats.add(new ShardStats(shardRouting, new ShardPath(false, path, path, shardId), stats, null, seqNoStats, null));
+                shardStats.add(
+                    new ShardStats(shardRouting, new ShardPath(false, path, path, shardId), stats, null, seqNoStats, null, false, 0)
+                );
             }
 
         }
@@ -399,10 +401,9 @@ public class TransformCheckpointServiceNodeTests extends TransformSingleNodeTest
         TransformProgress nextCheckpointProgress,
         ActionListener<TransformCheckpointingInfo> listener
     ) {
-        ActionListener<TransformCheckpointingInfoBuilder> checkPointInfoListener = ActionListener.wrap(
-            infoBuilder -> { listener.onResponse(infoBuilder.build()); },
-            listener::onFailure
-        );
+        ActionListener<TransformCheckpointingInfoBuilder> checkPointInfoListener = ActionListener.wrap(infoBuilder -> {
+            listener.onResponse(infoBuilder.build());
+        }, listener::onFailure);
         transformCheckpointService.getCheckpointingInfo(
             mockClientForCheckpointing,
             transformId,

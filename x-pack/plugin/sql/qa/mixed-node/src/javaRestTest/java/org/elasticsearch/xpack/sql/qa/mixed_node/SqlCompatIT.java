@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.sql.qa.mixed_node;
 
 import org.apache.http.HttpHost;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -39,7 +39,7 @@ public class SqlCompatIT extends BaseRestSqlTestCase {
 
     private static RestClient newNodesClient;
     private static RestClient oldNodesClient;
-    private static Version bwcVersion;
+    private static TransportVersion bwcVersion;
 
     @Before
     public void initBwcClients() throws IOException {
@@ -47,14 +47,14 @@ public class SqlCompatIT extends BaseRestSqlTestCase {
             assertNull(oldNodesClient);
 
             TestNodes nodes = buildNodeAndVersions(client());
-            bwcVersion = nodes.getBWCVersion();
+            bwcVersion = nodes.getBWCTransportVersion();
             newNodesClient = buildClient(
                 restClientSettings(),
-                nodes.getNewNodes().stream().map(TestNode::getPublishAddress).toArray(HttpHost[]::new)
+                nodes.getNewNodes().stream().map(TestNode::publishAddress).toArray(HttpHost[]::new)
             );
             oldNodesClient = buildClient(
                 restClientSettings(),
-                nodes.getBWCNodes().stream().map(TestNode::getPublishAddress).toArray(HttpHost[]::new)
+                nodes.getBWCNodes().stream().map(TestNode::publishAddress).toArray(HttpHost[]::new)
             );
         }
     }
@@ -107,28 +107,19 @@ public class SqlCompatIT extends BaseRestSqlTestCase {
         indexDocs();
 
         Request query = new Request("POST", "_sql");
-        query.setJsonEntity(sqlQueryEntityWithOptionalMode("SELECT int FROM test GROUP BY 1 ORDER BY 1 NULLS LAST", bwcVersion));
+        query.setJsonEntity(sqlQueryEntityWithOptionalMode("SELECT int FROM test GROUP BY 1 ORDER BY 1 NULLS LAST"));
         Map<String, Object> result = performRequestAndReadBodyAsJson(queryClient, query);
 
         List<List<Object>> rows = (List<List<Object>>) result.get("rows");
         return rows.stream().map(row -> (Integer) row.get(0)).collect(Collectors.toList());
     }
 
-    public static String sqlQueryEntityWithOptionalMode(String query, Version bwcVersion) throws IOException {
-        return sqlQueryEntityWithOptionalMode(Map.of("query", query), bwcVersion);
+    public static String sqlQueryEntityWithOptionalMode(String query) throws IOException {
+        return sqlQueryEntityWithOptionalMode(Map.of("query", query));
     }
 
-    public static String sqlQueryEntityWithOptionalMode(Map<String, Object> fields, Version bwcVersion) throws IOException {
+    public static String sqlQueryEntityWithOptionalMode(Map<String, Object> fields) throws IOException {
         XContentBuilder json = XContentFactory.jsonBuilder().startObject();
-        if (bwcVersion.before(Version.V_7_12_0)) {
-            // a bug previous to 7.12 caused a NullPointerException when accessing displaySize in ColumnInfo. The bug has been addressed in
-            // https://github.com/elastic/elasticsearch/pull/68802/files
-            // #diff-2faa4e2df98a4636300a19d9d890a1bd7174e9b20dd3a8589d2c78a3d9e5cbc0L110
-            // as a workaround, use JDBC (driver) mode in versions prior to 7.12
-            json.field("mode", "jdbc");
-            json.field("binary_format", false);
-            json.field("version", bwcVersion.toString());
-        }
         for (Map.Entry<String, Object> entry : fields.entrySet()) {
             json.field(entry.getKey(), entry.getValue());
         }
@@ -137,21 +128,26 @@ public class SqlCompatIT extends BaseRestSqlTestCase {
         return Strings.toString(json);
     }
 
-    public void testCursorFromOldNodeFailsOnNewNode() throws IOException {
-        assertCursorNotCompatibleAcrossVersions(bwcVersion, oldNodesClient, Version.CURRENT, newNodesClient);
+    public void testHistoricCursorFromOldNodeFailsOnNewNode() throws IOException {
+        assumeTrue("BwC checks only enabled for <=8.7.0", bwcVersion.before(TransportVersion.V_8_8_0));
+        assertCursorNotCompatibleAcrossVersions(bwcVersion, oldNodesClient, TransportVersion.CURRENT, newNodesClient);
     }
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/83726")
     public void testCursorFromNewNodeFailsOnOldNode() throws IOException {
-        assertCursorNotCompatibleAcrossVersions(Version.CURRENT, newNodesClient, bwcVersion, oldNodesClient);
+        assertCursorNotCompatibleAcrossVersions(TransportVersion.CURRENT, newNodesClient, bwcVersion, oldNodesClient);
     }
 
-    private void assertCursorNotCompatibleAcrossVersions(Version version1, RestClient client1, Version version2, RestClient client2)
-        throws IOException {
+    private void assertCursorNotCompatibleAcrossVersions(
+        TransportVersion version1,
+        RestClient client1,
+        TransportVersion version2,
+        RestClient client2
+    ) throws IOException {
         indexDocs();
 
         Request req = new Request("POST", "_sql");
-        req.setJsonEntity(sqlQueryEntityWithOptionalMode(Map.of("query", "SELECT int FROM test", "fetch_size", 1), bwcVersion));
+        req.setJsonEntity(sqlQueryEntityWithOptionalMode(Map.of("query", "SELECT int FROM test", "fetch_size", 1)));
         Map<String, Object> json = performRequestAndReadBodyAsJson(client1, req);
         String cursor = (String) json.get("cursor");
         assertThat(cursor, Matchers.not(Matchers.emptyOrNullString()));

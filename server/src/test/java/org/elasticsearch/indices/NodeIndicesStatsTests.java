@@ -22,10 +22,10 @@ public class NodeIndicesStatsTests extends ESTestCase {
         final NodeIndicesStats stats = new NodeIndicesStats(null, Collections.emptyMap(), Collections.emptyMap());
         final String level = randomAlphaOfLength(16);
         final ToXContent.Params params = new ToXContent.MapParams(Collections.singletonMap("level", level));
-        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> stats.toXContent(null, params));
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> stats.toXContentChunked(params));
         assertThat(
             e,
-            hasToString(containsString("level parameter must be one of [indices] or [node] or [shards] but was [" + level + "]"))
+            hasToString(containsString("level parameter must be one of [node] or [indices] or [shards] but was [" + level + "]"))
         );
     }
 

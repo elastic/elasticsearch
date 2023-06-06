@@ -14,10 +14,12 @@ import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.explain.ExplainResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.get.MultiGetResponse;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
@@ -320,9 +322,7 @@ public class SimpleRoutingIT extends ESIntegTestCase {
     }
 
     public void testRequiredRoutingCrudApis() throws Exception {
-        client().admin()
-            .indices()
-            .prepareCreate("test")
+        indicesAdmin().prepareCreate("test")
             .addAlias(new Alias("alias"))
             .setMapping(
                 XContentFactory.jsonBuilder()
@@ -418,9 +418,7 @@ public class SimpleRoutingIT extends ESIntegTestCase {
     }
 
     public void testRequiredRoutingBulk() throws Exception {
-        client().admin()
-            .indices()
-            .prepareCreate("test")
+        indicesAdmin().prepareCreate("test")
             .addAlias(new Alias("alias"))
             .setMapping(
                 XContentFactory.jsonBuilder()
@@ -436,8 +434,9 @@ public class SimpleRoutingIT extends ESIntegTestCase {
             .actionGet();
         ensureGreen();
         {
+            String index = indexOrAlias();
             BulkResponse bulkResponse = client().prepareBulk()
-                .add(Requests.indexRequest(indexOrAlias()).id("1").source(Requests.INDEX_CONTENT_TYPE, "field", "value"))
+                .add(new IndexRequest(index).id("1").source(Requests.INDEX_CONTENT_TYPE, "field", "value"))
                 .execute()
                 .actionGet();
             assertThat(bulkResponse.getItems().length, equalTo(1));
@@ -453,8 +452,9 @@ public class SimpleRoutingIT extends ESIntegTestCase {
         }
 
         {
+            String index = indexOrAlias();
             BulkResponse bulkResponse = client().prepareBulk()
-                .add(Requests.indexRequest(indexOrAlias()).id("1").routing("0").source(Requests.INDEX_CONTENT_TYPE, "field", "value"))
+                .add(new IndexRequest(index).id("1").routing("0").source(Requests.INDEX_CONTENT_TYPE, "field", "value"))
                 .execute()
                 .actionGet();
             assertThat(bulkResponse.hasFailures(), equalTo(false));
@@ -486,7 +486,8 @@ public class SimpleRoutingIT extends ESIntegTestCase {
         }
 
         {
-            BulkResponse bulkResponse = client().prepareBulk().add(Requests.deleteRequest(indexOrAlias()).id("1")).execute().actionGet();
+            String index = indexOrAlias();
+            BulkResponse bulkResponse = client().prepareBulk().add(new DeleteRequest(index).id("1")).execute().actionGet();
             assertThat(bulkResponse.getItems().length, equalTo(1));
             assertThat(bulkResponse.hasFailures(), equalTo(true));
 
@@ -500,10 +501,8 @@ public class SimpleRoutingIT extends ESIntegTestCase {
         }
 
         {
-            BulkResponse bulkResponse = client().prepareBulk()
-                .add(Requests.deleteRequest(indexOrAlias()).id("1").routing("0"))
-                .execute()
-                .actionGet();
+            String index = indexOrAlias();
+            BulkResponse bulkResponse = client().prepareBulk().add(new DeleteRequest(index).id("1").routing("0")).execute().actionGet();
             assertThat(bulkResponse.getItems().length, equalTo(1));
             assertThat(bulkResponse.hasFailures(), equalTo(false));
         }
@@ -511,9 +510,7 @@ public class SimpleRoutingIT extends ESIntegTestCase {
 
     public void testRequiredRoutingMappingVariousAPIs() throws Exception {
 
-        client().admin()
-            .indices()
-            .prepareCreate("test")
+        indicesAdmin().prepareCreate("test")
             .addAlias(new Alias("alias"))
             .setMapping(
                 XContentFactory.jsonBuilder()

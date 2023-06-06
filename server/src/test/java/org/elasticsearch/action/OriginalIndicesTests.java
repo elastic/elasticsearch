@@ -34,7 +34,7 @@ public class OriginalIndicesTests extends ESTestCase {
             OriginalIndices originalIndices = randomOriginalIndices();
 
             BytesStreamOutput out = new BytesStreamOutput();
-            out.setTransportVersion(randomCompatibleVersion(random(), TransportVersion.CURRENT));
+            out.setTransportVersion(randomCompatibleVersion(random()));
             OriginalIndices.writeOriginalIndices(originalIndices, out);
 
             StreamInput in = out.bytes().streamInput();

@@ -21,7 +21,6 @@ import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -222,12 +221,8 @@ public class NoMasterNodeIT extends ESIntegTestCase {
 
         final List<String> nodes = internalCluster().startNodes(3, settings);
 
-        prepareCreate("test1").setSettings(
-            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2)
-        ).get();
-        prepareCreate("test2").setSettings(
-            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-        ).get();
+        prepareCreate("test1").setSettings(indexSettings(1, 2)).get();
+        prepareCreate("test2").setSettings(indexSettings(3, 0)).get();
         client().admin().cluster().prepareHealth("_all").setWaitForGreenStatus().get();
         client().prepareIndex("test1").setId("1").setSource("field", "value1").get();
         client().prepareIndex("test2").setId("1").setSource("field", "value1").get();
@@ -304,9 +299,7 @@ public class NoMasterNodeIT extends ESIntegTestCase {
 
         final List<String> nodes = internalCluster().startNodes(3, settings);
 
-        prepareCreate("test1").setSettings(
-            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-        ).get();
+        prepareCreate("test1").setSettings(indexSettings(1, 1)).get();
         client().admin().cluster().prepareHealth("_all").setWaitForGreenStatus().get();
         client().prepareIndex("test1").setId("1").setSource("field", "value1").get();
         refresh();

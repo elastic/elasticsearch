@@ -195,12 +195,7 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
     }
 
     static Settings createSettings(Version creationVersion, int flagSettingValue) {
-        return Settings.builder()
-            .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-            .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
-            .put(FlAG_SETTING_KEY, flagSettingValue)
-            .put("index.version.created", creationVersion)
-            .build();
+        return indexSettings(creationVersion, 1, 0).put(FlAG_SETTING_KEY, flagSettingValue).build();
     }
 
     static String createMapping(boolean descriptorManaged, boolean descriptorInternal) {

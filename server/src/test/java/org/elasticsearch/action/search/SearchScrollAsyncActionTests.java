@@ -7,9 +7,9 @@
  */
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
@@ -45,9 +45,9 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
             new SearchContextIdForNode(null, "node3", new ShardSearchContextId(UUIDs.randomBase64UUID(), 0))
         );
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder()
-            .add(new DiscoveryNode("node1", buildNewFakeTransportAddress(), Version.CURRENT))
-            .add(new DiscoveryNode("node2", buildNewFakeTransportAddress(), Version.CURRENT))
-            .add(new DiscoveryNode("node3", buildNewFakeTransportAddress(), Version.CURRENT))
+            .add(DiscoveryNodeUtils.create("node1"))
+            .add(DiscoveryNodeUtils.create("node2"))
+            .add(DiscoveryNodeUtils.create("node3"))
             .build();
 
         AtomicArray<SearchAsyncActionTests.TestSearchPhaseResult> results = new AtomicArray<>(scrollId.getContext().length);
@@ -119,9 +119,9 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
             new SearchContextIdForNode(null, "node3", new ShardSearchContextId("d", 0))
         );
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder()
-            .add(new DiscoveryNode("node1", buildNewFakeTransportAddress(), Version.CURRENT))
-            .add(new DiscoveryNode("node2", buildNewFakeTransportAddress(), Version.CURRENT))
-            .add(new DiscoveryNode("node3", buildNewFakeTransportAddress(), Version.CURRENT))
+            .add(DiscoveryNodeUtils.create("node1"))
+            .add(DiscoveryNodeUtils.create("node2"))
+            .add(DiscoveryNodeUtils.create("node3"))
             .build();
 
         AtomicArray<SearchAsyncActionTests.TestSearchPhaseResult> results = new AtomicArray<>(scrollId.getContext().length);
@@ -216,8 +216,8 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
         );
         // node2 is not available
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder()
-            .add(new DiscoveryNode("node1", buildNewFakeTransportAddress(), Version.CURRENT))
-            .add(new DiscoveryNode("node3", buildNewFakeTransportAddress(), Version.CURRENT))
+            .add(DiscoveryNodeUtils.create("node1"))
+            .add(DiscoveryNodeUtils.create("node3"))
             .build();
 
         AtomicArray<SearchAsyncActionTests.TestSearchPhaseResult> results = new AtomicArray<>(scrollId.getContext().length);
@@ -300,9 +300,9 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
             new SearchContextIdForNode(null, "node3", new ShardSearchContextId("", 0))
         );
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder()
-            .add(new DiscoveryNode("node1", buildNewFakeTransportAddress(), Version.CURRENT))
-            .add(new DiscoveryNode("node2", buildNewFakeTransportAddress(), Version.CURRENT))
-            .add(new DiscoveryNode("node3", buildNewFakeTransportAddress(), Version.CURRENT))
+            .add(DiscoveryNodeUtils.create("node1"))
+            .add(DiscoveryNodeUtils.create("node2"))
+            .add(DiscoveryNodeUtils.create("node3"))
             .build();
 
         AtomicArray<SearchAsyncActionTests.TestSearchPhaseResult> results = new AtomicArray<>(scrollId.getContext().length);
@@ -381,9 +381,9 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
             new SearchContextIdForNode(null, "node3", new ShardSearchContextId("", 0))
         );
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder()
-            .add(new DiscoveryNode("node1", buildNewFakeTransportAddress(), Version.CURRENT))
-            .add(new DiscoveryNode("node2", buildNewFakeTransportAddress(), Version.CURRENT))
-            .add(new DiscoveryNode("node3", buildNewFakeTransportAddress(), Version.CURRENT))
+            .add(DiscoveryNodeUtils.create("node1"))
+            .add(DiscoveryNodeUtils.create("node2"))
+            .add(DiscoveryNodeUtils.create("node3"))
             .build();
 
         AtomicArray<SearchAsyncActionTests.TestSearchPhaseResult> results = new AtomicArray<>(scrollId.getContext().length);

@@ -21,7 +21,7 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -127,13 +127,13 @@ public class DeploymentManager {
     }
 
     public void startDeployment(TrainedModelDeploymentTask task, ActionListener<TrainedModelDeploymentTask> finalListener) {
-        logger.info("[{}] Starting model deployment", task.getModelId());
+        logger.info("[{}] Starting model deployment", task.getDeploymentId());
 
         if (processContextByAllocation.size() >= maxProcesses) {
             finalListener.onFailure(
                 ExceptionsHelper.serverError(
                     "[{}] Could not start inference process as the node reached the max number [{}] of processes",
-                    task.getModelId(),
+                    task.getDeploymentId(),
                     maxProcesses
                 )
             );
@@ -143,7 +143,7 @@ public class DeploymentManager {
         ProcessContext processContext = new ProcessContext(task);
         if (addProcessContext(task.getId(), processContext) != null) {
             finalListener.onFailure(
-                ExceptionsHelper.serverError("[{}] Could not create inference process as one already exists", task.getModelId())
+                ExceptionsHelper.serverError("[{}] Could not create inference process as one already exists", task.getDeploymentId())
             );
             return;
         }
@@ -166,7 +166,7 @@ public class DeploymentManager {
             TrainedModelConfig modelConfig = getModelResponse.getResources().results().get(0);
             processContext.modelInput.set(modelConfig.getInput());
 
-            if (modelConfig.getInferenceConfig()instanceof NlpConfig nlpConfig) {
+            if (modelConfig.getInferenceConfig() instanceof NlpConfig nlpConfig) {
                 task.init(nlpConfig);
 
                 SearchRequest searchRequest = vocabSearchRequest(nlpConfig.getVocabularyConfig(), modelConfig.getModelId());
@@ -176,7 +176,7 @@ public class DeploymentManager {
                             new ResourceNotFoundException(
                                 Messages.getMessage(
                                     Messages.VOCABULARY_NOT_FOUND,
-                                    task.getModelId(),
+                                    modelConfig.getModelId(),
                                     VocabularyConfig.docId(modelConfig.getModelId())
                                 )
                             )
@@ -210,7 +210,7 @@ public class DeploymentManager {
             client,
             ML_ORIGIN,
             GetTrainedModelsAction.INSTANCE,
-            new GetTrainedModelsAction.Request(task.getModelId()),
+            new GetTrainedModelsAction.Request(task.getParams().getModelId()),
             getModelListener
         );
     }
@@ -243,10 +243,10 @@ public class DeploymentManager {
     public void stopDeployment(TrainedModelDeploymentTask task) {
         ProcessContext processContext = processContextByAllocation.remove(task.getId());
         if (processContext != null) {
-            logger.info("[{}] Stopping deployment, reason [{}]", task.getModelId(), task.stoppedReason().orElse("unknown"));
+            logger.info("[{}] Stopping deployment, reason [{}]", task.getDeploymentId(), task.stoppedReason().orElse("unknown"));
             processContext.stopProcess();
         } else {
-            logger.warn("[{}] No process context to stop", task.getModelId());
+            logger.warn("[{}] No process context to stop", task.getDeploymentId());
         }
     }
 
@@ -256,7 +256,7 @@ public class DeploymentManager {
         NlpInferenceInput input,
         boolean skipQueue,
         TimeValue timeout,
-        Task parentActionTask,
+        CancellableTask parentActionTask,
         ActionListener<InferenceResults> listener
     ) {
         var processContext = getProcessContext(task, listener::onFailure);
@@ -267,7 +267,7 @@ public class DeploymentManager {
 
         final long requestId = requestIdCounter.getAndIncrement();
         InferencePyTorchAction inferenceAction = new InferencePyTorchAction(
-            task.getModelId(),
+            task.getDeploymentId(),
             requestId,
             timeout,
             processContext,
@@ -299,7 +299,7 @@ public class DeploymentManager {
 
         final long requestId = requestIdCounter.getAndIncrement();
         ThreadSettingsControlMessagePytorchAction controlMessageAction = new ThreadSettingsControlMessagePytorchAction(
-            task.getModelId(),
+            task.getDeploymentId(),
             requestId,
             numAllocationThreads,
             timeout,
@@ -320,7 +320,7 @@ public class DeploymentManager {
 
         final long requestId = requestIdCounter.getAndIncrement();
         ClearCacheControlMessagePytorchAction controlMessageAction = new ClearCacheControlMessagePytorchAction(
-            task.getModelId(),
+            task.getDeploymentId(),
             requestId,
             timeout,
             processContext,
@@ -351,7 +351,7 @@ public class DeploymentManager {
             errorConsumer.accept(
                 ExceptionsHelper.conflictStatusException(
                     "[{}] is stopping or stopped due to [{}]",
-                    task.getModelId(),
+                    task.getDeploymentId(),
                     task.stoppedReason().orElse("")
                 )
             );
@@ -360,7 +360,7 @@ public class DeploymentManager {
 
         ProcessContext processContext = processContextByAllocation.get(task.getId());
         if (processContext == null) {
-            errorConsumer.accept(ExceptionsHelper.conflictStatusException("[{}] process context missing", task.getModelId()));
+            errorConsumer.accept(ExceptionsHelper.conflictStatusException("[{}] process context missing", task.getDeploymentId()));
             return null;
         }
 
@@ -385,7 +385,7 @@ public class DeploymentManager {
 
         ProcessContext(TrainedModelDeploymentTask task) {
             this.task = Objects.requireNonNull(task);
-            resultProcessor = new PyTorchResultProcessor(task.getModelId(), threadSettings -> {
+            resultProcessor = new PyTorchResultProcessor(task.getDeploymentId(), threadSettings -> {
                 this.numThreadsPerAllocation = threadSettings.numThreadsPerAllocation();
                 this.numAllocations = threadSettings.numAllocations();
             });
@@ -411,25 +411,25 @@ public class DeploymentManager {
                 : format("Must execute from [%s] but thread is [%s]", UTILITY_THREAD_POOL_NAME, Thread.currentThread().getName());
 
             if (isStopped) {
-                logger.debug("[{}] model stopped before it is started", task.getModelId());
+                logger.debug("[{}] model stopped before it is started", task.getDeploymentId());
                 loadedListener.onFailure(new IllegalArgumentException("model stopped before it is started"));
                 return;
             }
 
-            logger.debug("[{}] start and load", task.getModelId());
+            logger.debug("[{}] start and load", task.getDeploymentId());
             process.set(pyTorchProcessFactory.createProcess(task, executorServiceForProcess, this::onProcessCrash));
             startTime = Instant.now();
-            logger.debug("[{}] process started", task.getModelId());
+            logger.debug("[{}] process started", task.getDeploymentId());
             try {
                 loadModel(modelLocation, ActionListener.wrap(success -> {
                     if (isStopped) {
-                        logger.debug("[{}] model loaded but process is stopped", task.getModelId());
+                        logger.debug("[{}] model loaded but process is stopped", task.getDeploymentId());
                         killProcessIfPresent();
                         loadedListener.onFailure(new IllegalStateException("model loaded but process is stopped"));
                         return;
                     }
 
-                    logger.debug("[{}] model loaded, starting priority process worker thread", task.getModelId());
+                    logger.debug("[{}] model loaded, starting priority process worker thread", task.getDeploymentId());
                     startPriorityProcessWorker();
                     loadedListener.onResponse(success);
                 }, loadedListener::onFailure));
@@ -460,12 +460,12 @@ public class DeploymentManager {
                 }
                 process.get().kill(true);
             } catch (IOException e) {
-                logger.error(() -> "[" + task.getModelId() + "] Failed to kill process", e);
+                logger.error(() -> "[" + task.getDeploymentId() + "] Failed to kill process", e);
             }
         }
 
         private void onProcessCrash(String reason) {
-            logger.error("[{}] inference process crashed due to reason [{}]", task.getModelId(), reason);
+            logger.error("[{}] inference process crashed due to reason [{}]", task.getDeploymentId(), reason);
             processContextByAllocation.remove(task.getId());
             isStopped = true;
             resultProcessor.stop();
@@ -487,7 +487,7 @@ public class DeploymentManager {
                 // we need to return to the utility thread pool to avoid leaking the thread we used.
                 process.get()
                     .loadModel(
-                        task.getModelId(),
+                        task.getParams().getModelId(),
                         indexLocation.getIndexName(),
                         stateStreamer,
                         ActionListener.wrap(

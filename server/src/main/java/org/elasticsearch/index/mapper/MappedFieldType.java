@@ -46,6 +46,8 @@ import org.elasticsearch.search.fetch.subphase.FetchFieldsPhase;
 import java.io.IOException;
 import java.time.ZoneId;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
@@ -189,6 +191,15 @@ public abstract class MappedFieldType {
     }
 
     /**
+     * @return a list of dimension fields. Expected to be used by fields that have
+     * nested fields or that, in some way, identify a collection of fields by means
+     * of a top level field (like flattened fields).
+     */
+    public List<String> dimensions() {
+        return Collections.emptyList();
+    }
+
+    /**
      * @return metric type or null if the field is not a metric field
      */
     public TimeSeriesParams.MetricType getMetricType() {
@@ -248,11 +259,23 @@ public abstract class MappedFieldType {
         int prefixLength,
         int maxExpansions,
         boolean transpositions,
-        SearchExecutionContext context
+        SearchExecutionContext context,
+        @Nullable MultiTermQuery.RewriteMethod rewriteMethod
     ) {
         throw new IllegalArgumentException(
             "Can only use fuzzy queries on keyword and text fields - not on [" + name + "] which is of type [" + typeName() + "]"
         );
+    }
+
+    public Query fuzzyQuery(
+        Object value,
+        Fuzziness fuzziness,
+        int prefixLength,
+        int maxExpansions,
+        boolean transpositions,
+        SearchExecutionContext context
+    ) {
+        return fuzzyQuery(value, fuzziness, prefixLength, maxExpansions, transpositions, context, null);
     }
 
     // Case sensitive form of prefix query
@@ -592,10 +615,12 @@ public abstract class MappedFieldType {
     /**
      * Validate that this field can be the target of {@link IndexMetadata#INDEX_ROUTING_PATH}.
      */
-    public void validateMatchedRoutingPath() {
+    public void validateMatchedRoutingPath(String routingPath) {
         throw new IllegalArgumentException(
-            "All fields that match routing_path must be keywords with [time_series_dimension: true] "
-                + "and without the [script] parameter. ["
+            "All fields that match routing_path "
+                + "must be keywords with [time_series_dimension: true] "
+                + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
+                + "without the [script] parameter. ["
                 + name()
                 + "] was ["
                 + typeName()

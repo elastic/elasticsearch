@@ -37,7 +37,6 @@ import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.BucketCollector;
-import org.elasticsearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterByFilterAggregator;
 import org.elasticsearch.search.internal.SubSearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -230,7 +229,15 @@ public abstract class AggregationContext implements Releasable {
      */
     public abstract void addReleasable(Aggregator aggregator);
 
-    public abstract MultiBucketConsumer multiBucketConsumer();
+    /**
+     * Cause this aggregation to be released when the search is finished.
+     */
+    public abstract void removeReleasable(Aggregator aggregator);
+
+    /**
+     * Max buckets provided by the search.max_buckets setting
+     */
+    public abstract int maxBuckets();
 
     /**
      * Get the filter cache.
@@ -330,7 +337,7 @@ public abstract class AggregationContext implements Releasable {
         private final BigArrays bigArrays;
         private final Supplier<Query> topLevelQuery;
         private final AggregationProfiler profiler;
-        private final MultiBucketConsumer multiBucketConsumer;
+        private final int maxBuckets;
         private final Supplier<SubSearchContext> subSearchContextBuilder;
         private final BitsetFilterCache bitsetFilterCache;
         private final int randomSeed;
@@ -350,7 +357,7 @@ public abstract class AggregationContext implements Releasable {
             long bytesToPreallocate,
             Supplier<Query> topLevelQuery,
             @Nullable AggregationProfiler profiler,
-            MultiBucketConsumer multiBucketConsumer,
+            int maxBuckets,
             Supplier<SubSearchContext> subSearchContextBuilder,
             BitsetFilterCache bitsetFilterCache,
             int randomSeed,
@@ -383,7 +390,7 @@ public abstract class AggregationContext implements Releasable {
             }
             this.topLevelQuery = topLevelQuery;
             this.profiler = profiler;
-            this.multiBucketConsumer = multiBucketConsumer;
+            this.maxBuckets = maxBuckets;
             this.subSearchContextBuilder = subSearchContextBuilder;
             this.bitsetFilterCache = bitsetFilterCache;
             this.randomSeed = randomSeed;
@@ -515,12 +522,21 @@ public abstract class AggregationContext implements Releasable {
 
         @Override
         public void addReleasable(Aggregator aggregator) {
+            assert releaseMe.contains(aggregator) == false
+                : "adding aggregator [" + aggregator.name() + "] twice in the aggregation context";
             releaseMe.add(aggregator);
         }
 
         @Override
-        public MultiBucketConsumer multiBucketConsumer() {
-            return multiBucketConsumer;
+        public void removeReleasable(Aggregator aggregator) {
+            assert releaseMe.contains(aggregator)
+                : "removing non-existing aggregator [" + aggregator.name() + "] from the the aggregation context";
+            releaseMe.remove(aggregator);
+        }
+
+        @Override
+        public int maxBuckets() {
+            return maxBuckets;
         }
 
         @Override

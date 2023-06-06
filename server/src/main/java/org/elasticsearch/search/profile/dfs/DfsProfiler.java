@@ -11,7 +11,7 @@ package org.elasticsearch.search.profile.dfs;
 import org.elasticsearch.search.profile.AbstractProfileBreakdown;
 import org.elasticsearch.search.profile.ProfileResult;
 import org.elasticsearch.search.profile.SearchProfileDfsPhaseResult;
-import org.elasticsearch.search.profile.query.InternalProfileCollector;
+import org.elasticsearch.search.profile.query.InternalProfileCollectorManager;
 import org.elasticsearch.search.profile.query.QueryProfileShardResult;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 
@@ -30,7 +30,7 @@ public class DfsProfiler extends AbstractProfileBreakdown<DfsTimingType> {
     private long totalTime;
 
     private final List<QueryProfiler> knnQueryProfilers = new ArrayList<>();
-    private boolean collectorSet = false;
+    private boolean collectorManagerSet = false;
 
     public DfsProfiler() {
         super(DfsTimingType.class);
@@ -52,11 +52,11 @@ public class DfsProfiler extends AbstractProfileBreakdown<DfsTimingType> {
         getTimer(dfsTimingType).stop();
     }
 
-    public QueryProfiler addQueryProfiler(InternalProfileCollector collector) {
+    public QueryProfiler addQueryProfiler(InternalProfileCollectorManager collectorManager) {
         QueryProfiler queryProfiler = new QueryProfiler();
-        queryProfiler.setCollector(collector);
+        queryProfiler.setCollectorManager(collectorManager);
         knnQueryProfilers.add(queryProfiler);
-        collectorSet = true;
+        collectorManagerSet = true;
         return queryProfiler;
     }
 
@@ -70,7 +70,7 @@ public class DfsProfiler extends AbstractProfileBreakdown<DfsTimingType> {
             List.of()
         );
         final List<QueryProfileShardResult> queryProfileShardResult;
-        if (collectorSet) {
+        if (collectorManagerSet) {
             queryProfileShardResult = new ArrayList<>(knnQueryProfilers.size());
             for (QueryProfiler queryProfiler : knnQueryProfilers) {
                 queryProfileShardResult.add(

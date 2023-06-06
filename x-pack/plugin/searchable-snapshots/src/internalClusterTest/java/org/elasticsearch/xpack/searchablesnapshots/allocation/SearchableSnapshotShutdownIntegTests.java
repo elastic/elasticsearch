@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.searchablesnapshots.allocation;
 
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -84,7 +84,7 @@ public class SearchableSnapshotShutdownIntegTests extends BaseSearchableSnapshot
                     assertBusy(() -> {
                         ClusterHealthResponse response = client().admin()
                             .cluster()
-                            .health(Requests.clusterHealthRequest(restoredIndexNamesArray))
+                            .health(new ClusterHealthRequest(restoredIndexNamesArray))
                             .actionGet();
                         assertThat(response.getUnassignedShards(), Matchers.equalTo(shards));
                     });
@@ -122,6 +122,7 @@ public class SearchableSnapshotShutdownIntegTests extends BaseSearchableSnapshot
             nodeToRestartId,
             SingleNodeShutdownMetadata.Type.RESTART,
             this.getTestName(),
+            null,
             null,
             null
         );

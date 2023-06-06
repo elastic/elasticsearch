@@ -8,12 +8,13 @@
 
 package org.elasticsearch.cluster.coordination;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
@@ -90,8 +91,20 @@ public class PublicationTests extends ESTestCase {
                 }
 
                 @Override
-                protected Optional<ApplyCommitRequest> handlePublishResponse(DiscoveryNode sourceNode, PublishResponse publishResponse) {
-                    return coordinationState.handlePublishResponse(sourceNode, publishResponse);
+                protected Optional<SubscribableListener<ApplyCommitRequest>> handlePublishResponse(
+                    DiscoveryNode sourceNode,
+                    PublishResponse publishResponse
+                ) {
+                    return coordinationState.handlePublishResponse(sourceNode, publishResponse).map(applyCommitRequest -> {
+                        final var future = new SubscribableListener<ApplyCommitRequest>();
+                        future.onResponse(applyCommitRequest);
+                        return future;
+                    });
+                }
+
+                @Override
+                protected <T> ActionListener<T> wrapListener(ActionListener<T> listener) {
+                    return listener;
                 }
             };
             currentPublication.start(faultyNodes);
@@ -521,7 +534,7 @@ public class PublicationTests extends ESTestCase {
     }
 
     private static DiscoveryNode newNode(int nodeId, Map<String, String> attributes, Set<DiscoveryNodeRole> roles) {
-        return new DiscoveryNode("name_" + nodeId, "node_" + nodeId, buildNewFakeTransportAddress(), attributes, roles, Version.CURRENT);
+        return DiscoveryNodeUtils.create("name_" + nodeId, "node_" + nodeId, buildNewFakeTransportAddress(), attributes, roles);
     }
 
     public static <T> Collector<T, ?, Stream<T>> shuffle() {

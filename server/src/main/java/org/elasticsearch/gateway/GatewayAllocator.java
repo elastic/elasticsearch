@@ -49,7 +49,6 @@ public class GatewayAllocator implements ExistingShardsAllocator {
     private static final Logger logger = LogManager.getLogger(GatewayAllocator.class);
 
     private final RerouteService rerouteService;
-
     private final PrimaryShardAllocator primaryShardAllocator;
     private final ReplicaShardAllocator replicaShardAllocator;
 

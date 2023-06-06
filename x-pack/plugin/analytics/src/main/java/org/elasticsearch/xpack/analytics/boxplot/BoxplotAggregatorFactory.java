@@ -11,6 +11,7 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
+import org.elasticsearch.search.aggregations.metrics.NonCollectingMultiMetricAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
@@ -21,6 +22,7 @@ import org.elasticsearch.xpack.analytics.aggregations.support.AnalyticsValuesSou
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Predicate;
 
 public class BoxplotAggregatorFactory extends ValuesSourceAggregatorFactory {
 
@@ -53,12 +55,14 @@ public class BoxplotAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     @Override
     protected Aggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException {
-        return new BoxplotAggregator(name, null, config.format(), compression, context, parent, metadata);
+        final InternalBoxplot empty = InternalBoxplot.empty(name, compression, config.format(), metadata);
+        final Predicate<String> hasMetric = InternalBoxplot.Metrics::hasMetric;
+        return new NonCollectingMultiMetricAggregator(name, context, parent, empty, hasMetric, metadata);
     }
 
     @Override
     protected Aggregator doCreateInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
         throws IOException {
-        return aggregatorSupplier.build(name, config.getValuesSource(), config.format(), compression, context, parent, metadata);
+        return aggregatorSupplier.build(name, config, config.format(), compression, context, parent, metadata);
     }
 }

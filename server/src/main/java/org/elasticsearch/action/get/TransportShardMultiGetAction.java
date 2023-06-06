@@ -9,16 +9,14 @@
 package org.elasticsearch.action.get;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.PlainShardIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -32,7 +30,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -87,19 +84,7 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
     protected ShardIterator shards(ClusterState state, InternalRequest request) {
         ShardIterator iterator = clusterService.operationRouting()
             .getShards(state, request.request().index(), request.request().shardId(), request.request().preference());
-        if (iterator == null) {
-            return null;
-        }
-        // If it is stateless, only route promotable shards. This is a temporary workaround until a more cohesive solution can be
-        // implemented for search shards.
-        if (DiscoveryNode.isStateless(clusterService.getSettings())) {
-            return new PlainShardIterator(
-                iterator.shardId(),
-                iterator.getShardRoutings().stream().filter(ShardRouting::isPromotableToPrimary).collect(Collectors.toList())
-            );
-        } else {
-            return iterator;
-        }
+        return clusterService.operationRouting().useOnlyPromotableShardsForStateless(iterator);
     }
 
     @Override
@@ -108,11 +93,11 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         IndexShard indexShard = indexService.getShard(shardId.id());
         if (request.realtime()) { // we are not tied to a refresh cycle here anyway
-            super.asyncShardOperation(request, shardId, listener);
+            asyncShardMultiGet(request, shardId, listener);
         } else {
             indexShard.awaitShardSearchActive(b -> {
                 try {
-                    super.asyncShardOperation(request, shardId, listener);
+                    asyncShardMultiGet(request, shardId, listener);
                 } catch (Exception ex) {
                     listener.onFailure(ex);
                 }
@@ -122,13 +107,7 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
 
     @Override
     protected MultiGetShardResponse shardOperation(MultiGetShardRequest request, ShardId shardId) {
-        IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
-        IndexShard indexShard = indexService.getShard(shardId.id());
-
-        if (request.refresh() && request.realtime() == false) {
-            indexShard.refresh("refresh_flag_mget");
-        }
-
+        var indexShard = getIndexShard(shardId);
         MultiGetShardResponse response = new MultiGetShardResponse();
         for (int i = 0; i < request.locations.size(); i++) {
             MultiGetRequest.Item item = request.items.get(i);
@@ -170,5 +149,22 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
         } else {
             return super.getExecutor(request, shardId);
         }
+    }
+
+    private void asyncShardMultiGet(MultiGetShardRequest request, ShardId shardId, ActionListener<MultiGetShardResponse> listener)
+        throws IOException {
+        if (request.refresh() && request.realtime() == false) {
+            threadPool.executor(getExecutor(request, shardId)).execute(ActionRunnable.wrap(listener, l -> {
+                var indexShard = getIndexShard(shardId);
+                indexShard.externalRefresh("refresh_flag_mget", l.map(r -> shardOperation(request, shardId)));
+            }));
+        } else {
+            super.asyncShardOperation(request, shardId, listener);
+        }
+    }
+
+    private IndexShard getIndexShard(ShardId shardId) {
+        IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
+        return indexService.getShard(shardId.id());
     }
 }

@@ -15,12 +15,11 @@ import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
@@ -118,10 +117,12 @@ public class VersionStatsTests extends AbstractWireSerializingTestCase<VersionSt
             CommonStats.getShardLevelStats(null, indexShard, new CommonStatsFlags(CommonStatsFlags.Flag.Store)),
             null,
             null,
-            null
+            null,
+            false,
+            0
         );
         ClusterStatsNodeResponse nodeResponse = new ClusterStatsNodeResponse(
-            new DiscoveryNode("id", buildNewFakeTransportAddress(), Version.CURRENT),
+            DiscoveryNodeUtils.create("id"),
             ClusterHealthStatus.GREEN,
             null,
             null,
@@ -137,13 +138,7 @@ public class VersionStatsTests extends AbstractWireSerializingTestCase<VersionSt
     }
 
     private static IndexMetadata indexMeta(String name, Version version, int primaryShards) {
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, version)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, primaryShards)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 3))
-            .build();
-        IndexMetadata.Builder indexMetadata = new IndexMetadata.Builder(name).settings(settings);
-        return indexMetadata.build();
+        return new IndexMetadata.Builder(name).settings(indexSettings(version, primaryShards, randomIntBetween(0, 3))).build();
     }
 
     public static VersionStats randomInstance() {

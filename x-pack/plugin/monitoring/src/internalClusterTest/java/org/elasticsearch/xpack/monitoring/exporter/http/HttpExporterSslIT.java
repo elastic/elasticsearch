@@ -139,18 +139,14 @@ public class HttpExporterSslIT extends MonitoringIntegTestCase {
         Path truststore = getDataPath("/org/elasticsearch/xpack/monitoring/exporter/http/testnode.jks");
         assertThat(Files.exists(truststore), CoreMatchers.is(true));
 
-        final ClusterUpdateSettingsRequest updateSettings = new ClusterUpdateSettingsRequest();
-        final Settings settings = Settings.builder()
-            .put("xpack.monitoring.exporters._new.type", "http")
-            .put("xpack.monitoring.exporters._new.host", "https://" + webServer.getHostName() + ":" + webServer.getPort())
-            .put("xpack.monitoring.exporters._new.ssl.truststore.path", truststore)
-            .put("xpack.monitoring.exporters._new.ssl.truststore.password", "testnode")
-            .put("xpack.monitoring.exporters._new.ssl.verification_mode", SslVerificationMode.CERTIFICATE.name())
-            .build();
-        updateSettings.persistentSettings(settings);
-        final ActionFuture<ClusterUpdateSettingsResponse> future = client().admin().cluster().updateSettings(updateSettings);
-        final ClusterUpdateSettingsResponse response = future.actionGet();
-        assertThat(response, notNullValue());
+        updateClusterSettings(
+            Settings.builder()
+                .put("xpack.monitoring.exporters._new.type", "http")
+                .put("xpack.monitoring.exporters._new.host", "https://" + webServer.getHostName() + ":" + webServer.getPort())
+                .put("xpack.monitoring.exporters._new.ssl.truststore.path", truststore)
+                .put("xpack.monitoring.exporters._new.ssl.truststore.password", "testnode")
+                .put("xpack.monitoring.exporters._new.ssl.verification_mode", SslVerificationMode.CERTIFICATE.name())
+        );
 
         assertExporterExists("_new");
         clearPersistentSettings("_new");
@@ -181,12 +177,10 @@ public class HttpExporterSslIT extends MonitoringIntegTestCase {
     }
 
     private void clearPersistentSettings(String... names) {
-        final ClusterUpdateSettingsRequest updateSettings = new ClusterUpdateSettingsRequest();
         final Settings.Builder builder = Settings.builder();
         for (String name : names) {
             builder.put("xpack.monitoring.exporters." + name + ".*", (String) null);
         }
-        updateSettings.persistentSettings(builder.build());
-        client().admin().cluster().updateSettings(updateSettings).actionGet();
+        updateClusterSettings(builder);
     }
 }

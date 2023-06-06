@@ -187,7 +187,7 @@ public class GeoShapeFieldMapperTests extends MapperTestCase {
             b.endArray();
         }));
         assertThat(document.docs(), hasSize(1));
-        assertThat(document.docs().get(0).getFields("field").length, equalTo(2));
+        assertThat(document.docs().get(0).getFields("field"), hasSize(2));
     }
 
     public void testMultiFieldsDeprecationWarning() throws Exception {

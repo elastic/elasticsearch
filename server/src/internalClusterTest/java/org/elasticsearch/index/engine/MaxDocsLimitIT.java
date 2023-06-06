@@ -88,9 +88,7 @@ public class MaxDocsLimitIT extends ESIntegTestCase {
     public void testMaxDocsLimit() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(1);
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("test")
+            indicesAdmin().prepareCreate("test")
                 .setSettings(
                     Settings.builder()
                         .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)

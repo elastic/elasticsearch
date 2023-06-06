@@ -96,15 +96,7 @@ public class ReadinessClusterIT extends ESIntegTestCase implements ReadinessClie
     private void expectMasterNotFound() {
         expectThrows(
             MasterNotDiscoveredException.class,
-            () -> client().admin()
-                .cluster()
-                .prepareState()
-                .setMasterNodeTimeout("100ms")
-                .execute()
-                .actionGet()
-                .getState()
-                .nodes()
-                .getMasterNodeId()
+            () -> clusterAdmin().prepareState().setMasterNodeTimeout("100ms").execute().actionGet().getState().nodes().getMasterNodeId()
         );
     }
 
@@ -235,11 +227,11 @@ public class ReadinessClusterIT extends ESIntegTestCase implements ReadinessClie
 
         FileSettingsService fileSettingsService = internalCluster().getInstance(FileSettingsService.class, node);
 
-        Files.createDirectories(fileSettingsService.operatorSettingsDir());
+        Files.createDirectories(fileSettingsService.watchedFileDir());
         Path tempFilePath = createTempFile();
 
         Files.write(tempFilePath, Strings.format(json, version).getBytes(StandardCharsets.UTF_8));
-        Files.move(tempFilePath, fileSettingsService.operatorSettingsFile(), StandardCopyOption.ATOMIC_MOVE);
+        Files.move(tempFilePath, fileSettingsService.watchedFile(), StandardCopyOption.ATOMIC_MOVE);
         logger.info("--> New file settings: [{}]", Strings.format(json, version));
     }
 

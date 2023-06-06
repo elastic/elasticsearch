@@ -17,18 +17,12 @@ import org.elasticsearch.transport.RemoteTransportException;
 import org.junit.After;
 import org.junit.Before;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.notNullValue;
 
 public class StepListenerTests extends ESTestCase {
     private ThreadPool threadPool;
@@ -92,7 +86,7 @@ public class StepListenerTests extends ESTestCase {
 
         if (failedStep == 1) {
             assertThat(expectThrows(RuntimeException.class, step1::result).getMessage(), equalTo("failed at step 1"));
-            assertThat(expectThrows(RuntimeException.class, step2::result).getMessage(), equalTo("step is not completed yet"));
+            assertFalse(step2.isDone());
         } else {
             assertThat(step1.result(), equalTo("hello"));
             assertThat(expectThrows(RuntimeException.class, step2::result).getMessage(), equalTo("failed at step 2"));
@@ -119,51 +113,6 @@ public class StepListenerTests extends ESTestCase {
         assertEquals(RemoteTransportException.class, exception.get().getClass());
         RuntimeException e = expectThrows(RuntimeException.class, () -> step.result());
         assertEquals(RemoteTransportException.class, e.getClass());
-    }
-
-    public void testThenCombine() throws Exception {
-        final StepListener<Integer> step1 = new StepListener<>();
-        final StepListener<Integer> step2 = new StepListener<>();
-
-        final List<StepListener<Integer>> stepListeners = new ArrayList<>();
-        stepListeners.add(step1);
-        stepListeners.add(step2);
-        Collections.shuffle(stepListeners, random());
-
-        final StepListener<Integer> combined = stepListeners.get(0).thenCombine(stepListeners.get(1), Math::max);
-        assertThat(combined.asFuture(), notNullValue());
-        assertThat(combined.asFuture().isDone(), equalTo(false));
-
-        final List<Integer> results = Collections.synchronizedList(new ArrayList<>(stepListeners.size()));
-        final CountDownLatch latch = new CountDownLatch(stepListeners.size());
-        final AtomicBoolean failed = new AtomicBoolean();
-        Collections.shuffle(stepListeners, random());
-
-        for (StepListener<Integer> stepListener : stepListeners) {
-            executeAction(() -> {
-                try {
-                    if (randomBoolean()) {
-                        final Integer value = randomInt();
-                        results.add(value);
-                        stepListener.onResponse(value);
-                    } else {
-                        failed.compareAndSet(false, true);
-                        stepListener.onFailure(new ElasticsearchException("simulated"));
-                    }
-                } finally {
-                    latch.countDown();
-                }
-            });
-        }
-
-        latch.await();
-        assertThat(combined.asFuture().isDone(), equalTo(true));
-        if (failed.get() == false) {
-            assertThat(combined.result(), equalTo(results.stream().reduce(Math::max).get()));
-        } else {
-            ElasticsearchException exception = expectThrows(ElasticsearchException.class, combined::result);
-            assertThat(exception.getMessage(), containsString("simulated"));
-        }
     }
 
     public void testAddedListenersReleasedOnCompletion() {

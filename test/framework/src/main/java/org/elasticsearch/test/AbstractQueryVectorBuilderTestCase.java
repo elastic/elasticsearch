@@ -70,7 +70,7 @@ public abstract class AbstractQueryVectorBuilderTestCase<T extends QueryVectorBu
     public final void testKnnSearchBuilderXContent() throws Exception {
         AbstractXContentTestCase.XContentTester<KnnSearchBuilder> tester = AbstractXContentTestCase.xContentTester(
             this::createParser,
-            () -> new KnnSearchBuilder(randomAlphaOfLength(10), createTestInstance(), 5, 10),
+            () -> new KnnSearchBuilder(randomAlphaOfLength(10), createTestInstance(), 5, 10, randomBoolean() ? null : randomFloat()),
             getToXContentParams(),
             KnnSearchBuilder::fromXContent
         );
@@ -79,7 +79,13 @@ public abstract class AbstractQueryVectorBuilderTestCase<T extends QueryVectorBu
 
     public final void testKnnSearchBuilderWireSerialization() throws IOException {
         for (int i = 0; i < NUMBER_OF_TEST_RUNS; i++) {
-            KnnSearchBuilder searchBuilder = new KnnSearchBuilder(randomAlphaOfLength(10), createTestInstance(), 5, 10);
+            KnnSearchBuilder searchBuilder = new KnnSearchBuilder(
+                randomAlphaOfLength(10),
+                createTestInstance(),
+                5,
+                10,
+                randomBoolean() ? null : randomFloat()
+            );
             KnnSearchBuilder serialized = copyWriteable(
                 searchBuilder,
                 getNamedWriteableRegistry(),
@@ -95,7 +101,13 @@ public abstract class AbstractQueryVectorBuilderTestCase<T extends QueryVectorBu
         for (int i = 0; i < NUMBER_OF_TEST_RUNS; i++) {
             float[] expected = randomVector(randomIntBetween(10, 1024));
             T queryVectorBuilder = createTestInstance(expected);
-            KnnSearchBuilder searchBuilder = new KnnSearchBuilder(randomAlphaOfLength(10), queryVectorBuilder, 5, 10);
+            KnnSearchBuilder searchBuilder = new KnnSearchBuilder(
+                randomAlphaOfLength(10),
+                queryVectorBuilder,
+                5,
+                10,
+                randomBoolean() ? null : randomFloat()
+            );
             KnnSearchBuilder serialized = copyWriteable(
                 searchBuilder,
                 getNamedWriteableRegistry(),
@@ -103,7 +115,7 @@ public abstract class AbstractQueryVectorBuilderTestCase<T extends QueryVectorBu
                 TransportVersion.CURRENT
             );
             try (NoOpClient client = new AssertingClient(expected, queryVectorBuilder)) {
-                QueryRewriteContext context = new QueryRewriteContext(null, null, client, null);
+                QueryRewriteContext context = new QueryRewriteContext(null, client, null);
                 PlainActionFuture<KnnSearchBuilder> future = new PlainActionFuture<>();
                 Rewriteable.rewriteAndFetch(randomFrom(serialized, searchBuilder), context, future);
                 KnnSearchBuilder rewritten = future.get();

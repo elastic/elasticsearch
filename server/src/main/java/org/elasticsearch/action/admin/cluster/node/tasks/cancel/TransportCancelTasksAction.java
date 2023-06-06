@@ -17,14 +17,13 @@ import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.CancellableTask;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Consumer;
 
 /**
  * Transport action that can be used to cancel currently running cancellable tasks.
@@ -60,13 +59,13 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
         return new CancelTasksResponse(tasks, taskOperationFailures, failedNodeExceptions);
     }
 
-    protected void processTasks(CancelTasksRequest request, Consumer<CancellableTask> operation) {
+    protected List<CancellableTask> processTasks(CancelTasksRequest request) {
         if (request.getTargetTaskId().isSet()) {
             // we are only checking one task, we can optimize it
             CancellableTask task = taskManager.getCancellableTask(request.getTargetTaskId().getId());
             if (task != null) {
                 if (request.match(task)) {
-                    operation.accept(task);
+                    return List.of(task);
                 } else {
                     throw new IllegalArgumentException("task [" + request.getTargetTaskId() + "] doesn't support this operation");
                 }
@@ -79,17 +78,19 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
                 }
             }
         } else {
+            final var tasks = new ArrayList<CancellableTask>();
             for (CancellableTask task : taskManager.getCancellableTasks().values()) {
                 if (request.match(task)) {
-                    operation.accept(task);
+                    tasks.add(task);
                 }
             }
+            return tasks;
         }
     }
 
     @Override
     protected void taskOperation(
-        Task actionTask,
+        CancellableTask actionTask,
         CancelTasksRequest request,
         CancellableTask cancellableTask,
         ActionListener<TaskInfo> listener

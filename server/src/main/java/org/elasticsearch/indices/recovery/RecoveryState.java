@@ -833,10 +833,6 @@ public class RecoveryState implements ToXContentFragment, Writeable {
             return fileDetails.size();
         }
 
-        public boolean isEmpty() {
-            return fileDetails.isEmpty();
-        }
-
         public void clear() {
             fileDetails.clear();
             complete = false;
@@ -990,8 +986,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
             if (total == recovered) {
                 return 100.0f;
             } else {
-                float result = 100.0f * (recovered / (float) total);
-                return result;
+                return 100.0f * (recovered / (float) total);
             }
         }
 

@@ -15,6 +15,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.search.SearchHit;
@@ -134,7 +135,18 @@ public class SearchResponseTests extends ESTestCase {
         int totalClusters = randomIntBetween(0, 10);
         int successfulClusters = randomIntBetween(0, totalClusters);
         int skippedClusters = totalClusters - successfulClusters;
-        return new SearchResponse.Clusters(totalClusters, successfulClusters, skippedClusters);
+        if (randomBoolean()) {
+            return new SearchResponse.Clusters(totalClusters, successfulClusters, skippedClusters);
+        } else {
+            int remoteClusters = totalClusters;
+            if (totalClusters > 0 && randomBoolean()) {
+                // remoteClusters can be same as total cluster count or one less (when doing local search)
+                remoteClusters--;
+            }
+            // Clusters has an assert that if ccsMinimizeRoundtrips = true, then remoteClusters must be > 0
+            boolean ccsMinimizeRoundtrips = (remoteClusters > 0 ? randomBoolean() : false);
+            return new SearchResponse.Clusters(totalClusters, successfulClusters, skippedClusters, remoteClusters, ccsMinimizeRoundtrips);
+        }
     }
 
     /**
@@ -159,7 +171,12 @@ public class SearchResponseTests extends ESTestCase {
         XContentType xcontentType = randomFrom(XContentType.values());
         boolean humanReadable = randomBoolean();
         final ToXContent.Params params = new ToXContent.MapParams(singletonMap(RestSearchAction.TYPED_KEYS_PARAM, "true"));
-        BytesReference originalBytes = toShuffledXContent(response, xcontentType, params, humanReadable);
+        BytesReference originalBytes = toShuffledXContent(
+            ChunkedToXContent.wrapAsToXContent(response),
+            xcontentType,
+            params,
+            humanReadable
+        );
         BytesReference mutated;
         if (addRandomFields) {
             mutated = insertRandomFields(xcontentType, originalBytes, null, random());
@@ -189,7 +206,12 @@ public class SearchResponseTests extends ESTestCase {
         SearchResponse response = createTestItem(failures);
         XContentType xcontentType = randomFrom(XContentType.values());
         final ToXContent.Params params = new ToXContent.MapParams(singletonMap(RestSearchAction.TYPED_KEYS_PARAM, "true"));
-        BytesReference originalBytes = toShuffledXContent(response, xcontentType, params, randomBoolean());
+        BytesReference originalBytes = toShuffledXContent(
+            ChunkedToXContent.wrapAsToXContent(response),
+            xcontentType,
+            params,
+            randomBoolean()
+        );
         try (XContentParser parser = createParser(xcontentType.xContent(), originalBytes)) {
             SearchResponse parsed = SearchResponse.fromXContent(parser);
             for (int i = 0; i < parsed.getShardFailures().length; i++) {

@@ -20,7 +20,7 @@ import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
-import java.util.List;
+import java.util.Collections;
 
 public class SizeFieldMapper extends MetadataFieldMapper {
     public static final String NAME = "_size";
@@ -50,13 +50,13 @@ public class SizeFieldMapper extends MetadataFieldMapper {
 
     private static class SizeFieldType extends NumberFieldType {
         SizeFieldType() {
-            super(NAME, NumberType.INTEGER);
+            super(NAME, NumberType.INTEGER, true, true, true, false, null, Collections.emptyMap(), null, false, null, null);
         }
 
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             if (hasDocValues() == false) {
-                return (lookup, doc, ignoredValues) -> List.of();
+                return ValueFetcher.EMPTY;
             }
             return new DocValueFetcher(docValueFormat(format, null), context.getForField(this, FielddataOperation.SEARCH));
         }

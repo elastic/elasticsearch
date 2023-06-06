@@ -1,5 +1,0 @@
-pr: 93438
-summary: Align all usages of Jackson to be 2.14.2
-area: Infra/Core
-type: upgrade
-issues: []

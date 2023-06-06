@@ -11,6 +11,8 @@ package org.elasticsearch.search.functionscore;
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.Priority;
@@ -34,8 +36,6 @@ import java.util.Collection;
 import java.util.List;
 
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.client.internal.Requests.indexRequest;
-import static org.elasticsearch.client.internal.Requests.searchRequest;
 import static org.elasticsearch.index.query.QueryBuilders.functionScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
@@ -50,9 +50,7 @@ public class FunctionScorePluginIT extends ESIntegTestCase {
     }
 
     public void testPlugin() throws Exception {
-        client().admin()
-            .indices()
-            .prepareCreate("test")
+        indicesAdmin().prepareCreate("test")
             .setMapping(
                 jsonBuilder().startObject()
                     .startObject("_doc")
@@ -71,17 +69,19 @@ public class FunctionScorePluginIT extends ESIntegTestCase {
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().get();
 
         client().index(
-            indexRequest("test").id("1").source(jsonBuilder().startObject().field("test", "value").field("num1", "2013-05-26").endObject())
+            new IndexRequest("test").id("1")
+                .source(jsonBuilder().startObject().field("test", "value").field("num1", "2013-05-26").endObject())
         ).actionGet();
         client().index(
-            indexRequest("test").id("2").source(jsonBuilder().startObject().field("test", "value").field("num1", "2013-05-27").endObject())
+            new IndexRequest("test").id("2")
+                .source(jsonBuilder().startObject().field("test", "value").field("num1", "2013-05-27").endObject())
         ).actionGet();
 
         client().admin().indices().prepareRefresh().get();
         DecayFunctionBuilder<?> gfb = new CustomDistanceScoreBuilder("num1", "2013-05-28", "+1d");
 
         ActionFuture<SearchResponse> response = client().search(
-            searchRequest().searchType(SearchType.QUERY_THEN_FETCH)
+            new SearchRequest(new String[] {}).searchType(SearchType.QUERY_THEN_FETCH)
                 .source(searchSource().explain(false).query(functionScoreQuery(termQuery("test", "value"), gfb)))
         );
 

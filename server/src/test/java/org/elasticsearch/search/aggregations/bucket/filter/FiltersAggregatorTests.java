@@ -105,8 +105,8 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         Directory directory = newDirectory();
         RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
         indexWriter.close();
-        IndexReader indexReader = DirectoryReader.open(directory);
-        IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
+        DirectoryReader indexReader = DirectoryReader.open(directory);
+        IndexSearcher indexSearcher = newIndexSearcher(indexReader);
         int numFilters = randomIntBetween(1, 10);
         QueryBuilder[] filters = new QueryBuilder[numFilters];
         for (int i = 0; i < filters.length; i++) {
@@ -158,9 +158,9 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
     }
 
     public void testNoFiltersWithSubAggs() throws IOException {
-        testCase(
-            iw -> { iw.addDocument(List.of(new SortedNumericDocValuesField("i", 1))); },
-            (InternalFilters result) -> { assertThat(result.getBuckets(), hasSize(0)); },
+        testCase(iw -> { iw.addDocument(List.of(new SortedNumericDocValuesField("i", 1))); }, (InternalFilters result) -> {
+            assertThat(result.getBuckets(), hasSize(0));
+        },
             new AggTestConfig(
                 new FiltersAggregationBuilder("test", new KeyedFilter[0]).subAggregation(new MaxAggregationBuilder("m").field("i")),
                 new NumberFieldMapper.NumberFieldType("m", NumberType.INTEGER)
@@ -197,8 +197,8 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         indexWriter.addDocument(document);
         indexWriter.close();
 
-        IndexReader indexReader = DirectoryReader.open(directory);
-        IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
+        DirectoryReader indexReader = DirectoryReader.open(directory);
+        IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
         FiltersAggregator.KeyedFilter[] keys = new FiltersAggregator.KeyedFilter[6];
         keys[0] = new FiltersAggregator.KeyedFilter("foobar", QueryBuilders.termQuery("field", "foobar"));
@@ -245,8 +245,8 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         }
         indexWriter.close();
 
-        IndexReader indexReader = DirectoryReader.open(directory);
-        IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
+        DirectoryReader indexReader = DirectoryReader.open(directory);
+        IndexSearcher indexSearcher = newIndexSearcher(indexReader);
         try {
             int numFilters = randomIntBetween(1, 10);
             QueryBuilder[] filters = new QueryBuilder[numFilters];
@@ -657,7 +657,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                     @Override
                     public void onCache(ShardId shardId, Accountable accountable) {}
                 });
-                IndexReader limitedReader = new DocumentSubsetDirectoryReader(
+                DirectoryReader limitedReader = new DocumentSubsetDirectoryReader(
                     ElasticsearchDirectoryReader.wrap(directoryReader, new ShardId(indexSettings.getIndex(), 0)),
                     bitsetFilterCache,
                     LongPoint.newRangeQuery("t", 5, Long.MAX_VALUE)
@@ -730,7 +730,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                     @Override
                     public void onCache(ShardId shardId, Accountable accountable) {}
                 });
-                IndexReader limitedReader = new DocumentSubsetDirectoryReader(
+                DirectoryReader limitedReader = new DocumentSubsetDirectoryReader(
                     ElasticsearchDirectoryReader.wrap(directoryReader, new ShardId(indexSettings.getIndex(), 0)),
                     bitsetFilterCache,
                     LongPoint.newRangeQuery("t", 5, Long.MAX_VALUE)
@@ -800,7 +800,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                     @Override
                     public void onCache(ShardId shardId, Accountable accountable) {}
                 });
-                IndexReader limitedReader = new DocumentSubsetDirectoryReader(
+                DirectoryReader limitedReader = new DocumentSubsetDirectoryReader(
                     ElasticsearchDirectoryReader.wrap(directoryReader, new ShardId(indexSettings.getIndex(), 0)),
                     bitsetFilterCache,
                     LongPoint.newRangeQuery("t", Long.MIN_VALUE, Long.MAX_VALUE)

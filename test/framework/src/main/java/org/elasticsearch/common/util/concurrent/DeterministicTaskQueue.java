@@ -205,16 +205,9 @@ public class DeterministicTaskQueue {
     }
 
     public PrioritizedEsThreadPoolExecutor getPrioritizedEsThreadPoolExecutor(Function<Runnable, Runnable> runnableWrapper) {
-        return new PrioritizedEsThreadPoolExecutor(
-            "DeterministicTaskQueue",
-            1,
-            1,
-            1,
-            TimeUnit.SECONDS,
-            r -> { throw new AssertionError("should not create new threads"); },
-            null,
-            null
-        ) {
+        return new PrioritizedEsThreadPoolExecutor("DeterministicTaskQueue", 1, 1, 1, TimeUnit.SECONDS, r -> {
+            throw new AssertionError("should not create new threads");
+        }, null, null) {
             @Override
             public void execute(Runnable command, final TimeValue timeout, final Runnable timeoutCallback) {
                 throw new AssertionError("not implemented");
@@ -314,6 +307,11 @@ public class DeterministicTaskQueue {
                     return "DeterministicTaskQueue/forkingExecutor";
                 }
             };
+
+            @Override
+            public long relativeTimeInNanos() {
+                throw new AssertionError("DeterministicTaskQueue does not support nanosecond-precision timestamps");
+            }
 
             @Override
             public long relativeTimeInMillis() {

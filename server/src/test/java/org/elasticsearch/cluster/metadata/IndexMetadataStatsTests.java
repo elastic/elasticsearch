@@ -20,7 +20,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingHelper;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.IndexingStats;
@@ -38,15 +37,7 @@ import static org.mockito.Mockito.when;
 public class IndexMetadataStatsTests extends ESTestCase {
     public void testFromStatsCreation() {
         final String indexName = "idx";
-        final IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
-            .settings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                    .build()
-            )
-            .build();
+        final IndexMetadata indexMetadata = IndexMetadata.builder(indexName).settings(indexSettings(Version.CURRENT, 3, 1)).build();
 
         final IndicesStatsResponse response = mock(IndicesStatsResponse.class);
         final IndexStats indexStats = mock(IndexStats.class);
@@ -123,6 +114,6 @@ public class IndexMetadataStatsTests extends ESTestCase {
             .add(
                 new IndexingStats.Stats(0, 0, 0, 0, 0, 0, 0, 0, false, 0, totalIndexingTimeSinceShardStartedInNanos, totalActiveTimeInNanos)
             );
-        return new ShardStats(shardRouting, commonStats, null, null, null, null, null, false);
+        return new ShardStats(shardRouting, commonStats, null, null, null, null, null, false, false, 0);
     }
 }

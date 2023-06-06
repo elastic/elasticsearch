@@ -48,6 +48,7 @@ public interface ClusterPlugin {
      * @param clusterSettings Settings for the cluster
      * @return A map of allocator implementations
      */
+    @Deprecated(forRemoval = true)
     default Map<String, Supplier<ShardsAllocator>> getShardsAllocators(Settings settings, ClusterSettings clusterSettings) {
         return Collections.emptyMap();
     }

@@ -1,5 +1,0 @@
-pr: 92546
-summary: Delay Connection#onRemoved while pending
-area: Network
-type: bug
-issues: []

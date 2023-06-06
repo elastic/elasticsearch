@@ -9,8 +9,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.FieldType;
-import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.document.StringField;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
@@ -43,15 +42,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
         public static final String NAME = FieldNamesFieldMapper.NAME;
 
         public static final Explicit<Boolean> ENABLED = Explicit.IMPLICIT_TRUE;
-        public static final FieldType FIELD_TYPE = new FieldType();
 
-        static {
-            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
-            FIELD_TYPE.setTokenized(false);
-            FIELD_TYPE.setStored(false);
-            FIELD_TYPE.setOmitNorms(true);
-            FIELD_TYPE.freeze();
-        }
     }
 
     private static FieldNamesFieldMapper toType(FieldMapper in) {
@@ -183,7 +174,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
             return;
         }
         assert noDocValues(field, context) : "Field " + field + " should not have docvalues";
-        context.doc().add(new Field(NAME, field, Defaults.FIELD_TYPE));
+        context.doc().add(new StringField(NAME, field, Field.Store.NO));
     }
 
     private static boolean noDocValues(String field, DocumentParserContext context) {

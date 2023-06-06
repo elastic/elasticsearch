@@ -177,7 +177,7 @@ public class IndexLifecycleMetadataTests extends ChunkedToXContentDiffableSerial
 
     public void testMinimumSupportedVersion() {
         TransportVersion min = createTestInstance().getMinimalSupportedVersion();
-        assertTrue(min.onOrBefore(TransportVersionUtils.randomCompatibleVersion(random(), TransportVersion.CURRENT)));
+        assertTrue(min.onOrBefore(TransportVersionUtils.randomCompatibleVersion(random())));
     }
 
     public void testcontext() {

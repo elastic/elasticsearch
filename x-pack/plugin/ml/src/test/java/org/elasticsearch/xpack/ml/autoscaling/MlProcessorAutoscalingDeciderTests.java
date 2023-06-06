@@ -7,12 +7,12 @@
 
 package org.elasticsearch.xpack.ml.autoscaling;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
@@ -70,6 +70,7 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
                                 TrainedModelAssignment.Builder.empty(
                                     new StartTrainedModelDeploymentAction.TaskParams(
                                         modelId1,
+                                        modelId1,
                                         42L,
                                         2,
                                         3,
@@ -83,6 +84,7 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
                                 modelId2,
                                 TrainedModelAssignment.Builder.empty(
                                     new StartTrainedModelDeploymentAction.TaskParams(
+                                        modelId2,
                                         modelId2,
                                         42L,
                                         10,
@@ -137,6 +139,7 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
                                 TrainedModelAssignment.Builder.empty(
                                     new StartTrainedModelDeploymentAction.TaskParams(
                                         modelId1,
+                                        modelId1,
                                         42L,
                                         1,
                                         8,
@@ -150,6 +153,7 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
                                 modelId2,
                                 TrainedModelAssignment.Builder.empty(
                                     new StartTrainedModelDeploymentAction.TaskParams(
+                                        modelId2,
                                         modelId2,
                                         42L,
                                         3,
@@ -204,6 +208,7 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
                                 TrainedModelAssignment.Builder.empty(
                                     new StartTrainedModelDeploymentAction.TaskParams(
                                         modelId1,
+                                        modelId1,
                                         42L,
                                         1,
                                         1,
@@ -217,6 +222,7 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
                                 modelId2,
                                 TrainedModelAssignment.Builder.empty(
                                     new StartTrainedModelDeploymentAction.TaskParams(
+                                        modelId2,
                                         modelId2,
                                         42L,
                                         2,
@@ -271,6 +277,7 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
                                 TrainedModelAssignment.Builder.empty(
                                     new StartTrainedModelDeploymentAction.TaskParams(
                                         modelId1,
+                                        modelId1,
                                         42L,
                                         2,
                                         2,
@@ -284,6 +291,7 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
                                 modelId2,
                                 TrainedModelAssignment.Builder.empty(
                                     new StartTrainedModelDeploymentAction.TaskParams(
+                                        modelId2,
                                         modelId2,
                                         42L,
                                         1,
@@ -339,6 +347,7 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
                                 TrainedModelAssignment.Builder.empty(
                                     new StartTrainedModelDeploymentAction.TaskParams(
                                         modelId1,
+                                        modelId1,
                                         42L,
                                         2,
                                         2,
@@ -352,6 +361,7 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
                                 modelId2,
                                 TrainedModelAssignment.Builder.empty(
                                     new StartTrainedModelDeploymentAction.TaskParams(
+                                        modelId2,
                                         modelId2,
                                         42L,
                                         1,
@@ -405,6 +415,7 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
                                 TrainedModelAssignment.Builder.empty(
                                     new StartTrainedModelDeploymentAction.TaskParams(
                                         modelId1,
+                                        modelId1,
                                         42L,
                                         2,
                                         2,
@@ -418,6 +429,7 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
                                 modelId2,
                                 TrainedModelAssignment.Builder.empty(
                                     new StartTrainedModelDeploymentAction.TaskParams(
+                                        modelId2,
                                         modelId2,
                                         42L,
                                         1,
@@ -475,6 +487,7 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
                                 TrainedModelAssignment.Builder.empty(
                                     new StartTrainedModelDeploymentAction.TaskParams(
                                         modelId1,
+                                        modelId1,
                                         42L,
                                         1,
                                         1,
@@ -488,6 +501,7 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
                                 modelId2,
                                 TrainedModelAssignment.Builder.empty(
                                     new StartTrainedModelDeploymentAction.TaskParams(
+                                        modelId2,
                                         modelId2,
                                         42L,
                                         1,
@@ -523,7 +537,7 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
     }
 
     private static DiscoveryNode buildNode(String name, boolean isML, double allocatedProcessors) {
-        return new DiscoveryNode(
+        return DiscoveryNodeUtils.create(
             name,
             name,
             buildNewFakeTransportAddress(),
@@ -531,8 +545,7 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
                 .put(MachineLearning.MAX_JVM_SIZE_NODE_ATTR, String.valueOf(10))
                 .put(MachineLearning.ALLOCATED_PROCESSORS_NODE_ATTR, String.valueOf(allocatedProcessors))
                 .map(),
-            isML ? DiscoveryNodeRole.roles() : Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE),
-            Version.CURRENT
+            isML ? DiscoveryNodeRole.roles() : Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE)
         );
     }
 

@@ -13,10 +13,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -70,7 +70,7 @@ public class OutboundHandlerTests extends ESTestCase {
         super.setUp();
         channel = new FakeTcpChannel(randomBoolean(), buildNewFakeTransportAddress().address(), buildNewFakeTransportAddress().address());
         TransportAddress transportAddress = buildNewFakeTransportAddress();
-        node = new DiscoveryNode("", transportAddress, Version.CURRENT);
+        node = DiscoveryNodeUtils.create("", transportAddress);
         StatsTracker statsTracker = new StatsTracker();
         compressionScheme = randomFrom(Compression.Scheme.DEFLATE, Compression.Scheme.LZ4);
         handler = new OutboundHandler(
@@ -222,9 +222,9 @@ public class OutboundHandlerTests extends ESTestCase {
             }
         });
         if (compress) {
-            handler.sendResponse(version, channel, requestId, action, response, compressionScheme, isHandshake);
+            handler.sendResponse(version, channel, requestId, action, response, compressionScheme, isHandshake, ResponseStatsConsumer.NONE);
         } else {
-            handler.sendResponse(version, channel, requestId, action, response, null, isHandshake);
+            handler.sendResponse(version, channel, requestId, action, response, null, isHandshake, ResponseStatsConsumer.NONE);
         }
 
         BytesReference reference = channel.getMessageCaptor().get();
@@ -282,7 +282,7 @@ public class OutboundHandlerTests extends ESTestCase {
                 responseRef.set(error);
             }
         });
-        handler.sendErrorResponse(version, channel, requestId, action, error);
+        handler.sendErrorResponse(version, channel, requestId, action, ResponseStatsConsumer.NONE, error);
 
         BytesReference reference = channel.getMessageCaptor().get();
         ActionListener<Void> sendListener = channel.getListenerCaptor().get();

@@ -540,6 +540,22 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     /**
+     * Determines whether the system feature reset API should be invoked between tests. The default implementation is to reset
+     * all feature states, deleting system indices, system associated indices, and system data streams.
+     */
+    protected boolean resetFeatureStates() {
+        try {
+            // ML reset fails when ML is disabled in versions before 8.7
+            if (isMlEnabled() == false && minimumNodeVersion().before(Version.V_8_7_0)) {
+                return false;
+            }
+        } catch (IOException e) {
+            throw new AssertionError("Failed to find a minimum node version.", e);
+        }
+        return true;
+    }
+
+    /**
      * Determines if data streams are preserved upon completion of this test. The default implementation wipes data streams.
      *
      * @return whether or not to preserve data streams
@@ -605,6 +621,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             "ml-size-based-ilm-policy",
             "logs",
             "metrics",
+            "profiling",
             "synthetics",
             "7-days-default",
             "30-days-default",
@@ -615,7 +632,8 @@ public abstract class ESRestTestCase extends ESTestCase {
             ".fleet-file-data-ilm-policy",
             ".fleet-files-ilm-policy",
             ".deprecation-indexing-ilm-policy",
-            ".monitoring-8-ilm-policy"
+            ".monitoring-8-ilm-policy",
+            "behavioral_analytics-events-default_policy"
         );
     }
 
@@ -667,6 +685,11 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
 
         wipeSnapshots();
+
+        if (resetFeatureStates()) {
+            final Request postRequest = new Request("POST", "/_features/_reset");
+            adminClient().performRequest(postRequest);
+        }
 
         // wipe data streams before indices so that the backing indices for data streams are handled properly
         if (preserveDataStreamsUponCompletion() == false) {
@@ -923,19 +946,6 @@ public abstract class ESRestTestCase extends ESTestCase {
             }
             final Request deleteRequest = new Request("DELETE", Strings.collectionToCommaDelimitedString(indexPatterns));
             deleteRequest.addParameter("expand_wildcards", "open,closed" + (includeHidden ? ",hidden" : ""));
-            RequestOptions allowSystemIndexAccessWarningOptions = RequestOptions.DEFAULT.toBuilder().setWarningsHandler(warnings -> {
-                if (warnings.size() == 0) {
-                    return false;
-                } else if (warnings.size() > 1) {
-                    return true;
-                }
-                // We don't know exactly which indices we're cleaning up in advance, so just accept all system index access warnings.
-                final String warning = warnings.get(0);
-                final boolean isSystemIndexWarning = warning.contains("this request accesses system indices")
-                    && warning.contains("but in a future major version, direct access to system indices will be prevented by default");
-                return isSystemIndexWarning == false;
-            }).build();
-            deleteRequest.setOptions(allowSystemIndexAccessWarningOptions);
             final Response response = adminClient().performRequest(deleteRequest);
             try (InputStream is = response.getEntity().getContent()) {
                 assertTrue((boolean) XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true).get("acknowledged"));
@@ -1399,6 +1409,11 @@ public abstract class ESRestTestCase extends ESTestCase {
         assertThat(response.getStatusLine().getStatusCode(), anyOf(equalTo(200), equalTo(201)));
     }
 
+    public static ObjectPath assertOKAndCreateObjectPath(Response response) throws IOException {
+        assertOK(response);
+        return ObjectPath.createFromResponse(response);
+    }
+
     /**
      * Assert that the index in question has the given number of documents present
      */
@@ -1797,11 +1812,18 @@ public abstract class ESRestTestCase extends ESTestCase {
         if (name.startsWith(".fleet-")) {
             return true;
         }
+        if (name.startsWith("behavioral_analytics-")) {
+            return true;
+        }
+        if (name.startsWith("profiling-")) {
+            return true;
+        }
         switch (name) {
             case ".watches":
             case "security_audit_log":
             case ".slm-history":
             case ".async-search":
+            case ".profiling-ilm-lock": // TODO: Remove after switch to K/V indices
             case "saml-service-provider":
             case "logs":
             case "logs-settings":
@@ -2061,6 +2083,16 @@ public abstract class ESRestTestCase extends ESTestCase {
         assertOK(response);
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, response.getEntity().getContent())) {
             return FieldCapabilitiesResponse.fromXContent(parser);
+        }
+    }
+
+    private static boolean isMlEnabled() {
+        try {
+            adminClient().performRequest(new Request("GET", "_ml/info"));
+            return true;
+        } catch (IOException e) {
+            // do nothing, ML is disabled
+            return false;
         }
     }
 

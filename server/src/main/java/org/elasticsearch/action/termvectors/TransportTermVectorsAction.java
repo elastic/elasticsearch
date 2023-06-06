@@ -68,8 +68,9 @@ public class TransportTermVectorsAction extends TransportSingleShardAction<TermV
             return groupShardsIter.iterator().next();
         }
 
-        return clusterService.operationRouting()
+        ShardIterator shards = clusterService.operationRouting()
             .getShards(state, request.concreteIndex(), request.request().id(), request.request().routing(), request.request().preference());
+        return clusterService.operationRouting().useOnlyPromotableShardsForStateless(shards);
     }
 
     @Override

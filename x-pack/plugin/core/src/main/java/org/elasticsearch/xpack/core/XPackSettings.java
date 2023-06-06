@@ -13,6 +13,8 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslClientAuthenticationMode;
 import org.elasticsearch.common.ssl.SslVerificationMode;
+import org.elasticsearch.core.Strings;
+import org.elasticsearch.transport.RemoteClusterPortSettings;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
@@ -22,8 +24,10 @@ import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.function.Function;
 
 import javax.crypto.SecretKeyFactory;
@@ -56,7 +60,25 @@ public class XPackSettings {
     public static final Setting<Boolean> CCR_ENABLED_SETTING = Setting.boolSetting("xpack.ccr.enabled", true, Property.NodeScope);
 
     /** Setting for enabling or disabling security. Defaults to true. */
-    public static final Setting<Boolean> SECURITY_ENABLED = Setting.boolSetting("xpack.security.enabled", true, Setting.Property.NodeScope);
+    public static final Setting<Boolean> SECURITY_ENABLED = Setting.boolSetting("xpack.security.enabled", true, new Setting.Validator<>() {
+        @Override
+        public void validate(Boolean value) {}
+
+        @Override
+        public void validate(Boolean value, Map<Setting<?>, Object> settings, boolean isPresent) {
+            final boolean remoteClusterServerEnabled = (boolean) settings.get(RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED);
+            if (remoteClusterServerEnabled && false == value) {
+                throw new IllegalArgumentException(
+                    Strings.format("Security [%s] must be enabled to use the remote cluster server feature", SECURITY_ENABLED.getKey())
+                );
+            }
+        }
+
+        @Override
+        public Iterator<Setting<?>> settings() {
+            return List.<Setting<?>>of(RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED).iterator();
+        }
+    }, Setting.Property.NodeScope);
 
     /** Setting for enabling or disabling watcher. Defaults to true. */
     public static final Setting<Boolean> WATCHER_ENABLED = Setting.boolSetting("xpack.watcher.enabled", true, Setting.Property.NodeScope);
@@ -67,6 +89,20 @@ public class XPackSettings {
     /** Setting for enabling or disabling machine learning. Defaults to true. */
     public static final Setting<Boolean> MACHINE_LEARNING_ENABLED = Setting.boolSetting(
         "xpack.ml.enabled",
+        true,
+        Setting.Property.NodeScope
+    );
+
+    /** Setting for enabling or disabling universal profiling. Defaults to true. */
+    public static final Setting<Boolean> PROFILING_ENABLED = Setting.boolSetting(
+        "xpack.profiling.enabled",
+        true,
+        Setting.Property.NodeScope
+    );
+
+    /** Setting for enabling or disabling enterprise search. Defaults to true. */
+    public static final Setting<Boolean> ENTERPRISE_SEARCH_ENABLED = Setting.boolSetting(
+        "xpack.ent_search.enabled",
         true,
         Setting.Property.NodeScope
     );
@@ -289,6 +325,8 @@ public class XPackSettings {
         settings.add(SECURITY_ENABLED);
         settings.add(GRAPH_ENABLED);
         settings.add(MACHINE_LEARNING_ENABLED);
+        settings.add(PROFILING_ENABLED);
+        settings.add(ENTERPRISE_SEARCH_ENABLED);
         settings.add(AUDIT_ENABLED);
         settings.add(WATCHER_ENABLED);
         settings.add(DLS_FLS_ENABLED);

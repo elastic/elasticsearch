@@ -36,7 +36,7 @@ public class AbortedRestoreIT extends AbstractSnapshotIntegTestCase {
         final String dataNode = internalCluster().startDataOnlyNode(SMALL_SNAPSHOT_POOL_SETTINGS);
 
         final String indexName = "test-abort-restore";
-        createIndex(indexName, indexSettingsNoReplicas(1).build());
+        createIndex(indexName, 1, 0);
         indexRandomDocs(indexName, scaledRandomIntBetween(10, 1_000));
         ensureGreen();
         forceMerge();
@@ -53,17 +53,13 @@ public class AbortedRestoreIT extends AbstractSnapshotIntegTestCase {
         failReadsAllDataNodes(repositoryName);
 
         logger.info("--> starting restore");
-        final ActionFuture<RestoreSnapshotResponse> future = client().admin()
-            .cluster()
-            .prepareRestoreSnapshot(repositoryName, snapshotName)
+        final ActionFuture<RestoreSnapshotResponse> future = clusterAdmin().prepareRestoreSnapshot(repositoryName, snapshotName)
             .setWaitForCompletion(true)
             .setIndices(indexName)
             .execute();
 
         assertBusy(() -> {
-            final RecoveryResponse recoveries = client().admin()
-                .indices()
-                .prepareRecoveries(indexName)
+            final RecoveryResponse recoveries = indicesAdmin().prepareRecoveries(indexName)
                 .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN)
                 .setActiveOnly(true)
                 .get();
@@ -101,6 +97,6 @@ public class AbortedRestoreIT extends AbstractSnapshotIntegTestCase {
     }
 
     private static void waitForMaxActiveSnapshotThreads(final String node, final Matcher<Integer> matcher) throws Exception {
-        assertBusy(() -> assertThat(snapshotThreadPoolStats(node).getActive(), matcher), 30L, TimeUnit.SECONDS);
+        assertBusy(() -> assertThat(snapshotThreadPoolStats(node).active(), matcher), 30L, TimeUnit.SECONDS);
     }
 }

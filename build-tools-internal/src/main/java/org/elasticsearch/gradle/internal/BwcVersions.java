@@ -65,20 +65,20 @@ import static java.util.Collections.unmodifiableList;
 public class BwcVersions {
 
     private static final Pattern LINE_PATTERN = Pattern.compile(
-        "\\W+public static final Version V_(\\d+)_(\\d+)_(\\d+)(_alpha\\d+|_beta\\d+|_rc\\d+)? .*?LUCENE_(\\d+)_(\\d+)_(\\d+)\\);"
+        "\\W+public static final Version V_(\\d+)_(\\d+)_(\\d+)(_alpha\\d+|_beta\\d+|_rc\\d+)?.*\\);"
     );
     private static final Version MINIMUM_WIRE_COMPATIBLE_VERSION = Version.fromString("7.17.0");
     private static final String GLIBC_VERSION_ENV_VAR = "GLIBC_VERSION";
 
-    private final VersionPair currentVersion;
-    private final List<VersionPair> versions;
+    private final Version currentVersion;
+    private final List<Version> versions;
     private final Map<Version, UnreleasedVersionInfo> unreleased;
 
     public BwcVersions(List<String> versionLines) {
         this(versionLines, Version.fromString(VersionProperties.getElasticsearch()));
     }
 
-    public BwcVersions(Version currentVersionProperty, List<VersionPair> allVersions) {
+    public BwcVersions(Version currentVersionProperty, List<Version> allVersions) {
         if (allVersions.isEmpty()) {
             throw new IllegalArgumentException("Could not parse any versions");
         }
@@ -95,26 +95,21 @@ public class BwcVersions {
         this(currentVersionProperty, parseVersionLines(versionLines));
     }
 
-    private static List<VersionPair> parseVersionLines(List<String> versionLines) {
+    private static List<Version> parseVersionLines(List<String> versionLines) {
         return versionLines.stream()
             .map(LINE_PATTERN::matcher)
             .filter(Matcher::matches)
-            .map(
-                match -> new VersionPair(
-                    new Version(Integer.parseInt(match.group(1)), Integer.parseInt(match.group(2)), Integer.parseInt(match.group(3))),
-                    new Version(Integer.parseInt(match.group(5)), Integer.parseInt(match.group(6)), Integer.parseInt(match.group(7)))
-                )
-            )
+            .map(match -> new Version(Integer.parseInt(match.group(1)), Integer.parseInt(match.group(2)), Integer.parseInt(match.group(3))))
             .sorted()
             .toList();
     }
 
     private void assertCurrentVersionMatchesParsed(Version currentVersionProperty) {
-        if (currentVersionProperty.equals(currentVersion.elasticsearch) == false) {
+        if (currentVersionProperty.equals(currentVersion) == false) {
             throw new IllegalStateException(
                 "Parsed versions latest version does not match the one configured in build properties. "
                     + "Parsed latest version is "
-                    + currentVersion.elasticsearch
+                    + currentVersion
                     + " but the build has "
                     + currentVersionProperty
             );
@@ -130,12 +125,12 @@ public class BwcVersions {
 
     public void forPreviousUnreleased(Consumer<UnreleasedVersionInfo> consumer) {
         filterSupportedVersions(
-            getUnreleased().stream().filter(version -> version.equals(currentVersion.elasticsearch) == false).collect(Collectors.toList())
+            getUnreleased().stream().filter(version -> version.equals(currentVersion) == false).collect(Collectors.toList())
         ).stream().map(unreleased::get).forEach(consumer);
     }
 
     private String getBranchFor(Version version) {
-        if (version.equals(currentVersion.elasticsearch)) {
+        if (version.equals(currentVersion)) {
             // Just assume the current branch is 'main'. It's actually not important, we never check out the current branch.
             return "main";
         } else {
@@ -144,31 +139,30 @@ public class BwcVersions {
     }
 
     private Map<Version, UnreleasedVersionInfo> computeUnreleased() {
-        Set<VersionPair> unreleased = new TreeSet<>();
+        Set<Version> unreleased = new TreeSet<>();
         // The current version is being worked, is always unreleased
         unreleased.add(currentVersion);
         // Recurse for all unreleased versions starting from the current version
         addUnreleased(unreleased, currentVersion, 0);
 
         // Grab the latest version from the previous major if necessary as well, this is going to be a maintenance release
-        VersionPair maintenance = versions.stream()
-            .filter(v -> v.elasticsearch.getMajor() == currentVersion.elasticsearch.getMajor() - 1)
-            .sorted(Comparator.reverseOrder())
-            .findFirst()
+        Version maintenance = versions.stream()
+            .filter(v -> v.getMajor() == currentVersion.getMajor() - 1)
+            .max(Comparator.naturalOrder())
             .orElseThrow();
         // This is considered the maintenance release only if we haven't yet encountered it
         boolean hasMaintenanceRelease = unreleased.add(maintenance);
 
-        List<VersionPair> unreleasedList = unreleased.stream().sorted(Comparator.reverseOrder()).toList();
+        List<Version> unreleasedList = unreleased.stream().sorted(Comparator.reverseOrder()).toList();
         Map<Version, UnreleasedVersionInfo> result = new TreeMap<>();
         for (int i = 0; i < unreleasedList.size(); i++) {
-            Version esVersion = unreleasedList.get(i).elasticsearch;
+            Version esVersion = unreleasedList.get(i);
             // This is either a new minor or staged release
-            if (currentVersion.elasticsearch.equals(esVersion)) {
+            if (currentVersion.equals(esVersion)) {
                 result.put(esVersion, new UnreleasedVersionInfo(esVersion, getBranchFor(esVersion), ":distribution"));
             } else if (esVersion.getRevision() == 0) {
                 // If there are two upcoming unreleased minors then this one is the new minor
-                if (unreleasedList.get(i + 1).elasticsearch.getRevision() == 0) {
+                if (unreleasedList.get(i + 1).getRevision() == 0) {
                     result.put(esVersion, new UnreleasedVersionInfo(esVersion, getBranchFor(esVersion), ":distribution:bwc:minor"));
                 } else {
                     result.put(esVersion, new UnreleasedVersionInfo(esVersion, getBranchFor(esVersion), ":distribution:bwc:staged"));
@@ -190,10 +184,10 @@ public class BwcVersions {
         return unreleased.keySet().stream().sorted().toList();
     }
 
-    private void addUnreleased(Set<VersionPair> unreleased, VersionPair current, int index) {
-        if (current.elasticsearch.getRevision() == 0) {
+    private void addUnreleased(Set<Version> unreleased, Version current, int index) {
+        if (current.getRevision() == 0) {
             // If the current version is a new minor, the next version is also unreleased
-            VersionPair next = versions.get(versions.size() - (index + 2));
+            Version next = versions.get(versions.size() - (index + 2));
             unreleased.add(next);
 
             // Keep looking through versions until we find the end of unreleased versions
@@ -228,7 +222,7 @@ public class BwcVersions {
     }
 
     private List<Version> getReleased() {
-        return versions.stream().map(v -> v.elasticsearch).filter(v -> unreleased.containsKey(v) == false).toList();
+        return versions.stream().filter(v -> unreleased.containsKey(v) == false).toList();
     }
 
     /**
@@ -242,10 +236,7 @@ public class BwcVersions {
      * Return all versions of Elasticsearch which are index compatible with the current version.
      */
     public List<Version> getAllIndexCompatible() {
-        return versions.stream()
-            .filter(v -> v.lucene.getMajor() >= (currentVersion.lucene.getMajor() - 1))
-            .map(v -> v.elasticsearch)
-            .toList();
+        return versions.stream().filter(v -> v.getMajor() >= (currentVersion.getMajor() - 1)).toList();
     }
 
     public void withIndexCompatible(BiConsumer<Version, String> versionAction) {
@@ -257,9 +248,7 @@ public class BwcVersions {
     }
 
     public List<Version> getWireCompatible() {
-        return filterSupportedVersions(
-            versions.stream().map(v -> v.elasticsearch).filter(v -> v.compareTo(MINIMUM_WIRE_COMPATIBLE_VERSION) >= 0).toList()
-        );
+        return filterSupportedVersions(versions.stream().filter(v -> v.compareTo(MINIMUM_WIRE_COMPATIBLE_VERSION) >= 0).toList());
     }
 
     public void withWireCompatible(BiConsumer<Version, String> versionAction) {
@@ -301,15 +290,6 @@ public class BwcVersions {
     }
 
     public record UnreleasedVersionInfo(Version version, String branch, String gradleProjectPath) {}
-
-    public record VersionPair(Version elasticsearch, Version lucene) implements Comparable<VersionPair> {
-
-        @Override
-        public int compareTo(VersionPair o) {
-            // For ordering purposes, sort by Elasticsearch version
-            return this.elasticsearch.compareTo(o.elasticsearch);
-        }
-    }
 
     /**
      * Determine whether the given version of Elasticsearch is compatible with ML features on the host system.

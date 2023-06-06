@@ -61,24 +61,16 @@ public class AutoscalingIT extends MlNativeAutodetectIntegTestCase {
 
     @Before
     public void putSettings() {
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setTransientSettings(
-                Settings.builder().put(MachineLearning.MAX_LAZY_ML_NODES.getKey(), 100).put("logger.org.elasticsearch.xpack.ml", "DEBUG")
-            )
-            .get();
+        updateClusterSettings(
+            Settings.builder().put(MachineLearning.MAX_LAZY_ML_NODES.getKey(), 100).put("logger.org.elasticsearch.xpack.ml", "DEBUG")
+        );
     }
 
     @After
     public void removeSettings() {
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setTransientSettings(
-                Settings.builder().putNull(MachineLearning.MAX_LAZY_ML_NODES.getKey()).putNull("logger.org.elasticsearch.xpack.ml")
-            )
-            .get();
+        updateClusterSettings(
+            Settings.builder().putNull(MachineLearning.MAX_LAZY_ML_NODES.getKey()).putNull("logger.org.elasticsearch.xpack.ml")
+        );
         cleanUp();
     }
 
@@ -198,6 +190,7 @@ public class AutoscalingIT extends MlNativeAutodetectIntegTestCase {
     @AwaitsFix(bugUrl = "Cannot be fixed until we move estimation to config and not rely on definition length only")
     public void testMLAutoscalingForLargeModelAssignment() {
         String modelId = "really_big_model";
+        String deploymentId = "really_big_model_deployment";
         SortedMap<String, Settings> deciders = new TreeMap<>();
         deciders.put(
             MlAutoscalingDeciderService.NAME,
@@ -209,8 +202,8 @@ public class AutoscalingIT extends MlNativeAutodetectIntegTestCase {
             deciders
         );
         assertAcked(client().execute(PutAutoscalingPolicyAction.INSTANCE, request).actionGet());
-        putAndStartModelDeployment("smaller1", ByteSizeValue.ofMb(100).getBytes(), AllocationStatus.State.STARTED);
-        putAndStartModelDeployment("smaller2", ByteSizeValue.ofMb(100).getBytes(), AllocationStatus.State.STARTED);
+        putAndStartModelDeployment("smaller1", "dep1", ByteSizeValue.ofMb(100).getBytes(), AllocationStatus.State.STARTED);
+        putAndStartModelDeployment("smaller2", "dep2", ByteSizeValue.ofMb(100).getBytes(), AllocationStatus.State.STARTED);
         long expectedTierBytes = (long) Math.ceil(
             ByteSizeValue.ofMb(100 + PER_JOB_OVERHEAD_MB + 200 + PER_JOB_OVERHEAD_MB + PER_NODE_OVERHEAD_MB).getBytes() * 100 / 30.0
         );
@@ -226,7 +219,7 @@ public class AutoscalingIT extends MlNativeAutodetectIntegTestCase {
         );
 
         long modelSize = ByteSizeValue.ofMb(50_000).getBytes();
-        putAndStartModelDeployment(modelId, modelSize, AllocationStatus.State.STARTING);
+        putAndStartModelDeployment(modelId, deploymentId, modelSize, AllocationStatus.State.STARTING);
 
         long lowestMlMemory = admin().cluster()
             .prepareNodesInfo()
@@ -289,7 +282,7 @@ public class AutoscalingIT extends MlNativeAutodetectIntegTestCase {
         putJob(job);
     }
 
-    private void putAndStartModelDeployment(String modelId, long memoryUse, AllocationStatus.State state) {
+    private void putAndStartModelDeployment(String modelId, String deploymentId, long memoryUse, AllocationStatus.State state) {
         client().execute(
             PutTrainedModelAction.INSTANCE,
             new PutTrainedModelAction.Request(
@@ -323,7 +316,7 @@ public class AutoscalingIT extends MlNativeAutodetectIntegTestCase {
         ).actionGet();
         client().execute(
             StartTrainedModelDeploymentAction.INSTANCE,
-            new StartTrainedModelDeploymentAction.Request(modelId).setWaitForState(state)
+            new StartTrainedModelDeploymentAction.Request(modelId, deploymentId).setWaitForState(state)
         ).actionGet();
     }
 }

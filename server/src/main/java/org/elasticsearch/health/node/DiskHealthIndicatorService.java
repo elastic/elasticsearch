@@ -119,7 +119,7 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
     private void logNodesMissingHealthInfo(Map<String, DiskHealthInfo> diskHealthInfoMap, ClusterState clusterState) {
         if (logger.isDebugEnabled()) {
             String nodesMissingHealthInfo = getSortedUniqueValuesString(
-                clusterState.getNodes(),
+                clusterState.getNodes().getAllNodes(),
                 node -> diskHealthInfoMap.containsKey(node.getId()) == false,
                 HealthIndicatorDisplayValues::getNodeName
             );

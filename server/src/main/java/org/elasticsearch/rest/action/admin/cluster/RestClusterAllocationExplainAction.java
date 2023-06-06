@@ -15,6 +15,8 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -29,6 +31,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 /**
  * Class handling cluster allocation explanation at the REST level
  */
+@ServerlessScope(Scope.INTERNAL)
 public class RestClusterAllocationExplainAction extends BaseRestHandler {
 
     @Override

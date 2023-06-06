@@ -91,11 +91,13 @@ public class TransportGetDesiredBalanceAction extends TransportMasterNodeReadAct
             listener.onFailure(new ResourceNotFoundException("Desired balance is not computed yet"));
             return;
         }
+        var clusterInfo = clusterInfoService.getClusterInfo();
         listener.onResponse(
             new DesiredBalanceResponse(
                 desiredBalanceShardsAllocator.getStats(),
-                ClusterBalanceStats.createFrom(state, clusterInfoService.getClusterInfo(), writeLoadForecaster),
-                createRoutingTable(state, latestDesiredBalance)
+                ClusterBalanceStats.createFrom(state, clusterInfo, writeLoadForecaster),
+                createRoutingTable(state, latestDesiredBalance),
+                clusterInfo
             )
         );
     }
@@ -121,17 +123,14 @@ public class TransportGetDesiredBalanceAction extends TransportMasterNodeReadAct
                             shard.state(),
                             shard.primary(),
                             shard.currentNodeId(),
-                            shard.currentNodeId() != null
-                                && shardAssignment != null
-                                && shardAssignment.nodeIds().contains(shard.currentNodeId()),
+                            isDesired(shard.currentNodeId(), shardAssignment),
                             shard.relocatingNodeId(),
-                            shard.relocatingNodeId() != null
-                                && shardAssignment != null
-                                && shardAssignment.nodeIds().contains(shard.relocatingNodeId()),
+                            shard.relocatingNodeId() != null ? isDesired(shard.relocatingNodeId(), shardAssignment) : null,
                             shard.shardId().id(),
                             shard.getIndexName(),
                             forecastedWriteLoad.isPresent() ? forecastedWriteLoad.getAsDouble() : null,
-                            forecastedShardSizeInBytes.isPresent() ? forecastedShardSizeInBytes.getAsLong() : null
+                            forecastedShardSizeInBytes.isPresent() ? forecastedShardSizeInBytes.getAsLong() : null,
+                            indexMetadata.getTierPreference()
                         )
                     );
                 }
@@ -153,6 +152,10 @@ public class TransportGetDesiredBalanceAction extends TransportMasterNodeReadAct
             routingTable.put(indexRoutingTable.getIndex().getName(), indexDesiredShards);
         }
         return routingTable;
+    }
+
+    private static boolean isDesired(@Nullable String nodeId, @Nullable ShardAssignment assignment) {
+        return nodeId != null && assignment != null && assignment.nodeIds().contains(nodeId);
     }
 
     @Override

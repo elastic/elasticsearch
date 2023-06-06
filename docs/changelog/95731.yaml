@@ -1,0 +1,5 @@
+pr: 95731
+summary: Implement `StartRecoveryRequest#getDescription`
+area: Recovery
+type: enhancement
+issues: []

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -17,6 +18,7 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.hamcrest.CoreMatchers;
@@ -25,41 +27,46 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.function.Supplier;
 
 public class MappingParserTests extends MapperServiceTestCase {
 
     private static MappingParser createMappingParser(Settings settings) {
-        return createMappingParser(settings, Version.CURRENT);
+        return createMappingParser(settings, Version.CURRENT, TransportVersion.CURRENT);
     }
 
-    private static MappingParser createMappingParser(Settings settings, Version version) {
+    private static MappingParser createMappingParser(Settings settings, Version version, TransportVersion transportVersion) {
         ScriptService scriptService = new ScriptService(settings, Collections.emptyMap(), Collections.emptyMap(), () -> 1L);
         IndexSettings indexSettings = createIndexSettings(version, settings);
         IndexAnalyzers indexAnalyzers = createIndexAnalyzers();
         SimilarityService similarityService = new SimilarityService(indexSettings, scriptService, Collections.emptyMap());
         MapperRegistry mapperRegistry = new IndicesModule(Collections.emptyList()).getMapperRegistry();
-        MappingParserContext mappingParserContext = new MappingParserContext(
+        Supplier<MappingParserContext> mappingParserContextSupplier = () -> new MappingParserContext(
             similarityService::getSimilarity,
             type -> mapperRegistry.getMapperParser(type, indexSettings.getIndexVersionCreated()),
             mapperRegistry.getRuntimeFieldParsers()::get,
             indexSettings.getIndexVersionCreated(),
-            () -> { throw new UnsupportedOperationException(); },
+            () -> transportVersion,
+            () -> {
+                throw new UnsupportedOperationException();
+            },
             scriptService,
             indexAnalyzers,
             indexSettings,
             indexSettings.getMode().idFieldMapperWithoutFieldData()
         );
+
         Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers = mapperRegistry.getMetadataMapperParsers(
             indexSettings.getIndexVersionCreated()
         );
         Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers = new LinkedHashMap<>();
-        metadataMapperParsers.values().stream().map(parser -> parser.getDefault(mappingParserContext)).forEach(m -> {
+        metadataMapperParsers.values().stream().map(parser -> parser.getDefault(mappingParserContextSupplier.get())).forEach(m -> {
             if (m != null) {
                 metadataMappers.put(m.getClass(), m);
             }
         });
         return new MappingParser(
-            mappingParserContext,
+            mappingParserContextSupplier,
             metadataMapperParsers,
             () -> metadataMappers,
             type -> MapperService.SINGLE_MAPPING_NAME
@@ -310,21 +317,26 @@ public class MappingParserTests extends MapperServiceTestCase {
 
     public void testBlankFieldNameBefore8_6_0() throws Exception {
         Version version = VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumIndexCompatibilityVersion(), Version.V_8_5_0);
+        TransportVersion transportVersion = TransportVersionUtils.randomVersionBetween(
+            random(),
+            TransportVersion.MINIMUM_COMPATIBLE,
+            TransportVersion.V_8_5_0
+        );
         {
             XContentBuilder builder = mapping(b -> b.startObject(" ").field("type", randomFieldType()).endObject());
-            MappingParser mappingParser = createMappingParser(Settings.EMPTY, version);
+            MappingParser mappingParser = createMappingParser(Settings.EMPTY, version, transportVersion);
             Mapping mapping = mappingParser.parse("_doc", new CompressedXContent(BytesReference.bytes(builder)));
             assertNotNull(mapping.getRoot().getMapper(" "));
         }
         {
             XContentBuilder builder = mapping(b -> b.startObject("top. .foo").field("type", randomFieldType()).endObject());
-            MappingParser mappingParser = createMappingParser(Settings.EMPTY, version);
+            MappingParser mappingParser = createMappingParser(Settings.EMPTY, version, transportVersion);
             Mapping mapping = mappingParser.parse("_doc", new CompressedXContent(BytesReference.bytes(builder)));
             assertNotNull(((ObjectMapper) mapping.getRoot().getMapper("top")).getMapper(" "));
         }
         {
             XContentBuilder builder = mappingNoSubobjects(b -> b.startObject(" ").field("type", "keyword").endObject());
-            MappingParser mappingParser = createMappingParser(Settings.EMPTY, version);
+            MappingParser mappingParser = createMappingParser(Settings.EMPTY, version, transportVersion);
             Mapping mapping = mappingParser.parse("_doc", new CompressedXContent(BytesReference.bytes(builder)));
             assertNotNull(mapping.getRoot().getMapper(" "));
         }

@@ -39,18 +39,18 @@ public class TaskTransportChannel implements TransportChannel {
     @Override
     public void sendResponse(TransportResponse response) throws IOException {
         try {
-            onTaskFinished.close();
-        } finally {
             channel.sendResponse(response);
+        } finally {
+            onTaskFinished.close();
         }
     }
 
     @Override
     public void sendResponse(Exception exception) throws IOException {
         try {
-            onTaskFinished.close();
-        } finally {
             channel.sendResponse(exception);
+        } finally {
+            onTaskFinished.close();
         }
     }
 

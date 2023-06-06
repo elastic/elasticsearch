@@ -86,8 +86,14 @@ public class InternalAggregationsTests extends ESTestCase {
 
     InternalAggregations toReduce(AtomicLong f1Reduced, AtomicLong f2Reduced, int k1, int k2, int k1k1, int k1k2, int k2k1, int k2k2) {
         class InternalFiltersForF2 extends InternalFilters {
-            InternalFiltersForF2(String name, List<InternalBucket> buckets, boolean keyed, Map<String, Object> metadata) {
-                super(name, buckets, keyed, metadata);
+            InternalFiltersForF2(
+                String name,
+                List<InternalBucket> buckets,
+                boolean keyed,
+                boolean keyedBucket,
+                Map<String, Object> metadata
+            ) {
+                super(name, buckets, keyed, keyedBucket, metadata);
             }
 
             public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
@@ -98,8 +104,14 @@ public class InternalAggregationsTests extends ESTestCase {
             }
         }
         class InternalFiltersForF1 extends InternalFilters {
-            InternalFiltersForF1(String name, List<InternalBucket> buckets, boolean keyed, Map<String, Object> metadata) {
-                super(name, buckets, keyed, metadata);
+            InternalFiltersForF1(
+                String name,
+                List<InternalBucket> buckets,
+                boolean keyed,
+                boolean keyedBucket,
+                Map<String, Object> metadata
+            ) {
+                super(name, buckets, keyed, keyedBucket, metadata);
             }
 
             public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
@@ -122,14 +134,16 @@ public class InternalAggregationsTests extends ESTestCase {
                                     new InternalFiltersForF2(
                                         "f2",
                                         List.of(
-                                            new InternalFilters.InternalBucket("f2k1", k1k1, InternalAggregations.EMPTY, true),
-                                            new InternalFilters.InternalBucket("f2k2", k1k2, InternalAggregations.EMPTY, true)
+                                            new InternalFilters.InternalBucket("f2k1", k1k1, InternalAggregations.EMPTY, true, true),
+                                            new InternalFilters.InternalBucket("f2k2", k1k2, InternalAggregations.EMPTY, true, true)
                                         ),
+                                        true,
                                         true,
                                         null
                                     )
                                 )
                             ),
+                            true,
                             true
                         ),
                         new InternalFilters.InternalBucket(
@@ -140,17 +154,20 @@ public class InternalAggregationsTests extends ESTestCase {
                                     new InternalFiltersForF2(
                                         "f2",
                                         List.of(
-                                            new InternalFilters.InternalBucket("f2k1", k2k1, InternalAggregations.EMPTY, true),
-                                            new InternalFilters.InternalBucket("f2k2", k2k2, InternalAggregations.EMPTY, true)
+                                            new InternalFilters.InternalBucket("f2k1", k2k1, InternalAggregations.EMPTY, true, true),
+                                            new InternalFilters.InternalBucket("f2k2", k2k2, InternalAggregations.EMPTY, true, true)
                                         ),
+                                        true,
                                         true,
                                         null
                                     )
                                 )
                             ),
+                            true,
                             true
                         )
                     ),
+                    true,
                     true,
                     null
                 )
@@ -172,14 +189,16 @@ public class InternalAggregationsTests extends ESTestCase {
                                     new InternalFilters(
                                         "f2",
                                         List.of(
-                                            new InternalFilters.InternalBucket("f2k1", k1k1, InternalAggregations.EMPTY, true),
-                                            new InternalFilters.InternalBucket("f2k2", k1k2, InternalAggregations.EMPTY, true)
+                                            new InternalFilters.InternalBucket("f2k1", k1k1, InternalAggregations.EMPTY, true, true),
+                                            new InternalFilters.InternalBucket("f2k2", k1k2, InternalAggregations.EMPTY, true, true)
                                         ),
+                                        true,
                                         true,
                                         null
                                     )
                                 )
                             ),
+                            true,
                             true
                         ),
                         new InternalFilters.InternalBucket(
@@ -190,17 +209,20 @@ public class InternalAggregationsTests extends ESTestCase {
                                     new InternalFilters(
                                         "f2",
                                         List.of(
-                                            new InternalFilters.InternalBucket("f2k1", k2k1, InternalAggregations.EMPTY, true),
-                                            new InternalFilters.InternalBucket("f2k2", k2k2, InternalAggregations.EMPTY, true)
+                                            new InternalFilters.InternalBucket("f2k1", k2k1, InternalAggregations.EMPTY, true, true),
+                                            new InternalFilters.InternalBucket("f2k2", k2k2, InternalAggregations.EMPTY, true, true)
                                         ),
+                                        true,
                                         true,
                                         null
                                     )
                                 )
                             ),
+                            true,
                             true
                         )
                     ),
+                    true,
                     true,
                     null
                 )

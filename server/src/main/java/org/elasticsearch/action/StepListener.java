@@ -8,14 +8,10 @@
 
 package org.elasticsearch.action;
 
-import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.CheckedConsumer;
 
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.BiFunction;
 import java.util.function.Consumer;
 
 /**
@@ -76,36 +72,18 @@ public final class StepListener<Response> implements ActionListener<Response> {
     }
 
     /**
-     * Combines this listener with another one, waiting for both to successfully complete and combining their results.
-     *
-     * @param other the other step listener to combine with
-     * @param fn    the function that combines the results
-     * @return the combined listener
-     */
-    public <OtherResponse, OuterResponse> StepListener<OuterResponse> thenCombine(
-        StepListener<OtherResponse> other,
-        BiFunction<Response, OtherResponse, OuterResponse> fn
-    ) {
-        final StepListener<OuterResponse> combined = new StepListener<>();
-        whenComplete(r1 -> other.whenComplete(r2 -> combined.onResponse(fn.apply(r1, r2)), combined::onFailure), combined::onFailure);
-        return combined;
-    }
-
-    /**
-     * Returns the future associated with the given step listener
-     */
-    public Future<Response> asFuture() {
-        return delegate;
-    }
-
-    /**
-     * Gets the result of this step. This method will throw {@link IllegalStateException} if this step is not completed yet.
+     * @return the result of this step, if it has been completed successfully, or throw the exception with which it was completed
+     * exceptionally. It is not valid to call this method if the step is incomplete.
      */
     public Response result() {
-        if (delegate.isDone() == false) {
-            throw new IllegalStateException("step is not completed yet");
-        }
-        return FutureUtils.get(delegate, 0L, TimeUnit.NANOSECONDS); // this future is done already - use a non-blocking method.
+        return delegate.result();
+    }
+
+    /**
+     * @return whether this step is complete yet.
+     */
+    public boolean isDone() {
+        return delegate.isDone();
     }
 
     /**

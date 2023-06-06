@@ -110,7 +110,7 @@ public final class TransportActionProxy {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeBytes(bytes.array(), bytes.arrayOffset(), bytes.length());
+            bytes.writeTo(out);
         }
 
         @Override

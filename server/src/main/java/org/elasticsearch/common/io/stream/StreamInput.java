@@ -8,11 +8,6 @@
 
 package org.elasticsearch.common.io.stream;
 
-import org.apache.lucene.index.CorruptIndexException;
-import org.apache.lucene.index.IndexFormatTooNewException;
-import org.apache.lucene.index.IndexFormatTooOldException;
-import org.apache.lucene.store.AlreadyClosedException;
-import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
@@ -27,30 +22,22 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 
 import java.io.EOFException;
-import java.io.FileNotFoundException;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
-import java.nio.file.AccessDeniedException;
-import java.nio.file.AtomicMoveNotSupportedException;
-import java.nio.file.DirectoryNotEmptyException;
-import java.nio.file.FileAlreadyExistsException;
-import java.nio.file.FileSystemException;
-import java.nio.file.FileSystemLoopException;
-import java.nio.file.NoSuchFileException;
-import java.nio.file.NotDirectoryException;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalTime;
 import java.time.OffsetTime;
+import java.time.Period;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
@@ -67,8 +54,6 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.IntFunction;
-
-import static org.elasticsearch.ElasticsearchException.readStackTrace;
 
 /**
  * A stream from this node to another node. Technically, it can also be streamed to a byte array but that is mostly for testing.
@@ -798,6 +783,8 @@ public abstract class StreamInput extends InputStream {
             case 25 -> readCollection(StreamInput::readGenericValue, Sets::newHashSetWithExpectedSize, Collections.emptySet());
             case 26 -> readBigInteger();
             case 27 -> readOffsetTime();
+            case 28 -> readDuration();
+            case 29 -> readPeriod();
             default -> throw new IOException("Can't read unknown type [" + type + "]");
         };
     }
@@ -839,6 +826,19 @@ public abstract class StreamInput extends InputStream {
     private OffsetTime readOffsetTime() throws IOException {
         final String zoneOffsetId = readString();
         return OffsetTime.of(LocalTime.ofNanoOfDay(readLong()), ZoneOffset.of(zoneOffsetId));
+    }
+
+    private Duration readDuration() throws IOException {
+        final long seconds = readLong();
+        final long nanos = readLong();
+        return Duration.ofSeconds(seconds, nanos);
+    }
+
+    private Period readPeriod() throws IOException {
+        final int years = readInt();
+        final int months = readInt();
+        final int days = readInt();
+        return Period.of(years, months, days);
     }
 
     private static final Object[] EMPTY_OBJECT_ARRAY = new Object[0];
@@ -1020,87 +1020,8 @@ public abstract class StreamInput extends InputStream {
     }
 
     @Nullable
-    @SuppressWarnings("unchecked")
     public <T extends Exception> T readException() throws IOException {
-        if (readBoolean()) {
-            int key = readVInt();
-            switch (key) {
-                case 0:
-                    final int ord = readVInt();
-                    return (T) ElasticsearchException.readException(this, ord);
-                case 1:
-                    String msg1 = readOptionalString();
-                    String resource1 = readOptionalString();
-                    return (T) readStackTrace(new CorruptIndexException(msg1, resource1, readException()), this);
-                case 2:
-                    String resource2 = readOptionalString();
-                    int version2 = readInt();
-                    int minVersion2 = readInt();
-                    int maxVersion2 = readInt();
-                    return (T) readStackTrace(new IndexFormatTooNewException(resource2, version2, minVersion2, maxVersion2), this);
-                case 3:
-                    String resource3 = readOptionalString();
-                    if (readBoolean()) {
-                        int version3 = readInt();
-                        int minVersion3 = readInt();
-                        int maxVersion3 = readInt();
-                        return (T) readStackTrace(new IndexFormatTooOldException(resource3, version3, minVersion3, maxVersion3), this);
-                    } else {
-                        String version3 = readOptionalString();
-                        return (T) readStackTrace(new IndexFormatTooOldException(resource3, version3), this);
-                    }
-                case 4:
-                    return (T) readStackTrace(new NullPointerException(readOptionalString()), this);
-                case 5:
-                    return (T) readStackTrace(new NumberFormatException(readOptionalString()), this);
-                case 6:
-                    return (T) readStackTrace(new IllegalArgumentException(readOptionalString(), readException()), this);
-                case 7:
-                    return (T) readStackTrace(new AlreadyClosedException(readOptionalString(), readException()), this);
-                case 8:
-                    return (T) readStackTrace(new EOFException(readOptionalString()), this);
-                case 9:
-                    return (T) readStackTrace(new SecurityException(readOptionalString(), readException()), this);
-                case 10:
-                    return (T) readStackTrace(new StringIndexOutOfBoundsException(readOptionalString()), this);
-                case 11:
-                    return (T) readStackTrace(new ArrayIndexOutOfBoundsException(readOptionalString()), this);
-                case 12:
-                    return (T) readStackTrace(new FileNotFoundException(readOptionalString()), this);
-                case 13:
-                    final int subclass = readVInt();
-                    final String file = readOptionalString();
-                    final String other = readOptionalString();
-                    final String reason = readOptionalString();
-                    readOptionalString(); // skip the msg - it's composed from file, other and reason
-                    final Exception exception = switch (subclass) {
-                        case 0 -> new NoSuchFileException(file, other, reason);
-                        case 1 -> new NotDirectoryException(file);
-                        case 2 -> new DirectoryNotEmptyException(file);
-                        case 3 -> new AtomicMoveNotSupportedException(file, other, reason);
-                        case 4 -> new FileAlreadyExistsException(file, other, reason);
-                        case 5 -> new AccessDeniedException(file, other, reason);
-                        case 6 -> new FileSystemLoopException(file);
-                        case 7 -> new FileSystemException(file, other, reason);
-                        default -> throw new IllegalStateException("unknown FileSystemException with index " + subclass);
-                    };
-                    return (T) readStackTrace(exception, this);
-                case 14:
-                    return (T) readStackTrace(new IllegalStateException(readOptionalString(), readException()), this);
-                case 15:
-                    return (T) readStackTrace(new LockObtainFailedException(readOptionalString(), readException()), this);
-                case 16:
-                    return (T) readStackTrace(new InterruptedException(readOptionalString()), this);
-                case 17:
-                    return (T) readStackTrace(new IOException(readOptionalString(), readException()), this);
-                case 18:
-                    final boolean isExecutorShutdown = readBoolean();
-                    return (T) readStackTrace(new EsRejectedExecutionException(readOptionalString(), isExecutorShutdown), this);
-                default:
-                    throw new IOException("no such exception for id: " + key);
-            }
-        }
-        return null;
+        return ElasticsearchException.readException(this);
     }
 
     /**

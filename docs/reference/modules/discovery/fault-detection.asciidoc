@@ -364,15 +364,21 @@ other delays on such a connection.
 * Long waits for particular threads to be available can be identified by taking
 stack dumps (for example, using `jstack`) or a profiling trace (for example,
 using Java Flight Recorder) in the few seconds leading up to a node departure.
++
+By default the follower checks will time out after 30s, so if node departures
+are unpredictable then capture stack dumps every 15s to be sure that at least
+one stack dump was taken at the right time.
++
 The <<cluster-nodes-hot-threads>> API sometimes yields useful information, but
 bear in mind that this API also requires a number of `transport_worker` and
 `generic` threads across all the nodes in the cluster. The API may be affected
 by the very problem you're trying to diagnose. `jstack` is much more reliable
-since it doesn't require any JVM threads. The threads involved in the follower
-checks are `transport_worker` and `cluster_coordination` threads, for which
-there should never be a long wait. There may also be evidence of long waits for
-threads in the {es} logs. Refer to <<modules-network-threading-model>> for more
-information.
+since it doesn't require any JVM threads.
++
+The threads involved in the follower checks are `transport_worker` and
+`cluster_coordination` threads, for which there should never be a long wait.
+There may also be evidence of long waits for threads in the {es} logs. See
+<<modules-network-threading-model>> for more information.
 
 ===== Diagnosing `ShardLockObtainFailedException` failures
 

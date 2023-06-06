@@ -21,9 +21,13 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.OptionalBytesReference;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
@@ -33,9 +37,9 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.Map;
-import java.util.OptionalLong;
 import java.util.concurrent.ExecutorService;
 
 /**
@@ -85,21 +89,20 @@ public class RegisterAnalyzeAction extends ActionType<ActionResponse.Empty> {
             assert task instanceof CancellableTask;
 
             final String registerName = request.getRegisterName();
-            blobContainer.getRegister(registerName, new ActionListener<>() {
+            final ActionListener<OptionalBytesReference> initialValueListener = new ActionListener<>() {
                 @Override
-                public void onResponse(OptionalLong initialValueOrNull) {
-                    final long initialValue = initialValueOrNull.orElse(0L);
+                public void onResponse(OptionalBytesReference maybeInitialBytes) {
+                    final long initialValue = maybeInitialBytes.isPresent() ? longFromBytes(maybeInitialBytes.bytesReference()) : 0L;
 
                     ActionListener.run(outerListener.<Void>map(ignored -> ActionResponse.Empty.INSTANCE), l -> {
                         if (initialValue < 0 || initialValue >= request.getRequestCount()) {
                             throw new IllegalStateException("register holds unexpected value [" + initialValue + "]");
                         }
 
-                        // noinspection OptionalUsedAsFieldOrParameterType
                         class Execution extends ActionRunnable<Void> {
                             private long currentValue;
 
-                            private final ActionListener<OptionalLong> witnessListener;
+                            private final ActionListener<OptionalBytesReference> witnessListener;
 
                             Execution(long currentValue) {
                                 super(l);
@@ -110,19 +113,24 @@ public class RegisterAnalyzeAction extends ActionType<ActionResponse.Empty> {
                             @Override
                             protected void doRun() {
                                 if (((CancellableTask) task).notifyIfCancelled(listener) == false) {
-                                    blobContainer.compareAndExchangeRegister(registerName, currentValue, currentValue + 1, witnessListener);
+                                    blobContainer.compareAndExchangeRegister(
+                                        registerName,
+                                        bytesFromLong(currentValue),
+                                        bytesFromLong(currentValue + 1L),
+                                        witnessListener
+                                    );
                                 }
                             }
 
-                            private void handleWitness(ActionListener<Void> delegate, OptionalLong witnessOrEmpty) {
-                                if (witnessOrEmpty.isEmpty()) {
+                            private void handleWitness(ActionListener<Void> delegate, OptionalBytesReference witnessOrEmpty) {
+                                if (witnessOrEmpty.isPresent() == false) {
                                     // Concurrent activity prevented us from updating the value, or even reading the concurrently-updated
                                     // result, so we must just try again.
                                     executor.execute(Execution.this);
                                     return;
                                 }
 
-                                final long witness = witnessOrEmpty.getAsLong();
+                                final long witness = longFromBytes(witnessOrEmpty.bytesReference());
                                 if (witness == currentValue) {
                                     delegate.onResponse(null);
                                 } else if (witness < currentValue || witness >= request.getRequestCount()) {
@@ -150,7 +158,20 @@ public class RegisterAnalyzeAction extends ActionType<ActionResponse.Empty> {
                         outerListener.onFailure(e);
                     }
                 }
-            });
+            };
+
+            if (request.getInitialRead() > request.getRequestCount()) {
+                blobContainer.getRegister(registerName, initialValueListener);
+            } else {
+                blobContainer.compareAndExchangeRegister(
+                    registerName,
+                    bytesFromLong(request.getInitialRead()),
+                    bytesFromLong(
+                        request.getInitialRead() == request.getRequestCount() ? request.getRequestCount() + 1 : request.getInitialRead()
+                    ),
+                    initialValueListener
+                );
+            }
         }
     }
 
@@ -158,13 +179,15 @@ public class RegisterAnalyzeAction extends ActionType<ActionResponse.Empty> {
         private final String repositoryName;
         private final String containerPath;
         private final String registerName;
-        private final long requestCount;
+        private final int requestCount;
+        private final int initialRead;
 
-        public Request(String repositoryName, String containerPath, String registerName, long requestCount) {
+        public Request(String repositoryName, String containerPath, String registerName, int requestCount, int initialRead) {
             this.repositoryName = repositoryName;
             this.containerPath = containerPath;
             this.registerName = registerName;
             this.requestCount = requestCount;
+            this.initialRead = initialRead;
         }
 
         public Request(StreamInput in) throws IOException {
@@ -173,7 +196,8 @@ public class RegisterAnalyzeAction extends ActionType<ActionResponse.Empty> {
             repositoryName = in.readString();
             containerPath = in.readString();
             registerName = in.readString();
-            requestCount = in.readVLong();
+            requestCount = in.readVInt();
+            initialRead = in.readVInt();
         }
 
         @Override
@@ -183,7 +207,8 @@ public class RegisterAnalyzeAction extends ActionType<ActionResponse.Empty> {
             out.writeString(repositoryName);
             out.writeString(containerPath);
             out.writeString(registerName);
-            out.writeVLong(requestCount);
+            out.writeVInt(requestCount);
+            out.writeVInt(initialRead);
         }
 
         @Override
@@ -203,8 +228,12 @@ public class RegisterAnalyzeAction extends ActionType<ActionResponse.Empty> {
             return registerName;
         }
 
-        public long getRequestCount() {
+        public int getRequestCount() {
             return requestCount;
+        }
+
+        public int getInitialRead() {
+            return initialRead;
         }
 
         @Override
@@ -220,12 +249,43 @@ public class RegisterAnalyzeAction extends ActionType<ActionResponse.Empty> {
         @Override
         public String getDescription() {
             return Strings.format(
-                "RegisterAnalyzeAction.Request{repositoryName='%s', containerPath='%s', registerName='%s', requestCount='%d'}",
+                """
+                    RegisterAnalyzeAction.Request{\
+                    repositoryName='%s', containerPath='%s', registerName='%s', requestCount='%d', initialRead='%d'}""",
                 repositoryName,
                 containerPath,
                 registerName,
-                requestCount
+                requestCount,
+                initialRead
             );
+        }
+    }
+
+    static long longFromBytes(BytesReference bytesReference) {
+        if (bytesReference.length() == 0) {
+            return 0L;
+        } else if (bytesReference.length() == Long.BYTES) {
+            try (var baos = new ByteArrayOutputStream(Long.BYTES)) {
+                bytesReference.writeTo(baos);
+                final var bytes = baos.toByteArray();
+                assert bytes.length == Long.BYTES;
+                return ByteUtils.readLongBE(bytes, 0);
+            } catch (IOException e) {
+                assert false : "no IO takes place";
+                throw new IllegalStateException("unexpected conversion error", e);
+            }
+        } else {
+            throw new IllegalArgumentException("cannot read long from BytesReference of length " + bytesReference.length());
+        }
+    }
+
+    static BytesReference bytesFromLong(long value) {
+        if (value == 0L) {
+            return BytesArray.EMPTY;
+        } else {
+            final var bytes = new byte[Long.BYTES];
+            ByteUtils.writeLongBE(value, bytes, 0);
+            return new BytesArray(bytes);
         }
     }
 }

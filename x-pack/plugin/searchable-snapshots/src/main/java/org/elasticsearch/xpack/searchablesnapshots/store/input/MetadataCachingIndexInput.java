@@ -370,12 +370,6 @@ public abstract class MetadataCachingIndexInput extends BaseSearchableSnapshotIn
         throw new IOException("failed to read data from cache", e);
     }
 
-    protected abstract long getDefaultRangeSize();
-
-    protected ByteRange computeRange(long position) {
-        return BlobCacheUtils.computeRange(getDefaultRangeSize(), position, fileInfo.length());
-    }
-
     @Override
     protected void seekInternal(long pos) throws IOException {
         BlobCacheUtils.ensureSeek(pos, this);

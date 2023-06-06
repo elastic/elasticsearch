@@ -49,9 +49,6 @@ import java.util.Set;
 import java.util.SortedMap;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_VERSION_CREATED;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.settings.Settings.builder;
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.RESTRICTED_INDICES;
 import static org.hamcrest.Matchers.containsString;
@@ -65,12 +62,7 @@ public class IndicesPermissionTests extends ESTestCase {
 
     public void testAuthorize() {
         IndexMetadata.Builder imbBuilder = IndexMetadata.builder("_index")
-            .settings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            )
+            .settings(indexSettings(Version.CURRENT, 1, 1))
             .putAlias(AliasMetadata.builder("_alias"));
         Metadata md = Metadata.builder().put(imbBuilder).build();
         FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
@@ -154,12 +146,7 @@ public class IndicesPermissionTests extends ESTestCase {
         assertThat(permissions.getIndexPermissions("_alias").getDocumentPermissions().getSingleSetOfQueries(), equalTo(query));
 
         IndexMetadata.Builder imbBuilder1 = IndexMetadata.builder("_index_1")
-            .settings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            )
+            .settings(indexSettings(Version.CURRENT, 1, 1))
             .putAlias(AliasMetadata.builder("_alias"));
         md = Metadata.builder(md).put(imbBuilder1).build();
         lookup = md.getIndicesLookup();
@@ -195,12 +182,7 @@ public class IndicesPermissionTests extends ESTestCase {
 
     public void testAuthorizeMultipleGroupsMixedDls() {
         IndexMetadata.Builder imbBuilder = IndexMetadata.builder("_index")
-            .settings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            )
+            .settings(indexSettings(Version.CURRENT, 1, 1))
             .putAlias(AliasMetadata.builder("_alias"));
         Metadata md = Metadata.builder().put(imbBuilder).build();
         FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
@@ -682,35 +664,18 @@ public class IndicesPermissionTests extends ESTestCase {
                 1
             ).getMetadata()
         );
-        IndexAbstraction.DataStream dataStream = new IndexAbstraction.DataStream(mb.dataStream(dataStreamName));
+        DataStream dataStream = mb.dataStream(dataStreamName);
         IndexAbstraction backingIndex = new IndexAbstraction.ConcreteIndex(
             DataStreamTestHelper.createBackingIndex(dataStreamName, 1).build(),
             dataStream
         );
         IndexAbstraction concreteIndex = new IndexAbstraction.ConcreteIndex(
-            IndexMetadata.builder("logs-index")
-                .settings(
-                    Settings.builder()
-                        .put(SETTING_NUMBER_OF_SHARDS, 1)
-                        .put(SETTING_NUMBER_OF_REPLICAS, 0)
-                        .put(SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
-                )
-                .build()
+            IndexMetadata.builder("logs-index").settings(indexSettings(Version.CURRENT, 1, 0)).build()
         );
         AliasMetadata aliasMetadata = new AliasMetadata.Builder("logs-alias").build();
         IndexAbstraction alias = new IndexAbstraction.Alias(
             aliasMetadata,
-            List.of(
-                IndexMetadata.builder("logs-index")
-                    .settings(
-                        Settings.builder()
-                            .put(SETTING_NUMBER_OF_SHARDS, 1)
-                            .put(SETTING_NUMBER_OF_REPLICAS, 0)
-                            .put(SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
-                    )
-                    .putAlias(aliasMetadata)
-                    .build()
-            )
+            List.of(IndexMetadata.builder("logs-index").settings(indexSettings(Version.CURRENT, 1, 0)).putAlias(aliasMetadata).build())
         );
         IndicesPermission.IsResourceAuthorizedPredicate predicate = new IndicesPermission.IsResourceAuthorizedPredicate(
             StringMatcher.of("other"),
@@ -744,10 +709,10 @@ public class IndicesPermissionTests extends ESTestCase {
                 1
             ).getMetadata()
         );
-        IndexAbstraction.DataStream dataStreamA = new IndexAbstraction.DataStream(mb.dataStream("a"));
-        IndexAbstraction.DataStream dataStreamB = new IndexAbstraction.DataStream(mb.dataStream("b"));
-        IndexAbstraction.DataStream dataStreamC = new IndexAbstraction.DataStream(mb.dataStream("c"));
-        IndexAbstraction.DataStream dataStreamD = new IndexAbstraction.DataStream(mb.dataStream("d"));
+        DataStream dataStreamA = mb.dataStream("a");
+        DataStream dataStreamB = mb.dataStream("b");
+        DataStream dataStreamC = mb.dataStream("c");
+        DataStream dataStreamD = mb.dataStream("d");
         IndexAbstraction concreteIndexA = concreteIndexAbstraction("a");
         IndexAbstraction concreteIndexB = concreteIndexAbstraction("b");
         IndexAbstraction concreteIndexC = concreteIndexAbstraction("c");
@@ -764,16 +729,7 @@ public class IndicesPermissionTests extends ESTestCase {
     }
 
     private static IndexAbstraction concreteIndexAbstraction(String name) {
-        return new IndexAbstraction.ConcreteIndex(
-            IndexMetadata.builder(name)
-                .settings(
-                    Settings.builder()
-                        .put(SETTING_NUMBER_OF_SHARDS, 1)
-                        .put(SETTING_NUMBER_OF_REPLICAS, 0)
-                        .put(SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
-                )
-                .build()
-        );
+        return new IndexAbstraction.ConcreteIndex(IndexMetadata.builder(name).settings(indexSettings(Version.CURRENT, 1, 0)).build());
     }
 
     private static IndexMetadata createBackingIndexMetadata(String name) {

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.security.action.token;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.support.ActionFilters;
@@ -80,6 +81,7 @@ public class TransportInvalidateTokenActionTests extends ESTestCase {
         when(securityIndex.isAvailable()).thenReturn(false);
         when(securityIndex.indexExists()).thenReturn(true);
         when(securityIndex.freeze()).thenReturn(securityIndex);
+        when(securityIndex.getUnavailableReason()).thenReturn(new ElasticsearchException("simulated"));
         final TokenService tokenService = new TokenService(
             SETTINGS,
             Clock.systemUTC(),

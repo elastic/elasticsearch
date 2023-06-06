@@ -10,9 +10,7 @@ package org.elasticsearch.cluster.routing;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.CollectionUtil;
-import org.elasticsearch.Assertions;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -20,12 +18,12 @@ import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 
-import java.util.AbstractCollection;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -41,8 +39,9 @@ import java.util.Objects;
 import java.util.Queue;
 import java.util.Set;
 import java.util.function.Function;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 /**
  * {@link RoutingNodes} represents a copy the routing information contained in the {@link ClusterState cluster state}.
@@ -58,7 +57,7 @@ import java.util.stream.Collectors;
  * <li> {@link #failShard} fails/cancels an assigned shard.
  * </ul>
  */
-public class RoutingNodes extends AbstractCollection<RoutingNode> {
+public class RoutingNodes implements Iterable<RoutingNode> {
 
     private final Map<String, RoutingNode> nodesToShards;
 
@@ -249,9 +248,17 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
         return primary;
     }
 
+    public Set<String> getAllNodeIds() {
+        return Collections.unmodifiableSet(nodesToShards.keySet());
+    }
+
     @Override
     public Iterator<RoutingNode> iterator() {
         return Collections.unmodifiableCollection(nodesToShards.values()).iterator();
+    }
+
+    public Stream<RoutingNode> stream() {
+        return nodesToShards.values().stream();
     }
 
     public Iterator<RoutingNode> mutableIterator() {
@@ -372,29 +379,20 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
     /**
      * Returns <code>true</code> iff all replicas are active for the given shard routing. Otherwise <code>false</code>
      */
-    public boolean allReplicasActive(ShardId shardId, Metadata metadata) {
+    public boolean allShardsActive(ShardId shardId, Metadata metadata) {
         final List<ShardRouting> shards = assignedShards(shardId);
-        if (shards.isEmpty() || shards.size() < metadata.getIndexSafe(shardId.getIndex()).getNumberOfReplicas() + 1) {
+        final int shardCopies = metadata.getIndexSafe(shardId.getIndex()).getNumberOfReplicas() + 1;
+        if (shards.size() < shardCopies) {
             return false; // if we are empty nothing is active if we have less than total at least one is unassigned
         }
+        int active = 0;
         for (ShardRouting shard : shards) {
-            if (shard.active() == false) {
-                return false;
+            if (shard.active()) {
+                active++;
             }
         }
-        return true;
-    }
-
-    public List<ShardRouting> shards(Predicate<ShardRouting> predicate) {
-        List<ShardRouting> shards = new ArrayList<>();
-        for (RoutingNode routingNode : this) {
-            for (ShardRouting shardRouting : routingNode) {
-                if (predicate.test(shardRouting)) {
-                    shards.add(shardRouting);
-                }
-            }
-        }
-        return shards;
+        assert active <= shardCopies;
+        return active == shardCopies;
     }
 
     @Override
@@ -461,6 +459,30 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
         return Tuple.tuple(source, target);
     }
 
+    public void relocateOrReinitializeShard(
+        ShardRouting startedShard,
+        String nodeId,
+        long expectedShardSize,
+        RoutingChangesObserver changes
+    ) {
+        if (startedShard.isSearchable() == false) {
+            remove(startedShard);
+            var unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.REINITIALIZED, "relocating unsearchable shard");
+            var assignedShards = assignedShards(startedShard.shardId());
+            var promotableShard = assignedShards.stream().filter(ShardRouting::isPromotableToPrimary).findAny();
+            assert promotableShard.isEmpty() : "multiple promotable shards are not supported yet";
+            // replicas needs to be removed as well as they could not be active when primary is unassigned
+            // see org.elasticsearch.cluster.routing.IndexShardRoutingTable.Builder.noAssignedReplicaWithoutActivePrimary
+            for (ShardRouting replica : List.copyOf(assignedShards)) {
+                remove(replica);
+                unassignedShards.ignoreShard(replica.moveToUnassigned(unassignedInfo), AllocationStatus.NO_ATTEMPT, changes);
+            }
+            initializeShard(startedShard.moveToUnassigned(unassignedInfo), nodeId, null, expectedShardSize, changes);
+        } else {
+            relocateShard(startedShard, nodeId, expectedShardSize, changes);
+        }
+    }
+
     /**
      * Applies the relevant logic to start an initializing shard.
      *
@@ -511,7 +533,7 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
                                 routing,
                                 new UnassignedInfo(UnassignedInfo.Reason.REINITIALIZED, "primary changed")
                             );
-                            relocateShard(
+                            relocateOrReinitializeShard(
                                 startedReplica,
                                 sourceShard.relocatingNodeId(),
                                 sourceShard.getExpectedShardSize(),
@@ -546,12 +568,10 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
         Logger logger,
         ShardRouting failedShard,
         UnassignedInfo unassignedInfo,
-        IndexMetadata indexMetadata,
         RoutingChangesObserver routingChangesObserver
     ) {
         ensureMutable();
         assert failedShard.assignedToNode() : "only assigned shards can be failed";
-        assert indexMetadata.getIndex().equals(failedShard.index()) : "shard failed for unknown index (shard entry: " + failedShard + ")";
         assert getByAllocationId(failedShard.shardId(), failedShard.allocationId().getId()) == failedShard
             : "shard routing to fail does not exist in routing table, expected: "
                 + failedShard
@@ -582,7 +602,7 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
                             Collections.emptySet(),
                             routing.currentNodeId()
                         );
-                        failShard(logger, replicaShard, primaryFailedUnassignedInfo, indexMetadata, routingChangesObserver);
+                        failShard(logger, replicaShard, primaryFailedUnassignedInfo, routingChangesObserver);
                     }
                 }
             }
@@ -853,7 +873,6 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
     /**
      * Returns the number of routing nodes
      */
-    @Override
     public int size() {
         return nodesToShards.size();
     }
@@ -967,6 +986,10 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
         @Override
         public UnassignedIterator iterator() {
             return new UnassignedIterator();
+        }
+
+        public Stream<ShardRouting> stream() {
+            return StreamSupport.stream(spliterator(), false);
         }
 
         /**

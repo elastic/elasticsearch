@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.fleet;
 
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -18,7 +17,6 @@ import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentType;
 
-import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
@@ -38,22 +36,6 @@ public class FleetSystemIndicesIT extends ESRestTestCase {
             .put(ThreadContext.PREFIX + ".Authorization", BASIC_AUTH_VALUE)
             .put(ThreadContext.PREFIX + ".X-elastic-product-origin", "fleet")
             .build();
-    }
-
-    private void expectSystemIndexWarning(Request request, String indexName) {
-        String warningMsg = "index name ["
-            + indexName
-            + "] starts with a dot '.', in the next major version, "
-            + "index names starting with a dot are reserved for hidden indices and system indices";
-
-        List<String> expectedWarnings = List.of(warningMsg);
-
-        logger.info("expecting warnings: " + expectedWarnings.toString());
-        RequestOptions consumeSystemIndicesWarningsOptions = RequestOptions.DEFAULT.toBuilder()
-            .setWarningsHandler(warnings -> expectedWarnings.equals(warnings) == false)
-            .build();
-
-        request.setOptions(consumeSystemIndicesWarningsOptions);
     }
 
     public void testSearchWithoutIndexCreatedIsAllowed() throws Exception {
@@ -98,7 +80,6 @@ public class FleetSystemIndicesIT extends ESRestTestCase {
 
     public void testCreationOfFleetFiles() throws Exception {
         Request request = new Request("PUT", ".fleet-files-agent-00001");
-        expectSystemIndexWarning(request, ".fleet-files-agent-00001");
         Response response = client().performRequest(request);
         assertEquals(200, response.getStatusLine().getStatusCode());
 
@@ -111,7 +92,6 @@ public class FleetSystemIndicesIT extends ESRestTestCase {
 
     public void testCreationOfFleetFileData() throws Exception {
         Request request = new Request("PUT", ".fleet-file-data-agent-00001");
-        expectSystemIndexWarning(request, ".fleet-file-data-agent-00001");
         Response response = client().performRequest(request);
         assertEquals(200, response.getStatusLine().getStatusCode());
 
@@ -169,6 +149,22 @@ public class FleetSystemIndicesIT extends ESRestTestCase {
         response = client().performRequest(request);
         responseBody = EntityUtils.toString(response.getEntity());
         assertThat(responseBody, containsString("coordinator_idx"));
+    }
+
+    public void testCreationOfFleetSecrets() throws Exception {
+        Request request = new Request("PUT", ".fleet-secrets");
+        Response response = client().performRequest(request);
+        assertEquals(200, response.getStatusLine().getStatusCode());
+
+        request = new Request("GET", ".fleet-secrets/_mapping");
+        response = client().performRequest(request);
+        String responseBody = EntityUtils.toString(response.getEntity());
+        assertThat(responseBody, containsString("value"));
+
+        request = new Request("GET", ".fleet-secrets-7/_mapping");
+        response = client().performRequest(request);
+        responseBody = EntityUtils.toString(response.getEntity());
+        assertThat(responseBody, containsString("value"));
     }
 
     public void testCreationOfFleetPoliciesLeader() throws Exception {

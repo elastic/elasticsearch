@@ -33,6 +33,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Stream;
 
 /**
  * {@link IndexShardRoutingTable} encapsulates all instances of a single shard.
@@ -142,6 +143,10 @@ public class IndexShardRoutingTable {
 
     public ShardRouting shard(int idx) {
         return shards[idx];
+    }
+
+    public Stream<ShardRouting> allShards() {
+        return Stream.of(shards);
     }
 
     /**
@@ -608,6 +613,7 @@ public class IndexShardRoutingTable {
             assert distinctNodes(shards) : "more than one shard with same id assigned to same node (shards: " + shards + ")";
             assert noDuplicatePrimary(shards) : "expected but did not find unique primary in shard routing table: " + shards;
             assert noAssignedReplicaWithoutActivePrimary(shards) : "unexpected assigned replica with no active primary: " + shards;
+            assert noRelocatingUnsearchableShards(shards) : "unexpected RELOCATING unsearchable shard: " + shards;
             return new IndexShardRoutingTable(shardId, shards);
         }
 
@@ -656,6 +662,14 @@ public class IndexShardRoutingTable {
             }
 
             return seenAssignedReplica == false;
+        }
+
+        static boolean noRelocatingUnsearchableShards(List<ShardRouting> shards) {
+            // this is unsupported until ES-4677 is implemented
+            for (var shard : shards) {
+                assert shard.role().isSearchable() || shard.relocating() == false : "unexpected RELOCATING unsearchable shard: " + shard;
+            }
+            return true;
         }
 
         public static IndexShardRoutingTable.Builder readFrom(StreamInput in) throws IOException {

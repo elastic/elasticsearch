@@ -409,10 +409,9 @@ public class RangeHistogramAggregatorTests extends AggregatorTestCase {
 
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                Exception e = expectThrows(
-                    IllegalArgumentException.class,
-                    () -> { searchAndReduce(searcher, new AggTestConfig(aggBuilder, rangeField("field", rangeType))); }
-                );
+                Exception e = expectThrows(IllegalArgumentException.class, () -> {
+                    searchAndReduce(searcher, new AggTestConfig(aggBuilder, rangeField("field", rangeType)));
+                });
                 assertThat(e.getMessage(), equalTo("Expected numeric range type but found non-numeric range [ip_range]"));
             }
         }

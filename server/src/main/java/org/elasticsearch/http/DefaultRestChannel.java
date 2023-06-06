@@ -21,10 +21,13 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.rest.AbstractRestChannel;
+import org.elasticsearch.rest.ChunkedRestResponseBody;
+import org.elasticsearch.rest.LoggingChunkedRestResponseBody;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tracing.SpanId;
 import org.elasticsearch.tracing.Tracer;
 
 import java.util.ArrayList;
@@ -53,6 +56,7 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
     private final HttpChannel httpChannel;
     private final CorsHandler corsHandler;
     private final Tracer tracer;
+    private final boolean closeConnection;
 
     @Nullable
     private final HttpTracer httpLogger;
@@ -66,7 +70,8 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
         ThreadContext threadContext,
         CorsHandler corsHandler,
         @Nullable HttpTracer httpLogger,
-        Tracer tracer
+        Tracer tracer,
+        boolean closeConnection
     ) {
         super(request, settings.detailedErrorsEnabled());
         this.httpChannel = httpChannel;
@@ -77,6 +82,7 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
         this.corsHandler = corsHandler;
         this.httpLogger = httpLogger;
         this.tracer = tracer;
+        this.closeConnection = closeConnection;
     }
 
     @Override
@@ -89,13 +95,13 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
         // We're sending a response so we know we won't be needing the request content again and release it
         httpRequest.release();
 
-        final String traceId = "rest-" + this.request.getRequestId();
+        final SpanId spanId = SpanId.forRestRequest(request);
 
         final ArrayList<Releasable> toClose = new ArrayList<>(4);
-        if (HttpUtils.shouldCloseConnection(httpRequest)) {
+        if (HttpUtils.shouldCloseConnection(httpRequest) || closeConnection) {
             toClose.add(() -> CloseableChannel.closeChannel(httpChannel));
         }
-        toClose.add(() -> tracer.stopTrace(traceId));
+        toClose.add(() -> tracer.stopTrace(request));
 
         boolean success = false;
         String opaque = null;
@@ -113,7 +119,20 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
         try {
             final HttpResponse httpResponse;
             if (isHeadRequest == false && restResponse.isChunked()) {
-                httpResponse = httpRequest.createResponse(restResponse.status(), restResponse.chunkedContent());
+                ChunkedRestResponseBody chunkedContent = restResponse.chunkedContent();
+                if (httpLogger != null && httpLogger.isBodyTracerEnabled()) {
+                    final var loggerStream = httpLogger.openResponseBodyLoggingStream(request.getRequestId());
+                    toClose.add(() -> {
+                        try {
+                            loggerStream.close();
+                        } catch (Exception e) {
+                            assert false : e; // nothing much to go wrong here
+                        }
+                    });
+                    chunkedContent = new LoggingChunkedRestResponseBody(chunkedContent, loggerStream);
+                }
+
+                httpResponse = httpRequest.createResponse(restResponse.status(), chunkedContent);
             } else {
                 final BytesReference content = restResponse.content();
                 if (content instanceof Releasable) {
@@ -122,6 +141,15 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
                 toClose.add(this::releaseOutputBuffer);
 
                 BytesReference finalContent = isHeadRequest ? BytesArray.EMPTY : content;
+
+                if (httpLogger != null && httpLogger.isBodyTracerEnabled()) {
+                    try (var responseBodyLoggingStream = httpLogger.openResponseBodyLoggingStream(request.getRequestId())) {
+                        finalContent.writeTo(responseBodyLoggingStream);
+                    } catch (Exception e) {
+                        assert false : e; // nothing much to go wrong here
+                    }
+                }
+
                 httpResponse = httpRequest.createResponse(restResponse.status(), finalContent);
             }
             corsHandler.setCorsResponseHeaders(httpRequest, httpResponse);
@@ -134,6 +162,9 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
             // Add all custom headers
             addCustomHeaders(httpResponse, restResponse.getHeaders());
             addCustomHeaders(httpResponse, restResponse.filterHeaders(threadContext.getResponseHeaders()));
+            if (closeConnection) {
+                setHeaderField(httpResponse, CONNECTION, CLOSE);
+            }
 
             // If our response doesn't specify a content-type header, set one
             setHeaderField(httpResponse, CONTENT_TYPE, restResponse.contentType(), false);
@@ -147,21 +178,30 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
 
             addCookies(httpResponse);
 
-            tracer.setAttribute(traceId, "http.status_code", restResponse.status().getStatus());
+            tracer.setAttribute(spanId, "http.status_code", restResponse.status().getStatus());
             restResponse.getHeaders()
-                .forEach((key, values) -> tracer.setAttribute(traceId, "http.response.headers." + key, String.join("; ", values)));
+                .forEach((key, values) -> tracer.setAttribute(spanId, "http.response.headers." + key, String.join("; ", values)));
 
-            ActionListener<Void> listener = ActionListener.running(() -> Releasables.close(toClose));
-            try (ThreadContext.StoredContext existing = threadContext.stashContext()) {
+            ActionListener<Void> listener = ActionListener.releasing(Releasables.wrap(toClose));
+            if (httpLogger != null) {
+                final var finalContentLength = contentLength;
+                final var finalOpaque = opaque;
+                listener = ActionListener.runAfter(
+                    listener,
+                    () -> httpLogger.logResponse(restResponse, httpChannel, finalContentLength, finalOpaque, request.getRequestId(), true)
+                );
+            }
+
+            try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
                 httpChannel.sendResponse(httpResponse, listener);
             }
             success = true;
         } finally {
             if (success == false) {
                 Releasables.close(toClose);
-            }
-            if (httpLogger != null) {
-                httpLogger.logResponse(restResponse, httpChannel, contentLength, opaque, request.getRequestId(), success);
+                if (httpLogger != null) {
+                    httpLogger.logResponse(restResponse, httpChannel, contentLength, opaque, request.getRequestId(), false);
+                }
             }
         }
     }

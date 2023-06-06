@@ -8,8 +8,9 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
@@ -18,6 +19,7 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -32,6 +34,7 @@ public class StartRecoveryRequestTests extends ESTestCase {
 
     public void testSerialization() throws Exception {
         final Version targetNodeVersion = randomVersion(random());
+        TransportVersion serializationVersion = TransportVersionUtils.randomVersion(random());
         Store.MetadataSnapshot metadataSnapshot = randomBoolean()
             ? Store.MetadataSnapshot.EMPTY
             : new Store.MetadataSnapshot(
@@ -42,8 +45,8 @@ public class StartRecoveryRequestTests extends ESTestCase {
         final StartRecoveryRequest outRequest = new StartRecoveryRequest(
             new ShardId("test", "_na_", 0),
             UUIDs.randomBase64UUID(),
-            new DiscoveryNode("a", buildNewFakeTransportAddress(), emptyMap(), emptySet(), targetNodeVersion),
-            new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), targetNodeVersion),
+            DiscoveryNodeUtils.create("a", buildNewFakeTransportAddress(), emptyMap(), emptySet(), targetNodeVersion),
+            DiscoveryNodeUtils.create("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), targetNodeVersion),
             metadataSnapshot,
             randomBoolean(),
             randomNonNegativeLong(),
@@ -53,12 +56,12 @@ public class StartRecoveryRequestTests extends ESTestCase {
 
         final ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
         final OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
-        out.setTransportVersion(targetNodeVersion.transportVersion);
+        out.setTransportVersion(serializationVersion);
         outRequest.writeTo(out);
 
         final ByteArrayInputStream inBuffer = new ByteArrayInputStream(outBuffer.toByteArray());
         InputStreamStreamInput in = new InputStreamStreamInput(inBuffer);
-        in.setTransportVersion(targetNodeVersion.transportVersion);
+        in.setTransportVersion(serializationVersion);
         final StartRecoveryRequest inRequest = new StartRecoveryRequest(in);
 
         assertThat(outRequest.shardId(), equalTo(inRequest.shardId()));
@@ -69,6 +72,27 @@ public class StartRecoveryRequestTests extends ESTestCase {
         assertThat(outRequest.isPrimaryRelocation(), equalTo(inRequest.isPrimaryRelocation()));
         assertThat(outRequest.recoveryId(), equalTo(inRequest.recoveryId()));
         assertThat(outRequest.startingSeqNo(), equalTo(inRequest.startingSeqNo()));
+    }
+
+    public void testDescription() {
+        final var node = DiscoveryNodeUtils.builder("a").roles(emptySet()).build();
+        assertEquals(
+            "recovery of [index][0] to "
+                + node.descriptionWithoutAttributes()
+                + " [recoveryId=1, targetAllocationId=allocationId, startingSeqNo=-2, "
+                + "primaryRelocation=false, canDownloadSnapshotFiles=true]",
+            new StartRecoveryRequest(
+                new ShardId("index", "uuid", 0),
+                "allocationId",
+                null,
+                node,
+                Store.MetadataSnapshot.EMPTY,
+                false,
+                1,
+                SequenceNumbers.UNASSIGNED_SEQ_NO,
+                true
+            ).getDescription()
+        );
     }
 
 }

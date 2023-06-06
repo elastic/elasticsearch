@@ -14,6 +14,7 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.document.InvertableType;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.DocValuesType;
@@ -21,11 +22,8 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.MultiTerms;
-import org.apache.lucene.index.ReaderSlice;
-import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
-import org.apache.lucene.sandbox.search.DocValuesTermsQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
@@ -68,11 +66,9 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -117,6 +113,10 @@ public final class KeywordFieldMapper extends FieldMapper {
             super(field, term, ft);
         }
 
+        @Override
+        public InvertableType invertableType() {
+            return InvertableType.BINARY;
+        }
     }
 
     private static TextSearchInfo textSearchInfo(
@@ -439,7 +439,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 return super.termsQuery(values, context);
             } else {
                 BytesRef[] bytesRefs = values.stream().map(this::indexedValueForSearch).toArray(BytesRef[]::new);
-                return new DocValuesTermsQuery(name(), bytesRefs);
+                return SortedSetDocValuesField.newSlowSetQuery(name(), bytesRefs);
             }
         }
 
@@ -472,11 +472,12 @@ public final class KeywordFieldMapper extends FieldMapper {
             int prefixLength,
             int maxExpansions,
             boolean transpositions,
-            SearchExecutionContext context
+            SearchExecutionContext context,
+            @Nullable MultiTermQuery.RewriteMethod rewriteMethod
         ) {
             failIfNotIndexedNorDocValuesFallback(context);
             if (isIndexed()) {
-                return super.fuzzyQuery(value, fuzziness, prefixLength, maxExpansions, transpositions, context);
+                return super.fuzzyQuery(value, fuzziness, prefixLength, maxExpansions, transpositions, context, rewriteMethod);
             } else {
                 return StringScriptFieldFuzzyQuery.build(
                     new Script(""),
@@ -556,109 +557,6 @@ public final class KeywordFieldMapper extends FieldMapper {
                 return result;
             }
             return terms.intersect(automaton, searchBytes);
-        }
-
-        /**
-         * A simple terms implementation for SortedSetDocValues that only provides access to {@link TermsEnum} via
-         * {@link #iterator} and {@link #intersect(CompiledAutomaton, BytesRef)} methods.
-         * We have this custom implementation based on {@link MultiTerms} instead of using
-         * {@link org.apache.lucene.index.MultiDocValues#getSortedSetValues(IndexReader, String)}
-         * because {@link org.apache.lucene.index.MultiDocValues} builds global ordinals up-front whereas
-         * {@link MultiTerms}, which exposes the terms enum via {@link org.apache.lucene.index.MultiTermsEnum},
-         * merges terms on the fly.
-         */
-        static class SortedSetDocValuesTerms extends Terms {
-
-            public static Terms getTerms(IndexReader r, String field) throws IOException {
-                final List<LeafReaderContext> leaves = r.leaves();
-                if (leaves.size() == 1) {
-                    SortedSetDocValues sortedSetDocValues = leaves.get(0).reader().getSortedSetDocValues(field);
-                    if (sortedSetDocValues == null) {
-                        return null;
-                    } else {
-                        return new SortedSetDocValuesTerms(sortedSetDocValues);
-                    }
-                }
-
-                final List<Terms> termsPerLeaf = new ArrayList<>(leaves.size());
-                final List<ReaderSlice> slicePerLeaf = new ArrayList<>(leaves.size());
-
-                for (int leafIdx = 0; leafIdx < leaves.size(); leafIdx++) {
-                    LeafReaderContext ctx = leaves.get(leafIdx);
-                    SortedSetDocValues sortedSetDocValues = ctx.reader().getSortedSetDocValues(field);
-                    if (sortedSetDocValues != null) {
-                        termsPerLeaf.add(new SortedSetDocValuesTerms(sortedSetDocValues));
-                        slicePerLeaf.add(new ReaderSlice(ctx.docBase, r.maxDoc(), leafIdx));
-                    }
-                }
-
-                if (termsPerLeaf.isEmpty()) {
-                    return null;
-                } else {
-                    return new MultiTerms(termsPerLeaf.toArray(EMPTY_ARRAY), slicePerLeaf.toArray(ReaderSlice.EMPTY_ARRAY));
-                }
-            }
-
-            private final SortedSetDocValues values;
-
-            SortedSetDocValuesTerms(SortedSetDocValues values) {
-                this.values = values;
-            }
-
-            @Override
-            public TermsEnum iterator() throws IOException {
-                return values.termsEnum();
-            }
-
-            @Override
-            public TermsEnum intersect(CompiledAutomaton compiled, final BytesRef startTerm) throws IOException {
-                if (startTerm == null) {
-                    return values.intersect(compiled);
-                } else {
-                    return super.intersect(compiled, startTerm);
-                }
-            }
-
-            @Override
-            public long size() throws IOException {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public long getSumTotalTermFreq() throws IOException {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public long getSumDocFreq() throws IOException {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public int getDocCount() throws IOException {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public boolean hasFreqs() {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public boolean hasOffsets() {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public boolean hasPositions() {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public boolean hasPayloads() {
-                throw new UnsupportedOperationException();
-            }
-
         }
 
         @Override
@@ -881,19 +779,22 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        public void validateMatchedRoutingPath() {
+        public void validateMatchedRoutingPath(final String routingPath) {
             if (false == isDimension) {
                 throw new IllegalArgumentException(
-                    "All fields that match routing_path must be keywords with [time_series_dimension: true] "
-                        + "and without the [script] parameter. ["
+                    "All fields that match routing_path "
+                        + "must be keywords with [time_series_dimension: true] "
+                        + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
+                        + "without the [script] parameter. ["
                         + name()
-                        + "] was not [time_series_dimension: true]."
+                        + "] was not a dimension."
                 );
             }
             if (scriptValues != null) {
                 throw new IllegalArgumentException(
                     "All fields that match routing_path must be keywords with [time_series_dimension: true] "
-                        + "and without the [script] parameter. ["
+                        + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
+                        + "without the [script] parameter. ["
                         + name()
                         + "] has a [script] parameter."
                 );
@@ -965,6 +866,10 @@ public final class KeywordFieldMapper extends FieldMapper {
         if (value == null) {
             return;
         }
+        // if field is disabled, skip indexing
+        if ((fieldType.indexOptions() == IndexOptions.NONE) && (fieldType.stored() == false) && (fieldType().hasDocValues() == false)) {
+            return;
+        }
 
         if (value.length() > fieldType().ignoreAbove()) {
             context.addIgnoredField(name());
@@ -984,35 +889,31 @@ public final class KeywordFieldMapper extends FieldMapper {
             context.getDimensions().addString(fieldType().name(), binaryValue);
         }
 
-        if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored() || fieldType().hasDocValues()) {
-            // If the UTF8 encoding of the field value is bigger than the max length 32766, Lucene fill fail the indexing request and, to
-            // roll back the changes, will mark the (possibly partially indexed) document as deleted. This results in deletes, even in an
-            // append-only workload, which in turn leads to slower merges, as these will potentially have to fall back to MergeStrategy.DOC
-            // instead of MergeStrategy.BULK. To avoid this, we do a preflight check here before indexing the document into Lucene.
-            if (binaryValue.length > MAX_TERM_LENGTH) {
-                byte[] prefix = new byte[30];
-                System.arraycopy(binaryValue.bytes, binaryValue.offset, prefix, 0, 30);
-                String msg = "Document contains at least one immense term in field=\""
-                    + fieldType().name()
-                    + "\" (whose "
-                    + "UTF8 encoding is longer than the max length "
-                    + MAX_TERM_LENGTH
-                    + "), all of which were "
-                    + "skipped. Please correct the analyzer to not produce such terms. The prefix of the first immense "
-                    + "term is: '"
-                    + Arrays.toString(prefix)
-                    + "...'";
-                throw new IllegalArgumentException(msg);
-            }
+        // If the UTF8 encoding of the field value is bigger than the max length 32766, Lucene fill fail the indexing request and, to
+        // roll back the changes, will mark the (possibly partially indexed) document as deleted. This results in deletes, even in an
+        // append-only workload, which in turn leads to slower merges, as these will potentially have to fall back to MergeStrategy.DOC
+        // instead of MergeStrategy.BULK. To avoid this, we do a preflight check here before indexing the document into Lucene.
+        if (binaryValue.length > MAX_TERM_LENGTH) {
+            byte[] prefix = new byte[30];
+            System.arraycopy(binaryValue.bytes, binaryValue.offset, prefix, 0, 30);
+            String msg = "Document contains at least one immense term in field=\""
+                + fieldType().name()
+                + "\" (whose "
+                + "UTF8 encoding is longer than the max length "
+                + MAX_TERM_LENGTH
+                + "), all of which were "
+                + "skipped. Please correct the analyzer to not produce such terms. The prefix of the first immense "
+                + "term is: '"
+                + Arrays.toString(prefix)
+                + "...'";
+            throw new IllegalArgumentException(msg);
+        }
 
-            if (fieldType.indexOptions() != IndexOptions.NONE || fieldType().hasDocValues() || fieldType.stored()) {
-                Field field = new KeywordField(fieldType().name(), binaryValue, fieldType);
-                context.doc().add(field);
+        Field field = new KeywordField(fieldType().name(), binaryValue, fieldType);
+        context.doc().add(field);
 
-                if (fieldType().hasDocValues() == false && fieldType.omitNorms()) {
-                    context.addToFieldNames(fieldType().name());
-                }
-            }
+        if (fieldType().hasDocValues() == false && fieldType.omitNorms()) {
+            context.addToFieldNames(fieldType().name());
         }
     }
 

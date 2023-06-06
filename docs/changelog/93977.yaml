@@ -1,5 +1,0 @@
-pr: 93977
-summary: Simulate moves using cluster_concurrent_rebalance=2
-area: Allocation
-type: enhancement
-issues: []

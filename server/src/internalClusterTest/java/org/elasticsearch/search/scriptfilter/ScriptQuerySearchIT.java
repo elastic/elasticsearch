@@ -9,7 +9,6 @@
 package org.elasticsearch.search.scriptfilter;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
@@ -230,9 +229,7 @@ public class ScriptQuerySearchIT extends ESIntegTestCase {
             SearchResponse resp = client().prepareSearch("test-index").setQuery(scriptQuery(script)).get();
             assertNoFailures(resp);
 
-            ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
-            updateSettingsRequest.persistentSettings(Settings.builder().put("search.allow_expensive_queries", false));
-            assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+            updateClusterSettings(Settings.builder().put("search.allow_expensive_queries", false));
 
             // Set search.allow_expensive_queries to "false" => assert failure
             ElasticsearchException e = expectThrows(
@@ -245,15 +242,11 @@ public class ScriptQuerySearchIT extends ESIntegTestCase {
             );
 
             // Set search.allow_expensive_queries to "true" => success
-            updateSettingsRequest = new ClusterUpdateSettingsRequest();
-            updateSettingsRequest.persistentSettings(Settings.builder().put("search.allow_expensive_queries", true));
-            assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+            updateClusterSettings(Settings.builder().put("search.allow_expensive_queries", true));
             resp = client().prepareSearch("test-index").setQuery(scriptQuery(script)).get();
             assertNoFailures(resp);
         } finally {
-            ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
-            updateSettingsRequest.persistentSettings(Settings.builder().put("search.allow_expensive_queries", (String) null));
-            assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+            updateClusterSettings(Settings.builder().put("search.allow_expensive_queries", (String) null));
         }
     }
 

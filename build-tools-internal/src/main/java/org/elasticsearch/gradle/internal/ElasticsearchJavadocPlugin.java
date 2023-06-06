@@ -59,10 +59,12 @@ public class ElasticsearchJavadocPlugin implements Plugin<Project> {
             var withShadowPlugin = project1.getPlugins().hasPlugin(ShadowPlugin.class);
             var compileClasspath = project.getConfigurations().getByName("compileClasspath");
 
+            var copiedCompileClasspath = project.getConfigurations().create("copiedCompileClasspath");
+            copiedCompileClasspath.extendsFrom(compileClasspath);
             if (withShadowPlugin) {
                 var shadowConfiguration = project.getConfigurations().getByName("shadow");
                 var shadowedDependencies = shadowConfiguration.getAllDependencies();
-                var nonShadowedCompileClasspath = compileClasspath.copyRecursive(
+                var nonShadowedCompileClasspath = copiedCompileClasspath.copyRecursive(
                     dependency -> shadowedDependencies.contains(dependency) == false
                 );
                 configureJavadocForConfiguration(project, false, nonShadowedCompileClasspath);

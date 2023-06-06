@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.versionfield.Version;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -85,6 +86,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 case "unsupported" -> ((BytesRefBlock.Builder) builder).appendBytesRef(
                     new BytesRef(UnsupportedValueSource.UNSUPPORTED_OUTPUT)
                 );
+                case "version" -> ((BytesRefBlock.Builder) builder).appendBytesRef(new Version(randomIdentifier()).toBytesRef());
                 case "null" -> builder.appendNull();
                 default -> throw new UnsupportedOperationException("unsupported data type [" + c + "]");
             }

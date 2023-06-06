@@ -54,6 +54,8 @@ to_ip                    |to_ip(arg1)
 to_long                  |to_long(arg1)                  
 to_str                   |to_str(arg1)                   
 to_string                |to_string(arg1) 
+to_ver                   |to_ver(arg1) 
+to_version               |to_version(arg1) 
 ;
 
 showFunctionsFiltered

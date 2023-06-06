@@ -1,0 +1,15 @@
+id:integer,version:version,name:keyword
+1,1,aaaaa
+2,2.1,bbbbb
+3,2.3.4,ccccc
+4,2.12.0,ddddd
+5,1.11.0,eeeee
+6,5.2.9,fffff
+7,5.2.9-SNAPSHOT,ggggg
+8,1.2.3.4,hhhhh
+9,bad,iiiii
+10,5.2.9,jjjjj
+11,,kkkkk
+12,1.2.3.4,aaaaa
+13,,lllll
+14,5.2.9,mmmmm

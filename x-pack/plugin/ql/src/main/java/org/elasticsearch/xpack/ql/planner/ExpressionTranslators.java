@@ -301,7 +301,9 @@ public final class ExpressionTranslators {
             } else if (field.dataType() == VERSION) {
                 // VersionStringFieldMapper#indexedValueForSearch() only accepts as input String or BytesRef with the String (i.e. not
                 // encoded) representation of the version as it'll do the encoding itself.
-                if (value instanceof Version version) {
+                if (value instanceof BytesRef bytesRef) {
+                    value = new Version(bytesRef).toString();
+                } else if (value instanceof Version version) {
                     value = version.toString();
                 }
             }

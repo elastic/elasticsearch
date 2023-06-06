@@ -220,15 +220,16 @@ public class Verifier {
         allowed.add(DataTypes.KEYWORD);
         allowed.add(DataTypes.IP);
         allowed.add(DataTypes.DATETIME);
+        allowed.add(DataTypes.VERSION);
         if (bc instanceof Equals || bc instanceof NotEquals) {
             allowed.add(DataTypes.BOOLEAN);
         }
         Expression.TypeResolution r = TypeResolutions.isType(
             bc.left(),
-            t -> allowed.contains(t),
+            allowed::contains,
             bc.sourceText(),
             FIRST,
-            Stream.concat(Stream.of("numeric"), allowed.stream().map(a -> a.typeName())).toArray(String[]::new)
+            Stream.concat(Stream.of("numeric"), allowed.stream().map(DataType::typeName)).toArray(String[]::new)
         );
         if (false == r.resolved()) {
             return fail(bc, r.message());

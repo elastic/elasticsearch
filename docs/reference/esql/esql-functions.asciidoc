@@ -41,6 +41,7 @@ these functions:
 * <<esql-to_ip>>
 * <<esql-to_long>>
 * <<esql-to_string>>
+* <<esql-to_version>>
 
 include::functions/abs.asciidoc[]
 include::functions/auto_bucket.asciidoc[]
@@ -73,3 +74,4 @@ include::functions/to_integer.asciidoc[]
 include::functions/to_ip.asciidoc[]
 include::functions/to_long.asciidoc[]
 include::functions/to_string.asciidoc[]
+include::functions/to_version.asciidoc[]

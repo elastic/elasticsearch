@@ -48,7 +48,15 @@ import static org.elasticsearch.xpack.esql.CsvTestUtils.multiValuesAwareCsvToStr
 public class CsvTestsDataLoader {
     private static final TestsDataset EMPLOYEES = new TestsDataset("employees", "mapping-default.json", "employees.csv");
     private static final TestsDataset HOSTS = new TestsDataset("hosts", "mapping-hosts.json", "hosts.csv");
-    public static final Map<String, TestsDataset> CSV_DATASET_MAP = Map.of(EMPLOYEES.indexName, EMPLOYEES, HOSTS.indexName, HOSTS);
+    private static final TestsDataset APPS = new TestsDataset("apps", "mapping-apps.json", "apps.csv");
+    public static final Map<String, TestsDataset> CSV_DATASET_MAP = Map.of(
+        EMPLOYEES.indexName,
+        EMPLOYEES,
+        HOSTS.indexName,
+        HOSTS,
+        APPS.indexName,
+        APPS
+    );
 
     /**
      * <p>

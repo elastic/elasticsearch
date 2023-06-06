@@ -25,6 +25,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.versionfield.Version;
 
 import java.io.IOException;
 
@@ -152,6 +153,14 @@ public record ColumnInfo(String name, String type) implements Writeable {
                 protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
                     throws IOException {
                     return builder.value(((BooleanBlock) block).getBoolean(valueIndex));
+                }
+            };
+            case "version" -> new PositionToXContent(block) {
+                @Override
+                protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
+                    throws IOException {
+                    BytesRef val = ((BytesRefBlock) block).getBytesRef(valueIndex, scratch);
+                    return builder.value(new Version(val).toString());
                 }
             };
             case "null" -> new PositionToXContent(block) {

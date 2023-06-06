@@ -1,0 +1,19 @@
+[[esql-to_version]]
+=== `TO_VERSION`
+Converts an input string to a version value. For example:
+
+[source,esql]
+----
+include::{esql-specs}/version.csv-spec[tag=to_version]
+----
+
+which returns:
+
+[%header,format=dsv,separator=|]
+|===
+include::{esql-specs}/version.csv-spec[tag=to_version-result]
+|===
+
+The input can be a single- or multi-valued field or an expression.
+
+Alias: TO_VER

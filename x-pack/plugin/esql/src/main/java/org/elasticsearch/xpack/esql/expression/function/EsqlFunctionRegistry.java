@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIP;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToVersion;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateFormat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateParse;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
@@ -107,7 +108,8 @@ public class EsqlFunctionRegistry extends FunctionRegistry {
                 def(ToIP.class, ToIP::new, "to_ip"),
                 def(ToInteger.class, ToInteger::new, "to_integer", "to_int"),
                 def(ToLong.class, ToLong::new, "to_long"),
-                def(ToString.class, ToString::new, "to_string", "to_str"), },
+                def(ToString.class, ToString::new, "to_string", "to_str"),
+                def(ToVersion.class, ToVersion::new, "to_version", "to_ver"), },
             // multivalue functions
             new FunctionDefinition[] {
                 def(MvAvg.class, MvAvg::new, "mv_avg"),

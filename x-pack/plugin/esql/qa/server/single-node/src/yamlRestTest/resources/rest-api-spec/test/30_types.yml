@@ -477,3 +477,31 @@ alias:
   - match: { columns.0.type: long }
   - length: { values: 1 }
   - match: { values.0.0: 50 }
+
+---
+version:
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              version:
+                type: version
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "version": [ "1.2.3", "4.5.6-SNOOPY" ] }
+
+  - do:
+      esql.query:
+        body:
+          query: 'from test'
+  - match: { columns.0.name: version }
+  - match: { columns.0.type: version }
+  - length: { values: 1 }
+  - match: { values.0.0: [ "1.2.3", "4.5.6-SNOOPY" ] }

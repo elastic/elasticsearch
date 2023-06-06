@@ -226,7 +226,10 @@ public class LocalExecutionPlanner {
             return ElementType.DOUBLE;
         }
         // unsupported fields are passed through as a BytesRef
-        if (dataType == DataTypes.KEYWORD || dataType == DataTypes.IP || dataType == DataTypes.UNSUPPORTED) {
+        if (dataType == DataTypes.KEYWORD
+            || dataType == DataTypes.IP
+            || dataType == DataTypes.VERSION
+            || dataType == DataTypes.UNSUPPORTED) {
             return ElementType.BYTES_REF;
         }
         if (dataType == DataTypes.NULL) {

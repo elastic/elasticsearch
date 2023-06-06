@@ -110,8 +110,9 @@ abstract class ComparisonMapper<T extends BinaryComparison> extends EvalMapper.E
 
     @Override
     protected final Supplier<EvalOperator.ExpressionEvaluator> map(BinaryComparison bc, Layout layout) {
-        if (bc.left().dataType().isNumeric()) {
-            DataType type = EsqlDataTypeRegistry.INSTANCE.commonType(bc.left().dataType(), bc.right().dataType());
+        DataType leftType = bc.left().dataType();
+        if (leftType.isNumeric()) {
+            DataType type = EsqlDataTypeRegistry.INSTANCE.commonType(leftType, bc.right().dataType());
             if (type == DataTypes.INTEGER) {
                 return castToEvaluator(bc, layout, DataTypes.INTEGER, ints);
             }
@@ -124,13 +125,13 @@ abstract class ComparisonMapper<T extends BinaryComparison> extends EvalMapper.E
         }
         Supplier<EvalOperator.ExpressionEvaluator> leftEval = EvalMapper.toEvaluator(bc.left(), layout);
         Supplier<EvalOperator.ExpressionEvaluator> rightEval = EvalMapper.toEvaluator(bc.right(), layout);
-        if (bc.left().dataType() == DataTypes.KEYWORD || bc.left().dataType() == DataTypes.IP) {
+        if (leftType == DataTypes.KEYWORD || leftType == DataTypes.IP || leftType == DataTypes.VERSION) {
             return () -> keywords.apply(leftEval.get(), rightEval.get());
         }
-        if (bc.left().dataType() == DataTypes.BOOLEAN) {
+        if (leftType == DataTypes.BOOLEAN) {
             return () -> bools.apply(leftEval.get(), rightEval.get());
         }
-        if (bc.left().dataType() == DataTypes.DATETIME) {
+        if (leftType == DataTypes.DATETIME) {
             return () -> longs.apply(leftEval.get(), rightEval.get());
         }
         throw new AssertionError("resolved type for [" + bc + "] but didn't implement mapping");

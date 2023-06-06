@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.EsField;
+import org.elasticsearch.xpack.versionfield.Version;
 import org.hamcrest.Matcher;
 
 import java.time.Duration;
@@ -62,6 +63,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             case "keyword" -> new BytesRef(randomAlphaOfLength(5));
             case "ip" -> new BytesRef(InetAddressPoint.encode(randomIp(randomBoolean())));
             case "time_duration" -> Duration.ofMillis(randomNonNegativeLong());
+            case "version" -> new Version(randomIdentifier()).toBytesRef();
             case "null" -> null;
             default -> throw new IllegalArgumentException("can't make random values for [" + type.typeName() + "]");
         }, type);

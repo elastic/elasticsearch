@@ -12,6 +12,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.xpack.esql.CsvTestUtils.ActualResults;
+import org.elasticsearch.xpack.versionfield.Version;
 import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
@@ -117,7 +118,7 @@ public final class CsvAssert {
                 if (blockType == Type.LONG && expectedType == Type.DATETIME) {
                     continue;
                 }
-                if (blockType == Type.KEYWORD && expectedType == Type.IP) {
+                if (blockType == Type.KEYWORD && (expectedType == Type.IP || expectedType == Type.VERSION)) {
                     // Type.asType translates all bytes references into keywords
                     continue;
                 }
@@ -180,6 +181,9 @@ public final class CsvAssert {
                         } else if (expectedType == Type.IP) {
                             // convert BytesRef-packed IP to String, allowing subsequent comparison with what's expected
                             expectedValue = rebuildExpected(expectedValue, BytesRef.class, x -> DocValueFormat.IP.format((BytesRef) x));
+                        } else if (expectedType == Type.VERSION) {
+                            // convert BytesRef-packed Version to String
+                            expectedValue = rebuildExpected(expectedValue, BytesRef.class, x -> new Version((BytesRef) x).toString());
                         }
 
                     }

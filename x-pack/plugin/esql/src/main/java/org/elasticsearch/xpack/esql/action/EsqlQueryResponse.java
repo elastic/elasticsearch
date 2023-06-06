@@ -31,6 +31,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
+import org.elasticsearch.xpack.versionfield.Version;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -231,6 +232,7 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
                 yield UTC_DATE_TIME_FORMATTER.formatMillis(longVal);
             }
             case "boolean" -> ((BooleanBlock) block).getBoolean(offset);
+            case "version" -> new Version(((BytesRefBlock) block).getBytesRef(offset, scratch)).toString();
             case "unsupported" -> UnsupportedValueSource.UNSUPPORTED_OUTPUT;
             default -> throw new UnsupportedOperationException("unsupported data type [" + dataType + "]");
         };
@@ -261,6 +263,7 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
                     }
                     case "boolean" -> ((BooleanBlock.Builder) builder).appendBoolean(((Boolean) value));
                     case "null" -> builder.appendNull();
+                    case "version" -> ((BytesRefBlock.Builder) builder).appendBytesRef(new Version(value.toString()).toBytesRef());
                     default -> throw new UnsupportedOperationException("unsupported data type [" + dataTypes.get(c) + "]");
                 }
             }

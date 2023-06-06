@@ -35,6 +35,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.OBJECT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.SCALED_FLOAT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.SHORT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSUPPORTED;
+import static org.elasticsearch.xpack.ql.type.DataTypes.VERSION;
 
 public final class EsqlDataTypes {
 
@@ -59,7 +60,8 @@ public final class EsqlDataTypes {
         IP,
         OBJECT,
         NESTED,
-        SCALED_FLOAT
+        SCALED_FLOAT,
+        VERSION
     ).sorted(Comparator.comparing(DataType::typeName)).toList();
 
     private static final Map<String, DataType> NAME_TO_TYPE = TYPES.stream().collect(toUnmodifiableMap(DataType::typeName, t -> t));

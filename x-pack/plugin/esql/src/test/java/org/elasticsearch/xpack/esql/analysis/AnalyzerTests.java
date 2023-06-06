@@ -1166,15 +1166,14 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testUnsupportedTypesWithToString() {
         // DATE_PERIOD and TIME_DURATION types have been added, but not really patched through the engine; i.e. supported.
+        final String supportedTypes = "boolean, datetime, double, integer, ip, keyword, long or version";
         verifyUnsupported(
             "row period = 1 year | eval to_string(period)",
-            "line 1:28: argument of [to_string(period)] must be [boolean, datetime, double, integer, ip, keyword or long], "
-                + "found value [period] type [date_period]"
+            "line 1:28: argument of [to_string(period)] must be [" + supportedTypes + "], found value [period] type [date_period]"
         );
         verifyUnsupported(
             "row duration = 1 hour | eval to_string(duration)",
-            "line 1:30: argument of [to_string(duration)] must be [boolean, datetime, double, integer, ip, keyword or long], "
-                + "found value [duration] type [time_duration]"
+            "line 1:30: argument of [to_string(duration)] must be [" + supportedTypes + "], found value [duration] type [time_duration]"
         );
         verifyUnsupported("from test | eval to_string(point)", "line 1:28: Cannot use field [point] with unsupported type [geo_point]");
     }

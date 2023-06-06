@@ -1,0 +1,309 @@
+// To mute tests follow example in file: example.csv-spec
+
+//
+// Tests for VERSION fields
+//
+
+selectAll
+FROM apps;
+
+id:integer |name:keyword   |version:version
+1          |aaaaa          |1
+2          |bbbbb          |2.1
+3          |ccccc          |2.3.4
+4          |ddddd          |2.12.0
+5          |eeeee          |1.11.0
+6          |fffff          |5.2.9
+7          |ggggg          |5.2.9-SNAPSHOT
+8          |hhhhh          |1.2.3.4
+9          |iiiii          |bad
+10         |jjjjj          |5.2.9
+11         |kkkkk          |null
+12         |aaaaa          |1.2.3.4
+13         |lllll          |null
+14         |mmmmm          |5.2.9
+;
+
+filterByVersion
+FROM apps | WHERE version == to_ver("2.12.0");
+
+id:i |name:k |version:v
+4    |ddddd  |2.12.0
+;
+
+projectionVersion
+FROM apps | WHERE id == 3 | PROJECT version;
+
+version:v
+2.3.4
+;
+
+versionRange1
+FROM apps | WHERE version > to_ver("2.2") | SORT id;
+
+id:i  |name:k     |version:v
+3     |ccccc      |2.3.4
+4     |ddddd      |2.12.0
+6     |fffff      |5.2.9
+7     |ggggg      |5.2.9-SNAPSHOT
+9     |iiiii      |bad
+10    |jjjjj      |5.2.9
+14    |mmmmm      |5.2.9
+;
+
+versionRange2
+FROM apps | WHERE version >= to_ver("2.3.4") | SORT id;
+
+id:i  |name:k     |version:v
+3     |ccccc      |2.3.4
+4     |ddddd      |2.12.0
+6     |fffff      |5.2.9
+7     |ggggg      |5.2.9-SNAPSHOT
+9     |iiiii      |bad
+10    |jjjjj      |5.2.9
+14    |mmmmm      |5.2.9
+;
+
+between
+FROM apps | WHERE version >= to_ver("1.10") AND version <= to_ver("5.2.9") | SORT id;
+
+id:i    |name:k       |version:v
+2       |bbbbb        | 2.1
+3       |ccccc        | 2.3.4
+4       |ddddd        | 2.12.0
+5       |eeeee        | 1.11.0
+6       |fffff        | 5.2.9
+7       |ggggg        | 5.2.9-SNAPSHOT
+10      |jjjjj        | 5.2.9
+14      |mmmmm        | 5.2.9
+;
+
+orderByVersion
+FROM apps | SORT version, id;
+
+id:i  |name:s     |version:v
+1     |aaaaa      |1
+8     |hhhhh      |1.2.3.4
+12    |aaaaa      |1.2.3.4
+5     |eeeee      |1.11.0
+2     |bbbbb      |2.1
+3     |ccccc      |2.3.4
+4     |ddddd      |2.12.0
+7     |ggggg      |5.2.9-SNAPSHOT
+6     |fffff      |5.2.9
+10    |jjjjj      |5.2.9
+14    |mmmmm      |5.2.9
+9     |iiiii      |bad
+11    |kkkkk      |null
+13    |lllll      |null
+;
+
+orderByVersionDesc
+FROM apps | SORT version DESC, id ASC;
+
+id:i  |name:s     |version:v
+11    |kkkkk      |null
+13    |lllll      |null
+9     |iiiii      |bad
+6     |fffff      |5.2.9
+10    |jjjjj      |5.2.9
+14    |mmmmm      |5.2.9
+7     |ggggg      |5.2.9-SNAPSHOT
+4     |ddddd      |2.12.0
+3     |ccccc      |2.3.4
+2     |bbbbb      |2.1
+5     |eeeee      |1.11.0
+8     |hhhhh      |1.2.3.4
+12    |aaaaa      |1.2.3.4
+1     |aaaaa      |1
+;
+
+orderByVersionNullsFirst
+FROM apps | SORT version NULLS FIRST, id;
+
+id:i  |name:s     |version:v
+11    |kkkkk      |null
+13    |lllll      |null
+1     |aaaaa      |1
+8     |hhhhh      |1.2.3.4
+12    |aaaaa      |1.2.3.4
+5     |eeeee      |1.11.0
+2     |bbbbb      |2.1
+3     |ccccc      |2.3.4
+4     |ddddd      |2.12.0
+7     |ggggg      |5.2.9-SNAPSHOT
+6     |fffff      |5.2.9
+10    |jjjjj      |5.2.9
+14    |mmmmm      |5.2.9
+9     |iiiii      |bad
+;
+
+orderByVersionMultipleCasts
+FROM apps | EVAL o = TO_VER(CONCAT("1.", TO_STR(version))) | SORT o, id;
+
+id:i           |name:s         |version:v      |o:v        
+1              |aaaaa          |1              |1.1             
+8              |hhhhh          |1.2.3.4        |1.1.2.3.4       
+12             |aaaaa          |1.2.3.4        |1.1.2.3.4       
+5              |eeeee          |1.11.0         |1.1.11.0        
+2              |bbbbb          |2.1            |1.2.1           
+3              |ccccc          |2.3.4          |1.2.3.4         
+4              |ddddd          |2.12.0         |1.2.12.0        
+7              |ggggg          |5.2.9-SNAPSHOT |1.5.2.9-SNAPSHOT
+6              |fffff          |5.2.9          |1.5.2.9         
+10             |jjjjj          |5.2.9          |1.5.2.9         
+14             |mmmmm          |5.2.9          |1.5.2.9         
+9              |iiiii          |bad            |1.bad           
+11             |kkkkk          |null           |null            
+13             |lllll          |null           |null 
+;
+
+countVersion
+FROM apps | RENAME k = name | STATS v = COUNT(version) BY k | SORT k;
+
+v:l     | k:s
+2       | aaaaa
+1       | bbbbb
+1       | ccccc
+1       | ddddd
+1       | eeeee
+1       | fffff
+1       | ggggg
+1       | hhhhh
+1       | iiiii
+1       | jjjjj
+0       | kkkkk
+0       | lllll
+1       | mmmmm
+;
+
+groupByVersion
+FROM apps | STATS c = COUNT(version), maxid = MAX(id) BY version | SORT version;
+
+c:l |maxid:i  |version:v
+// 2   |13       |null # https://github.com/elastic/elasticsearch-internal/issues/770
+1   |1        |1
+2   |12       |1.2.3.4
+1   |5        |1.11.0
+1   |2        |2.1
+1   |3        |2.3.4
+1   |4        |2.12.0
+1   |7        |5.2.9-SNAPSHOT
+3   |14       |5.2.9
+1   |9        |bad
+;
+
+groupOrderLimit
+FROM apps | WHERE not is_null(version) | STATS c = COUNT(version) BY version | SORT version DESC | DROP c | LIMIT 3;
+
+version:v
+bad
+5.2.9
+5.2.9-SNAPSHOT
+;
+
+groupByVersionCast
+FROM apps | EVAL g = TO_VER(CONCAT("1.", TO_STR(version))) | STATS id = MAX(id) BY g | SORT id | DROP g;
+
+id:i
+1
+2
+3
+4
+5
+7
+9
+12
+// 13 # https://github.com/elastic/elasticsearch-internal/issues/770
+14
+;
+
+castConstantToVersion
+// tag::to_version[]
+ROW v = TO_VERSION("1.2.3")
+// end::to_version[]
+;
+
+// tag::to_version-result[]
+v:version
+1.2.3
+// end::to_version-result[]
+;
+
+castConstantToVersion2
+FROM apps | EVAL v = TO_VERSION("1.2.3") | PROJECT v;
+
+v:v
+1.2.3
+1.2.3
+1.2.3
+1.2.3
+1.2.3
+1.2.3
+1.2.3
+1.2.3
+1.2.3
+1.2.3
+1.2.3
+1.2.3
+1.2.3
+1.2.3
+;
+
+multipleCast
+FROM apps | EVAL v = TO_STR(TO_VER("1.2.3")) | PROJECT v;
+
+v:s
+1.2.3
+1.2.3
+1.2.3
+1.2.3
+1.2.3
+1.2.3
+1.2.3
+1.2.3
+1.2.3
+1.2.3
+1.2.3
+1.2.3
+1.2.3
+1.2.3
+;
+
+compareVersions
+ROW v1 = TO_VER("1.2.3"), v2 = TO_VER("1.11.4") | EVAL v = v1 < v2 | PROJECT v;
+
+v:boolean
+true
+;
+
+groupByVersionAfterStats
+FROM apps | STATS idx = MAX(id) BY version | WHERE idx == 14;
+
+idx:i  |version:v
+14     | 5.2.9
+;
+
+case
+FROM apps
+| EVAL version_text = TO_STR(version)
+| WHERE IS_NULL(version) OR version_text LIKE "1*"
+| EVAL v = TO_VER(CONCAT("123", TO_STR(version)))
+| EVAL m = CASE(version > TO_VER("1.1"), 1, 0)
+| EVAL g = CASE(version > TO_VER("1.3.0"), version, TO_VER("1.3.0"))
+| EVAL i = CASE(IS_NULL(version), TO_VER("0.1"), version)
+| EVAL c = CASE(
+    version > TO_VER("1.1"), "high",
+    IS_NULL(version), "none",
+    "low")
+| SORT version DESC NULLS LAST, id DESC
+| PROJECT v, version, version_text, id, m, g, i, c;
+
+v:v        | version:v |version_text:s   | id:i  |  m:i  |  g:v   | i:v     |  c:s
+1231.11.0  | 1.11.0    | 1.11.0          | 5     | 1     | 1.11.0 | 1.11.0  | high
+1231.2.3.4 | 1.2.3.4   | 1.2.3.4         | 12    | 1     | 1.3.0  | 1.2.3.4 | high
+1231.2.3.4 | 1.2.3.4   | 1.2.3.4         | 8     | 1     | 1.3.0  | 1.2.3.4 | high
+1231       | 1         | 1               | 1     | 0     | 1.3.0  | 1       | low
+null       | null      | null            | 13    | 0     | 1.3.0  | 0.1     | none
+null       | null      | null            | 11    | 0     | 1.3.0  | 0.1     | none
+;

@@ -98,7 +98,12 @@ public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
         final Path cacheDir = Files.createDirectories(resolveSnapshotCache(shardDir).resolve(snapshotId.getUUID()));
         try (
             NodeEnvironment nodeEnvironment = new NodeEnvironment(settings, environment);
-            SharedBlobCacheService<CacheKey> sharedBlobCacheService = new SharedBlobCacheService<>(nodeEnvironment, settings, threadPool);
+            SharedBlobCacheService<CacheKey> sharedBlobCacheService = new SharedBlobCacheService<>(
+                nodeEnvironment,
+                settings,
+                threadPool,
+                SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME
+            );
             CacheService cacheService = randomCacheService();
             TestSearchableSnapshotDirectory directory = new TestSearchableSnapshotDirectory(
                 sharedBlobCacheService,

@@ -198,6 +198,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                         null,
                         null,
                         null,
+                        null,
                         null
                     )
                 )
@@ -265,6 +266,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                         null,
                         null,
                         null,
+                        null,
                         null
                     )
                 )
@@ -290,6 +292,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                                         .indices("index-b")
                                         .privileges("read", "read_cross_cluster")
                                         .build() },
+                                null,
                                 null,
                                 null,
                                 null,
@@ -400,6 +403,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                                 null,
                                 null,
                                 null,
+                                null,
                                 null
                             )
                         ),
@@ -413,6 +417,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                                         .indices("index-a")
                                         .privileges("read", "read_cross_cluster")
                                         .build() },
+                                null,
                                 null,
                                 null,
                                 null,
@@ -444,6 +449,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                                 null,
                                 null,
                                 null,
+                                null,
                                 null
                             )
                         ),
@@ -460,6 +466,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                                         .indices("index-b")
                                         .privileges("read", "read_cross_cluster")
                                         .build() },
+                                null,
                                 null,
                                 null,
                                 null,
@@ -543,6 +550,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                                 null,
                                 null,
                                 null,
+                                null,
                                 null
                             )
                         ),
@@ -556,6 +564,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                                         .indices("index-a")
                                         .privileges("read", "read_cross_cluster")
                                         .build() },
+                                null,
                                 null,
                                 null,
                                 null,
@@ -578,6 +587,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                                         .indices("index-a")
                                         .privileges("read", "read_cross_cluster")
                                         .build() },
+                                null,
                                 null,
                                 null,
                                 null,
@@ -657,6 +667,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                                 null,
                                 null,
                                 null,
+                                null,
                                 null
                             )
                         ),
@@ -670,6 +681,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                                         .indices("index-a")
                                         .privileges("read", "read_cross_cluster")
                                         .build() },
+                                null,
                                 null,
                                 null,
                                 null,
@@ -692,6 +704,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                                         .indices("index-a")
                                         .privileges("read", "read_cross_cluster")
                                         .build() },
+                                null,
                                 null,
                                 null,
                                 null,

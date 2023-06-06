@@ -61,3 +61,4 @@ spec:
           access_level: READ_ONLY
       provider_settings:
         build_pull_requests: false
+        publish_commit_status: false

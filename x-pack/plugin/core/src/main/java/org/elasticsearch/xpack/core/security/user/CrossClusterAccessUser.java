@@ -35,6 +35,7 @@ public class CrossClusterAccessUser extends InternalUser {
         null,
         null,
         null,
+        null,
         null
     );
 

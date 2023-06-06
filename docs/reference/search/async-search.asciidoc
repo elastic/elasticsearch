@@ -2,13 +2,13 @@
 [[async-search]]
 === Async search
 
-The async search API let you asynchronously execute a search request, monitor 
+The async search API let you asynchronously execute a search request, monitor
 its progress, and retrieve partial results as they become available.
 
 [[submit-async-search]]
 ==== Submit async search API
 
-Executes a search request asynchronously. It accepts the same parameters and 
+Executes a search request asynchronously. It accepts the same parameters and
 request body as the <<search-search,search API>>.
 
 [source,console,id=submit-async-search-date-histogram-example]
@@ -31,9 +31,9 @@ POST /sales*/_async_search?size=0
 // TEST[setup:sales]
 // TEST[s/size=0/size=0&wait_for_completion_timeout=10s&keep_on_completion=true/]
 
-The response contains an identifier of the search being executed. You can use 
-this ID to later retrieve the search's final results. The currently available 
-search results are returned as part of the 
+The response contains an identifier of the search being executed. You can use
+this ID to later retrieve the search's final results. The currently available
+search results are returned as part of the
 <<search-api-response-body,`response`>> object.
 
 [source,console-result]
@@ -102,16 +102,16 @@ The `keep_on_completion` parameter, which defaults to `false`, can be set to
 `true` to request that results are stored for later retrieval also when the
 search completes within the `wait_for_completion_timeout`.
 
-You can also specify how long the async search needs to be available through the 
-`keep_alive` parameter, which defaults to `5d` (five days). Ongoing async 
+You can also specify how long the async search needs to be available through the
+`keep_alive` parameter, which defaults to `5d` (five days). Ongoing async
 searches and any saved search results are deleted after this period.
 
-NOTE: When the primary sort of the results is an indexed field, shards get 
-sorted based on minimum and maximum value that they hold for that field, hence 
+NOTE: When the primary sort of the results is an indexed field, shards get
+sorted based on minimum and maximum value that they hold for that field, hence
 partial results become available following the sort criteria that was requested.
 
-The submit async search API supports the same 
-<<search-search-api-query-params,parameters>> as the search API, though some 
+The submit async search API supports the same
+<<search-search-api-query-params,parameters>> as the search API, though some
 have different default values:
 
 * `batched_reduce_size` defaults to `5`: this affects how often partial results
@@ -123,13 +123,12 @@ number of new shard responses (`5` by default).
 enforce the execution of a pre-filter roundtrip to retrieve statistics from
 each shard so that the ones that surely don't hold any document matching the
 query get skipped.
-* `ccs_minimize_roundtrips` defaults to `false`, which is also the only
-supported value
+* `ccs_minimize_roundtrips` defaults to `false`. When doing a cross-cluster search,
+setting it to `true` may improve overall search latency, particularly when
+searching clusters with a large number of nodes.
 
 WARNING: Async search does not support <<scroll-search-results,scroll>>
 nor search requests that only include the <<search-suggesters,suggest section>>.
-{ccs-cap} is supported only with 
-<<ccs-min-roundtrips,`ccs_minimize_roundtrips`>> set to `false`.
 
 WARNING: By default, {es} doesn't allow to store an async search response
 larger than 10Mb, and an attempt to do this results in an error. The maximum
@@ -139,8 +138,8 @@ allowed size for a stored async search response can be set by changing the
 [[get-async-search]]
 ==== Get async search
 
-The get async search API retrieves the results of a previously submitted async 
-search request given its id. If the {es} {security-features} are enabled, the 
+The get async search API retrieves the results of a previously submitted async
+search request given its id. If the {es} {security-features} are enabled, the
 access to the results of a specific async search is restricted to
 <<can-access-resources-check,the user or API key that submitted it>>.
 
@@ -213,24 +212,24 @@ completed the execution of the query.
 The `wait_for_completion_timeout` parameter can also be provided when calling
 the Get Async Search API, in order to wait for the search to be completed up
 until the provided timeout. Final results will be returned if available before
-the timeout expires, otherwise the currently available results will be returned 
-once the timeout expires. By default no timeout is set meaning that the 
+the timeout expires, otherwise the currently available results will be returned
+once the timeout expires. By default no timeout is set meaning that the
 currently available results will be returned without any additional wait.
 
 The `keep_alive` parameter specifies how long the async search should be
 available in the cluster. When not specified, the `keep_alive` set with the
 corresponding submit async request will be used. Otherwise, it is possible to
 override such value and extend the validity of the request. When this period
-expires, the search, if still running, is cancelled. If the search is completed, 
+expires, the search, if still running, is cancelled. If the search is completed,
 its saved results are deleted.
 
 
 [[get-async-search-status]]
 ==== Get async search status
 
-The get async search status API, without retrieving search results, shows only 
-the status of a previously submitted async search request given its `id`. If the 
-{es} {security-features} are enabled, the access to the get async search status 
+The get async search status API, without retrieving search results, shows only
+the status of a previously submitted async search request given its `id`. If the
+{es} {security-features} are enabled, the access to the get async search status
 API is restricted to the <<built-in-roles, monitoring_user role>>.
 
 [source,console,id=get-async-search-status-example]
@@ -259,8 +258,8 @@ GET /_async_search/status/FmRldE8zREVEUzA2ZVpUeGs2ejJFUFEaMkZ5QTVrSTZSaVN3WlNFVm
 
 <1> Indicates how many shards have executed the query so far.
 
-For an async search that has been completed, the status response has an 
-additional `completion_status` field that shows the status code of the completed 
+For an async search that has been completed, the status response has an
+additional `completion_status` field that shows the status code of the completed
 async search.
 
 [source,console-result]
@@ -310,8 +309,8 @@ async search.
 [[delete-async-search]]
 ==== Delete async search
 
-You can use the delete async search API to manually delete an async search by 
-ID. If the search is still running, the search request will be cancelled. 
+You can use the delete async search API to manually delete an async search by
+ID. If the search is still running, the search request will be cancelled.
 Otherwise, the saved search results are deleted.
 
 [source,console,id=delete-async-search-date-histogram-example]

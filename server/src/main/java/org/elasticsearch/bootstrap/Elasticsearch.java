@@ -24,6 +24,7 @@ import org.elasticsearch.common.network.IfConfig;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
+import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
@@ -181,6 +182,8 @@ class Elasticsearch {
         try {
             // ReferenceDocs class does nontrivial static initialization which should always succeed but load it now (before SM) to be sure
             MethodHandles.publicLookup().ensureInitialized(ReferenceDocs.class);
+            // AbstractRefCounted class uses MethodHandles.lookup during initialization, load it now (before SM) to be sure it succeeds
+            MethodHandles.publicLookup().ensureInitialized(AbstractRefCounted.class);
         } catch (IllegalAccessException unexpected) {
             throw new AssertionError(unexpected);
         }

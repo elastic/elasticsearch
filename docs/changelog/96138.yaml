@@ -1,0 +1,6 @@
+pr: 96138
+summary: Skip secure settings dependencies during desired nodes settings validation
+area: Distributed
+type: bug
+issues:
+ - 96127

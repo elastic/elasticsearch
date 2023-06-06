@@ -21,6 +21,7 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -115,7 +116,7 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
             long headerSize = positionTracking.position();
 
             long commitFileLength = internalFiles.stream().mapToLong(Tuple::v2).sum() + headerSize;
-            Map<String, BlobLocation> commitFilesToModify = instance.commitFiles();
+            Map<String, BlobLocation> commitFilesToModify = new HashMap<>(instance.commitFiles());
             long offset = headerSize;
             for (Tuple<String, Long> internalFile : internalFiles) {
                 BlobLocation blobLocation = new BlobLocation(

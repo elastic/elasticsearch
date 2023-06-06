@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.analytics.rate;
 
+import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.Aggregation;
@@ -35,24 +36,46 @@ public class InternalResetTrackingRateTests extends InternalAggregationTestCase<
 
     @Override
     protected InternalResetTrackingRate createTestInstance(String name, Map<String, Object> metadata) {
-        return new InternalResetTrackingRate(name, null, metadata, 0, 0, 0, 0, 0);
+        return new InternalResetTrackingRate(name, null, metadata, 0, 0, 0, 0, 0, Rounding.DateTimeUnit.SECOND_OF_MINUTE);
     }
 
-    private static InternalResetTrackingRate rate(double startValue, double endValue, long startTime, long endTime, double resetComp) {
-        return new InternalResetTrackingRate("n", null, null, startValue, endValue, startTime, endTime, resetComp);
+    private static InternalResetTrackingRate rate(
+        double startValue,
+        double endValue,
+        long startTime,
+        long endTime,
+        double resetComp,
+        Rounding.DateTimeUnit rateUnit
+    ) {
+        return new InternalResetTrackingRate("n", null, null, startValue, endValue, startTime, endTime, resetComp, rateUnit);
     }
 
-    public void testReduction() {
-        List<InternalAggregation> rates = List.of(
-            rate(0, 10, 1000, 2000, 0),
-            rate(10, 20, 2000, 3000, 0),
-            rate(20, 5, 3000, 4000, 25), // internal reset
-            rate(5, 15, 4000, 5000, 0),
-            rate(0, 10, 5000, 6000, 0)  // cross-boundary reset
-        );
-        InternalAggregation reduced = rates.get(0).reduce(rates, null);
-        assertThat(reduced, instanceOf(Rate.class));
-        assertThat(((Rate) reduced).getValue(), equalTo(0.01));
+    public void testReductionSecond() {
+        testReduction(Rounding.DateTimeUnit.SECOND_OF_MINUTE, 0.01);
+    }
+
+    public void testReductionMinute() {
+        testReduction(Rounding.DateTimeUnit.MINUTES_OF_HOUR, 0.01 * 60);
+    }
+
+    public void testReductionHour() {
+        testReduction(Rounding.DateTimeUnit.HOUR_OF_DAY, 0.01 * 60 * 60);
+    }
+
+    public void testReductionDay() {
+        testReduction(Rounding.DateTimeUnit.DAY_OF_MONTH, 0.01 * 60 * 60 * 24);
+    }
+
+    public void testReductionMonth() {
+        testReduction(Rounding.DateTimeUnit.MONTH_OF_YEAR, 26297.46);
+    }
+
+    public void testReductionQuarter() {
+        testReduction(Rounding.DateTimeUnit.QUARTER_OF_YEAR, 26297.46 * 3);
+    }
+
+    public void testReductionYear() {
+        testReduction(Rounding.DateTimeUnit.YEAR_OF_CENTURY, 26297.46 * 12);
     }
 
     @Override
@@ -88,7 +111,7 @@ public class InternalResetTrackingRateTests extends InternalAggregationTestCase<
                 currentValue = 0;
             }
             if (randomInt(45) == 0) {
-                internalRates.add(rate(startValue, currentValue, startTime, endTime, resetComp));
+                internalRates.add(rate(startValue, currentValue, startTime, endTime, resetComp, Rounding.DateTimeUnit.SECOND_OF_MINUTE));
                 startValue = currentValue;
                 resetComp = 0;
                 startTime = endTime;
@@ -98,7 +121,7 @@ public class InternalResetTrackingRateTests extends InternalAggregationTestCase<
             endTime += 1000;
             currentValue += 10;
         }
-        internalRates.add(rate(startValue, currentValue, startTime, endTime, resetComp));
+        internalRates.add(rate(startValue, currentValue, startTime, endTime, resetComp, Rounding.DateTimeUnit.SECOND_OF_MINUTE));
         return new BuilderAndToReduce<>(mock(RateAggregationBuilder.class), internalRates);
     }
 
@@ -119,12 +142,42 @@ public class InternalResetTrackingRateTests extends InternalAggregationTestCase<
     }
 
     public void testIncludes() {
-        InternalResetTrackingRate big = new InternalResetTrackingRate("n", null, null, 0, 0, 1000, 3000, 0);
-        InternalResetTrackingRate small = new InternalResetTrackingRate("n", null, null, 0, 0, 1500, 2500, 0);
+        InternalResetTrackingRate big = new InternalResetTrackingRate(
+            "n",
+            null,
+            null,
+            0,
+            0,
+            1000,
+            3000,
+            0,
+            Rounding.DateTimeUnit.SECOND_OF_MINUTE
+        );
+        InternalResetTrackingRate small = new InternalResetTrackingRate(
+            "n",
+            null,
+            null,
+            0,
+            0,
+            1500,
+            2500,
+            0,
+            Rounding.DateTimeUnit.SECOND_OF_MINUTE
+        );
         assertTrue(big.includes(small));
         assertFalse(small.includes(big));
 
-        InternalResetTrackingRate unrelated = new InternalResetTrackingRate("n", null, null, 0, 0, 100000, 1000010, 0);
+        InternalResetTrackingRate unrelated = new InternalResetTrackingRate(
+            "n",
+            null,
+            null,
+            0,
+            0,
+            100000,
+            1000010,
+            0,
+            Rounding.DateTimeUnit.SECOND_OF_MINUTE
+        );
         assertFalse(big.includes(unrelated));
         assertFalse(unrelated.includes(big));
         assertFalse(small.includes(unrelated));
@@ -134,5 +187,18 @@ public class InternalResetTrackingRateTests extends InternalAggregationTestCase<
     @Override
     protected InternalResetTrackingRate mutateInstance(InternalResetTrackingRate instance) {
         return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    private static void testReduction(final Rounding.DateTimeUnit dateTimeUnit, double operand) {
+        List<InternalAggregation> rates = List.of(
+            rate(0, 10, 1000, 2000, 0, dateTimeUnit),
+            rate(10, 20, 2000, 3000, 0, dateTimeUnit),
+            rate(20, 5, 3000, 4000, 25, dateTimeUnit), // internal reset
+            rate(5, 15, 4000, 5000, 0, dateTimeUnit),
+            rate(0, 10, 5000, 6000, 0, dateTimeUnit)  // cross-boundary reset
+        );
+        InternalAggregation reduced = rates.get(0).reduce(rates, null);
+        assertThat(reduced, instanceOf(Rate.class));
+        assertThat(((Rate) reduced).getValue(), equalTo(operand));
     }
 }

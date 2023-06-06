@@ -74,10 +74,11 @@ git config --global --add safe.directory $WORKSPACE
 # sudo sets it's own PATH thus we use env to override that and call sudo annother time so we keep the secure root PATH
 # run with --continue to run both bats and java tests even if one fails
 # be explicit about Gradle home dir so we use the same even with sudo
+# TODO add --scan back
 sudo -E env \
   PATH=$BUILD_JAVA_HOME/bin:`sudo bash -c 'echo -n $PATH'` \
   --unset=ES_JAVA_HOME \
   --unset=JAVA_HOME \
   SYSTEM_JAVA_HOME=`readlink -f -n $BUILD_JAVA_HOME` \
-  ./gradlew -g $HOME/.gradle --scan --parallel --continue $@
+  ./gradlew -g $HOME/.gradle --parallel --continue $@
 

@@ -195,7 +195,7 @@ public class LocalClusterSpec implements ClusterSpec {
         }
 
         public boolean hasRole(String role) {
-            return getSetting("node.roles", "[]").contains("search");
+            return getSetting("node.roles", "[]").contains(role);
         }
 
         /**

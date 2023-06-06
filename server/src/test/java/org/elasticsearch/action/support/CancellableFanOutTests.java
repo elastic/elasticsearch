@@ -145,12 +145,10 @@ public class CancellableFanOutTests extends ESTestCase {
 
     public void testConcurrency() throws InterruptedException {
 
-        final var isTestThread = startsWith("TEST-");
         final var isProcessorThread = startsWith("processor-thread-");
         final var isCancelThread = equalTo("cancel-thread");
-        assertThat(Thread.currentThread().getName(), isTestThread);
 
-        final var items = List.of("a", "b", "c");
+        final var items = randomList(1, 3, () -> randomAlphaOfLength(5));
         final var processorThreads = new Thread[items.size()];
         final var queue = new LinkedBlockingQueue<Runnable>();
         final var barrier = new CyclicBarrier(processorThreads.length + 1);
@@ -205,7 +203,7 @@ public class CancellableFanOutTests extends ESTestCase {
             @Override
             protected String onCompletion() {
                 assertEquals(items.size(), itemsProcessed.get());
-                assertThat(Thread.currentThread().getName(), anyOf(isProcessorThread, isTestThread));
+                assertThat(Thread.currentThread().getName(), anyOf(isProcessorThread));
                 if (randomBoolean()) {
                     return "finished";
                 } else {
@@ -216,7 +214,7 @@ public class CancellableFanOutTests extends ESTestCase {
             @Override
             public void onResponse(String s) {
                 assertEquals(items.size(), itemsProcessed.get());
-                assertThat(Thread.currentThread().getName(), anyOf(isProcessorThread, isTestThread));
+                assertThat(Thread.currentThread().getName(), anyOf(isProcessorThread));
                 assertEquals("finished", s);
                 completionLatch.countDown();
             }
@@ -224,10 +222,10 @@ public class CancellableFanOutTests extends ESTestCase {
             @Override
             public void onFailure(Exception e) {
                 if (e instanceof TaskCancelledException) {
-                    assertThat(Thread.currentThread().getName(), anyOf(isProcessorThread, isTestThread, isCancelThread));
+                    assertThat(Thread.currentThread().getName(), anyOf(isProcessorThread, isCancelThread));
                 } else {
                     assertEquals(items.size(), itemsProcessed.get());
-                    assertThat(Thread.currentThread().getName(), anyOf(isProcessorThread, isTestThread));
+                    assertThat(Thread.currentThread().getName(), anyOf(isProcessorThread));
                     assertThat(e, instanceOf(ElasticsearchException.class));
                     assertEquals("onCompletion", e.getMessage());
                 }

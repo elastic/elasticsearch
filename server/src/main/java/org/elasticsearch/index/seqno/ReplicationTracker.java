@@ -1487,10 +1487,10 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
                 .toList();
             final GroupedActionListener<ReplicationResponse> groupedActionListener = new GroupedActionListener<>(
                 shardRoutings.size(),
-                ActionListener.wrap(vs -> {
+                listener.delegateFailureAndWrap((l, vs) -> {
                     setHasAllPeerRecoveryRetentionLeases();
-                    listener.onResponse(null);
-                }, listener::onFailure)
+                    l.onResponse(null);
+                })
             );
             for (ShardRouting shardRouting : shardRoutings) {
                 if (retentionLeases.contains(getPeerRecoveryRetentionLeaseId(shardRouting))) {

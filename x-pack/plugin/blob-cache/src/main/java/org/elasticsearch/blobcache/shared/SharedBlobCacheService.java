@@ -764,27 +764,30 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                 final SharedBytes.IO fileChannel = sharedBytes.getFileChannel(sharedBytesPos);
                 resources[0] = Releasables.releaseOnce(fileChannel);
 
-                ActionListener<Integer> releasingListener = ActionListener.runBefore(listener, () -> Releasables.close(resources));
-                final List<SparseFileTracker.Gap> gaps = tracker.waitForRange(rangeToWrite, rangeToRead, ActionListener.wrap(success -> {
-                    final long physicalStartOffset = physicalStartOffset();
-                    assert regionOwners[sharedBytesPos].get() == this;
-                    final int read = reader.onRangeAvailable(
-                        fileChannel,
-                        physicalStartOffset + rangeToRead.start(),
-                        rangeToRead.start(),
-                        rangeToRead.length()
-                    );
-                    assert read == rangeToRead.length()
-                        : "partial read ["
-                            + read
-                            + "] does not match the range to read ["
-                            + rangeToRead.end()
-                            + '-'
-                            + rangeToRead.start()
-                            + ']';
-                    readCount.increment();
-                    releasingListener.onResponse(read);
-                }, releasingListener::onFailure));
+                final List<SparseFileTracker.Gap> gaps = tracker.waitForRange(
+                    rangeToWrite,
+                    rangeToRead,
+                    ActionListener.runBefore(listener, () -> Releasables.close(resources)).delegateFailureAndWrap((l, success) -> {
+                        final long physicalStartOffset = physicalStartOffset();
+                        assert regionOwners[sharedBytesPos].get() == this;
+                        final int read = reader.onRangeAvailable(
+                            fileChannel,
+                            physicalStartOffset + rangeToRead.start(),
+                            rangeToRead.start(),
+                            rangeToRead.length()
+                        );
+                        assert read == rangeToRead.length()
+                            : "partial read ["
+                                + read
+                                + "] does not match the range to read ["
+                                + rangeToRead.end()
+                                + '-'
+                                + rangeToRead.start()
+                                + ']';
+                        readCount.increment();
+                        l.onResponse(read);
+                    })
+                );
 
                 if (gaps.isEmpty() == false) {
                     fillGaps(writer, executor, fileChannel, gaps);

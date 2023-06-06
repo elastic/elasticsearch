@@ -35,7 +35,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
@@ -445,7 +444,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         }
         SetOnce<BytesReference> docSupplier = new SetOnce<>();
         queryRewriteContext.registerAsyncAction((client, listener) -> {
-            client.get(getRequest, ActionListener.wrap(getResponse -> {
+            client.get(getRequest, listener.delegateFailureAndWrap((l, getResponse) -> {
                 if (getResponse.isExists() == false) {
                     throw new ResourceNotFoundException(
                         "indexed document [{}/{}] couldn't be found",
@@ -459,8 +458,8 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
                     );
                 }
                 docSupplier.set(getResponse.getSourceAsBytesRef());
-                listener.onResponse(null);
-            }, listener::onFailure));
+                l.onResponse(null);
+            }));
         });
 
         PercolateQueryBuilder rewritten = new PercolateQueryBuilder(field, docSupplier::get);

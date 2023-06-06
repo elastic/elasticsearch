@@ -66,6 +66,10 @@ public class InternalResetTrackingRateTests extends InternalAggregationTestCase<
         testReduction(Rounding.DateTimeUnit.DAY_OF_MONTH, 0.01 * 60 * 60 * 24);
     }
 
+    public void testReductionWeek() {
+        testReduction(Rounding.DateTimeUnit.WEEK_OF_WEEKYEAR, 0.01 * 60 * 60 * 24 * 7);
+    }
+
     public void testReductionMonth() {
         testReduction(Rounding.DateTimeUnit.MONTH_OF_YEAR, 26297.46);
     }

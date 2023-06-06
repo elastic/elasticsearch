@@ -21,7 +21,7 @@ steps:
               - family/core-centos-7
               - family/core-debian-10
               - family/core-debian-11
-              - family/core-opensuse-15
+              - family/core-opensuse-leap-15
               - family/core-oraclelinux-7
               - family/core-oraclelinux-8
               - family/core-sles-12
@@ -29,7 +29,7 @@ steps:
               - family/core-ubuntu-1804
               - family/core-ubuntu-2004
               - family/core-ubuntu-2204
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-rhel-7
               - family/core-rhel-8
               - family/core-rhel-9

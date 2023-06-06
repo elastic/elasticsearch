@@ -23,7 +23,7 @@ steps:
               - family/core-centos-7
               - family/core-debian-10
               - family/core-debian-11
-              - family/core-opensuse-15
+              - family/core-opensuse-leap-15
               - family/core-oraclelinux-7
               - family/core-oraclelinux-8
               - family/core-sles-12
@@ -31,7 +31,7 @@ steps:
               - family/core-ubuntu-1804
               - family/core-ubuntu-2004
               - family/core-ubuntu-2204
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-rhel-7
               - family/core-rhel-8
               - family/core-rhel-9
@@ -39,7 +39,7 @@ steps:
         env: {}
   - group: packaging-tests-upgrade
     steps:
-      - label: packaging-tests-upgrade 7.0.0
+      - label: packaging-tests-upgrade / 7.0.0
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -52,11 +52,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-ubuntu-2004
         env:
           BWC_VERSION: 7.0.0
-      - label: packaging-tests-upgrade 7.0.1
+      - label: packaging-tests-upgrade / 7.0.1
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -69,11 +69,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-ubuntu-2004
         env:
           BWC_VERSION: 7.0.1
-      - label: packaging-tests-upgrade 7.1.0
+      - label: packaging-tests-upgrade / 7.1.0
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -86,11 +86,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-ubuntu-2004
         env:
           BWC_VERSION: 7.1.0
-      - label: packaging-tests-upgrade 7.1.1
+      - label: packaging-tests-upgrade / 7.1.1
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -103,11 +103,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-ubuntu-2004
         env:
           BWC_VERSION: 7.1.1
-      - label: packaging-tests-upgrade 7.2.0
+      - label: packaging-tests-upgrade / 7.2.0
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -120,11 +120,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-ubuntu-2004
         env:
           BWC_VERSION: 7.2.0
-      - label: packaging-tests-upgrade 7.2.1
+      - label: packaging-tests-upgrade / 7.2.1
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -137,11 +137,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-ubuntu-2004
         env:
           BWC_VERSION: 7.2.1
-      - label: packaging-tests-upgrade 7.3.0
+      - label: packaging-tests-upgrade / 7.3.0
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -154,11 +154,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-ubuntu-2004
         env:
           BWC_VERSION: 7.3.0
-      - label: packaging-tests-upgrade 7.3.1
+      - label: packaging-tests-upgrade / 7.3.1
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -171,11 +171,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-ubuntu-2004
         env:
           BWC_VERSION: 7.3.1
-      - label: packaging-tests-upgrade 7.3.2
+      - label: packaging-tests-upgrade / 7.3.2
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -188,11 +188,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-ubuntu-2004
         env:
           BWC_VERSION: 7.3.2
-      - label: packaging-tests-upgrade 7.4.0
+      - label: packaging-tests-upgrade / 7.4.0
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -205,11 +205,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-ubuntu-2004
         env:
           BWC_VERSION: 7.4.0
-      - label: packaging-tests-upgrade 7.4.1
+      - label: packaging-tests-upgrade / 7.4.1
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -222,11 +222,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-ubuntu-2004
         env:
           BWC_VERSION: 7.4.1
-      - label: packaging-tests-upgrade 7.4.2
+      - label: packaging-tests-upgrade / 7.4.2
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -239,11 +239,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-ubuntu-2004
         env:
           BWC_VERSION: 7.4.2
-      - label: packaging-tests-upgrade 7.5.0
+      - label: packaging-tests-upgrade / 7.5.0
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -256,11 +256,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-ubuntu-2004
         env:
           BWC_VERSION: 7.5.0
-      - label: packaging-tests-upgrade 7.5.1
+      - label: packaging-tests-upgrade / 7.5.1
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -273,11 +273,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-ubuntu-2004
         env:
           BWC_VERSION: 7.5.1
-      - label: packaging-tests-upgrade 7.5.2
+      - label: packaging-tests-upgrade / 7.5.2
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -290,11 +290,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-ubuntu-2004
         env:
           BWC_VERSION: 7.5.2
-      - label: packaging-tests-upgrade 7.6.0
+      - label: packaging-tests-upgrade / 7.6.0
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -307,11 +307,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-ubuntu-2004
         env:
           BWC_VERSION: 7.6.0
-      - label: packaging-tests-upgrade 7.6.1
+      - label: packaging-tests-upgrade / 7.6.1
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -324,11 +324,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-ubuntu-2004
         env:
           BWC_VERSION: 7.6.1
-      - label: packaging-tests-upgrade 7.6.2
+      - label: packaging-tests-upgrade / 7.6.2
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -341,11 +341,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-ubuntu-2004
         env:
           BWC_VERSION: 7.6.2
-      - label: packaging-tests-upgrade 7.7.0
+      - label: packaging-tests-upgrade / 7.7.0
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -358,11 +358,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-ubuntu-2004
         env:
           BWC_VERSION: 7.7.0
-      - label: packaging-tests-upgrade 7.7.1
+      - label: packaging-tests-upgrade / 7.7.1
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -375,11 +375,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-ubuntu-2004
         env:
           BWC_VERSION: 7.7.1
-      - label: packaging-tests-upgrade 7.8.0
+      - label: packaging-tests-upgrade / 7.8.0
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -392,11 +392,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-ubuntu-2004
         env:
           BWC_VERSION: 7.8.0
-      - label: packaging-tests-upgrade 7.8.1
+      - label: packaging-tests-upgrade / 7.8.1
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -409,11 +409,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-ubuntu-2004
         env:
           BWC_VERSION: 7.8.1
-      - label: packaging-tests-upgrade 7.9.0
+      - label: packaging-tests-upgrade / 7.9.0
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -426,11 +426,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-ubuntu-2004
         env:
           BWC_VERSION: 7.9.0
-      - label: packaging-tests-upgrade 7.9.1
+      - label: packaging-tests-upgrade / 7.9.1
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -443,11 +443,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-ubuntu-2004
         env:
           BWC_VERSION: 7.9.1
-      - label: packaging-tests-upgrade 7.9.2
+      - label: packaging-tests-upgrade / 7.9.2
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -460,11 +460,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-ubuntu-2004
         env:
           BWC_VERSION: 7.9.2
-      - label: packaging-tests-upgrade 7.9.3
+      - label: packaging-tests-upgrade / 7.9.3
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -477,11 +477,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-ubuntu-2004
         env:
           BWC_VERSION: 7.9.3
-      - label: packaging-tests-upgrade 7.10.0
+      - label: packaging-tests-upgrade / 7.10.0
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -494,11 +494,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-ubuntu-2004
         env:
           BWC_VERSION: 7.10.0
-      - label: packaging-tests-upgrade 7.10.1
+      - label: packaging-tests-upgrade / 7.10.1
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -511,11 +511,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-ubuntu-2004
         env:
           BWC_VERSION: 7.10.1
-      - label: packaging-tests-upgrade 7.10.2
+      - label: packaging-tests-upgrade / 7.10.2
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -528,11 +528,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-ubuntu-2004
         env:
           BWC_VERSION: 7.10.2
-      - label: packaging-tests-upgrade 7.11.0
+      - label: packaging-tests-upgrade / 7.11.0
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -545,11 +545,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-ubuntu-2004
         env:
           BWC_VERSION: 7.11.0
-      - label: packaging-tests-upgrade 7.11.1
+      - label: packaging-tests-upgrade / 7.11.1
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -562,11 +562,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-ubuntu-2004
         env:
           BWC_VERSION: 7.11.1
-      - label: packaging-tests-upgrade 7.11.2
+      - label: packaging-tests-upgrade / 7.11.2
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -579,11 +579,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-ubuntu-2004
         env:
           BWC_VERSION: 7.11.2
-      - label: packaging-tests-upgrade 7.12.0
+      - label: packaging-tests-upgrade / 7.12.0
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -596,11 +596,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-ubuntu-2004
         env:
           BWC_VERSION: 7.12.0
-      - label: packaging-tests-upgrade 7.12.1
+      - label: packaging-tests-upgrade / 7.12.1
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -613,11 +613,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-ubuntu-2004
         env:
           BWC_VERSION: 7.12.1
-      - label: packaging-tests-upgrade 7.13.0
+      - label: packaging-tests-upgrade / 7.13.0
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -630,11 +630,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-ubuntu-2004
         env:
           BWC_VERSION: 7.13.0
-      - label: packaging-tests-upgrade 7.13.1
+      - label: packaging-tests-upgrade / 7.13.1
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -647,11 +647,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-ubuntu-2004
         env:
           BWC_VERSION: 7.13.1
-      - label: packaging-tests-upgrade 7.13.2
+      - label: packaging-tests-upgrade / 7.13.2
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -664,11 +664,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-ubuntu-2004
         env:
           BWC_VERSION: 7.13.2
-      - label: packaging-tests-upgrade 7.13.3
+      - label: packaging-tests-upgrade / 7.13.3
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -681,11 +681,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-ubuntu-2004
         env:
           BWC_VERSION: 7.13.3
-      - label: packaging-tests-upgrade 7.13.4
+      - label: packaging-tests-upgrade / 7.13.4
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -698,11 +698,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-ubuntu-2004
         env:
           BWC_VERSION: 7.13.4
-      - label: packaging-tests-upgrade 7.14.0
+      - label: packaging-tests-upgrade / 7.14.0
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -715,11 +715,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-ubuntu-2004
         env:
           BWC_VERSION: 7.14.0
-      - label: packaging-tests-upgrade 7.14.1
+      - label: packaging-tests-upgrade / 7.14.1
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -732,11 +732,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-ubuntu-2004
         env:
           BWC_VERSION: 7.14.1
-      - label: packaging-tests-upgrade 7.14.2
+      - label: packaging-tests-upgrade / 7.14.2
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -749,11 +749,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-ubuntu-2004
         env:
           BWC_VERSION: 7.14.2
-      - label: packaging-tests-upgrade 7.15.0
+      - label: packaging-tests-upgrade / 7.15.0
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -766,11 +766,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-ubuntu-2004
         env:
           BWC_VERSION: 7.15.0
-      - label: packaging-tests-upgrade 7.15.1
+      - label: packaging-tests-upgrade / 7.15.1
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -783,11 +783,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-ubuntu-2004
         env:
           BWC_VERSION: 7.15.1
-      - label: packaging-tests-upgrade 7.15.2
+      - label: packaging-tests-upgrade / 7.15.2
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -800,11 +800,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-ubuntu-2004
         env:
           BWC_VERSION: 7.15.2
-      - label: packaging-tests-upgrade 7.16.0
+      - label: packaging-tests-upgrade / 7.16.0
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -817,11 +817,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-ubuntu-2004
         env:
           BWC_VERSION: 7.16.0
-      - label: packaging-tests-upgrade 7.16.1
+      - label: packaging-tests-upgrade / 7.16.1
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -834,11 +834,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-ubuntu-2004
         env:
           BWC_VERSION: 7.16.1
-      - label: packaging-tests-upgrade 7.16.2
+      - label: packaging-tests-upgrade / 7.16.2
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -851,11 +851,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-ubuntu-2004
         env:
           BWC_VERSION: 7.16.2
-      - label: packaging-tests-upgrade 7.16.3
+      - label: packaging-tests-upgrade / 7.16.3
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -868,11 +868,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-ubuntu-2004
         env:
           BWC_VERSION: 7.16.3
-      - label: packaging-tests-upgrade 7.17.0
+      - label: packaging-tests-upgrade / 7.17.0
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -885,11 +885,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-ubuntu-2004
         env:
           BWC_VERSION: 7.17.0
-      - label: packaging-tests-upgrade 7.17.1
+      - label: packaging-tests-upgrade / 7.17.1
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -902,11 +902,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-ubuntu-2004
         env:
           BWC_VERSION: 7.17.1
-      - label: packaging-tests-upgrade 7.17.2
+      - label: packaging-tests-upgrade / 7.17.2
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -919,11 +919,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-ubuntu-2004
         env:
           BWC_VERSION: 7.17.2
-      - label: packaging-tests-upgrade 7.17.3
+      - label: packaging-tests-upgrade / 7.17.3
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -936,11 +936,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-ubuntu-2004
         env:
           BWC_VERSION: 7.17.3
-      - label: packaging-tests-upgrade 7.17.4
+      - label: packaging-tests-upgrade / 7.17.4
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -953,11 +953,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-ubuntu-2004
         env:
           BWC_VERSION: 7.17.4
-      - label: packaging-tests-upgrade 7.17.5
+      - label: packaging-tests-upgrade / 7.17.5
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -970,11 +970,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-ubuntu-2004
         env:
           BWC_VERSION: 7.17.5
-      - label: packaging-tests-upgrade 7.17.6
+      - label: packaging-tests-upgrade / 7.17.6
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -987,11 +987,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-ubuntu-2004
         env:
           BWC_VERSION: 7.17.6
-      - label: packaging-tests-upgrade 7.17.7
+      - label: packaging-tests-upgrade / 7.17.7
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -1004,11 +1004,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-ubuntu-2004
         env:
           BWC_VERSION: 7.17.7
-      - label: packaging-tests-upgrade 7.17.8
+      - label: packaging-tests-upgrade / 7.17.8
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -1021,11 +1021,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-ubuntu-2004
         env:
           BWC_VERSION: 7.17.8
-      - label: packaging-tests-upgrade 7.17.9
+      - label: packaging-tests-upgrade / 7.17.9
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -1038,11 +1038,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-ubuntu-2004
         env:
           BWC_VERSION: 7.17.9
-      - label: packaging-tests-upgrade 7.17.10
+      - label: packaging-tests-upgrade / 7.17.10
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -1055,11 +1055,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-ubuntu-2004
         env:
           BWC_VERSION: 7.17.10
-      - label: packaging-tests-upgrade 7.17.11
+      - label: packaging-tests-upgrade / 7.17.11
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -1072,11 +1072,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-ubuntu-2004
         env:
           BWC_VERSION: 7.17.11
-      - label: packaging-tests-upgrade 8.0.0
+      - label: packaging-tests-upgrade / 8.0.0
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -1089,11 +1089,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-ubuntu-2004
         env:
           BWC_VERSION: 8.0.0
-      - label: packaging-tests-upgrade 8.0.1
+      - label: packaging-tests-upgrade / 8.0.1
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -1106,11 +1106,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-ubuntu-2004
         env:
           BWC_VERSION: 8.0.1
-      - label: packaging-tests-upgrade 8.1.0
+      - label: packaging-tests-upgrade / 8.1.0
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -1123,11 +1123,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-ubuntu-2004
         env:
           BWC_VERSION: 8.1.0
-      - label: packaging-tests-upgrade 8.1.1
+      - label: packaging-tests-upgrade / 8.1.1
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -1140,11 +1140,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-ubuntu-2004
         env:
           BWC_VERSION: 8.1.1
-      - label: packaging-tests-upgrade 8.1.2
+      - label: packaging-tests-upgrade / 8.1.2
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -1157,11 +1157,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-ubuntu-2004
         env:
           BWC_VERSION: 8.1.2
-      - label: packaging-tests-upgrade 8.1.3
+      - label: packaging-tests-upgrade / 8.1.3
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -1174,11 +1174,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-ubuntu-2004
         env:
           BWC_VERSION: 8.1.3
-      - label: packaging-tests-upgrade 8.2.0
+      - label: packaging-tests-upgrade / 8.2.0
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -1191,11 +1191,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-ubuntu-2004
         env:
           BWC_VERSION: 8.2.0
-      - label: packaging-tests-upgrade 8.2.1
+      - label: packaging-tests-upgrade / 8.2.1
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -1208,11 +1208,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-ubuntu-2004
         env:
           BWC_VERSION: 8.2.1
-      - label: packaging-tests-upgrade 8.2.2
+      - label: packaging-tests-upgrade / 8.2.2
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -1225,11 +1225,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-ubuntu-2004
         env:
           BWC_VERSION: 8.2.2
-      - label: packaging-tests-upgrade 8.2.3
+      - label: packaging-tests-upgrade / 8.2.3
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -1242,11 +1242,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-ubuntu-2004
         env:
           BWC_VERSION: 8.2.3
-      - label: packaging-tests-upgrade 8.3.0
+      - label: packaging-tests-upgrade / 8.3.0
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -1259,11 +1259,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-ubuntu-2004
         env:
           BWC_VERSION: 8.3.0
-      - label: packaging-tests-upgrade 8.3.1
+      - label: packaging-tests-upgrade / 8.3.1
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -1276,11 +1276,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-ubuntu-2004
         env:
           BWC_VERSION: 8.3.1
-      - label: packaging-tests-upgrade 8.3.2
+      - label: packaging-tests-upgrade / 8.3.2
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -1293,11 +1293,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-ubuntu-2004
         env:
           BWC_VERSION: 8.3.2
-      - label: packaging-tests-upgrade 8.3.3
+      - label: packaging-tests-upgrade / 8.3.3
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -1310,11 +1310,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-ubuntu-2004
         env:
           BWC_VERSION: 8.3.3
-      - label: packaging-tests-upgrade 8.4.0
+      - label: packaging-tests-upgrade / 8.4.0
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -1327,11 +1327,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-ubuntu-2004
         env:
           BWC_VERSION: 8.4.0
-      - label: packaging-tests-upgrade 8.4.1
+      - label: packaging-tests-upgrade / 8.4.1
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -1344,11 +1344,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-ubuntu-2004
         env:
           BWC_VERSION: 8.4.1
-      - label: packaging-tests-upgrade 8.4.2
+      - label: packaging-tests-upgrade / 8.4.2
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -1361,11 +1361,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-ubuntu-2004
         env:
           BWC_VERSION: 8.4.2
-      - label: packaging-tests-upgrade 8.4.3
+      - label: packaging-tests-upgrade / 8.4.3
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -1378,11 +1378,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-ubuntu-2004
         env:
           BWC_VERSION: 8.4.3
-      - label: packaging-tests-upgrade 8.5.0
+      - label: packaging-tests-upgrade / 8.5.0
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -1395,11 +1395,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-ubuntu-2004
         env:
           BWC_VERSION: 8.5.0
-      - label: packaging-tests-upgrade 8.5.1
+      - label: packaging-tests-upgrade / 8.5.1
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -1412,11 +1412,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-ubuntu-2004
         env:
           BWC_VERSION: 8.5.1
-      - label: packaging-tests-upgrade 8.5.2
+      - label: packaging-tests-upgrade / 8.5.2
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -1429,11 +1429,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-ubuntu-2004
         env:
           BWC_VERSION: 8.5.2
-      - label: packaging-tests-upgrade 8.5.3
+      - label: packaging-tests-upgrade / 8.5.3
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -1446,11 +1446,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-ubuntu-2004
         env:
           BWC_VERSION: 8.5.3
-      - label: packaging-tests-upgrade 8.6.0
+      - label: packaging-tests-upgrade / 8.6.0
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -1463,11 +1463,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-ubuntu-2004
         env:
           BWC_VERSION: 8.6.0
-      - label: packaging-tests-upgrade 8.6.1
+      - label: packaging-tests-upgrade / 8.6.1
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -1480,11 +1480,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-ubuntu-2004
         env:
           BWC_VERSION: 8.6.1
-      - label: packaging-tests-upgrade 8.6.2
+      - label: packaging-tests-upgrade / 8.6.2
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -1497,11 +1497,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-ubuntu-2004
         env:
           BWC_VERSION: 8.6.2
-      - label: packaging-tests-upgrade 8.7.0
+      - label: packaging-tests-upgrade / 8.7.0
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -1514,11 +1514,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-ubuntu-2004
         env:
           BWC_VERSION: 8.7.0
-      - label: packaging-tests-upgrade 8.7.1
+      - label: packaging-tests-upgrade / 8.7.1
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -1531,11 +1531,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-ubuntu-2004
         env:
           BWC_VERSION: 8.7.1
-      - label: packaging-tests-upgrade 8.8.0
+      - label: packaging-tests-upgrade / 8.8.0
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -1548,11 +1548,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-ubuntu-2004
         env:
           BWC_VERSION: 8.8.0
-      - label: packaging-tests-upgrade 8.8.1
+      - label: packaging-tests-upgrade / 8.8.1
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -1565,11 +1565,11 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-ubuntu-2004
         env:
           BWC_VERSION: 8.8.1
-      - label: packaging-tests-upgrade 8.9.0
+      - label: packaging-tests-upgrade / 8.9.0
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION
@@ -1582,7 +1582,7 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-rocky-linux-8
+              - family/core-rocky-8
               - family/core-ubuntu-2004
         env:
           BWC_VERSION: 8.9.0

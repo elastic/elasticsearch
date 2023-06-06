@@ -56,7 +56,7 @@ public class ForceMergeStep extends AsyncActionStep {
         String indexName = indexMetadata.getIndex().getName();
         ForceMergeRequest request = new ForceMergeRequest(indexName);
         request.maxNumSegments(maxNumSegments);
-        getClient().admin().indices().forceMerge(request, listener.wrapFailure((l, response) -> {
+        getClient().admin().indices().forceMerge(request, listener.delegateFailureAndWrap((l, response) -> {
             if (response.getFailedShards() == 0) {
                 l.onResponse(null);
             } else {

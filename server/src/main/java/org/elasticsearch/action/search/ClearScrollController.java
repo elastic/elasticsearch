@@ -95,32 +95,37 @@ public final class ClearScrollController implements Runnable {
     }
 
     void cleanScrollIds(List<SearchContextIdForNode> contextIds) {
-        SearchScrollAsyncAction.collectNodesAndRun(contextIds, nodes, searchTransportService, listener.wrapFailure((l, lookup) -> {
-            try {
-                for (SearchContextIdForNode target : contextIds) {
-                    final DiscoveryNode node = lookup.apply(target.getClusterAlias(), target.getNode());
-                    if (node == null) {
-                        onFreedContext(false);
-                    } else {
-                        try {
-                            Transport.Connection connection = searchTransportService.getConnection(target.getClusterAlias(), node);
-                            searchTransportService.sendFreeContext(
-                                connection,
-                                target.getSearchContextId(),
-                                ActionListener.releaseAfter(
-                                    ActionListener.wrap(freed -> onFreedContext(freed.isFreed()), e -> onFailedFreedContext(e, node)),
-                                    refs.acquire()
-                                )
-                            );
-                        } catch (Exception e) {
-                            onFailedFreedContext(e, node);
+        SearchScrollAsyncAction.collectNodesAndRun(
+            contextIds,
+            nodes,
+            searchTransportService,
+            listener.delegateFailureAndWrap((l, lookup) -> {
+                try {
+                    for (SearchContextIdForNode target : contextIds) {
+                        final DiscoveryNode node = lookup.apply(target.getClusterAlias(), target.getNode());
+                        if (node == null) {
+                            onFreedContext(false);
+                        } else {
+                            try {
+                                Transport.Connection connection = searchTransportService.getConnection(target.getClusterAlias(), node);
+                                searchTransportService.sendFreeContext(
+                                    connection,
+                                    target.getSearchContextId(),
+                                    ActionListener.releaseAfter(
+                                        ActionListener.wrap(freed -> onFreedContext(freed.isFreed()), e -> onFailedFreedContext(e, node)),
+                                        refs.acquire()
+                                    )
+                                );
+                            } catch (Exception e) {
+                                onFailedFreedContext(e, node);
+                            }
                         }
                     }
+                } finally {
+                    refs.close();
                 }
-            } finally {
-                refs.close();
-            }
-        }));
+            })
+        );
     }
 
     private void onFreedContext(boolean freed) {

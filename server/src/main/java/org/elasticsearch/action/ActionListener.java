@@ -94,7 +94,7 @@ public interface ActionListener<Response> {
      * Same as {@link #delegateFailure(BiConsumer)} with the exception that any failure thrown by {@code bc} or the delegate listener's
      * {@link #onResponse} will be passed to the delegate listeners {@link #onFailure(Exception)}.
      */
-    default <T> ActionListener<T> wrapFailure(CheckedBiConsumer<ActionListener<Response>, T, ? extends Exception> bc) {
+    default <T> ActionListener<T> delegateFailureAndWrap(CheckedBiConsumer<ActionListener<Response>, T, ? extends Exception> bc) {
         return new ActionListenerImplementations.ResponseWrappingActionListener<>(this, bc);
     }
 

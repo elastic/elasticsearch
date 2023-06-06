@@ -821,7 +821,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             ActionListener<Integer> listener,
             SharedBytes.IO fileChannel
         ) {
-            return listener.wrapFailure((delegate, success) -> {
+            return listener.delegateFailureAndWrap((delegate, success) -> {
                 final long physicalStartOffset = physicalStartOffset();
                 assert regionOwners[sharedBytesPos].get() == CacheFileRegion.this;
                 final int read = reader.onRangeAvailable(

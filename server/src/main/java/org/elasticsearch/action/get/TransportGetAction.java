@@ -183,7 +183,7 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
             client.executeLocally(
                 TransportShardRefreshAction.TYPE,
                 refreshRequest,
-                listener.wrapFailure((l, replicationResponse) -> super.asyncShardOperation(request, shardId, l))
+                listener.delegateFailureAndWrap((l, replicationResponse) -> super.asyncShardOperation(request, shardId, l))
             );
         } else if (request.realtime()) {
             TransportGetFromTranslogAction.Request getFromTranslogRequest = new TransportGetFromTranslogAction.Request(request, shardId);
@@ -209,7 +209,7 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
                             assert r.segmentGeneration() > -1L;
                             indexShard.waitForSegmentGeneration(
                                 r.segmentGeneration(),
-                                listener.wrapFailure((ll, aLong) -> super.asyncShardOperation(request, shardId, ll))
+                                listener.delegateFailureAndWrap((ll, aLong) -> super.asyncShardOperation(request, shardId, ll))
                             );
                         }
                     }

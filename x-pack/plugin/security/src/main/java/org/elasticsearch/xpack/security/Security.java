@@ -1680,7 +1680,7 @@ public class Security extends Plugin
                     RemoteHostHeader.process(channel, threadContext);
                     // step 2: Run authentication on the now properly prepared thread-context.
                     // This inspects and modifies the thread context.
-                    authenticationService.authenticate(httpPreRequest, listener.wrapFailure((l, ignored) -> l.onResponse(null)));
+                    authenticationService.authenticate(httpPreRequest, listener.delegateFailureAndWrap((l, ignored) -> l.onResponse(null)));
                 },
                 (httpRequest, channel, listener) -> {
                     // allow unauthenticated OPTIONS request through

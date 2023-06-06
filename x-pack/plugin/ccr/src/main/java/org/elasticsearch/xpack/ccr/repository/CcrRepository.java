@@ -418,7 +418,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
             // response, we should be able to retry by creating a new session.
             final RestoreSession restoreSession = openSession(metadata.name(), remoteClient, leaderShardId, shardId, recoveryState);
             toClose.addFirst(restoreSession); // Some tests depend on closing session before cancelling retention lease renewal
-            restoreSession.restoreFiles(store, restoreListener.wrapFailure((l, v) -> {
+            restoreSession.restoreFiles(store, restoreListener.delegateFailureAndWrap((l, v) -> {
                 logger.trace("[{}] completed CCR restore", shardId);
                 updateMappings(remoteClient, leaderIndex, restoreSession.mappingVersion, client, shardId.getIndex());
                 l.onResponse(null);

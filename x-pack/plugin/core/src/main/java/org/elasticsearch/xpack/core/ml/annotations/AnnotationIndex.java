@@ -107,7 +107,7 @@ public class AnnotationIndex {
             finalListener::onFailure
         );
 
-        final ActionListener<String> createAliasListener = finalListener.wrapFailure((finalDelegate, currentIndexName) -> {
+        final ActionListener<String> createAliasListener = finalListener.delegateFailureAndWrap((finalDelegate, currentIndexName) -> {
             final IndicesAliasesRequestBuilder requestBuilder = client.admin()
                 .indices()
                 .prepareAliases()
@@ -128,7 +128,7 @@ public class AnnotationIndex {
                 client.threadPool().getThreadContext(),
                 ML_ORIGIN,
                 requestBuilder.request(),
-                finalDelegate.<AcknowledgedResponse>wrapFailure((l, r) -> checkMappingsListener.onResponse(r.isAcknowledged())),
+                finalDelegate.<AcknowledgedResponse>delegateFailureAndWrap((l, r) -> checkMappingsListener.onResponse(r.isAcknowledged())),
                 client.admin().indices()::aliases
             );
         });

@@ -102,7 +102,7 @@ public class RemoteClusterNodesAction extends ActionType<RemoteClusterNodesActio
                     transportService.getLocalNode(),
                     NodesInfoAction.NAME,
                     nodesInfoRequest,
-                    new ActionListenerResponseHandler<>(listener.wrapFailure((l, response) -> {
+                    new ActionListenerResponseHandler<>(listener.delegateFailureAndWrap((l, response) -> {
                         final List<DiscoveryNode> remoteClusterNodes = response.getNodes().stream().map(nodeInfo -> {
                             final RemoteClusterServerInfo remoteClusterServerInfo = nodeInfo.getInfo(RemoteClusterServerInfo.class);
                             if (remoteClusterServerInfo == null) {

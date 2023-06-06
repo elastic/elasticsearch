@@ -476,7 +476,7 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
             queryRewriteContext.registerAsyncAction((client, listener) -> {
                 GetRequest getRequest = new GetRequest(indexedShapeIndex, indexedShapeId);
                 getRequest.routing(indexedShapeRouting);
-                fetch(client, getRequest, indexedShapePath, listener.wrapFailure((l, builder) -> {
+                fetch(client, getRequest, indexedShapePath, listener.delegateFailureAndWrap((l, builder) -> {
                     supplier.set(builder);
                     listener.onResponse(null);
                 }));

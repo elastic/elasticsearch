@@ -175,7 +175,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     public static <Response extends ReplicationResponse & WriteResponse> ActionListener<BulkResponse> unwrappingSingleItemBulkResponse(
         final ActionListener<Response> listener
     ) {
-        return listener.wrapFailure((l, bulkItemResponses) -> {
+        return listener.delegateFailureAndWrap((l, bulkItemResponses) -> {
             assert bulkItemResponses.getItems().length == 1 : "expected exactly one item in bulk response";
             final BulkItemResponse bulkItemResponse = bulkItemResponses.getItems()[0];
             if (bulkItemResponse.isFailed() == false) {

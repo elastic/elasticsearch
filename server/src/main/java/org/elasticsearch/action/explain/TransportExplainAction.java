@@ -74,7 +74,7 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
     @Override
     protected void doExecute(Task task, ExplainRequest request, ActionListener<ExplainResponse> listener) {
         request.nowInMillis = System.currentTimeMillis();
-        ActionListener<QueryBuilder> rewriteListener = listener.wrapFailure((l, rewrittenQuery) -> {
+        ActionListener<QueryBuilder> rewriteListener = listener.delegateFailureAndWrap((l, rewrittenQuery) -> {
             request.query(rewrittenQuery);
             super.doExecute(task, request, l);
         });

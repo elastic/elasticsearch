@@ -420,7 +420,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             return;
         }
 
-        nodeInfoListener.accept(listener.wrapFailure((l, nodeInfos) -> {
+        nodeInfoListener.accept(listener.delegateFailureAndWrap((l, nodeInfos) -> {
             validatePipelineRequest(request, nodeInfos);
 
             taskQueue.submitTask(

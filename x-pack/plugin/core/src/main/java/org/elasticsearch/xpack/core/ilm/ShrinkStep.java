@@ -98,7 +98,7 @@ public class ShrinkStep extends AsyncActionStep {
         // Hard coding this to true as the resize request was executed and the corresponding cluster change was committed, so the
         // eventual retry will not be able to succeed anymore (shrunk index was created already)
         // The next step in the ShrinkAction will wait for the shrunk index to be created and for the shards to be allocated.
-        getClient().admin().indices().resizeIndex(resizeRequest, listener.wrapFailure((l, response) -> l.onResponse(null)));
+        getClient().admin().indices().resizeIndex(resizeRequest, listener.delegateFailureAndWrap((l, response) -> l.onResponse(null)));
 
     }
 

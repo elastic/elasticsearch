@@ -80,7 +80,7 @@ public class TransportCcrStatsAction extends TransportMasterNodeAction<CcrStatsA
     ) throws Exception {
         FollowStatsAction.StatsRequest statsRequest = new FollowStatsAction.StatsRequest();
         statsRequest.setParentTask(clusterService.localNode().getId(), task.getId());
-        client.execute(FollowStatsAction.INSTANCE, statsRequest, listener.wrapFailure((l, statsResponse) -> {
+        client.execute(FollowStatsAction.INSTANCE, statsRequest, listener.delegateFailureAndWrap((l, statsResponse) -> {
             AutoFollowStats stats = autoFollowCoordinator.getStats();
             l.onResponse(new CcrStatsAction.Response(stats, statsResponse));
         }));

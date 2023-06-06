@@ -546,7 +546,7 @@ public class RecoverySourceHandler {
                     getRequest().targetNode().getVersion(),
                     canUseSnapshots,
                     request.isPrimaryRelocation(),
-                    listener.wrapFailure((l, plan) -> recoverFilesFromSourceAndSnapshot(plan, store, stopWatch, l))
+                    listener.delegateFailureAndWrap((l, plan) -> recoverFilesFromSourceAndSnapshot(plan, store, stopWatch, l))
                 );
             } else {
                 logger.trace("skipping [phase1] since source and target have identical sync id [{}]", recoverySourceMetadata.getSyncId());

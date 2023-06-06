@@ -95,7 +95,7 @@ public class RemoteConnectionManager implements ConnectionManager {
         delegate.openConnection(
             node,
             profile,
-            listener.wrapFailure(
+            listener.delegateFailureAndWrap(
                 (l, connection) -> l.onResponse(
                     new InternalRemoteConnection(
                         connection,

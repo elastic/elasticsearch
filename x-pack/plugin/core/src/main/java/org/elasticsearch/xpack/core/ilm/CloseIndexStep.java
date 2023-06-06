@@ -36,7 +36,7 @@ public class CloseIndexStep extends AsyncActionStep {
     ) {
         if (indexMetadata.getState() == IndexMetadata.State.OPEN) {
             CloseIndexRequest request = new CloseIndexRequest(indexMetadata.getIndex().getName()).masterNodeTimeout(TimeValue.MAX_VALUE);
-            getClient().admin().indices().close(request, listener.wrapFailure((l, closeIndexResponse) -> {
+            getClient().admin().indices().close(request, listener.delegateFailureAndWrap((l, closeIndexResponse) -> {
                 if (closeIndexResponse.isAcknowledged() == false) {
                     throw new ElasticsearchException("close index request failed to be acknowledged");
                 }

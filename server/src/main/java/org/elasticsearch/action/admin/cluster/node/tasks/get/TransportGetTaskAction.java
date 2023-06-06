@@ -150,7 +150,7 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
                     future.onResponse(null);
                 }
                 final ActionListener<Void> waitedForCompletionListener = ActionListener.runBefore(
-                    listener.wrapFailure(
+                    listener.delegateFailureAndWrap(
                         (l, v) -> waitedForCompletion(thisTask, request, runningTask.taskInfo(clusterService.localNode().getId(), true), l)
                     ),
                     () -> taskManager.unregisterRemovedTaskListener(removedTaskListener)

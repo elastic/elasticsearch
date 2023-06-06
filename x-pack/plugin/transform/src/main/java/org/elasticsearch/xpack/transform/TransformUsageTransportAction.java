@@ -110,7 +110,7 @@ public class TransformUsageTransportAction extends XPackUsageFeatureTransportAct
         }
         final SetOnce<Map<String, Long>> transformsCountByFeature = new SetOnce<>();
 
-        ActionListener<TransformIndexerStats> totalStatsListener = listener.wrapFailure((l, statSummations) -> {
+        ActionListener<TransformIndexerStats> totalStatsListener = listener.delegateFailureAndWrap((l, statSummations) -> {
             var usage = new TransformFeatureSetUsage(transformsCountByState, transformsCountByFeature.get(), statSummations);
             l.onResponse(new XPackUsageFeatureResponse(usage));
         });

@@ -144,7 +144,7 @@ public class RBACEngine implements AuthorizationEngine {
         final Authentication authentication = requestInfo.getAuthentication();
         rolesStore.getRoles(
             authentication,
-            listener.wrapFailure((l, roleTuple) -> l.onResponse(new RBACAuthorizationInfo(roleTuple.v1(), roleTuple.v2())))
+            listener.delegateFailureAndWrap((l, roleTuple) -> l.onResponse(new RBACAuthorizationInfo(roleTuple.v1(), roleTuple.v2())))
         );
     }
 
@@ -317,7 +317,7 @@ public class RBACEngine implements AuthorizationEngine {
                 // index and if they cannot, we can fail the request early before we allow the execution of the action and in
                 // turn the shard actions
                 if (SearchScrollAction.NAME.equals(action)) {
-                    ActionRunnable.supply(listener.wrapFailure((l, parsedScrollId) -> {
+                    ActionRunnable.supply(listener.delegateFailureAndWrap((l, parsedScrollId) -> {
                         if (parsedScrollId.hasLocalIndices()) {
                             l.onResponse(
                                 role.checkIndicesAction(action) ? IndexAuthorizationResult.EMPTY : IndexAuthorizationResult.DENIED
@@ -368,7 +368,7 @@ public class RBACEngine implements AuthorizationEngine {
             // hence we can allow here access for all requested indices.
             listener.onResponse(new IndexAuthorizationResult(IndicesAccessControl.allowAll()));
         } else if (allowsRemoteIndices(request) || role.checkIndicesAction(action)) {
-            indicesAsyncSupplier.getAsync(listener.wrapFailure((delegateListener, resolvedIndices) -> {
+            indicesAsyncSupplier.getAsync(listener.delegateFailureAndWrap((delegateListener, resolvedIndices) -> {
                 assert resolvedIndices.isEmpty() == false
                     : "every indices request needs to have its indices set thus the resolved indices must not be empty";
                 // all wildcard expressions have been resolved and only the security plugin could have set '-*' here.

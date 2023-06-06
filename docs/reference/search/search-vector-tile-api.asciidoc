@@ -222,8 +222,7 @@ Defaults to `5`.
 [%collapsible%open]
 ====
 `geotile` (Default)::
-<<search-aggregations-bucket-geotilegrid-aggregation,`geotile_grid`>>
-aggregation.
+<<search-aggregations-bucket-geotilegrid-aggregation,`geotile_grid`>> aggregation.
 
 `geohex`::
 <<search-aggregations-bucket-geohexgrid-aggregation,`geohex_grid`>> aggregation.

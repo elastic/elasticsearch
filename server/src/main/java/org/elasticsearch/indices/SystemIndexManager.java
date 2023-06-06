@@ -15,7 +15,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
-import org.elasticsearch.action.support.GroupedActionListener;
+import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
@@ -31,7 +31,6 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.xcontent.XContentType;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -98,31 +97,21 @@ public class SystemIndexManager implements ClusterStateListener {
         }
 
         if (isUpgradeInProgress.compareAndSet(false, true)) {
-            final List<SystemIndexDescriptor> descriptors = new ArrayList<>();
-            for (SystemIndexDescriptor systemIndexDescriptor : getEligibleDescriptors(state.getMetadata())) {
-                UpgradeStatus upgradeStatus;
-                try {
-                    upgradeStatus = getUpgradeStatus(state, systemIndexDescriptor);
-                } catch (Exception e) {
-                    logger.warn("Failed to calculate upgrade status: {}" + e.getMessage(), e);
-                    continue;
+            // Use a RefCountingListener so that we only release the lock once all upgrade attempts have succeeded or failed.
+            // The failures are logged in upgradeIndexMetadata(), so we don't actually care about them here.
+            try (var listeners = new RefCountingListener(ActionListener.running(() -> isUpgradeInProgress.set(false)))) {
+                for (SystemIndexDescriptor systemIndexDescriptor : getEligibleDescriptors(state.getMetadata())) {
+                    UpgradeStatus upgradeStatus;
+                    try {
+                        upgradeStatus = getUpgradeStatus(state, systemIndexDescriptor);
+                    } catch (Exception e) {
+                        logger.warn("Failed to calculate upgrade status: {}" + e.getMessage(), e);
+                        continue;
+                    }
+                    if (upgradeStatus == UpgradeStatus.NEEDS_MAPPINGS_UPDATE) {
+                        upgradeIndexMetadata(systemIndexDescriptor, listeners.acquire(ignored -> {}));
+                    }
                 }
-                if (upgradeStatus == UpgradeStatus.NEEDS_MAPPINGS_UPDATE) {
-                    descriptors.add(systemIndexDescriptor);
-                }
-            }
-
-            if (descriptors.isEmpty() == false) {
-                // Use a GroupedActionListener so that we only release the lock once all upgrade attempts have succeeded or failed.
-                // The failures are logged in upgradeIndexMetadata(), so we don't actually care about them here.
-                ActionListener<AcknowledgedResponse> listener = new GroupedActionListener<>(
-                    descriptors.size(),
-                    ActionListener.running(() -> isUpgradeInProgress.set(false))
-                );
-
-                descriptors.forEach(descriptor -> upgradeIndexMetadata(descriptor, listener));
-            } else {
-                isUpgradeInProgress.set(false);
             }
         } else {
             logger.trace("Update already in progress");

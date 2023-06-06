@@ -118,11 +118,7 @@ public class SynonymsManagementAPIService {
     public void listSynonymsSet(int from, int size, ActionListener<PagedResult<SynonymSetSummary>> listener) {
         client.prepareSearch(SYNONYMS_ALIAS_NAME)
             .setSize(0)
-            .addAggregation(
-                new TermsAggregationBuilder(SYNONYM_SETS_AGG_NAME)
-                    .field(SYNONYMS_SET_FIELD)
-                    .order(BucketOrder.key(true))
-            )
+            .addAggregation(new TermsAggregationBuilder(SYNONYM_SETS_AGG_NAME).field(SYNONYMS_SET_FIELD).order(BucketOrder.key(true)))
             .setPreference(Preference.LOCAL.type())
             .execute(listener.delegateFailure((searchResponseListener, searchResponse) -> {
                 Terms aggregation = searchResponse.getAggregations().get(SYNONYM_SETS_AGG_NAME);

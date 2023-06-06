@@ -22,10 +22,7 @@ public class ListSynonymsActionRequestSerializingTests extends AbstractWireSeria
 
     @Override
     protected ListSynonymsAction.Request createTestInstance() {
-        return new ListSynonymsAction.Request(
-            randomIntBetween(0, Integer.MAX_VALUE),
-            randomIntBetween(0, Integer.MAX_VALUE)
-        );
+        return new ListSynonymsAction.Request(randomIntBetween(0, Integer.MAX_VALUE), randomIntBetween(0, Integer.MAX_VALUE));
     }
 
     @Override

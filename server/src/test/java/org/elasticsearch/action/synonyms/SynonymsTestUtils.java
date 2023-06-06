@@ -39,9 +39,6 @@ class SynonymsTestUtils {
     }
 
     static SynonymSetSummary randomSynonymSetSummary() {
-        return new SynonymSetSummary(
-            randomLongBetween(1, 10000),
-            randomIdentifier()
-        );
+        return new SynonymSetSummary(randomLongBetween(1, 10000), randomIdentifier());
     }
 }

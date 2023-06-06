@@ -163,9 +163,7 @@ public class SearchIndexInput extends BufferedIndexInput {
                             cacheFile
                         );
                     }
-                },
-                    ThreadPool.Names.GENERIC // TODO: figure out a better/correct threadpool for this
-                );
+                });
                 byteBufferReference.finish(bytesRead);
             } catch (Exception e) {
                 if (e instanceof AlreadyClosedException || e.getCause() instanceof AlreadyClosedException) {

@@ -251,7 +251,12 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
         var indexSettings = indexEngine.getEngineConfig().getIndexSettings();
         var threadPool = deterministicTaskQueue.getThreadPool();
         var nodeEnvironment = newNodeEnvironment();
-        var cache = new SharedBlobCacheService<FileCacheKey>(nodeEnvironment, indexSettings.getSettings(), threadPool);
+        var cache = new SharedBlobCacheService<FileCacheKey>(
+            nodeEnvironment,
+            indexSettings.getSettings(),
+            threadPool,
+            ThreadPool.Names.GENERIC
+        );
         var directory = new SearchDirectory(cache, shardId);
         directory.setBlobContainer(primaryTerm -> storeBlobContainer(indexEngine.getEngineConfig().getStore()));
         var store = new Store(shardId, indexSettings, directory, new DummyShardLock(shardId));

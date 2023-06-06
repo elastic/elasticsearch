@@ -138,7 +138,12 @@ public class FakeStatelessNode implements Closeable {
             client = localCloseables.add(new NodeClient(nodeSettings, threadPool));
             nodeEnvironment = nodeEnvironmentSupplier.apply(nodeSettings);
             localCloseables.add(nodeEnvironment);
-            final var sharedCacheService = new SharedBlobCacheService<FileCacheKey>(nodeEnvironment, nodeSettings, threadPool);
+            final var sharedCacheService = new SharedBlobCacheService<FileCacheKey>(
+                nodeEnvironment,
+                nodeSettings,
+                threadPool,
+                ThreadPool.Names.GENERIC
+            );
             localCloseables.add(sharedCacheService);
             indexingDirectory = localCloseables.add(
                 new IndexDirectory(new FsDirectoryFactory().newDirectory(indexSettings, indexingShardPath), sharedCacheService, shardId)

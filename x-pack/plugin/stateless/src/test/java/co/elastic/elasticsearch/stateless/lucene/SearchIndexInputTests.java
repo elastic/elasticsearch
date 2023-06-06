@@ -57,7 +57,8 @@ public class SearchIndexInputTests extends ESIndexInputTestCase {
             SharedBlobCacheService<FileCacheKey> sharedBlobCacheService = new SharedBlobCacheService<>(
                 nodeEnvironment,
                 settings,
-                threadPool
+                threadPool,
+                ThreadPool.Names.GENERIC
             )
         ) {
             final ShardId shardId = new ShardId(new Index("_index_name", "_index_id"), 0);

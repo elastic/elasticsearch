@@ -17,7 +17,7 @@ import java.nio.charset.StandardCharsets;
 public class GeoIpUpgradeIT extends AbstractUpgradeTestCase {
 
     public void testGeoIpDownloader() throws Exception {
-         if (CLUSTER_TYPE == ClusterType.UPGRADED) {
+        if (CLUSTER_TYPE == ClusterType.UPGRADED) {
             assertBusy(() -> {
                 Response response = client().performRequest(new Request("GET", "_cat/tasks"));
                 String tasks = EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8);

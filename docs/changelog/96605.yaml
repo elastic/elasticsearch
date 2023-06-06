@@ -2,4 +2,5 @@ pr: 96605
 summary: "Feature: include unit support for time series rate aggregation"
 area: TSDB
 type: enhancement
-issues: []
+issues:
+ - 94630

@@ -16,6 +16,10 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.MockLicenseState;
+import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.transport.TransportRequest;
@@ -32,6 +36,7 @@ import org.mockito.Mockito;
 import static org.elasticsearch.xpack.security.operator.OperatorPrivileges.NOOP_OPERATOR_PRIVILEGES_SERVICE;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -265,4 +270,32 @@ public class DefaultOperatorPrivilegesTests extends ESTestCase {
         NOOP_OPERATOR_PRIVILEGES_SERVICE.maybeInterceptRequest(threadContext, mock(TransportRequest.class));
     }
 
+    public void testCheckRestFull() {
+        final Settings settings = Settings.builder().put("xpack.security.operator_privileges.enabled", true).build();
+        when(xPackLicenseState.isAllowed(Security.OPERATOR_PRIVILEGES_FEATURE)).thenReturn(true);
+        RestHandler restHandler = mock(RestHandler.class);
+        RestResponse restrictedResponse = new RestResponse(RestStatus.NOT_FOUND, "I'm not a teapot");
+        when(operatorOnlyRegistry.checkRestFull(restHandler)).thenReturn(restrictedResponse);
+        ThreadContext threadContext = new ThreadContext(settings);
+        // not an operator (returns a response object to allow for early exit)
+        assertThat(operatorPrivilegesService.checkRestFull(restHandler, threadContext), is(restrictedResponse));
+        // is an operator (returns null to allow for normal operation)
+        threadContext.putHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY, AuthenticationField.PRIVILEGE_CATEGORY_VALUE_OPERATOR);
+        assertNull(operatorPrivilegesService.checkRestFull(restHandler, threadContext));
+    }
+
+    public void testCheckRestPartial() {
+        final Settings settings = Settings.builder().put("xpack.security.operator_privileges.enabled", true).build();
+        when(xPackLicenseState.isAllowed(Security.OPERATOR_PRIVILEGES_FEATURE)).thenReturn(true);
+        RestHandler restHandler = mock(RestHandler.class);
+        RestRequest restRequest = mock(RestRequest.class);
+        RestRequest restRequestUpdated = mock(RestRequest.class);
+        when(operatorOnlyRegistry.checkRestPartial(restHandler, restRequest)).thenReturn(restRequestUpdated);
+        ThreadContext threadContext = new ThreadContext(settings);
+        // not an operator (request is updated)
+        assertThat(operatorPrivilegesService.checkRestPartial(restHandler, restRequest, threadContext), is(restRequestUpdated));
+        // is an operator (no request is not updated)
+        threadContext.putHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY, AuthenticationField.PRIVILEGE_CATEGORY_VALUE_OPERATOR);
+        assertThat(operatorPrivilegesService.checkRestPartial(restHandler, restRequest, threadContext), is(restRequest));
+    }
 }

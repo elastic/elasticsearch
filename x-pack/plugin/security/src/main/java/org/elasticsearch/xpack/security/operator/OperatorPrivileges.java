@@ -163,7 +163,7 @@ public class OperatorPrivileges {
                     Authentication authentication = threadContext.getTransient(AuthenticationField.AUTHENTICATION_KEY);
                     final User user = authentication.getEffectiveSubject().getUser();
                     logger.trace(
-                        "Checking operator-only violation for user [{}] and routes [{}]",
+                        "Checking for full REST restriction for user [{}] and routes [{}]",
                         user,
                         restHandler.routes().stream().map(RestHandler.Route::getPath).collect(Collectors.joining(","))
                     );

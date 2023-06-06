@@ -24,6 +24,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -53,7 +54,7 @@ public class GeoIpDownloaderTaskExecutorTests extends ESTestCase {
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             try (XContentBuilder builder = new XContentBuilder(XContentType.JSON.xContent(), baos)) {
                 builder.map(configMap).close();
-                return baos.toString();
+                return baos.toString(StandardCharsets.UTF_8);
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }

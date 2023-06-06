@@ -19,6 +19,8 @@ import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -67,6 +69,28 @@ public record ScriptStats(
             compilationLimitTriggered,
             Objects.requireNonNullElseGet(compilationsHistory, () -> new TimeSeries(compilations)),
             Objects.requireNonNullElseGet(cacheEvictionsHistory, () -> new TimeSeries(cacheEvictions))
+        );
+    }
+
+    public static ScriptStats merge(ScriptStats first, ScriptStats second) {
+        var mergedContextStats = List.<ScriptContextStats>of();
+
+        if (first.contextStats.isEmpty() == false || second.contextStats.isEmpty() == false) {
+            var mapToCollectMerges = new HashMap<String, ScriptContextStats>();
+
+            first.contextStats.forEach(cs -> mapToCollectMerges.merge(cs.context(), cs, ScriptContextStats::merge));
+            second.contextStats.forEach(cs -> mapToCollectMerges.merge(cs.context(), cs, ScriptContextStats::merge));
+
+            mergedContextStats = new ArrayList<>(mapToCollectMerges.values());
+        }
+
+        return new ScriptStats(
+            mergedContextStats,
+            first.compilations + second.compilations,
+            first.cacheEvictions + second.cacheEvictions,
+            first.compilationLimitTriggered + second.compilationLimitTriggered,
+            TimeSeries.merge(first.compilationsHistory, second.compilationsHistory),
+            TimeSeries.merge(first.cacheEvictionsHistory, second.cacheEvictionsHistory)
         );
     }
 
@@ -190,10 +214,6 @@ public record ScriptStats(
             ChunkedToXContentHelper.array(CONTEXTS, contextStats.iterator()),
             ChunkedToXContentHelper.endObject()
         );
-    }
-
-    public static ScriptStats merge(ScriptStats first, ScriptStats second) {
-        return IDENTITY;
     }
 
     static final class Fields {

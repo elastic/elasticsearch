@@ -65,11 +65,9 @@ public class QueryRulesIndexService {
     public static final String QUERY_RULES_CONCRETE_INDEX_NAME = ".query-rules-1";
     public static final String QUERY_RULES_INDEX_NAME_PATTERN = ".query-rules-*";
     private final Client clientWithOrigin;
-    public final NamedWriteableRegistry namedWriteableRegistry;
 
     public QueryRulesIndexService(Client client, NamedWriteableRegistry namedWriteableRegistry) {
         this.clientWithOrigin = new OriginSettingClient(client, ENT_SEARCH_ORIGIN);
-        this.namedWriteableRegistry = namedWriteableRegistry;
     }
 
     /**

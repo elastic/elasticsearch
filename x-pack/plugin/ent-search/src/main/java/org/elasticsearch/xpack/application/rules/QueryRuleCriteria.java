@@ -133,7 +133,7 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
      *
      * @return The parsed {@link QueryRuleCriteria}.
      */
-    public static QueryRuleCriteria fromXContent(XContentParser parser) throws IOException {
+    public static QueryRuleCriteria fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 

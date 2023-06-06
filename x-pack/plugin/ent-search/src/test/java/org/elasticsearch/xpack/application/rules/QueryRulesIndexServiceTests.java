@@ -38,11 +38,11 @@ import static org.hamcrest.CoreMatchers.equalTo;
 
 public class QueryRulesIndexServiceTests extends ESSingleNodeTestCase {
 
-    private QueryRulesIndexService queryRuleIndexService;
+    private QueryRulesIndexService queryRulesIndexService;
 
     @Before
-    public void setup() throws Exception {
-        this.queryRuleIndexService = new QueryRulesIndexService(client(), writableRegistry());
+    public void setup() {
+        this.queryRulesIndexService = new QueryRulesIndexService(client(), writableRegistry());
     }
 
     @Override
@@ -122,7 +122,7 @@ public class QueryRulesIndexServiceTests extends ESSingleNodeTestCase {
         assertThat(getQueryRuleset, equalTo(myQueryRuleset));
     }
 
-    public void testListQueryRules() throws Exception {
+    public void testListQueryRulesets() throws Exception {
         int numRulesets = 10;
         for (int i = 0; i < numRulesets; i++) {
             final List<QueryRule> rules = List.of(
@@ -174,7 +174,7 @@ public class QueryRulesIndexServiceTests extends ESSingleNodeTestCase {
         }
     }
 
-    public void testDeleteQueryRule() throws Exception {
+    public void testDeleteQueryRuleset() throws Exception {
         for (int i = 0; i < 5; i++) {
             final QueryRule myQueryRule1 = new QueryRule(
                 "my_rule1",
@@ -206,7 +206,7 @@ public class QueryRulesIndexServiceTests extends ESSingleNodeTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<IndexResponse> resp = new AtomicReference<>(null);
         final AtomicReference<Exception> exc = new AtomicReference<>(null);
-        queryRuleIndexService.putQueryRuleset(queryRuleset, create, new ActionListener<>() {
+        queryRulesIndexService.putQueryRuleset(queryRuleset, create, new ActionListener<>() {
             @Override
             public void onResponse(IndexResponse indexResponse) {
                 resp.set(indexResponse);
@@ -231,7 +231,7 @@ public class QueryRulesIndexServiceTests extends ESSingleNodeTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<QueryRuleset> resp = new AtomicReference<>(null);
         final AtomicReference<Exception> exc = new AtomicReference<>(null);
-        queryRuleIndexService.getQueryRuleset(name, new ActionListener<>() {
+        queryRulesIndexService.getQueryRuleset(name, new ActionListener<>() {
             @Override
             public void onResponse(QueryRuleset ruleset) {
                 resp.set(ruleset);
@@ -256,7 +256,7 @@ public class QueryRulesIndexServiceTests extends ESSingleNodeTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<DeleteResponse> resp = new AtomicReference<>(null);
         final AtomicReference<Exception> exc = new AtomicReference<>(null);
-        queryRuleIndexService.deleteQueryRuleset(name, new ActionListener<>() {
+        queryRulesIndexService.deleteQueryRuleset(name, new ActionListener<>() {
             @Override
             public void onResponse(DeleteResponse deleteResponse) {
                 resp.set(deleteResponse);
@@ -281,7 +281,7 @@ public class QueryRulesIndexServiceTests extends ESSingleNodeTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<QueryRulesIndexService.QueryRulesetResult> resp = new AtomicReference<>(null);
         final AtomicReference<Exception> exc = new AtomicReference<>(null);
-        queryRuleIndexService.listQueryRulesets(from, size, new ActionListener<>() {
+        queryRulesIndexService.listQueryRulesets(from, size, new ActionListener<>() {
             @Override
             public void onResponse(QueryRulesIndexService.QueryRulesetResult result) {
                 resp.set(result);

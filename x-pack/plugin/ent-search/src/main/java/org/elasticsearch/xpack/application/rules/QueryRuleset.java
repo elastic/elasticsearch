@@ -34,7 +34,7 @@ public class QueryRuleset implements Writeable, ToXContent {
     private final List<QueryRule> rules;
 
     /**
-     * A {@link QueryRuleset} is comprised of a unique identifier and a collection of
+     * A {@link QueryRuleset} is composed of a unique identifier and a collection of
      * one or more associated {@link QueryRule}s.
      *
      * @param id A Unique identifier representing the query ruleset.
@@ -120,8 +120,6 @@ public class QueryRuleset implements Writeable, ToXContent {
      */
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        // TODO I don't understand why QueryRuleset.testToXContent, QueryRuleset.testRandomSerialization fails if we have
-        // startObject/endObject here.
         builder.startObject();
         {
             builder.field(ID_FIELD.getPreferredName(), id);

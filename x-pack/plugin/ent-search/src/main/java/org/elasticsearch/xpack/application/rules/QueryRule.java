@@ -165,7 +165,7 @@ public class QueryRule implements Writeable, ToXContentObject {
      *
      * @return The parsed {@link QueryRule}.
      */
-    public static QueryRule fromXContent(XContentParser parser) throws IOException {
+    public static QueryRule fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 

@@ -172,9 +172,6 @@ public class ScriptStatsTests extends ESTestCase {
         var first = randomScriptStats();
         var second = randomScriptStats();
 
-        System.out.println(Strings.toString(first, true, true));
-        System.out.println(Strings.toString(second, true, true));
-        System.out.println(Strings.toString(ScriptStats.merge(first, second), true, true));
         assertEquals(
             ScriptStats.merge(first, second),
             new ScriptStats(

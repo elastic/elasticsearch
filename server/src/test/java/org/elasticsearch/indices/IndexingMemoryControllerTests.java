@@ -38,7 +38,6 @@ import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThan;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class IndexingMemoryControllerTests extends IndexShardTestCase {
 
@@ -121,16 +120,20 @@ public class IndexingMemoryControllerTests extends IndexShardTestCase {
             assertEquals(expectedMB * 1024 * 1024, actual.longValue());
         }
 
-        public void assertAnyThrottledShard(IndexShard shard) {
-            assertFalse(throttled.isEmpty());
+        public void assertThrottled(IndexShard shard) {
+            assertTrue(throttled.contains(shard));
         }
 
-        public void assertNoneThrottled() {
-            assertTrue(throttled.isEmpty());
+        public void assertNotThrottled(IndexShard shard) {
+            assertFalse(throttled.contains(shard));
         }
 
-        long getTotalWritingBytes() {
-            return writingBytes.values().stream().reduce(0L, Long::sum);
+        public void assertWriting(IndexShard shard, int expectedMB) {
+            Long actual = writingBytes.get(shard);
+            if (actual == null) {
+                actual = 0L;
+            }
+            assertEquals(expectedMB * 1024 * 1024, actual.longValue());
         }
 
         public void simulateIndexing(IndexShard shard) {
@@ -287,9 +290,9 @@ public class IndexingMemoryControllerTests extends IndexShardTestCase {
         controller.simulateIndexing(shard1);
         controller.simulateIndexing(shard1);
 
-        // We are now using 5 MB, so we should be writing either shard:
-        assertThat(controller.getTotalWritingBytes(), greaterThanOrEqualTo(2L));
-        assertThat(controller.getTotalWritingBytes(), lessThanOrEqualTo(3L));
+        // We are now using 5 MB, so we should be writing shard0 since it's using the most heap:
+        controller.assertWriting(shard0, 3);
+        controller.assertWriting(shard1, 0);
         controller.assertBuffer(shard0, 0);
         controller.assertBuffer(shard1, 2);
 

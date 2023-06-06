@@ -120,8 +120,6 @@ public class SynonymsManagementAPIService {
             .setSize(0)
             .addAggregation(
                 new TermsAggregationBuilder(SYNONYM_SETS_AGG_NAME)
-                    // TODO Pagination
-                    .size(size)
                     .field(SYNONYMS_SET_FIELD)
                     .order(BucketOrder.key(true))
             )
@@ -130,6 +128,8 @@ public class SynonymsManagementAPIService {
                 Terms aggregation = searchResponse.getAggregations().get(SYNONYM_SETS_AGG_NAME);
                 List<? extends Terms.Bucket> buckets = aggregation.getBuckets();
                 SynonymSetSummary[] synonymSetSummaries = buckets.stream()
+                    .skip(from)
+                    .limit(size)
                     .map(bucket -> new SynonymSetSummary(bucket.getDocCount(), bucket.getKeyAsString()))
                     .toArray(SynonymSetSummary[]::new);
 

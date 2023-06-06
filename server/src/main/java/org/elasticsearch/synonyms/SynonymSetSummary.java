@@ -19,7 +19,7 @@ import java.util.Objects;
 
 public class SynonymSetSummary implements Writeable, ToXContentObject {
 
-    public static final String NAME_FIELD = "synonyms";
+    public static final String NAME_FIELD = "synonyms_set";
     public static final String COUNT_FIELD = "count";
 
     private final String name;

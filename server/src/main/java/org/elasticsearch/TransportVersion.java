@@ -115,6 +115,8 @@ public record TransportVersion(int id) implements Comparable<TransportVersion> {
     public static final TransportVersion V_8_7_0 = registerTransportVersion(8_07_00_99, "f1ee7a85-4fa6-43f5-8679-33e2b750448b");
     public static final TransportVersion V_8_7_1 = registerTransportVersion(8_07_01_99, "018de9d8-9e8b-4ac7-8f4b-3a6fbd0487fb");
     public static final TransportVersion V_8_8_0 = registerTransportVersion(8_08_00_99, "f64fe576-0767-4ec3-984e-3e30b33b6c46");
+    public static final TransportVersion V_8_8_1 = registerTransportVersion(8_08_01_99, "291c71bb-5b0a-4b7e-a407-6e53bc128d0f");
+
     public static final TransportVersion V_8_9_0 = registerTransportVersion(8_09_00_99, "13c1c2cb-d975-461f-ab98-309ebc1c01bc");
     /*
      * READ THE JAVADOC ABOVE BEFORE ADDING NEW TRANSPORT VERSIONS
@@ -125,12 +127,16 @@ public record TransportVersion(int id) implements Comparable<TransportVersion> {
     public static final TransportVersion V_8_500_002 = registerTransportVersion(8_500_002, "055dd314-ff40-4313-b4c6-9fccddfa42a8");
     public static final TransportVersion V_8_500_003 = registerTransportVersion(8_500_003, "30adbe0c-8614-40dd-81b5-44e9c657bb77");
     public static final TransportVersion V_8_500_004 = registerTransportVersion(8_500_004, "6a00db6a-fd66-42a9-97ea-f6cc53169110");
+    public static final TransportVersion V_8_500_005 = registerTransportVersion(8_500_005, "65370d2a-d936-4383-a2e0-8403f708129b");
+    public static final TransportVersion V_8_500_006 = registerTransportVersion(8_500_006, "7BB5621A-80AC-425F-BA88-75543C442F23");
+    public static final TransportVersion V_8_500_007 = registerTransportVersion(8_500_007, "77261d43-4149-40af-89c5-7e71e0454fce");
+    public static final TransportVersion V_8_500_008 = registerTransportVersion(8_500_008, "8884ab9d-94cd-4bac-aff8-01f2c394f47c");
 
     /**
      * Reference to the most recent transport version.
      * This should be the transport version with the highest id.
      */
-    public static final TransportVersion CURRENT = V_8_500_004;
+    public static final TransportVersion CURRENT = V_8_500_008;
 
     /**
      * Reference to the earliest compatible transport version to this version of the codebase.
@@ -167,7 +173,6 @@ public record TransportVersion(int id) implements Comparable<TransportVersion> {
                 try {
                     version = (TransportVersion) declaredField.get(null);
                 } catch (IllegalAccessException e) {
-                    // should not happen, checked above
                     throw new AssertionError(e);
                 }
                 builder.put(version.id, version);

@@ -9,11 +9,13 @@
 package org.elasticsearch.xpack.core.security.test;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.indices.ExecutorNames;
+import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.SystemIndices.Feature;
@@ -27,6 +29,7 @@ import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
@@ -100,6 +103,25 @@ public class TestRestrictedIndices {
                     new SystemIndexDescriptor(".fleet-policies-leader*", "fleet policies leader"),
                     new SystemIndexDescriptor(".fleet-servers*", "fleet servers"),
                     new SystemIndexDescriptor(".fleet-artifacts*", "fleet artifacts")
+                ),
+                List.of(
+                    new SystemDataStreamDescriptor(
+                        ".fleet-actions-results",
+                        "fleet actions results",
+                        SystemDataStreamDescriptor.Type.EXTERNAL,
+                        new ComposableIndexTemplate(
+                            List.of(".fleet-actions-results"),
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            new ComposableIndexTemplate.DataStreamTemplate()
+                        ),
+                        Map.of(),
+                        List.of("fleet", "kibana"),
+                        null
+                    )
                 )
             )
         );

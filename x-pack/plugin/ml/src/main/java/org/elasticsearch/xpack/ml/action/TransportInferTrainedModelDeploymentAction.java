@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.CancellableTask;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.InferTrainedModelDeploymentAction;
@@ -80,13 +79,11 @@ public class TransportInferTrainedModelDeploymentAction extends TransportTasksAc
 
     @Override
     protected void taskOperation(
-        Task actionTask,
+        CancellableTask actionTask,
         InferTrainedModelDeploymentAction.Request request,
         TrainedModelDeploymentTask task,
         ActionListener<InferTrainedModelDeploymentAction.Response> listener
     ) {
-        assert actionTask instanceof CancellableTask : "task [" + actionTask + "] not cancellable";
-
         var nlpInputs = new ArrayList<NlpInferenceInput>();
         if (request.getTextInput() != null) {
             for (var text : request.getTextInput()) {

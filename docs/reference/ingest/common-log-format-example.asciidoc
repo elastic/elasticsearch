@@ -34,7 +34,7 @@ pipeline.
 
 .. Click **Add a processor** and select the **Grok** processor type.
 .. Set **Field** to `message` and **Patterns** to the following
-<<grok-basics,grok pattern>>:
+<<grok,grok pattern>>:
 +
 [source,grok]
 ----

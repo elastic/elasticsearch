@@ -1,5 +1,0 @@
-pr: 95082
-summary: Make `SourceProvider` using stored fields segment-thread-safe
-area: Search
-type: enhancement
-issues: []

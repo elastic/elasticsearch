@@ -51,7 +51,6 @@ import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -161,11 +160,13 @@ public class AllocationService {
         assert newRoutingTable.validate(newMetadata); // validates the routing table is coherent with the cluster state metadata
 
         final ClusterState.Builder newStateBuilder = ClusterState.builder(oldState).routingTable(newRoutingTable).metadata(newMetadata);
-        final RestoreInProgress restoreInProgress = allocation.custom(RestoreInProgress.TYPE);
+        final RestoreInProgress restoreInProgress = allocation.getClusterState().custom(RestoreInProgress.TYPE);
         if (restoreInProgress != null) {
             RestoreInProgress updatedRestoreInProgress = allocation.updateRestoreInfoWithRoutingChanges(restoreInProgress);
             if (updatedRestoreInProgress != restoreInProgress) {
-                ImmutableOpenMap.Builder<String, ClusterState.Custom> customsBuilder = ImmutableOpenMap.builder(allocation.getCustoms());
+                ImmutableOpenMap.Builder<String, ClusterState.Custom> customsBuilder = ImmutableOpenMap.builder(
+                    allocation.getClusterState().getCustoms()
+                );
                 customsBuilder.put(RestoreInProgress.TYPE, updatedRestoreInProgress);
                 newStateBuilder.customs(customsBuilder.build());
             }
@@ -566,13 +567,9 @@ public class AllocationService {
                 continue;
             }
 
-            var nodeShutdownMetadata = allocation.metadata().nodeShutdowns().get(node.nodeId());
-            var unassignedReason = nodeShutdownMetadata != null && Objects.equals(nodeShutdownMetadata.getType(), Type.RESTART)
-                ? UnassignedInfo.Reason.NODE_RESTARTING
-                : UnassignedInfo.Reason.NODE_LEFT;
-            boolean delayedDueToKnownRestart = nodeShutdownMetadata != null
-                && Objects.equals(nodeShutdownMetadata.getType(), Type.RESTART)
-                && nodeShutdownMetadata.getAllocationDelay().nanos() > 0;
+            var nodeShutdownMetadata = allocation.metadata().nodeShutdowns().get(node.nodeId(), Type.RESTART);
+            var unassignedReason = nodeShutdownMetadata != null ? UnassignedInfo.Reason.NODE_RESTARTING : UnassignedInfo.Reason.NODE_LEFT;
+            boolean delayedDueToKnownRestart = nodeShutdownMetadata != null && nodeShutdownMetadata.getAllocationDelay().nanos() > 0;
 
             // now, go over all the shards routing on the node, and fail them
             for (ShardRouting shardRouting : node.copyShards()) {

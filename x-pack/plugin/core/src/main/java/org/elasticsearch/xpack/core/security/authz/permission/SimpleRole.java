@@ -266,6 +266,11 @@ public class SimpleRole implements Role {
         return result;
     }
 
+    @Override
+    public String toString() {
+        return getClass().getName() + "{" + String.join(",", names) + "}";
+    }
+
     private final AtomicReference<Cache<PrivilegesToCheck, PrivilegesCheckResult>> hasPrivilegesCacheReference = new AtomicReference<>();
 
     public void cacheHasPrivileges(Settings settings, PrivilegesToCheck privilegesToCheck, PrivilegesCheckResult privilegesCheckResult)

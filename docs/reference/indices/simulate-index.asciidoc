@@ -112,7 +112,7 @@ access.
 overwrites the `routing` value for indexing operations.
 
 `is_hidden`::
-(Boolean) If `true`, the alias is <<hidden,hidden>>.
+(Boolean) If `true`, the alias is <<multi-hidden,hidden>>.
 
 `is_write_index`::
 (Boolean) If `true`, the index is the <<write-index,write index>> for the alias.

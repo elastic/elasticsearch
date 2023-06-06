@@ -21,7 +21,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.document.DocumentField;
@@ -65,7 +64,6 @@ import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
@@ -587,10 +585,6 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
     }
 
     static Set<String> nodesShuttingDown(final ClusterState state) {
-        return NodesShutdownMetadata.getShutdowns(state)
-            .map(NodesShutdownMetadata::getAllNodeMetadataMap)
-            .map(Map::keySet)
-            .orElse(Collections.emptySet());
+        return state.metadata().nodeShutdowns().getAllNodeIds();
     }
-
 }

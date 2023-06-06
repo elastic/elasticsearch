@@ -14,6 +14,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.user.InternalUser;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
@@ -38,7 +39,7 @@ public class GetUsersResponse extends ActionResponse implements ToXContentObject
             users = new User[size];
             for (int i = 0; i < size; i++) {
                 final User user = Authentication.AuthenticationSerializationHelper.readUserFrom(in);
-                assert false == User.isInternal(user) : "should not get internal users";
+                assert false == user instanceof InternalUser : "should not get internal user [" + user + "]";
                 users[i] = user;
             }
         }

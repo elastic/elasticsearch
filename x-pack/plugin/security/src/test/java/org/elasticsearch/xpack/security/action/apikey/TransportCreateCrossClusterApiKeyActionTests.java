@@ -12,12 +12,9 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyRequest;
-import org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
@@ -25,41 +22,79 @@ import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import java.io.IOException;
 import java.util.Set;
 
-import static org.elasticsearch.xcontent.json.JsonXContent.jsonXContent;
+import static org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyRequestTests.randomCrossClusterApiKeyAccessField;
+import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 public class TransportCreateCrossClusterApiKeyActionTests extends ESTestCase {
 
-    public void testApiKeyWillBeCreatedWithEmptyUserRoleDescriptors() throws IOException {
-        final ApiKeyService apiKeyService = mock(ApiKeyService.class);
-        final SecurityContext securityContext = mock(SecurityContext.class);
-        final Authentication authentication = AuthenticationTestHelper.builder().build();
-        when(securityContext.getAuthentication()).thenReturn(authentication);
-        final var action = new TransportCreateCrossClusterApiKeyAction(
+    private ApiKeyService apiKeyService;
+    private SecurityContext securityContext;
+    private TransportCreateCrossClusterApiKeyAction action;
+
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
+        apiKeyService = mock(ApiKeyService.class);
+        securityContext = mock(SecurityContext.class);
+        action = new TransportCreateCrossClusterApiKeyAction(
             mock(TransportService.class),
             mock(ActionFilters.class),
             apiKeyService,
             securityContext
         );
+    }
 
-        final XContentParser parser = jsonXContent.createParser(XContentParserConfiguration.EMPTY, """
-            {
-              "search": [ {"names": ["idx"]} ]
-            }""");
-
-        final CreateCrossClusterApiKeyRequest request = new CreateCrossClusterApiKeyRequest(
-            randomAlphaOfLengthBetween(3, 8),
-            CrossClusterApiKeyRoleDescriptorBuilder.PARSER.parse(parser, null),
-            null,
-            null
+    public void testApiKeyWillBeCreatedWithEmptyUserRoleDescriptors() throws IOException {
+        final Authentication authentication = randomValueOtherThanMany(
+            Authentication::isApiKey,
+            () -> AuthenticationTestHelper.builder().build()
         );
+        when(securityContext.getAuthentication()).thenReturn(authentication);
 
+        final var request = CreateCrossClusterApiKeyRequest.withNameAndAccess(
+            randomAlphaOfLengthBetween(3, 8),
+            randomCrossClusterApiKeyAccessField()
+        );
         final PlainActionFuture<CreateApiKeyResponse> future = new PlainActionFuture<>();
         action.doExecute(mock(Task.class), request, future);
         verify(apiKeyService).createApiKey(same(authentication), same(request), eq(Set.of()), same(future));
+    }
+
+    public void testAuthenticationIsRequired() throws IOException {
+        final var request = CreateCrossClusterApiKeyRequest.withNameAndAccess(
+            randomAlphaOfLengthBetween(3, 8),
+            randomCrossClusterApiKeyAccessField()
+        );
+        final PlainActionFuture<CreateApiKeyResponse> future = new PlainActionFuture<>();
+        action.doExecute(mock(Task.class), request, future);
+
+        final IllegalStateException e = expectThrows(IllegalStateException.class, future::actionGet);
+        assertThat(e.getMessage(), containsString("authentication is required"));
+        verifyNoInteractions(apiKeyService);
+    }
+
+    public void testCannotCreateDerivedCrossClusterApiKey() throws IOException {
+        final Authentication authentication = AuthenticationTestHelper.builder().apiKey().build();
+        when(securityContext.getAuthentication()).thenReturn(authentication);
+
+        final var request = CreateCrossClusterApiKeyRequest.withNameAndAccess(
+            randomAlphaOfLengthBetween(3, 8),
+            randomCrossClusterApiKeyAccessField()
+        );
+        final PlainActionFuture<CreateApiKeyResponse> future = new PlainActionFuture<>();
+        action.doExecute(mock(Task.class), request, future);
+
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, future::actionGet);
+        assertThat(
+            e.getMessage(),
+            containsString("authentication via API key not supported: An API key cannot be used to create a cross-cluster API key")
+        );
+        verifyNoInteractions(apiKeyService);
     }
 }

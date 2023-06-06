@@ -70,6 +70,7 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.junit.After;
@@ -657,6 +658,113 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
             respondToRecoverSnapshotFile.countDown();
 
             assertThat(indexExists(indexName), is(equalTo(false)));
+        } finally {
+            updateSetting(INDICES_RECOVERY_MAX_CONCURRENT_SNAPSHOT_FILE_DOWNLOADS.getKey(), null);
+        }
+    }
+
+    public void testCancelledRecoveryAbortsDownloadPromptly() throws Exception {
+        updateSetting(INDICES_RECOVERY_MAX_CONCURRENT_SNAPSHOT_FILE_DOWNLOADS.getKey(), "1");
+
+        try {
+            internalCluster().ensureAtLeastNumDataNodes(2);
+
+            String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+            createIndex(
+                indexName,
+                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
+            );
+            ensureGreen(indexName);
+
+            int numDocs = randomIntBetween(1, 1000);
+            indexDocs(indexName, numDocs, numDocs);
+
+            String repoName = "repo";
+            createRepo(repoName, TestRepositoryPlugin.FILTER_TYPE);
+            createSnapshot(repoName, "snap", Collections.singletonList(indexName));
+
+            final AtomicBoolean isCancelled = new AtomicBoolean();
+            final CountDownLatch readFromBlobCalledLatch = new CountDownLatch(1);
+            final CountDownLatch readFromBlobRespondLatch = new CountDownLatch(1);
+
+            internalCluster().getInstances(TransportService.class)
+                .forEach(
+                    transportService -> ((MockTransportService) transportService).addRequestHandlingBehavior(
+                        PeerRecoverySourceService.Actions.START_RECOVERY,
+                        (handler, request, channel, task) -> handler.messageReceived(request, new TransportChannel() {
+                            @Override
+                            public String getProfileName() {
+                                return channel.getProfileName();
+                            }
+
+                            @Override
+                            public String getChannelType() {
+                                return channel.getChannelType();
+                            }
+
+                            @Override
+                            public void sendResponse(TransportResponse response) {
+                                fail("recovery should not succeed");
+                            }
+
+                            @Override
+                            public void sendResponse(Exception exception) {
+                                // Must not respond until the index deletion is applied on the target node, or else it will get an
+                                // IllegalIndexShardStateException which it considers to be retryable, and will reset the recovery and
+                                // generate a new `CancellableThreads` which is cancelled instead of the original `CancellableThreads`,
+                                // permitting a subsequent read.
+                                transportService.getThreadPool().generic().execute(() -> {
+                                    safeAwait(readFromBlobRespondLatch);
+                                    try {
+                                        channel.sendResponse(exception);
+                                    } catch (IOException e) {
+                                        throw new AssertionError("unexpected", e);
+                                    }
+                                });
+                            }
+                        }, task)
+                    )
+                );
+
+            FilterFsRepository.wrapReadBlobMethod((blobName, stream) -> {
+                if (blobName.startsWith("__")) {
+                    return new FilterInputStream(stream) {
+                        @Override
+                        public int read() throws IOException {
+                            beforeRead();
+                            return super.read();
+                        }
+
+                        @Override
+                        public int read(byte[] b, int off, int len) throws IOException {
+                            beforeRead();
+                            return super.read(b, off, len);
+                        }
+
+                        private void beforeRead() {
+                            assertFalse(isCancelled.get()); // should have no further reads once the index is deleted
+                            readFromBlobCalledLatch.countDown();
+                            safeAwait(readFromBlobRespondLatch);
+                        }
+                    };
+                } else {
+                    return stream;
+                }
+            });
+
+            updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1), indexName);
+            safeAwait(readFromBlobCalledLatch);
+
+            assertAcked(client().admin().indices().prepareDelete(indexName).get());
+            // cancellation flag is set when applying the cluster state that deletes the index, so no further waiting is necessary
+            isCancelled.set(true);
+            readFromBlobRespondLatch.countDown();
+
+            assertThat(indexExists(indexName), is(equalTo(false)));
+            assertBusy(
+                () -> internalCluster().getInstances(PeerRecoveryTargetService.class)
+                    .forEach(peerRecoveryTargetService -> assertEquals(0, peerRecoveryTargetService.ongoingRecoveryCount()))
+            );
         } finally {
             updateSetting(INDICES_RECOVERY_MAX_CONCURRENT_SNAPSHOT_FILE_DOWNLOADS.getKey(), null);
         }

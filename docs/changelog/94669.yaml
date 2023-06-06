@@ -1,5 +1,0 @@
-pr: 94669
-summary: Add `transport_version` to node info JSON
-area: Infra/Transport API
-type: enhancement
-issues: []

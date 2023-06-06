@@ -70,6 +70,7 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivileg
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
+import org.elasticsearch.xpack.core.security.user.InternalUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.Security;
@@ -101,7 +102,6 @@ import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceFi
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.ORIGINATING_ACTION_KEY;
 import static org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl.allowAll;
 import static org.elasticsearch.xpack.core.security.support.Exceptions.authorizationError;
-import static org.elasticsearch.xpack.core.security.user.User.isInternal;
 import static org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME;
 
 public class AuthorizationService {
@@ -216,7 +216,7 @@ public class AuthorizationService {
         final Subject subject,
         final ActionListener<RoleDescriptorsIntersection> listener
     ) {
-        if (isInternal(subject.getUser())) {
+        if (subject.getUser() instanceof InternalUser) {
             final String message = "the user ["
                 + subject.getUser().principal()
                 + "] is an internal user and we should never try to retrieve its roles descriptors towards a remote cluster";
@@ -352,7 +352,7 @@ public class AuthorizationService {
         if (auditId == null) {
             // We would like to assert that there is an existing request-id, but if this is a system action, then that might not be
             // true because the request-id is generated during authentication
-            if (isInternal(authentication.getEffectiveSubject().getUser())) {
+            if (authentication.getEffectiveSubject().getUser() instanceof InternalUser) {
                 auditId = AuditUtil.getOrGenerateRequestId(threadContext);
             } else {
                 auditTrailService.get().tamperedRequest(null, authentication, action, originalRequest);
@@ -630,7 +630,7 @@ public class AuthorizationService {
 
     private AuthorizationEngine getAuthorizationEngineForUser(final User user) {
         if (rbacEngine != authorizationEngine && Security.AUTHORIZATION_ENGINE_FEATURE.check(licenseState)) {
-            if (ClientReservedRealm.isReserved(user.principal(), settings) || isInternal(user)) {
+            if (ClientReservedRealm.isReserved(user.principal(), settings) || user instanceof InternalUser) {
                 return rbacEngine;
             } else {
                 return authorizationEngine;

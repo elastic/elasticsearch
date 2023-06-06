@@ -21,7 +21,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -90,7 +90,6 @@ import java.util.function.Predicate;
 import java.util.stream.Stream;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiLettersOfLength;
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.NONE;
@@ -160,7 +159,10 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             Translog.Location lastWriteLocation = tlog.getLastWriteLocation();
             try {
                 // the lastWriteLocaltion has a Integer.MAX_VALUE size so we have to create a new one
-                return tlog.ensureSynced(new Translog.Location(lastWriteLocation.generation, lastWriteLocation.translogLocation, 0));
+                return tlog.ensureSynced(
+                    new Translog.Location(lastWriteLocation.generation, lastWriteLocation.translogLocation, 0),
+                    SequenceNumbers.UNASSIGNED_SEQ_NO
+                );
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
@@ -612,7 +614,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
     }
 
     public static final IndexShard recoverShard(IndexShard newShard) throws IOException {
-        DiscoveryNode localNode = TestDiscoveryNode.create("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet());
+        DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(emptySet()).build();
         newShard.markAsRecovering("store", new RecoveryState(newShard.routingEntry(), localNode, null));
         recoverFromStore(newShard);
         IndexShardTestCase.updateRoutingEntry(
@@ -647,7 +649,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             null,
             Collections.emptyList(),
             Arrays.asList(listeners),
-            () -> {},
+            IndexShardTestCase.NOOP_GCP_SYNCER,
             RetentionLeaseSyncer.EMPTY,
             cbs,
             IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER,

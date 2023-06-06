@@ -22,4 +22,4 @@ steps:
       set -x
 
 
-      .ci/scripts/run-gradle.sh :x-pack:plugin:eql:qa:correctness:check
+      $$WORKSPACE/.ci/scripts/run-gradle.sh :x-pack:plugin:eql:qa:correctness:check

@@ -26,7 +26,7 @@ steps:
       set -x
 
 
-      .ci/scripts/run-gradle.sh azureThirdPartyTest
+      $$WORKSPACE/.ci/scripts/run-gradle.sh azureThirdPartyTest
   - label: third-party-tests-azure-sas
     command: >-
       set -euo pipefail
@@ -48,7 +48,7 @@ steps:
       set -x
 
 
-      .ci/scripts/run-gradle.sh azureThirdPartyTest
+      $$WORKSPACE/.ci/scripts/run-gradle.sh azureThirdPartyTest
   - label: third-party-tests-gcs
     command: >-
       set -euo pipefail
@@ -69,7 +69,7 @@ steps:
       set -x
 
 
-      .ci/scripts/run-gradle.sh gcsThirdPartyTest
+      $$WORKSPACE/.ci/scripts/run-gradle.sh gcsThirdPartyTest
   - label: third-party-tests-s3
     command: >-
       set -euo pipefail
@@ -92,7 +92,7 @@ steps:
       set -x
 
 
-      .ci/scripts/run-gradle.sh s3ThirdPartyTest
+      $$WORKSPACE/.ci/scripts/run-gradle.sh s3ThirdPartyTest
   - label: third-party-tests-geoip
-    command: .ci/scripts/run-gradle.sh :modules:ingest-geoip:internalClusterTest
-      -Dgeoip_use_service=true
+    command: $$WORKSPACE/.ci/scripts/run-gradle.sh
+      :modules:ingest-geoip:internalClusterTest -Dgeoip_use_service=true

@@ -8,7 +8,7 @@ steps:
   - group: platform-support-unix
     steps:
       - label: platform-support-unix
-        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true check
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dbwc.checkout.align=true check
         agents:
           provider: gcp
           image: "{{matrix.image}}"
@@ -38,7 +38,8 @@ steps:
   - group: platform-support-arm
     steps:
       - label: platform-support-arm
-        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true $$GRADLE_TASK
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dbwc.checkout.align=true
+          $$GRADLE_TASK
         agents:
           provider: gcp
           image: "{{matrix.image}}"

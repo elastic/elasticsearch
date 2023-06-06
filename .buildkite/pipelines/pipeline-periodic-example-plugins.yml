@@ -7,6 +7,6 @@ agents:
 steps:
   - label: example-plugins
     command: |-
-      cd plugins/examples
+      cd $$WORKSPACE/plugins/examples
 
-      .ci/scripts/run-gradle.sh build
+      $$WORKSPACE/.ci/scripts/run-gradle.sh build

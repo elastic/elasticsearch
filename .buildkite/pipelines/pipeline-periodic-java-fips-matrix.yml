@@ -8,7 +8,7 @@ steps:
   - group: java-fips-matrix
     steps:
       - label: java-fips-matrix
-        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dbwc.checkout.align=true
           -Dtests.fips.enabled=true $$GRADLE_TASK
         matrix:
           setup:

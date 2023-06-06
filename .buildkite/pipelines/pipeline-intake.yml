@@ -6,26 +6,26 @@ agents:
   useVault: false
 steps:
   - label: sanity-check
-    command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true
+    command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dbwc.checkout.align=true
       -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed
       -Dscan.capture-task-input-files precommit
   - wait: null
   - label: part1
-    command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true
+    command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dbwc.checkout.align=true
       -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed
       -Dscan.capture-task-input-files checkPart1
   - label: part2
-    command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true
+    command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dbwc.checkout.align=true
       -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed
       -Dscan.capture-task-input-files checkPart2
   - label: part3
-    command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true
+    command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dbwc.checkout.align=true
       -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed
       -Dscan.capture-task-input-files checkPart3
   - group: bwc-snapshots
     steps:
       - label: bwc-snapshots
-        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dbwc.checkout.align=true
           -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed
           -Dscan.capture-task-input-files v$$BWC_VERSION#bwcTest
         matrix:
@@ -37,7 +37,7 @@ steps:
         env:
           BWC_VERSION: "{{matrix.BWC_VERSION}}"
   - label: rest-compat
-    command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true
+    command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dbwc.checkout.align=true
       -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed
       -Dscan.capture-task-input-files checkRestCompat
   - wait: null
@@ -64,11 +64,11 @@ steps:
 
       export VAULT_TOKEN
 
-      .ci/scripts/run-gradle.sh -Ddra.artifacts=true \
+      $$WORKSPACE/.ci/scripts/run-gradle.sh -Ddra.artifacts=true \
           -Ddra.artifacts.dependency.beats=$${BEATS_BUILD_ID} \
           -Ddra.artifacts.dependency.ml-cpp=$${ML_CPP_BUILD_ID} \
           -Ddra.workflow=$$WORKFLOW \
-          -Dcsv=build/distributions/dependencies-$${ES_VERSION}$${VERSION_SUFFIX}.csv \
+          -Dcsv=$$WORKSPACE/build/distributions/dependencies-$${ES_VERSION}$${VERSION_SUFFIX}.csv \
           buildReleaseArtifacts \
           exportCompressedDockerImages \
           :distribution:generateDependenciesReport
@@ -77,12 +77,12 @@ steps:
 
       set -x
 
-      x-pack/plugin/sql/connectors/tableau/package.sh asm qualifier="$$VERSION_SUFFIX"
+      $$WORKSPACE/x-pack/plugin/sql/connectors/tableau/package.sh asm qualifier="$$VERSION_SUFFIX"
 
 
       # we regenerate this file as part of the release manager invocation
 
-      rm build/distributions/elasticsearch-jdbc-$${ES_VERSION}$${VERSION_SUFFIX}.taco.sha512
+      rm $$WORKSPACE/build/distributions/elasticsearch-jdbc-$${ES_VERSION}$${VERSION_SUFFIX}.taco.sha512
 
 
       # Allow other users access to read the artifacts so they are readable in the

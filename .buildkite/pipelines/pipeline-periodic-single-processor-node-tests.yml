@@ -6,5 +6,5 @@ agents:
   useVault: false
 steps:
   - label: single-processor-node-tests
-    command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true
+    command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dbwc.checkout.align=true
       -Dtests.configure_test_clusters_with_one_processor=true check

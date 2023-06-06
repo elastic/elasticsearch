@@ -7,30 +7,33 @@ agents:
 steps:
   - label: build-benchmark-part1
     command: >-
-      .ci/scripts/run-gradle.sh :build-tools-internal:bootstrapPerformanceTests
+      $$WORKSPACE/.ci/scripts/run-gradle.sh
+      :build-tools-internal:bootstrapPerformanceTests
 
-      .ci/scripts/install-gradle-profiler.sh
+      $$WORKSPACE/.ci/scripts/install-gradle-profiler.sh
 
-      .ci/scripts/run-gradle-profiler.sh --benchmark --scenario-file build-tools-internal/build/performanceTests/elasticsearch-build-benchmark-part1.scenarios --project-dir . --output-dir profile-out
+      $$WORKSPACE/.ci/scripts/run-gradle-profiler.sh --benchmark --scenario-file build-tools-internal/build/performanceTests/elasticsearch-build-benchmark-part1.scenarios --project-dir . --output-dir profile-out
 
-      mkdir build
+      mkdir $$WORKSPACE/build
 
-      tar -czf build/$${BUILD_NUMBER}.tar.bz2 profile-out
+      tar -czf $$WORKSPACE/build/$${BUILD_NUMBER}.tar.bz2 profile-out
   - label: build-benchmark-part2
     command: >-
-      .ci/scripts/run-gradle.sh :build-tools-internal:bootstrapPerformanceTests
+      $$WORKSPACE/.ci/scripts/run-gradle.sh
+      :build-tools-internal:bootstrapPerformanceTests
 
-      .ci/scripts/install-gradle-profiler.sh
+      $$WORKSPACE/.ci/scripts/install-gradle-profiler.sh
 
-      .ci/scripts/run-gradle-profiler.sh --benchmark --scenario-file build-tools-internal/build/performanceTests/elasticsearch-build-benchmark-part2.scenarios --project-dir . --output-dir profile-out
+      $$WORKSPACE/.ci/scripts/run-gradle-profiler.sh --benchmark --scenario-file build-tools-internal/build/performanceTests/elasticsearch-build-benchmark-part2.scenarios --project-dir . --output-dir profile-out
 
-      mkdir build
+      mkdir $$WORKSPACE/build
 
-      tar -czf build/$${BUILD_NUMBER}.tar.bz2 profile-out
+      tar -czf $$WORKSPACE/build/$${BUILD_NUMBER}.tar.bz2 profile-out
   - group: bwc-snapshots
     steps:
       - label: bwc-snapshots
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
         matrix:
           setup:
             BWC_VERSION:
@@ -41,7 +44,7 @@ steps:
           BWC_VERSION: "{{matrix.BWC_VERSION}}"
   - label: cloud-deploy
     command: >-
-      .ci/scripts/run-gradle.sh buildCloudDockerImage
+      $$WORKSPACE/.ci/scripts/run-gradle.sh buildCloudDockerImage
 
 
       #!/bin/bash
@@ -70,7 +73,8 @@ steps:
 
       docker push $$DOCKER_TAG
   - label: docs-check
-    command: .ci/scripts/run-gradle.sh -Dignore.tests.seed precommit :docs:check
+    command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed precommit
+      :docs:check
   - label: eql-correctness
     command: >-
       set +x
@@ -88,376 +92,467 @@ steps:
       set -x
 
 
-      .ci/scripts/run-gradle.sh -Dignore.tests.seed :x-pack:plugin:eql:qa:correctness:check
+      $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed :x-pack:plugin:eql:qa:correctness:check
   - label: example-plugins
     command: >-
       cd plugins/examples
 
-      .ci/scripts/run-gradle.sh -Dorg.gradle.jvmargs=-Xmx8g build --include-build $$WORKSPACE
+      $$WORKSPACE/.ci/scripts/run-gradle.sh -Dorg.gradle.jvmargs=-Xmx8g build --include-build $$WORKSPACE
   - group: full-bwc
     steps:
       - label: full-bwc / 7.0.0
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 7.0.0
       - label: full-bwc / 7.0.1
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 7.0.1
       - label: full-bwc / 7.1.0
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 7.1.0
       - label: full-bwc / 7.1.1
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 7.1.1
       - label: full-bwc / 7.2.0
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 7.2.0
       - label: full-bwc / 7.2.1
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 7.2.1
       - label: full-bwc / 7.3.0
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 7.3.0
       - label: full-bwc / 7.3.1
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 7.3.1
       - label: full-bwc / 7.3.2
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 7.3.2
       - label: full-bwc / 7.4.0
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 7.4.0
       - label: full-bwc / 7.4.1
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 7.4.1
       - label: full-bwc / 7.4.2
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 7.4.2
       - label: full-bwc / 7.5.0
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 7.5.0
       - label: full-bwc / 7.5.1
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 7.5.1
       - label: full-bwc / 7.5.2
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 7.5.2
       - label: full-bwc / 7.6.0
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 7.6.0
       - label: full-bwc / 7.6.1
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 7.6.1
       - label: full-bwc / 7.6.2
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 7.6.2
       - label: full-bwc / 7.7.0
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 7.7.0
       - label: full-bwc / 7.7.1
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 7.7.1
       - label: full-bwc / 7.8.0
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 7.8.0
       - label: full-bwc / 7.8.1
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 7.8.1
       - label: full-bwc / 7.9.0
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 7.9.0
       - label: full-bwc / 7.9.1
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 7.9.1
       - label: full-bwc / 7.9.2
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 7.9.2
       - label: full-bwc / 7.9.3
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 7.9.3
       - label: full-bwc / 7.10.0
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 7.10.0
       - label: full-bwc / 7.10.1
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 7.10.1
       - label: full-bwc / 7.10.2
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 7.10.2
       - label: full-bwc / 7.11.0
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 7.11.0
       - label: full-bwc / 7.11.1
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 7.11.1
       - label: full-bwc / 7.11.2
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 7.11.2
       - label: full-bwc / 7.12.0
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 7.12.0
       - label: full-bwc / 7.12.1
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 7.12.1
       - label: full-bwc / 7.13.0
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 7.13.0
       - label: full-bwc / 7.13.1
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 7.13.1
       - label: full-bwc / 7.13.2
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 7.13.2
       - label: full-bwc / 7.13.3
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 7.13.3
       - label: full-bwc / 7.13.4
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 7.13.4
       - label: full-bwc / 7.14.0
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 7.14.0
       - label: full-bwc / 7.14.1
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 7.14.1
       - label: full-bwc / 7.14.2
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 7.14.2
       - label: full-bwc / 7.15.0
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 7.15.0
       - label: full-bwc / 7.15.1
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 7.15.1
       - label: full-bwc / 7.15.2
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 7.15.2
       - label: full-bwc / 7.16.0
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 7.16.0
       - label: full-bwc / 7.16.1
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 7.16.1
       - label: full-bwc / 7.16.2
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 7.16.2
       - label: full-bwc / 7.16.3
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 7.16.3
       - label: full-bwc / 7.17.0
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 7.17.0
       - label: full-bwc / 7.17.1
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 7.17.1
       - label: full-bwc / 7.17.2
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 7.17.2
       - label: full-bwc / 7.17.3
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 7.17.3
       - label: full-bwc / 7.17.4
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 7.17.4
       - label: full-bwc / 7.17.5
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 7.17.5
       - label: full-bwc / 7.17.6
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 7.17.6
       - label: full-bwc / 7.17.7
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 7.17.7
       - label: full-bwc / 7.17.8
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 7.17.8
       - label: full-bwc / 7.17.9
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 7.17.9
       - label: full-bwc / 7.17.10
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 7.17.10
       - label: full-bwc / 7.17.11
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 7.17.11
       - label: full-bwc / 8.0.0
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 8.0.0
       - label: full-bwc / 8.0.1
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 8.0.1
       - label: full-bwc / 8.1.0
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 8.1.0
       - label: full-bwc / 8.1.1
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 8.1.1
       - label: full-bwc / 8.1.2
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 8.1.2
       - label: full-bwc / 8.1.3
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 8.1.3
       - label: full-bwc / 8.2.0
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 8.2.0
       - label: full-bwc / 8.2.1
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 8.2.1
       - label: full-bwc / 8.2.2
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 8.2.2
       - label: full-bwc / 8.2.3
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 8.2.3
       - label: full-bwc / 8.3.0
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 8.3.0
       - label: full-bwc / 8.3.1
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 8.3.1
       - label: full-bwc / 8.3.2
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 8.3.2
       - label: full-bwc / 8.3.3
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 8.3.3
       - label: full-bwc / 8.4.0
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 8.4.0
       - label: full-bwc / 8.4.1
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 8.4.1
       - label: full-bwc / 8.4.2
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 8.4.2
       - label: full-bwc / 8.4.3
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 8.4.3
       - label: full-bwc / 8.5.0
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 8.5.0
       - label: full-bwc / 8.5.1
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 8.5.1
       - label: full-bwc / 8.5.2
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 8.5.2
       - label: full-bwc / 8.5.3
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 8.5.3
       - label: full-bwc / 8.6.0
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 8.6.0
       - label: full-bwc / 8.6.1
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 8.6.1
       - label: full-bwc / 8.6.2
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 8.6.2
       - label: full-bwc / 8.7.0
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 8.7.0
       - label: full-bwc / 8.7.1
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 8.7.1
       - label: full-bwc / 8.8.0
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 8.8.0
       - label: full-bwc / 8.8.1
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 8.8.1
       - label: full-bwc / 8.9.0
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 8.9.0
   - group: packaging-tests-unix-sample
@@ -2070,22 +2165,22 @@ steps:
         env:
           BWC_VERSION: 8.9.0
   - label: part-1-fips
-    command: .ci/scripts/run-gradle.sh -Dignore.tests.seed -Dtests.fips.enabled=true
-      checkPart1
+    command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+      -Dtests.fips.enabled=true checkPart1
   - label: part-1
-    command: .ci/scripts/run-gradle.sh -Dignore.tests.seed checkPart1
+    command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed checkPart1
   - label: part-2-fips
-    command: .ci/scripts/run-gradle.sh -Dignore.tests.seed -Dtests.fips.enabled=true
-      checkPart2
+    command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+      -Dtests.fips.enabled=true checkPart2
   - label: part-2
-    command: .ci/scripts/run-gradle.sh -Dignore.tests.seed checkPart2
+    command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed checkPart2
   - label: part-3-fips
-    command: .ci/scripts/run-gradle.sh -Dignore.tests.seed -Dtests.fips.enabled=true
-      checkPart3
+    command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+      -Dtests.fips.enabled=true checkPart3
   - label: part-3
-    command: .ci/scripts/run-gradle.sh -Dignore.tests.seed checkPart3
+    command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed checkPart3
   - label: precommit
-    command: .ci/scripts/run-gradle.sh -Dignore.tests.seed precommit
+    command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed precommit
   - label: release-tests
     command: >-
       # Fetch beats artifacts
@@ -2119,7 +2214,7 @@ steps:
       curl --fail -o "$${ML_IVY_REPO}/maven/org/elasticsearch/ml/ml-cpp/$${ES_VERSION}/ml-cpp-$${ES_VERSION}.zip" https://artifacts-snapshot.elastic.co/ml-cpp/$${ES_VERSION}-SNAPSHOT/downloads/ml-cpp/ml-cpp-$${ES_VERSION}-SNAPSHOT.zip
 
 
-      .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dbuild.snapshot=false -Dbuild.ml_cpp.repo=file://$${ML_IVY_REPO} \
+      $$WORKSPACE/.ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dbuild.snapshot=false -Dbuild.ml_cpp.repo=file://$${ML_IVY_REPO} \
         -Dtests.jvm.argline=-Dbuild.snapshot=false -Dlicense.key=$${WORKSPACE}/x-pack/license-tools/src/test/resources/public.key -Dbuild.id=deadbeef build
   - label: rest-compatibility
-    command: .ci/scripts/run-gradle.sh -Dignore.tests.seed checkRestCompat
+    command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed checkRestCompat

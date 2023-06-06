@@ -66,7 +66,7 @@ public abstract class AbstractSynonymsPagedResultAction<T extends ActionResponse
 
             if (from + size > MAX_SYNONYMS_RESULTS) {
                 validationException = addValidationError(
-                    "Too many synonyms to retrieve. [from] + [size] must be less than or equal to " + MAX_SYNONYMS_RESULTS,
+                    "Too many results to retrieve. [from] + [size] must be less than or equal to " + MAX_SYNONYMS_RESULTS,
                     validationException
                 );
             }

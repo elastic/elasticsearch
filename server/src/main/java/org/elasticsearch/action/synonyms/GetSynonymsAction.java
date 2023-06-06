@@ -35,10 +35,10 @@ public class GetSynonymsAction extends AbstractSynonymsPagedResultAction<GetSyno
             this.synonymsSetId = in.readString();
         }
 
-        public Request(String SynonymsSetId, int from, int size) {
+        public Request(String synonymsSetId, int from, int size) {
             super(from, size);
-            Objects.requireNonNull(SynonymsSetId, "Synonym set ID cannot be null");
-            this.synonymsSetId = SynonymsSetId;
+            Objects.requireNonNull(synonymsSetId, "Synonym set ID cannot be null");
+            this.synonymsSetId = synonymsSetId;
         }
 
         @Override

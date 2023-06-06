@@ -6,7 +6,9 @@
  */
 package org.elasticsearch.xpack.application.analytics;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -35,8 +37,11 @@ import static org.elasticsearch.xpack.core.ClientHelper.ENT_SEARCH_ORIGIN;
 
 public class AnalyticsTemplateRegistry extends IndexTemplateRegistry {
 
+    // This registry requires all nodes to be at least 8.8.0
+    static final Version MIN_NODE_VERSION = Version.V_8_8_0;
+
     // This number must be incremented when we make changes to built-in templates.
-    static final int REGISTRY_VERSION = 1;
+    static final int REGISTRY_VERSION = 2;
 
     // ILM Policies configuration
     static final String EVENT_DATA_STREAM_ILM_POLICY_NAME = EVENT_DATA_STREAM_INDEX_PREFIX + "default_policy";
@@ -145,5 +150,12 @@ public class AnalyticsTemplateRegistry extends IndexTemplateRegistry {
         // are only installed via elected master node then the APIs are always
         // there and the ActionNotFoundTransportException errors are then prevented.
         return true;
+    }
+
+    @Override
+    protected boolean isClusterReady(ClusterChangedEvent event) {
+        // Ensure templates are installed only once all nodes are updated to 8.8.0.
+        Version minNodeVersion = event.state().nodes().getMinNodeVersion();
+        return minNodeVersion.onOrAfter(MIN_NODE_VERSION);
     }
 }

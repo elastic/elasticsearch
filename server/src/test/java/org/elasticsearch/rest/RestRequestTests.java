@@ -247,6 +247,16 @@ public class RestRequestTests extends ESTestCase {
         assertEquals("unknown content type", e.getMessage());
     }
 
+    public void testCopyRequestWithAdditionalParams() {
+        RestRequest request = contentRestRequest("content", new HashMap<>(Map.of("foo", "bar", "baz", "blah")));
+        assertEquals("bar", request.param("foo"));
+        assertEquals("blah", request.param("baz"));
+        RestRequest.copyRequestWithAdditionalParams(request, Map.of("foo", "updated", "something", "new"));
+        assertEquals("updated", request.param("foo"));
+        assertEquals("blah", request.param("baz"));
+        assertEquals("new", request.param("something"));
+    }
+
     public static RestRequest contentRestRequest(String content, Map<String, String> params) {
         Map<String, List<String>> headers = new HashMap<>();
         headers.put("Content-Type", Collections.singletonList("application/json"));

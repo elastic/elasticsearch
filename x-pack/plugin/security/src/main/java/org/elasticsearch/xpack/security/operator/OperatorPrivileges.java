@@ -73,7 +73,7 @@ public class OperatorPrivileges {
          * @param restHandler The {@link RestHandler} to check for any restrictions
          * @param restRequest The {@link RestRequest} to check for any restrictions
          * @param threadContext Reference to the current {@link ThreadContext}
-         * @return {@link RestRequest} to use when calling the {@link RestHandler}, can be same or different object as the passed in parameter
+         * @return {@link RestRequest} used when calling the {@link RestHandler} can be same or different object as the passed in parameter
          */
         RestRequest checkRestPartial(RestHandler restHandler, RestRequest restRequest, ThreadContext threadContext);
 

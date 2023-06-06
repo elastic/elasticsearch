@@ -25,8 +25,11 @@ set -e
 . .ci/java-versions.properties
 BUILD_JAVA_HOME=$HOME/.java/$ES_BUILD_JAVA
 
-rm -Rfv $HOME/.gradle/init.d/ && mkdir -p $HOME/.gradle/init.d
-cp -v .ci/init.gradle $HOME/.gradle/init.d
+# Not usable on Buildkite yet because of vault
+if [[ "${BUILDKITE:-}" != "true" ]]; then
+  rm -Rfv $HOME/.gradle/init.d/ && mkdir -p $HOME/.gradle/init.d
+  cp -v .ci/init.gradle $HOME/.gradle/init.d
+fi
 
 unset JAVA_HOME
 

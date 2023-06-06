@@ -227,6 +227,18 @@ example with a `query_string` that uses the same query text as the
 from both queries. You can increase or decrease the relevance scores of each 
 query by using the `boost` parameter.
 
+You can combine `text_expansion` with other queries in a 
+<<compound-queries,compound query>>. For example using a filter clause in a 
+<<query-dsl-bool-query>> or a full text query which may or may not use the same 
+query text as the `text_expansion` query. This enables you to combine the search 
+results from both queries.
+
+The search hits from the `text_expansion` query tend to score higher than other 
+{es} queries, those scores can be regularized by increasing or decreasing the 
+relevance scores of each query by using the `boost` parameter. Recall on the 
+`text_expansion` query can be high where there is a long tail of less relevant 
+results, use the `min_score` parameter to prune those less relevant documents.
+
 [source,console]
 ----
 GET my-index/_search

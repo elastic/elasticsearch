@@ -25,9 +25,7 @@ public class GetSynonymsActionResponseSerializingTests extends AbstractWireSeria
 
     @Override
     protected GetSynonymsAction.Response createTestInstance() {
-        return new GetSynonymsAction.Response(
-            new PagedResult<>(randomLongBetween(0, Long.MAX_VALUE), randomSynonymsSet())
-        );
+        return new GetSynonymsAction.Response(new PagedResult<>(randomLongBetween(0, Long.MAX_VALUE), randomSynonymsSet()));
     }
 
     @Override

@@ -1966,4 +1966,9 @@ public class Security extends Plugin
         }
         return List.of(reservedRoleMappingAction.get());
     }
+
+    // visible for testing
+    OperatorPrivileges.OperatorPrivilegesService getOperatorPrivilegesService() {
+        return operatorPrivilegesService.get();
+    }
 }

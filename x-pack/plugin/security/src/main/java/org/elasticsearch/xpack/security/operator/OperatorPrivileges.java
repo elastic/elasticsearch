@@ -206,6 +206,11 @@ public class OperatorPrivileges {
         private boolean shouldProcess() {
             return Security.OPERATOR_PRIVILEGES_FEATURE.check(licenseState);
         }
+
+        // for testing
+        public OperatorOnlyRegistry getOperatorOnlyRegistry() {
+            return operatorOnlyRegistry;
+        }
     }
 
     public static final OperatorPrivilegesService NOOP_OPERATOR_PRIVILEGES_SERVICE = new OperatorPrivilegesService() {

@@ -15,7 +15,6 @@ import co.elastic.elasticsearch.stateless.lucene.StatelessCommitRef;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
@@ -194,7 +193,6 @@ public class StatelessCommitService {
                     }
                     this.commitFilesToLength.set(Collections.unmodifiableMap(mutableCommitFiles));
                 }
-
             } catch (AlreadyClosedException e) {
                 logger.trace(() -> format("%s exception while reading file sizes to upload [%s] to object store", shardId, generation), e);
                 listener.onFailure(e);
@@ -226,24 +224,22 @@ public class StatelessCommitService {
         private void executeUpload(ActionListener<StatelessCompoundCommit> listener) {
             try {
                 ActionListener<Void> uploadReadyListener = listener.delegateFailure((l, v) -> uploadStatelessCommitFile(l));
-                ActionListener<Void> additionalListener = uploadReadyListener.delegateFailure((l, v) -> checkReadyToUpload(l, listener));
-                uploadAdditionalFiles(additionalListener);
+                ActionListener<Void> generationalListener = uploadReadyListener.delegateFailure((l, v) -> checkReadyToUpload(l, listener));
+                uploadGenerationalFiles(generationalListener);
             } catch (Exception e) {
                 listener.onFailure(e);
             }
         }
 
-        private void uploadAdditionalFiles(ActionListener<Void> listener) {
-            // We resolve missing files as it is possible a previous attempt successfully uploaded some files
-            final Collection<String> additionalFiles = reference.getAdditionalFiles()
+        private void uploadGenerationalFiles(ActionListener<Void> listener) {
+            final Collection<String> generationalFiles = reference.getAdditionalFiles()
                 .stream()
-                .filter(file -> file.startsWith(IndexFileNames.SEGMENTS) == false)
-                .filter(file -> shardCommitState.fileMap.get(file).isUploaded() == false)
+                .filter(StatelessCommitRef::isGenerationalFile)
                 .collect(Collectors.toList());
 
-            logger.trace("{} uploading [{}] additional files for commit [{}]", shardId, additionalFiles.size(), generation);
+            logger.trace("{} uploading [{}] generational files for commit [{}]", shardId, generationalFiles.size(), generation);
 
-            uploadFiles(additionalFiles, listener);
+            uploadFiles(generationalFiles, listener);
         }
 
         private void checkReadyToUpload(ActionListener<Void> readyListener, ActionListener<StatelessCompoundCommit> notReadyListener) {
@@ -262,10 +258,15 @@ public class StatelessCommitService {
 
         private void uploadStatelessCommitFile(ActionListener<StatelessCompoundCommit> listener) {
             String commitFileName = StatelessCompoundCommit.NAME + generation;
+            Set<String> internalFiles = reference.getAdditionalFiles()
+                .stream()
+                .filter(file -> StatelessCommitRef.isGenerationalFile(file) == false)
+                .collect(Collectors.toSet());
             StatelessCompoundCommit.Writer pendingCommit = shardCommitState.returnPendingCompoundCommit(
                 shardId,
                 generation,
                 reference.getPrimaryTerm(),
+                internalFiles,
                 commitFilesToLength.get()
             );
 
@@ -396,6 +397,7 @@ public class StatelessCommitService {
             ShardId shardId,
             long generation,
             long primaryTerm,
+            Set<String> internalFiles,
             Map<String, Long> commitFiles
         ) {
             StatelessCompoundCommit.Writer writer = new StatelessCompoundCommit.Writer(
@@ -406,7 +408,7 @@ public class StatelessCommitService {
             );
             for (Map.Entry<String, Long> commitFile : commitFiles.entrySet()) {
                 String fileName = commitFile.getKey();
-                if (fileName.startsWith(IndexFileNames.SEGMENTS) == false) {
+                if (internalFiles.contains(fileName) == false) {
                     BlobFile blobFile = fileMap.get(fileName);
                     assert blobFile.isUploaded();
                     writer.addReferencedBlobFile(fileName, blobFile.location());

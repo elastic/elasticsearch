@@ -13,6 +13,9 @@ import co.elastic.elasticsearch.stateless.lucene.StatelessCommitRef;
 import co.elastic.elasticsearch.stateless.test.FakeStatelessNode;
 
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.KeywordField;
+import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
@@ -26,11 +29,16 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.InputStreamStreamInput;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.EngineTestCase;
+import org.elasticsearch.index.mapper.LuceneDocument;
+import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -76,18 +84,15 @@ public class StatelessCommitServiceTests extends ESTestCase {
     }
 
     public void testCommitUpload() throws Exception {
-        Set<String> uploadedFiles = Collections.newSetFromMap(new ConcurrentHashMap<>());
+        Set<String> uploadedBlobs = Collections.newSetFromMap(new ConcurrentHashMap<>());
         Map<Long, Collection<String>> requiredFiles = new HashMap<>();
-        try (var testHarness = createNode(fileCapture(uploadedFiles), validateRequiredFiles(uploadedFiles, requiredFiles))) {
+        try (var testHarness = createNode(fileCapture(uploadedBlobs), validateRequiredFiles(uploadedBlobs, requiredFiles))) {
 
             List<StatelessCommitRef> commitRefs = generateIndexCommits(testHarness, randomIntBetween(3, 8));
             commitRefs.forEach(
                 statelessCommitRef -> requiredFiles.put(
                     statelessCommitRef.getGeneration(),
-                    statelessCommitRef.getCommitFiles()
-                        .stream()
-                        .filter(file -> file.startsWith(IndexFileNames.SEGMENTS) == false)
-                        .collect(Collectors.toList())
+                    statelessCommitRef.getCommitFiles().stream().filter(StatelessCommitRef::isGenerationalFile).collect(Collectors.toList())
                 )
             );
             List<String> commitFiles = commitRefs.stream()
@@ -105,6 +110,10 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 future.actionGet();
             }
 
+            ArrayList<String> uploadedFiles = new ArrayList<>();
+            uploadedFiles.addAll(uploadedBlobs);
+            uploadedFiles.addAll(returnInternalFiles(testHarness, compoundCommitFiles));
+
             assertThat(
                 "Expected that all commit files " + commitFiles + " have been uploaded " + uploadedFiles,
                 uploadedFiles,
@@ -120,7 +129,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
     }
 
     public void testCommitUploadIncludesRetries() throws Exception {
-        Set<String> uploadedFiles = Collections.newSetFromMap(new ConcurrentHashMap<>());
+        Set<String> uploadedBlobs = Collections.newSetFromMap(new ConcurrentHashMap<>());
         Set<String> failedFiles = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
         try (var testHarness = createNode((fileName, runnable) -> {
@@ -133,11 +142,11 @@ public class StatelessCommitServiceTests extends ESTestCase {
                     throw new IOException("Failed");
                 } else {
                     runnable.run();
-                    uploadedFiles.add(fileName);
+                    uploadedBlobs.add(fileName);
                 }
             }
 
-        }, fileCapture(uploadedFiles))) {
+        }, fileCapture(uploadedBlobs))) {
 
             List<StatelessCommitRef> commitRefs = generateIndexCommits(testHarness, randomIntBetween(2, 4));
             List<String> commitFiles = commitRefs.stream()
@@ -155,6 +164,10 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 future.actionGet();
             }
 
+            ArrayList<String> uploadedFiles = new ArrayList<>();
+            uploadedFiles.addAll(uploadedBlobs);
+            uploadedFiles.addAll(returnInternalFiles(testHarness, compoundCommitFiles));
+
             assertThat(
                 "Expected that all commit files " + commitFiles + " have been uploaded " + uploadedFiles,
                 uploadedFiles,
@@ -170,7 +183,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
     }
 
     public void testSecondCommitDefersSchedulingForFirstCommit() throws Exception {
-        Set<String> uploadedFiles = Collections.newSetFromMap(new ConcurrentHashMap<>());
+        Set<String> uploadedBlobs = Collections.newSetFromMap(new ConcurrentHashMap<>());
         Map<Long, Collection<String>> requiredFiles = new HashMap<>();
         AtomicReference<String> commitFileToBlock = new AtomicReference<>();
         AtomicReference<String> firstCommitFile = new AtomicReference<>();
@@ -180,27 +193,21 @@ public class StatelessCommitServiceTests extends ESTestCase {
         CountDownLatch blocking = new CountDownLatch(1);
 
         CheckedBiConsumer<String, CheckedRunnable<IOException>, IOException> validateRequiredFiles = validateRequiredFiles(
-            uploadedFiles,
+            uploadedBlobs,
             requiredFiles
         );
-        try (var testHarness = createNode((fileName, runnable) -> {
-            if (fileName.equals(commitFileToBlock.get())) {
+        try (var testHarness = createNode((n, r) -> r.run(), (compoundCommitFile, runnable) -> {
+            if (compoundCommitFile.equals(firstCommitFile.get())) {
                 try {
                     startingUpload.countDown();
                     blocking.await();
                 } catch (InterruptedException e) {
                     throw new RuntimeException(e);
                 }
-            }
-            uploadedFiles.add(fileName);
-            runnable.run();
-
-        }, (compoundCommitFile, runnable) -> {
-            if (compoundCommitFile.equals(firstCommitFile.get())) {
-                assertFalse(uploadedFiles.contains(secondCommitFile.get()));
+                assertFalse(uploadedBlobs.contains(secondCommitFile.get()));
             } else {
                 assertEquals(compoundCommitFile, secondCommitFile.get());
-                assertTrue(uploadedFiles.contains(firstCommitFile.get()));
+                assertTrue(uploadedBlobs.contains(firstCommitFile.get()));
             }
             validateRequiredFiles.accept(compoundCommitFile, runnable);
         })) {
@@ -212,10 +219,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             commitRefs.forEach(
                 statelessCommitRef -> requiredFiles.put(
                     statelessCommitRef.getGeneration(),
-                    statelessCommitRef.getCommitFiles()
-                        .stream()
-                        .filter(file -> file.startsWith(IndexFileNames.SEGMENTS) == false)
-                        .collect(Collectors.toList())
+                    statelessCommitRef.getCommitFiles().stream().filter(StatelessCommitRef::isGenerationalFile).collect(Collectors.toList())
                 )
             );
 
@@ -238,12 +242,12 @@ public class StatelessCommitServiceTests extends ESTestCase {
 
             testHarness.commitService.onCommitCreation(firstCommit);
             startingUpload.await();
-            assertThat(uploadedFiles, not(hasItems(commitFileToBlock.get())));
-            assertThat(uploadedFiles, not(hasItems(firstCommitFile.get())));
+            assertThat(uploadedBlobs, not(hasItems(commitFileToBlock.get())));
+            assertThat(uploadedBlobs, not(hasItems(firstCommitFile.get())));
 
             testHarness.commitService.onCommitCreation(secondCommit);
 
-            assertThat(uploadedFiles, not(hasItems(secondCommitFile.get())));
+            assertThat(uploadedBlobs, not(hasItems(secondCommitFile.get())));
 
             blocking.countDown();
 
@@ -252,6 +256,10 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 testHarness.commitService.addOrNotify(testHarness.shardId, commitRef.getGeneration(), future);
                 future.actionGet();
             }
+
+            ArrayList<String> uploadedFiles = new ArrayList<>();
+            uploadedFiles.addAll(uploadedBlobs);
+            uploadedFiles.addAll(returnInternalFiles(testHarness, compoundCommitFiles));
 
             assertThat(
                 "Expected that all commit files " + commitFiles + " have been uploaded " + uploadedFiles,
@@ -330,8 +338,8 @@ public class StatelessCommitServiceTests extends ESTestCase {
     }
 
     public void testRecoveredCommitIsNotUploadedAgain() throws Exception {
-        Set<String> uploadedFiles = Collections.newSetFromMap(new ConcurrentHashMap<>());
-        try (var testHarness = createNode(fileCapture(uploadedFiles), fileCapture(uploadedFiles))) {
+        Set<String> uploadedBlobs = Collections.newSetFromMap(new ConcurrentHashMap<>());
+        try (var testHarness = createNode(fileCapture(uploadedBlobs), fileCapture(uploadedBlobs))) {
 
             StatelessCommitRef commitRef = generateIndexCommits(testHarness, 1).get(0);
 
@@ -344,6 +352,10 @@ public class StatelessCommitServiceTests extends ESTestCase {
             PlainActionFuture<Void> future = PlainActionFuture.newFuture();
             testHarness.commitService.addOrNotify(testHarness.shardId, commitRef.getGeneration(), future);
             future.actionGet();
+
+            ArrayList<String> uploadedFiles = new ArrayList<>();
+            uploadedFiles.addAll(uploadedBlobs);
+            uploadedFiles.addAll(returnInternalFiles(testHarness, List.of(StatelessCompoundCommit.NAME + commitRef.getGeneration())));
 
             assertThat(
                 "Expected that all commit files " + commitFiles + " have been uploaded " + uploadedFiles,
@@ -361,7 +373,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 hasItems(StatelessCompoundCommit.NAME + commitRef.getGeneration())
             );
 
-            uploadedFiles.clear();
+            uploadedBlobs.clear();
 
             StatelessCompoundCommit commit = ObjectStoreService.findSearchShardFiles(
                 testHarness.objectStoreService.getBlobContainer(testHarness.shardId, primaryTerm)
@@ -377,7 +389,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             testHarness.commitService.addOrNotify(testHarness.shardId, commitRef.getGeneration(), future2);
             future2.actionGet();
 
-            assertThat(uploadedFiles, empty());
+            assertThat(uploadedBlobs, empty());
         }
     }
 
@@ -394,6 +406,25 @@ public class StatelessCommitServiceTests extends ESTestCase {
             testHarness.commitService.unregister(testHarness.shardId);
             expectThrows(AlreadyClosedException.class, failedFuture::actionGet);
         }
+    }
+
+    private ArrayList<String> returnInternalFiles(FakeStatelessNode testHarness, List<String> compoundCommitFiles) throws IOException {
+        ArrayList<String> filesOnObjectStore = new ArrayList<>();
+        for (String commitFile : compoundCommitFiles) {
+            try (
+                InputStream inputStream = testHarness.objectStoreService.getBlobContainer(testHarness.shardId, primaryTerm)
+                    .readBlob(commitFile)
+            ) {
+                StatelessCompoundCommit compoundCommit = StatelessCompoundCommit.readFromStore(new InputStreamStreamInput(inputStream));
+                compoundCommit.commitFiles()
+                    .entrySet()
+                    .stream()
+                    .filter(e -> e.getValue().blobName().equals(commitFile))
+                    .forEach(e -> filesOnObjectStore.add(e.getKey()));
+
+            }
+        }
+        return filesOnObjectStore;
     }
 
     private static CheckedBiConsumer<String, CheckedRunnable<IOException>, IOException> validateRequiredFiles(
@@ -487,9 +518,20 @@ public class StatelessCommitServiceTests extends ESTestCase {
 
         final var indexWriterConfig = new IndexWriterConfig(new KeywordAnalyzer());
         indexWriterConfig.setIndexDeletionPolicy(NoDeletionPolicy.INSTANCE);
+        String deleteId = randomAlphaOfLength(10);
+
         try (var indexWriter = new IndexWriter(testHarness.indexingStore.directory(), indexWriterConfig)) {
             for (int i = 0; i < commitsNumber; i++) {
-                indexWriter.addDocument(List.of());
+                LuceneDocument document = new LuceneDocument();
+                document.add(new KeywordField("field0", "term", Field.Store.YES));
+                indexWriter.addDocument(document.getFields());
+                if (randomBoolean()) {
+                    final ParsedDocument tombstone = ParsedDocument.deleteTombstone(deleteId);
+                    LuceneDocument delete = tombstone.docs().get(0);
+                    NumericDocValuesField field = Lucene.newSoftDeletesField();
+                    delete.add(field);
+                    indexWriter.softUpdateDocument(EngineTestCase.newUid(deleteId), delete.getFields(), Lucene.newSoftDeletesField());
+                }
                 indexWriter.commit();
                 if (merge) {
                     indexWriter.forceMerge(1, true);

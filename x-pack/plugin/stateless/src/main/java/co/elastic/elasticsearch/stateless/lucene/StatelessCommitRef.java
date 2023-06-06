@@ -17,6 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.lucene;
 
+import org.apache.lucene.index.IndexFileNames;
 import org.elasticsearch.common.lucene.FilterIndexCommit;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.ShardId;
@@ -79,5 +80,9 @@ public class StatelessCommitRef extends FilterIndexCommit implements Closeable {
     @Override
     public String toString() {
         return "StatelessCommitRef(" + shardId + ',' + primaryTerm + "," + in.toString() + ')';
+    }
+
+    public static boolean isGenerationalFile(String file) {
+        return file.startsWith(IndexFileNames.SEGMENTS) == false && IndexFileNames.parseGeneration(file) > 0L;
     }
 }

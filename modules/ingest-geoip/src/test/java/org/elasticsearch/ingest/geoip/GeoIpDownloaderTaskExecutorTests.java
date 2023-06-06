@@ -51,7 +51,7 @@ public class GeoIpDownloaderTaskExecutorTests extends ESTestCase {
             Map<String, Object> configMap = XContentHelper.convertToMap(JsonXContent.jsonXContent, jsonConfig, false);
             configMap.put("_meta", Map.of("managed", true));
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            try(XContentBuilder builder = new XContentBuilder(XContentType.JSON.xContent(), baos)) {
+            try (XContentBuilder builder = new XContentBuilder(XContentType.JSON.xContent(), baos)) {
                 builder.map(configMap).close();
                 return baos.toString();
             } catch (IOException e) {
@@ -60,7 +60,7 @@ public class GeoIpDownloaderTaskExecutorTests extends ESTestCase {
         }).collect(Collectors.toList());
 
         {
-            for (String pipelineConfigJson: pipelinesConfigJson) {
+            for (String pipelineConfigJson : pipelinesConfigJson) {
                 ingestMetadata[0] = new IngestMetadata(
                     Map.of("_id1", new PipelineConfiguration("_id1", new BytesArray(pipelineConfigJson), XContentType.JSON))
                 );

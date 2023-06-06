@@ -209,7 +209,8 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
             }
         }
 
-        if (event.metadataChanged() && (event.indicesCreated().isEmpty() == false || event.changedCustomMetadataSet().contains(IngestMetadata.TYPE))) {
+        if (event.metadataChanged()
+            && (event.indicesCreated().isEmpty() == false || event.changedCustomMetadataSet().contains(IngestMetadata.TYPE))) {
             boolean newAtLeastOneGeoipProcessor = hasAtLeastOneGeoipProcessor(event.state());
             if (newAtLeastOneGeoipProcessor && atLeastOneGeoipProcessor == false) {
                 atLeastOneGeoipProcessor = true;

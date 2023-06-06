@@ -39,9 +39,9 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest.Metric.HTTP;
-import static org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest.Metric.INGEST;
-import static org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest.Metric.THREAD_POOL;
+import static org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest.Metric.HTTP;
+import static org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest.Metric.INGEST;
+import static org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest.Metric.THREAD_POOL;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 
 @ServerlessScope(Scope.PUBLIC)

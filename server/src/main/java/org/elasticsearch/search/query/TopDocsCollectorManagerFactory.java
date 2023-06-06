@@ -80,7 +80,7 @@ abstract class TopDocsCollectorManagerFactory {
     /**
      * Returns the collector manager used to collect top hits, created depending on the incoming request options
      */
-    CollectorManager<Collector, Void> collectorManager() {
+    CollectorManager<? extends Collector, ?> collectorManager() {
         return new SingleThreadCollectorManager(collector());
     }
 
@@ -97,7 +97,7 @@ abstract class TopDocsCollectorManagerFactory {
 
     static class EmptyTopDocsCollectorManagerFactory extends TopDocsCollectorManagerFactory {
         private final Sort sort;
-        private final Collector collector;
+        private final CollectorManager<? extends Collector, ?> collectorManager;
         private final Supplier<TotalHits> hitCountSupplier;
 
         /**
@@ -109,20 +109,20 @@ abstract class TopDocsCollectorManagerFactory {
             super(REASON_SEARCH_COUNT, null);
             this.sort = sortAndFormats == null ? null : sortAndFormats.sort;
             if (trackTotalHitsUpTo == SearchContext.TRACK_TOTAL_HITS_DISABLED) {
-                this.collector = new EarlyTerminatingCollector(new TotalHitCountCollector(), 0, false);
+                this.collectorManager = new EarlyTerminatingCollectorManager(new TotalHitCountCollectorManager(), 0);
                 // for bwc hit count is set to 0, it will be converted to -1 by the coordinating node
                 this.hitCountSupplier = () -> new TotalHits(0, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO);
             } else {
-                TotalHitCountCollector hitCountCollector = new TotalHitCountCollector();
+                TotalHitCountCollectorManager totalHitCountCollectorManager = new TotalHitCountCollectorManager();
                 if (trackTotalHitsUpTo == SearchContext.TRACK_TOTAL_HITS_ACCURATE) {
-                    this.collector = hitCountCollector;
-                    this.hitCountSupplier = () -> new TotalHits(hitCountCollector.getTotalHits(), TotalHits.Relation.EQUAL_TO);
+                    this.collectorManager = totalHitCountCollectorManager;
+                    this.hitCountSupplier = () -> new TotalHits(totalHitCountCollectorManager.getTotalHitCount(), TotalHits.Relation.EQUAL_TO);
                 } else {
-                    EarlyTerminatingCollector col = new EarlyTerminatingCollector(hitCountCollector, trackTotalHitsUpTo, false);
-                    this.collector = col;
+                    EarlyTerminatingCollectorManager earlyTerminatingCollectorManager = new EarlyTerminatingCollectorManager(totalHitCountCollectorManager, trackTotalHitsUpTo);
+                    this.collectorManager = earlyTerminatingCollectorManager;
                     this.hitCountSupplier = () -> new TotalHits(
-                        hitCountCollector.getTotalHits(),
-                        col.hasEarlyTerminated() ? TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO : TotalHits.Relation.EQUAL_TO
+                        totalHitCountCollectorManager.getTotalHitCount(),
+                        earlyTerminatingCollectorManager.hasEarlyTerminated() ? TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO : TotalHits.Relation.EQUAL_TO
                     );
                 }
             }
@@ -130,7 +130,12 @@ abstract class TopDocsCollectorManagerFactory {
 
         @Override
         Collector collector() {
-            return collector;
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        CollectorManager<? extends Collector, ?> collectorManager() {
+            return collectorManager;
         }
 
         @Override

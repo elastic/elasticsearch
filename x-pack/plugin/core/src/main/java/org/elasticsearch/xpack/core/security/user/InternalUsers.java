@@ -167,6 +167,24 @@ public class InternalUsers {
         )
     );
 
+    /**
+     * internal user that manages synonyms via the Synonyms API. Operates on the synonyms system index
+     */
+    public static final InternalUser SYNONYMS_USER = new InternalUser(
+        UsernamesField.SYNONYMS_USER_NAME,
+        new RoleDescriptor(
+            UsernamesField.SYNONYMS_ROLE_NAME,
+            null,
+            new RoleDescriptor.IndicesPrivileges[] {
+                RoleDescriptor.IndicesPrivileges.builder().indices(".synonyms*").privileges("all").allowRestrictedIndices(true).build() },
+            null,
+            null,
+            null,
+            MetadataUtils.DEFAULT_RESERVED_METADATA,
+            Map.of()
+        )
+    );
+
     public static final SystemUser SYSTEM_USER = SystemUser.INSTANCE;
     public static final InternalUser CROSS_CLUSTER_ACCESS_USER = CrossClusterAccessUser.INSTANCE;
 
@@ -181,7 +199,8 @@ public class InternalUsers {
             ASYNC_SEARCH_USER,
             CROSS_CLUSTER_ACCESS_USER,
             STORAGE_USER,
-            DLM_USER
+            DLM_USER,
+            SYNONYMS_USER
         ).collect(Collectors.toUnmodifiableMap(InternalUser::principal, Function.identity()));
     }
 

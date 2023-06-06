@@ -15,11 +15,12 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.transport.Transport;
 
-import static org.elasticsearch.action.support.PlainActionFuture.newFuture;
-import static org.mockito.Mockito.mock;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 public class ActionTestUtils {
 
@@ -29,10 +30,11 @@ public class ActionTestUtils {
         TransportAction<Request, Response> action,
         Request request
     ) {
-        PlainActionFuture<Response> future = newFuture();
-        Task task = mock(Task.class);
-        action.execute(task, request, future);
-        return future.actionGet();
+        return PlainActionFuture.get(
+            future -> action.execute(request.createTask(1L, "direct", action.actionName, TaskId.EMPTY_TASK_ID, Map.of()), request, future),
+            10,
+            TimeUnit.SECONDS
+        );
     }
 
     public static <Request extends ActionRequest, Response extends ActionResponse> Response executeBlockingWithTask(
@@ -41,9 +43,11 @@ public class ActionTestUtils {
         TransportAction<Request, Response> action,
         Request request
     ) {
-        PlainActionFuture<Response> future = newFuture();
-        taskManager.registerAndExecute("transport", action, request, localConnection, future);
-        return future.actionGet();
+        return PlainActionFuture.get(
+            future -> taskManager.registerAndExecute("transport", action, request, localConnection, future),
+            10,
+            TimeUnit.SECONDS
+        );
     }
 
     /**

@@ -13,8 +13,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -261,7 +261,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
     }
 
     private DiscoveryNode buildNode(String id, ByteSizeValue machineMemory, int allocatedProcessors) {
-        return TestDiscoveryNode.create(
+        return DiscoveryNodeUtils.create(
             id,
             buildNewFakeTransportAddress(),
             Map.of(

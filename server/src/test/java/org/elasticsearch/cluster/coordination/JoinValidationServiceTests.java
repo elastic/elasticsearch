@@ -19,7 +19,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -131,7 +131,7 @@ public class JoinValidationServiceTests extends ESTestCase {
                 }
             };
 
-            final var localNode = TestDiscoveryNode.create("local");
+            final var localNode = DiscoveryNodeUtils.create("local");
 
             final var transportService = new TransportService(
                 settings,
@@ -159,7 +159,7 @@ public class JoinValidationServiceTests extends ESTestCase {
 
             final var otherNodes = new DiscoveryNode[between(1, 10)];
             for (int i = 0; i < otherNodes.length; i++) {
-                otherNodes[i] = TestDiscoveryNode.create("other-" + i);
+                otherNodes[i] = DiscoveryNodeUtils.create("other-" + i);
                 final var connectionListener = new PlainActionFuture<Releasable>();
                 transportService.connectToNode(otherNodes[i], connectionListener);
                 releasables.add(connectionListener.get(10, TimeUnit.SECONDS));
@@ -261,7 +261,7 @@ public class JoinValidationServiceTests extends ESTestCase {
         final var deterministicTaskQueue = new DeterministicTaskQueue();
         final var clusterState = ClusterState.builder(ClusterName.DEFAULT).putCustom("test", new BadCustom()).build();
 
-        final var joiningNode = TestDiscoveryNode.create("joining");
+        final var joiningNode = DiscoveryNodeUtils.create("joining");
         final var joiningNodeTransport = new MockTransport();
         final var joiningNodeTransportService = joiningNodeTransport.createTransportService(
             Settings.EMPTY,
@@ -275,7 +275,7 @@ public class JoinValidationServiceTests extends ESTestCase {
         joiningNodeTransportService.start();
         joiningNodeTransportService.acceptIncomingRequests();
 
-        final var masterNode = TestDiscoveryNode.create("node0");
+        final var masterNode = DiscoveryNodeUtils.create("node0");
         final var masterTransport = new MockTransport() {
             @Override
             protected void onSendRequest(long requestId, String action, TransportRequest request, DiscoveryNode node) {
@@ -339,7 +339,7 @@ public class JoinValidationServiceTests extends ESTestCase {
     public void testJoinValidationRejectsMismatchedClusterUUID() {
         final var deterministicTaskQueue = new DeterministicTaskQueue();
         final var mockTransport = new MockTransport();
-        final var localNode = TestDiscoveryNode.create("node0");
+        final var localNode = DiscoveryNodeUtils.create("node0");
 
         final var localClusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(Metadata.builder().generateClusterUuidIfNeeded().clusterUUIDCommitted(true))
@@ -388,7 +388,7 @@ public class JoinValidationServiceTests extends ESTestCase {
     public void testJoinValidationRunsJoinValidators() {
         final var deterministicTaskQueue = new DeterministicTaskQueue();
         final var mockTransport = new MockTransport();
-        final var localNode = TestDiscoveryNode.create("node0");
+        final var localNode = DiscoveryNodeUtils.create("node0");
         final var localClusterState = ClusterState.builder(ClusterName.DEFAULT).build();
 
         final var transportService = mockTransport.createTransportService(

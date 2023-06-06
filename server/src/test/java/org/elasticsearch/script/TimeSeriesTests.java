@@ -27,6 +27,11 @@ public class TimeSeriesTests extends ESTestCase {
     }
 
     static TimeSeries randomTimeseries() {
-        return new TimeSeries(randomLongBetween(0, 10000), randomLongBetween(0, 10000), randomLongBetween(0, 10000), randomLongBetween(0, 10000));
+        return new TimeSeries(
+            randomLongBetween(0, 10000),
+            randomLongBetween(0, 10000),
+            randomLongBetween(0, 10000),
+            randomLongBetween(0, 10000)
+        );
     }
 }

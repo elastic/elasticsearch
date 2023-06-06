@@ -1,0 +1,5 @@
+pr: 96622
+summary: Move empty top docs collectors to collector managers
+area: Search
+type: enhancement
+issues: []

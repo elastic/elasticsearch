@@ -48,7 +48,6 @@ public abstract class TDigest {
      *                    The number of centroids retained will be a smallish (usually less than 10) multiple of this number.
      * @return the MergingDigest
      */
-    @SuppressWarnings("WeakerAccess")
     public static TDigest createMergingDigest(double compression) {
         return new MergingDigest(compression);
     }
@@ -60,7 +59,6 @@ public abstract class TDigest {
      *                    The number of centroids retained will be a smallish (usually less than 10) multiple of this number.
      * @return the AvlTreeDigest
      */
-    @SuppressWarnings("WeakerAccess")
     public static TDigest createAvlTreeDigest(double compression) {
         return new AVLTreeDigest(compression);
     }
@@ -167,9 +165,8 @@ public abstract class TDigest {
     }
 
     /**
-     * Over-ride the min and max values for testing purposes
+     * Override the min and max values for testing purposes
      */
-    @SuppressWarnings("SameParameterValue")
     void setMinMax(double min, double max) {
         this.min = min;
         this.max = max;

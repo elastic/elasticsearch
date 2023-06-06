@@ -21,24 +21,13 @@
 
 package org.elasticsearch.tdigest;
 
-import org.junit.BeforeClass;
-
-import java.io.IOException;
-
 public class AVLTreeDigestTests extends TDigestTests {
-    @BeforeClass
-    public static void setup() throws IOException {
-        TDigestTests.setup("avl-tree");
-    }
 
     protected DigestFactory factory(final double compression) {
-        return new DigestFactory() {
-            @Override
-            public TDigest create() {
-                AVLTreeDigest digest = new AVLTreeDigest(compression);
-                digest.setRandomSeed(randomLong());
-                return digest;
-            }
+        return () -> {
+            AVLTreeDigest digest = new AVLTreeDigest(compression);
+            digest.setRandomSeed(randomLong());
+            return digest;
         };
     }
 }

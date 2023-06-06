@@ -22,9 +22,7 @@
 package org.elasticsearch.tdigest;
 
 import org.junit.Assert;
-import org.junit.BeforeClass;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
@@ -33,10 +31,6 @@ import java.util.Locale;
 import java.util.Random;
 
 public class MergingDigestTests extends TDigestTests {
-    @BeforeClass
-    public static void setup() throws IOException {
-        TDigestTests.setup("merge");
-    }
 
     protected DigestFactory factory(final double compression) {
         return () -> new MergingDigest(compression);
@@ -160,39 +154,4 @@ public class MergingDigestTests extends TDigestTests {
             i++;
         }
     }
-
-    // /**
-    // * Test with adversarial inputs.
-    // */
-    // public void testAdversarial() throws FileNotFoundException {
-    // int kilo = 1000;
-    // Random gen = random();
-    // double maxE = Math.log(10) * 308;
-    // try (PrintWriter out = new PrintWriter("adversarial.csv")) {
-    // out.printf("k,n,E,q,x0,x1,q0,q1\n");
-    // for (int N : new int[]{100 * kilo, 1000 * kilo}) {
-    // System.out.printf("%d\n", N);
-    // double[] data = new double[N];
-    // for (double E : new double[]{10, 100, 300, 700, maxE}) {
-    // TDigest digest = new MergingDigest(500);
-    // for (int i = 0; i < N; i++) {
-    // double u = gen.nextDouble();
-    // data[i] = (gen.nextDouble() < 0.01 ? -1 : 1) * Math.exp((2 * u - 1) * E);
-    // digest.add(data[i]);
-    // }
-    // Arrays.sort(data);
-    //
-    // for (int k = 0; k < 10; k++) {
-    // for (double q : new double[]{0, 1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 0.1, 0.5}) {
-    // double x0 = Dist.quantile(q, data);
-    // double x1 = digest.quantile(q);
-    // double q0 = Dist.cdf(x0, data);
-    // double q1 = Dist.cdf(x1, data);
-    // out.printf("%d,%d,%.0f,%.6f,%.6g,%.6g,%.6f,%.6f\n", k, N, E, q, x0, x1, q0, q1);
-    // }
-    // }
-    // }
-    // }
-    // }
-    // }
 }

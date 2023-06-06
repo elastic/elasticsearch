@@ -110,7 +110,6 @@ public class MergingDigest extends AbstractTDigest {
      *
      * @param compression The compression factor
      */
-    @SuppressWarnings("WeakerAccess")
     public MergingDigest(double compression) {
         this(compression, -1);
     }
@@ -121,7 +120,6 @@ public class MergingDigest extends AbstractTDigest {
      * @param compression Compression factor for t-digest.  Same as 1/\delta in the paper.
      * @param bufferSize  How many samples to retain before merging.
      */
-    @SuppressWarnings("WeakerAccess")
     public MergingDigest(double compression, int bufferSize) {
         // we can guarantee that we only need ceiling(compression).
         this(compression, bufferSize, -1);
@@ -134,7 +132,6 @@ public class MergingDigest extends AbstractTDigest {
      * @param bufferSize  Number of temporary centroids
      * @param size        Size of main buffer
      */
-    @SuppressWarnings("WeakerAccess")
     public MergingDigest(double compression, int bufferSize, int size) {
         // ensure compression >= 10
         // default size = 2 * ceil(compression)
@@ -628,7 +625,7 @@ public class MergingDigest extends AbstractTDigest {
 
         // Interpolate between the last mean and the max.
         double z2 = weight[n - 1] / 2.0 - z1;
-        ;
+
         return weightedAverage(mean[n - 1], z1, max, z2);
     }
 
@@ -680,7 +677,6 @@ public class MergingDigest extends AbstractTDigest {
         return publicCompression;
     }
 
-    @SuppressWarnings("WeakerAccess")
     public ScaleFunction getScaleFunction() {
         return scale;
     }

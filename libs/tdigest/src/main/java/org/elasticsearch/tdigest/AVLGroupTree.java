@@ -135,7 +135,6 @@ final class AVLGroupTree extends AbstractCollection<Centroid> {
     /**
      * Update values associated with a node, readjusting the tree if necessary.
      */
-    @SuppressWarnings("WeakerAccess")
     public void update(int node, double centroid, int count) {
         // have to do full scale update
         this.centroid = centroid;
@@ -150,7 +149,6 @@ final class AVLGroupTree extends AbstractCollection<Centroid> {
     /**
      * Return the last node whose centroid is less than <code>centroid</code>.
      */
-    @SuppressWarnings("WeakerAccess")
     public int floor(double centroid) {
         int floor = IntAVLTree.NIL;
         for (int node = tree.root(); node != IntAVLTree.NIL;) {
@@ -169,7 +167,6 @@ final class AVLGroupTree extends AbstractCollection<Centroid> {
      * Return the last node so that the sum of counts of nodes that are before
      * it is less than or equal to <code>sum</code>.
      */
-    @SuppressWarnings("WeakerAccess")
     public int floorSum(long sum) {
         int floor = IntAVLTree.NIL;
         for (int node = tree.root(); node != IntAVLTree.NIL;) {
@@ -196,7 +193,6 @@ final class AVLGroupTree extends AbstractCollection<Centroid> {
     /**
      * Return the least node in the tree.
      */
-    @SuppressWarnings("WeakerAccess")
     public int last() {
         return tree.last(tree.root());
     }
@@ -205,7 +201,6 @@ final class AVLGroupTree extends AbstractCollection<Centroid> {
      * Compute the number of elements and sum of counts for every entry that
      * is strictly before <code>node</code>.
      */
-    @SuppressWarnings("WeakerAccess")
     public long headSum(int node) {
         final int left = tree.left(node);
         long sum = aggregatedCounts[left];

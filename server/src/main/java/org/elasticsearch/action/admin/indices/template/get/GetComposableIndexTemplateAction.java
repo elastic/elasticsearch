@@ -123,7 +123,7 @@ public class GetComposableIndexTemplateAction extends ActionType<GetComposableIn
         public Response(StreamInput in) throws IOException {
             super(in);
             indexTemplates = in.readMap(StreamInput::readString, ComposableIndexTemplate::new);
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_007)) {
                 rolloverConfiguration = in.readOptionalWriteable(RolloverConfiguration::new);
             } else {
                 rolloverConfiguration = null;
@@ -147,7 +147,7 @@ public class GetComposableIndexTemplateAction extends ActionType<GetComposableIn
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeMap(indexTemplates, StreamOutput::writeString, (o, v) -> v.writeTo(o));
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_007)) {
                 out.writeOptionalWriteable(rolloverConfiguration);
             }
         }

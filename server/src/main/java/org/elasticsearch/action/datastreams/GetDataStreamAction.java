@@ -339,7 +339,9 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
         public Response(StreamInput in) throws IOException {
             this(
                 in.readList(DataStreamInfo::new),
-                in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0) ? in.readOptionalWriteable(RolloverConfiguration::new) : null
+                in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_007)
+                    ? in.readOptionalWriteable(RolloverConfiguration::new)
+                    : null
             );
         }
 
@@ -355,7 +357,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeList(dataStreams);
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_007)) {
                 out.writeOptionalWriteable(rolloverConfiguration);
             }
         }

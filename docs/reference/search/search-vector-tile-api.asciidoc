@@ -226,9 +226,7 @@ Defaults to `5`.
 aggregation.
 
 `geohex`::
-<<search-aggregations-bucket-geohexgrid-aggregation,`geohex_grid`>> aggregation.
-If you specify this value, the `<field>` must be a <<geo-point,`geo_point`>>
-field.
+<<search-aggregations-bucket-geohexgrid-aggregation,`geohex_grid`>> aggregation.ß
 ====
 // end::grid-agg[]
 

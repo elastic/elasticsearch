@@ -576,11 +576,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 parserConfiguration,
                 this.client,
                 () -> nowInMillis,
-                IndexLongFieldRange.UNKNOWN.extendWithShardRange(
-                    randomIntBetween(0, 2),
-                    randomIntBetween(2, 5),
-                    ShardLongFieldRange.of(min, max)
-                ),
+                IndexLongFieldRange.NO_SHARDS.extendWithShardRange(0, 1, ShardLongFieldRange.of(min, max)),
                 dateFieldType
             );
         }

@@ -10,7 +10,7 @@ package org.elasticsearch.index.seqno;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.GroupedActionListener;
+import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.AllocationId;
@@ -1481,36 +1481,33 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      */
     public synchronized void createMissingPeerRecoveryRetentionLeases(ActionListener<Void> listener) {
         if (hasAllPeerRecoveryRetentionLeases == false) {
-            final List<ShardRouting> shardRoutings = routingTable.assignedShards()
-                .stream()
-                .filter(ShardRouting::isPromotableToPrimary)
-                .toList();
-            final GroupedActionListener<ReplicationResponse> groupedActionListener = new GroupedActionListener<>(
-                shardRoutings.size(),
-                listener.delegateFailureAndWrap((l, vs) -> {
-                    setHasAllPeerRecoveryRetentionLeases();
-                    l.onResponse(null);
-                })
-            );
-            for (ShardRouting shardRouting : shardRoutings) {
-                if (retentionLeases.contains(getPeerRecoveryRetentionLeaseId(shardRouting))) {
-                    groupedActionListener.onResponse(null);
-                } else {
+            try (var listeners = new RefCountingListener(listener.delegateFailure((l, ignored) -> {
+                setHasAllPeerRecoveryRetentionLeases();
+                l.onResponse(null);
+            }))) {
+                for (ShardRouting shardRouting : routingTable.assignedShards()) {
+                    if (shardRouting.isPromotableToPrimary() == false) {
+                        continue;
+                    }
+
+                    if (retentionLeases.contains(getPeerRecoveryRetentionLeaseId(shardRouting))) {
+                        continue;
+                    }
+
                     final CheckpointState checkpointState = checkpoints.get(shardRouting.allocationId().getId());
                     if (checkpointState.tracked == false) {
-                        groupedActionListener.onResponse(null);
-                    } else {
-                        logger.trace("createMissingPeerRecoveryRetentionLeases: adding missing lease for {}", shardRouting);
-                        try {
-                            addPeerRecoveryRetentionLease(
-                                shardRouting.currentNodeId(),
-                                Math.max(SequenceNumbers.NO_OPS_PERFORMED, checkpointState.globalCheckpoint),
-                                groupedActionListener
-                            );
-                        } catch (Exception e) {
-                            groupedActionListener.onFailure(e);
-                        }
+                        continue;
                     }
+
+                    logger.trace("createMissingPeerRecoveryRetentionLeases: adding missing lease for {}", shardRouting);
+                    ActionListener.run(
+                        listeners.acquire((ReplicationResponse replicationResponse) -> {}),
+                        l -> addPeerRecoveryRetentionLease(
+                            shardRouting.currentNodeId(),
+                            Math.max(SequenceNumbers.NO_OPS_PERFORMED, checkpointState.globalCheckpoint),
+                            l
+                        )
+                    );
                 }
             }
         } else {

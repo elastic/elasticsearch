@@ -114,11 +114,7 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
         public Response(StreamInput in) throws IOException {
             super(in);
             componentTemplates = in.readMap(StreamInput::readString, ComponentTemplate::new);
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0) && false) {
-                rolloverConfiguration = in.readOptionalWriteable(RolloverConfiguration::new);
-            } else {
-                rolloverConfiguration = null;
-            }
+            rolloverConfiguration = null;
         }
 
         public Response(Map<String, ComponentTemplate> componentTemplates) {
@@ -138,9 +134,6 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeMap(componentTemplates, StreamOutput::writeString, (o, v) -> v.writeTo(o));
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0) && false) {
-                out.writeOptionalWriteable(rolloverConfiguration);
-            }
         }
 
         @Override

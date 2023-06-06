@@ -9,21 +9,76 @@
 package org.elasticsearch.ingest.geoip;
 
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class GeoIpDownloaderTaskExecutorTests extends ESTestCase {
+
+    public void testHasAtLeastOneGeoipProcessorWhenPipelineIsManaged() {
+        ClusterState clusterState = mock(ClusterState.class);
+        Metadata metadata = mock(Metadata.class);
+        when(clusterState.getMetadata()).thenReturn(metadata);
+
+        final IngestMetadata[] ingestMetadata = new IngestMetadata[1];
+        when(metadata.custom(IngestMetadata.TYPE)).thenAnswer(invocationOnmock -> ingestMetadata[0]);
+
+        final Settings[] indexSettings = new Settings[1];
+        IndexMetadata indexMetadata = mock(IndexMetadata.class);
+        when(indexMetadata.getSettings()).thenAnswer(invocationMock -> indexSettings[0]);
+        when(metadata.indices()).thenReturn(Map.of("index", indexMetadata));
+
+        List<String> pipelinesConfigJson = getPipelinesWithGeoIpProcessors().stream().map(jsonConfig -> {
+            Map<String, Object> configMap = XContentHelper.convertToMap(JsonXContent.jsonXContent, jsonConfig, false);
+            configMap.put("_meta", Map.of("managed", true));
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            try(XContentBuilder builder = new XContentBuilder(XContentType.JSON.xContent(), baos)) {
+                builder.map(configMap).close();
+                return baos.toString();
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }).collect(Collectors.toList());
+
+        {
+            for (String pipelineConfigJson: pipelinesConfigJson) {
+                ingestMetadata[0] = new IngestMetadata(
+                    Map.of("_id1", new PipelineConfiguration("_id1", new BytesArray(pipelineConfigJson), XContentType.JSON))
+                );
+                // The pipeline is not used in any index, expected to return false.
+                indexSettings[0] = Settings.EMPTY;
+                assertFalse(GeoIpDownloaderTaskExecutor.hasAtLeastOneGeoipProcessor(clusterState));
+
+                // The pipeline is set as default pipeline in an index, expected to return true.
+                indexSettings[0] = Settings.builder().put(IndexSettings.DEFAULT_PIPELINE.getKey(), "_id1").build();
+                assertTrue(GeoIpDownloaderTaskExecutor.hasAtLeastOneGeoipProcessor(clusterState));
+
+                // The pipeline is set as final pipeline in an index, expected to return true.
+                indexSettings[0] = Settings.builder().put(IndexSettings.FINAL_PIPELINE.getKey(), "_id1").build();
+                assertTrue(GeoIpDownloaderTaskExecutor.hasAtLeastOneGeoipProcessor(clusterState));
+            }
+        }
+    }
+
     public void testHasAtLeastOneGeoipProcessor() {
         final IngestMetadata[] ingestMetadata = new IngestMetadata[1];
         ClusterState clusterState = mock(ClusterState.class);

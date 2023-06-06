@@ -27,6 +27,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.Pipeline;
@@ -40,6 +41,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteTransportException;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -207,7 +209,7 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
             }
         }
 
-        if (event.metadataChanged() && event.changedCustomMetadataSet().contains(IngestMetadata.TYPE)) {
+        if (event.metadataChanged() && (event.indicesCreated().isEmpty() == false || event.changedCustomMetadataSet().contains(IngestMetadata.TYPE))) {
             boolean newAtLeastOneGeoipProcessor = hasAtLeastOneGeoipProcessor(event.state());
             if (newAtLeastOneGeoipProcessor && atLeastOneGeoipProcessor == false) {
                 atLeastOneGeoipProcessor = true;
@@ -226,8 +228,25 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
     static boolean hasAtLeastOneGeoipProcessor(ClusterState clusterState) {
         List<PipelineConfiguration> pipelineDefinitions = IngestService.getPipelines(clusterState);
         return pipelineDefinitions.stream().anyMatch(pipelineDefinition -> {
+            if (isManagedPipeline(pipelineDefinition) && (isPipelineUsed(clusterState, pipelineDefinition.getId()) == false)) {
+                return false;
+            }
             Map<String, Object> pipelineMap = pipelineDefinition.getConfigAsMap();
             return hasAtLeastOneGeoipProcessor((List<Map<String, Object>>) pipelineMap.get(Pipeline.PROCESSORS_KEY));
+        });
+    }
+
+    @SuppressWarnings("unchecked")
+    private static boolean isManagedPipeline(PipelineConfiguration pipelineDefinition) {
+        Map<String, Object> meta = (Map<String, Object>) pipelineDefinition.getConfigAsMap().getOrDefault("_meta", Collections.emptyMap());
+        return (boolean) meta.getOrDefault("managed", false);
+    }
+
+    private static boolean isPipelineUsed(ClusterState clusterState, String pipelineId) {
+        return clusterState.getMetadata().indices().values().stream().anyMatch(indexMetadata -> {
+            String defaultPipeline = IndexSettings.DEFAULT_PIPELINE.get(indexMetadata.getSettings());
+            String finalPipeline = IndexSettings.FINAL_PIPELINE.get(indexMetadata.getSettings());
+            return defaultPipeline.equals(pipelineId) || finalPipeline.equals(pipelineId);
         });
     }
 

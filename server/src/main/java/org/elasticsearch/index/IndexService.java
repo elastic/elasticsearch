@@ -15,6 +15,7 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Accountable;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -927,11 +928,17 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private void maybeRefreshEngine(boolean force) {
         if (indexSettings.getRefreshInterval().millis() > 0 || force) {
             for (IndexShard shard : this.shards.values()) {
-                try {
-                    shard.scheduledRefresh();
-                } catch (IndexShardClosedException | AlreadyClosedException ex) {
-                    // fine - continue;
-                }
+                shard.scheduledRefresh(new ActionListener<>() {
+                    @Override
+                    public void onResponse(Boolean ignored) {}
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        if (e instanceof IndexShardClosedException == false && e instanceof AlreadyClosedException == false) {
+                            logger.warn("unexpected exception while performing scheduled refresh", e);
+                        }
+                    }
+                });
             }
         }
     }

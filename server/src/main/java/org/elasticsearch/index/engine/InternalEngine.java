@@ -1944,15 +1944,15 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public RefreshResult maybeRefresh(String source) throws EngineException {
-        return refresh(source, SearcherScope.EXTERNAL, false);
+    public void maybeRefresh(String source, ActionListener<RefreshResult> listener) throws EngineException {
+        ActionListener.completeWith(listener, () -> refresh(source, SearcherScope.EXTERNAL, false));
     }
 
     protected RefreshResult refreshInternalSearcher(String source, boolean block) throws EngineException {
         return refresh(source, SearcherScope.INTERNAL, block);
     }
 
-    final RefreshResult refresh(String source, SearcherScope scope, boolean block) throws EngineException {
+    protected final RefreshResult refresh(String source, SearcherScope scope, boolean block) throws EngineException {
         // both refresh types will result in an internal refresh but only the external will also
         // pass the new reader reference to the external reader manager.
         final long localCheckpointBeforeRefresh = localCheckpointTracker.getProcessedCheckpoint();

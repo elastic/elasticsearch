@@ -1046,11 +1046,11 @@ public abstract class Engine implements Closeable {
     }
 
     /**
-     * Synchronously refreshes the engine for new search operations to reflect the latest
+     * Asynchronously refreshes the engine for new search operations to reflect the latest
      * changes unless another thread is already refreshing the engine concurrently.
      */
     @Nullable
-    public abstract RefreshResult maybeRefresh(String source) throws EngineException;
+    public abstract void maybeRefresh(String source, ActionListener<RefreshResult> listener) throws EngineException;
 
     /**
      * Called when our engine is using too much heap and should move buffered indexed/deleted documents to disk.

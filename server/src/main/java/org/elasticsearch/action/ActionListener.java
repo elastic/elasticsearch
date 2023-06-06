@@ -91,7 +91,7 @@ public interface ActionListener<Response> {
     }
 
     /**
-     * Same as {@link #delegateFailure(BiConsumer)} with the exception that any failure thrown by {@code bc} or the delegate listener's
+     * Same as {@link #delegateFailure(BiConsumer)} except that any failure thrown by {@code bc} or the delegate listener's
      * {@link #onResponse} will be passed to the delegate listeners {@link #onFailure(Exception)}.
      */
     default <T> ActionListener<T> delegateFailureAndWrap(CheckedBiConsumer<ActionListener<Response>, T, ? extends Exception> bc) {
@@ -148,7 +148,9 @@ public interface ActionListener<Response> {
     /**
      * Creates a listener that executes the appropriate consumer when the response (or failure) is received. This listener is "wrapped" in
      * the sense that an exception from the {@code onResponse} consumer is passed into the {@code onFailure} consumer.
-     *
+     * <p>
+     * If the {@code onFailure} argument is {@code listener::onFailure} for some other {@link ActionListener}, prefer to use
+     * {@link #delegateFailureAndWrap} instead.
      * @param onResponse the checked consumer of the response, executed when the listener is completed successfully. If it throws an
      *                   exception, the exception is passed to the {@code onFailure} consumer.
      * @param onFailure the consumer of the failure, executed when the listener is completed with an exception (or it is completed

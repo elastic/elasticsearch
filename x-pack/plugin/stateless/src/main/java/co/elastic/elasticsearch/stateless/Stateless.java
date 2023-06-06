@@ -248,7 +248,11 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
             new ObjectStoreService(settings, repositoriesServiceSupplier, threadPool, clusterService)
         );
         setAndGet(this.commitService, createStatelessCommitService(objectStoreService, clusterService, client));
-        var sharedBlobCache = setAndGet(this.sharedBlobCacheService, new SharedBlobCacheService<>(nodeEnvironment, settings, threadPool));
+        // TODO: figure out a better/correct threadpool for this
+        var sharedBlobCache = setAndGet(
+            this.sharedBlobCacheService,
+            new SharedBlobCacheService<>(nodeEnvironment, settings, threadPool, ThreadPool.Names.GENERIC)
+        );
         var translogReplicator = setAndGet(this.translogReplicator, new TranslogReplicator(threadPool, settings, objectStoreService));
         var statelessElectionStrategy = setAndGet(
             this.electionStrategy,

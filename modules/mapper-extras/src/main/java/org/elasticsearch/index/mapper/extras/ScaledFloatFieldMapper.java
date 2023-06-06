@@ -244,6 +244,11 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         }
 
         @Override
+        public String familyTypeName() {
+            return NumberFieldMapper.NumberType.FLOAT.typeName();
+        }
+
+        @Override
         public boolean mayExistInIndex(SearchExecutionContext context) {
             return context.fieldExistsInIndex(name());
         }

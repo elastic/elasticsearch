@@ -19,6 +19,34 @@ import java.util.function.Predicate;
 
 public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
 
+    /**
+     * Tests that the field family type is returned instead of the actual field type.
+     * `half_float` is chosen arbitrarily for this purpose.
+     */
+    public void testFieldFamilyTypeIsReturned() throws IOException {
+        MapperService mapperService = createMapperService("""
+            {
+              "_doc": {
+                "properties": {
+                  "field1": { "type": "half_float"}
+                }
+              }
+            }
+            """);
+        SearchExecutionContext sec = createSearchExecutionContext(mapperService);
+
+        Map<String, IndexFieldCapabilities> response = FieldCapabilitiesFetcher.retrieveFieldCaps(
+            sec,
+            new String[] { "*" },
+            new String[] {},
+            Strings.EMPTY_ARRAY,
+            f -> true
+        );
+
+        var expectedFamilyType = "float";
+        assertEquals(expectedFamilyType, response.get("field1").getType());
+    }
+
     public void testExcludeNestedFields() throws IOException {
         MapperService mapperService = createMapperService("""
             { "_doc" : {

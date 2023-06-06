@@ -176,6 +176,12 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
         assertEquals(10 / ft.getScalingFactor(), ft.valueForDisplay(10L));
     }
 
+    public void testFieldFamilyTypeIsReportedCorrectly() {
+        ScaledFloatFieldMapper.ScaledFloatFieldType ft = new ScaledFloatFieldMapper.ScaledFloatFieldType("scaled_float", 0.1);
+        var expectedFamilyType = NumberFieldMapper.NumberType.FLOAT.typeName();
+        assertEquals(expectedFamilyType, ft.familyTypeName());
+    }
+
     public void testFieldData() throws IOException {
         double scalingFactor = 0.1 + randomDouble() * 100;
         Directory dir = newDirectory();

@@ -10,6 +10,8 @@ package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
+import jdk.jfr.Description;
+
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.DoublePoint;
 import org.apache.lucene.document.FloatPoint;
@@ -57,6 +59,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyMap;
@@ -740,6 +743,18 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
                 b.rawField("field", new ByteArrayInputStream(value.toString().getBytes("UTF-8")), XContentType.JSON);
             } else {
                 b.field("field", value);
+            }
+        }
+    }
+
+    public void testFieldFamilyTypeIsReportedCorrectly(){
+        for (NumberFieldMapper.NumberType type : NumberFieldMapper.NumberType.values()) {
+            NumberFieldMapper.NumberFieldType fieldType = new NumberFieldMapper.NumberFieldType("field", type);
+            var floatFamilyTypes = Set.of(NumberType.FLOAT.typeName(), NumberType.HALF_FLOAT.typeName());
+            if (floatFamilyTypes.contains(fieldType.typeName())){
+                assertEquals(NumberType.FLOAT.typeName(), type.familyTypeName());
+            }else{
+                assertEquals(type.typeName(),type.familyTypeName());
             }
         }
     }

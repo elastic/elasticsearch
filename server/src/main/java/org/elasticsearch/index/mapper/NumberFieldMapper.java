@@ -327,6 +327,11 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
+            public String familyTypeName() {
+                return NumberFieldMapper.NumberType.FLOAT.typeName();
+            }
+
+            @Override
             public Query termQuery(String field, Object value, boolean isIndexed) {
                 float v = parseToFloat(value);
                 if (isIndexed) {
@@ -1219,6 +1224,10 @@ public class NumberFieldMapper extends FieldMapper {
             return name;
         }
 
+        public String familyTypeName() {
+            return typeName();
+        }
+
         /** Get the associated numeric type */
         public final NumericType numericType() {
             return numericType;
@@ -1519,6 +1528,11 @@ public class NumberFieldMapper extends FieldMapper {
         @Override
         public String typeName() {
             return type.name;
+        }
+
+        @Override
+        public String familyTypeName() {
+            return this.type.familyTypeName();
         }
 
         /**

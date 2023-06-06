@@ -8,13 +8,18 @@
 
 package org.elasticsearch.index.snapshots;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.snapshots.AbortedSnapshotException;
 
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 /**
  * Represent shard snapshot status
@@ -51,6 +56,15 @@ public class IndexShardSnapshotStatus {
         ABORTED
     }
 
+    /**
+     * Used to complete listeners added via {@link #addAbortListener} when the shard snapshot is either aborted or it gets past the stages
+     * where an abort could have occurred.
+     */
+    public enum AbortStatus {
+        NO_ABORT,
+        ABORTED
+    }
+
     private final AtomicReference<Stage> stage;
     private final AtomicReference<ShardGeneration> generation;
     private final AtomicReference<ShardSnapshotResult> shardSnapshotResult; // only set in stage DONE
@@ -63,6 +77,7 @@ public class IndexShardSnapshotStatus {
     private long incrementalSize;
     private long processedSize;
     private String failure;
+    private final SubscribableListener<AbortStatus> abortListeners = new SubscribableListener<>();
 
     private IndexShardSnapshotStatus(
         final Stage stage,
@@ -118,7 +133,10 @@ public class IndexShardSnapshotStatus {
     public synchronized Copy moveToFinalize() {
         final var prevStage = stage.compareAndExchange(Stage.STARTED, Stage.FINALIZE);
         return switch (prevStage) {
-            case STARTED -> asCopy();
+            case STARTED -> {
+                abortListeners.onResponse(AbortStatus.NO_ABORT);
+                yield asCopy();
+            }
             case ABORTED -> throw new AbortedSnapshotException();
             default -> {
                 final var message = Strings.format(
@@ -146,14 +164,23 @@ public class IndexShardSnapshotStatus {
         }
     }
 
-    public synchronized void abortIfNotCompleted(final String failure) {
+    public void addAbortListener(ActionListener<AbortStatus> listener) {
+        abortListeners.addListener(listener);
+    }
+
+    public synchronized void abortIfNotCompleted(final String failure, Consumer<ActionListener<Releasable>> notifyRunner) {
         if (stage.compareAndSet(Stage.INIT, Stage.ABORTED) || stage.compareAndSet(Stage.STARTED, Stage.ABORTED)) {
             this.failure = failure;
+            notifyRunner.accept(abortListeners.map(r -> {
+                Releasables.closeExpectNoException(r);
+                return AbortStatus.ABORTED;
+            }));
         }
     }
 
     public synchronized void moveToFailed(final long endTime, final String failure) {
         if (stage.getAndSet(Stage.FAILURE) != Stage.FAILURE) {
+            abortListeners.onResponse(AbortStatus.NO_ABORT);
             this.totalTime = Math.max(0L, endTime - startTime);
             this.failure = failure;
         }

@@ -4,7 +4,7 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.xpack.enrich;
+package org.elasticsearch.xpack.core.enrich;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
@@ -17,7 +17,6 @@ import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -32,7 +31,7 @@ import java.util.Objects;
  */
 public final class EnrichMetadata extends AbstractNamedDiffable<Metadata.Custom> implements Metadata.Custom {
 
-    static final String TYPE = "enrich";
+    public static final String TYPE = "enrich";
 
     static final ParseField POLICIES = new ParseField("policies");
 

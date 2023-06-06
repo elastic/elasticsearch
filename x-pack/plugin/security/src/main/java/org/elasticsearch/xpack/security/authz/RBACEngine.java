@@ -144,10 +144,7 @@ public class RBACEngine implements AuthorizationEngine {
         final Authentication authentication = requestInfo.getAuthentication();
         rolesStore.getRoles(
             authentication,
-            ActionListener.wrap(
-                roleTuple -> listener.onResponse(new RBACAuthorizationInfo(roleTuple.v1(), roleTuple.v2())),
-                listener::onFailure
-            )
+            listener.delegateFailureAndWrap((l, roleTuple) -> l.onResponse(new RBACAuthorizationInfo(roleTuple.v1(), roleTuple.v2())))
         );
     }
 
@@ -321,15 +318,15 @@ public class RBACEngine implements AuthorizationEngine {
                 // index and if they cannot, we can fail the request early before we allow the execution of the action and in
                 // turn the shard actions
                 if (SearchScrollAction.NAME.equals(action)) {
-                    ActionRunnable.supply(ActionListener.wrap(parsedScrollId -> {
+                    ActionRunnable.supply(listener.delegateFailureAndWrap((l, parsedScrollId) -> {
                         if (parsedScrollId.hasLocalIndices()) {
-                            listener.onResponse(
+                            l.onResponse(
                                 role.checkIndicesAction(action) ? IndexAuthorizationResult.EMPTY : IndexAuthorizationResult.DENIED
                             );
                         } else {
-                            listener.onResponse(IndexAuthorizationResult.EMPTY);
+                            l.onResponse(IndexAuthorizationResult.EMPTY);
                         }
-                    }, listener::onFailure), ((SearchScrollRequest) request)::parseScrollId).run();
+                    }), ((SearchScrollRequest) request)::parseScrollId).run();
                 } else {
                     // RBACEngine simply authorizes scroll related actions without filling in any DLS/FLS permissions.
                     // Scroll related actions have special security logic, where the security context of the initial search
@@ -372,16 +369,16 @@ public class RBACEngine implements AuthorizationEngine {
             // hence we can allow here access for all requested indices.
             listener.onResponse(new IndexAuthorizationResult(IndicesAccessControl.allowAll()));
         } else if (allowsRemoteIndices(request) || role.checkIndicesAction(action)) {
-            indicesAsyncSupplier.getAsync(ActionListener.wrap(resolvedIndices -> {
+            indicesAsyncSupplier.getAsync(listener.delegateFailureAndWrap((delegateListener, resolvedIndices) -> {
                 assert resolvedIndices.isEmpty() == false
                     : "every indices request needs to have its indices set thus the resolved indices must not be empty";
                 // all wildcard expressions have been resolved and only the security plugin could have set '-*' here.
                 // '-*' matches no indices so we allow the request to go through, which will yield an empty response
                 if (resolvedIndices.isNoIndicesPlaceholder()) {
                     if (allowsRemoteIndices(request) && role.checkIndicesAction(action) == false) {
-                        listener.onResponse(IndexAuthorizationResult.DENIED);
+                        delegateListener.onResponse(IndexAuthorizationResult.DENIED);
                     } else {
-                        listener.onResponse(IndexAuthorizationResult.ALLOW_NO_INDICES);
+                        delegateListener.onResponse(IndexAuthorizationResult.ALLOW_NO_INDICES);
                     }
                 } else {
                     assert resolvedIndices.getLocal().stream().noneMatch(Regex::isSimpleMatchPattern)
@@ -392,9 +389,9 @@ public class RBACEngine implements AuthorizationEngine {
                                 .stream()
                                 .allMatch(IndicesAliasesRequest.AliasActions::expandAliasesWildcards))
                         : "expanded wildcards for local indices OR the request should not expand wildcards at all";
-                    listener.onResponse(buildIndicesAccessControl(action, role, resolvedIndices, aliasOrIndexLookup));
+                    delegateListener.onResponse(buildIndicesAccessControl(action, role, resolvedIndices, aliasOrIndexLookup));
                 }
-            }, listener::onFailure));
+            }));
         } else {
             listener.onResponse(IndexAuthorizationResult.DENIED);
         }

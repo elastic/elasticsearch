@@ -681,7 +681,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
                 Settings.builder()
                     .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                    .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
+                    .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false) // merging might change the primary segments after the snapshot
                     .build()
             );
             ensureGreen(indexName);

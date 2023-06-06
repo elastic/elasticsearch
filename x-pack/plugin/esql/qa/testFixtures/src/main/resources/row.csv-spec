@@ -282,22 +282,30 @@ a:integer |b:integer |c:integer
 // end::in-with-expressions-result[]
 ;
 
-convertMvToMvDifferentCardinality-IgnoreWarnings
+convertMvToMvDifferentCardinality
 row strings = ["1", "2", "three"] | eval ints = to_int(strings);
+warning:Line 1:49: evaluation of [to_int(strings)] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.NumberFormatException: For input string: \"three\"
 
 strings:keyword |ints:integer
 [1, 2, three]   |[1, 2]
 ;
 
-convertMvToSv-IgnoreWarnings
+convertMvToSv
 row strings = ["1", "two"] | eval ints = to_int(strings);
+
+warning:Line 1:42: evaluation of [to_int(strings)] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.NumberFormatException: For input string: \"two\"
 
 strings:keyword |ints:integer
 [1, two]        |1
 ;
 
-convertMvToNull-IgnoreWarnings
+convertMvToNull
 row strings = ["one", "two"] | eval ints = to_int(strings);
+warning:Line 1:44: evaluation of [to_int(strings)] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.NumberFormatException: For input string: \"one\"
+warning:java.lang.NumberFormatException: For input string: \"two\"
 
 strings:keyword |ints:integer
 [one, two]      |null

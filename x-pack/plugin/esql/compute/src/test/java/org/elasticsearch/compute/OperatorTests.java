@@ -234,7 +234,7 @@ public class OperatorTests extends ESTestCase {
                             )
                         );
                     }
-                    runToCompletion(threadPool.executor("esql"), drivers);
+                    runToCompletion(threadPool, drivers);
                 } finally {
                     Releasables.close(drivers);
                 }
@@ -292,7 +292,7 @@ public class OperatorTests extends ESTestCase {
                     });
                     drivers.add(new Driver(new DriverContext(), queryOperator, List.of(), docCollector, () -> {}));
                 }
-                runToCompletion(threadPool.executor("esql"), drivers);
+                runToCompletion(threadPool, drivers);
                 Set<Integer> expectedDocIds = searchForDocIds(reader, query);
                 assertThat("query=" + query + ", partition=" + partition, actualDocIds, equalTo(expectedDocIds));
                 drivers.stream().map(Driver::driverContext).forEach(OperatorTests::assertDriverContext);

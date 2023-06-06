@@ -7,6 +7,10 @@
 
 package org.elasticsearch.xpack.ql;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertThat;
 
@@ -55,7 +59,9 @@ public final class CsvSpecReader {
             // read the results
             else {
                 // read data
-                if (line.startsWith(";")) {
+                if (line.toLowerCase(Locale.ROOT).startsWith("warning:")) {
+                    testCase.expectedWarnings.add(line.substring("warning:".length()).trim());
+                } else if (line.startsWith(";")) {
                     testCase.expectedResults = data.toString();
                     // clean-up and emit
                     CsvTestCase result = testCase;
@@ -76,6 +82,7 @@ public final class CsvSpecReader {
         public String query;
         public String earlySchema;
         public String expectedResults;
+        public List<String> expectedWarnings = new ArrayList<>();
     }
 
 }

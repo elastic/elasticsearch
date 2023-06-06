@@ -186,13 +186,15 @@ null                                                  |null
 [fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece:fec0]|[fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece:fec0]
 ;
 
-convertFromString-IgnoreWarnings
+convertFromString
 // tag::to_ip[]
 ROW str1 = "1.1.1.1", str2 = "foo"
 | EVAL ip1 = TO_IP(str1), ip2 = TO_IP(str2)
 | WHERE CIDR_MATCH(ip1, "1.0.0.0/8")
 // end::to_ip[]
 ;
+warning:Line 2:33: evaluation of [TO_IP(str2)] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.IllegalArgumentException: 'foo' is not an IP string literal.
 
 // tag::to_ip-result[]
 str1:keyword |str2:keyword |ip1:ip  |ip2:ip

@@ -69,12 +69,15 @@ tf:boolean     |t2l:long       |f2l:long       |tf2l:long
 [true, false]  |1              |0              |[1, 0]
 ;
 
-convertStringToLong-IgnoreWarnings
+convertStringToLong
 // tag::to_long-str[]
 ROW str1 = "2147483648", str2 = "2147483648.2", str3 = "foo"
 | EVAL long1 = TO_LONG(str1), long2 = TO_LONG(str2), long3 = TO_LONG(str3)
 // end::to_long-str[]
 ;
+warning:Line 2:62: evaluation of [TO_LONG(str3)] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.NumberFormatException: For input string: \"foo\"
+
 
 // tag::to_long-str-result[]
 str1:keyword |str2:keyword |str3:keyword |long1:long  |long2:long |long3:long
@@ -82,8 +85,10 @@ str1:keyword |str2:keyword |str3:keyword |long1:long  |long2:long |long3:long
 // end::to_long-str-result[]
 ;
 
-convertDoubleToLong-IgnoreWarnings
+convertDoubleToLong
 row d = 123.4 | eval d2l = to_long(d), overflow = to_long(1e19);
+warning:Line 1:51: evaluation of [to_long(1e19)] failed, treating result as null. Only first 20 failures recorded.
+warning:org.elasticsearch.xpack.ql.QlIllegalArgumentException: [1.0E19] out of [long] range
 
 d:double       |d2l:long      |overflow:long     
 123.4          |123           |null    
@@ -98,12 +103,14 @@ int:integer       |ii:integer
 [5013792, 520128] |[5013792, 520128]
 ;
 
-convertLongToInt-IgnoreWarnings
+convertLongToInt
 // tag::to_int-long[]
 ROW long = [5013792, 2147483647, 501379200000]
 | EVAL int = TO_INTEGER(long)
 // end::to_int-long[]
 ;
+warning:Line 2:14: evaluation of [TO_INTEGER(long)] failed, treating result as null. Only first 20 failures recorded.
+warning:org.elasticsearch.xpack.ql.QlIllegalArgumentException: [501379200000] out of [integer] range
 
 // tag::to_int-long-result[]
 long:long                           |int:integer
@@ -125,15 +132,21 @@ tf:boolean     |t2i:integer    |f2i:integer    |tf2i:integer
 [true, false]  |1              |0              |[1, 0]
 ;
 
-convertStringToInt-IgnoreWarnings
+convertStringToInt
 row int_str = "2147483647", int_dbl_str = "2147483647.2" | eval is2i = to_integer(int_str), ids2i = to_integer(int_dbl_str), overflow = to_integer("2147483648"), no_number = to_integer("foo");
+warning:Line 1:137: evaluation of [to_integer(\"2147483648\")] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.NumberFormatException: For input string: \"2147483648\"
+warning:Line 1:175: evaluation of [to_integer(\"foo\")] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.NumberFormatException: For input string: \"foo\"
 
 int_str:keyword  |int_dbl_str:keyword |is2i:integer|ids2i:integer   |overflow:integer |no_number:integer
 2147483647       |2147483647.2        |2147483647  |2147483647      |null             |null
 ;
 
-convertDoubleToInt-IgnoreWarnings
+convertDoubleToInt
 row d = 123.4 | eval d2i = to_integer(d), overflow = to_integer(1e19);
+warning:Line 1:54: evaluation of [to_integer(1e19)] failed, treating result as null. Only first 20 failures recorded.
+warning:org.elasticsearch.xpack.ql.QlIllegalArgumentException: [1.0E19] out of [long] range
 
 d:double       |d2i:integer   |overflow:integer
 123.4          |123           |null    

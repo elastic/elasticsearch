@@ -370,7 +370,13 @@ public final class CsvTestUtils {
         }
     }
 
-    record ActualResults(List<String> columnNames, List<Type> columnTypes, List<String> dataTypes, List<Page> pages) {
+    record ActualResults(
+        List<String> columnNames,
+        List<Type> columnTypes,
+        List<String> dataTypes,
+        List<Page> pages,
+        Map<String, List<String>> responseHeaders
+    ) {
         List<List<Object>> values() {
             return EsqlQueryResponse.pagesToValues(dataTypes(), pages);
         }

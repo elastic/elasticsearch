@@ -39,6 +39,7 @@ import java.util.Locale;
 import java.util.Map;
 
 import static java.util.Collections.emptySet;
+import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.containsString;
@@ -228,7 +229,7 @@ public class RestEsqlTestCase extends ESRestTestCase {
         options.addHeader("Content-Type", mediaType);
         options.addHeader("Accept", "text/csv; header=absent");
         request.setOptions(options);
-        HttpEntity entity = performRequest(request);
+        HttpEntity entity = performRequest(request, List.of());
         String actual = Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8));
         assertEquals("keyword0,0\r\n", actual);
     }
@@ -295,17 +296,15 @@ public class RestEsqlTestCase extends ESRestTestCase {
     }
 
     public static Map<String, Object> runEsql(RequestObjectBuilder requestObject) throws IOException {
-        return runEsql(requestObject, false);
+        return runEsql(requestObject, List.of());
     }
 
-    public static Map<String, Object> runEsql(RequestObjectBuilder requestObject, boolean allowWarnings) throws IOException {
+    public static Map<String, Object> runEsql(RequestObjectBuilder requestObject, List<String> expectedWarnings) throws IOException {
         Request request = prepareRequest();
         String mediaType = attachBody(requestObject, request);
 
         RequestOptions.Builder options = request.getOptions().toBuilder();
-        if (allowWarnings) {
-            options.setWarningsHandler(WarningsHandler.PERMISSIVE);
-        }
+        options.setWarningsHandler(WarningsHandler.PERMISSIVE); // We assert the warnings ourselves
         options.addHeader("Content-Type", mediaType);
 
         if (randomBoolean()) {
@@ -315,7 +314,7 @@ public class RestEsqlTestCase extends ESRestTestCase {
         }
         request.setOptions(options);
 
-        HttpEntity entity = performRequest(request);
+        HttpEntity entity = performRequest(request, expectedWarnings);
         try (InputStream content = entity.getContent()) {
             XContentType xContentType = XContentType.fromMediaType(entity.getContentType().getValue());
             assertEquals(requestObject.contentType(), xContentType);
@@ -344,7 +343,7 @@ public class RestEsqlTestCase extends ESRestTestCase {
         }
         request.setOptions(options);
 
-        HttpEntity entity = performRequest(request);
+        HttpEntity entity = performRequest(request, List.of());
         return Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8));
     }
 
@@ -363,9 +362,10 @@ public class RestEsqlTestCase extends ESRestTestCase {
         return mediaType;
     }
 
-    private static HttpEntity performRequest(Request request) throws IOException {
+    private static HttpEntity performRequest(Request request, List<String> allowedWarnings) throws IOException {
         Response response = client().performRequest(request);
         assertEquals(200, response.getStatusLine().getStatusCode());
+        assertMap(response.getWarnings(), matchesList(allowedWarnings));
         return response.getEntity();
     }
 

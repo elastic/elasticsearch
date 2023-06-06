@@ -55,12 +55,14 @@ emp_no:integer |hire_date:date          |hire_double:double
 10003          |1986-08-28T00:00:00.000Z|5.255712E11
 ;
 
-convertFromString-IgnoreWarnings
+convertFromString
 // tag::to_double-str[]
 ROW str1 = "5.20128E11", str2 = "foo"
 | EVAL dbl = TO_DOUBLE("520128000000"), dbl1 = TO_DOUBLE(str1), dbl2 = TO_DOUBLE(str2)
 // end::to_double-str[]
 ;
+warning:Line 2:72: evaluation of [TO_DOUBLE(str2)] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.NumberFormatException: For input string: \"foo\"
 
 // tag::to_double-str-result[]
 str1:keyword |str2:keyword |dbl:double |dbl1:double |dbl2:double

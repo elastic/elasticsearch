@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Page;
@@ -75,10 +76,13 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.compute.operator.DriverRunner.runToCompletion;
+import static org.elasticsearch.test.ListMatcher.matchesList;
+import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.ExpectedResults;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.loadCsvSpecValues;
@@ -156,6 +160,12 @@ public class CsvTests extends ESTestCase {
             "CsvTests",
             new FixedExecutorBuilder(Settings.EMPTY, ESQL_THREAD_POOL_NAME, numThreads, 1024, "esql", false)
         );
+        HeaderWarning.setThreadContext(threadPool.getThreadContext());
+    }
+
+    @After
+    public void teardown() {
+        HeaderWarning.removeThreadContext(threadPool.getThreadContext());
     }
 
     @After
@@ -183,7 +193,7 @@ public class CsvTests extends ESTestCase {
 
     @Override
     protected final boolean enableWarningsCheck() {
-        return testName.endsWith("-IgnoreWarnings") == false;
+        return false;  // We use our own warnings check
     }
 
     public boolean logResults() {
@@ -196,6 +206,7 @@ public class CsvTests extends ESTestCase {
 
         var log = logResults() ? LOGGER : null;
         assertResults(expected, actualResults, log);
+        assertWarnings(actualResults.responseHeaders().getOrDefault("Warning", List.of()));
     }
 
     protected void assertResults(ExpectedResults expected, ActualResults actual, Logger logger) {
@@ -283,6 +294,7 @@ public class CsvTests extends ESTestCase {
 
         List<Driver> drivers = new ArrayList<>();
         List<Page> collectedPages = Collections.synchronizedList(new ArrayList<>());
+        Map<String, List<String>> responseHeaders;
 
         // replace fragment inside the coordinator plan
         try {
@@ -300,7 +312,7 @@ public class CsvTests extends ESTestCase {
                 LocalExecutionPlan dataNodeExecutionPlan = executionPlanner.plan(csvDataNodePhysicalPlan);
                 drivers.addAll(dataNodeExecutionPlan.createDrivers(sessionId));
             }
-            runToCompletion(threadPool.executor(ESQL_THREAD_POOL_NAME), drivers);
+            responseHeaders = runToCompletion(threadPool, drivers);
         } finally {
             Releasables.close(
                 () -> Releasables.close(drivers),
@@ -308,7 +320,7 @@ public class CsvTests extends ESTestCase {
                 () -> exchangeService.completeSourceHandler(sessionId)
             );
         }
-        return new ActualResults(columnNames, columnTypes, dataTypes, collectedPages);
+        return new ActualResults(columnNames, columnTypes, dataTypes, collectedPages, responseHeaders);
     }
 
     //
@@ -376,5 +388,13 @@ public class CsvTests extends ESTestCase {
 
             SerializationTestUtils.assertSerialization(plan);
         }
+    }
+
+    private void assertWarnings(List<String> warnings) {
+        List<String> normalized = new ArrayList<>(warnings.size());
+        for (String w : warnings) {
+            normalized.add(HeaderWarning.extractWarningValueFromWarningHeader(w, false));
+        }
+        assertMap(normalized, matchesList(testCase.expectedWarnings));
     }
 }

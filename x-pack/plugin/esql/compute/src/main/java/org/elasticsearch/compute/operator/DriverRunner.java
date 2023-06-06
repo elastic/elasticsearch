@@ -13,9 +13,10 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.List;
-import java.util.concurrent.Executor;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -86,15 +87,32 @@ public abstract class DriverRunner {
         }
     }
 
-    public static void runToCompletion(Executor executor, List<Driver> drivers) {
+    /**
+     * Run all the of the listed drivers in the supplier {@linkplain ThreadPool}.
+     * @return the headers added to the context while running the drivers
+     */
+    public static Map<String, List<String>> runToCompletion(ThreadPool threadPool, List<Driver> drivers) {
         DriverRunner runner = new DriverRunner() {
             @Override
             protected void start(Driver driver, ActionListener<Void> driverListener) {
-                Driver.start(executor, driver, driverListener);
+                Driver.start(threadPool.executor("esql"), driver, driverListener);
             }
         };
+        AtomicReference<Map<String, List<String>>> responseHeaders = new AtomicReference<>();
         PlainActionFuture<Void> future = new PlainActionFuture<>();
-        runner.runToCompletion(drivers, future);
+        runner.runToCompletion(drivers, new ActionListener<>() {
+            @Override
+            public void onResponse(Void unused) {
+                responseHeaders.set(threadPool.getThreadContext().getResponseHeaders());
+                future.onResponse(null);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                future.onFailure(e);
+            }
+        });
         future.actionGet();
+        return responseHeaders.get();
     }
 }

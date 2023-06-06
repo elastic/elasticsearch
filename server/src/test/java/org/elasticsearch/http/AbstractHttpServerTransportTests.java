@@ -1054,7 +1054,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
     }
 
     public void testStopClosesChannelAfterRequest() {
-        try (TestHttpServerTransport transport = new TestHttpServerTransport(gracePeriod(1_000))) {
+        try (TestHttpServerTransport transport = new TestHttpServerTransport(gracePeriod(100))) {
             transport.bindServer();
 
             TestHttpChannel httpChannel = new TestHttpChannel();
@@ -1101,9 +1101,8 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/96632")
     public void testForceClosesOpenChannels() {
-        try (TestHttpServerTransport transport = new TestHttpServerTransport(gracePeriod(1_000))) {
+        try (TestHttpServerTransport transport = new TestHttpServerTransport(gracePeriod(100))) {
             transport.bindServer();
 
             TestHttpChannel httpChannel = new TestHttpChannel(true);
@@ -1118,8 +1117,13 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 } catch (InterruptedException e) {
                     fail("server never called grace period");
                 }
-                // one last request, will attempt to close naturally, but we are blocking it
-                transport.incomingRequest(new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/"), httpChannel);
+                try {
+                    // one last request, will attempt to close naturally, but we are blocking it
+                    transport.incomingRequest(new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/"), httpChannel);
+                } catch (IllegalStateException err) {
+                    // we force closed below, so we may get this error when closing the channel after request succeeds.
+                    assertThat(err.getMessage(), is("channel already closed!"));
+                }
             }).start();
 
             new Thread(() -> {

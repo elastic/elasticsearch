@@ -64,7 +64,7 @@ public class SimulateTemplateAction extends ActionType<SimulateIndexTemplateResp
             super(in);
             templateName = in.readOptionalString();
             indexTemplateRequest = in.readOptionalWriteable(PutComposableIndexTemplateAction.Request::new);
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0) && DataLifecycle.isEnabled()) {
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0) && false) {
                 includeDefaults = in.readBoolean();
             }
         }
@@ -74,7 +74,7 @@ public class SimulateTemplateAction extends ActionType<SimulateIndexTemplateResp
             super.writeTo(out);
             out.writeOptionalString(templateName);
             out.writeOptionalWriteable(indexTemplateRequest);
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0) && DataLifecycle.isEnabled()) {
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0) && false) {
                 out.writeBoolean(includeDefaults);
             }
         }

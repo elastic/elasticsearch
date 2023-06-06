@@ -15,7 +15,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -61,34 +60,28 @@ public record IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Ma
     /**
      * Read from a stream.
      */
-    public IngestStats(StreamInput in) throws IOException {
-        this(new Stats(in), readPipelineStats(in));
-    }
-
-    IngestStats(Stats stats, Tuple<List<PipelineStat>, Map<String, List<ProcessorStat>>> tuple) {
-        this(stats, tuple.v1(), tuple.v2());
-    }
-
-    private static Tuple<List<PipelineStat>, Map<String, List<ProcessorStat>>> readPipelineStats(StreamInput in) throws IOException {
+    public static IngestStats read(StreamInput in) throws IOException {
+        var stats = new Stats(in);
         var size = in.readVInt();
         var pipelineStats = new ArrayList<PipelineStat>(size);
         var processorStats = Maps.<String, List<ProcessorStat>>newMapWithExpectedSize(size);
-        for (int i = 0; i < size; i++) {
-            String pipelineId = in.readString();
-            Stats pipelineStat = new Stats(in);
+
+        for (var i = 0; i < size; i++) {
+            var pipelineId = in.readString();
+            var pipelineStat = new Stats(in);
             pipelineStats.add(new PipelineStat(pipelineId, pipelineStat));
             int processorsSize = in.readVInt();
-            List<ProcessorStat> processorStatsPerPipeline = new ArrayList<>(processorsSize);
-            for (int j = 0; j < processorsSize; j++) {
-                String processorName = in.readString();
-                String processorType = in.readString();
-                Stats processorStat = new Stats(in);
+            var processorStatsPerPipeline = new ArrayList<ProcessorStat>(processorsSize);
+            for (var j = 0; j < processorsSize; j++) {
+                var processorName = in.readString();
+                var processorType = in.readString();
+                var processorStat = new Stats(in);
                 processorStatsPerPipeline.add(new ProcessorStat(processorName, processorType, processorStat));
             }
             processorStats.put(pipelineId, Collections.unmodifiableList(processorStatsPerPipeline));
         }
 
-        return Tuple.tuple(Collections.unmodifiableList(pipelineStats), Collections.unmodifiableMap(processorStats));
+        return new IngestStats(stats, pipelineStats, processorStats);
     }
 
     @Override

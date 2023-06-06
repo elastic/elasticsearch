@@ -106,7 +106,6 @@ public class InternalResetTrackingRate extends InternalNumericMetricsAggregation
             }
             endValue = rate.endValue;
         }
-        final Rounding.DateTimeUnit rateUnit = toReduce.get(0).rateUnit;
         return new InternalResetTrackingRate(
             name,
             format,
@@ -116,7 +115,7 @@ public class InternalResetTrackingRate extends InternalNumericMetricsAggregation
             toReduce.get(0).startTime,
             toReduce.get(endIndex).endTime,
             resetComp,
-            rateUnit
+            toReduce.get(0).rateUnit
         );
     }
 

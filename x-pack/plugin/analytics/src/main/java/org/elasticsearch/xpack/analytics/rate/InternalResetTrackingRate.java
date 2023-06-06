@@ -61,7 +61,7 @@ public class InternalResetTrackingRate extends InternalNumericMetricsAggregation
         this.startTime = in.readLong();
         this.endTime = in.readLong();
         this.resetCompensation = in.readDouble();
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_008)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_009)) {
             this.rateUnit = Rounding.DateTimeUnit.resolve(in.readByte());
         } else {
             this.rateUnit = Rounding.DateTimeUnit.SECOND_OF_MINUTE;
@@ -80,7 +80,7 @@ public class InternalResetTrackingRate extends InternalNumericMetricsAggregation
         out.writeLong(startTime);
         out.writeLong(endTime);
         out.writeDouble(resetCompensation);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_008)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_009)) {
             out.writeByte(rateUnit.getId());
         } else {
             out.writeByte(Rounding.DateTimeUnit.SECOND_OF_MINUTE.getId());

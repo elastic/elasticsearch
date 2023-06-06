@@ -253,17 +253,19 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         boolean ensureConnected,
         ActionListener<Transport.Connection> listener
     ) {
-        ActionListener<Void> ensureConnectedListener = ActionListener.wrap(nullValue -> ActionListener.completeWith(listener, () -> {
-            try {
-                return getConnection(clusterAlias);
-            } catch (NoSuchRemoteClusterException e) {
-                if (ensureConnected == false) {
-                    // trigger another connection attempt, but don't wait for it to complete
-                    ensureConnected(clusterAlias, ActionListener.noop());
+        ActionListener<Void> ensureConnectedListener = listener.delegateFailureAndWrap(
+            (l, nullValue) -> ActionListener.completeWith(l, () -> {
+                try {
+                    return getConnection(clusterAlias);
+                } catch (NoSuchRemoteClusterException e) {
+                    if (ensureConnected == false) {
+                        // trigger another connection attempt, but don't wait for it to complete
+                        ensureConnected(clusterAlias, ActionListener.noop());
+                    }
+                    throw e;
                 }
-                throw e;
-            }
-        }), listener::onFailure);
+            })
+        );
         if (ensureConnected) {
             ensureConnected(clusterAlias, ensureConnectedListener);
         } else {

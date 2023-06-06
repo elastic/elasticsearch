@@ -203,7 +203,7 @@ public class CancellableFanOutTests extends ESTestCase {
             @Override
             protected String onCompletion() {
                 assertEquals(items.size(), itemsProcessed.get());
-                assertThat(Thread.currentThread().getName(), anyOf(isProcessorThread));
+                assertThat(Thread.currentThread().getName(), isProcessorThread);
                 if (randomBoolean()) {
                     return "finished";
                 } else {
@@ -214,7 +214,7 @@ public class CancellableFanOutTests extends ESTestCase {
             @Override
             public void onResponse(String s) {
                 assertEquals(items.size(), itemsProcessed.get());
-                assertThat(Thread.currentThread().getName(), anyOf(isProcessorThread));
+                assertThat(Thread.currentThread().getName(), isProcessorThread);
                 assertEquals("finished", s);
                 completionLatch.countDown();
             }
@@ -225,7 +225,7 @@ public class CancellableFanOutTests extends ESTestCase {
                     assertThat(Thread.currentThread().getName(), anyOf(isProcessorThread, isCancelThread));
                 } else {
                     assertEquals(items.size(), itemsProcessed.get());
-                    assertThat(Thread.currentThread().getName(), anyOf(isProcessorThread));
+                    assertThat(Thread.currentThread().getName(), isProcessorThread);
                     assertThat(e, instanceOf(ElasticsearchException.class));
                     assertEquals("onCompletion", e.getMessage());
                 }

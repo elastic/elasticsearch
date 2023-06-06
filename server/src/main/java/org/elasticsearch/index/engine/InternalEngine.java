@@ -43,6 +43,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.lucene.LoggerInfoStream;
 import org.elasticsearch.common.lucene.Lucene;
@@ -574,10 +575,16 @@ public class InternalEngine extends Engine {
                     translog.currentFileGeneration()
                 )
             );
-            flush(false, true, l.delegateFailureAndWrap((ll, r) -> {
+
+            // flush might do something async and complete the listener on a different thread, from which we must fork back to a generic
+            // thread to continue with recovery, but if it doesn't do anything async then there's no need to fork, hence why we use a
+            // SubscribableListener here
+            final var flushListener = new SubscribableListener<FlushResult>();
+            flush(false, true, flushListener);
+            flushListener.addListener(l.delegateFailureAndWrap((ll, r) -> {
                 translog.trimUnreferencedReaders();
                 ll.onResponse(null);
-            }));
+            }), engineConfig.getThreadPool().generic(), null);
         });
     }
 

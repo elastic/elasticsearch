@@ -68,7 +68,7 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
     public Operator.OperatorFactory ordinalGroupingOperatorFactory(
         PhysicalOperation source,
         AggregateExec aggregateExec,
-        List<GroupingAggregator.GroupingAggregatorFactory> aggregatorFactories,
+        List<GroupingAggregator.Factory> aggregatorFactories,
         Attribute attrSource,
         ElementType groupElementType,
         BigArrays bigArrays
@@ -206,7 +206,7 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
         private final String columnName;
 
         TestHashAggregationOperator(
-            List<GroupingAggregator.GroupingAggregatorFactory> aggregators,
+            List<GroupingAggregator.Factory> aggregators,
             Supplier<BlockHash> blockHash,
             String columnName,
             DriverContext driverContext
@@ -227,14 +227,14 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
      */
     private class TestOrdinalsGroupingAggregationOperatorFactory implements Operator.OperatorFactory {
         private int groupByChannel;
-        private List<GroupingAggregator.GroupingAggregatorFactory> aggregators;
+        private List<GroupingAggregator.Factory> aggregators;
         private ElementType groupElementType;
         private BigArrays bigArrays;
         private String columnName;
 
         TestOrdinalsGroupingAggregationOperatorFactory(
             int channelIndex,
-            List<GroupingAggregator.GroupingAggregatorFactory> aggregatorFactories,
+            List<GroupingAggregator.Factory> aggregatorFactories,
             ElementType groupElementType,
             BigArrays bigArrays,
             String name

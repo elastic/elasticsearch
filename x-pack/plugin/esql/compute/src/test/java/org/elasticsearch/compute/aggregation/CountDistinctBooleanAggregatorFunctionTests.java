@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.aggregation;
 
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.SequenceBooleanBlockSourceOperator;
@@ -24,8 +25,8 @@ public class CountDistinctBooleanAggregatorFunctionTests extends AggregatorFunct
     }
 
     @Override
-    protected AggregatorFunction.Factory aggregatorFunction() {
-        return AggregatorFunction.COUNT_DISTINCT_BOOLEANS;
+    protected AggregatorFunctionSupplier aggregatorFunction(BigArrays bigArrays, int inputChannel) {
+        return CountDistinctBooleanAggregator.supplier(bigArrays, inputChannel);
     }
 
     @Override

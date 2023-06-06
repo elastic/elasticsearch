@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleArrayVector;
 import org.elasticsearch.compute.data.LongBlock;
@@ -33,18 +34,13 @@ public class CountDistinctLongAggregatorFunctionTests extends AggregatorFunction
     }
 
     @Override
-    protected AggregatorFunction.Factory aggregatorFunction() {
-        return AggregatorFunction.COUNT_DISTINCT_LONGS;
+    protected AggregatorFunctionSupplier aggregatorFunction(BigArrays bigArrays, int inputChannel) {
+        return CountDistinctLongAggregator.supplier(bigArrays, inputChannel, 40000);
     }
 
     @Override
     protected String expectedDescriptionOfAggregator() {
         return "count_distinct of longs";
-    }
-
-    @Override
-    protected Object[] aggregatorParameters() {
-        return new Object[] { 40000 };
     }
 
     @Override

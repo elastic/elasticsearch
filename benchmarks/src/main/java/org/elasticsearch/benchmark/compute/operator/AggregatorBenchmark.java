@@ -10,13 +10,10 @@ package org.elasticsearch.benchmark.compute.operator;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.compute.aggregation.AggregationName;
-import org.elasticsearch.compute.aggregation.AggregationType;
-import org.elasticsearch.compute.aggregation.Aggregator;
-import org.elasticsearch.compute.aggregation.AggregatorFunction;
+import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
-import org.elasticsearch.compute.aggregation.GroupingAggregator;
-import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
+import org.elasticsearch.compute.aggregation.CountDistinctDoubleAggregator;
+import org.elasticsearch.compute.aggregation.CountDistinctLongAggregator;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
@@ -77,7 +74,7 @@ public class AggregatorBenchmark {
 
     private static final String AVG = "avg";
     private static final String COUNT = "count";
-    private static final String COUNT_DISTINCT = "countdistinct";
+    private static final String COUNT_DISTINCT = "count_distinct";
     private static final String MIN = "min";
     private static final String MAX = "max";
     private static final String SUM = "sum";
@@ -108,10 +105,9 @@ public class AggregatorBenchmark {
     @Param({ VECTOR_LONGS, HALF_NULL_LONGS, VECTOR_DOUBLES, HALF_NULL_DOUBLES })
     public String blockType;
 
-    private static Operator operator(String grouping, AggregationName aggName, AggregationType aggType) {
+    private static Operator operator(String grouping, String op, String dataType) {
         if (grouping.equals("none")) {
-            AggregatorFunction.Factory factory = AggregatorFunction.of(aggName, aggType);
-            return new AggregationOperator(List.of(new Aggregator(BIG_ARRAYS, factory, Aggregator.EMPTY_PARAMS, AggregatorMode.SINGLE, 0)));
+            return new AggregationOperator(List.of(supplier(op, dataType, 0).aggregatorFactory(AggregatorMode.SINGLE, 0).get()));
         }
         List<HashAggregationOperator.GroupSpec> groups = switch (grouping) {
             case LONGS -> List.of(new HashAggregationOperator.GroupSpec(0, ElementType.LONG));
@@ -129,24 +125,34 @@ public class AggregatorBenchmark {
             );
             default -> throw new IllegalArgumentException("unsupported grouping [" + grouping + "]");
         };
-        GroupingAggregatorFunction.Factory factory = GroupingAggregatorFunction.of(aggName, aggType);
         return new HashAggregationOperator(
-            List.of(new GroupingAggregator.GroupingAggregatorFactory(BIG_ARRAYS, factory, AggregatorMode.SINGLE, groups.size())),
+            List.of(supplier(op, dataType, groups.size()).groupingAggregatorFactory(AggregatorMode.SINGLE, groups.size())),
             () -> BlockHash.build(groups, BIG_ARRAYS),
             new DriverContext()
         );
     }
 
-    private static void checkExpected(String grouping, String op, String blockType, AggregationType aggType, Page page) {
-        String prefix = String.format("[%s][%s][%s] ", grouping, op, blockType);
-        if (grouping.equals("none")) {
-            checkUngrouped(prefix, op, aggType, page);
-            return;
-        }
-        checkGrouped(prefix, grouping, op, aggType, page);
+    private static AggregatorFunctionSupplier supplier(String op, String dataType, int dataChannel) {
+        return switch (op) {
+            case COUNT_DISTINCT -> switch (dataType) { // TODO add other ops......
+                case LONGS -> CountDistinctLongAggregator.supplier(BIG_ARRAYS, dataChannel, 3000);
+                case DOUBLES -> CountDistinctDoubleAggregator.supplier(BIG_ARRAYS, dataChannel, 3000);
+                default -> throw new IllegalArgumentException("unsupported aggName [" + op + "]");
+            };
+            default -> throw new IllegalArgumentException("unsupported data type [" + dataType + "]");
+        };
     }
 
-    private static void checkGrouped(String prefix, String grouping, String op, AggregationType aggType, Page page) {
+    private static void checkExpected(String grouping, String op, String blockType, String dataType, Page page) {
+        String prefix = String.format("[%s][%s][%s] ", grouping, op, blockType);
+        if (grouping.equals("none")) {
+            checkUngrouped(prefix, op, dataType, page);
+            return;
+        }
+        checkGrouped(prefix, grouping, op, dataType, page);
+    }
+
+    private static void checkGrouped(String prefix, String grouping, String op, String dataType, Page page) {
         switch (grouping) {
             case TWO_LONGS -> {
                 checkGroupingBlock(prefix, LONGS, page.getBlock(0));
@@ -199,8 +205,8 @@ public class AggregatorBenchmark {
                 }
             }
             case MIN -> {
-                switch (aggType) {
-                    case longs -> {
+                switch (dataType) {
+                    case LONGS -> {
                         LongBlock lValues = (LongBlock) values;
                         for (int g = 0; g < groups; g++) {
                             if (lValues.getLong(g) != (long) g) {
@@ -208,7 +214,7 @@ public class AggregatorBenchmark {
                             }
                         }
                     }
-                    case doubles -> {
+                    case DOUBLES -> {
                         DoubleBlock dValues = (DoubleBlock) values;
                         for (int g = 0; g < groups; g++) {
                             if (dValues.getDouble(g) != (long) g) {
@@ -216,11 +222,12 @@ public class AggregatorBenchmark {
                             }
                         }
                     }
+                    default -> throw new IllegalArgumentException("bad data type " + dataType);
                 }
             }
             case MAX -> {
-                switch (aggType) {
-                    case longs -> {
+                switch (dataType) {
+                    case LONGS -> {
                         LongBlock lValues = (LongBlock) values;
                         for (int g = 0; g < groups; g++) {
                             long group = g;
@@ -230,7 +237,7 @@ public class AggregatorBenchmark {
                             }
                         }
                     }
-                    case doubles -> {
+                    case DOUBLES -> {
                         DoubleBlock dValues = (DoubleBlock) values;
                         for (int g = 0; g < groups; g++) {
                             long group = g;
@@ -240,11 +247,12 @@ public class AggregatorBenchmark {
                             }
                         }
                     }
+                    default -> throw new IllegalArgumentException("bad data type " + dataType);
                 }
             }
             case SUM -> {
-                switch (aggType) {
-                    case longs -> {
+                switch (dataType) {
+                    case LONGS -> {
                         LongBlock lValues = (LongBlock) values;
                         for (int g = 0; g < groups; g++) {
                             long group = g;
@@ -254,7 +262,7 @@ public class AggregatorBenchmark {
                             }
                         }
                     }
-                    case doubles -> {
+                    case DOUBLES -> {
                         DoubleBlock dValues = (DoubleBlock) values;
                         for (int g = 0; g < groups; g++) {
                             long group = g;
@@ -264,6 +272,7 @@ public class AggregatorBenchmark {
                             }
                         }
                     }
+                    default -> throw new IllegalArgumentException("bad data type " + dataType);
                 }
             }
             default -> throw new IllegalArgumentException("bad op " + op);
@@ -319,7 +328,7 @@ public class AggregatorBenchmark {
         }
     }
 
-    private static void checkUngrouped(String prefix, String op, AggregationType aggType, Page page) {
+    private static void checkUngrouped(String prefix, String op, String dataType, Page page) {
         Block block = page.getBlock(0);
         switch (op) {
             case AVG -> {
@@ -347,10 +356,10 @@ public class AggregatorBenchmark {
             }
             case MIN -> {
                 long expected = 0L;
-                var val = switch (aggType) {
-                    case longs -> ((LongBlock) block).getLong(0);
-                    case doubles -> ((DoubleBlock) block).getDouble(0);
-                    default -> throw new IllegalStateException("Unexpected aggregation type: " + aggType);
+                var val = switch (dataType) {
+                    case LONGS -> ((LongBlock) block).getLong(0);
+                    case DOUBLES -> ((DoubleBlock) block).getDouble(0);
+                    default -> throw new IllegalStateException("Unexpected aggregation type: " + dataType);
                 };
                 if (val != expected) {
                     throw new AssertionError(prefix + "expected [" + expected + "] but was [" + val + "]");
@@ -358,10 +367,10 @@ public class AggregatorBenchmark {
             }
             case MAX -> {
                 long expected = BLOCK_LENGTH - 1;
-                var val = switch (aggType) {
-                    case longs -> ((LongBlock) block).getLong(0);
-                    case doubles -> ((DoubleBlock) block).getDouble(0);
-                    default -> throw new IllegalStateException("Unexpected aggregation type: " + aggType);
+                var val = switch (dataType) {
+                    case LONGS -> ((LongBlock) block).getLong(0);
+                    case DOUBLES -> ((DoubleBlock) block).getDouble(0);
+                    default -> throw new IllegalStateException("Unexpected aggregation type: " + dataType);
                 };
                 if (val != expected) {
                     throw new AssertionError(prefix + "expected [" + expected + "] but was [" + val + "]");
@@ -369,10 +378,10 @@ public class AggregatorBenchmark {
             }
             case SUM -> {
                 long expected = (BLOCK_LENGTH * (BLOCK_LENGTH - 1L)) * 1024L / 2;
-                var val = switch (aggType) {
-                    case longs -> ((LongBlock) block).getLong(0);
-                    case doubles -> ((DoubleBlock) block).getDouble(0);
-                    default -> throw new IllegalStateException("Unexpected aggregation type: " + aggType);
+                var val = switch (dataType) {
+                    case LONGS -> ((LongBlock) block).getLong(0);
+                    case DOUBLES -> ((DoubleBlock) block).getDouble(0);
+                    default -> throw new IllegalStateException("Unexpected aggregation type: " + dataType);
                 };
                 if (val != expected) {
                     throw new AssertionError(prefix + "expected [" + expected + "] but was [" + val + "]");
@@ -513,19 +522,18 @@ public class AggregatorBenchmark {
     }
 
     private static void run(String grouping, String op, String blockType) {
-        AggregationName aggName = AggregationName.of(op);
-        AggregationType aggType = switch (blockType) {
-            case VECTOR_LONGS, HALF_NULL_LONGS -> AggregationType.longs;
-            case VECTOR_DOUBLES, HALF_NULL_DOUBLES -> AggregationType.doubles;
-            default -> AggregationType.agnostic;
+        String dataType = switch (blockType) {
+            case VECTOR_LONGS, HALF_NULL_LONGS -> LONGS;
+            case VECTOR_DOUBLES, HALF_NULL_DOUBLES -> DOUBLES;
+            default -> throw new IllegalArgumentException();
         };
 
-        Operator operator = operator(grouping, aggName, aggType);
+        Operator operator = operator(grouping, op, dataType);
         Page page = page(grouping, blockType);
         for (int i = 0; i < 1024; i++) {
             operator.addInput(page);
         }
         operator.finish();
-        checkExpected(grouping, op, blockType, aggType, operator.getOutput());
+        checkExpected(grouping, op, blockType, dataType, operator.getOutput());
     }
 }

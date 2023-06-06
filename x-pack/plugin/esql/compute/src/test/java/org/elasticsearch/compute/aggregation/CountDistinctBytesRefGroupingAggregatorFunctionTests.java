@@ -9,6 +9,7 @@ package org.elasticsearch.compute.aggregation;
 
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
@@ -25,13 +26,13 @@ import static org.hamcrest.Matchers.closeTo;
 public class CountDistinctBytesRefGroupingAggregatorFunctionTests extends GroupingAggregatorFunctionTestCase {
 
     @Override
-    protected GroupingAggregatorFunction.Factory aggregatorFunction() {
-        return GroupingAggregatorFunction.COUNT_DISTINCT_BYTESREFS;
+    protected AggregatorFunctionSupplier aggregatorFunction(BigArrays bigArrays, int inputChannel) {
+        return CountDistinctBytesRefAggregator.supplier(bigArrays, inputChannel, 40000);
     }
 
     @Override
     protected String expectedDescriptionOfAggregator() {
-        return "count_distinct of bytesrefs";
+        return "count_distinct of bytes";
     }
 
     @Override

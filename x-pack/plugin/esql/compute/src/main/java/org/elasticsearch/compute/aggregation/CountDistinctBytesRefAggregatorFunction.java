@@ -77,7 +77,6 @@ public final class CountDistinctBytesRefAggregatorFunction implements Aggregator
 
     @Override
     public void addIntermediateInput(Block block) {
-        assert channel == -1;
         Vector vector = block.asVector();
         if (vector == null || vector instanceof AggregatorStateVector == false) {
             throw new RuntimeException("expected AggregatorStateBlock, got:" + block);

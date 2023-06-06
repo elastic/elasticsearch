@@ -328,7 +328,6 @@ public class GroupingAggregatorImplementer {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("addIntermediateInput");
         builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
         builder.addParameter(LONG_VECTOR, "groupIdVector").addParameter(BLOCK, "block");
-        builder.addStatement("assert channel == -1");
         builder.addStatement("$T vector = block.asVector()", VECTOR);
         builder.beginControlFlow("if (vector == null || vector instanceof $T == false)", AGGREGATOR_STATE_VECTOR);
         {

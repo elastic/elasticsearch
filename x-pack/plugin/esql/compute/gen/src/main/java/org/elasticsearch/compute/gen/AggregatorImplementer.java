@@ -217,7 +217,6 @@ public class AggregatorImplementer {
     private MethodSpec addRawInput() {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("addRawInput");
         builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC).addParameter(PAGE, "page");
-        builder.addStatement("assert channel >= 0");
         builder.addStatement("$T type = page.getBlock(channel).elementType()", ELEMENT_TYPE);
         builder.beginControlFlow("if (type == $T.NULL)", ELEMENT_TYPE).addStatement("return").endControlFlow();
         builder.addStatement("$T block = page.getBlock(channel)", valueBlockType(init, combine));
@@ -298,7 +297,6 @@ public class AggregatorImplementer {
     private MethodSpec addIntermediateInput() {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("addIntermediateInput");
         builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC).addParameter(BLOCK, "block");
-        builder.addStatement("assert channel == -1");
         builder.addStatement("$T vector = block.asVector()", VECTOR);
         builder.beginControlFlow("if (vector == null || vector instanceof $T == false)", AGGREGATOR_STATE_VECTOR);
         {

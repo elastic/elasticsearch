@@ -41,7 +41,6 @@ public final class MaxIntAggregatorFunction implements AggregatorFunction {
 
   @Override
   public void addRawInput(Page page) {
-    assert channel >= 0;
     ElementType type = page.getBlock(channel).elementType();
     if (type == ElementType.NULL) {
       return;
@@ -76,7 +75,6 @@ public final class MaxIntAggregatorFunction implements AggregatorFunction {
 
   @Override
   public void addIntermediateInput(Block block) {
-    assert channel == -1;
     Vector vector = block.asVector();
     if (vector == null || vector instanceof AggregatorStateVector == false) {
       throw new RuntimeException("expected AggregatorStateBlock, got:" + block);

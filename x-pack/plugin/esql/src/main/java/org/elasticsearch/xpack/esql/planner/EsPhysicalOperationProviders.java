@@ -139,7 +139,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
     public final Operator.OperatorFactory ordinalGroupingOperatorFactory(
         LocalExecutionPlanner.PhysicalOperation source,
         AggregateExec aggregateExec,
-        List<GroupingAggregator.GroupingAggregatorFactory> aggregatorFactories,
+        List<GroupingAggregator.Factory> aggregatorFactories,
         Attribute attrSource,
         ElementType groupElementType,
         BigArrays bigArrays

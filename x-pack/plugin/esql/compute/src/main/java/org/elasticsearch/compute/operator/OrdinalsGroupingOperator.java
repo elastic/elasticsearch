@@ -16,7 +16,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
-import org.elasticsearch.compute.aggregation.GroupingAggregator.GroupingAggregatorFactory;
+import org.elasticsearch.compute.aggregation.GroupingAggregator.Factory;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.Block;
@@ -54,7 +54,7 @@ public class OrdinalsGroupingOperator implements Operator {
         List<ValueSourceInfo> sources,
         int docChannel,
         String groupingField,
-        List<GroupingAggregatorFactory> aggregators,
+        List<Factory> aggregators,
         BigArrays bigArrays
     ) implements OperatorFactory {
 
@@ -73,7 +73,7 @@ public class OrdinalsGroupingOperator implements Operator {
     private final int docChannel;
     private final String groupingField;
 
-    private final List<GroupingAggregatorFactory> aggregatorFactories;
+    private final List<Factory> aggregatorFactories;
     private final Map<SegmentID, OrdinalSegmentAggregator> ordinalAggregators;
     private final BigArrays bigArrays;
 
@@ -88,7 +88,7 @@ public class OrdinalsGroupingOperator implements Operator {
         List<ValueSourceInfo> sources,
         int docChannel,
         String groupingField,
-        List<GroupingAggregatorFactory> aggregatorFactories,
+        List<GroupingAggregator.Factory> aggregatorFactories,
         BigArrays bigArrays,
         DriverContext driverContext
     ) {
@@ -172,7 +172,7 @@ public class OrdinalsGroupingOperator implements Operator {
         boolean success = false;
         List<GroupingAggregator> aggregators = new ArrayList<>(aggregatorFactories.size());
         try {
-            for (GroupingAggregatorFactory aggregatorFactory : aggregatorFactories) {
+            for (GroupingAggregator.Factory aggregatorFactory : aggregatorFactories) {
                 aggregators.add(aggregatorFactory.apply(driverContext));
             }
             success = true;
@@ -386,7 +386,7 @@ public class OrdinalsGroupingOperator implements Operator {
             int docChannel,
             String groupingField,
             int channelIndex,
-            List<GroupingAggregatorFactory> aggregatorFactories,
+            List<GroupingAggregator.Factory> aggregatorFactories,
             BigArrays bigArrays,
             DriverContext driverContext
         ) {

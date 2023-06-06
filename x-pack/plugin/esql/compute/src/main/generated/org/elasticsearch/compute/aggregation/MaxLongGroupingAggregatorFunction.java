@@ -123,7 +123,6 @@ public final class MaxLongGroupingAggregatorFunction implements GroupingAggregat
 
   @Override
   public void addIntermediateInput(LongVector groupIdVector, Block block) {
-    assert channel == -1;
     Vector vector = block.asVector();
     if (vector == null || vector instanceof AggregatorStateVector == false) {
       throw new RuntimeException("expected AggregatorStateBlock, got:" + block);

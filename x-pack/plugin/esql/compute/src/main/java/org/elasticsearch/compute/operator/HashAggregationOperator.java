@@ -37,11 +37,9 @@ public class HashAggregationOperator implements Operator {
 
     public record GroupSpec(int channel, ElementType elementType) {}
 
-    public record HashAggregationOperatorFactory(
-        List<GroupSpec> groups,
-        List<GroupingAggregator.GroupingAggregatorFactory> aggregators,
-        BigArrays bigArrays
-    ) implements OperatorFactory {
+    public record HashAggregationOperatorFactory(List<GroupSpec> groups, List<GroupingAggregator.Factory> aggregators, BigArrays bigArrays)
+        implements
+            OperatorFactory {
         @Override
         public Operator get(DriverContext driverContext) {
             return new HashAggregationOperator(aggregators, () -> BlockHash.build(groups, bigArrays), driverContext);
@@ -64,7 +62,7 @@ public class HashAggregationOperator implements Operator {
     private final List<GroupingAggregator> aggregators;
 
     public HashAggregationOperator(
-        List<GroupingAggregator.GroupingAggregatorFactory> aggregators,
+        List<GroupingAggregator.Factory> aggregators,
         Supplier<BlockHash> blockHash,
         DriverContext driverContext
     ) {
@@ -73,7 +71,7 @@ public class HashAggregationOperator implements Operator {
         this.aggregators = new ArrayList<>(aggregators.size());
         boolean success = false;
         try {
-            for (GroupingAggregator.GroupingAggregatorFactory a : aggregators) {
+            for (GroupingAggregator.Factory a : aggregators) {
                 this.aggregators.add(a.apply(driverContext));
             }
             this.blockHash = blockHash.get();

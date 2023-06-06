@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.BytesRefBlockSourceOperator;
@@ -28,13 +29,13 @@ public class CountDistinctBytesRefAggregatorFunctionTests extends AggregatorFunc
     }
 
     @Override
-    protected AggregatorFunction.Factory aggregatorFunction() {
-        return AggregatorFunction.COUNT_DISTINCT_BYTESREFS;
+    protected AggregatorFunctionSupplier aggregatorFunction(BigArrays bigArrays, int inputChannel) {
+        return CountDistinctBytesRefAggregator.supplier(bigArrays, inputChannel, 40000);
     }
 
     @Override
     protected String expectedDescriptionOfAggregator() {
-        return "count_distinct of bytesrefs";
+        return "count_distinct of bytes";
     }
 
     @Override

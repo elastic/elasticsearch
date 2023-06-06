@@ -27,10 +27,6 @@ import java.nio.ByteOrder;
 import java.util.Objects;
 
 final class HllStates {
-
-    // Default value for precision_threshold is 3000
-    private static final int DEFAULT_PRECISION = HyperLogLogPlusPlus.precisionFromThreshold(3000);
-
     private HllStates() {}
 
     static BytesStreamOutput serializeHLL(int groupId, HyperLogLogPlusPlus hll) {
@@ -74,10 +70,7 @@ final class HllStates {
 
         SingleState(BigArrays bigArrays, Object[] parameters) {
             this.serializer = new SingleStateSerializer();
-            int precision = DEFAULT_PRECISION;
-            if (parameters != null && parameters.length > 0 && parameters[0] instanceof Number i) {
-                precision = HyperLogLogPlusPlus.precisionFromThreshold(i.longValue());
-            }
+            int precision = HyperLogLogPlusPlus.precisionFromThreshold(((Number) parameters[0]).longValue());
             this.hll = new HyperLogLogPlusPlus(precision, bigArrays, 1);
         }
 
@@ -170,10 +163,7 @@ final class HllStates {
 
         GroupingState(BigArrays bigArrays, Object[] parameters) {
             this.serializer = new GroupingStateSerializer();
-            int precision = DEFAULT_PRECISION;
-            if (parameters != null && parameters.length > 0 && parameters[0] instanceof Number i) {
-                precision = HyperLogLogPlusPlus.precisionFromThreshold(i.longValue());
-            }
+            int precision = HyperLogLogPlusPlus.precisionFromThreshold(((Number) parameters[0]).longValue());
             this.hll = new HyperLogLogPlusPlus(precision, bigArrays, 1);
         }
 

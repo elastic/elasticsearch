@@ -41,7 +41,15 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperatorTestCase {
-    protected abstract GroupingAggregatorFunction.Factory aggregatorFunction();
+    protected GroupingAggregatorFunction.Factory aggregatorFunction() {
+        // TODO remove once unused
+        throw new UnsupportedOperationException();
+    }
+
+    protected AggregatorFunctionSupplier aggregatorFunction(BigArrays bigArrays, int inputChannel) {
+        // TODO make abstract once used everywhere
+        throw new UnsupportedOperationException();
+    }
 
     /**
      * Override this method to build the array with the aggregation parameters
@@ -56,11 +64,19 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
 
     @Override
     protected Operator.OperatorFactory simpleWithMode(BigArrays bigArrays, AggregatorMode mode) {
-        return new HashAggregationOperator.HashAggregationOperatorFactory(
-            List.of(new HashAggregationOperator.GroupSpec(0, ElementType.LONG)),
-            List.of(new GroupingAggregator.GroupingAggregatorFactory(bigArrays, aggregatorFunction(), aggregatorParameters(), mode, 1)),
-            bigArrays
-        );
+        try {
+            return new HashAggregationOperator.HashAggregationOperatorFactory(
+                List.of(new HashAggregationOperator.GroupSpec(0, ElementType.LONG)),
+                List.of(aggregatorFunction(bigArrays, 1).groupingAggregatorFactory(mode, 1)),
+                bigArrays
+            );
+        } catch (UnsupportedOperationException e) {
+            return new HashAggregationOperator.HashAggregationOperatorFactory(
+                List.of(new HashAggregationOperator.GroupSpec(0, ElementType.LONG)),
+                List.of(new GroupingAggregator.GroupingAggregatorFactory(bigArrays, aggregatorFunction(), aggregatorParameters(), mode, 1)),
+                bigArrays
+            );
+        }
     }
 
     @Override

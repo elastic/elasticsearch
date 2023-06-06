@@ -20,6 +20,7 @@ import java.util.function.Supplier;
 public class Aggregator implements Releasable {
 
     public static final Object[] EMPTY_PARAMS = new Object[] {};
+    private static final int UNUSED_CHANNEL = -1;
 
     private final AggregatorFunction aggregatorFunction;
 
@@ -27,14 +28,17 @@ public class Aggregator implements Releasable {
 
     private final int intermediateChannel;
 
+    public interface Factory extends Supplier<Aggregator>, Describable {}
+
     public record AggregatorFactory(
+        // TODO remove when no longer used
         BigArrays bigArrays,
         AggregationName aggName,
         AggregationType aggType,
         Object[] parameters,
         AggregatorMode mode,
         int inputChannel
-    ) implements Supplier<Aggregator>, Describable {
+    ) implements Factory {
 
         public AggregatorFactory(
             BigArrays bigArrays,
@@ -69,9 +73,18 @@ public class Aggregator implements Releasable {
     public Aggregator(BigArrays bigArrays, AggregatorFunction.Factory factory, Object[] parameters, AggregatorMode mode, int inputChannel) {
         assert mode.isInputPartial() || inputChannel >= 0;
         // input channel is used both to signal the creation of the page (when the input is not partial)
-        this.aggregatorFunction = factory.build(bigArrays, mode.isInputPartial() ? -1 : inputChannel, parameters);
+        this.aggregatorFunction = factory.build(bigArrays, mode.isInputPartial() ? UNUSED_CHANNEL : inputChannel, parameters);
         // and to indicate the page during the intermediate phase
-        this.intermediateChannel = mode.isInputPartial() ? inputChannel : -1;
+        this.intermediateChannel = mode.isInputPartial() ? inputChannel : UNUSED_CHANNEL;
+        this.mode = mode;
+    }
+
+    public Aggregator(AggregatorFunction aggregatorFunction, AggregatorMode mode, int inputChannel) {
+        assert mode.isInputPartial() || inputChannel >= 0;
+        // input channel is used both to signal the creation of the page (when the input is not partial)
+        this.aggregatorFunction = aggregatorFunction;
+        // and to indicate the page during the intermediate phase
+        this.intermediateChannel = mode.isInputPartial() ? inputChannel : UNUSED_CHANNEL;
         this.mode = mode;
     }
 

@@ -11,6 +11,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.aggregation.AggregationName;
 import org.elasticsearch.compute.aggregation.AggregationType;
 import org.elasticsearch.compute.aggregation.Aggregator;
+import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.data.ElementType;
@@ -51,7 +52,7 @@ abstract class AbstractPhysicalOperationProviders implements PhysicalOperationPr
 
         if (aggregateExec.groupings().isEmpty()) {
             // not grouping
-            List<Aggregator.AggregatorFactory> aggregatorFactories = new ArrayList<>();
+            List<Aggregator.Factory> aggregatorFactories = new ArrayList<>();
 
             // append channels to the layout
             layout.appendChannels(aggregates);
@@ -60,9 +61,11 @@ abstract class AbstractPhysicalOperationProviders implements PhysicalOperationPr
                 aggregates,
                 mode,
                 source,
+                context.bigArrays(),
                 p -> aggregatorFactories.add(
                     new Aggregator.AggregatorFactory(context.bigArrays(), p.name, p.type, p.params, p.mode, p.channel)
-                )
+                ),
+                s -> aggregatorFactories.add(s.supplier.aggregatorFactory(s.mode, s.channel))
             );
 
             if (aggregatorFactories.isEmpty() == false) {
@@ -73,7 +76,7 @@ abstract class AbstractPhysicalOperationProviders implements PhysicalOperationPr
             }
         } else {
             // grouping
-            List<GroupingAggregator.GroupingAggregatorFactory> aggregatorFactories = new ArrayList<>();
+            List<GroupingAggregator.Factory> aggregatorFactories = new ArrayList<>();
             List<GroupSpec> groupSpecs = new ArrayList<>(aggregateExec.groupings().size());
             for (Expression group : aggregateExec.groupings()) {
                 var groupAttribute = Expressions.attribute(group);
@@ -124,9 +127,11 @@ abstract class AbstractPhysicalOperationProviders implements PhysicalOperationPr
                 aggregates,
                 mode,
                 source,
+                context.bigArrays(),
                 p -> aggregatorFactories.add(
                     new GroupingAggregator.GroupingAggregatorFactory(context.bigArrays(), p.name, p.type, p.params, p.mode, p.channel)
-                )
+                ),
+                s -> aggregatorFactories.add(s.supplier.groupingAggregatorFactory(s.mode, s.channel))
             );
 
             if (groupSpecs.size() == 1 && groupSpecs.get(0).channel == null) {
@@ -154,11 +159,15 @@ abstract class AbstractPhysicalOperationProviders implements PhysicalOperationPr
 
     private record AggFactoryContext(AggregationName name, AggregationType type, Object[] params, AggregatorMode mode, Integer channel) {}
 
+    private record AggFunctionSupplierContext(AggregatorFunctionSupplier supplier, AggregatorMode mode, Integer channel) {}
+
     private void aggregatesToFactory(
         List<? extends NamedExpression> aggregates,
         AggregateExec.Mode mode,
         PhysicalOperation source,
-        Consumer<AggFactoryContext> consumer
+        BigArrays bigArrays,
+        Consumer<AggFactoryContext> consumer,
+        Consumer<AggFunctionSupplierContext> supplierConsumer
     ) {
         for (NamedExpression ne : aggregates) {
             if (ne instanceof Alias alias) {
@@ -183,15 +192,22 @@ abstract class AbstractPhysicalOperationProviders implements PhysicalOperationPr
                         params[i] = aggParams.get(i).fold();
                     }
 
-                    consumer.accept(
-                        new AggFactoryContext(
-                            AggregateMapper.mapToName(aggregateFunction),
-                            AggregateMapper.mapToType(aggregateFunction),
-                            params,
-                            aggMode,
-                            source.layout.getChannel(sourceAttr.id())
-                        )
-                    );
+                    int inputChannel = source.layout.getChannel(sourceAttr.id());
+                    if (aggregateFunction instanceof ToAggregator agg) {
+                        supplierConsumer.accept(
+                            new AggFunctionSupplierContext(agg.supplier(bigArrays, inputChannel), aggMode, inputChannel)
+                        );
+                    } else {
+                        consumer.accept(
+                            new AggFactoryContext(
+                                AggregateMapper.mapToName(aggregateFunction),
+                                AggregateMapper.mapToType(aggregateFunction),
+                                params,
+                                aggMode,
+                                inputChannel
+                            )
+                        );
+                    }
                 }
             }
         }
@@ -216,7 +232,7 @@ abstract class AbstractPhysicalOperationProviders implements PhysicalOperationPr
     public abstract Operator.OperatorFactory ordinalGroupingOperatorFactory(
         PhysicalOperation source,
         AggregateExec aggregateExec,
-        List<GroupingAggregator.GroupingAggregatorFactory> aggregatorFactories,
+        List<GroupingAggregator.Factory> aggregatorFactories,
         Attribute attrSource,
         ElementType groupType,
         BigArrays bigArrays

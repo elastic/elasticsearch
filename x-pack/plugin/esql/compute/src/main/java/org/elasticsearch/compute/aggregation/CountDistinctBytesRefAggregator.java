@@ -13,7 +13,25 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 
-class CountDistinctBytesRefAggregator {
+public class CountDistinctBytesRefAggregator {
+    public static AggregatorFunctionSupplier supplier(BigArrays bigArrays, int channel, int precision) {
+        return new AggregatorFunctionSupplier() {
+            @Override
+            public AggregatorFunction aggregator() {
+                return CountDistinctBytesRefAggregatorFunction.create(bigArrays, channel, new Object[] { precision });
+            }
+
+            @Override
+            public GroupingAggregatorFunction groupingAggregator() {
+                return CountDistinctBytesRefGroupingAggregatorFunction.create(bigArrays, channel, new Object[] { precision });
+            }
+
+            @Override
+            public String describe() {
+                return "count_distinct of bytes";
+            }
+        };
+    }
 
     public static HllStates.SingleState initSingle(BigArrays bigArrays, Object[] parameters) {
         return new HllStates.SingleState(bigArrays, parameters);

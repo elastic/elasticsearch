@@ -17,6 +17,7 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Driver;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.DriverRunner;
 import org.elasticsearch.compute.operator.OutputOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
@@ -124,7 +125,10 @@ public class EnrichLookupIT extends AbstractEsqlIntegTestCase {
         DateFormatter dateFmt = DateFormatter.forPattern("yyyy-MM-dd");
 
         ExecutorService executor = internalCluster().getInstance(TransportService.class).getThreadPool().executor(ThreadPool.Names.GENERIC);
-        DriverRunner.runToCompletion(executor, List.of(new Driver(sourceOperator, List.of(enrichOperator), outputOperator, () -> {})));
+        DriverRunner.runToCompletion(
+            executor,
+            List.of(new Driver(new DriverContext(), sourceOperator, List.of(enrichOperator), outputOperator, () -> {}))
+        );
         transportService.getTaskManager().unregister(parentTask);
         Page output = outputPage.get();
         assertThat(output.getBlockCount(), equalTo(4));

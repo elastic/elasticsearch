@@ -38,12 +38,21 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase {
-    protected abstract AggregatorFunction.Factory aggregatorFunction();
+    protected AggregatorFunction.Factory aggregatorFunction() {
+        // TODO remove once unused
+        throw new UnsupportedOperationException();
+    }
+
+    protected AggregatorFunctionSupplier aggregatorFunction(BigArrays bigArrays, int inputChannel) {
+        // TODO make abstract once used everywhere
+        throw new UnsupportedOperationException();
+    }
 
     /**
      * Override this method to build the array with the aggregation parameters
      */
     protected Object[] aggregatorParameters() {
+        // TODO remove this and all of params
         return Aggregator.EMPTY_PARAMS;
     }
 
@@ -55,10 +64,17 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
 
     @Override
     protected Operator.OperatorFactory simpleWithMode(BigArrays bigArrays, AggregatorMode mode) {
-        return new AggregationOperator.AggregationOperatorFactory(
-            List.of(new Aggregator.AggregatorFactory(bigArrays, aggregatorFunction(), aggregatorParameters(), mode, 0)),
-            mode
-        );
+        try {
+            return new AggregationOperator.AggregationOperatorFactory(
+                List.of(aggregatorFunction(bigArrays, 0).aggregatorFactory(mode, 0)),
+                mode
+            );
+        } catch (UnsupportedOperationException e) {
+            return new AggregationOperator.AggregationOperatorFactory(
+                List.of(new Aggregator.AggregatorFactory(bigArrays, aggregatorFunction(), aggregatorParameters(), mode, 0)),
+                mode
+            );
+        }
     }
 
     @Override

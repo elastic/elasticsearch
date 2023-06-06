@@ -31,14 +31,17 @@ public class GroupingAggregator implements Releasable {
 
     private final int intermediateChannel;
 
+    public interface Factory extends Function<DriverContext, GroupingAggregator>, Describable {}
+
     public record GroupingAggregatorFactory(
+        // TODO remove when no longer used
         BigArrays bigArrays,
         AggregationName aggName,
         AggregationType aggType,
         Object[] parameters,
         AggregatorMode mode,
         int inputChannel
-    ) implements Function<DriverContext, GroupingAggregator>, Describable {
+    ) implements Factory {
 
         public GroupingAggregatorFactory(
             BigArrays bigArrays,
@@ -78,6 +81,12 @@ public class GroupingAggregator implements Releasable {
         int inputChannel
     ) {
         this.aggregatorFunction = aggCreationFunc.build(bigArrays, mode, inputChannel, parameters);
+        this.mode = mode;
+        this.intermediateChannel = mode.isInputPartial() ? inputChannel : -1;
+    }
+
+    public GroupingAggregator(GroupingAggregatorFunction aggregatorFunction, AggregatorMode mode, int inputChannel) {
+        this.aggregatorFunction = aggregatorFunction;
         this.mode = mode;
         this.intermediateChannel = mode.isInputPartial() ? inputChannel : -1;
     }

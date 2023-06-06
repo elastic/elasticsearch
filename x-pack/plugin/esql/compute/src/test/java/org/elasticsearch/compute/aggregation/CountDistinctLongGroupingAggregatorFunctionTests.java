@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.aggregation;
 
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
@@ -20,15 +21,9 @@ import java.util.stream.LongStream;
 import static org.hamcrest.Matchers.closeTo;
 
 public class CountDistinctLongGroupingAggregatorFunctionTests extends GroupingAggregatorFunctionTestCase {
-
     @Override
-    protected GroupingAggregatorFunction.Factory aggregatorFunction() {
-        return GroupingAggregatorFunction.COUNT_DISTINCT_LONGS;
-    }
-
-    @Override
-    protected Object[] aggregatorParameters() {
-        return new Object[] { 40000 };
+    protected AggregatorFunctionSupplier aggregatorFunction(BigArrays bigArrays, int inputChannel) {
+        return CountDistinctLongAggregator.supplier(bigArrays, inputChannel, 40000);
     }
 
     @Override

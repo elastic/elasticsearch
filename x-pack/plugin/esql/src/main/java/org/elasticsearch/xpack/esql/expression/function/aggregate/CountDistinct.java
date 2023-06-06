@@ -7,7 +7,15 @@
 
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.CountDistinctBooleanAggregator;
+import org.elasticsearch.compute.aggregation.CountDistinctBytesRefAggregator;
+import org.elasticsearch.compute.aggregation.CountDistinctDoubleAggregator;
+import org.elasticsearch.compute.aggregation.CountDistinctIntAggregator;
+import org.elasticsearch.compute.aggregation.CountDistinctLongAggregator;
 import org.elasticsearch.compute.ann.Experimental;
+import org.elasticsearch.xpack.esql.planner.ToAggregator;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
@@ -22,7 +30,8 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isInteger;
 
 @Experimental
-public class CountDistinct extends AggregateFunction implements OptionalArgument {
+public class CountDistinct extends AggregateFunction implements OptionalArgument, ToAggregator {
+    private static final int DEFAULT_PRECISION = 3000;
 
     public CountDistinct(Source source, Expression field, Expression precision) {
         super(source, field, precision != null ? List.of(precision) : List.of());
@@ -60,5 +69,27 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
         }
 
         return isInteger(precision(), sourceText(), SECOND);
+    }
+
+    @Override
+    public AggregatorFunctionSupplier supplier(BigArrays bigArrays, int inputChannel) {
+        DataType type = field().dataType();
+        int precision = precision() == null ? DEFAULT_PRECISION : (int) precision().fold();
+        if (type == DataTypes.BOOLEAN) {
+            return CountDistinctBooleanAggregator.supplier(bigArrays, inputChannel);
+        }
+        if (type == DataTypes.DATETIME || type == DataTypes.LONG) {
+            return CountDistinctLongAggregator.supplier(bigArrays, inputChannel, precision);
+        }
+        if (type == DataTypes.INTEGER) {
+            return CountDistinctIntAggregator.supplier(bigArrays, inputChannel, precision);
+        }
+        if (type == DataTypes.DOUBLE) {
+            return CountDistinctDoubleAggregator.supplier(bigArrays, inputChannel, precision);
+        }
+        if (type == DataTypes.KEYWORD || type == DataTypes.IP) {
+            return CountDistinctBytesRefAggregator.supplier(bigArrays, inputChannel, precision);
+        }
+        throw new UnsupportedOperationException();
     }
 }

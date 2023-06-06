@@ -8,7 +8,7 @@
 package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.compute.aggregation.Aggregator;
-import org.elasticsearch.compute.aggregation.Aggregator.AggregatorFactory;
+import org.elasticsearch.compute.aggregation.Aggregator.Factory;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.Block;
@@ -42,10 +42,10 @@ public class AggregationOperator implements Operator {
 
     private final List<Aggregator> aggregators;
 
-    public record AggregationOperatorFactory(List<AggregatorFactory> aggregators, AggregatorMode mode) implements OperatorFactory {
+    public record AggregationOperatorFactory(List<Factory> aggregators, AggregatorMode mode) implements OperatorFactory {
         @Override
         public Operator get(DriverContext driverContext) {
-            return new AggregationOperator(aggregators.stream().map(AggregatorFactory::get).toList());
+            return new AggregationOperator(aggregators.stream().map(Factory::get).toList());
         }
 
         @Override
@@ -58,7 +58,7 @@ public class AggregationOperator implements Operator {
             return "AggregationOperator[mode = "
                 + mode
                 + ", aggs = "
-                + aggregators.stream().map(AggregatorFactory::describe).collect(joining(", "))
+                + aggregators.stream().map(Factory::describe).collect(joining(", "))
                 + "]";
         }
     }

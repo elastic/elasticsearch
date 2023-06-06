@@ -32,9 +32,11 @@ import java.util.stream.Collectors;
  */
 public class PlanNameRegistry {
 
+    public static final PlanNameRegistry INSTANCE = new PlanNameRegistry();
+
     /** Adaptable writer interface to bridge between ESQL and regular stream outputs. */
     @FunctionalInterface
-    interface PlanWriter<V> extends Writeable.Writer<V> {
+    public interface PlanWriter<V> extends Writeable.Writer<V> {
 
         void write(PlanStreamOutput out, V value) throws IOException;
 
@@ -50,7 +52,7 @@ public class PlanNameRegistry {
 
     /** Adaptable reader interface to bridge between ESQL and regular stream inputs. */
     @FunctionalInterface
-    interface PlanReader<V> extends Writeable.Reader<V> {
+    public interface PlanReader<V> extends Writeable.Reader<V> {
 
         V read(PlanStreamInput in) throws IOException;
 

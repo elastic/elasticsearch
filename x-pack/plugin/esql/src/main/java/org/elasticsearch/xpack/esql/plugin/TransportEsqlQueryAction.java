@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
+import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
@@ -40,6 +41,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     private final ComputeService computeService;
     private final ExchangeService exchangeService;
     private final ClusterService clusterService;
+    private final EnrichLookupService enrichLookupService;
     private final Settings settings;
 
     @Inject
@@ -59,6 +61,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         this.clusterService = clusterService;
         exchangeService.registerTransportHandler(transportService);
         this.exchangeService = exchangeService;
+        this.enrichLookupService = new EnrichLookupService(clusterService, searchService, transportService);
         this.computeService = new ComputeService(searchService, clusterService, transportService, exchangeService, threadPool, bigArrays);
         this.settings = settings;
     }
@@ -96,5 +99,9 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
 
     public ExchangeService exchangeService() {
         return exchangeService;
+    }
+
+    public EnrichLookupService enrichLookupService() {
+        return enrichLookupService;
     }
 }

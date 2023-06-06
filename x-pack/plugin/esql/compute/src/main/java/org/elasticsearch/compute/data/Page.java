@@ -141,6 +141,18 @@ public final class Page implements Writeable {
         return new Page(false, positionCount, newBlocks);
     }
 
+    /**
+     * Creates a new page, appending the blocks of the given block to the existing blocks in this Page.
+     *
+     * @param toAdd the page to append
+     * @return a new Page
+     * @throws IllegalArgumentException if any blocks of the given page does not have the same number of
+     *                                  positions as the blocks in this Page
+     */
+    public Page appendPage(Page toAdd) {
+        return appendBlocks(toAdd.blocks);
+    }
+
     @Override
     public int hashCode() {
         int result = Objects.hash(positionCount);

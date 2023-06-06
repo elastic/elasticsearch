@@ -153,7 +153,7 @@ public abstract class BlockDocValuesReader {
             for (int i = 0; i < positionCount; i++) {
                 int doc = docs.getInt(i);
                 // docs within same block must be in order
-                if (lastDoc >= doc) {
+                if (doc < lastDoc) {
                     throw new IllegalStateException("docs within same block must be in order");
                 }
                 if (numericDocValues.advanceExact(doc)) {
@@ -207,7 +207,7 @@ public abstract class BlockDocValuesReader {
             for (int i = 0; i < positionCount; i++) {
                 int doc = docs.getInt(i);
                 // docs within same block must be in order
-                if (this.docID >= doc) {
+                if (doc < this.docID) {
                     throw new IllegalStateException("docs within same block must be in order");
                 }
                 read(doc, blockBuilder);
@@ -270,7 +270,7 @@ public abstract class BlockDocValuesReader {
             for (int i = 0; i < positionCount; i++) {
                 int doc = docs.getInt(i);
                 // docs within same block must be in order
-                if (lastDoc >= doc) {
+                if (doc < lastDoc) {
                     throw new IllegalStateException("docs within same block must be in order");
                 }
                 if (numericDocValues.advanceExact(doc)) {
@@ -324,7 +324,7 @@ public abstract class BlockDocValuesReader {
             for (int i = 0; i < positionCount; i++) {
                 int doc = docs.getInt(i);
                 // docs within same block must be in order
-                if (this.docID >= doc) {
+                if (doc < this.docID) {
                     // TODO this may not be true after sorting many docs in a single segment.
                     throw new IllegalStateException("docs within same block must be in order");
                 }
@@ -389,7 +389,7 @@ public abstract class BlockDocValuesReader {
             for (int i = 0; i < positionCount; i++) {
                 int doc = docs.getInt(i);
                 // docs within same block must be in order
-                if (lastDoc >= doc) {
+                if (doc < lastDoc) {
                     throw new IllegalStateException("docs within same block must be in order");
                 }
                 if (numericDocValues.advanceExact(doc)) {
@@ -445,7 +445,7 @@ public abstract class BlockDocValuesReader {
             for (int i = 0; i < positionCount; i++) {
                 int doc = docs.getInt(i);
                 // docs within same block must be in order
-                if (this.docID >= doc) {
+                if (doc < this.docID) {
                     throw new IllegalStateException("docs within same block must be in order");
                 }
                 read(doc, blockBuilder);
@@ -507,7 +507,7 @@ public abstract class BlockDocValuesReader {
             for (int i = 0; i < docs.getPositionCount(); i++) {
                 int doc = docs.getInt(i);
                 // docs within same block must be in order
-                if (this.docID >= doc) {
+                if (doc < this.docID) {
                     throw new IllegalStateException("docs within same block must be in order");
                 }
                 read(doc, blockBuilder);
@@ -569,7 +569,7 @@ public abstract class BlockDocValuesReader {
             for (int i = 0; i < positionCount; i++) {
                 int doc = docs.getInt(i);
                 // docs within same block must be in order
-                if (lastDoc >= doc) {
+                if (doc < lastDoc) {
                     throw new IllegalStateException("docs within same block must be in order");
                 }
                 if (numericDocValues.advanceExact(doc)) {
@@ -623,7 +623,7 @@ public abstract class BlockDocValuesReader {
             for (int i = 0; i < positionCount; i++) {
                 int doc = docs.getInt(i);
                 // docs within same block must be in order
-                if (this.docID >= doc) {
+                if (doc < this.docID) {
                     throw new IllegalStateException("docs within same block must be in order");
                 }
                 read(doc, blockBuilder);

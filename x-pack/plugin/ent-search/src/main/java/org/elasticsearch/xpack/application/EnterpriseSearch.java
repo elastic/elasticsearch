@@ -23,7 +23,6 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.indices.SystemIndexDescriptor;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.plugins.ActionPlugin;
@@ -71,7 +70,6 @@ import org.elasticsearch.xpack.application.search.action.TransportListSearchAppl
 import org.elasticsearch.xpack.application.search.action.TransportPutSearchApplicationAction;
 import org.elasticsearch.xpack.application.search.action.TransportQuerySearchApplicationAction;
 import org.elasticsearch.xpack.application.search.action.TransportRenderSearchApplicationQueryAction;
-import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
@@ -100,11 +98,7 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
 
     public EnterpriseSearch(Settings settings) {
         this.enabled = XPackSettings.ENTERPRISE_SEARCH_ENABLED.get(settings);
-        this.queryRulesEnabled = XPackSettings.ENTERPRISE_SEARCH_ENABLED.get(settings);
-    }
-
-    protected XPackLicenseState getLicenseState() {
-        return XPackPlugin.getSharedLicenseState();
+        this.queryRulesEnabled = XPackSettings.ENTERPRISE_SEARCH_QUERY_RULES_ENABLED.get(settings);
     }
 
     @Override
@@ -187,7 +181,7 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
         );
         analyticsTemplateRegistry.initialize();
 
-        return Arrays.asList(analyticsTemplateRegistry);
+        return List.of(analyticsTemplateRegistry);
     }
 
     @Override

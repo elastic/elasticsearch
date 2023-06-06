@@ -107,6 +107,13 @@ public class XPackSettings {
         Setting.Property.NodeScope
     );
 
+    /** Setting for enabling or disabling enterprise search. Defaults to false. */
+    public static final Setting<Boolean> ENTERPRISE_SEARCH_QUERY_RULES_ENABLED = Setting.boolSetting(
+        "xpack.ent_search.query_rules.enabled",
+        false,
+        Setting.Property.NodeScope
+    );
+
     /** Setting for enabling or disabling auditing. Defaults to false. */
     public static final Setting<Boolean> AUDIT_ENABLED = Setting.boolSetting(
         "xpack.security.audit.enabled",

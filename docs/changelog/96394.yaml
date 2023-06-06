@@ -1,0 +1,6 @@
+pr: 96394
+summary: Allow unsigned long field to use decay functions
+area: Mapping
+type: enhancement
+issues:
+ - 89603

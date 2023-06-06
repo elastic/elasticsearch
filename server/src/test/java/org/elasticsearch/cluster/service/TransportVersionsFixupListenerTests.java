@@ -18,8 +18,8 @@ import org.elasticsearch.client.internal.ClusterAdminClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.service.TransportVersionsFixupListener.NodeTransportVersionTask;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.ESTestCase;
@@ -30,7 +30,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasProperty;
+import static org.elasticsearch.test.LambdaMatchers.transformedMatch;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
@@ -56,7 +56,7 @@ public class TransportVersionsFixupListenerTests extends ESTestCase {
     private static DiscoveryNodes node(Version... versions) {
         var builder = DiscoveryNodes.builder();
         for (int i = 0; i < versions.length; i++) {
-            builder.add(TestDiscoveryNode.create("node" + i, new TransportAddress(TransportAddress.META_ADDRESS, 9200 + i), versions[i]));
+            builder.add(DiscoveryNodeUtils.create("node" + i, new TransportAddress(TransportAddress.META_ADDRESS, 9200 + i), versions[i]));
         }
         builder.localNodeId("node0").masterNodeId("node0");
         return builder.build();
@@ -81,7 +81,7 @@ public class TransportVersionsFixupListenerTests extends ESTestCase {
                         null,
                         e.getValue(),
                         null,
-                        TestDiscoveryNode.create(e.getKey(), new TransportAddress(TransportAddress.META_ADDRESS, 9200)),
+                        DiscoveryNodeUtils.create(e.getKey(), new TransportAddress(TransportAddress.META_ADDRESS, 9200)),
                         null,
                         null,
                         null,
@@ -162,7 +162,7 @@ public class TransportVersionsFixupListenerTests extends ESTestCase {
         TransportVersionsFixupListener listeners = new TransportVersionsFixupListener(taskQueue, client, null);
         listeners.clusterChanged(new ClusterChangedEvent("test", testState, ClusterState.EMPTY_STATE));
         verify(client).nodesInfo(
-            argThat(hasProperty(NodesInfoRequest::nodesIds, arrayContainingInAnyOrder("node1", "node2"))),
+            argThat(transformedMatch(NodesInfoRequest::nodesIds, arrayContainingInAnyOrder("node1", "node2"))),
             action.capture()
         );
         action.getValue().onResponse(getResponse(Map.of("node1", NEXT_TRANSPORT_VERSION, "node2", NEXT_TRANSPORT_VERSION)));
@@ -182,7 +182,7 @@ public class TransportVersionsFixupListenerTests extends ESTestCase {
 
         TransportVersionsFixupListener listeners = new TransportVersionsFixupListener(taskQueue, client, null);
         listeners.clusterChanged(new ClusterChangedEvent("test", testState1, ClusterState.EMPTY_STATE));
-        verify(client).nodesInfo(argThat(hasProperty(NodesInfoRequest::nodesIds, arrayContainingInAnyOrder("node1", "node2"))), any());
+        verify(client).nodesInfo(argThat(transformedMatch(NodesInfoRequest::nodesIds, arrayContainingInAnyOrder("node1", "node2"))), any());
         // don't send back the response yet
 
         ClusterState testState2 = ClusterState.builder(ClusterState.EMPTY_STATE)
@@ -218,7 +218,7 @@ public class TransportVersionsFixupListenerTests extends ESTestCase {
         // running retry should cause another check
         retry.getValue().run();
         verify(client, times(2)).nodesInfo(
-            argThat(hasProperty(NodesInfoRequest::nodesIds, arrayContainingInAnyOrder("node1", "node2"))),
+            argThat(transformedMatch(NodesInfoRequest::nodesIds, arrayContainingInAnyOrder("node1", "node2"))),
             any()
         );
     }

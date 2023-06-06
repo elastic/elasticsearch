@@ -16,8 +16,8 @@ import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -42,8 +42,6 @@ import java.nio.channels.ServerSocketChannel;
 import java.util.Collections;
 import java.util.Set;
 
-import static java.util.Collections.emptyMap;
-
 public class ReadinessServiceTests extends ESTestCase implements ReadinessClientProbe {
     private ClusterService clusterService;
     private ReadinessService readinessService;
@@ -55,13 +53,7 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
         final DiscoveryNode node;
 
         FakeHttpTransport() {
-            node = TestDiscoveryNode.create(
-                "local",
-                "local",
-                buildNewFakeTransportAddress(),
-                emptyMap(),
-                Set.of(DiscoveryNodeRole.MASTER_ROLE)
-            );
+            node = DiscoveryNodeUtils.builder("local").name("local").roles(Set.of(DiscoveryNodeRole.MASTER_ROLE)).build();
         }
 
         @Override

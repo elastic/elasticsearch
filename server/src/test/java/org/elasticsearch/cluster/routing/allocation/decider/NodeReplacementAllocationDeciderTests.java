@@ -9,11 +9,8 @@
 package org.elasticsearch.cluster.routing.allocation.decider;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
-import org.elasticsearch.cluster.EmptyClusterInfoService;
-import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
@@ -26,14 +23,9 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodesHelper;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
-import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
-import org.elasticsearch.test.gateway.TestGatewayAllocator;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -63,14 +55,6 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
             new NodeShutdownAllocationDecider()
         )
     );
-    private final AllocationService service = new AllocationService(
-        allocationDeciders,
-        new TestGatewayAllocator(),
-        new BalancedShardsAllocator(Settings.EMPTY),
-        EmptyClusterInfoService.INSTANCE,
-        EmptySnapshotsInfoService.INSTANCE,
-        TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
-    );
 
     private final String idxName = "test-idx";
     private final String idxUuid = "test-idx-uuid";
@@ -98,11 +82,7 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
     }
 
     public void testCanForceAllocate() {
-        ClusterState state = prepareState(
-            service.reroute(ClusterState.EMPTY_STATE, "initial state", ActionListener.noop()),
-            NODE_A.getId(),
-            NODE_B.getName()
-        );
+        ClusterState state = prepareState(ClusterState.EMPTY_STATE, NODE_A.getId(), NODE_B.getName());
         RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state, null, null, 0);
         RoutingNode routingNode = RoutingNodesHelper.routingNode(NODE_A.getId(), NODE_A, shard);
         allocation.debugDecision(true);
@@ -146,11 +126,7 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
     }
 
     public void testCannotRemainOnReplacedNode() {
-        ClusterState state = prepareState(
-            service.reroute(ClusterState.EMPTY_STATE, "initial state", ActionListener.noop()),
-            NODE_A.getId(),
-            NODE_B.getName()
-        );
+        ClusterState state = prepareState(ClusterState.EMPTY_STATE, NODE_A.getId(), NODE_B.getName());
         RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state, null, null, 0);
         RoutingNode routingNode = RoutingNodesHelper.routingNode(NODE_A.getId(), NODE_A, shard);
         allocation.debugDecision(true);
@@ -176,11 +152,7 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
     }
 
     public void testCanAllocateToNeitherSourceNorTarget() {
-        ClusterState state = prepareState(
-            service.reroute(ClusterState.EMPTY_STATE, "initial state", ActionListener.noop()),
-            NODE_A.getId(),
-            NODE_B.getName()
-        );
+        ClusterState state = prepareState(ClusterState.EMPTY_STATE, NODE_A.getId(), NODE_B.getName());
         RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state, null, null, 0);
         RoutingNode routingNode = RoutingNodesHelper.routingNode(NODE_A.getId(), NODE_A, shard);
         allocation.debugDecision(true);

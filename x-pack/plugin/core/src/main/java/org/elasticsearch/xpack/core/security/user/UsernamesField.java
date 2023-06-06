@@ -34,6 +34,8 @@ public final class UsernamesField {
     public static final String ASYNC_SEARCH_ROLE = "_async_search";
     public static final String STORAGE_USER_NAME = "_storage";
     public static final String STORAGE_ROLE_NAME = "_storage";
+    public static final String SYNONYMS_USER_NAME = "_synonyms";
+    public static final String SYNONYMS_ROLE_NAME = "_synonyms";
 
     public static final String REMOTE_MONITORING_NAME = "remote_monitoring_user";
     public static final String REMOTE_MONITORING_COLLECTION_ROLE = "remote_monitoring_collector";

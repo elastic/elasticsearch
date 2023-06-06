@@ -1,5 +1,3 @@
-import org.elasticsearch.gradle.Version
-
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.rest-resources'
@@ -36,6 +34,7 @@ artifacts {
 dependencies {
   clusterModules project(":modules:mapper-extras")
   clusterModules project(":modules:rest-root")
+  clusterModules project(":modules:reindex")
 }
 
 tasks.named("yamlRestTestV7CompatTransform").configure { task ->

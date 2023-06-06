@@ -3,6 +3,7 @@ import org.elasticsearch.gradle.internal.info.BuildParams
 
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.legacy-yaml-rest-test'
 apply plugin: 'elasticsearch.legacy-yaml-rest-compat-test'
 
@@ -23,8 +24,6 @@ dependencies {
   testImplementation project(':modules:data-streams')
 }
 
-addQaCheckDependencies(project)
-
 testClusters.configureEach {
   module ':modules:reindex'
   testDistribution = 'DEFAULT'
@@ -37,6 +36,10 @@ testClusters.configureEach {
   requiresFeature 'es.dlm_feature_flag_enabled', Version.fromString("8.8.0")
 }
 
+tasks.named('javaRestTest') {
+  usesDefaultDistribution()
+}
+
 if (BuildParams.isSnapshotBuild() == false) {
   tasks.named("test").configure {
     systemProperty 'es.dlm_feature_flag_enabled', 'true'
@@ -45,6 +48,9 @@ if (BuildParams.isSnapshotBuild() == false) {
     systemProperty 'es.dlm_feature_flag_enabled', 'true'
   }
   tasks.named("yamlRestTest").configure {
+    systemProperty 'es.dlm_feature_flag_enabled', 'true'
+  }
+  tasks.named("javaRestTest").configure {
     systemProperty 'es.dlm_feature_flag_enabled', 'true'
   }
 }

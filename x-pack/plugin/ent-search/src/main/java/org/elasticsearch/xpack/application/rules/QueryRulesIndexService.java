@@ -25,13 +25,10 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Streams;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -39,7 +36,6 @@ import org.elasticsearch.indices.ExecutorNames;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xcontent.ToXContent;
@@ -68,38 +64,24 @@ public class QueryRulesIndexService {
     public static final String QUERY_RULES_ALIAS_NAME = ".query-rules";
     public static final String QUERY_RULES_CONCRETE_INDEX_NAME = ".query-rules-1";
     public static final String QUERY_RULES_INDEX_NAME_PATTERN = ".query-rules-*";
-
-    // // The client to perform any operations on user indices (alias, ...).
-    // private final Client client;
-    // The client to interact with the system index (internal user).
     private final Client clientWithOrigin;
-    private final ClusterService clusterService;
     public final NamedWriteableRegistry namedWriteableRegistry;
-    private final BigArrays bigArrays;
 
-    public QueryRulesIndexService(
-        Client client,
-        ClusterService clusterService,
-        NamedWriteableRegistry namedWriteableRegistry,
-        BigArrays bigArrays
-    ) {
-        // this.client = client;
+    public QueryRulesIndexService(Client client, NamedWriteableRegistry namedWriteableRegistry) {
         this.clientWithOrigin = new OriginSettingClient(client, ENT_SEARCH_ORIGIN);
-        this.clusterService = clusterService;
         this.namedWriteableRegistry = namedWriteableRegistry;
-        this.bigArrays = bigArrays;
     }
 
     /**
-     * Returns the {@link SystemIndexDescriptor} for the {@link QueryRule} system index.
+     * Returns the {@link SystemIndexDescriptor} for the {@link QueryRuleset} system index.
      *
-     * @return The {@link SystemIndexDescriptor} for the {@link QueryRule} system index.
+     * @return The {@link SystemIndexDescriptor} for the {@link QueryRuleset} system index.
      */
     public static SystemIndexDescriptor getSystemIndexDescriptor() {
         return SystemIndexDescriptor.builder()
             .setIndexPattern(QUERY_RULES_INDEX_NAME_PATTERN)
             .setPrimaryIndex(QUERY_RULES_CONCRETE_INDEX_NAME)
-            .setDescription("Contains query ruleset configuration")
+            .setDescription("Contains query ruleset configuration for query rules")
             .setMappings(getIndexMappings())
             .setSettings(getIndexSettings())
             .setAliasName(QUERY_RULES_ALIAS_NAME)
@@ -254,7 +236,6 @@ public class QueryRulesIndexService {
     }
 
     public void deleteQueryRuleset(String resourceName, ActionListener<DeleteResponse> listener) {
-
         try {
             final DeleteRequest deleteRequest = new DeleteRequest(QUERY_RULES_ALIAS_NAME).id(resourceName)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
@@ -280,7 +261,7 @@ public class QueryRulesIndexService {
      * @param size The maximum number of {@link QueryRuleset}s to return.
      * @param listener The action listener to invoke on response/failure.
      *
-     * TODO add total number of rules per ruleset
+     * TODO add total number of rules per ruleset - We can add this when implementing the List command.
      */
     public void listQueryRulesets(int from, int size, ActionListener<QueryRulesetResult> listener) {
         try {
@@ -316,22 +297,6 @@ public class QueryRulesIndexService {
             .map(hit -> (String) hit.getDocumentFields().get(QueryRuleset.ID_FIELD.getPreferredName()).getValue())
             .toList();
         return new QueryRulesetResult(rulesetIds, (int) response.getHits().getTotalHits().value);
-    }
-
-    private static QueryRuleResult mapSearchResponse(SearchResponse response) {
-        final List<QueryRule> queryRules = Arrays.stream(response.getHits().getHits()).map(QueryRulesIndexService::hitToQueryRule).toList();
-        return new QueryRuleResult(queryRules, (int) response.getHits().getTotalHits().value);
-    }
-
-    private static QueryRule hitToQueryRule(SearchHit searchHit) {
-        final Map<String, DocumentField> documentFields = searchHit.getDocumentFields();
-        final String resourceName = documentFields.get(QueryRule.ID_FIELD.getPreferredName()).getValue();
-        return new QueryRule(
-            resourceName,
-            QueryRuleType.queryRuleType(documentFields.get(QueryRule.TYPE_FIELD.getPreferredName()).getValue()),
-            documentFields.get(QueryRule.CRITERIA_FIELD.getPreferredName()).getValue(),
-            documentFields.get(QueryRule.ACTIONS_FIELD.getPreferredName()).getValue()
-        );
     }
 
     static QueryRuleset parseQueryRulesetBinaryWithVersion(StreamInput in) throws IOException {
@@ -371,7 +336,6 @@ public class QueryRulesIndexService {
     }
 
     static class DelegatingIndexNotFoundActionListener<T, R> extends DelegatingActionListener<T, R> {
-
         private final BiConsumer<ActionListener<R>, T> bc;
         private final String resourceName;
 
@@ -397,6 +361,4 @@ public class QueryRulesIndexService {
     }
 
     public record QueryRulesetResult(List<String> rulesetIds, long totalResults) {}
-
-    public record QueryRuleResult(List<QueryRule> items, long totalResults) {}
 }

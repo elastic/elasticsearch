@@ -33,6 +33,13 @@ public class QueryRuleset implements Writeable, ToXContent {
     private final String id;
     private final List<QueryRule> rules;
 
+    /**
+     * A {@link QueryRuleset} is comprised of a unique identifier and a collection of
+     * one or more associated {@link QueryRule}s.
+     *
+     * @param id A Unique identifier representing the query ruleset.
+     * @param rules A collection of one or more {@link QueryRule}s.
+     */
     public QueryRuleset(String id, List<QueryRule> rules) {
         if (Strings.isNullOrEmpty(id)) {
             throw new IllegalArgumentException("id cannot be null or empty");

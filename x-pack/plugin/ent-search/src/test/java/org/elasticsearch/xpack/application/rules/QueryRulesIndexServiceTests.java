@@ -11,9 +11,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.plugins.Plugin;
@@ -41,13 +39,10 @@ import static org.hamcrest.CoreMatchers.equalTo;
 public class QueryRulesIndexServiceTests extends ESSingleNodeTestCase {
 
     private QueryRulesIndexService queryRuleIndexService;
-    private ClusterService clusterService;
 
     @Before
     public void setup() throws Exception {
-        clusterService = getInstanceFromNode(ClusterService.class);
-        BigArrays bigArrays = getInstanceFromNode(BigArrays.class);
-        this.queryRuleIndexService = new QueryRulesIndexService(client(), clusterService, writableRegistry(), bigArrays);
+        this.queryRuleIndexService = new QueryRulesIndexService(client(), writableRegistry());
     }
 
     @Override
@@ -107,19 +102,22 @@ public class QueryRulesIndexServiceTests extends ESSingleNodeTestCase {
             assertThat(getQueryRuleset, equalTo(myQueryRuleset));
         }
 
-        // TODO update with new values
         final QueryRule myQueryRule1 = new QueryRule(
             "my_rule1",
             QueryRuleType.PINNED,
             List.of(new QueryRuleCriteria(CriteriaType.EXACT, CriteriaMetadata.QUERY_STRING, "foo")),
-            Map.of("ids", List.of("id1", "id2"))
-        );
+            Map.of("docs", List.of(
+                Map.of("_index", "my_index1", "_id", "id1"),
+                Map.of("_index", "my_index2", "_id", "id2")
+            )));
         final QueryRule myQueryRule2 = new QueryRule(
             "my_rule2",
             QueryRuleType.PINNED,
             List.of(new QueryRuleCriteria(CriteriaType.EXACT, CriteriaMetadata.QUERY_STRING, "bar")),
-            Map.of("ids", List.of("id3", "id4"))
-        );
+            Map.of("docs", List.of(
+                Map.of("_index", "my_index1", "_id", "id3"),
+                Map.of("_index", "my_index2", "_id", "id4")
+            )));
         final QueryRuleset myQueryRuleset = new QueryRuleset("my_ruleset", List.of(myQueryRule1, myQueryRule2));
         IndexResponse newResp = awaitPutQueryRuleset(myQueryRuleset, false);
         assertThat(newResp.status(), equalTo(RestStatus.OK));

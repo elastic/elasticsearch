@@ -37,16 +37,13 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  *     <li>The type of rule, e.g. pinned</li>
  *     <li>The criteria required for a query to match this rule</li>
  *     <li>The actions that should be taken if this rule is matched, dependent on the type of rule</li>
- *     <li>Tags associated with this rule, for example to tie rules to a specific campaign</li>
  * </ul>
  */
 public class QueryRule implements Writeable, ToXContentObject {
 
     private final String id;
     private final QueryRuleType type;
-
     private final List<QueryRuleCriteria> criteria;
-
     private final Map<String, Object> actions;
 
     public enum QueryRuleType {
@@ -66,7 +63,9 @@ public class QueryRule implements Writeable, ToXContentObject {
      * Public constructor.
      *
      * @param id                        The unique identifier associated with this query rule
-     * @param type                      The type of query rule
+     * @param type                      The {@link QueryRuleType} of this rule
+     * @param criteria                  The {@link QueryRuleCriteria} required for a query to match this rule
+     * @param actions                   The actions that should be taken if this rule is matched, dependent on the type of rule
      */
     public QueryRule(String id, QueryRuleType type, List<QueryRuleCriteria> criteria, Map<String, Object> actions) {
         if (Strings.isNullOrEmpty(id)) {
@@ -210,7 +209,7 @@ public class QueryRule implements Writeable, ToXContentObject {
     }
 
     /**
-     * Returns the type of {@link QueryRule}.
+     * Returns the {@link QueryRuleType} of {@link QueryRule}.
      *
      * @return The type of the {@link QueryRule}.
      */
@@ -218,10 +217,20 @@ public class QueryRule implements Writeable, ToXContentObject {
         return type;
     }
 
+    /**
+     * Returns the {@link QueryRuleCriteria} that causes the {@link QueryRule} to match a query.
+     *
+     * @return the {@link QueryRuleCriteria}
+     */
     public List<QueryRuleCriteria> criteria() {
         return criteria;
     }
 
+    /**
+     * Returns the actions that are executed when the {@link QueryRule} matches a query.
+     *
+     * @return The actions that are executed when the {@link QueryRule} matches a query.
+     */
     public Map<String, Object> actions() {
         return actions;
     }

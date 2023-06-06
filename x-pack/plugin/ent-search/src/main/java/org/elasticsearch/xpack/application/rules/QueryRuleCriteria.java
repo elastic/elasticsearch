@@ -58,6 +58,12 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
         }
     }
 
+    /**
+     *
+     * @param criteriaType The {@link CriteriaType}, indicating how the criteria is matched
+     * @param criteriaMetadata The {@link CriteriaMetadata}, indicating what is matched against
+     * @param criteriaValue The value to match against when evaluating {@link QueryRuleCriteria} against a {@link QueryRule}
+     */
     public QueryRuleCriteria(CriteriaType criteriaType, CriteriaMetadata criteriaMetadata, String criteriaValue) {
 
         Objects.requireNonNull(criteriaType);

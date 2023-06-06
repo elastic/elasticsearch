@@ -1119,7 +1119,10 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 }
                 try {
                     // one last request, will attempt to close naturally, but we are blocking it
-                    transport.incomingRequest(new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/"), httpChannel);
+                    transport.incomingRequest(
+                        new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/"),
+                        httpChannel
+                    );
                 } catch (IllegalStateException err) {
                     // we force closed below, so we may get this error when closing the channel after request succeeds.
                     assertThat(err.getMessage(), is("channel already closed!"));

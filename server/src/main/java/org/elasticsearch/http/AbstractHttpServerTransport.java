@@ -411,7 +411,11 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
      */
     public void incomingRequest(final HttpRequest httpRequest, final HttpChannel httpChannel) {
         AtomicInteger numRequests = httpChannels.get(httpChannel);
-        numRequests.incrementAndGet();
+        if (numRequests != null) {
+            // The channel may not be present if the close listener (set in serverAcceptedChannel) runs before this method because the
+            // connection closed early
+            numRequests.incrementAndGet();
+        }
         httpClientStatsTracker.updateClientStats(httpRequest, httpChannel);
         final long startTime = threadPool.rawRelativeTimeInMillis();
         try {

@@ -59,7 +59,20 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
     }
 
     public QueryRuleCriteria(CriteriaType criteriaType, CriteriaMetadata criteriaMetadata, String criteriaValue) {
-        // TODO validation
+
+        Objects.requireNonNull(criteriaType);
+        Objects.requireNonNull(criteriaMetadata);
+
+        if ((criteriaType == CriteriaType.EXACT && criteriaMetadata == CriteriaMetadata.QUERY_STRING) == false) {
+            throw new IllegalArgumentException(
+                "Invalid criteriaType and criteriaMetadata combination " + criteriaType + " + " + criteriaMetadata
+            );
+        }
+
+        if (Strings.isNullOrEmpty(criteriaValue)) {
+            throw new IllegalArgumentException("criteriaValue cannot be blank");
+        }
+
         this.criteriaType = criteriaType;
         this.criteriaMetadata = criteriaMetadata;
         this.criteriaValue = criteriaValue;
@@ -72,7 +85,7 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
     }
 
     private static final ConstructingObjectParser<QueryRuleCriteria, String> PARSER = new ConstructingObjectParser<>(
-        "query_rule",
+        "query_rule_criteria",
         false,
         (params, resourceName) -> {
             final CriteriaType type = CriteriaType.criteriaType((String) params[0]);

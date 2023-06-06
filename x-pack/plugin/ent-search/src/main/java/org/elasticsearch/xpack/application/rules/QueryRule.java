@@ -88,6 +88,8 @@ public class QueryRule implements Writeable, ToXContentObject {
             throw new IllegalArgumentException("Query rule actions cannot be empty");
         }
         this.actions = actions;
+
+        validate();
     }
 
     public QueryRule(StreamInput in) throws IOException {
@@ -95,6 +97,18 @@ public class QueryRule implements Writeable, ToXContentObject {
         this.type = QueryRuleType.queryRuleType(in.readString());
         this.criteria = in.readList(QueryRuleCriteria::new);
         this.actions = in.readMap();
+
+        validate();
+    }
+
+    private void validate() {
+        if (type == QueryRuleType.PINNED) {
+            if (actions.containsKey("ids") == false && actions.containsKey("docs") == false) {
+                throw new ElasticsearchParseException("Pinned Query rule actions must contain either ids or docs");
+            }
+        } else {
+            throw new IllegalArgumentException("Unsupported QueryRuleType: " + type);
+        }
     }
 
     @Override

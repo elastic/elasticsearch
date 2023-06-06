@@ -101,6 +101,71 @@ public class QueryRuleTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> QueryRule.fromXContentBytes(new BytesArray(content), XContentType.JSON));
     }
 
+    public void testToXContentValidPinnedRulesWithIds() throws IOException {
+        String content = XContentHelper.stripWhitespace("""
+            {
+              "rule_id": "my_query_rule",
+              "type": "pinned",
+              "criteria": [
+                { "type": "exact", "metadata": "query_string", "value": "foo" }
+              ],
+              "actions": {
+                "ids": ["id1", "id2"]
+              }
+            }""");
+        testToXContentPinnedRules(content);
+    }
+
+    public void testToXContentValidPinnedRulesWithDocs() throws IOException {
+        String content = XContentHelper.stripWhitespace("""
+            {
+              "rule_id": "my_query_rule",
+              "type": "pinned",
+              "criteria": [
+                { "type": "exact", "metadata": "query_string", "value": "foo" }
+              ],
+              "actions": {
+                "docs": [
+                  {
+                    "_index": "foo",
+                    "_id": "id1"
+                  },
+                  {
+                    "_index": "bar",
+                    "_id": "id2"
+                  }
+                ]
+              }
+            }""");
+        testToXContentPinnedRules(content);
+    }
+
+    private void testToXContentPinnedRules(String content) throws IOException {
+        QueryRule queryRule = QueryRule.fromXContentBytes(new BytesArray(content), XContentType.JSON);
+        boolean humanReadable = true;
+        BytesReference originalBytes = toShuffledXContent(queryRule, XContentType.JSON, ToXContent.EMPTY_PARAMS, humanReadable);
+        QueryRule parsed;
+        try (XContentParser parser = createParser(XContentType.JSON.xContent(), originalBytes)) {
+            parsed = QueryRule.fromXContent(parser);
+        }
+        assertToXContentEquivalent(originalBytes, toXContent(parsed, XContentType.JSON, humanReadable), XContentType.JSON);
+    }
+
+    public void testToXContentPinnedRuleWithInvalidActions() throws IOException {
+        String content = XContentHelper.stripWhitespace("""
+            {
+              "rule_id": "my_query_rule",
+              "type": "pinned",
+              "criteria": [
+                { "type": "exact", "metadata": "query_string", "value": "foo" }
+              ],
+              "actions": {
+                  "foo": "bar"
+                }
+            }""");
+        expectThrows(IllegalArgumentException.class, () -> QueryRule.fromXContentBytes(new BytesArray(content), XContentType.JSON));
+    }
+
     private void assertXContent(QueryRule queryRule, boolean humanReadable) throws IOException {
         BytesReference originalBytes = toShuffledXContent(queryRule, XContentType.JSON, ToXContent.EMPTY_PARAMS, humanReadable);
         QueryRule parsed;

@@ -90,7 +90,7 @@ public final class SearchApplicationTestUtils {
         String id = randomIdentifier();
         QueryRule.QueryRuleType type = randomFrom(QueryRule.QueryRuleType.values());
         List<QueryRuleCriteria> criteria = List.of(randomQueryRuleCriteria());
-        Map<String, Object> actions = Map.of(randomAlphaOfLengthBetween(2, 10), List.of(randomAlphaOfLengthBetween(2, 10)));
+        Map<String, Object> actions = Map.of(randomFrom("ids", "docs"), List.of(randomAlphaOfLengthBetween(2, 10)));
         return new QueryRule(id, type, criteria, actions);
     }
 

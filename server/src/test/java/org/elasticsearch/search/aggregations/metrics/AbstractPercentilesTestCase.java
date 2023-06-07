@@ -164,6 +164,10 @@ public abstract class AbstractPercentilesTestCase<T extends InternalAggregation 
             true
         );
 
+        for (var ignored : aggregation) {
+            fail("empty expected");
+        }
+
         final Iterator<?> it = aggregation.iterator();
         assertFalse(it.hasNext());
         try {

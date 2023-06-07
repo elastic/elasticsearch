@@ -383,6 +383,19 @@ public class TaskManagerTests extends ESTestCase {
         verify(taskManager, times(1)).startTrace(any(), any());
     }
 
+    public void testNonExistentParentTask() {
+        var taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of(), Tracer.NOOP);
+        var connection = new MockConnection();
+        var parentTask = taskManager.register("transport", "test", makeTaskRequest(randomBoolean(), randomInt(10)));
+        taskManager.registerChildConnection(parentTask.getId(), connection);
+        taskManager.unregister(parentTask);
+        AssertionError error = expectThrows(
+            AssertionError.class,
+            () -> taskManager.registerChildConnection(parentTask.getId(), connection)
+        );
+        assertThat(error.getMessage(), equalTo("parent task [" + parentTask.getId() + "] was cancelled or completed"));
+    }
+
     static class CancellableRequest extends TransportRequest {
         private final String requestId;
 

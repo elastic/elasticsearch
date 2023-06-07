@@ -367,8 +367,13 @@ public class TaskManager implements ClusterStateApplier {
                 logger.trace("unregister child connection [{}] task [{}]", childConnection, taskId);
                 holder.unregisterChildConnection(childConnection);
             });
+        } else {
+            if (tasks.containsKey(taskId) == false) {
+                assert false : "parent task [" + taskId + "] was cancelled or completed";
+                throw new TaskCancelledException("parent task [" + taskId + "] was cancelled or completed");
+            }
+            return null;
         }
-        return null;
     }
 
     // package private for testing

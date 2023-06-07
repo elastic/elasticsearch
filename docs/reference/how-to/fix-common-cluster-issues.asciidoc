@@ -158,6 +158,8 @@ You can also use the <<cat-nodes,cat nodes API>> to get the current
 GET _cat/nodes?v=true&h=name,node*,heap*
 ----
 
+See <<high-jvm-memory-pressure>> for more details.
+
 To get the JVM memory usage for each circuit breaker, use the
 <<cluster-nodes-stats,node stats API>>.
 

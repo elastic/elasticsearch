@@ -1625,18 +1625,18 @@ public class LoggingAuditTrailTests extends ESTestCase {
 
         final String requestId = randomRequestId();
         auditTrail.anonymousAccessDenied(requestId, "_action", request);
-        final MapBuilder<String, String> checkedFields = new MapBuilder<>(commonFields);
-        final MapBuilder<String, String[]> checkedArrayFields = new MapBuilder<>();
-        checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.TRANSPORT_ORIGIN_FIELD_VALUE)
-            .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "anonymous_access_denied")
-            .put(LoggingAuditTrail.ACTION_FIELD_NAME, "_action")
-            .put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
+        final Map<String, String> checkedFields = new HashMap<>(commonFields);
+        final Map<String, String[]> checkedArrayFields = new HashMap<>();
+        checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.TRANSPORT_ORIGIN_FIELD_VALUE);
+        checkedFields.put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "anonymous_access_denied");
+        checkedFields.put(LoggingAuditTrail.ACTION_FIELD_NAME, "_action");
+        checkedFields.put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
         indicesRequest(request, checkedFields, checkedArrayFields);
         restOrTransportOrigin(request, threadContext, checkedFields);
         opaqueId(threadContext, checkedFields);
         traceId(threadContext, checkedFields);
         forwardedFor(threadContext, checkedFields);
-        assertMsg(logger, checkedFields.map(), checkedArrayFields.map());
+        assertMsg(logger, checkedFields, checkedArrayFields);
 
         // test disabled
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
@@ -1658,18 +1658,18 @@ public class LoggingAuditTrailTests extends ESTestCase {
 
         final String requestId = randomRequestId();
         auditTrail.anonymousAccessDenied(requestId, request.getHttpRequest());
-        final MapBuilder<String, String> checkedFields = new MapBuilder<>(commonFields);
-        checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.REST_ORIGIN_FIELD_VALUE)
-            .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "anonymous_access_denied")
-            .put(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME, LoggingAuditTrail.REST_ORIGIN_FIELD_VALUE)
-            .put(LoggingAuditTrail.ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(address))
-            .put(LoggingAuditTrail.REQUEST_METHOD_FIELD_NAME, request.method().toString())
-            .put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId)
-            .put(LoggingAuditTrail.URL_PATH_FIELD_NAME, "_uri");
+        final Map<String, String> checkedFields = new HashMap<>(commonFields);
+        checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.REST_ORIGIN_FIELD_VALUE);
+        checkedFields.put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "anonymous_access_denied");
+        checkedFields.put(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME, LoggingAuditTrail.REST_ORIGIN_FIELD_VALUE);
+        checkedFields.put(LoggingAuditTrail.ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(address));
+        checkedFields.put(LoggingAuditTrail.REQUEST_METHOD_FIELD_NAME, request.method().toString());
+        checkedFields.put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
+        checkedFields.put(LoggingAuditTrail.URL_PATH_FIELD_NAME, "_uri");
         opaqueId(threadContext, checkedFields);
         traceId(threadContext, checkedFields);
         forwardedFor(threadContext, checkedFields);
-        assertMsg(logger, checkedFields.map());
+        assertMsg(logger, checkedFields);
 
         // test disabled
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
@@ -1686,14 +1686,14 @@ public class LoggingAuditTrailTests extends ESTestCase {
 
         final String requestId = randomRequestId();
         auditTrail.authenticationFailed(requestId, authToken, "_action", request);
-        final MapBuilder<String, String[]> checkedArrayFields = new MapBuilder<>();
-        final MapBuilder<String, String> checkedFields = new MapBuilder<>(commonFields);
-        checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.TRANSPORT_ORIGIN_FIELD_VALUE)
-            .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "authentication_failed")
-            .put(LoggingAuditTrail.ACTION_FIELD_NAME, "_action")
-            .put(LoggingAuditTrail.PRINCIPAL_FIELD_NAME, authToken.principal())
-            .put(LoggingAuditTrail.REQUEST_NAME_FIELD_NAME, request.getClass().getSimpleName())
-            .put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
+        final Map<String, String[]> checkedArrayFields = new HashMap<>();
+        final Map<String, String> checkedFields = new HashMap<>(commonFields);
+        checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.TRANSPORT_ORIGIN_FIELD_VALUE);
+        checkedFields.put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "authentication_failed");
+        checkedFields.put(LoggingAuditTrail.ACTION_FIELD_NAME, "_action");
+        checkedFields.put(LoggingAuditTrail.PRINCIPAL_FIELD_NAME, authToken.principal());
+        checkedFields.put(LoggingAuditTrail.REQUEST_NAME_FIELD_NAME, request.getClass().getSimpleName());
+        checkedFields.put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
         if (authToken instanceof ServiceAccountToken) {
             checkedFields.put(LoggingAuditTrail.SERVICE_TOKEN_NAME_FIELD_NAME, ((ServiceAccountToken) authToken).getTokenName());
         }
@@ -1702,7 +1702,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         opaqueId(threadContext, checkedFields);
         traceId(threadContext, checkedFields);
         forwardedFor(threadContext, checkedFields);
-        assertMsg(logger, checkedFields.map(), checkedArrayFields.map());
+        assertMsg(logger, checkedFields, checkedArrayFields);
 
         // test disabled
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
@@ -1718,19 +1718,19 @@ public class LoggingAuditTrailTests extends ESTestCase {
 
         final String requestId = randomRequestId();
         auditTrail.authenticationFailed(requestId, "_action", request);
-        final MapBuilder<String, String> checkedFields = new MapBuilder<>(commonFields);
-        final MapBuilder<String, String[]> checkedArrayFields = new MapBuilder<>();
-        checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.TRANSPORT_ORIGIN_FIELD_VALUE)
-            .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "authentication_failed")
-            .put(LoggingAuditTrail.ACTION_FIELD_NAME, "_action")
-            .put(LoggingAuditTrail.REQUEST_NAME_FIELD_NAME, request.getClass().getSimpleName())
-            .put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
+        final Map<String, String> checkedFields = new HashMap<>(commonFields);
+        final Map<String, String[]> checkedArrayFields = new HashMap<>();
+        checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.TRANSPORT_ORIGIN_FIELD_VALUE);
+        checkedFields.put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "authentication_failed");
+        checkedFields.put(LoggingAuditTrail.ACTION_FIELD_NAME, "_action");
+        checkedFields.put(LoggingAuditTrail.REQUEST_NAME_FIELD_NAME, request.getClass().getSimpleName());
+        checkedFields.put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
         restOrTransportOrigin(request, threadContext, checkedFields);
         indicesRequest(request, checkedFields, checkedArrayFields);
         opaqueId(threadContext, checkedFields);
         traceId(threadContext, checkedFields);
         forwardedFor(threadContext, checkedFields);
-        assertMsg(logger, checkedFields.map(), checkedArrayFields.map());
+        assertMsg(logger, checkedFields, checkedArrayFields);
 
         // test disabled
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
@@ -1757,15 +1757,15 @@ public class LoggingAuditTrailTests extends ESTestCase {
 
         final String requestId = randomRequestId();
         auditTrail.authenticationFailed(requestId, authToken, request.getHttpRequest());
-        final MapBuilder<String, String> checkedFields = new MapBuilder<>(commonFields);
-        checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.REST_ORIGIN_FIELD_VALUE)
-            .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "authentication_failed")
-            .put(LoggingAuditTrail.PRINCIPAL_FIELD_NAME, authToken.principal())
-            .put(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME, LoggingAuditTrail.REST_ORIGIN_FIELD_VALUE)
-            .put(LoggingAuditTrail.ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(address))
-            .put(LoggingAuditTrail.REQUEST_METHOD_FIELD_NAME, request.method().toString())
-            .put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId)
-            .put(LoggingAuditTrail.URL_PATH_FIELD_NAME, "_uri");
+        final Map<String, String> checkedFields = new HashMap<>(commonFields);
+        checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.REST_ORIGIN_FIELD_VALUE);
+        checkedFields.put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "authentication_failed");
+        checkedFields.put(LoggingAuditTrail.PRINCIPAL_FIELD_NAME, authToken.principal());
+        checkedFields.put(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME, LoggingAuditTrail.REST_ORIGIN_FIELD_VALUE);
+        checkedFields.put(LoggingAuditTrail.ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(address));
+        checkedFields.put(LoggingAuditTrail.REQUEST_METHOD_FIELD_NAME, request.method().toString());
+        checkedFields.put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
+        checkedFields.put(LoggingAuditTrail.URL_PATH_FIELD_NAME, "_uri");
         if (authToken instanceof ServiceAccountToken) {
             checkedFields.put(LoggingAuditTrail.SERVICE_TOKEN_NAME_FIELD_NAME, ((ServiceAccountToken) authToken).getTokenName());
         }
@@ -1775,7 +1775,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         opaqueId(threadContext, checkedFields);
         traceId(threadContext, checkedFields);
         forwardedFor(threadContext, checkedFields);
-        assertMsg(logger, checkedFields.map());
+        assertMsg(logger, checkedFields);
 
         // test disabled
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
@@ -1801,21 +1801,21 @@ public class LoggingAuditTrailTests extends ESTestCase {
 
         final String requestId = randomRequestId();
         auditTrail.authenticationFailed(requestId, request.getHttpRequest());
-        final MapBuilder<String, String> checkedFields = new MapBuilder<>(commonFields);
-        checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.REST_ORIGIN_FIELD_VALUE)
-            .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "authentication_failed")
-            .put(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME, LoggingAuditTrail.REST_ORIGIN_FIELD_VALUE)
-            .put(LoggingAuditTrail.ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(address))
-            .put(LoggingAuditTrail.REQUEST_METHOD_FIELD_NAME, request.method().toString())
-            .put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId)
-            .put(LoggingAuditTrail.URL_PATH_FIELD_NAME, "_uri");
+        final Map<String, String> checkedFields = new HashMap<>(commonFields);
+        checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.REST_ORIGIN_FIELD_VALUE);
+        checkedFields.put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "authentication_failed");
+        checkedFields.put(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME, LoggingAuditTrail.REST_ORIGIN_FIELD_VALUE);
+        checkedFields.put(LoggingAuditTrail.ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(address));
+        checkedFields.put(LoggingAuditTrail.REQUEST_METHOD_FIELD_NAME, request.method().toString());
+        checkedFields.put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
+        checkedFields.put(LoggingAuditTrail.URL_PATH_FIELD_NAME, "_uri");
         if (params.isEmpty() == false) {
             checkedFields.put(LoggingAuditTrail.URL_QUERY_FIELD_NAME, "bar=baz");
         }
         opaqueId(threadContext, checkedFields);
         traceId(threadContext, checkedFields);
         forwardedFor(threadContext, checkedFields);
-        assertMsg(logger, checkedFields.map());
+        assertMsg(logger, checkedFields);
 
         // test disabled
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
@@ -1839,21 +1839,21 @@ public class LoggingAuditTrailTests extends ESTestCase {
             Settings.builder().put(settings).put("xpack.security.audit.logfile.events.include", "realm_authentication_failed").build()
         );
         auditTrail.authenticationFailed(requestId, realm, authToken, "_action", request);
-        final MapBuilder<String, String> checkedFields = new MapBuilder<>(commonFields);
-        final MapBuilder<String, String[]> checkedArrayFields = new MapBuilder<>();
-        checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.TRANSPORT_ORIGIN_FIELD_VALUE)
-            .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "realm_authentication_failed")
-            .put(LoggingAuditTrail.REALM_FIELD_NAME, realm)
-            .put(LoggingAuditTrail.PRINCIPAL_FIELD_NAME, authToken.principal())
-            .put(LoggingAuditTrail.ACTION_FIELD_NAME, "_action")
-            .put(LoggingAuditTrail.REQUEST_NAME_FIELD_NAME, request.getClass().getSimpleName())
-            .put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
+        final Map<String, String> checkedFields = new HashMap<>(commonFields);
+        final Map<String, String[]> checkedArrayFields = new HashMap<>();
+        checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.TRANSPORT_ORIGIN_FIELD_VALUE);
+        checkedFields.put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "realm_authentication_failed");
+        checkedFields.put(LoggingAuditTrail.REALM_FIELD_NAME, realm);
+        checkedFields.put(LoggingAuditTrail.PRINCIPAL_FIELD_NAME, authToken.principal());
+        checkedFields.put(LoggingAuditTrail.ACTION_FIELD_NAME, "_action");
+        checkedFields.put(LoggingAuditTrail.REQUEST_NAME_FIELD_NAME, request.getClass().getSimpleName());
+        checkedFields.put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
         restOrTransportOrigin(request, threadContext, checkedFields);
         indicesRequest(request, checkedFields, checkedArrayFields);
         opaqueId(threadContext, checkedFields);
         traceId(threadContext, checkedFields);
         forwardedFor(threadContext, checkedFields);
-        assertMsg(logger, checkedFields.map(), checkedArrayFields.map());
+        assertMsg(logger, checkedFields, checkedArrayFields);
     }
 
     public void testAuthenticationFailedRealmRest() throws Exception {
@@ -1879,23 +1879,23 @@ public class LoggingAuditTrailTests extends ESTestCase {
             Settings.builder().put(settings).put("xpack.security.audit.logfile.events.include", "realm_authentication_failed").build()
         );
         auditTrail.authenticationFailed(requestId, realm, authToken, request.getHttpRequest());
-        final MapBuilder<String, String> checkedFields = new MapBuilder<>(commonFields);
-        checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.REST_ORIGIN_FIELD_VALUE)
-            .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "realm_authentication_failed")
-            .put(LoggingAuditTrail.REALM_FIELD_NAME, realm)
-            .put(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME, LoggingAuditTrail.REST_ORIGIN_FIELD_VALUE)
-            .put(LoggingAuditTrail.ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(address))
-            .put(LoggingAuditTrail.PRINCIPAL_FIELD_NAME, authToken.principal())
-            .put(LoggingAuditTrail.REQUEST_METHOD_FIELD_NAME, request.method().toString())
-            .put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId)
-            .put(LoggingAuditTrail.URL_PATH_FIELD_NAME, "_uri");
+        final Map<String, String> checkedFields = new HashMap<>(commonFields);
+        checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.REST_ORIGIN_FIELD_VALUE);
+        checkedFields.put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "realm_authentication_failed");
+        checkedFields.put(LoggingAuditTrail.REALM_FIELD_NAME, realm);
+        checkedFields.put(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME, LoggingAuditTrail.REST_ORIGIN_FIELD_VALUE);
+        checkedFields.put(LoggingAuditTrail.ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(address));
+        checkedFields.put(LoggingAuditTrail.PRINCIPAL_FIELD_NAME, authToken.principal());
+        checkedFields.put(LoggingAuditTrail.REQUEST_METHOD_FIELD_NAME, request.method().toString());
+        checkedFields.put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
+        checkedFields.put(LoggingAuditTrail.URL_PATH_FIELD_NAME, "_uri");
         if (params.isEmpty() == false) {
             checkedFields.put(LoggingAuditTrail.URL_QUERY_FIELD_NAME, "_param=baz");
         }
         opaqueId(threadContext, checkedFields);
         traceId(threadContext, checkedFields);
         forwardedFor(threadContext, checkedFields);
-        assertMsg(logger, checkedFields.map());
+        assertMsg(logger, checkedFields);
     }
 
     public void testAccessGranted() throws Exception {
@@ -1903,16 +1903,16 @@ public class LoggingAuditTrailTests extends ESTestCase {
         final String[] expectedRoles = randomArray(0, 4, String[]::new, () -> randomBoolean() ? null : randomAlphaOfLengthBetween(1, 4));
         final AuthorizationInfo authorizationInfo = () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, expectedRoles);
         final String requestId = randomRequestId();
-        MapBuilder<String, String> checkedFields = new MapBuilder<>(commonFields);
-        MapBuilder<String, String[]> checkedArrayFields = new MapBuilder<>();
+        Map<String, String> checkedFields = new HashMap<>(commonFields);
+        Map<String, String[]> checkedArrayFields = new HashMap<>();
 
         Authentication authentication = createAuthentication();
         auditTrail.accessGranted(requestId, authentication, "_action", request, authorizationInfo);
-        checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.TRANSPORT_ORIGIN_FIELD_VALUE)
-            .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "access_granted")
-            .put(LoggingAuditTrail.ACTION_FIELD_NAME, "_action")
-            .put(LoggingAuditTrail.REQUEST_NAME_FIELD_NAME, request.getClass().getSimpleName())
-            .put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
+        checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.TRANSPORT_ORIGIN_FIELD_VALUE);
+        checkedFields.put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "access_granted");
+        checkedFields.put(LoggingAuditTrail.ACTION_FIELD_NAME, "_action");
+        checkedFields.put(LoggingAuditTrail.REQUEST_NAME_FIELD_NAME, request.getClass().getSimpleName());
+        checkedFields.put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
 
         checkedArrayFields.put(PRINCIPAL_ROLES_FIELD_NAME, (String[]) authorizationInfo.asMap().get(PRINCIPAL_ROLES_FIELD_NAME));
         authentication(authentication, checkedFields);
@@ -1921,20 +1921,20 @@ public class LoggingAuditTrailTests extends ESTestCase {
         opaqueId(threadContext, checkedFields);
         traceId(threadContext, checkedFields);
         forwardedFor(threadContext, checkedFields);
-        assertMsg(logger, checkedFields.map(), checkedArrayFields.map());
+        assertMsg(logger, checkedFields, checkedArrayFields);
 
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
 
         // audit for authn with API Key
         authentication = createApiKeyAuthenticationAndMaybeWithRunAs(authentication);
-        checkedFields = new MapBuilder<>(commonFields);
-        checkedArrayFields = new MapBuilder<>();
+        checkedFields = new HashMap<>(commonFields);
+        checkedArrayFields = new HashMap<>();
         auditTrail.accessGranted(requestId, authentication, "_action", request, authorizationInfo);
-        checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.TRANSPORT_ORIGIN_FIELD_VALUE)
-            .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "access_granted")
-            .put(LoggingAuditTrail.ACTION_FIELD_NAME, "_action")
-            .put(LoggingAuditTrail.REQUEST_NAME_FIELD_NAME, request.getClass().getSimpleName())
-            .put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
+        checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.TRANSPORT_ORIGIN_FIELD_VALUE);
+        checkedFields.put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "access_granted");
+        checkedFields.put(LoggingAuditTrail.ACTION_FIELD_NAME, "_action");
+        checkedFields.put(LoggingAuditTrail.REQUEST_NAME_FIELD_NAME, request.getClass().getSimpleName());
+        checkedFields.put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
         checkedArrayFields.put(PRINCIPAL_ROLES_FIELD_NAME, (String[]) authorizationInfo.asMap().get(PRINCIPAL_ROLES_FIELD_NAME));
         authentication(authentication, checkedFields);
         restOrTransportOrigin(request, threadContext, checkedFields);
@@ -1942,7 +1942,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         opaqueId(threadContext, checkedFields);
         traceId(threadContext, checkedFields);
         forwardedFor(threadContext, checkedFields);
-        assertMsg(logger, checkedFields.map(), checkedArrayFields.map());
+        assertMsg(logger, checkedFields, checkedArrayFields);
 
         // test disabled
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
@@ -2043,13 +2043,13 @@ public class LoggingAuditTrailTests extends ESTestCase {
 
         auditTrail.accessGranted(requestId, authentication, "_action", request, authorizationInfo);
 
-        MapBuilder<String, String> checkedFields = new MapBuilder<>(commonFields);
-        MapBuilder<String, String[]> checkedArrayFields = new MapBuilder<>();
-        checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.TRANSPORT_ORIGIN_FIELD_VALUE)
-            .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "access_granted")
-            .put(LoggingAuditTrail.ACTION_FIELD_NAME, "_action")
-            .put(LoggingAuditTrail.REQUEST_NAME_FIELD_NAME, request.getClass().getSimpleName())
-            .put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
+        Map<String, String> checkedFields = new HashMap<>(commonFields);
+        Map<String, String[]> checkedArrayFields = new HashMap<>();
+        checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.TRANSPORT_ORIGIN_FIELD_VALUE);
+        checkedFields.put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "access_granted");
+        checkedFields.put(LoggingAuditTrail.ACTION_FIELD_NAME, "_action");
+        checkedFields.put(LoggingAuditTrail.REQUEST_NAME_FIELD_NAME, request.getClass().getSimpleName());
+        checkedFields.put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
         checkedArrayFields.put(PRINCIPAL_ROLES_FIELD_NAME, (String[]) authorizationInfo.asMap().get(PRINCIPAL_ROLES_FIELD_NAME));
         authentication(authentication, checkedFields);
         restOrTransportOrigin(request, threadContext, checkedFields);
@@ -2057,7 +2057,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         opaqueId(threadContext, checkedFields);
         traceId(threadContext, checkedFields);
         forwardedFor(threadContext, checkedFields);
-        assertMsg(logger, checkedFields.map(), checkedArrayFields.map());
+        assertMsg(logger, checkedFields, checkedArrayFields);
         clearLog();
 
         String index = randomFrom(randomAlphaOfLengthBetween(1, 4), null);
@@ -2072,13 +2072,13 @@ public class LoggingAuditTrailTests extends ESTestCase {
             authorizationInfo
         );
 
-        checkedFields = new MapBuilder<>(commonFields);
-        checkedArrayFields = new MapBuilder<>();
-        checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.TRANSPORT_ORIGIN_FIELD_VALUE)
-            .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "access_granted")
-            .put(LoggingAuditTrail.ACTION_FIELD_NAME, "_action")
-            .put(LoggingAuditTrail.REQUEST_NAME_FIELD_NAME, BulkItemRequest.class.getName())
-            .put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
+        checkedFields = new HashMap<>(commonFields);
+        checkedArrayFields = new HashMap<>();
+        checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.TRANSPORT_ORIGIN_FIELD_VALUE);
+        checkedFields.put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "access_granted");
+        checkedFields.put(LoggingAuditTrail.ACTION_FIELD_NAME, "_action");
+        checkedFields.put(LoggingAuditTrail.REQUEST_NAME_FIELD_NAME, BulkItemRequest.class.getName());
+        checkedFields.put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
         checkedArrayFields.put(PRINCIPAL_ROLES_FIELD_NAME, (String[]) authorizationInfo.asMap().get(PRINCIPAL_ROLES_FIELD_NAME));
         authentication(authentication, checkedFields);
         restOrTransportOrigin(request, threadContext, checkedFields);
@@ -2088,7 +2088,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         if (index != null) {
             checkedArrayFields.put(LoggingAuditTrail.INDICES_FIELD_NAME, new String[] { index });
         }
-        assertMsg(logger, checkedFields.map(), checkedArrayFields.map());
+        assertMsg(logger, checkedFields, checkedArrayFields);
     }
 
     public void testAccessGrantedInternalSystemAction() throws Exception {
@@ -2106,23 +2106,23 @@ public class LoggingAuditTrailTests extends ESTestCase {
             Settings.builder().put(settings).put("xpack.security.audit.logfile.events.include", "system_access_granted").build()
         );
         auditTrail.accessGranted(requestId, authentication, "internal:_action", request, authorizationInfo);
-        final MapBuilder<String, String> checkedFields = new MapBuilder<>(commonFields);
-        final MapBuilder<String, String[]> checkedArrayFields = new MapBuilder<>();
-        checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.TRANSPORT_ORIGIN_FIELD_VALUE)
-            .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "access_granted")
-            .put(LoggingAuditTrail.AUTHENTICATION_TYPE_FIELD_NAME, authentication.getAuthenticationType().toString())
-            .put(LoggingAuditTrail.PRINCIPAL_FIELD_NAME, systemUser.principal())
-            .put(LoggingAuditTrail.PRINCIPAL_REALM_FIELD_NAME, authentication.getEffectiveSubject().getRealm().getName())
-            .put(LoggingAuditTrail.ACTION_FIELD_NAME, "internal:_action")
-            .put(LoggingAuditTrail.REQUEST_NAME_FIELD_NAME, request.getClass().getSimpleName())
-            .put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
+        final Map<String, String> checkedFields = new HashMap<>(commonFields);
+        final Map<String, String[]> checkedArrayFields = new HashMap<>();
+        checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.TRANSPORT_ORIGIN_FIELD_VALUE);
+        checkedFields.put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "access_granted");
+        checkedFields.put(LoggingAuditTrail.AUTHENTICATION_TYPE_FIELD_NAME, authentication.getAuthenticationType().toString());
+        checkedFields.put(LoggingAuditTrail.PRINCIPAL_FIELD_NAME, systemUser.principal());
+        checkedFields.put(LoggingAuditTrail.PRINCIPAL_REALM_FIELD_NAME, authentication.getEffectiveSubject().getRealm().getName());
+        checkedFields.put(LoggingAuditTrail.ACTION_FIELD_NAME, "internal:_action");
+        checkedFields.put(LoggingAuditTrail.REQUEST_NAME_FIELD_NAME, request.getClass().getSimpleName());
+        checkedFields.put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
         checkedArrayFields.put(PRINCIPAL_ROLES_FIELD_NAME, (String[]) authorizationInfo.asMap().get(PRINCIPAL_ROLES_FIELD_NAME));
         restOrTransportOrigin(request, threadContext, checkedFields);
         indicesRequest(request, checkedFields, checkedArrayFields);
         opaqueId(threadContext, checkedFields);
         traceId(threadContext, checkedFields);
         forwardedFor(threadContext, checkedFields);
-        assertMsg(logger, checkedFields.map(), checkedArrayFields.map());
+        assertMsg(logger, checkedFields, checkedArrayFields);
     }
 
     public void testAccessGrantedInternalSystemActionNonSystemUser() throws Exception {
@@ -2130,16 +2130,16 @@ public class LoggingAuditTrailTests extends ESTestCase {
         final String[] expectedRoles = randomArray(0, 4, String[]::new, () -> randomBoolean() ? null : randomAlphaOfLengthBetween(1, 4));
         final AuthorizationInfo authorizationInfo = () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, expectedRoles);
         final String requestId = randomRequestId();
-        MapBuilder<String, String> checkedFields = new MapBuilder<>(commonFields);
-        MapBuilder<String, String[]> checkedArrayFields = new MapBuilder<>();
+        Map<String, String> checkedFields = new HashMap<>(commonFields);
+        Map<String, String[]> checkedArrayFields = new HashMap<>();
 
         Authentication authentication = createAuthentication();
         auditTrail.accessGranted(requestId, authentication, "internal:_action", request, authorizationInfo);
-        checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.TRANSPORT_ORIGIN_FIELD_VALUE)
-            .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "access_granted")
-            .put(LoggingAuditTrail.ACTION_FIELD_NAME, "internal:_action")
-            .put(LoggingAuditTrail.REQUEST_NAME_FIELD_NAME, request.getClass().getSimpleName())
-            .put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
+        checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.TRANSPORT_ORIGIN_FIELD_VALUE);
+        checkedFields.put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "access_granted");
+        checkedFields.put(LoggingAuditTrail.ACTION_FIELD_NAME, "internal:_action");
+        checkedFields.put(LoggingAuditTrail.REQUEST_NAME_FIELD_NAME, request.getClass().getSimpleName());
+        checkedFields.put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
         checkedArrayFields.put(PRINCIPAL_ROLES_FIELD_NAME, (String[]) authorizationInfo.asMap().get(PRINCIPAL_ROLES_FIELD_NAME));
         authentication(authentication, checkedFields);
         restOrTransportOrigin(request, threadContext, checkedFields);
@@ -2147,20 +2147,20 @@ public class LoggingAuditTrailTests extends ESTestCase {
         opaqueId(threadContext, checkedFields);
         traceId(threadContext, checkedFields);
         forwardedFor(threadContext, checkedFields);
-        assertMsg(logger, checkedFields.map(), checkedArrayFields.map());
+        assertMsg(logger, checkedFields, checkedArrayFields);
 
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
 
         // audit for authn with API Key
         authentication = createApiKeyAuthenticationAndMaybeWithRunAs(authentication);
-        checkedFields = new MapBuilder<>(commonFields);
-        checkedArrayFields = new MapBuilder<>();
+        checkedFields = new HashMap<>(commonFields);
+        checkedArrayFields = new HashMap<>();
         auditTrail.accessGranted(requestId, authentication, "internal:_action", request, authorizationInfo);
-        checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.TRANSPORT_ORIGIN_FIELD_VALUE)
-            .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "access_granted")
-            .put(LoggingAuditTrail.ACTION_FIELD_NAME, "internal:_action")
-            .put(LoggingAuditTrail.REQUEST_NAME_FIELD_NAME, request.getClass().getSimpleName())
-            .put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
+        checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.TRANSPORT_ORIGIN_FIELD_VALUE);
+        checkedFields.put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "access_granted");
+        checkedFields.put(LoggingAuditTrail.ACTION_FIELD_NAME, "internal:_action");
+        checkedFields.put(LoggingAuditTrail.REQUEST_NAME_FIELD_NAME, request.getClass().getSimpleName());
+        checkedFields.put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
         checkedArrayFields.put(PRINCIPAL_ROLES_FIELD_NAME, (String[]) authorizationInfo.asMap().get(PRINCIPAL_ROLES_FIELD_NAME));
         authentication(authentication, checkedFields);
         restOrTransportOrigin(request, threadContext, checkedFields);
@@ -2168,7 +2168,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         opaqueId(threadContext, checkedFields);
         traceId(threadContext, checkedFields);
         forwardedFor(threadContext, checkedFields);
-        assertMsg(logger, checkedFields.map(), checkedArrayFields.map());
+        assertMsg(logger, checkedFields, checkedArrayFields);
 
         // test disabled
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
@@ -2182,27 +2182,25 @@ public class LoggingAuditTrailTests extends ESTestCase {
         final String[] expectedRoles = randomArray(0, 4, String[]::new, () -> randomBoolean() ? null : randomAlphaOfLengthBetween(1, 4));
         final AuthorizationInfo authorizationInfo = () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, expectedRoles);
         final String requestId = randomRequestId();
-        MapBuilder<String, String> checkedFields = new MapBuilder<>(commonFields);
-        MapBuilder<String, String[]> checkedArrayFields = new MapBuilder<>();
+        Map<String, String> checkedFields = new HashMap<>(commonFields);
+        Map<String, String[]> checkedArrayFields = new HashMap<>();
 
         Authentication authentication = createAuthentication();
         auditTrail.accessDenied(requestId, authentication, "_action/bar", request, authorizationInfo);
-        checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.TRANSPORT_ORIGIN_FIELD_VALUE)
-            .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "access_denied")
-            .put(LoggingAuditTrail.ACTION_FIELD_NAME, "_action/bar")
-            .put(LoggingAuditTrail.REQUEST_NAME_FIELD_NAME, request.getClass().getSimpleName())
-            .put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
+        checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.TRANSPORT_ORIGIN_FIELD_VALUE);
+        checkedFields.put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "access_denied");
+        checkedFields.put(LoggingAuditTrail.ACTION_FIELD_NAME, "_action/bar");
+        checkedFields.put(LoggingAuditTrail.REQUEST_NAME_FIELD_NAME, request.getClass().getSimpleName());
+        checkedFields.put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
         if (authentication.isServiceAccount()) {
             checkedFields.put(
                 LoggingAuditTrail.SERVICE_TOKEN_NAME_FIELD_NAME,
                 (String) authentication.getAuthenticatingSubject().getMetadata().get(TOKEN_NAME_FIELD)
-            )
-                .put(
-                    LoggingAuditTrail.SERVICE_TOKEN_TYPE_FIELD_NAME,
-                    ServiceAccountSettings.REALM_TYPE
-                        + "_"
-                        + authentication.getAuthenticatingSubject().getMetadata().get(TOKEN_SOURCE_FIELD)
-                );
+            );
+            checkedFields.put(
+                LoggingAuditTrail.SERVICE_TOKEN_TYPE_FIELD_NAME,
+                ServiceAccountSettings.REALM_TYPE + "_" + authentication.getAuthenticatingSubject().getMetadata().get(TOKEN_SOURCE_FIELD)
+            );
         }
         checkedArrayFields.put(PRINCIPAL_ROLES_FIELD_NAME, (String[]) authorizationInfo.asMap().get(PRINCIPAL_ROLES_FIELD_NAME));
         authentication(authentication, checkedFields);
@@ -2211,20 +2209,20 @@ public class LoggingAuditTrailTests extends ESTestCase {
         opaqueId(threadContext, checkedFields);
         traceId(threadContext, checkedFields);
         forwardedFor(threadContext, checkedFields);
-        assertMsg(logger, checkedFields.map(), checkedArrayFields.map());
+        assertMsg(logger, checkedFields, checkedArrayFields);
 
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
 
         // audit for authn with API Key
         authentication = createApiKeyAuthenticationAndMaybeWithRunAs(authentication);
-        checkedFields = new MapBuilder<>(commonFields);
-        checkedArrayFields = new MapBuilder<>();
+        checkedFields = new HashMap<>(commonFields);
+        checkedArrayFields = new HashMap<>();
         auditTrail.accessDenied(requestId, authentication, "_action/bar", request, authorizationInfo);
-        checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.TRANSPORT_ORIGIN_FIELD_VALUE)
-            .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "access_denied")
-            .put(LoggingAuditTrail.ACTION_FIELD_NAME, "_action/bar")
-            .put(LoggingAuditTrail.REQUEST_NAME_FIELD_NAME, request.getClass().getSimpleName())
-            .put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
+        checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.TRANSPORT_ORIGIN_FIELD_VALUE);
+        checkedFields.put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "access_denied");
+        checkedFields.put(LoggingAuditTrail.ACTION_FIELD_NAME, "_action/bar");
+        checkedFields.put(LoggingAuditTrail.REQUEST_NAME_FIELD_NAME, request.getClass().getSimpleName());
+        checkedFields.put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
         checkedArrayFields.put(PRINCIPAL_ROLES_FIELD_NAME, (String[]) authorizationInfo.asMap().get(PRINCIPAL_ROLES_FIELD_NAME));
         authentication(authentication, checkedFields);
         restOrTransportOrigin(request, threadContext, checkedFields);
@@ -2232,7 +2230,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         opaqueId(threadContext, checkedFields);
         traceId(threadContext, checkedFields);
         forwardedFor(threadContext, checkedFields);
-        assertMsg(logger, checkedFields.map(), checkedArrayFields.map());
+        assertMsg(logger, checkedFields, checkedArrayFields);
 
         // test disabled
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
@@ -2255,21 +2253,21 @@ public class LoggingAuditTrailTests extends ESTestCase {
         RemoteHostHeader.process(tuple.v1(), threadContext);
         final String requestId = randomRequestId();
         auditTrail.tamperedRequest(requestId, request.getHttpRequest());
-        final MapBuilder<String, String> checkedFields = new MapBuilder<>(commonFields);
-        checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.REST_ORIGIN_FIELD_VALUE)
-            .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "tampered_request")
-            .put(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME, LoggingAuditTrail.REST_ORIGIN_FIELD_VALUE)
-            .put(LoggingAuditTrail.ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(address))
-            .put(LoggingAuditTrail.REQUEST_METHOD_FIELD_NAME, request.method().toString())
-            .put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId)
-            .put(LoggingAuditTrail.URL_PATH_FIELD_NAME, "_uri");
+        final Map<String, String> checkedFields = new HashMap<>(commonFields);
+        checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.REST_ORIGIN_FIELD_VALUE);
+        checkedFields.put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "tampered_request");
+        checkedFields.put(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME, LoggingAuditTrail.REST_ORIGIN_FIELD_VALUE);
+        checkedFields.put(LoggingAuditTrail.ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(address));
+        checkedFields.put(LoggingAuditTrail.REQUEST_METHOD_FIELD_NAME, request.method().toString());
+        checkedFields.put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
+        checkedFields.put(LoggingAuditTrail.URL_PATH_FIELD_NAME, "_uri");
         if (params.isEmpty() == false) {
             checkedFields.put(LoggingAuditTrail.URL_QUERY_FIELD_NAME, "_param=baz");
         }
         opaqueId(threadContext, checkedFields);
         traceId(threadContext, checkedFields);
         forwardedFor(threadContext, checkedFields);
-        assertMsg(logger, checkedFields.map());
+        assertMsg(logger, checkedFields);
 
         // test disabled
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
@@ -2285,19 +2283,19 @@ public class LoggingAuditTrailTests extends ESTestCase {
 
         final String requestId = randomRequestId();
         auditTrail.tamperedRequest(requestId, "_action", request);
-        final MapBuilder<String, String> checkedFields = new MapBuilder<>(commonFields);
-        final MapBuilder<String, String[]> checkedArrayFields = new MapBuilder<>();
-        checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.TRANSPORT_ORIGIN_FIELD_VALUE)
-            .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "tampered_request")
-            .put(LoggingAuditTrail.ACTION_FIELD_NAME, "_action")
-            .put(LoggingAuditTrail.REQUEST_NAME_FIELD_NAME, request.getClass().getSimpleName())
-            .put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
+        final Map<String, String> checkedFields = new HashMap<>(commonFields);
+        final Map<String, String[]> checkedArrayFields = new HashMap<>();
+        checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.TRANSPORT_ORIGIN_FIELD_VALUE);
+        checkedFields.put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "tampered_request");
+        checkedFields.put(LoggingAuditTrail.ACTION_FIELD_NAME, "_action");
+        checkedFields.put(LoggingAuditTrail.REQUEST_NAME_FIELD_NAME, request.getClass().getSimpleName());
+        checkedFields.put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
         restOrTransportOrigin(request, threadContext, checkedFields);
         indicesRequest(request, checkedFields, checkedArrayFields);
         opaqueId(threadContext, checkedFields);
         traceId(threadContext, checkedFields);
         forwardedFor(threadContext, checkedFields);
-        assertMsg(logger, checkedFields.map(), checkedArrayFields.map());
+        assertMsg(logger, checkedFields, checkedArrayFields);
 
         // test disabled
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
@@ -2311,43 +2309,43 @@ public class LoggingAuditTrailTests extends ESTestCase {
     public void testTamperedRequestWithUser() throws Exception {
         final TransportRequest request = randomBoolean() ? new MockRequest(threadContext) : new MockIndicesRequest(threadContext);
         final String requestId = randomRequestId();
-        MapBuilder<String, String> checkedFields = new MapBuilder<>(commonFields);
-        MapBuilder<String, String[]> checkedArrayFields = new MapBuilder<>();
+        Map<String, String> checkedFields = new HashMap<>(commonFields);
+        Map<String, String[]> checkedArrayFields = new HashMap<>();
 
         Authentication authentication = createAuthentication();
         auditTrail.tamperedRequest(requestId, authentication, "_action", request);
-        checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.TRANSPORT_ORIGIN_FIELD_VALUE)
-            .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "tampered_request")
-            .put(LoggingAuditTrail.ACTION_FIELD_NAME, "_action")
-            .put(LoggingAuditTrail.REQUEST_NAME_FIELD_NAME, request.getClass().getSimpleName())
-            .put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
+        checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.TRANSPORT_ORIGIN_FIELD_VALUE);
+        checkedFields.put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "tampered_request");
+        checkedFields.put(LoggingAuditTrail.ACTION_FIELD_NAME, "_action");
+        checkedFields.put(LoggingAuditTrail.REQUEST_NAME_FIELD_NAME, request.getClass().getSimpleName());
+        checkedFields.put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
         authentication(authentication, checkedFields);
         restOrTransportOrigin(request, threadContext, checkedFields);
         indicesRequest(request, checkedFields, checkedArrayFields);
         opaqueId(threadContext, checkedFields);
         traceId(threadContext, checkedFields);
         forwardedFor(threadContext, checkedFields);
-        assertMsg(logger, checkedFields.map(), checkedArrayFields.map());
+        assertMsg(logger, checkedFields, checkedArrayFields);
 
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
 
         // audit for authn with API Key
         authentication = createApiKeyAuthenticationAndMaybeWithRunAs(authentication);
-        checkedFields = new MapBuilder<>(commonFields);
-        checkedArrayFields = new MapBuilder<>();
+        checkedFields = new HashMap<>(commonFields);
+        checkedArrayFields = new HashMap<>();
         auditTrail.tamperedRequest(requestId, authentication, "_action", request);
-        checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.TRANSPORT_ORIGIN_FIELD_VALUE)
-            .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "tampered_request")
-            .put(LoggingAuditTrail.ACTION_FIELD_NAME, "_action")
-            .put(LoggingAuditTrail.REQUEST_NAME_FIELD_NAME, request.getClass().getSimpleName())
-            .put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
+        checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.TRANSPORT_ORIGIN_FIELD_VALUE);
+        checkedFields.put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "tampered_request");
+        checkedFields.put(LoggingAuditTrail.ACTION_FIELD_NAME, "_action");
+        checkedFields.put(LoggingAuditTrail.REQUEST_NAME_FIELD_NAME, request.getClass().getSimpleName());
+        checkedFields.put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
         authentication(authentication, checkedFields);
         restOrTransportOrigin(request, threadContext, checkedFields);
         indicesRequest(request, checkedFields, checkedArrayFields);
         opaqueId(threadContext, checkedFields);
         traceId(threadContext, checkedFields);
         forwardedFor(threadContext, checkedFields);
-        assertMsg(logger, checkedFields.map(), checkedArrayFields.map());
+        assertMsg(logger, checkedFields, checkedArrayFields);
 
         // test disabled
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
@@ -2364,22 +2362,22 @@ public class LoggingAuditTrailTests extends ESTestCase {
         final String profile = randomBoolean() ? IPFilter.HTTP_PROFILE_NAME : randomAlphaOfLengthBetween(1, 6);
 
         auditTrail.connectionDenied(inetAddress, profile, rule);
-        final MapBuilder<String, String> checkedFields = new MapBuilder<>(commonFields);
-        checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.IP_FILTER_ORIGIN_FIELD_VALUE)
-            .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "connection_denied")
-            .put(
-                LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME,
-                IPFilter.HTTP_PROFILE_NAME.equals(profile)
-                    ? LoggingAuditTrail.REST_ORIGIN_FIELD_VALUE
-                    : LoggingAuditTrail.TRANSPORT_ORIGIN_FIELD_VALUE
-            )
-            .put(LoggingAuditTrail.ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(inetAddress))
-            .put(LoggingAuditTrail.TRANSPORT_PROFILE_FIELD_NAME, profile)
-            .put(LoggingAuditTrail.RULE_FIELD_NAME, "deny _all");
+        final Map<String, String> checkedFields = new HashMap<>(commonFields);
+        checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.IP_FILTER_ORIGIN_FIELD_VALUE);
+        checkedFields.put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "connection_denied");
+        checkedFields.put(
+            LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME,
+            IPFilter.HTTP_PROFILE_NAME.equals(profile)
+                ? LoggingAuditTrail.REST_ORIGIN_FIELD_VALUE
+                : LoggingAuditTrail.TRANSPORT_ORIGIN_FIELD_VALUE
+        );
+        checkedFields.put(LoggingAuditTrail.ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(inetAddress));
+        checkedFields.put(LoggingAuditTrail.TRANSPORT_PROFILE_FIELD_NAME, profile);
+        checkedFields.put(LoggingAuditTrail.RULE_FIELD_NAME, "deny _all");
         opaqueId(threadContext, checkedFields);
         traceId(threadContext, checkedFields);
         forwardedFor(threadContext, checkedFields);
-        assertMsg(logger, checkedFields.map());
+        assertMsg(logger, checkedFields);
 
         // test disabled
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
@@ -2403,22 +2401,22 @@ public class LoggingAuditTrailTests extends ESTestCase {
             Settings.builder().put(settings).put("xpack.security.audit.logfile.events.include", "connection_granted").build()
         );
         auditTrail.connectionGranted(inetAddress, profile, rule);
-        final MapBuilder<String, String> checkedFields = new MapBuilder<>(commonFields);
-        checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.IP_FILTER_ORIGIN_FIELD_VALUE)
-            .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "connection_granted")
-            .put(
-                LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME,
-                IPFilter.HTTP_PROFILE_NAME.equals(profile)
-                    ? LoggingAuditTrail.REST_ORIGIN_FIELD_VALUE
-                    : LoggingAuditTrail.TRANSPORT_ORIGIN_FIELD_VALUE
-            )
-            .put(LoggingAuditTrail.ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(inetAddress))
-            .put(LoggingAuditTrail.TRANSPORT_PROFILE_FIELD_NAME, profile)
-            .put(LoggingAuditTrail.RULE_FIELD_NAME, "allow default:accept_all");
+        final Map<String, String> checkedFields = new HashMap<>(commonFields);
+        checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.IP_FILTER_ORIGIN_FIELD_VALUE);
+        checkedFields.put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "connection_granted");
+        checkedFields.put(
+            LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME,
+            IPFilter.HTTP_PROFILE_NAME.equals(profile)
+                ? LoggingAuditTrail.REST_ORIGIN_FIELD_VALUE
+                : LoggingAuditTrail.TRANSPORT_ORIGIN_FIELD_VALUE
+        );
+        checkedFields.put(LoggingAuditTrail.ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(inetAddress));
+        checkedFields.put(LoggingAuditTrail.TRANSPORT_PROFILE_FIELD_NAME, profile);
+        checkedFields.put(LoggingAuditTrail.RULE_FIELD_NAME, "allow default:accept_all");
         opaqueId(threadContext, checkedFields);
         traceId(threadContext, checkedFields);
         forwardedFor(threadContext, checkedFields);
-        assertMsg(logger, checkedFields.map());
+        assertMsg(logger, checkedFields);
     }
 
     public void testRunAsGranted() throws Exception {
@@ -2437,17 +2435,17 @@ public class LoggingAuditTrailTests extends ESTestCase {
         final String requestId = randomRequestId();
 
         auditTrail.runAsGranted(requestId, authentication, "_action", request, authorizationInfo);
-        final MapBuilder<String, String> checkedFields = new MapBuilder<>(commonFields);
-        final MapBuilder<String, String[]> checkedArrayFields = new MapBuilder<>();
-        checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.TRANSPORT_ORIGIN_FIELD_VALUE)
-            .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "run_as_granted")
-            .put(LoggingAuditTrail.PRINCIPAL_FIELD_NAME, "_username")
-            .put(LoggingAuditTrail.PRINCIPAL_REALM_FIELD_NAME, authRealmRef.getName())
-            .put(LoggingAuditTrail.PRINCIPAL_RUN_AS_FIELD_NAME, "running as")
-            .put(LoggingAuditTrail.PRINCIPAL_RUN_AS_REALM_FIELD_NAME, lookupRealmRef.getName())
-            .put(LoggingAuditTrail.ACTION_FIELD_NAME, "_action")
-            .put(LoggingAuditTrail.REQUEST_NAME_FIELD_NAME, request.getClass().getSimpleName())
-            .put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
+        final Map<String, String> checkedFields = new HashMap<>(commonFields);
+        final Map<String, String[]> checkedArrayFields = new HashMap<>();
+        checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.TRANSPORT_ORIGIN_FIELD_VALUE);
+        checkedFields.put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "run_as_granted");
+        checkedFields.put(LoggingAuditTrail.PRINCIPAL_FIELD_NAME, "_username");
+        checkedFields.put(LoggingAuditTrail.PRINCIPAL_REALM_FIELD_NAME, authRealmRef.getName());
+        checkedFields.put(LoggingAuditTrail.PRINCIPAL_RUN_AS_FIELD_NAME, "running as");
+        checkedFields.put(LoggingAuditTrail.PRINCIPAL_RUN_AS_REALM_FIELD_NAME, lookupRealmRef.getName());
+        checkedFields.put(LoggingAuditTrail.ACTION_FIELD_NAME, "_action");
+        checkedFields.put(LoggingAuditTrail.REQUEST_NAME_FIELD_NAME, request.getClass().getSimpleName());
+        checkedFields.put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
         if (authRealmRef.getDomain() != null) {
             checkedFields.put(LoggingAuditTrail.PRINCIPAL_DOMAIN_FIELD_NAME, authRealmRef.getDomain().name());
         }
@@ -2460,7 +2458,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         opaqueId(threadContext, checkedFields);
         traceId(threadContext, checkedFields);
         forwardedFor(threadContext, checkedFields);
-        assertMsg(logger, checkedFields.map(), checkedArrayFields.map());
+        assertMsg(logger, checkedFields, checkedArrayFields);
 
         // test disabled
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
@@ -2485,17 +2483,17 @@ public class LoggingAuditTrailTests extends ESTestCase {
         final String requestId = randomRequestId();
 
         auditTrail.runAsDenied(requestId, authentication, "_action", request, authorizationInfo);
-        final MapBuilder<String, String> checkedFields = new MapBuilder<>(commonFields);
-        final MapBuilder<String, String[]> checkedArrayFields = new MapBuilder<>();
-        checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.TRANSPORT_ORIGIN_FIELD_VALUE)
-            .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "run_as_denied")
-            .put(LoggingAuditTrail.PRINCIPAL_FIELD_NAME, "_username")
-            .put(LoggingAuditTrail.PRINCIPAL_REALM_FIELD_NAME, authRealmRef.getName())
-            .put(LoggingAuditTrail.PRINCIPAL_RUN_AS_FIELD_NAME, "running as")
-            .put(LoggingAuditTrail.PRINCIPAL_RUN_AS_REALM_FIELD_NAME, lookupRealmRef.getName())
-            .put(LoggingAuditTrail.ACTION_FIELD_NAME, "_action")
-            .put(LoggingAuditTrail.REQUEST_NAME_FIELD_NAME, request.getClass().getSimpleName())
-            .put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
+        final Map<String, String> checkedFields = new HashMap<>(commonFields);
+        final Map<String, String[]> checkedArrayFields = new HashMap<>();
+        checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.TRANSPORT_ORIGIN_FIELD_VALUE);
+        checkedFields.put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "run_as_denied");
+        checkedFields.put(LoggingAuditTrail.PRINCIPAL_FIELD_NAME, "_username");
+        checkedFields.put(LoggingAuditTrail.PRINCIPAL_REALM_FIELD_NAME, authRealmRef.getName());
+        checkedFields.put(LoggingAuditTrail.PRINCIPAL_RUN_AS_FIELD_NAME, "running as");
+        checkedFields.put(LoggingAuditTrail.PRINCIPAL_RUN_AS_REALM_FIELD_NAME, lookupRealmRef.getName());
+        checkedFields.put(LoggingAuditTrail.ACTION_FIELD_NAME, "_action");
+        checkedFields.put(LoggingAuditTrail.REQUEST_NAME_FIELD_NAME, request.getClass().getSimpleName());
+        checkedFields.put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
         if (authRealmRef.getDomain() != null) {
             checkedFields.put(LoggingAuditTrail.PRINCIPAL_DOMAIN_FIELD_NAME, authRealmRef.getDomain().name());
         }
@@ -2508,7 +2506,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         opaqueId(threadContext, checkedFields);
         traceId(threadContext, checkedFields);
         forwardedFor(threadContext, checkedFields);
-        assertMsg(logger, checkedFields.map(), checkedArrayFields.map());
+        assertMsg(logger, checkedFields, checkedArrayFields);
 
         // test disabled
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
@@ -2530,7 +2528,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         final Tuple<Channel, RestRequest> tuple = prepareRestContent("_uri", address, params);
         final RestRequest request = tuple.v2();
         String requestId = AuditUtil.generateRequestId(threadContext);
-        MapBuilder<String, String> checkedFields = new MapBuilder<>(commonFields);
+        Map<String, String> checkedFields = new HashMap<>(commonFields);
         Authentication authentication = createAuthentication();
         authentication.writeToContext(threadContext);
         RemoteHostHeader.process(tuple.v1(), threadContext);
@@ -2543,14 +2541,14 @@ public class LoggingAuditTrailTests extends ESTestCase {
             Settings.builder().put(this.settings).put("xpack.security.audit.logfile.events.include", "authentication_success").build()
         );
         auditTrail.authenticationSuccess(request);
-        checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.REST_ORIGIN_FIELD_VALUE)
-            .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "authentication_success")
-            .put(LoggingAuditTrail.REALM_FIELD_NAME, authentication.getAuthenticatingSubject().getRealm().getName())
-            .put(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME, LoggingAuditTrail.REST_ORIGIN_FIELD_VALUE)
-            .put(LoggingAuditTrail.ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(address))
-            .put(LoggingAuditTrail.REQUEST_METHOD_FIELD_NAME, request.method().toString())
-            .put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId)
-            .put(LoggingAuditTrail.URL_PATH_FIELD_NAME, "_uri");
+        checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.REST_ORIGIN_FIELD_VALUE);
+        checkedFields.put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "authentication_success");
+        checkedFields.put(LoggingAuditTrail.REALM_FIELD_NAME, authentication.getAuthenticatingSubject().getRealm().getName());
+        checkedFields.put(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME, LoggingAuditTrail.REST_ORIGIN_FIELD_VALUE);
+        checkedFields.put(LoggingAuditTrail.ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(address));
+        checkedFields.put(LoggingAuditTrail.REQUEST_METHOD_FIELD_NAME, request.method().toString());
+        checkedFields.put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
+        checkedFields.put(LoggingAuditTrail.URL_PATH_FIELD_NAME, "_uri");
         if (includeRequestBody && Strings.hasLength(request.content())) {
             checkedFields.put(LoggingAuditTrail.REQUEST_BODY_FIELD_NAME, request.content().utf8ToString());
         }
@@ -2561,7 +2559,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         opaqueId(threadContext, checkedFields);
         traceId(threadContext, checkedFields);
         forwardedFor(threadContext, checkedFields);
-        assertMsg(logger, checkedFields.map());
+        assertMsg(logger, checkedFields);
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
         threadContext.stashContext();
 
@@ -2569,17 +2567,17 @@ public class LoggingAuditTrailTests extends ESTestCase {
         requestId = AuditUtil.generateRequestId(threadContext);
         authentication = createApiKeyAuthenticationAndMaybeWithRunAs(authentication);
         authentication.writeToContext(threadContext);
-        checkedFields = new MapBuilder<>(commonFields);
+        checkedFields = new HashMap<>(commonFields);
         RemoteHostHeader.process(tuple.v1(), threadContext);
         auditTrail.authenticationSuccess(request);
-        checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.REST_ORIGIN_FIELD_VALUE)
-            .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "authentication_success")
-            .put(LoggingAuditTrail.REALM_FIELD_NAME, "_es_api_key")
-            .put(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME, LoggingAuditTrail.REST_ORIGIN_FIELD_VALUE)
-            .put(LoggingAuditTrail.ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(address))
-            .put(LoggingAuditTrail.REQUEST_METHOD_FIELD_NAME, request.method().toString())
-            .put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId)
-            .put(LoggingAuditTrail.URL_PATH_FIELD_NAME, "_uri");
+        checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.REST_ORIGIN_FIELD_VALUE);
+        checkedFields.put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "authentication_success");
+        checkedFields.put(LoggingAuditTrail.REALM_FIELD_NAME, "_es_api_key");
+        checkedFields.put(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME, LoggingAuditTrail.REST_ORIGIN_FIELD_VALUE);
+        checkedFields.put(LoggingAuditTrail.ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(address));
+        checkedFields.put(LoggingAuditTrail.REQUEST_METHOD_FIELD_NAME, request.method().toString());
+        checkedFields.put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
+        checkedFields.put(LoggingAuditTrail.URL_PATH_FIELD_NAME, "_uri");
         if (includeRequestBody && Strings.hasLength(request.content())) {
             checkedFields.put(LoggingAuditTrail.REQUEST_BODY_FIELD_NAME, request.getHttpRequest().content().utf8ToString());
         }
@@ -2590,7 +2588,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         opaqueId(threadContext, checkedFields);
         traceId(threadContext, checkedFields);
         forwardedFor(threadContext, checkedFields);
-        assertMsg(logger, checkedFields.map());
+        assertMsg(logger, checkedFields);
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
         threadContext.stashContext();
 
@@ -2598,17 +2596,17 @@ public class LoggingAuditTrailTests extends ESTestCase {
         requestId = AuditUtil.generateRequestId(threadContext);
         authentication = AuthenticationTestHelper.builder().realm().build(false).runAs(new User(randomAlphaOfLengthBetween(3, 8)), null);
         authentication.writeToContext(threadContext);
-        checkedFields = new MapBuilder<>(commonFields);
+        checkedFields = new HashMap<>(commonFields);
         RemoteHostHeader.process(tuple.v1(), threadContext);
         auditTrail.authenticationSuccess(request);
-        checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.REST_ORIGIN_FIELD_VALUE)
-            .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "authentication_success")
-            .put(LoggingAuditTrail.REALM_FIELD_NAME, authentication.getAuthenticatingSubject().getRealm().getName())
-            .put(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME, LoggingAuditTrail.REST_ORIGIN_FIELD_VALUE)
-            .put(LoggingAuditTrail.ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(address))
-            .put(LoggingAuditTrail.REQUEST_METHOD_FIELD_NAME, request.method().toString())
-            .put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId)
-            .put(LoggingAuditTrail.URL_PATH_FIELD_NAME, "_uri");
+        checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.REST_ORIGIN_FIELD_VALUE);
+        checkedFields.put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "authentication_success");
+        checkedFields.put(LoggingAuditTrail.REALM_FIELD_NAME, authentication.getAuthenticatingSubject().getRealm().getName());
+        checkedFields.put(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME, LoggingAuditTrail.REST_ORIGIN_FIELD_VALUE);
+        checkedFields.put(LoggingAuditTrail.ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(address));
+        checkedFields.put(LoggingAuditTrail.REQUEST_METHOD_FIELD_NAME, request.method().toString());
+        checkedFields.put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
+        checkedFields.put(LoggingAuditTrail.URL_PATH_FIELD_NAME, "_uri");
         if (includeRequestBody && Strings.hasLength(request.content().utf8ToString())) {
             checkedFields.put(LoggingAuditTrail.REQUEST_BODY_FIELD_NAME, request.content().utf8ToString());
         }
@@ -2619,7 +2617,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         opaqueId(threadContext, checkedFields);
         traceId(threadContext, checkedFields);
         forwardedFor(threadContext, checkedFields);
-        assertMsg(logger, checkedFields.map());
+        assertMsg(logger, checkedFields);
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
         threadContext.stashContext();
     }
@@ -2627,8 +2625,8 @@ public class LoggingAuditTrailTests extends ESTestCase {
     public void testAuthenticationSuccessTransport() throws Exception {
         final TransportRequest request = randomBoolean() ? new MockRequest(threadContext) : new MockIndicesRequest(threadContext);
         final String requestId = randomRequestId();
-        MapBuilder<String, String> checkedFields = new MapBuilder<>(commonFields);
-        MapBuilder<String, String[]> checkedArrayFields = new MapBuilder<>();
+        Map<String, String> checkedFields = new HashMap<>(commonFields);
+        Map<String, String[]> checkedArrayFields = new HashMap<>();
         Authentication authentication = createAuthentication();
 
         // event by default disabled
@@ -2639,38 +2637,38 @@ public class LoggingAuditTrailTests extends ESTestCase {
             Settings.builder().put(this.settings).put("xpack.security.audit.logfile.events.include", "authentication_success").build()
         );
         auditTrail.authenticationSuccess(requestId, authentication, "_action", request);
-        checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.TRANSPORT_ORIGIN_FIELD_VALUE)
-            .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "authentication_success")
-            .put(LoggingAuditTrail.ACTION_FIELD_NAME, "_action")
-            .put(LoggingAuditTrail.REQUEST_NAME_FIELD_NAME, request.getClass().getSimpleName())
-            .put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
+        checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.TRANSPORT_ORIGIN_FIELD_VALUE);
+        checkedFields.put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "authentication_success");
+        checkedFields.put(LoggingAuditTrail.ACTION_FIELD_NAME, "_action");
+        checkedFields.put(LoggingAuditTrail.REQUEST_NAME_FIELD_NAME, request.getClass().getSimpleName());
+        checkedFields.put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
         authentication(authentication, checkedFields);
         restOrTransportOrigin(request, threadContext, checkedFields);
         indicesRequest(request, checkedFields, checkedArrayFields);
         opaqueId(threadContext, checkedFields);
         traceId(threadContext, checkedFields);
         forwardedFor(threadContext, checkedFields);
-        assertMsg(logger, checkedFields.map(), checkedArrayFields.map());
+        assertMsg(logger, checkedFields, checkedArrayFields);
 
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
 
         // audit for authn with API Key
         authentication = createApiKeyAuthenticationAndMaybeWithRunAs(authentication);
-        checkedFields = new MapBuilder<>(commonFields);
-        checkedArrayFields = new MapBuilder<>();
+        checkedFields = new HashMap<>(commonFields);
+        checkedArrayFields = new HashMap<>();
         auditTrail.authenticationSuccess(requestId, authentication, "_action", request);
-        checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.TRANSPORT_ORIGIN_FIELD_VALUE)
-            .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "authentication_success")
-            .put(LoggingAuditTrail.ACTION_FIELD_NAME, "_action")
-            .put(LoggingAuditTrail.REQUEST_NAME_FIELD_NAME, request.getClass().getSimpleName())
-            .put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
+        checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.TRANSPORT_ORIGIN_FIELD_VALUE);
+        checkedFields.put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "authentication_success");
+        checkedFields.put(LoggingAuditTrail.ACTION_FIELD_NAME, "_action");
+        checkedFields.put(LoggingAuditTrail.REQUEST_NAME_FIELD_NAME, request.getClass().getSimpleName());
+        checkedFields.put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
         authentication(authentication, checkedFields);
         restOrTransportOrigin(request, threadContext, checkedFields);
         indicesRequest(request, checkedFields, checkedArrayFields);
         opaqueId(threadContext, checkedFields);
         traceId(threadContext, checkedFields);
         forwardedFor(threadContext, checkedFields);
-        assertMsg(logger, checkedFields.map(), checkedArrayFields.map());
+        assertMsg(logger, checkedFields, checkedArrayFields);
     }
 
     public void testCrossClusterAccessAuthenticationSuccessTransport() throws Exception {
@@ -2688,27 +2686,27 @@ public class LoggingAuditTrailTests extends ESTestCase {
                 new CrossClusterAccessSubjectInfo(remoteAuthentication, RoleDescriptorsIntersection.EMPTY).cleanAndValidate()
             )
             .build();
-        final MapBuilder<String, String> checkedFields = new MapBuilder<>(commonFields);
-        final MapBuilder<String, String[]> checkedArrayFields = new MapBuilder<>();
-        final MapBuilder<String, String> checkedLiteralFields = new MapBuilder<>();
+        final Map<String, String> checkedFields = new HashMap<>(commonFields);
+        final Map<String, String[]> checkedArrayFields = new HashMap<>();
+        final Map<String, String> checkedLiteralFields = new HashMap<>();
 
         updateLoggerSettings(
             Settings.builder().put(settings).put("xpack.security.audit.logfile.events.include", "authentication_success").build()
         );
         auditTrail.authenticationSuccess(requestId, authentication, "_action", request);
 
-        checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.TRANSPORT_ORIGIN_FIELD_VALUE)
-            .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "authentication_success")
-            .put(LoggingAuditTrail.ACTION_FIELD_NAME, "_action")
-            .put(LoggingAuditTrail.REQUEST_NAME_FIELD_NAME, request.getClass().getSimpleName())
-            .put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
+        checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.TRANSPORT_ORIGIN_FIELD_VALUE);
+        checkedFields.put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "authentication_success");
+        checkedFields.put(LoggingAuditTrail.ACTION_FIELD_NAME, "_action");
+        checkedFields.put(LoggingAuditTrail.REQUEST_NAME_FIELD_NAME, request.getClass().getSimpleName());
+        checkedFields.put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
         crossClusterAccessAuthentication(authentication, remoteAuthentication, checkedFields, checkedLiteralFields);
         restOrTransportOrigin(request, threadContext, checkedFields);
         indicesRequest(request, checkedFields, checkedArrayFields);
         opaqueId(threadContext, checkedFields);
         traceId(threadContext, checkedFields);
         forwardedFor(threadContext, checkedFields);
-        assertMsg(singleLogLine(logger), checkedFields.map(), checkedArrayFields.map(), checkedLiteralFields.map());
+        assertMsg(singleLogLine(logger), checkedFields, checkedArrayFields, checkedLiteralFields);
     }
 
     public void testRequestsWithoutIndices() throws Exception {
@@ -3049,25 +3047,21 @@ public class LoggingAuditTrailTests extends ESTestCase {
         return randomBoolean() ? randomAlphaOfLengthBetween(8, 24) : AuditUtil.generateRequestId(threadContext);
     }
 
-    private static void restOrTransportOrigin(
-        TransportRequest request,
-        ThreadContext threadContext,
-        MapBuilder<String, String> checkedFields
-    ) {
+    private static void restOrTransportOrigin(TransportRequest request, ThreadContext threadContext, Map<String, String> checkedFields) {
         final InetSocketAddress restAddress = RemoteHostHeader.restRemoteAddress(threadContext);
         if (restAddress != null) {
-            checkedFields.put(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME, LoggingAuditTrail.REST_ORIGIN_FIELD_VALUE)
-                .put(LoggingAuditTrail.ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(restAddress));
+            checkedFields.put(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME, LoggingAuditTrail.REST_ORIGIN_FIELD_VALUE);
+            checkedFields.put(LoggingAuditTrail.ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(restAddress));
         } else {
             final InetSocketAddress address = request.remoteAddress();
             if (address != null) {
-                checkedFields.put(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME, LoggingAuditTrail.TRANSPORT_ORIGIN_FIELD_VALUE)
-                    .put(LoggingAuditTrail.ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(address));
+                checkedFields.put(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME, LoggingAuditTrail.TRANSPORT_ORIGIN_FIELD_VALUE);
+                checkedFields.put(LoggingAuditTrail.ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(address));
             }
         }
     }
 
-    private static void authentication(Authentication authentication, MapBuilder<String, String> checkedFields) {
+    private static void authentication(Authentication authentication, Map<String, String> checkedFields) {
         assertThat("use crossClusterAccessAuthentication instead", authentication.isCrossClusterAccess(), is(false));
         putCheckedFieldsForAuthentication(authentication, checkedFields);
     }
@@ -3075,8 +3069,8 @@ public class LoggingAuditTrailTests extends ESTestCase {
     private static void crossClusterAccessAuthentication(
         Authentication authentication,
         Authentication remoteAuthentication,
-        MapBuilder<String, String> checkedFields,
-        MapBuilder<String, String> checkedLiteralFields
+        Map<String, String> checkedFields,
+        Map<String, String> checkedLiteralFields
     ) {
         assertThat("authentication must be cross cluster access", authentication.isCrossClusterAccess(), is(true));
         assertThat("remote authentication cannot be run-as", remoteAuthentication.isRunAs(), is(false));
@@ -3115,7 +3109,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         checkedLiteralFields.put(LoggingAuditTrail.CROSS_CLUSTER_ACCESS_FIELD_NAME, expectedCrossClusterAccessLiteralField);
     }
 
-    private static void putCheckedFieldsForAuthentication(Authentication authentication, MapBuilder<String, String> checkedFields) {
+    private static void putCheckedFieldsForAuthentication(Authentication authentication, Map<String, String> checkedFields) {
         checkedFields.put(LoggingAuditTrail.PRINCIPAL_FIELD_NAME, authentication.getEffectiveSubject().getUser().principal());
         checkedFields.put(LoggingAuditTrail.AUTHENTICATION_TYPE_FIELD_NAME, authentication.getAuthenticationType().toString());
         if (authentication.isApiKey() || authentication.isCrossClusterAccess()) {
@@ -3147,7 +3141,8 @@ public class LoggingAuditTrailTests extends ESTestCase {
                 checkedFields.put(
                     LoggingAuditTrail.PRINCIPAL_RUN_BY_FIELD_NAME,
                     authentication.getAuthenticatingSubject().getUser().principal()
-                ).put(LoggingAuditTrail.PRINCIPAL_RUN_BY_REALM_FIELD_NAME, authenticatedBy.getName());
+                );
+                checkedFields.put(LoggingAuditTrail.PRINCIPAL_RUN_BY_REALM_FIELD_NAME, authenticatedBy.getName());
                 if (authenticatedBy.getDomain() != null) {
                     checkedFields.put(LoggingAuditTrail.PRINCIPAL_RUN_BY_DOMAIN_FIELD_NAME, authenticatedBy.getDomain().name());
                 }
@@ -3162,25 +3157,23 @@ public class LoggingAuditTrailTests extends ESTestCase {
             checkedFields.put(
                 LoggingAuditTrail.SERVICE_TOKEN_NAME_FIELD_NAME,
                 (String) authentication.getAuthenticatingSubject().getMetadata().get(TOKEN_NAME_FIELD)
-            )
-                .put(
-                    LoggingAuditTrail.SERVICE_TOKEN_TYPE_FIELD_NAME,
-                    ServiceAccountSettings.REALM_TYPE
-                        + "_"
-                        + authentication.getAuthenticatingSubject().getMetadata().get(TOKEN_SOURCE_FIELD)
-                );
+            );
+            checkedFields.put(
+                LoggingAuditTrail.SERVICE_TOKEN_TYPE_FIELD_NAME,
+                ServiceAccountSettings.REALM_TYPE + "_" + authentication.getAuthenticatingSubject().getMetadata().get(TOKEN_SOURCE_FIELD)
+            );
         }
     }
 
-    private static void opaqueId(ThreadContext threadContext, MapBuilder<String, String> checkedFields) {
+    private static void opaqueId(ThreadContext threadContext, Map<String, String> checkedFields) {
         setFieldFromThreadContext(threadContext, checkedFields, Task.X_OPAQUE_ID_HTTP_HEADER, LoggingAuditTrail.OPAQUE_ID_FIELD_NAME);
     }
 
-    private static void traceId(ThreadContext threadContext, MapBuilder<String, String> checkedFields) {
+    private static void traceId(ThreadContext threadContext, Map<String, String> checkedFields) {
         setFieldFromThreadContext(threadContext, checkedFields, Task.TRACE_ID, LoggingAuditTrail.TRACE_ID_FIELD_NAME);
     }
 
-    private static void forwardedFor(ThreadContext threadContext, MapBuilder<String, String> checkedFields) {
+    private static void forwardedFor(ThreadContext threadContext, Map<String, String> checkedFields) {
         setFieldFromThreadContext(
             threadContext,
             checkedFields,
@@ -3191,7 +3184,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
 
     private static void setFieldFromThreadContext(
         ThreadContext threadContext,
-        MapBuilder<String, String> checkedFields,
+        Map<String, String> checkedFields,
         String threadContextFieldName,
         String logFieldName
     ) {
@@ -3203,8 +3196,8 @@ public class LoggingAuditTrailTests extends ESTestCase {
 
     private static void indicesRequest(
         TransportRequest request,
-        MapBuilder<String, String> checkedFields,
-        MapBuilder<String, String[]> checkedArrayFields
+        Map<String, String> checkedFields,
+        Map<String, String[]> checkedArrayFields
     ) {
         if (request instanceof IndicesRequest) {
             checkedFields.put(LoggingAuditTrail.REQUEST_NAME_FIELD_NAME, MockIndicesRequest.class.getSimpleName());

@@ -29,7 +29,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.PageCacheRecycler;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.ShardId;
@@ -51,11 +50,11 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
@@ -237,8 +236,9 @@ public class BroadcastReplicationTests extends ESTestCase {
         BaseBroadcastResponse,
         BasicReplicationRequest,
         ReplicationResponse> {
-        protected final Set<Tuple<ShardId, ActionListener<ReplicationResponse>>> capturedShardRequests = ConcurrentCollections
-            .newConcurrentSet();
+        protected final List<Tuple<ShardId, ActionListener<ReplicationResponse>>> capturedShardRequests = Collections.synchronizedList(
+            new ArrayList<>()
+        );
 
         TestBroadcastReplicationAction(
             ClusterService clusterService,

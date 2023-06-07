@@ -12,7 +12,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
@@ -57,7 +57,7 @@ public class SearchShardsResponseTests extends AbstractWireSerializingTestCase<S
 
     @Override
     protected SearchShardsResponse createTestInstance() {
-        List<DiscoveryNode> nodes = randomList(1, 10, () -> TestDiscoveryNode.create(UUIDs.randomBase64UUID()));
+        List<DiscoveryNode> nodes = randomList(1, 10, () -> DiscoveryNodeUtils.create(UUIDs.randomBase64UUID()));
         int numGroups = randomIntBetween(0, 10);
         List<SearchShardsGroup> groups = new ArrayList<>();
         for (int i = 0; i < numGroups; i++) {
@@ -94,7 +94,7 @@ public class SearchShardsResponseTests extends AbstractWireSerializingTestCase<S
             }
             case 1 -> {
                 List<DiscoveryNode> nodes = new ArrayList<>(r.getNodes());
-                nodes.add(TestDiscoveryNode.create(UUIDs.randomBase64UUID()));
+                nodes.add(DiscoveryNodeUtils.create(UUIDs.randomBase64UUID()));
                 return new SearchShardsResponse(r.getGroups(), nodes, r.getAliasFilters());
             }
             case 2 -> {
@@ -109,12 +109,12 @@ public class SearchShardsResponseTests extends AbstractWireSerializingTestCase<S
     }
 
     public void testLegacyResponse() {
-        DiscoveryNode node1 = TestDiscoveryNode.create(
+        DiscoveryNode node1 = DiscoveryNodeUtils.create(
             "node-1",
             new TransportAddress(TransportAddress.META_ADDRESS, randomInt(0xFFFF)),
             VersionUtils.randomVersion(random())
         );
-        DiscoveryNode node2 = TestDiscoveryNode.create(
+        DiscoveryNode node2 = DiscoveryNodeUtils.create(
             "node-2",
             new TransportAddress(TransportAddress.META_ADDRESS, randomInt(0xFFFF)),
             VersionUtils.randomVersion(random())

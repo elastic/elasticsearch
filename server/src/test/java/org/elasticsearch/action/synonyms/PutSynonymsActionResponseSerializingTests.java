@@ -13,8 +13,8 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
 
-import static org.elasticsearch.action.synonyms.PutSynonymsAction.Response.Result.CREATED;
-import static org.elasticsearch.action.synonyms.PutSynonymsAction.Response.Result.UPDATED;
+import static org.elasticsearch.synonyms.SynonymsManagementAPIService.UpdateSynonymsResult.CREATED;
+import static org.elasticsearch.synonyms.SynonymsManagementAPIService.UpdateSynonymsResult.UPDATED;
 
 public class PutSynonymsActionResponseSerializingTests extends AbstractWireSerializingTestCase<PutSynonymsAction.Response> {
 

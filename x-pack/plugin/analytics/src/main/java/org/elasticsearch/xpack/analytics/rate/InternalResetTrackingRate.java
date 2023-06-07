@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 public class InternalResetTrackingRate extends InternalNumericMetricsAggregation.SingleValue implements Rate {
 
@@ -51,7 +52,7 @@ public class InternalResetTrackingRate extends InternalNumericMetricsAggregation
         this.startTime = startTime;
         this.endTime = endTime;
         this.resetCompensation = resetCompensation;
-        this.rateUnit = rateUnit;
+        this.rateUnit = Objects.requireNonNull(rateUnit);
     }
 
     public InternalResetTrackingRate(StreamInput in) throws IOException {
@@ -126,10 +127,8 @@ public class InternalResetTrackingRate extends InternalNumericMetricsAggregation
 
     @Override
     public double value() {
-        long rateUnitSeconds = rateUnit == null
-            ? Rounding.DateTimeUnit.SECOND_OF_MINUTE.getField().getBaseUnit().getDuration().getSeconds()
-            : rateUnit.getField().getBaseUnit().getDuration().toSeconds();
-        return (endValue - startValue + resetCompensation) / (endTime - startTime) * rateUnitSeconds;
+        long rateUnitScalingFactor = rateUnit.getField().getBaseUnit().getDuration().toSeconds();
+        return (endValue - startValue + resetCompensation) / (endTime - startTime) * rateUnitScalingFactor;
     }
 
     @Override

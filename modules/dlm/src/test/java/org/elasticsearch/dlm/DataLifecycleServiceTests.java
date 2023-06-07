@@ -882,7 +882,7 @@ public class DataLifecycleServiceTests extends ESTestCase {
             buildNewFakeTransportAddress(),
             Collections.emptyMap(),
             Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_HOT_NODE_ROLE, DiscoveryNodeRole.DATA_CONTENT_NODE_ROLE),
-            Version.CURRENT
+            null
         );
     }
 

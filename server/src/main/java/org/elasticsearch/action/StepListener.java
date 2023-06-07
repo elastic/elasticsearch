@@ -12,7 +12,6 @@ import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.CheckedConsumer;
 
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.BiFunction;
 import java.util.function.Consumer;
 
 /**
@@ -70,22 +69,6 @@ public final class StepListener<Response> implements ActionListener<Response> {
      */
     public void whenComplete(CheckedConsumer<Response, Exception> onResponse, Consumer<Exception> onFailure) {
         addListener(ActionListener.wrap(onResponse, onFailure));
-    }
-
-    /**
-     * Combines this listener with another one, waiting for both to successfully complete and combining their results.
-     *
-     * @param other the other step listener to combine with
-     * @param fn    the function that combines the results
-     * @return the combined listener
-     */
-    public <OtherResponse, OuterResponse> StepListener<OuterResponse> thenCombine(
-        StepListener<OtherResponse> other,
-        BiFunction<Response, OtherResponse, OuterResponse> fn
-    ) {
-        final StepListener<OuterResponse> combined = new StepListener<>();
-        whenComplete(r1 -> other.whenComplete(r2 -> combined.onResponse(fn.apply(r1, r2)), combined::onFailure), combined::onFailure);
-        return combined;
     }
 
     /**

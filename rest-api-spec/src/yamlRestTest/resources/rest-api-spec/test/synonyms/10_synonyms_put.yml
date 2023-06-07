@@ -1,0 +1,69 @@
+---
+"Create and Update synonyms set":
+  - skip:
+      version: " - 8.8.99"
+      reason: Introduced in 8.9.0
+  - do:
+      synonyms.put:
+        synonyms_set: test-update-synonyms
+        body:
+          synonyms_set:
+            - synonyms: "hello, hi"
+            - synonyms: "bye => goodbye"
+              id: "test-id"
+
+  - match: { result: "created" }
+
+  - do:
+      synonyms.put:
+        synonyms_set: test-update-synonyms
+        body:
+          synonyms_set:
+            - synonyms: "other, another"
+
+  - match: { result: "updated" }
+
+---
+"Validation fails tests":
+  - skip:
+      version: " - 8.8.99"
+      reason: Introduced in 8.9.0
+  - do:
+      catch: /\[synonyms\] field can't be empty/
+      synonyms.put:
+        synonyms_set: test-update-synonyms
+        body:
+          synonyms_set:
+            - synonyms: ""
+
+  - do:
+      catch: /More than one explicit mapping specified in the same synonyms rule/
+      synonyms.put:
+        synonyms_set: test-update-synonyms
+        body:
+          synonyms_set:
+            - synonyms: "bye => => goodbye"
+
+  - do:
+      catch: /Incorrect syntax for \[synonyms\]/
+      synonyms.put:
+        synonyms_set: test-update-synonyms
+        body:
+          synonyms_set:
+            - synonyms: " => goodbye"
+
+  - do:
+      catch: /Incorrect syntax for \[synonyms\]/
+      synonyms.put:
+        synonyms_set: test-update-synonyms
+        body:
+          synonyms_set:
+            - synonyms: "bye => "
+
+  - do:
+      catch: /Incorrect syntax for \[synonyms\]/
+      synonyms.put:
+        synonyms_set: test-update-synonyms
+        body:
+          synonyms_set:
+            - synonyms: "bye, goodbye,  "

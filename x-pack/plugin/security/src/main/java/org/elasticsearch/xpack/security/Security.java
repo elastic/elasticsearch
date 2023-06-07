@@ -759,7 +759,8 @@ public class Security extends Plugin
             settings,
             client,
             systemIndices.getMainIndexManager(),
-            cacheInvalidatorRegistry
+            cacheInvalidatorRegistry,
+            clusterService
         );
         components.add(privilegeStore);
 
@@ -1680,10 +1681,7 @@ public class Security extends Plugin
                     RemoteHostHeader.process(channel, threadContext);
                     // step 2: Run authentication on the now properly prepared thread-context.
                     // This inspects and modifies the thread context.
-                    authenticationService.authenticate(
-                        httpPreRequest,
-                        ActionListener.wrap(ignored -> listener.onResponse(null), listener::onFailure)
-                    );
+                    authenticationService.authenticate(httpPreRequest, listener.delegateFailureAndWrap((l, ignored) -> l.onResponse(null)));
                 },
                 (httpRequest, channel, listener) -> {
                     // allow unauthenticated OPTIONS request through

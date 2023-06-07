@@ -1,0 +1,6 @@
+pr: 96479
+summary: Resolving wildcard application names without prefix query
+area: Authorization
+type: bug
+issues:
+  - 96465

@@ -251,7 +251,7 @@ public class SubscribableListener<T> implements ActionListener<T> {
     }
 
     private static boolean isDone(Object currentState) {
-        return currentState instanceof SubscribableListener.SuccessResult<?> || currentState instanceof SubscribableListener.FailureResult;
+        return currentState instanceof SuccessResult<?> || currentState instanceof FailureResult;
     }
 
     /**

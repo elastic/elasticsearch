@@ -27,9 +27,10 @@ public interface OperatorOnlyRegistry {
      * the request and respond back to the client with the given {@link RestResponse} without ever calling the {@link RestHandler}.
      * If null is returned the caller must proceed as normal and call the {@link RestHandler}.
      * @param restHandler The {@link RestHandler} to check for any restrictions
+     * @param restRequest The {@link RestRequest} to check for any restrictions
      * @return null if no restrictions should be enforced, {@link RestResponse} if the request is restricted
      */
-    RestResponse checkRestFull(RestHandler restHandler);
+    RestResponse checkRestFull(RestHandler restHandler, RestRequest restRequest);
 
     /**
      * Checks to see if a given {@link RestHandler} is subject to partial restrictions. A partial restriction still allows the request

@@ -83,7 +83,7 @@ public class DefaultOperatorOnlyRegistry implements OperatorOnlyRegistry {
     }
 
     @Override
-    public RestResponse checkRestFull(RestHandler restHandler) {
+    public RestResponse checkRestFull(RestHandler restHandler, RestRequest restRequest) {
         return null; // no restrictions
     }
 

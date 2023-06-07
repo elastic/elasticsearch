@@ -162,7 +162,7 @@ public class SecurityTests extends ESTestCase {
         }
 
         @Override
-        public RestResponse checkRestFull(RestHandler restHandler) {
+        public RestResponse checkRestFull(RestHandler restHandler, RestRequest restRequest) {
             throw new RuntimeException("boom");
         }
 

@@ -301,7 +301,7 @@ public class SecurityRestFilterTests extends ESTestCase {
                     }
 
                     @Override
-                    public RestResponse checkRestFull(RestHandler restHandler, ThreadContext threadContext) {
+                    public RestResponse checkRestFull(RestHandler restHandler, RestRequest restRequest, ThreadContext threadContext) {
                         return isOperator ? null : fullyRestrictedResponse;
                     }
 
@@ -346,7 +346,7 @@ public class SecurityRestFilterTests extends ESTestCase {
                     }
 
                     @Override
-                    public RestResponse checkRestFull(RestHandler restHandler, ThreadContext threadContext) {
+                    public RestResponse checkRestFull(RestHandler restHandler, RestRequest restRequest, ThreadContext threadContext) {
                         return null;
                     }
 

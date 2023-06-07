@@ -96,7 +96,7 @@ public class SecurityRestFilter implements RestHandler {
 
     private void doHandleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
         threadContext.sanitizeHeaders();
-        RestResponse fullyRestrictedResponse = operatorPrivilegesService.checkRestFull(restHandler, threadContext);
+        RestResponse fullyRestrictedResponse = operatorPrivilegesService.checkRestFull(restHandler, request, threadContext);
         if (fullyRestrictedResponse == null) {
             RestRequest maybeRestrictedRequest = operatorPrivilegesService.checkRestPartial(restHandler, request, threadContext);
             try {

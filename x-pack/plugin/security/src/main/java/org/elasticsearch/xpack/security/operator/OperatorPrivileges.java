@@ -24,8 +24,6 @@ import org.elasticsearch.xpack.core.security.user.InternalUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.Security;
 
-import java.util.stream.Collectors;
-
 public class OperatorPrivileges {
 
     private static final Logger logger = LogManager.getLogger(OperatorPrivileges.class);
@@ -60,10 +58,11 @@ public class OperatorPrivileges {
          * the request and respond back to the client with the given {@link RestResponse} without ever calling the {@link RestHandler}.
          * If null is returned the caller must proceed as normal and call the {@link RestHandler}.
          * @param restHandler The {@link RestHandler} to check for any restrictions
+         * @param restRequest The {@link RestRequest} to check for any restrictions
          * @param threadContext Reference to the current {@link ThreadContext}
          * @return null if no restrictions should be enforced, {@link RestResponse} if the request is restricted
          */
-        RestResponse checkRestFull(RestHandler restHandler, ThreadContext threadContext);
+        RestResponse checkRestFull(RestHandler restHandler, RestRequest restRequest, ThreadContext threadContext);
 
         /**
          * Checks to see if a given {@link RestHandler} is subject to partial restrictions. A partial restriction still allows the request
@@ -151,7 +150,7 @@ public class OperatorPrivileges {
         }
 
         @Override
-        public RestResponse checkRestFull(RestHandler restHandler, ThreadContext threadContext) {
+        public RestResponse checkRestFull(RestHandler restHandler, RestRequest restRequest, ThreadContext threadContext) {
             if (false == shouldProcess()) {
                 return null;
             }
@@ -162,13 +161,9 @@ public class OperatorPrivileges {
                 if (logger.isTraceEnabled()) {
                     Authentication authentication = threadContext.getTransient(AuthenticationField.AUTHENTICATION_KEY);
                     final User user = authentication.getEffectiveSubject().getUser();
-                    logger.trace(
-                        "Checking for full REST restriction for user [{}] and routes [{}]",
-                        user,
-                        restHandler.routes().stream().map(RestHandler.Route::getPath).collect(Collectors.joining(","))
-                    );
+                    logger.trace("Checking for full REST restriction for user [{}] and uri [{}]", user, restRequest.uri());
                 }
-                return operatorOnlyRegistry.checkRestFull(restHandler);
+                return operatorOnlyRegistry.checkRestFull(restHandler, restRequest);
             }
             return null;
         }
@@ -185,11 +180,7 @@ public class OperatorPrivileges {
                 if (logger.isTraceEnabled()) {
                     Authentication authentication = threadContext.getTransient(AuthenticationField.AUTHENTICATION_KEY);
                     final User user = authentication.getEffectiveSubject().getUser();
-                    logger.trace(
-                        "Checking operator-only violation for user [{}] and routes [{}]",
-                        user,
-                        restHandler.routes().stream().map(RestHandler.Route::getPath).collect(Collectors.joining(","))
-                    );
+                    logger.trace("Checking operator-only violation for user [{}] and uri [{}]", user, restRequest.uri());
                 }
                 return operatorOnlyRegistry.checkRestPartial(restHandler, restRequest);
             }
@@ -228,7 +219,7 @@ public class OperatorPrivileges {
         }
 
         @Override
-        public RestResponse checkRestFull(RestHandler restHandler, ThreadContext threadContext) {
+        public RestResponse checkRestFull(RestHandler restHandler, RestRequest restRequest, ThreadContext threadContext) {
             return null;
         }
 

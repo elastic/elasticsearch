@@ -274,14 +274,15 @@ public class DefaultOperatorPrivilegesTests extends ESTestCase {
         final Settings settings = Settings.builder().put("xpack.security.operator_privileges.enabled", true).build();
         when(xPackLicenseState.isAllowed(Security.OPERATOR_PRIVILEGES_FEATURE)).thenReturn(true);
         RestHandler restHandler = mock(RestHandler.class);
+        RestRequest restRequest = mock(RestRequest.class);
         RestResponse restrictedResponse = new RestResponse(RestStatus.NOT_FOUND, "I'm not a teapot");
-        when(operatorOnlyRegistry.checkRestFull(restHandler)).thenReturn(restrictedResponse);
+        when(operatorOnlyRegistry.checkRestFull(restHandler, restRequest)).thenReturn(restrictedResponse);
         ThreadContext threadContext = new ThreadContext(settings);
         // not an operator (returns a response object to allow for early exit)
-        assertThat(operatorPrivilegesService.checkRestFull(restHandler, threadContext), is(restrictedResponse));
+        assertThat(operatorPrivilegesService.checkRestFull(restHandler, restRequest, threadContext), is(restrictedResponse));
         // is an operator (returns null to allow for normal operation)
         threadContext.putHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY, AuthenticationField.PRIVILEGE_CATEGORY_VALUE_OPERATOR);
-        assertNull(operatorPrivilegesService.checkRestFull(restHandler, threadContext));
+        assertNull(operatorPrivilegesService.checkRestFull(restHandler, restRequest, threadContext));
     }
 
     public void testCheckRestPartial() {

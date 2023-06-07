@@ -45,7 +45,7 @@ public class RemoteClusterAwareClientTests extends ESTestCase {
     }
 
     private MockTransportService startTransport(String id, List<DiscoveryNode> knownNodes) {
-        return RemoteClusterConnectionTests.startTransport(id, knownNodes, Version.CURRENT, TransportVersion.CURRENT, threadPool);
+        return RemoteClusterConnectionTests.startTransport(id, knownNodes, Version.CURRENT, TransportVersion.current(), threadPool);
     }
 
     public void testSearchShards() throws Exception {
@@ -63,7 +63,7 @@ public class RemoteClusterAwareClientTests extends ESTestCase {
                 MockTransportService service = MockTransportService.createNewService(
                     builder.build(),
                     Version.CURRENT,
-                    TransportVersion.CURRENT,
+                        TransportVersion.current(),
                     threadPool,
                     null
                 )
@@ -111,7 +111,7 @@ public class RemoteClusterAwareClientTests extends ESTestCase {
                 MockTransportService service = MockTransportService.createNewService(
                     builder.build(),
                     Version.CURRENT,
-                    TransportVersion.CURRENT,
+                        TransportVersion.current(),
                     threadPool,
                     null
                 )

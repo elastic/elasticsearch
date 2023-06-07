@@ -176,7 +176,7 @@ public class AuthenticationConsistencyTests extends ESTestCase {
                     new Subject(
                         userFoo,
                         Authentication.RealmRef.newCrossClusterAccessRealmRef("node"),
-                        TransportVersion.CURRENT,
+                            TransportVersion.current(),
                         Map.of(AuthenticationField.API_KEY_ID_KEY, "abc")
                     ),
                     Authentication.AuthenticationType.API_KEY
@@ -188,7 +188,7 @@ public class AuthenticationConsistencyTests extends ESTestCase {
                     new Subject(
                         userFoo,
                         Authentication.RealmRef.newCrossClusterAccessRealmRef("node"),
-                        TransportVersion.CURRENT,
+                            TransportVersion.current(),
                         Map.of(
                             AuthenticationField.API_KEY_ID_KEY,
                             "abc",
@@ -206,7 +206,7 @@ public class AuthenticationConsistencyTests extends ESTestCase {
                     new Subject(
                         userFoo,
                         Authentication.RealmRef.newCrossClusterAccessRealmRef("node"),
-                        TransportVersion.CURRENT,
+                            TransportVersion.current(),
                         Map.of(
                             AuthenticationField.API_KEY_ID_KEY,
                             "abc",
@@ -224,7 +224,7 @@ public class AuthenticationConsistencyTests extends ESTestCase {
                     new Subject(
                         userFoo,
                         Authentication.RealmRef.newCrossClusterAccessRealmRef("node"),
-                        TransportVersion.CURRENT,
+                            TransportVersion.current(),
                         Map.of(
                             AuthenticationField.API_KEY_ID_KEY,
                             "abc",

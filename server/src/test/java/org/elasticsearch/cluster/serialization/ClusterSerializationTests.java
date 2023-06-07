@@ -164,7 +164,7 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
         TransportVersion version = TransportVersionUtils.randomVersionBetween(
             random(),
             TransportVersion.MINIMUM_COMPATIBLE,
-            TransportVersion.CURRENT
+                TransportVersion.current()
         );
         outStream.setTransportVersion(version);
         diffs.writeTo(outStream);
@@ -192,7 +192,7 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
 
     private ClusterState updateUsingSerialisedDiff(ClusterState original, Diff<ClusterState> diff) throws IOException {
         BytesStreamOutput outStream = new BytesStreamOutput();
-        outStream.setTransportVersion(TransportVersion.CURRENT);
+        outStream.setTransportVersion(TransportVersion.current());
         diff.writeTo(outStream);
         StreamInput inStream = new NamedWriteableAwareStreamInput(
             outStream.bytes().streamInput(),
@@ -222,7 +222,7 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
             .routingTable(routingTable)
             .build();
         BytesStreamOutput outStream = new BytesStreamOutput();
-        outStream.setTransportVersion(TransportVersion.CURRENT);
+        outStream.setTransportVersion(TransportVersion.current());
         clusterState1.writeTo(outStream);
         StreamInput inStream = new NamedWriteableAwareStreamInput(
             outStream.bytes().streamInput(),
@@ -317,7 +317,7 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersion.CURRENT;
+            return TransportVersion.current();
         }
 
     }
@@ -383,7 +383,7 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
 
         // serialize with current version
         BytesStreamOutput outStream = new BytesStreamOutput();
-        TransportVersion version = TransportVersion.CURRENT;
+        TransportVersion version = TransportVersion.current();
         outStream.setTransportVersion(version);
         diffs.writeTo(outStream);
         StreamInput inStream = outStream.bytes().streamInput();

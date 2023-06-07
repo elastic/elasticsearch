@@ -243,7 +243,7 @@ public class SuggestTests extends ESTestCase {
         TransportVersion bwcVersion = TransportVersionUtils.randomVersionBetween(
             random(),
             TransportVersion.MINIMUM_COMPATIBLE,
-            TransportVersion.CURRENT
+                TransportVersion.current()
         );
 
         final Suggest suggest = createTestItem();
@@ -265,10 +265,10 @@ public class SuggestTests extends ESTestCase {
         final Suggest backAgain;
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            out.setTransportVersion(TransportVersion.CURRENT);
+            out.setTransportVersion(TransportVersion.current());
             bwcSuggest.writeTo(out);
             try (NamedWriteableAwareStreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), registry)) {
-                in.setTransportVersion(TransportVersion.CURRENT);
+                in.setTransportVersion(TransportVersion.current());
                 backAgain = new Suggest(in);
             }
         }

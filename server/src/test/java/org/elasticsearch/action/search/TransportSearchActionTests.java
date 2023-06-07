@@ -375,7 +375,7 @@ public class TransportSearchActionTests extends ESTestCase {
 
             @Override
             public TransportVersion getTransportVersion() {
-                return TransportVersion.CURRENT;
+                return TransportVersion.current();
             }
 
             @Override
@@ -464,7 +464,7 @@ public class TransportSearchActionTests extends ESTestCase {
                 "node_remote" + i,
                 knownNodes,
                 Version.CURRENT,
-                TransportVersion.CURRENT,
+                    TransportVersion.current(),
                 threadPool
             );
             mockTransportServices[i] = remoteSeedTransport;
@@ -504,7 +504,7 @@ public class TransportSearchActionTests extends ESTestCase {
             MockTransportService service = MockTransportService.createNewService(
                 settings,
                 Version.CURRENT,
-                TransportVersion.CURRENT,
+                    TransportVersion.current(),
                 threadPool,
                 null
             )
@@ -569,7 +569,7 @@ public class TransportSearchActionTests extends ESTestCase {
             MockTransportService service = MockTransportService.createNewService(
                 settings,
                 Version.CURRENT,
-                TransportVersion.CURRENT,
+                    TransportVersion.current(),
                 threadPool,
                 null
             )
@@ -824,7 +824,7 @@ public class TransportSearchActionTests extends ESTestCase {
             MockTransportService service = MockTransportService.createNewService(
                 settings,
                 Version.CURRENT,
-                TransportVersion.CURRENT,
+                    TransportVersion.current(),
                 threadPool,
                 null
             )
@@ -1478,7 +1478,7 @@ public class TransportSearchActionTests extends ESTestCase {
             TransportService transportService = MockTransportService.createNewService(
                 Settings.EMPTY,
                 Version.CURRENT,
-                TransportVersion.CURRENT,
+                    TransportVersion.current(),
                 threadPool
             );
 

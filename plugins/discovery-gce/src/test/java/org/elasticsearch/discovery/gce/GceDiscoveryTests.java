@@ -89,7 +89,7 @@ public class GceDiscoveryTests extends ESTestCase {
         transportService = MockTransportService.createNewService(
             Settings.EMPTY,
             Version.CURRENT,
-            TransportVersion.CURRENT,
+                TransportVersion.current(),
             threadPool,
             null
         );

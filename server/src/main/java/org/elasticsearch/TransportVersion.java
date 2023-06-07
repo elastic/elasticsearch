@@ -133,11 +133,7 @@ public record TransportVersion(int id) implements Comparable<TransportVersion> {
     public static final TransportVersion V_8_500_007 = registerTransportVersion(8_500_007, "77261d43-4149-40af-89c5-7e71e0454fce");
     public static final TransportVersion V_8_500_008 = registerTransportVersion(8_500_008, "8884ab9d-94cd-4bac-aff8-01f2c394f47c");
 
-    /**
-     * Reference to the most recent transport version.
-     * This should be the transport version with the highest id.
-     */
-    public static final TransportVersion CURRENT = findCurrent(V_8_500_008);
+    private static final TransportVersion CURRENT = findCurrent(V_8_500_008);
 
     /**
      * Reference to the earliest compatible transport version to this version of the codebase.
@@ -238,6 +234,14 @@ public record TransportVersion(int id) implements Comparable<TransportVersion> {
      */
     public static boolean isCompatible(TransportVersion version) {
         return version.onOrAfter(MINIMUM_COMPATIBLE);
+    }
+
+    /**
+     * Reference to the most recent transport version.
+     * This should be the transport version with the highest id.
+     */
+    public static TransportVersion current() {
+        return CURRENT;
     }
 
     public boolean after(TransportVersion version) {

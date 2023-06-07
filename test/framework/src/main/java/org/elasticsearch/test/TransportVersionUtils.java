@@ -75,8 +75,8 @@ public class TransportVersionUtils {
     }
 
     public static TransportVersion getPreviousVersion() {
-        TransportVersion version = getPreviousVersion(TransportVersion.CURRENT);
-        assert version.before(TransportVersion.CURRENT);
+        TransportVersion version = getPreviousVersion(TransportVersion.current());
+        assert version.before(TransportVersion.current());
         return version;
     }
 
@@ -111,6 +111,6 @@ public class TransportVersionUtils {
 
     /** Returns a random {@code TransportVersion} that is compatible with {@link TransportVersion#CURRENT} */
     public static TransportVersion randomCompatibleVersion(Random random) {
-        return randomVersionBetween(random, TransportVersion.MINIMUM_COMPATIBLE, TransportVersion.CURRENT);
+        return randomVersionBetween(random, TransportVersion.MINIMUM_COMPATIBLE, TransportVersion.current());
     }
 }

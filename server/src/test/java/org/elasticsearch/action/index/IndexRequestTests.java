@@ -244,7 +244,7 @@ public class IndexRequestTests extends ESTestCase {
             TransportVersion ver = TransportVersionUtils.randomVersionBetween(
                 random(),
                 TransportVersion.V_7_13_0,
-                TransportVersion.CURRENT
+                    TransportVersion.current()
             );
             BytesStreamOutput out = new BytesStreamOutput();
             out.setTransportVersion(ver);

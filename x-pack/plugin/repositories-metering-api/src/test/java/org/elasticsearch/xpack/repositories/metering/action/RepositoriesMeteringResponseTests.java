@@ -31,7 +31,7 @@ public class RepositoriesMeteringResponseTests extends ESTestCase {
             repositoriesMeteringResponse,
             writableRegistry(),
             RepositoriesMeteringResponse::new,
-            TransportVersion.CURRENT
+                TransportVersion.current()
         );
         assertResponsesAreEqual(repositoriesMeteringResponse, deserializedResponse);
     }

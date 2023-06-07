@@ -636,11 +636,11 @@ public class AuthenticationTestHelper {
                             String nodeName = ESTestCase.randomAlphaOfLengthBetween(3, 8);
                             if (internalUser == InternalUsers.SYSTEM_USER) {
                                 authentication = ESTestCase.randomFrom(
-                                    Authentication.newInternalAuthentication(internalUser, TransportVersion.CURRENT, nodeName),
+                                    Authentication.newInternalAuthentication(internalUser, TransportVersion.current(), nodeName),
                                     Authentication.newInternalFallbackAuthentication(user, nodeName)
                                 );
                             } else {
-                                authentication = Authentication.newInternalAuthentication(internalUser, TransportVersion.CURRENT, nodeName);
+                                authentication = Authentication.newInternalAuthentication(internalUser, TransportVersion.current(), nodeName);
                             }
                         } else {
                             throw new IllegalArgumentException(
@@ -659,7 +659,7 @@ public class AuthenticationTestHelper {
                     default -> throw new IllegalArgumentException("unknown authentication type [" + authenticationType + "]");
                 }
                 if (transportVersion == null) {
-                    transportVersion = TransportVersion.CURRENT;
+                    transportVersion = TransportVersion.current();
                 }
                 if (transportVersion.before(authentication.getEffectiveSubject().getTransportVersion())) {
                     return authentication.maybeRewriteForOlderVersion(transportVersion);

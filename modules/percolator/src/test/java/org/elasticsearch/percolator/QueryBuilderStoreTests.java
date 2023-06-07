@@ -71,7 +71,7 @@ public class QueryBuilderStoreTests extends ESTestCase {
                     DocumentParserContext documentParserContext = new TestDocumentParserContext();
                     PercolatorFieldMapper.createQueryBuilderField(
                         Version.CURRENT,
-                        TransportVersion.CURRENT,
+                            TransportVersion.current(),
                         fieldMapper,
                         queryBuilders[i],
                         documentParserContext

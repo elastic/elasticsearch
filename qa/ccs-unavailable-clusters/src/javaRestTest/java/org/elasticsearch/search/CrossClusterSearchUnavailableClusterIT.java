@@ -161,7 +161,7 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
                 "node0",
                 new CopyOnWriteArrayList<>(),
                 Version.CURRENT,
-                TransportVersion.CURRENT,
+                    TransportVersion.current(),
                 threadPool
             )
         ) {
@@ -267,7 +267,7 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
                 "node0",
                 new CopyOnWriteArrayList<>(),
                 Version.CURRENT,
-                TransportVersion.CURRENT,
+                    TransportVersion.current(),
                 threadPool
             )
         ) {

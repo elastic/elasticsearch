@@ -162,11 +162,11 @@ public class GetApiKeyRequestTests extends ESTestCase {
             final GetApiKeyRequest getApiKeyRequest = GetApiKeyRequest.builder().apiKeyId(apiKeyId).withLimitedBy(randomBoolean()).build();
             ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
             OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
-            out.setTransportVersion(randomVersionBetween(random(), TransportVersion.V_8_5_0, TransportVersion.CURRENT));
+            out.setTransportVersion(randomVersionBetween(random(), TransportVersion.V_8_5_0, TransportVersion.current()));
             getApiKeyRequest.writeTo(out);
 
             InputStreamStreamInput inputStreamStreamInput = new InputStreamStreamInput(new ByteArrayInputStream(outBuffer.toByteArray()));
-            inputStreamStreamInput.setTransportVersion(randomVersionBetween(random(), TransportVersion.V_8_5_0, TransportVersion.CURRENT));
+            inputStreamStreamInput.setTransportVersion(randomVersionBetween(random(), TransportVersion.V_8_5_0, TransportVersion.current()));
             GetApiKeyRequest requestFromInputStream = new GetApiKeyRequest(inputStreamStreamInput);
 
             assertThat(requestFromInputStream, equalTo(getApiKeyRequest));

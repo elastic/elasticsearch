@@ -438,7 +438,7 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
         final MockTransportService service = MockTransportService.createNewService(
             builder.build(),
             Version.CURRENT,
-            TransportVersion.CURRENT,
+                TransportVersion.current(),
             threadPool,
             null
         );
@@ -449,7 +449,7 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
                 try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
                     new CrossClusterAccessHeaders(
                         "ApiKey " + encodedApiKey,
-                        subjectInfoLookup.getOrDefault(action, SystemUser.crossClusterAccessSubjectInfo(TransportVersion.CURRENT, nodeName))
+                        subjectInfoLookup.getOrDefault(action, SystemUser.crossClusterAccessSubjectInfo(TransportVersion.current(), nodeName))
                     ).writeToContext(threadContext);
                     connection.sendRequest(requestId, action, request, options);
                 }

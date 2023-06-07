@@ -28,19 +28,19 @@ public class SqlStreamTests extends ESTestCase {
     public void testWriteAndRead() throws IOException {
         BytesRef payload = new BytesRef(randomByteArrayOfLength(randomIntBetween(10, 1000)));
 
-        SqlStreamOutput out = SqlStreamOutput.create(TransportVersion.CURRENT, randomZone());
+        SqlStreamOutput out = SqlStreamOutput.create(TransportVersion.current(), randomZone());
         out.writeBytesRef(payload);
         out.close();
         String encoded = out.streamAsString();
 
-        SqlStreamInput in = SqlStreamInput.fromString(encoded, new NamedWriteableRegistry(List.of()), TransportVersion.CURRENT);
+        SqlStreamInput in = SqlStreamInput.fromString(encoded, new NamedWriteableRegistry(List.of()), TransportVersion.current());
         BytesRef read = in.readBytesRef();
 
         assertArrayEquals(payload.bytes, read.bytes);
     }
 
     public void testPayloadIsCompressed() throws IOException {
-        SqlStreamOutput out = SqlStreamOutput.create(TransportVersion.CURRENT, randomZone());
+        SqlStreamOutput out = SqlStreamOutput.create(TransportVersion.current(), randomZone());
         byte[] payload = new byte[1000];
         Arrays.fill(payload, (byte) 0);
         out.write(payload);
@@ -60,11 +60,11 @@ public class SqlStreamTests extends ESTestCase {
                     + "AP////8PAAAAAAAAAAAAAAAAAVoDAAICAAAAAAAAAAAKAP////8PAgFtCDJkMTBjNGJhBXZhbHVlAAEE"
                     + "QllURQFrCGJkZWY4OGU1AAABAwA=",
                 new NamedWriteableRegistry(List.of()),
-                TransportVersion.CURRENT
+                    TransportVersion.current()
             )
         );
 
-        assertThat(ex.getMessage(), containsString("Unsupported cursor version [7150199], expected [" + TransportVersion.CURRENT + "]"));
+        assertThat(ex.getMessage(), containsString("Unsupported cursor version [7150199], expected [" + TransportVersion.current() + "]"));
     }
 
     public void testVersionCanBeReadByOldNodes() throws IOException {

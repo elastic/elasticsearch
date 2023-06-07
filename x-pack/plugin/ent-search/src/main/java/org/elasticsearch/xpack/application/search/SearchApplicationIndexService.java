@@ -461,7 +461,7 @@ public class SearchApplicationIndexService {
 
     static SearchApplication parseSearchApplicationBinaryWithVersion(StreamInput in) throws IOException {
         TransportVersion version = TransportVersion.readVersion(in);
-        assert version.onOrBefore(TransportVersion.CURRENT) : version + " >= " + TransportVersion.CURRENT;
+        assert version.onOrBefore(TransportVersion.current()) : version + " >= " + TransportVersion.current();
         in.setTransportVersion(version);
         return new SearchApplication(in);
     }

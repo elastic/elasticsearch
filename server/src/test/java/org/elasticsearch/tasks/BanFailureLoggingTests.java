@@ -114,7 +114,7 @@ public class BanFailureLoggingTests extends TaskManagerTestCase {
             final MockTransportService parentTransportService = MockTransportService.createNewService(
                 Settings.EMPTY,
                 Version.CURRENT,
-                TransportVersion.CURRENT,
+                    TransportVersion.current(),
                 threadPool
             );
             resources.add(parentTransportService);
@@ -125,7 +125,7 @@ public class BanFailureLoggingTests extends TaskManagerTestCase {
             final MockTransportService childTransportService = MockTransportService.createNewService(
                 Settings.EMPTY,
                 Version.CURRENT,
-                TransportVersion.CURRENT,
+                    TransportVersion.current(),
                 threadPool
             );
             resources.add(childTransportService);

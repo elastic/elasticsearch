@@ -68,7 +68,7 @@ import java.util.function.IntFunction;
  */
 public abstract class StreamInput extends InputStream {
 
-    private TransportVersion version = TransportVersion.CURRENT;
+    private TransportVersion version = TransportVersion.current();
 
     /**
      * The transport version the data is serialized as.

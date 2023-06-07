@@ -83,7 +83,7 @@ public class RemoteClusterNodesActionTests extends ESTestCase {
             nodeInfos.add(
                 new NodeInfo(
                     Version.CURRENT,
-                    TransportVersion.CURRENT,
+                        TransportVersion.current(),
                     null,
                     node,
                     null,

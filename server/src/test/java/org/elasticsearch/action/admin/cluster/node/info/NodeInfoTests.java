@@ -36,7 +36,7 @@ public class NodeInfoTests extends ESTestCase {
     public void testGetInfo() {
         NodeInfo nodeInfo = new NodeInfo(
             Version.CURRENT,
-            TransportVersion.CURRENT,
+                TransportVersion.current(),
             Build.CURRENT,
             DiscoveryNodeUtils.create(
                 "test_node",

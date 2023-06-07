@@ -368,7 +368,7 @@ public class ClusterStateTests extends ESTestCase {
                         }""",
                     ephemeralId,
                     Version.CURRENT,
-                    TransportVersion.CURRENT,
+                        TransportVersion.current(),
                     Version.CURRENT.id,
                     Version.CURRENT.id,
                     allocationId,
@@ -615,7 +615,7 @@ public class ClusterStateTests extends ESTestCase {
                     }""",
                 ephemeralId,
                 Version.CURRENT,
-                TransportVersion.CURRENT,
+                    TransportVersion.current(),
                 Version.CURRENT.id,
                 Version.CURRENT.id,
                 allocationId,
@@ -868,7 +868,7 @@ public class ClusterStateTests extends ESTestCase {
                     }""",
                 ephemeralId,
                 Version.CURRENT,
-                TransportVersion.CURRENT,
+                    TransportVersion.current(),
                 Version.CURRENT.id,
                 Version.CURRENT.id,
                 allocationId,
@@ -1023,7 +1023,7 @@ public class ClusterStateTests extends ESTestCase {
                     .add(DiscoveryNodeUtils.create("nodeId1", new TransportAddress(InetAddress.getByName("127.0.0.1"), 111)))
                     .build()
             )
-            .putTransportVersion("nodeId1", TransportVersion.CURRENT)
+            .putTransportVersion("nodeId1", TransportVersion.current())
             .blocks(
                 ClusterBlocks.builder()
                     .addGlobalBlock(
@@ -1123,7 +1123,7 @@ public class ClusterStateTests extends ESTestCase {
     public void testGetMinTransportVersion() throws IOException {
         var builder = ClusterState.builder(buildClusterState());
         int numNodes = randomIntBetween(2, 20);
-        TransportVersion minVersion = TransportVersion.CURRENT;
+        TransportVersion minVersion = TransportVersion.current();
 
         for (int i = 0; i < numNodes; i++) {
             TransportVersion tv = TransportVersionUtils.randomVersion();

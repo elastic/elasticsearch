@@ -42,7 +42,7 @@ final class FieldCapabilitiesIndexResponse implements Writeable {
         this.indexMappingHash = indexMappingHash;
         this.responseMap = responseMap;
         this.canMatch = canMatch;
-        this.originVersion = TransportVersion.CURRENT;
+        this.originVersion = TransportVersion.current();
     }
 
     FieldCapabilitiesIndexResponse(StreamInput in) throws IOException {

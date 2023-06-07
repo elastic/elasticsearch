@@ -82,7 +82,7 @@ public class Netty4Plugin extends Plugin implements NetworkPlugin {
             NETTY_TRANSPORT_NAME,
             () -> new Netty4Transport(
                 settings,
-                TransportVersion.CURRENT,
+                    TransportVersion.current(),
                 threadPool,
                 networkService,
                 pageCacheRecycler,

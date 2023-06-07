@@ -222,7 +222,7 @@ public class InternalEnrollmentTokenGeneratorTests extends ESTestCase {
                 List.of(
                     new NodeInfo(
                         Version.CURRENT,
-                        TransportVersion.CURRENT,
+                            TransportVersion.current(),
                         null,
                         DiscoveryNodeUtils.builder("1").name("node-name").roles(Set.of()).build(),
                         null,
@@ -255,7 +255,7 @@ public class InternalEnrollmentTokenGeneratorTests extends ESTestCase {
                 List.of(
                     new NodeInfo(
                         Version.CURRENT,
-                        TransportVersion.CURRENT,
+                            TransportVersion.current(),
                         null,
                         DiscoveryNodeUtils.builder("1").name("node-name").roles(Set.of()).build(),
                         null,

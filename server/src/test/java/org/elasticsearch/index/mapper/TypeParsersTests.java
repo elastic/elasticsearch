@@ -114,7 +114,7 @@ public class TypeParsersTests extends ESTestCase {
         TransportVersion transportVersion = TransportVersionUtils.randomVersionBetween(
             random(),
             TransportVersion.V_8_0_0,
-            TransportVersion.CURRENT
+                TransportVersion.current()
         );
         MappingParserContext context = new MappingParserContext(
             null,

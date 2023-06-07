@@ -1,6 +1,7 @@
 agents:
   provider: gcp
-  image: family/core-ubuntu-2204
+  image: family/brian-elasticsearch-ubuntu-2022
+  imageProject: elastic-images-qa
   buildDirectory: /dev/shm/bk
   machineType: custom-32-98304
   useVault: false
@@ -14,6 +15,7 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
           useVault: false
@@ -46,6 +48,7 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
           useVault: false
@@ -63,6 +66,7 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
           useVault: false
@@ -80,6 +84,7 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
           useVault: false
@@ -97,6 +102,7 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
           useVault: false
@@ -114,6 +120,7 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
           useVault: false
@@ -131,6 +138,7 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
           useVault: false
@@ -148,6 +156,7 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
           useVault: false
@@ -165,6 +174,7 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
           useVault: false
@@ -182,6 +192,7 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
           useVault: false
@@ -199,6 +210,7 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
           useVault: false
@@ -216,6 +228,7 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
           useVault: false
@@ -233,6 +246,7 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
           useVault: false
@@ -250,6 +264,7 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
           useVault: false
@@ -267,6 +282,7 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
           useVault: false
@@ -284,6 +300,7 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
           useVault: false
@@ -301,6 +318,7 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
           useVault: false
@@ -318,6 +336,7 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
           useVault: false
@@ -335,6 +354,7 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
           useVault: false
@@ -352,6 +372,7 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
           useVault: false
@@ -369,6 +390,7 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
           useVault: false
@@ -386,6 +408,7 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
           useVault: false
@@ -403,6 +426,7 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
           useVault: false
@@ -420,6 +444,7 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
           useVault: false
@@ -437,6 +462,7 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
           useVault: false
@@ -454,6 +480,7 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
           useVault: false
@@ -471,6 +498,7 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
           useVault: false
@@ -488,6 +516,7 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
           useVault: false
@@ -505,6 +534,7 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
           useVault: false
@@ -522,6 +552,7 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
           useVault: false
@@ -539,6 +570,7 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
           useVault: false
@@ -556,6 +588,7 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
           useVault: false
@@ -573,6 +606,7 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
           useVault: false
@@ -590,6 +624,7 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
           useVault: false
@@ -607,6 +642,7 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
           useVault: false
@@ -624,6 +660,7 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
           useVault: false
@@ -641,6 +678,7 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
           useVault: false
@@ -658,6 +696,7 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
           useVault: false
@@ -675,6 +714,7 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
           useVault: false
@@ -692,6 +732,7 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
           useVault: false
@@ -709,6 +750,7 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
           useVault: false
@@ -726,6 +768,7 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
           useVault: false
@@ -743,6 +786,7 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
           useVault: false
@@ -760,6 +804,7 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
           useVault: false
@@ -777,6 +822,7 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
           useVault: false
@@ -794,6 +840,7 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
           useVault: false
@@ -811,6 +858,7 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
           useVault: false
@@ -828,6 +876,7 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
           useVault: false
@@ -845,6 +894,7 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
           useVault: false
@@ -862,6 +912,7 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
           useVault: false
@@ -879,6 +930,7 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
           useVault: false
@@ -896,6 +948,7 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
           useVault: false
@@ -913,6 +966,7 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
           useVault: false
@@ -930,6 +984,7 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
           useVault: false
@@ -947,6 +1002,7 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
           useVault: false
@@ -964,6 +1020,7 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
           useVault: false
@@ -981,6 +1038,7 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
           useVault: false
@@ -998,6 +1056,7 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
           useVault: false
@@ -1015,6 +1074,7 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
           useVault: false
@@ -1032,6 +1092,7 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
           useVault: false
@@ -1049,6 +1110,7 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
           useVault: false
@@ -1066,6 +1128,7 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
           useVault: false
@@ -1083,6 +1146,7 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
           useVault: false
@@ -1100,6 +1164,7 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
           useVault: false
@@ -1117,6 +1182,7 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
           useVault: false
@@ -1134,6 +1200,7 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
           useVault: false
@@ -1151,6 +1218,7 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
           useVault: false
@@ -1168,6 +1236,7 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
           useVault: false
@@ -1185,6 +1254,7 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
           useVault: false
@@ -1202,6 +1272,7 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
           useVault: false
@@ -1219,6 +1290,7 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
           useVault: false
@@ -1236,6 +1308,7 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
           useVault: false
@@ -1253,6 +1326,7 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
           useVault: false
@@ -1270,6 +1344,7 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
           useVault: false
@@ -1287,6 +1362,7 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
           useVault: false
@@ -1304,6 +1380,7 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
           useVault: false
@@ -1321,6 +1398,7 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
           useVault: false
@@ -1338,6 +1416,7 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
           useVault: false
@@ -1355,6 +1434,7 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
           useVault: false
@@ -1372,6 +1452,7 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
           useVault: false
@@ -1389,6 +1470,7 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
           useVault: false
@@ -1406,6 +1488,7 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
           useVault: false
@@ -1423,6 +1506,7 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
           useVault: false
@@ -1440,6 +1524,7 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
           useVault: false
@@ -1457,6 +1542,7 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
           useVault: false
@@ -1474,6 +1560,7 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
           useVault: false
@@ -1491,6 +1578,7 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
           useVault: false
@@ -1508,6 +1596,7 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
           useVault: false
@@ -1525,6 +1614,7 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
           useVault: false
@@ -1542,6 +1632,7 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
           useVault: false
@@ -1559,6 +1650,7 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
           useVault: false
@@ -1576,6 +1668,7 @@ steps:
         agents:
           provider: gcp
           image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
           useVault: false

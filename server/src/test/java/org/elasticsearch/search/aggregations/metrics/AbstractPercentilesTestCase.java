@@ -170,11 +170,6 @@ public abstract class AbstractPercentilesTestCase<T extends InternalAggregation 
 
         final Iterator<?> it = aggregation.iterator();
         assertFalse(it.hasNext());
-        try {
-            it.next();
-            fail("missing expected exception");
-        } catch (NoSuchElementException ignored) {} catch (Exception ignored) {
-            fail("incorrect exception thrown");
-        }
+        expectThrows(NoSuchElementException.class, it::next);
     }
 }

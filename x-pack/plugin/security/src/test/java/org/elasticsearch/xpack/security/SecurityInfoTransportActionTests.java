@@ -148,12 +148,7 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
         final boolean httpIpFilterEnabled = randomBoolean();
         final boolean transportIPFilterEnabled = randomBoolean();
         when(ipFilter.usageStats()).thenReturn(
-            Map.of(
-                "http",
-                Collections.singletonMap("enabled", httpIpFilterEnabled),
-                "transport",
-                Collections.singletonMap("enabled", transportIPFilterEnabled)
-            )
+            Map.of("http", Map.of("enabled", httpIpFilterEnabled), "transport", Map.of("enabled", transportIPFilterEnabled))
         );
 
         final boolean rolesStoreEnabled = randomBoolean();

@@ -107,7 +107,7 @@ public class AnnotationIndex {
             finalListener::onFailure
         );
 
-        final ActionListener<String> createAliasListener = ActionListener.wrap(currentIndexName -> {
+        final ActionListener<String> createAliasListener = finalListener.delegateFailureAndWrap((finalDelegate, currentIndexName) -> {
             final IndicesAliasesRequestBuilder requestBuilder = client.admin()
                 .indices()
                 .prepareAliases()
@@ -128,13 +128,10 @@ public class AnnotationIndex {
                 client.threadPool().getThreadContext(),
                 ML_ORIGIN,
                 requestBuilder.request(),
-                ActionListener.<AcknowledgedResponse>wrap(
-                    r -> checkMappingsListener.onResponse(r.isAcknowledged()),
-                    finalListener::onFailure
-                ),
+                finalDelegate.<AcknowledgedResponse>delegateFailureAndWrap((l, r) -> checkMappingsListener.onResponse(r.isAcknowledged())),
                 client.admin().indices()::aliases
             );
-        }, finalListener::onFailure);
+        });
 
         // Only create the index or aliases if some other ML index exists - saves clutter if ML is never used.
         // Also, don't do this if there's a reset in progress or if ML upgrade mode is enabled.

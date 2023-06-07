@@ -146,6 +146,20 @@ public enum Releasables {
                 public String toString() {
                     return delegate.toString();
                 }
+
+                @Override
+                public int hashCode() {
+                    // It's legitimate to wrap the delegate twice, with two different assertOnce calls, which would yield different objects
+                    // if and only if assertions are enabled. So we'd better not ever use these things as map keys etc.
+                    throw new AssertionError("almost certainly a mistake to need the hashCode() of a one-shot Releasable");
+                }
+
+                @Override
+                public boolean equals(Object obj) {
+                    // It's legitimate to wrap the delegate twice, with two different assertOnce calls, which would yield different objects
+                    // if and only if assertions are enabled. So we'd better not ever use these things as map keys etc.
+                    throw new AssertionError("almost certainly a mistake to compare a one-shot Releasable for equality");
+                }
             };
         } else {
             return delegate;

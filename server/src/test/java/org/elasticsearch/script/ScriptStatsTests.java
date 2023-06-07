@@ -25,15 +25,18 @@ import java.util.function.Function;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ScriptStatsTests extends ESTestCase {
-    public void testXContent() throws IOException {
+    public void testXContentChunked() throws IOException {
         List<ScriptContextStats> contextStats = List.of(
             new ScriptContextStats("contextB", 302, new TimeSeries(1000, 1001, 1002, 100), new TimeSeries(2000, 2001, 2002, 201)),
             new ScriptContextStats("contextA", 3020, new TimeSeries(1000), new TimeSeries(2010))
         );
-        ScriptStats stats = new ScriptStats(contextStats);
+        ScriptStats stats = ScriptStats.read(contextStats);
         final XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
+
         builder.startObject();
-        stats.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        for (var it = stats.toXContentChunked(ToXContent.EMPTY_PARAMS); it.hasNext();) {
+            it.next().toXContent(builder, ToXContent.EMPTY_PARAMS);
+        }
         builder.endObject();
 
         String expected = """
@@ -135,6 +138,8 @@ public class ScriptStatsTests extends ESTestCase {
         ScriptContextStats stats = randomStats();
 
         ScriptContextStats deserStats = serDeser(TransportVersion.V_8_0_0, TransportVersion.V_7_16_0, stats);
+        // Due to how the versions are handled by TimeSeries serialization, we cannot just simply assert that both object are
+        // equals but not the same
         assertEquals(stats.getCompilations(), deserStats.getCompilations());
         assertEquals(stats.getCacheEvictions(), deserStats.getCacheEvictions());
         assertEquals(stats.getCompilationLimitTriggered(), deserStats.getCompilationLimitTriggered());
@@ -144,13 +149,12 @@ public class ScriptStatsTests extends ESTestCase {
         assertEquals(stats.getCacheEvictions(), deserStats.getCacheEvictionsHistory().total);
 
         deserStats = serDeser(TransportVersion.V_8_0_0, TransportVersion.V_8_0_0, stats);
-        assertEquals(stats.getCompilations(), deserStats.getCompilations());
-        assertEquals(stats.getCacheEvictions(), deserStats.getCacheEvictions());
-        assertEquals(stats.getCompilationLimitTriggered(), deserStats.getCompilationLimitTriggered());
-        assertEquals(stats.getCompilationsHistory(), deserStats.getCompilationsHistory());
-        assertEquals(stats.getCacheEvictionsHistory(), deserStats.getCacheEvictionsHistory());
+        assertNotSame(stats, deserStats);
+        assertEquals(stats, deserStats);
 
         deserStats = serDeser(TransportVersion.V_8_1_0, TransportVersion.V_7_16_0, stats);
+        // Due to how the versions are handled by TimeSeries serialization, we cannot just simply assert that both object are
+        // equals but not the same
         assertEquals(stats.getCompilations(), deserStats.getCompilations());
         assertEquals(stats.getCacheEvictions(), deserStats.getCacheEvictions());
         assertEquals(stats.getCompilationLimitTriggered(), deserStats.getCompilationLimitTriggered());
@@ -158,11 +162,8 @@ public class ScriptStatsTests extends ESTestCase {
         assertEquals(new TimeSeries(stats.getCacheEvictionsHistory().total), deserStats.getCacheEvictionsHistory());
 
         deserStats = serDeser(TransportVersion.V_8_1_0, TransportVersion.V_8_1_0, stats);
-        assertEquals(stats.getCompilations(), deserStats.getCompilations());
-        assertEquals(stats.getCacheEvictions(), deserStats.getCacheEvictions());
-        assertEquals(stats.getCompilationLimitTriggered(), deserStats.getCompilationLimitTriggered());
-        assertEquals(stats.getCompilationsHistory(), deserStats.getCompilationsHistory());
-        assertEquals(stats.getCacheEvictionsHistory(), deserStats.getCacheEvictionsHistory());
+        assertNotSame(stats, deserStats);
+        assertEquals(stats, deserStats);
     }
 
     public ScriptContextStats serDeser(TransportVersion outVersion, TransportVersion inVersion, ScriptContextStats stats)
@@ -172,7 +173,7 @@ public class ScriptStatsTests extends ESTestCase {
             stats.writeTo(out);
             try (StreamInput in = out.bytes().streamInput()) {
                 in.setTransportVersion(inVersion);
-                return new ScriptContextStats(in);
+                return ScriptContextStats.read(in);
             }
         }
     }

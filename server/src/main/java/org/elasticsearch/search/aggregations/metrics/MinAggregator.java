@@ -123,7 +123,13 @@ public class MinAggregator extends NumericMetricsAggregator.SingleValue {
     }
 
     @Override
-    public void merge(List<AggregationAndBucket> others, long thisBucket) {
+    public void merge(Map<Long, List<AggregationAndBucket>> toMerge) {
+        for (Map.Entry<Long, List<AggregationAndBucket>> mergeRow : toMerge.entrySet()) {
+            mergeBucket(mergeRow.getValue(), mergeRow.getKey());
+        }
+    }
+
+    public void mergeBucket(List<AggregationAndBucket> others, long thisBucket) {
         if (thisBucket >= mins.size()) {
             long from = mins.size();
             mins = bigArrays().grow(mins, thisBucket + 1);

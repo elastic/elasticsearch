@@ -201,7 +201,7 @@ public class NumericTermsAggregator extends TermsAggregator {
         abstract LeafBucketCollector wrapCollector(LeafBucketCollector primary);
 
         /**
-         * Build an array to hold the "top" buckets for each ordinal.
+         * Build an empty array to hold the "top" buckets for each ordinal.
          */
         abstract B[][] buildTopBucketsPerOrd(int size);
 

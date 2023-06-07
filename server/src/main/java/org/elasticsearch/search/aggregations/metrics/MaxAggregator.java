@@ -124,7 +124,13 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue {
     }
 
     @Override
-    public void merge(List<AggregationAndBucket> others, long thisBucket) {
+    public void merge(Map<Long, List<AggregationAndBucket>> toMerge) {
+        for (Map.Entry<Long, List<AggregationAndBucket>> mergeRow : toMerge.entrySet()) {
+            mergeBucket(mergeRow.getValue(), mergeRow.getKey());
+        }
+    }
+
+    public void mergeBucket(List<AggregationAndBucket> others, long thisBucket) {
         if (thisBucket >= maxes.size()) {
             long from = maxes.size();
             maxes = bigArrays().grow(maxes, thisBucket + 1);

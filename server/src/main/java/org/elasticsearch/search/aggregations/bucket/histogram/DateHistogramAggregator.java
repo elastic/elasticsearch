@@ -44,6 +44,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -312,7 +313,26 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
     }
 
     @Override
-    public void merge(List<AggregationAndBucket> others, long thisBucket) {
+    public void merge(Map<Long, List<AggregationAndBucket>> toMerge) {
+        // It is an article of faith that all the aggregations have the same list of subAggregators in the same order
+        List<Map<Long, List<AggregationAndBucket>>> nextLayer = new ArrayList<>(subAggregators.length);
+        for (int i = 0; i < subAggregators.length; i++) {
+            nextLayer.add(new HashMap<>());
+        }
+        for (Map.Entry<Long, List<AggregationAndBucket>> mergeRow : toMerge.entrySet()) {
+            List<Map<Long, List<AggregationAndBucket>>> nextLayerBuckets = mergeBucket(mergeRow.getValue(), mergeRow.getKey());
+            assert nextLayer.size() == nextLayerBuckets.size();
+            for (int i = 0; i < subAggregators.length; i++) {
+                nextLayer.get(i).putAll(nextLayerBuckets.get(i));
+            }
+        }
+        // Trigger the next layer merge.
+        for (int i = 0; i < subAggregators.length; i++) {
+            subAggregators[i].merge(nextLayer.get(i));
+        }
+    }
+
+    public List<Map<Long, List<AggregationAndBucket>>> mergeBucket(List<AggregationAndBucket> others, long thisBucket) {
         // Need one extra slot in the queue for this aggregator
         final PriorityQueue<IteratorAndAggregator> pq = new PriorityQueue<>(others.size() + 1) {
             @Override
@@ -320,6 +340,12 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
                 return a.current() < b.current();
             }
         };
+
+        // It is an article of faith that all the aggregations have the same list of subAggregators in the same order
+        List<Map<Long, List<AggregationAndBucket>>> nextLayer = new ArrayList<>(subAggregators.length);
+        for (int i = 0; i < subAggregators.length; i++) {
+            nextLayer.add(new HashMap<>());
+        }
 
         pq.add(new IteratorAndAggregator(this.bucketOrds.keyOrderedIterator(thisBucket), this));
         for (AggregationAndBucket other : others) {
@@ -342,24 +368,20 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
                 if (top.current() != key) {
                     // the key changes, reduce what we already buffered and reset the buffer for current buckets
 
-                    // It is an article of faith that all the aggregations have the same list of subAggregators in the same order
-                    // For each sub-aggregation, build a list of the aggregators-bucket pairs for this key and owning ordinal
-                    List<List<AggregationAndBucket>> childrenToReduce = new ArrayList<>(subAggregators().length);
-                    for (int i = 0; i < subAggregators.length; i++) {
-                        childrenToReduce.add(new ArrayList<>());
-                    }
-
                     // Deal with key doesn't exist for this aggregation
-                    long bucketOrd = bucketOrds.add(thisBucket, key);
-                    if (bucketOrd < 0) { // already seen
-                        bucketOrd = -1 - bucketOrd;
+                    long mergeLeaderBucketOrd = bucketOrds.add(thisBucket, key);
+                    if (mergeLeaderBucketOrd < 0) { // already seen
+                        mergeLeaderBucketOrd = -1 - mergeLeaderBucketOrd;
                         // we don't need to update the doc count because we already have it
                     } else {
-                        grow(bucketOrd + 1);
+                        grow(mergeLeaderBucketOrd + 1);
                         // TODO: Set the doc count to zero here
                     }
+
                     for (int i = 0; i < subAggregators.length; i++) {
-                        childrenToReduce.get(i).add(new AggregationAndBucket(bucketOrd, subAggregators[i]));
+                        Map<Long, List<AggregationAndBucket>> zwomp = nextLayer.get(i);
+                        assert zwomp.containsKey(mergeLeaderBucketOrd) == false;
+                        zwomp.put(mergeLeaderBucketOrd, new ArrayList<>(currentBuckets.size()));
                     }
 
                     for (AggregationAndBucket other : currentBuckets) {
@@ -367,15 +389,18 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
                             // We already handled our case above
                             continue;
                         }
+
+                        // NOCOMMIT: the cast is pretty kludgy here; probably just want a method on Aggregator to do this.
+                        DateHistogramAggregator otherAggregator = (DateHistogramAggregator) other.aggregator();
+                        // Compute the key for the other agg
+                        long otherBucketOrd = otherAggregator.bucketOrds.find(other.bucketOrdinal(), key);
                         // TODO: Update docCounts
+
+                        // For each sub-aggregation, build a list of the aggregators-bucket pairs for this key and owning ordinal
                         for (int i = 0; i < subAggregators.length; i++) {
-                            childrenToReduce.get(i)
-                                .add(new AggregationAndBucket(other.bucketOrdinal(), other.aggregator().subAggregators()[i]));
+                            nextLayer.get(i).get(mergeLeaderBucketOrd)
+                                .add(new AggregationAndBucket(otherBucketOrd, other.aggregator().subAggregators()[i]));
                         }
-                    }
-                    for (List<AggregationAndBucket> subTree : childrenToReduce) {
-                        AggregationAndBucket mergeLeader = subTree.get(0);
-                        mergeLeader.aggregator().merge(subTree.subList(1, subTree.size()), mergeLeader.bucketOrdinal());
                     }
 
                     // Reset the collection
@@ -391,10 +416,10 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
                     pq.updateTop();
                 } else {
                     pq.pop();
-                    // At this point, we can close the associated aggregator
                 }
             } while (pq.size() > 0);
         }
+        return nextLayer;
     }
 
     @Override

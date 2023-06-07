@@ -114,9 +114,14 @@ class AvgAggregator extends NumericMetricsAggregator.SingleValue {
     }
 
     @Override
-    public void merge(List<AggregationAndBucket> others, long thisBucket) {
+    public void merge(Map<Long, List<AggregationAndBucket>> toMerge) {
+        for (Map.Entry<Long, List<AggregationAndBucket>> mergeRow : toMerge.entrySet()) {
+            mergeBucket(mergeRow.getValue(), mergeRow.getKey());
+        }
+    }
+    public void mergeBucket(List<AggregationAndBucket> others, long thisBucket) {
         // TODO: Don't create a new compensated sum every time this is called.  That's a lot of wasted object creation overhead, and the
-        //       reset method exists to fix that.
+        //       reset method exists to fix that. (NOCOMMIT)
         final CompensatedSum kahanSummation = new CompensatedSum(0, 0);
         double sum = sums.get(thisBucket);
         double compensation = compensations.get(thisBucket);

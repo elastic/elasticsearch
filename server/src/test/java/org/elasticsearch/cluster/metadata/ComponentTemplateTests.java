@@ -8,8 +8,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
-import org.elasticsearch.action.admin.indices.rollover.RolloverConfigurationTests;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -20,8 +18,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.SimpleDiffableSerializationTestCase;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
@@ -30,7 +26,6 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<ComponentTemplate> {
@@ -56,20 +51,13 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
 
     @Override
     protected ComponentTemplate createTestInstance() {
-        return randomInstance(true);
+        return randomInstance();
     }
 
-    // In many cases the index template is used with indices adding lifecycle would render it invalid that's why we
-    // do not always want to randomly add a lifecycle.
     public static ComponentTemplate randomInstance() {
-        return randomInstance(false);
-    }
-
-    public static ComponentTemplate randomInstance(boolean lifecycleAllowed) {
         Settings settings = null;
         CompressedXContent mappings = null;
         Map<String, AliasMetadata> aliases = null;
-        DataLifecycle lifecycle = null;
         if (randomBoolean()) {
             settings = randomSettings();
         }
@@ -79,10 +67,7 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
         if (randomBoolean()) {
             aliases = randomAliases();
         }
-        if (randomBoolean() && lifecycleAllowed) {
-            lifecycle = randomLifecycle();
-        }
-        Template template = new Template(settings, mappings, aliases, lifecycle);
+        Template template = new Template(settings, mappings, aliases, null);
 
         Map<String, Object> meta = null;
         if (randomBoolean()) {
@@ -122,10 +107,6 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
             .build();
     }
 
-    private static DataLifecycle randomLifecycle() {
-        return new DataLifecycle(randomMillisUpToYear9999());
-    }
-
     private static Map<String, Object> randomMeta() {
         if (randomBoolean()) {
             return Collections.singletonMap(randomAlphaOfLength(4), randomAlphaOfLength(4));
@@ -146,7 +127,7 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
         return switch (randomIntBetween(0, 2)) {
             case 0 -> {
                 Template ot = orig.template();
-                yield switch (randomIntBetween(0, 3)) {
+                yield switch (randomIntBetween(0, 2)) {
                     case 0 -> new ComponentTemplate(
                         new Template(
                             randomValueOtherThan(ot.settings(), ComponentTemplateTests::randomSettings),
@@ -173,16 +154,6 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
                             ot.mappings(),
                             randomValueOtherThan(ot.aliases(), ComponentTemplateTests::randomAliases),
                             ot.lifecycle()
-                        ),
-                        orig.version(),
-                        orig.metadata()
-                    );
-                    case 3 -> new ComponentTemplate(
-                        new Template(
-                            ot.settings(),
-                            ot.mappings(),
-                            ot.aliases(),
-                            randomValueOtherThan(ot.lifecycle(), ComponentTemplateTests::randomLifecycle)
                         ),
                         orig.version(),
                         orig.metadata()
@@ -247,38 +218,6 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
             CompressedXContent m1 = new CompressedXContent(Strings.toString(XContentFactory.jsonBuilder().map(map)));
             CompressedXContent m2 = new CompressedXContent(Strings.toString(XContentFactory.jsonBuilder().map(reduceMap)));
             assertThat(Template.mappingsEquals(m1, m2), equalTo(true));
-        }
-    }
-
-    public void testXContentSerializationWithRollover() throws IOException {
-        Settings settings = null;
-        CompressedXContent mappings = null;
-        Map<String, AliasMetadata> aliases = null;
-        if (randomBoolean()) {
-            settings = randomSettings();
-        }
-        if (randomBoolean()) {
-            mappings = randomMappings();
-        }
-        if (randomBoolean()) {
-            aliases = randomAliases();
-        }
-        DataLifecycle lifecycle = randomLifecycle();
-        ComponentTemplate template = new ComponentTemplate(
-            new Template(settings, mappings, aliases, lifecycle),
-            randomNonNegativeLong(),
-            null
-        );
-
-        try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
-            builder.humanReadable(true);
-            RolloverConfiguration rolloverConfiguration = RolloverConfigurationTests.randomRolloverConditions();
-            template.toXContent(builder, ToXContent.EMPTY_PARAMS, rolloverConfiguration);
-            String serialized = Strings.toString(builder);
-            assertThat(serialized, containsString("rollover"));
-            for (String label : rolloverConfiguration.resolveRolloverConditions(lifecycle.getDataRetention()).getConditions().keySet()) {
-                assertThat(serialized, containsString(label));
-            }
         }
     }
 }

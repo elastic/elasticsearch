@@ -22,7 +22,7 @@ public class BinaryDenseVector implements DenseVector {
     private final int dims;
     private final Version indexVersion;
 
-    protected float[] decodedDocVector;
+    private final float[] decodedDocVector;
 
     public BinaryDenseVector(float[] decodedDocVector, BytesRef docVector, int dims, Version indexVersion) {
         this.decodedDocVector = decodedDocVector;

@@ -92,10 +92,12 @@ import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
+import java.security.AccessController;
 import java.security.Key;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.PrivateKey;
+import java.security.PrivilegedAction;
 import java.security.interfaces.ECPrivateKey;
 import java.security.interfaces.ECPublicKey;
 import java.security.interfaces.RSAPrivateKey;
@@ -823,9 +825,10 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
             .build()
             .toJSONObject();
 
-        final IllegalStateException e = expectThrows(IllegalStateException.class, () -> {
-            OpenIdConnectAuthenticator.mergeObjects(idTokenObject, wrongTypeInfo);
-        });
+        final IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> { OpenIdConnectAuthenticator.mergeObjects(idTokenObject, wrongTypeInfo); }
+        );
 
         // Userinfo Claims overwrite ID Token claims
         Map<String, Object> overwriteUserInfo = new JWTClaimsSet.Builder().claim("given_name", "Jane Doe")
@@ -1170,6 +1173,17 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
             clientTtlInSeconds == 180 ? randomFrom(String.valueOf(clientTtlInSeconds), null) : String.valueOf(clientTtlInSeconds),
             effectiveTtlInMs
         );
+    }
+
+    public void testPrivilegedAccess() {
+        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+            JWSHeader header = new JWSHeader.Builder(JWSAlgorithm.HS256).build();
+            JWTClaimsSet claimsSet = new JWTClaimsSet.Builder().jwtID(randomAlphaOfLength(8)).build();
+            // This fails with [access denied ("java.lang.RuntimePermission" "accessDeclaredMembers")] unless we grant permissions inside
+            // `grant {}` block
+            new SignedJWT(header, claimsSet);
+            return null;
+        });
     }
 
     public void doTestKeepAliveStrategy(String serverTtlInSeconds, String clientTtlInSeconds, long effectiveTtlInMs)

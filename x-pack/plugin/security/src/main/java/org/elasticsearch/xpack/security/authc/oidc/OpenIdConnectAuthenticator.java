@@ -189,6 +189,14 @@ public class OpenIdConnectAuthenticator {
      * @param listener The listener to notify with the resolved {@link JWTClaimsSet}
      */
     public void authenticate(OpenIdConnectToken token, final ActionListener<JWTClaimsSet> listener) {
+        // TODO this is way too broad
+        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+            innerAuthenticate(token, listener);
+            return null;
+        });
+    }
+
+    private void innerAuthenticate(OpenIdConnectToken token, ActionListener<JWTClaimsSet> listener) {
         try {
             AuthenticationResponse authenticationResponse = AuthenticationResponseParser.parse(new URI(token.getRedirectUrl()));
             final Nonce expectedNonce = token.getNonce();
@@ -290,12 +298,12 @@ public class OpenIdConnectAuthenticator {
                 && JWSAlgorithm.Family.HMAC_SHA.contains(rpConfig.getSignatureAlgorithm()) == false
                 && opConfig.getJwkSetPath().startsWith("https://")) {
                 ((ReloadableJWKSource) ((JWSVerificationKeySelector) idTokenValidator.get().getJWSKeySelector()).getJWKSource())
-                    .triggerReload(ActionListener.wrap(v -> {
-                        getUserClaims(accessToken, idToken, expectedNonce, false, claimsListener);
-                    }, ex -> {
-                        LOGGER.trace("Attempted and failed to refresh JWK cache upon token validation failure", e);
-                        claimsListener.onFailure(ex);
-                    }));
+                    .triggerReload(
+                        ActionListener.wrap(v -> { getUserClaims(accessToken, idToken, expectedNonce, false, claimsListener); }, ex -> {
+                            LOGGER.trace("Attempted and failed to refresh JWK cache upon token validation failure", e);
+                            claimsListener.onFailure(ex);
+                        })
+                    );
             } else {
                 claimsListener.onFailure(new ElasticsearchSecurityException("Failed to parse or validate the ID Token", e));
             }

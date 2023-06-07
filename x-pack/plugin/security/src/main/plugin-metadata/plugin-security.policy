@@ -32,6 +32,7 @@ grant {
   permission java.lang.RuntimePermission "accessUserInformation";
   permission java.lang.RuntimePermission "getFileStoreAttributes";
 
+  // TODO this shouldn't be necessary
   permission java.lang.RuntimePermission "accessDeclaredMembers";
 };
 
@@ -48,7 +49,7 @@ grant codeBase "${codebase.netty-transport}" {
    permission java.util.PropertyPermission "sun.nio.ch.bugLevel", "write";
 };
 
-// TODO this does not work
+// TODO this still doesn't work
 grant codeBase "${codebase.nimbus-jose-jwt}" {
    permission java.lang.RuntimePermission "accessDeclaredMembers";
 };

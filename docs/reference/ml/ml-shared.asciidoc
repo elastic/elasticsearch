@@ -944,6 +944,7 @@ values are
 * `bert`: Use for BERT-style models
 * `mpnet`: Use for MPNet-style models
 * `roberta`: Use for RoBERTa-style and BART-style models
+* `xlm_roberta`: Use for XLMRoBERTa-style models
 --
 end::inference-config-nlp-tokenization[]
 

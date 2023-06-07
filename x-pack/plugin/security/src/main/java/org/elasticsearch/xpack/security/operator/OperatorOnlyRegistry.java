@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.security.operator;
 
+import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -42,5 +43,7 @@ public interface OperatorOnlyRegistry {
      * @return {@link RestRequest} to use when calling the {@link RestHandler}, can be same or different object as the passed in parameter
      */
     RestRequest checkRestPartial(RestHandler restHandler, RestRequest restRequest);
+
+    OperatorPrivilegesViolation checkRest(RestHandler restHandler, RestRequest restRequest, RestChannel restChannel);
 
 }

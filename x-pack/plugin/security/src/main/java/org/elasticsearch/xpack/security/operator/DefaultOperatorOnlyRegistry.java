@@ -22,6 +22,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.license.DeleteLicenseAction;
 import org.elasticsearch.license.PutLicenseAction;
+import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -90,6 +91,11 @@ public class DefaultOperatorOnlyRegistry implements OperatorOnlyRegistry {
     @Override
     public RestRequest checkRestPartial(RestHandler restHandler, RestRequest restRequest) {
         return restRequest; // no restrictions
+    }
+
+    @Override
+    public OperatorPrivilegesViolation checkRest(RestHandler restHandler, RestRequest restRequest, RestChannel restChannel) {
+        return null; // no restrictions
     }
 
     private OperatorPrivilegesViolation checkClusterUpdateSettings(ClusterUpdateSettingsRequest request) {

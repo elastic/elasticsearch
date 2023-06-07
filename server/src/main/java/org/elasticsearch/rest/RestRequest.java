@@ -63,6 +63,7 @@ public class RestRequest implements ToXContent.Params {
     private final ParsedMediaType parsedContentType;
     private final RestApiVersion restApiVersion;
     private HttpRequest httpRequest;
+    private boolean restrictedByOperatorPrivilege;
 
     private boolean contentConsumed = false;
 
@@ -620,6 +621,14 @@ public class RestRequest implements ToXContent.Params {
      */
     public RestApiVersion getRestApiVersion() {
         return restApiVersion;
+    }
+
+    public boolean isRestrictedByOperatorPrivilege() {
+        return restrictedByOperatorPrivilege;
+    }
+
+    public void setRestrictedByOperatorPrivilege(boolean restrictedByOperatorPrivilege) {
+        this.restrictedByOperatorPrivilege = restrictedByOperatorPrivilege;
     }
 
     public static class MediaTypeHeaderException extends RuntimeException {

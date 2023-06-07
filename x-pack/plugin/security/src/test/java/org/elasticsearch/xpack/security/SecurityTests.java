@@ -48,6 +48,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.internal.XPackLicenseStatus;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.MapperPlugin;
+import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -168,6 +169,11 @@ public class SecurityTests extends ESTestCase {
 
         @Override
         public RestRequest checkRestPartial(RestHandler restHandler, RestRequest restRequest) {
+            throw new RuntimeException("boom");
+        }
+
+        @Override
+        public OperatorPrivilegesViolation checkRest(RestHandler restHandler, RestRequest restRequest, RestChannel restChannel) {
             throw new RuntimeException("boom");
         }
     }

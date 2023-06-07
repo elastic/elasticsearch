@@ -311,6 +311,16 @@ public class SecurityRestFilterTests extends ESTestCase {
                     }
 
                     @Override
+                    public void checkRest(
+                        RestHandler restHandler,
+                        RestRequest restRequest,
+                        RestChannel restChannel,
+                        ThreadContext threadContext
+                    ) {
+
+                    }
+
+                    @Override
                     public void maybeInterceptRequest(ThreadContext threadContext, TransportRequest request) {}
                 });
 
@@ -353,6 +363,16 @@ public class SecurityRestFilterTests extends ESTestCase {
                     @Override
                     public RestRequest checkRestPartial(RestHandler restHandler, RestRequest restRequest, ThreadContext threadContext) {
                         return isOperator ? restRequest : mock(RestRequest.class);
+                    }
+
+                    @Override
+                    public void checkRest(
+                        RestHandler restHandler,
+                        RestRequest restRequest,
+                        RestChannel restChannel,
+                        ThreadContext threadContext
+                    ) {
+
                     }
 
                     @Override

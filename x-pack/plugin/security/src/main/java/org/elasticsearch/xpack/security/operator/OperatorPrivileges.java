@@ -14,6 +14,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotR
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -75,6 +76,8 @@ public class OperatorPrivileges {
          * @return {@link RestRequest} used when calling the {@link RestHandler} can be same or different object as the passed in parameter
          */
         RestRequest checkRestPartial(RestHandler restHandler, RestRequest restRequest, ThreadContext threadContext);
+
+        void checkRest(RestHandler restHandler, RestRequest restRequest, RestChannel restChannel, ThreadContext threadContext);
 
         /**
          * When operator privileges are enabled, certain requests needs to be configured in a specific way
@@ -169,6 +172,34 @@ public class OperatorPrivileges {
         }
 
         @Override
+        public void checkRest(RestHandler restHandler, RestRequest restRequest, RestChannel restChannel, ThreadContext threadContext) {
+            if (false == shouldProcess()) {
+                return;
+            }
+            if (false == AuthenticationField.PRIVILEGE_CATEGORY_VALUE_OPERATOR.equals(
+                threadContext.getHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY)
+            )) {
+                // Only check whether request is operator-only when user is NOT an operator
+                if (logger.isTraceEnabled()) {
+                    Authentication authentication = threadContext.getTransient(AuthenticationField.AUTHENTICATION_KEY);
+                    final User user = authentication.getEffectiveSubject().getUser();
+                    logger.trace("Checking for any operator-only violations for user [{}] and uri [{}]", user, restRequest.uri());
+                }
+                OperatorPrivilegesViolation violation = operatorOnlyRegistry.checkRest(restHandler, restRequest, restChannel);
+                if (violation != null && logger.isDebugEnabled()) {
+                    Authentication authentication = threadContext.getTransient(AuthenticationField.AUTHENTICATION_KEY);
+                    final User user = authentication.getEffectiveSubject().getUser();
+                    logger.debug(
+                        "Found the following operator-only violation [{}] for user [{}] and uri [{}]",
+                        violation.message(),
+                        user,
+                        restRequest.uri()
+                    );
+                }
+            }
+        }
+
+        @Override
         public RestRequest checkRestPartial(RestHandler restHandler, RestRequest restRequest, ThreadContext threadContext) {
             if (false == shouldProcess()) {
                 return null;
@@ -226,6 +257,11 @@ public class OperatorPrivileges {
         @Override
         public RestRequest checkRestPartial(RestHandler restHandler, RestRequest restRequest, ThreadContext threadContext) {
             return restRequest;
+        }
+
+        @Override
+        public void checkRest(RestHandler restHandler, RestRequest restRequest, RestChannel restChannel, ThreadContext threadContext) {
+            // do nothing
         }
 
         @Override

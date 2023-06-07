@@ -96,17 +96,12 @@ public class SecurityRestFilter implements RestHandler {
 
     private void doHandleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
         threadContext.sanitizeHeaders();
-        RestResponse fullyRestrictedResponse = operatorPrivilegesService.checkRestFull(restHandler, request, threadContext);
-        if (fullyRestrictedResponse == null) {
-            RestRequest maybeRestrictedRequest = operatorPrivilegesService.checkRestPartial(restHandler, request, threadContext);
-            try {
-                restHandler.handleRequest(maybeRestrictedRequest, channel, client);
-            } catch (Exception e) {
-                logger.debug(() -> format("Request handling failed for REST request [%s]", request.uri()), e);
-                throw e;
-            }
-        } else {
-            channel.sendResponse(fullyRestrictedResponse);
+        operatorPrivilegesService.checkRest(restHandler, request, channel, threadContext);
+        try {
+            restHandler.handleRequest(request, channel, client);
+        } catch (Exception e) {
+            logger.debug(() -> format("Request handling failed for REST request [%s]", request.uri()), e);
+            throw e;
         }
     }
 

@@ -4,9 +4,9 @@
   "data_stream": {},
   "composed_of": [
     "logs-mappings",
-    "data-streams-mappings",
     "logs-settings",
-    "logs@custom"
+    "logs@custom",
+    "ecs@dynamic_templates"
   ],
   "ignore_missing_component_templates": ["logs@custom"],
   "allow_auto_create": true,

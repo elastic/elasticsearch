@@ -1,0 +1,4 @@
+pr: 96670
+summary: speed up the process in LuceneVerifyingIndexOutput
+area: Store
+type: enhancement

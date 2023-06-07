@@ -84,6 +84,9 @@ using metrics.
       Process statistics, memory consumption, cpu usage, open
       file descriptors.
 
+  `repository`::
+      Statistics about read/write throttling in underlying repositories.
+
   `thread_pool`::
       Statistics about each thread pool, including current size, queue and
       rejected tasks.
@@ -1669,6 +1672,31 @@ Total number of classes loaded since the JVM started.
 `total_unloaded_count`::
 (integer)
 Total number of classes unloaded since the JVM started.
+=======
+======
+
+[[cluster-nodes-stats-api-response-body-repository]]
+`repository`::
+(object)
+Contains throttling statistics for all repositories for the node.
++
+.Properties of `repository`
+[%collapsible%open]
+======
+`<repository_name>`::
+(object)
+Contains repository throttling statistics for the node.
++
+.Properties of `<repository_name>`
+[%collapsible%open]
+=======
+`total_read_throttled_nanos`::
+(integer)
+Total number of nanos which node had to wait during recovery.
+
+`total_write_throttled_nanos`::
+(integer)
+Total number of nanos which node had to wait during snapshotting.
 =======
 ======
 

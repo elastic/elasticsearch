@@ -27,6 +27,7 @@ import org.elasticsearch.monitor.jvm.JvmStats;
 import org.elasticsearch.monitor.os.OsStats;
 import org.elasticsearch.monitor.process.ProcessStats;
 import org.elasticsearch.node.AdaptiveSelectionStats;
+import org.elasticsearch.repositories.RepositoriesThrottlingStats;
 import org.elasticsearch.script.ScriptCacheStats;
 import org.elasticsearch.script.ScriptStats;
 import org.elasticsearch.threadpool.ThreadPoolStats;
@@ -89,6 +90,8 @@ public class NodeStats extends BaseNodeResponse implements ChunkedToXContent {
 
     @Nullable
     private final IndexingPressureStats indexingPressureStats;
+    @Nullable
+    private final RepositoriesThrottlingStats repositoriesThrottlingStats;
 
     public NodeStats(StreamInput in) throws IOException {
         super(in);
@@ -110,6 +113,7 @@ public class NodeStats extends BaseNodeResponse implements ChunkedToXContent {
         ingestStats = in.readOptionalWriteable(IngestStats::read);
         adaptiveSelectionStats = in.readOptionalWriteable(AdaptiveSelectionStats::new);
         indexingPressureStats = in.readOptionalWriteable(IndexingPressureStats::new);
+        repositoriesThrottlingStats = in.readOptionalWriteable(RepositoriesThrottlingStats::new);
     }
 
     public NodeStats(
@@ -129,7 +133,8 @@ public class NodeStats extends BaseNodeResponse implements ChunkedToXContent {
         @Nullable IngestStats ingestStats,
         @Nullable AdaptiveSelectionStats adaptiveSelectionStats,
         @Nullable ScriptCacheStats scriptCacheStats,
-        @Nullable IndexingPressureStats indexingPressureStats
+        @Nullable IndexingPressureStats indexingPressureStats,
+        @Nullable RepositoriesThrottlingStats repositoriesThrottlingStats
     ) {
         super(node);
         this.timestamp = timestamp;
@@ -148,6 +153,7 @@ public class NodeStats extends BaseNodeResponse implements ChunkedToXContent {
         this.adaptiveSelectionStats = adaptiveSelectionStats;
         this.scriptCacheStats = scriptCacheStats;
         this.indexingPressureStats = indexingPressureStats;
+        this.repositoriesThrottlingStats = repositoriesThrottlingStats;
     }
 
     public long getTimestamp() {
@@ -252,6 +258,11 @@ public class NodeStats extends BaseNodeResponse implements ChunkedToXContent {
         return indexingPressureStats;
     }
 
+    @Nullable
+    public RepositoriesThrottlingStats getRepositoriesThrottlingStats() {
+        return repositoriesThrottlingStats;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -275,6 +286,7 @@ public class NodeStats extends BaseNodeResponse implements ChunkedToXContent {
         out.writeOptionalWriteable(ingestStats);
         out.writeOptionalWriteable(adaptiveSelectionStats);
         out.writeOptionalWriteable(indexingPressureStats);
+        out.writeOptionalWriteable(repositoriesThrottlingStats);
     }
 
     @Override
@@ -311,6 +323,11 @@ public class NodeStats extends BaseNodeResponse implements ChunkedToXContent {
                 ifPresent(getOs()).toXContent(builder, params);
                 ifPresent(getProcess()).toXContent(builder, params);
                 ifPresent(getJvm()).toXContent(builder, params);
+                return builder;
+            }),
+
+            Iterators.single((builder, params) -> {
+                ifPresent(getRepositoriesThrottlingStats()).toXContent(builder, params);
                 return builder;
             }),
 

@@ -1,0 +1,57 @@
+---
+"Repository throttling stats (no repository exists)":
+  - skip:
+      features: [arbitrary_key]
+
+  - do:
+      nodes.info: {}
+  - set:
+      nodes._arbitrary_key_: node_id
+
+  - do:
+      nodes.stats:
+        metric: [ repository ]
+
+  - is_true: nodes.$node_id.repository
+  - match: { nodes.$node_id.repository: {} }
+
+---
+"Repository throttling stats (some repositories exist)":
+  - skip:
+      features: [arbitrary_key]
+
+  - do:
+      nodes.info: {}
+  - set:
+      nodes._arbitrary_key_: node_id
+
+  - do:
+      snapshot.create_repository:
+        repository: test_repo_uuid_1
+        body:
+          type: fs
+          settings:
+            location: "test_repo_uuid_1_loc"
+
+  - do:
+      snapshot.create_repository:
+        repository: test_repo_uuid_2
+        body:
+          type: fs
+          settings:
+            location: "test_repo_uuid_2_loc"
+
+  - do:
+      nodes.stats:
+        metric: [ repository ]
+
+  - is_true: nodes.$node_id.repository
+
+  - is_true: nodes.$node_id.repository.test_repo_uuid_1
+  - gte: { nodes.$node_id.repository.test_repo_uuid_1.total_read_throttled_nanos: 0 }
+  - gte: { nodes.$node_id.repository.test_repo_uuid_1.total_write_throttled_nanos: 0 }
+
+  - is_true: nodes.$node_id.repository.test_repo_uuid_2
+  - gte: { nodes.$node_id.repository.test_repo_uuid_2.total_read_throttled_nanos: 0 }
+  - gte: { nodes.$node_id.repository.test_repo_uuid_2.total_write_throttled_nanos: 0 }
+

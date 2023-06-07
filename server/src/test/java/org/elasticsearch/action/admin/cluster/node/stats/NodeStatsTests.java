@@ -64,6 +64,7 @@ import org.elasticsearch.monitor.os.OsStats;
 import org.elasticsearch.monitor.process.ProcessStats;
 import org.elasticsearch.node.AdaptiveSelectionStats;
 import org.elasticsearch.node.ResponseCollectorService;
+import org.elasticsearch.repositories.RepositoriesThrottlingStats;
 import org.elasticsearch.script.ScriptCacheStats;
 import org.elasticsearch.script.ScriptContextStats;
 import org.elasticsearch.script.ScriptStats;
@@ -504,6 +505,12 @@ public class NodeStatsTests extends ESTestCase {
                     assertEquals(limited, sum.getCompilationLimitTriggered());
                     assertEquals(compilations, sum.getCompilations());
                 }
+
+                RepositoriesThrottlingStats repoThrottlingStats = deserializedNodeStats.getRepositoriesThrottlingStats();
+                assertTrue(repoThrottlingStats.stats().containsKey("test-repository"));
+                assertEquals(100, repoThrottlingStats.stats().get("test-repository").getTotalReadThrottledNanos());
+                assertEquals(200, repoThrottlingStats.stats().get("test-repository").getTotalWriteThrottledNanos());
+
             }
         }
     }
@@ -1052,6 +1059,10 @@ public class NodeStatsTests extends ESTestCase {
                 randomLongBetween(0, maxStatValue)
             );
         }
+        RepositoriesThrottlingStats repositoriesThrottlingStats = new RepositoriesThrottlingStats(
+            Map.of("test-repository", new RepositoriesThrottlingStats.ThrottlingStats(100, 200))
+        );
+
         return new NodeStats(
             node,
             randomNonNegativeLong(),
@@ -1069,7 +1080,8 @@ public class NodeStatsTests extends ESTestCase {
             ingestStats,
             adaptiveSelectionStats,
             scriptCacheStats,
-            indexingPressureStats
+            indexingPressureStats,
+            repositoriesThrottlingStats
         );
     }
 

@@ -664,6 +664,23 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         return repositoriesStats;
     }
 
+    public RepositoriesThrottlingStats getRepositoriesThrottlingStats() {
+
+        RepositoriesThrottlingStats.Builder b = RepositoriesThrottlingStats.builder();
+        repositories.values()
+            .forEach(
+                r -> b.add(
+                    new RepositoriesThrottlingStats.RepositoryThrottling(
+                        r.getMetadata().name(),
+                        r.getRestoreThrottleTimeInNanos(),
+                        r.getSnapshotThrottleTimeInNanos()
+                    )
+                )
+            );
+
+        return b.build();
+    }
+
     private List<RepositoryStatsSnapshot> getRepositoryStatsForActiveRepositories() {
         return Stream.concat(repositories.values().stream(), internalRepositories.values().stream())
             .filter(r -> r instanceof MeteredBlobStoreRepository)

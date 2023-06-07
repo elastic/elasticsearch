@@ -1117,16 +1117,8 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 } catch (InterruptedException e) {
                     fail("server never called grace period");
                 }
-                try {
-                    // one last request, will attempt to close naturally, but we are blocking it
-                    transport.incomingRequest(
-                        new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/"),
-                        httpChannel
-                    );
-                } catch (IllegalStateException err) {
-                    // we force closed below, so we may get this error when closing the channel after request succeeds.
-                    assertThat(err.getMessage(), is("channel already closed!"));
-                }
+                // one last request, will attempt to close naturally, but we are blocking it
+                transport.incomingRequest(new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/"), httpChannel);
             }).start();
 
             new Thread(() -> {
@@ -1299,7 +1291,9 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 }
                 if (waitForever) {
                     try {
-                        closeLatch.await(1, TimeUnit.SECONDS);
+                        if (closeLatch.await(1, TimeUnit.SECONDS) == false) {
+                            return;
+                        }
                     } catch (InterruptedException ie) {
                         throw new RuntimeException(ie);
                     }

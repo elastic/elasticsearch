@@ -48,7 +48,7 @@ import static org.elasticsearch.core.TimeValue.parseTimeValue;
 public class RestRequest implements ToXContent.Params {
 
     // tchar pattern as defined by RFC7230 section 3.2.6
-    private static final Pattern TCHAR_PATTERN = Pattern.compile("[a-zA-z0-9!#$%&'*+\\-.\\^_`|~]+");
+    private static final Pattern TCHAR_PATTERN = Pattern.compile("[a-zA-Z0-9!#$%&'*+\\-.\\^_`|~]+");
 
     private static final AtomicLong requestIdGenerator = new AtomicLong();
 

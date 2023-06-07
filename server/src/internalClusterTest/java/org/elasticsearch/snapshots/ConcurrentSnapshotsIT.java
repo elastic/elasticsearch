@@ -12,7 +12,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
@@ -25,6 +24,7 @@ import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.discovery.AbstractDisruptionTestCase;
@@ -190,14 +190,14 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
             dataNode
         );
 
-        final Collection<StepListener<AcknowledgedResponse>> deleteFutures = new ArrayList<>();
+        final Collection<ListenableFuture<AcknowledgedResponse>> deleteFutures = new ArrayList<>();
         while (snapshotNames.isEmpty() == false) {
             final Collection<String> toDelete = randomSubsetOf(snapshotNames);
             if (toDelete.isEmpty()) {
                 continue;
             }
             snapshotNames.removeAll(toDelete);
-            final StepListener<AcknowledgedResponse> future = new StepListener<>();
+            final ListenableFuture<AcknowledgedResponse> future = new ListenableFuture<>();
             clusterAdmin().prepareDeleteSnapshot(repoName, toDelete.toArray(Strings.EMPTY_ARRAY)).execute(future);
             deleteFutures.add(future);
         }
@@ -213,7 +213,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> waiting for batched deletes to finish");
         final PlainActionFuture<Collection<AcknowledgedResponse>> allDeletesDone = new PlainActionFuture<>();
         final ActionListener<AcknowledgedResponse> deletesListener = new GroupedActionListener<>(deleteFutures.size(), allDeletesDone);
-        for (StepListener<AcknowledgedResponse> deleteFuture : deleteFutures) {
+        for (ListenableFuture<AcknowledgedResponse> deleteFuture : deleteFutures) {
             deleteFuture.addListener(deletesListener);
         }
         allDeletesDone.get();

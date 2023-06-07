@@ -24,6 +24,7 @@ import static org.elasticsearch.action.support.replication.PostWriteRefresh.POST
 import static org.elasticsearch.cluster.metadata.DataLifecycle.DLM_ORIGIN;
 import static org.elasticsearch.ingest.IngestService.INGEST_ORIGIN;
 import static org.elasticsearch.persistent.PersistentTasksService.PERSISTENT_TASK_ORIGIN;
+import static org.elasticsearch.synonyms.SynonymsManagementAPIService.SYNONYMS_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.DEPRECATION_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.ENRICH_ORIGIN;
@@ -152,6 +153,9 @@ public final class AuthorizationUtils {
                 break;
             case ASYNC_SEARCH_ORIGIN:
                 securityContext.executeAsInternalUser(InternalUsers.ASYNC_SEARCH_USER, version, consumer);
+                break;
+            case SYNONYMS_ORIGIN:
+                securityContext.executeAsInternalUser(InternalUsers.SYNONYMS_USER, version, consumer);
                 break;
             default:
                 assert false : "action.origin [" + actionOrigin + "] is unknown!";

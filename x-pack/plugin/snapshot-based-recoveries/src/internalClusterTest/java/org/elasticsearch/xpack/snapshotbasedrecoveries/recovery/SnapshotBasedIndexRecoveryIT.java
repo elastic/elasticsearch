@@ -66,10 +66,13 @@ import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.junit.After;
@@ -662,6 +665,121 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
         }
     }
 
+    @TestIssueLogging(
+        issueUrl = "https://github.com/elastic/elasticsearch/issues/96618",
+        value = "org.elasticsearch.indices.recovery:TRACE,org.elasticsearch.xpack.snapshotbasedrecoveries:TRACE"
+    )
+    public void testCancelledRecoveryAbortsDownloadPromptly() throws Exception {
+        updateSetting(INDICES_RECOVERY_MAX_CONCURRENT_SNAPSHOT_FILE_DOWNLOADS.getKey(), "1");
+
+        try {
+            internalCluster().ensureAtLeastNumDataNodes(2);
+
+            String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+            createIndex(
+                indexName,
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false) // merging might change the primary segments after the snapshot
+                    .build()
+            );
+            ensureGreen(indexName);
+
+            int numDocs = randomIntBetween(1, 1000);
+            indexDocs(indexName, numDocs, numDocs);
+
+            String repoName = "repo";
+            createRepo(repoName, TestRepositoryPlugin.FILTER_TYPE);
+            createSnapshot(repoName, "snap", Collections.singletonList(indexName));
+
+            final AtomicBoolean isCancelled = new AtomicBoolean();
+            final CountDownLatch readFromBlobCalledLatch = new CountDownLatch(1);
+            final CountDownLatch readFromBlobRespondLatch = new CountDownLatch(1);
+
+            internalCluster().getInstances(TransportService.class)
+                .forEach(
+                    transportService -> ((MockTransportService) transportService).addRequestHandlingBehavior(
+                        PeerRecoverySourceService.Actions.START_RECOVERY,
+                        (handler, request, channel, task) -> handler.messageReceived(request, new TransportChannel() {
+                            @Override
+                            public String getProfileName() {
+                                return channel.getProfileName();
+                            }
+
+                            @Override
+                            public String getChannelType() {
+                                return channel.getChannelType();
+                            }
+
+                            @Override
+                            public void sendResponse(TransportResponse response) {
+                                fail("recovery should not succeed");
+                            }
+
+                            @Override
+                            public void sendResponse(Exception exception) {
+                                // Must not respond until the index deletion is applied on the target node, or else it will get an
+                                // IllegalIndexShardStateException which it considers to be retryable, and will reset the recovery and
+                                // generate a new `CancellableThreads` which is cancelled instead of the original `CancellableThreads`,
+                                // permitting a subsequent read.
+                                transportService.getThreadPool().generic().execute(() -> {
+                                    safeAwait(readFromBlobRespondLatch);
+                                    try {
+                                        channel.sendResponse(exception);
+                                    } catch (IOException e) {
+                                        throw new AssertionError("unexpected", e);
+                                    }
+                                });
+                            }
+                        }, task)
+                    )
+                );
+
+            FilterFsRepository.wrapReadBlobMethod((blobName, stream) -> {
+                if (blobName.startsWith("__")) {
+                    return new FilterInputStream(stream) {
+                        @Override
+                        public int read() throws IOException {
+                            beforeRead();
+                            return super.read();
+                        }
+
+                        @Override
+                        public int read(byte[] b, int off, int len) throws IOException {
+                            beforeRead();
+                            return super.read(b, off, len);
+                        }
+
+                        private void beforeRead() {
+                            assertFalse(isCancelled.get()); // should have no further reads once the index is deleted
+                            readFromBlobCalledLatch.countDown();
+                            safeAwait(readFromBlobRespondLatch);
+                        }
+                    };
+                } else {
+                    return stream;
+                }
+            });
+
+            updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1), indexName);
+            safeAwait(readFromBlobCalledLatch);
+
+            assertAcked(client().admin().indices().prepareDelete(indexName).get());
+            // cancellation flag is set when applying the cluster state that deletes the index, so no further waiting is necessary
+            isCancelled.set(true);
+            readFromBlobRespondLatch.countDown();
+
+            assertThat(indexExists(indexName), is(equalTo(false)));
+            assertBusy(
+                () -> internalCluster().getInstances(PeerRecoveryTargetService.class)
+                    .forEach(peerRecoveryTargetService -> assertEquals(0, peerRecoveryTargetService.ongoingRecoveryCount()))
+            );
+        } finally {
+            updateSetting(INDICES_RECOVERY_MAX_CONCURRENT_SNAPSHOT_FILE_DOWNLOADS.getKey(), null);
+        }
+    }
+
     public void testRecoveryAfterRestoreUsesSnapshots() throws Exception {
         String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(
@@ -769,6 +887,53 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
             assertThat(newReplicaRepo.totalBytesRead.get(), is(greaterThan(0L)));
             assertThat(newReplicaRepo.totalBytesRead.get(), is(lessThanOrEqualTo(snapshotSizeForIndex)));
         }
+    }
+
+    public void testUsesNewestSnapshot() throws Exception {
+        internalCluster().ensureAtLeastNumDataNodes(2);
+
+        String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName, indexSettings(1, 0).put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "1s").build());
+
+        int numDocs = randomIntBetween(300, 1000);
+        indexDocs(indexName, 0, numDocs);
+
+        String oldSnapshotRepo = "old-snapshot-repo";
+        createRepo(oldSnapshotRepo, TestRepositoryPlugin.INSTRUMENTED_TYPE);
+        final var oldSnapshotInfo = createSnapshot(oldSnapshotRepo, "old-snapshot", Collections.singletonList(indexName));
+        assertThat(oldSnapshotInfo.startTime(), lessThanOrEqualTo(oldSnapshotInfo.endTime()));
+
+        indexDocs(indexName, numDocs, 1);
+        final var forceMergeResponse = indicesAdmin().prepareForceMerge(indexName).setMaxNumSegments(1).setFlush(true).get();
+        assertEquals(1, forceMergeResponse.getTotalShards());
+        assertEquals(1, forceMergeResponse.getSuccessfulShards());
+
+        // wait for time to pass
+        assertBusy(
+            () -> internalCluster().getInstances(ThreadPool.class)
+                .forEach(tp -> assertThat(tp.absoluteTimeInMillis(), greaterThan(oldSnapshotInfo.endTime())))
+        );
+
+        String newSnapshotRepo;
+        if (randomBoolean()) {
+            newSnapshotRepo = "new-snapshot-repo";
+            createRepo(newSnapshotRepo, TestRepositoryPlugin.INSTRUMENTED_TYPE);
+        } else {
+            newSnapshotRepo = oldSnapshotRepo;
+        }
+        final var newSnapshotInfo = createSnapshot(newSnapshotRepo, "latest-snapshot", Collections.singletonList(indexName));
+        assertThat(newSnapshotInfo.startTime(), greaterThan(oldSnapshotInfo.endTime()));
+
+        setReplicaCount(1, indexName);
+
+        ensureGreen(indexName);
+        assertDocumentsAreEqual(indexName, numDocs + 1);
+
+        RecoveryState recoveryState = getLatestPeerRecoveryStateForShard(indexName, 0);
+        String currentPrimary = recoveryState.getSourceNode().getName();
+        String replica = recoveryState.getTargetNode().getName();
+        assertPeerRecoveryWasSuccessful(recoveryState, currentPrimary, replica);
+        assertEquals(recoveryState.getIndex().recoveredBytes(), recoveryState.getIndex().recoveredFromSnapshotBytes());
     }
 
     public void testDisabledSnapshotBasedRecoveryUsesSourceFiles() throws Exception {

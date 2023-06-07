@@ -683,6 +683,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
     }
 
     public void testSendWithCrossClusterAccessHeadersForSystemUserCcrInternalAction() throws Exception {
+        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
         final String action = randomFrom(
             "internal:admin/ccr/restore/session/put",
             "internal:admin/ccr/restore/session/clear",
@@ -698,6 +699,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
     }
 
     public void testSendWithCrossClusterAccessHeadersForRegularUserRegularAction() throws Exception {
+        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
         final Authentication authentication = randomValueOtherThanMany(
             authc -> authc.getAuthenticationType() == Authentication.AuthenticationType.INTERNAL,
             () -> AuthenticationTestHelper.builder().build()
@@ -708,6 +710,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
     }
 
     public void testSendWithCrossClusterAccessHeadersForRegularUserClusterStateAction() throws Exception {
+        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
         final Authentication authentication = randomValueOtherThanMany(
             authc -> authc.getAuthenticationType() == Authentication.AuthenticationType.INTERNAL,
             () -> AuthenticationTestHelper.builder().build()

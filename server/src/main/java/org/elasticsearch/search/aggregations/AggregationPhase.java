@@ -56,9 +56,9 @@ public class AggregationPhase {
         }
         if (context.getProfilers() != null) {
             InternalProfileCollector profileCollector = new InternalProfileCollector(collector, CollectorResult.REASON_AGGREGATION);
-            context.registerAggsCollectorManager(new InternalProfileCollectorManager(profileCollector));
+            context.aggregations().registerAggsCollectorManager(new InternalProfileCollectorManager(profileCollector));
         } else {
-            context.registerAggsCollectorManager(new SingleThreadCollectorManager(collector));
+            context.aggregations().registerAggsCollectorManager(new SingleThreadCollectorManager(collector));
         }
     }
 
@@ -110,6 +110,5 @@ public class AggregationPhase {
 
         // disable aggregations so that they don't run on next pages in case of scrolling
         context.aggregations(null);
-        context.registerAggsCollectorManager(null);
     }
 }

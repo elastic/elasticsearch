@@ -98,7 +98,12 @@ public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
         final Path cacheDir = Files.createDirectories(resolveSnapshotCache(shardDir).resolve(snapshotId.getUUID()));
         try (
             NodeEnvironment nodeEnvironment = new NodeEnvironment(settings, environment);
-            SharedBlobCacheService<CacheKey> sharedBlobCacheService = new SharedBlobCacheService<>(nodeEnvironment, settings, threadPool);
+            SharedBlobCacheService<CacheKey> sharedBlobCacheService = new SharedBlobCacheService<>(
+                nodeEnvironment,
+                settings,
+                threadPool,
+                SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME
+            );
             CacheService cacheService = randomCacheService();
             TestSearchableSnapshotDirectory directory = new TestSearchableSnapshotDirectory(
                 sharedBlobCacheService,
@@ -138,7 +143,7 @@ public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
         ) {
             super(
                 () -> TestUtils.singleBlobContainer(fileInfo.partName(0), fileData),
-                () -> new BlobStoreIndexShardSnapshot("_snapshot_id", 0L, List.of(fileInfo), 0L, 0L, 0, 0L),
+                () -> new BlobStoreIndexShardSnapshot("_snapshot_id", List.of(fileInfo), 0L, 0L, 0, 0L),
                 new TestUtils.SimpleBlobStoreCacheService(),
                 "_repository",
                 snapshotId,

@@ -168,7 +168,7 @@ public class FileInfoTests extends ESTestCase {
         );
         int numBytes = 0;
         for (int i = 0; i < info.numberOfParts(); i++) {
-            numBytes += info.partBytes(i);
+            numBytes += (int) info.partBytes(i);
         }
         assertEquals(numBytes, 36);
 
@@ -179,7 +179,7 @@ public class FileInfoTests extends ESTestCase {
         );
         numBytes = 0;
         for (int i = 0; i < info.numberOfParts(); i++) {
-            numBytes += info.partBytes(i);
+            numBytes += (int) info.partBytes(i);
         }
         assertEquals(numBytes, 35);
         final int numIters = randomIntBetween(10, 100);
@@ -193,7 +193,7 @@ public class FileInfoTests extends ESTestCase {
             info = new BlobStoreIndexShardSnapshot.FileInfo("foo", metadata, ByteSizeValue.ofBytes(randomIntBetween(1, 1000)));
             numBytes = 0;
             for (int i = 0; i < info.numberOfParts(); i++) {
-                numBytes += info.partBytes(i);
+                numBytes += (int) info.partBytes(i);
             }
             assertEquals(numBytes, metadata.length());
         }

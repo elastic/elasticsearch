@@ -17,7 +17,7 @@ import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -73,6 +73,7 @@ import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardSnapshotResult;
+import org.elasticsearch.repositories.SnapshotIndexCommit;
 import org.elasticsearch.repositories.SnapshotShardContext;
 import org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase;
 import org.elasticsearch.snapshots.Snapshot;
@@ -705,7 +706,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
     }
 
     protected DiscoveryNode getFakeDiscoNode(String id) {
-        return TestDiscoveryNode.create(id, id);
+        return DiscoveryNodeUtils.create(id, id);
     }
 
     /** recovers a replica from the given primary **/
@@ -1054,7 +1055,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
                     shard.mapperService(),
                     snapshot.getSnapshotId(),
                     indexId,
-                    indexCommitRef,
+                    new SnapshotIndexCommit(indexCommitRef),
                     null,
                     snapshotStatus,
                     Version.CURRENT,

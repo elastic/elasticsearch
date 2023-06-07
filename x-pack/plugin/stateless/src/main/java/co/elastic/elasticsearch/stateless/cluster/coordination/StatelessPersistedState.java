@@ -22,7 +22,6 @@ import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.store.NoLockFactory;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DelegatingActionListener;
-import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.cluster.ClusterState;
@@ -34,6 +33,7 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.lucene.store.BytesReferenceIndexInput;
 import org.elasticsearch.common.lucene.store.IndexOutputOutputStream;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
@@ -195,21 +195,21 @@ class StatelessPersistedState extends GatewayMetaState.LucenePersistedState {
 
     @Override
     public void getLatestStoredState(long term, ActionListener<ClusterState> listener) {
-        var getLatestTermAndVersionStep = new StepListener<Optional<PersistedClusterStateMetadata>>();
-        var readStateStep = new StepListener<Optional<PersistedClusterState>>();
+        var getLatestTermAndVersionStep = new ListenableFuture<Optional<PersistedClusterStateMetadata>>();
+        var readStateStep = new ListenableFuture<Optional<PersistedClusterState>>();
 
-        getLatestTermAndVersionStep.whenComplete(stateMetadata -> {
+        getLatestTermAndVersionStep.addListener(listener.delegateFailureAndWrap((l, stateMetadata) -> {
             if (stateMetadata.isEmpty() || isLatestAcceptedStateStale(stateMetadata.get()) == false) {
-                listener.onResponse(null);
+                l.onResponse(null);
                 return;
             }
 
             readLatestClusterStateForTerm(stateMetadata.get().term(), readStateStep);
-        }, listener::onFailure);
+        }));
 
-        readStateStep.whenComplete(persistedClusterStateOpt -> {
+        readStateStep.addListener(listener.delegateFailureAndWrap((delegate, persistedClusterStateOpt) -> {
             if (persistedClusterStateOpt.isEmpty()) {
-                listener.onFailure(new IllegalStateException("Unexpected empty state"));
+                delegate.onFailure(new IllegalStateException("Unexpected empty state"));
                 return;
             }
             var latestClusterState = persistedClusterStateOpt.get();
@@ -238,8 +238,8 @@ class StatelessPersistedState extends GatewayMetaState.LucenePersistedState {
                 )
             );
 
-            listener.onResponse(adaptedClusterState);
-        }, listener::onFailure);
+            delegate.onResponse(adaptedClusterState);
+        }));
 
         getLatestStoredClusterStateMetadataForTerm(term - 1, getLatestTermAndVersionStep);
     }

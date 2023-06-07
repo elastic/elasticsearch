@@ -8,13 +8,13 @@
 package org.elasticsearch.xpack.application.analytics.event.parser.field;
 
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.xcontent.ContextParser;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.application.analytics.event.AnalyticsEvent;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -49,7 +49,7 @@ public class DocumentAnalyticsEventFieldTests extends AnalyticsEventFieldParserT
 
     @Override
     protected Map<String, String> createTestInstance() {
-        return new HashMap<>(randomEventDocumentField());
+        return randomEventDocumentField();
     }
 
     @Override
@@ -58,11 +58,9 @@ public class DocumentAnalyticsEventFieldTests extends AnalyticsEventFieldParserT
     }
 
     public static Map<String, String> randomEventDocumentField() {
-        return Map.of(
-            DOCUMENT_ID_FIELD.getPreferredName(),
-            randomIdentifier(),
-            DOCUMENT_INDEX_FIELD.getPreferredName(),
-            randomIdentifier()
-        );
+        return MapBuilder.<String, String>newMapBuilder()
+            .put(DOCUMENT_ID_FIELD.getPreferredName(), randomIdentifier())
+            .put(DOCUMENT_INDEX_FIELD.getPreferredName(), randomIdentifier())
+            .map();
     }
 }

@@ -9,12 +9,12 @@ package org.elasticsearch.xpack.application.analytics.event.parser.field;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.xcontent.ContextParser;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.application.analytics.event.AnalyticsEvent;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -57,7 +57,7 @@ public class PaginationAnalyticsEventFieldTests extends AnalyticsEventFieldParse
 
     @Override
     protected Map<String, Integer> createTestInstance() {
-        return new HashMap<>(randomEventSearchPaginationField());
+        return randomEventSearchPaginationField();
     }
 
     @Override
@@ -66,11 +66,9 @@ public class PaginationAnalyticsEventFieldTests extends AnalyticsEventFieldParse
     }
 
     public static Map<String, Integer> randomEventSearchPaginationField() {
-        return Map.of(
-            CURRENT_PAGE_FIELD.getPreferredName(),
-            randomNonNegativeInt(),
-            PAGE_SIZE_FIELD.getPreferredName(),
-            randomNonNegativeInt()
-        );
+        return MapBuilder.<String, Integer>newMapBuilder()
+            .put(CURRENT_PAGE_FIELD.getPreferredName(), randomNonNegativeInt())
+            .put(PAGE_SIZE_FIELD.getPreferredName(), randomNonNegativeInt())
+            .map();
     }
 }

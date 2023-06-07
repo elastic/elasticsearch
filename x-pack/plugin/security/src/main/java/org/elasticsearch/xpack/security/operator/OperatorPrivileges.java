@@ -77,7 +77,7 @@ public class OperatorPrivileges {
          */
         RestRequest checkRestPartial(RestHandler restHandler, RestRequest restRequest, ThreadContext threadContext);
 
-        void checkRest(RestHandler restHandler, RestRequest restRequest, RestChannel restChannel, ThreadContext threadContext);
+        boolean checkRest(RestHandler restHandler, RestRequest restRequest, RestChannel restChannel, ThreadContext threadContext);
 
         /**
          * When operator privileges are enabled, certain requests needs to be configured in a specific way
@@ -172,9 +172,9 @@ public class OperatorPrivileges {
         }
 
         @Override
-        public void checkRest(RestHandler restHandler, RestRequest restRequest, RestChannel restChannel, ThreadContext threadContext) {
+        public boolean checkRest(RestHandler restHandler, RestRequest restRequest, RestChannel restChannel, ThreadContext threadContext) {
             if (false == shouldProcess()) {
-                return;
+                return true;
             }
             if (false == AuthenticationField.PRIVILEGE_CATEGORY_VALUE_OPERATOR.equals(
                 threadContext.getHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY)
@@ -186,17 +186,21 @@ public class OperatorPrivileges {
                     logger.trace("Checking for any operator-only violations for user [{}] and uri [{}]", user, restRequest.uri());
                 }
                 OperatorPrivilegesViolation violation = operatorOnlyRegistry.checkRest(restHandler, restRequest, restChannel);
-                if (violation != null && logger.isDebugEnabled()) {
-                    Authentication authentication = threadContext.getTransient(AuthenticationField.AUTHENTICATION_KEY);
-                    final User user = authentication.getEffectiveSubject().getUser();
-                    logger.debug(
-                        "Found the following operator-only violation [{}] for user [{}] and uri [{}]",
-                        violation.message(),
-                        user,
-                        restRequest.uri()
-                    );
+                if (violation != null) {
+                    if (logger.isDebugEnabled()) {
+                        Authentication authentication = threadContext.getTransient(AuthenticationField.AUTHENTICATION_KEY);
+                        final User user = authentication.getEffectiveSubject().getUser();
+                        logger.debug(
+                            "Found the following operator-only violation [{}] for user [{}] and uri [{}]",
+                            violation.message(),
+                            user,
+                            restRequest.uri()
+                        );
+                    }
+                    return false;
                 }
             }
+            return true;
         }
 
         @Override
@@ -260,8 +264,8 @@ public class OperatorPrivileges {
         }
 
         @Override
-        public void checkRest(RestHandler restHandler, RestRequest restRequest, RestChannel restChannel, ThreadContext threadContext) {
-            // do nothing
+        public boolean checkRest(RestHandler restHandler, RestRequest restRequest, RestChannel restChannel, ThreadContext threadContext) {
+            return true;
         }
 
         @Override

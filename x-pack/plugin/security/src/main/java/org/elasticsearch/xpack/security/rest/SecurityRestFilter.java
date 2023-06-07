@@ -96,12 +96,14 @@ public class SecurityRestFilter implements RestHandler {
 
     private void doHandleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
         threadContext.sanitizeHeaders();
-        operatorPrivilegesService.checkRest(restHandler, request, channel, threadContext);
-        try {
-            restHandler.handleRequest(request, channel, client);
-        } catch (Exception e) {
-            logger.debug(() -> format("Request handling failed for REST request [%s]", request.uri()), e);
-            throw e;
+        // operator privileges can short circuit to return a non-successful response
+        if (operatorPrivilegesService.checkRest(restHandler, request, channel, threadContext)) {
+            try {
+                restHandler.handleRequest(request, channel, client);
+            } catch (Exception e) {
+                logger.debug(() -> format("Request handling failed for REST request [%s]", request.uri()), e);
+                throw e;
+            }
         }
     }
 

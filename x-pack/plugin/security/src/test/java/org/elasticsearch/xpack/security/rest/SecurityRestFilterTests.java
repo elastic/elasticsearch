@@ -311,13 +311,13 @@ public class SecurityRestFilterTests extends ESTestCase {
                     }
 
                     @Override
-                    public void checkRest(
+                    public boolean checkRest(
                         RestHandler restHandler,
                         RestRequest restRequest,
                         RestChannel restChannel,
                         ThreadContext threadContext
                     ) {
-
+                        return true;
                     }
 
                     @Override
@@ -366,13 +366,13 @@ public class SecurityRestFilterTests extends ESTestCase {
                     }
 
                     @Override
-                    public void checkRest(
+                    public boolean checkRest(
                         RestHandler restHandler,
                         RestRequest restRequest,
                         RestChannel restChannel,
                         ThreadContext threadContext
                     ) {
-
+                        return true;
                     }
 
                     @Override

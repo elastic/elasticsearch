@@ -178,6 +178,7 @@ Ingest Node::
 Machine Learning::
 * Add `_meta` field to data frame analytics config {es-pull}94529[#94529]
 * Add `embedding_size` to text embedding config {es-pull}95176[#95176]
+* Anomaly score explanation for rare detector {ml-pull}2449[#2449]
 * Include model definition install status for Pytorch models {es-pull}95271[#95271]
 * Integrate ELSER model download into put trained model API {es-pull}95281[#95281]
 * Start, stop and infer of a trained model can now optionally use a deployment ID that is different to the model ID {es-pull}95168[#95168]

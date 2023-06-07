@@ -11,6 +11,7 @@ import org.elasticsearch.xcontent.ContextParser;
 import org.elasticsearch.xpack.application.analytics.event.AnalyticsEvent;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -24,7 +25,7 @@ public class UserAnalyticsEventFieldTests extends AnalyticsEventFieldParserTestC
 
     @Override
     protected Map<String, String> createTestInstance() {
-        return randomEventUserField();
+        return new HashMap<>(randomEventUserField());
     }
 
     @Override

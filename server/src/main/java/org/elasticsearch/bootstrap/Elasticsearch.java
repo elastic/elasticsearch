@@ -16,6 +16,7 @@ import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.filesystem.FileSystemNatives;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
@@ -179,14 +180,11 @@ class Elasticsearch {
         // Log ifconfig output before SecurityManager is installed
         IfConfig.logIfNecessary();
 
-        try {
+        ensureInitialized(
             // ReferenceDocs class does nontrivial static initialization which should always succeed but load it now (before SM) to be sure
-            MethodHandles.publicLookup().ensureInitialized(ReferenceDocs.class);
-            // AbstractRefCounted class uses MethodHandles.lookup during initialization, load it now (before SM) to be sure it succeeds
-            MethodHandles.publicLookup().ensureInitialized(AbstractRefCounted.class);
-        } catch (IllegalAccessException unexpected) {
-            throw new AssertionError(unexpected);
-        }
+            ReferenceDocs.class,
+            // The following classes use MethodHandles.lookup during initialization, load them now (before SM) to be sure they succeed
+            AbstractRefCounted.class, SubscribableListener.class);
 
         // install SM after natives, shutdown hooks, etc.
         org.elasticsearch.bootstrap.Security.configure(
@@ -194,6 +192,16 @@ class Elasticsearch {
             SECURITY_FILTER_BAD_DEFAULTS_SETTING.get(args.nodeSettings()),
             args.pidFile()
         );
+    }
+
+    private static void ensureInitialized(Class<?>... classes) {
+        for (final var clazz : classes) {
+            try {
+                MethodHandles.publicLookup().ensureInitialized(clazz);
+            } catch (IllegalAccessException unexpected) {
+                throw new AssertionError(unexpected);
+            }
+        }
     }
 
     /**

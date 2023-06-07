@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
+import org.mockito.Mockito;
 
 import java.util.Base64;
 import java.util.Collections;
@@ -326,9 +327,8 @@ public class SecurityRestFilterTests extends ESTestCase {
     }
 
     public void testPartiallyRestRestriction() throws Exception {
-        int i = 0;
         for (Boolean isOperator : new Boolean[] { Boolean.TRUE, Boolean.FALSE }) {
-            i++;
+            Mockito.clearInvocations(restHandler);
             RestRequest request = mock(RestRequest.class);
             try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
                 SecurityRestFilter filter = getFilter(new OperatorPrivileges.OperatorPrivilegesService() {
@@ -361,7 +361,7 @@ public class SecurityRestFilterTests extends ESTestCase {
 
                 filter.handleRequest(request, channel, null);
                 ArgumentCaptor<RestRequest> restRequestArgumentCaptor = ArgumentCaptor.forClass(RestRequest.class);
-                verify(restHandler, times(i)).handleRequest(restRequestArgumentCaptor.capture(), eq(channel), eq(null));
+                verify(restHandler, times(1)).handleRequest(restRequestArgumentCaptor.capture(), eq(channel), eq(null));
                 verify(channel, never()).sendResponse(any()); // response is not sent from here
                 if (isOperator) {
                     assertEquals(request, restRequestArgumentCaptor.getValue()); // does not change the request

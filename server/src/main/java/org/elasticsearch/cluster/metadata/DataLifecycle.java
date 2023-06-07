@@ -65,7 +65,7 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
     }
 
     public static boolean isEnabled() {
-        return DLM_FEATURE_FLAG.isEnabled();
+        return false;
     }
 
     @Nullable

@@ -9,12 +9,12 @@ package org.elasticsearch.xpack.searchablesnapshots.allocation;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
@@ -68,7 +68,7 @@ public class SearchableSnapshotIndexEventListener implements IndexEventListener 
         final var store = indexShard.store();
         final SearchableSnapshotDirectory directory = unwrapDirectory(store.directory());
         assert directory != null;
-        final ListenableActionFuture<Void> preWarmListener = new ListenableActionFuture<>();
+        final ListenableFuture<Void> preWarmListener = new ListenableFuture<>();
         final boolean success = directory.loadSnapshot(indexShard.recoveryState(), store::isClosing, preWarmListener);
         final ShardRouting shardRouting = indexShard.routingEntry();
         if (success && shardRouting.isRelocationTarget()) {

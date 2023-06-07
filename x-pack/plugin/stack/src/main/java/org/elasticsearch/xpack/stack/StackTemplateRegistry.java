@@ -9,7 +9,9 @@ package org.elasticsearch.xpack.stack;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Version;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -35,6 +37,9 @@ import java.util.stream.Stream;
 
 public class StackTemplateRegistry extends IndexTemplateRegistry {
     private static final Logger logger = LogManager.getLogger(StackTemplateRegistry.class);
+
+    // Current version of the registry requires all nodes to be at least 8.9.0.
+    public static final Version MIN_NODE_VERSION = Version.V_8_9_0;
 
     // The stack template registry version. This number must be incremented when we make changes
     // to built-in templates.
@@ -261,5 +266,14 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
         // are only installed via elected master node then the APIs are always
         // there and the ActionNotFoundTransportException errors are then prevented.
         return true;
+    }
+
+    @Override
+    protected boolean isClusterReady(ClusterChangedEvent event) {
+        // Ensure current version of the components are installed only once all nodes are updated to 8.9.0.
+        // This is necessary to prevent an error caused nby the usage of the ignore_missing_pipeline property
+        // in the pipeline processor, which has been introduced only in 8.9.0
+        Version minNodeVersion = event.state().nodes().getMinNodeVersion();
+        return minNodeVersion.onOrAfter(MIN_NODE_VERSION);
     }
 }

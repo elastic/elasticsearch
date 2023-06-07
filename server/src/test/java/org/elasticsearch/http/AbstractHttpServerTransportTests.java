@@ -1277,7 +1277,10 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 }
                 if (waitForever) {
                     try {
-                        closeLatch.await(1, TimeUnit.SECONDS);
+                        // closeLatch.await(1, TimeUnit.SECONDS);
+                        if (closeLatch.await(1, TimeUnit.SECONDS) == false) {
+                            return;
+                        }
                     } catch (InterruptedException ie) {
                         throw new RuntimeException(ie);
                     }

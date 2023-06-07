@@ -53,12 +53,13 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -90,7 +91,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
 
     private volatile BoundTransportAddress boundAddress;
     private final AtomicLong totalChannelsAccepted = new AtomicLong();
-    private final Map<HttpChannel, AtomicInteger> httpChannels = new ConcurrentHashMap<>();
+    private final Map<HttpChannel, RequestTrackingHttpChannel> httpChannels = new ConcurrentHashMap<>();
     private final PlainActionFuture<Void> allClientsClosedListener = PlainActionFuture.newFuture();
     private final RefCounted refCounted = AbstractRefCounted.of(() -> allClientsClosedListener.onResponse(null));
     private final Set<HttpServerChannel> httpServerChannels = Collections.newSetFromMap(new ConcurrentHashMap<>());
@@ -285,15 +286,12 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
      */
     void closeIdleConnections() {
         int numClosed = 0;
-        Iterator<Map.Entry<HttpChannel, AtomicInteger>> it = httpChannels.entrySet().iterator();
-        while (it.hasNext()) {
-            Map.Entry<HttpChannel, AtomicInteger> entry = it.next();
-            if (entry.getValue().getAcquire() == 0) {
-                entry.getKey().close();
-                it.remove();
+        for (RequestTrackingHttpChannel channel : httpChannels.values()) {
+            if (channel.setCloseWhenIdle()) {
                 numClosed++;
             }
         }
+        // TODO(stu): this may leave an idle connection open if we checked before the request finished
         if (numClosed != 0) {
             logger.info("closed [{}] idle connections", numClosed);
         }
@@ -391,8 +389,8 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     }
 
     protected void serverAcceptedChannel(HttpChannel httpChannel) {
-        AtomicInteger numRequests = httpChannels.putIfAbsent(httpChannel, new AtomicInteger(0));
-        assert numRequests == null : "Channel should only be added to http channel set once";
+        RequestTrackingHttpChannel trackingChannel = httpChannels.putIfAbsent(httpChannel, new RequestTrackingHttpChannel(httpChannel));
+        assert trackingChannel == null : "Channel should only be added to http channel set once";
         refCounted.incRef();
         httpChannel.addCloseListener(ActionListener.running(() -> {
             httpChannels.remove(httpChannel);
@@ -410,16 +408,20 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
      * @param httpChannel that received the http request
      */
     public void incomingRequest(final HttpRequest httpRequest, final HttpChannel httpChannel) {
-        AtomicInteger numRequests = httpChannels.get(httpChannel);
-        if (numRequests != null) {
+        final RequestTrackingHttpChannel requestTrackingHttpChannel = httpChannels.get(httpChannel);
+        if (requestTrackingHttpChannel != null) {
             // The channel may not be present if the close listener (set in serverAcceptedChannel) runs before this method because the
             // connection closed early
-            numRequests.incrementAndGet();
+            requestTrackingHttpChannel.incomingRequest();
         }
         httpClientStatsTracker.updateClientStats(httpRequest, httpChannel);
         final long startTime = threadPool.rawRelativeTimeInMillis();
         try {
-            handleIncomingRequest(httpRequest, httpChannel, httpRequest.getInboundException());
+            handleIncomingRequest(
+                httpRequest,
+                requestTrackingHttpChannel != null ? requestTrackingHttpChannel : httpChannel,
+                httpRequest.getInboundException()
+            );
         } finally {
             final long took = threadPool.rawRelativeTimeInMillis() - startTime;
             networkService.getHandlingTimeTracker().addHandlingTime(took);
@@ -435,7 +437,6 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
                     logThreshold
                 );
             }
-            numRequests.decrementAndGet();
         }
     }
 
@@ -580,5 +581,71 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
 
     public ThreadPool getThreadPool() {
         return threadPool;
+    }
+
+    private static class RequestTrackingHttpChannel implements HttpChannel {
+        final AtomicInteger incomingRequests = new AtomicInteger(0);
+        final AtomicBoolean closeWhenIdle = new AtomicBoolean();
+        final HttpChannel inner;
+
+        public RequestTrackingHttpChannel(HttpChannel inner) {
+            this.inner = Objects.requireNonNull(inner);
+        }
+
+        public void incomingRequest() {
+            // TODO(stu): maybe lock and error here?
+            incomingRequests.incrementAndGet();
+        }
+
+        public boolean setCloseWhenIdle() {
+            closeWhenIdle.set(true);
+            if (incomingRequests.get() == 0) {
+                close();
+                return true;
+            }
+            return false;
+        }
+
+        @Override
+        public void close() {
+            inner.close();
+        }
+
+        @Override
+        public void addCloseListener(ActionListener<Void> listener) {
+            inner.addCloseListener(listener);
+        }
+
+        @Override
+        public boolean isOpen() {
+            return inner.isOpen();
+        }
+
+        private void decrementAndCheckIdle() {
+            int numConns = incomingRequests.decrementAndGet();
+            if (numConns == 0 && closeWhenIdle.get()) {
+                close();
+            }
+        }
+
+        @Override
+        public void sendResponse(HttpResponse response, ActionListener<Void> listener) {
+            inner.sendResponse(
+                response,
+                listener != null
+                    ? ActionListener.runAfter(listener, this::decrementAndCheckIdle)
+                    : ActionListener.running(this::decrementAndCheckIdle)
+            );
+        }
+
+        @Override
+        public InetSocketAddress getLocalAddress() {
+            return inner.getLocalAddress();
+        }
+
+        @Override
+        public InetSocketAddress getRemoteAddress() {
+            return inner.getRemoteAddress();
+        }
     }
 }

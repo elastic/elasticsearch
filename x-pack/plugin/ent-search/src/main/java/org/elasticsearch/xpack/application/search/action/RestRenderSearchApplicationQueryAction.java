@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.application.search.action;
 
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.application.EnterpriseSearch;
@@ -18,7 +18,10 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
-public class RestRenderSearchApplicationQueryAction extends BaseRestHandler {
+public class RestRenderSearchApplicationQueryAction extends SearchApplicationRestHandler {
+    public RestRenderSearchApplicationQueryAction(XPackLicenseState licenseState) {
+        super(licenseState);
+    }
 
     public static final String ENDPOINT_PATH = "/" + EnterpriseSearch.SEARCH_APPLICATION_API_ENDPOINT + "/{name}" + "/_render_query";
 
@@ -33,7 +36,7 @@ public class RestRenderSearchApplicationQueryAction extends BaseRestHandler {
     }
 
     @Override
-    protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
+    protected RestChannelConsumer innerPrepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         final String searchAppName = restRequest.param("name");
         SearchApplicationSearchRequest request;
         if (restRequest.hasContent()) {

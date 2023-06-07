@@ -71,7 +71,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             super(in);
             this.names = in.readOptionalStringArray();
             this.indicesOptions = IndicesOptions.readIndicesOptions(in);
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_007)) {
                 this.includeDefaults = in.readBoolean();
             } else {
                 this.includeDefaults = false;
@@ -83,7 +83,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             super.writeTo(out);
             out.writeOptionalStringArray(names);
             indicesOptions.writeIndicesOptions(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_007)) {
                 out.writeBoolean(includeDefaults);
             }
         }

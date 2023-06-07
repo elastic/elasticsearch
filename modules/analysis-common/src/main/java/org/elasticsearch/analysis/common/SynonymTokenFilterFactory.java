@@ -12,6 +12,8 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.synonym.SynonymFilter;
 import org.apache.lucene.analysis.synonym.SynonymMap;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
@@ -24,6 +26,10 @@ import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.CustomAnalyzer;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
+import org.elasticsearch.synonyms.SynonymRule;
+import org.elasticsearch.synonyms.SynonymsAPI;
+import org.elasticsearch.synonyms.SynonymsManagementAPIService;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Reader;
 import java.io.StringReader;
@@ -40,8 +46,17 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
     protected final Settings settings;
     protected final Environment environment;
     protected final AnalysisMode analysisMode;
+    private final SynonymsManagementAPIService synonymsManagementAPIService;
+    private final ThreadPool threadPool;
 
-    SynonymTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
+    SynonymTokenFilterFactory(
+        IndexSettings indexSettings,
+        Environment env,
+        String name,
+        Settings settings,
+        SynonymsManagementAPIService synonymsManagementAPIService,
+        ThreadPool threadPool
+    ) {
         super(name, settings);
         this.settings = settings;
 
@@ -53,13 +68,14 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
                     + "Instead, insert a lowercase filter in the filter chain before the synonym_graph filter."
             );
         }
-
         this.expand = settings.getAsBoolean("expand", true);
         this.lenient = settings.getAsBoolean("lenient", false);
         this.format = settings.get("format", "");
         boolean updateable = settings.getAsBoolean("updateable", false);
         this.analysisMode = updateable ? AnalysisMode.SEARCH_TIME : AnalysisMode.ALL;
         this.environment = env;
+        this.synonymsManagementAPIService = synonymsManagementAPIService;
+        this.threadPool = threadPool;
     }
 
     @Override
@@ -138,6 +154,7 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
     }
 
     protected ReaderWithOrigin getRulesFromSettings(Environment env) {
+
         if (settings.getAsList("synonyms", null) != null) {
             List<String> rulesList = Analysis.getWordList(env, settings, "synonyms");
             StringBuilder sb = new StringBuilder();
@@ -145,11 +162,46 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
                 sb.append(line).append(System.lineSeparator());
             }
             return new ReaderWithOrigin(new StringReader(sb.toString()), "'" + name() + "' analyzer settings");
+        } else if ((settings.get("synonyms_set") != null) && SynonymsAPI.isEnabled()) {
+            if (analysisMode != AnalysisMode.SEARCH_TIME) {
+                throw new IllegalArgumentException(
+                    "Can't apply [synonyms_set]! " + "Loading synonyms from index is supported only for search time synonyms!"
+                );
+            }
+            String synonymsSet = settings.get("synonyms_set", null);
+            // provide fake synonyms on master thread, as on Master an analyzer is built for validation only
+            if (MasterService.isMasterUpdateThread()) {
+                return new ReaderWithOrigin(
+                    new StringReader("fake rule => fake"),
+                    "fake [" + synonymsSet + "] synonyms_set in .synonyms index"
+                );
+            }
+
+            // TODO: this is a temporary solution for loading synonyms under feature flag, to be redesigned for GA
+            final PlainActionFuture<SynonymsManagementAPIService.SynonymsSetResult> synonymsLoadingFuture = new PlainActionFuture<>() {
+                @Override
+                protected boolean blockingAllowed() {
+                    // allow blocking while loading synonyms under feature flag
+                    return true;
+                }
+            };
+            threadPool.executor(ThreadPool.Names.SYSTEM_READ).execute(() -> {
+                synonymsManagementAPIService.getSynonymsSet(synonymsSet, 0, 10_000, synonymsLoadingFuture);
+            });
+            final SynonymsManagementAPIService.SynonymsSetResult results = synonymsLoadingFuture.actionGet();
+
+            SynonymRule[] synonymRules = results.synonymRules();
+            StringBuilder sb = new StringBuilder();
+            for (SynonymRule synonymRule : synonymRules) {
+                sb.append(synonymRule.synonyms()).append(System.lineSeparator());
+            }
+            return new ReaderWithOrigin(new StringReader(sb.toString()), "[" + synonymsSet + "] synonyms_set in .synonyms index");
         } else if (settings.get("synonyms_path") != null) {
             String synonyms_path = settings.get("synonyms_path", null);
             return new ReaderWithOrigin(Analysis.getReaderFromFile(env, synonyms_path, "synonyms_path"), synonyms_path);
         } else {
-            throw new IllegalArgumentException("synonym requires either `synonyms` or `synonyms_path` to be configured");
+            String err = SynonymsAPI.isEnabled() ? "`synonyms_set`," : "";
+            throw new IllegalArgumentException("synonym requires either `synonyms`," + err + " or `synonyms_path` to be configured");
         }
     }
 

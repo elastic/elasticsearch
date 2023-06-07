@@ -96,7 +96,7 @@ public class SecurityActionFilterTests extends ESTestCase {
         ClusterState state = mock(ClusterState.class);
         DiscoveryNodes nodes = DiscoveryNodes.builder()
             .add(DiscoveryNodeUtils.create("id1"))
-            .add(DiscoveryNodeUtils.create("id2", buildNewFakeTransportAddress(), Version.CURRENT.minimumCompatibilityVersion()))
+            .add(DiscoveryNodeUtils.builder("id2").version(Version.CURRENT.minimumCompatibilityVersion()).build())
             .build();
         when(state.nodes()).thenReturn(nodes);
 

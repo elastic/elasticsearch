@@ -80,7 +80,7 @@ public class TransportXPackInfoAction extends HandledTransportAction<XPackInfoRe
                 client.executeLocally(
                     infoAction,
                     request,
-                    ActionListener.wrap(response -> featureSets.add(response.getInfo()), listener::onFailure)
+                    listener.delegateFailureAndWrap((l, response) -> featureSets.add(response.getInfo()))
                 );
             }
             featureSetsInfo = new FeatureSetsInfo(featureSets);

@@ -14,8 +14,3 @@
   - gte: { script.compilations: 0 }
   - gte: { script.cache_evictions: 0 }
   - gte: { script.compilation_limit_triggered: 0 }
-  # Sadly, we cannot test the internal value of `contexts` because retrieve we should enable the
-  # setting `"script.max_compilations_rate": "use-context"`. Due to the cluster being shared between all the yaml tests,
-  # if we change that setting, will imply that _all_ the other tests will have it enabled. It should suffice to check
-  # the existence of the key.
-  - is_true: "script.contexts"

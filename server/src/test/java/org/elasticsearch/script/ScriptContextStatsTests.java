@@ -18,24 +18,25 @@ public class ScriptContextStatsTests extends ESTestCase {
             var first = randomScriptContextStats();
             var second = randomScriptContextStats();
 
-            var e = expectThrows(AssertionError.class, () -> {
-                ScriptContextStats.merge(first, second);
-            });
-            assertEquals(e.getMessage(), "Both ScriptContextStats have to have the same context.");
+            var e = expectThrows(AssertionError.class, () -> ScriptContextStats.merge(first, second));
+            assertEquals(e.getMessage(), "To merge 2 ScriptContextStats both of them must to have the same context.");
         }
         {
             var context = randomAlphaOfLength(30);
             var first = randomScriptContextStats(context);
             var second = randomScriptContextStats(context);
 
-            assertEquals(ScriptContextStats.merge(first, second), new ScriptContextStats(
-                context,
-                first.compilations() + second.compilations(),
-                TimeSeries.merge(first.compilationsHistory(), second.compilationsHistory()),
-                first.cacheEvictions() + second.cacheEvictions(),
-                TimeSeries.merge(first.cacheEvictionsHistory(), second.cacheEvictionsHistory()),
-                first.compilationLimitTriggered() + second.compilationLimitTriggered()
-            ));
+            assertEquals(
+                ScriptContextStats.merge(first, second),
+                new ScriptContextStats(
+                    context,
+                    first.compilations() + second.compilations(),
+                    TimeSeries.merge(first.compilationsHistory(), second.compilationsHistory()),
+                    first.cacheEvictions() + second.cacheEvictions(),
+                    TimeSeries.merge(first.cacheEvictionsHistory(), second.cacheEvictionsHistory()),
+                    first.compilationLimitTriggered() + second.compilationLimitTriggered()
+                )
+            );
         }
     }
 

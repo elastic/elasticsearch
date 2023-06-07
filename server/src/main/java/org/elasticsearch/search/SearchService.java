@@ -1638,14 +1638,14 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     @SuppressWarnings({ "rawtypes", "unchecked" })
     private void rewriteAndFetchShardRequest(IndexShard shard, ShardSearchRequest request, ActionListener<ShardSearchRequest> listener) {
-        ActionListener<Rewriteable> actionListener = ActionListener.wrap(r -> {
+        ActionListener<Rewriteable> actionListener = listener.delegateFailureAndWrap((l, r) -> {
             if (request.readerId() != null) {
-                listener.onResponse(request);
+                l.onResponse(request);
             } else {
                 // now we need to check if there is a pending refresh and register
-                shard.awaitShardSearchActive(b -> listener.onResponse(request));
+                shard.awaitShardSearchActive(b -> l.onResponse(request));
             }
-        }, listener::onFailure);
+        });
         // we also do rewrite on the coordinating node (TransportSearchService) but we also need to do it here for BWC as well as
         // AliasFilters that might need to be rewritten. These are edge-cases but we are every efficient doing the rewrite here so it's not
         // adding a lot of overhead

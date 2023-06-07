@@ -37,6 +37,7 @@ public class CoreWithSecurityClientYamlTestSuiteIT extends ESClientYamlSuiteTest
         .module("x-pack-stack")
         .module("ingest-common")
         .module("reindex")
+        .module("wildcard")
         .setting("xpack.security.enabled", "true")
         .setting("xpack.watcher.enabled", "false")
         .setting("xpack.ml.enabled", "false")

@@ -2,4 +2,5 @@ pr: 96613
 summary: Add `script` information to the cluster info endpoint
 area: Stats
 type: enhancement
-issues: []
+issues:
+ - 95394

@@ -132,11 +132,7 @@ public class DownsampleStep extends AsyncActionStep {
             TimeValue.MAX_VALUE
         );
         // Currently, DownsampleAction always acknowledges action was complete when no exceptions are thrown.
-        getClient().execute(
-            DownsampleAction.INSTANCE,
-            request,
-            ActionListener.wrap(response -> listener.onResponse(null), listener::onFailure)
-        );
+        getClient().execute(DownsampleAction.INSTANCE, request, listener.delegateFailureAndWrap((l, response) -> l.onResponse(null)));
     }
 
     @Override

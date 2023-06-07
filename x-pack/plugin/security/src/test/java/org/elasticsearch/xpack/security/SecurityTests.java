@@ -158,17 +158,17 @@ public class SecurityTests extends ESTestCase {
     public static class DummyOperatorOnlyRegistry implements OperatorOnlyRegistry {
         @Override
         public OperatorPrivilegesViolation check(String action, TransportRequest request) {
-            throw new RuntimeException("boom"); // to ensure we loaded the correct implementation
+            throw new RuntimeException("boom");
         }
 
         @Override
         public RestResponse checkRestFull(RestHandler restHandler) {
-            throw new RuntimeException("boom"); // to ensure we loaded the correct implementation
+            throw new RuntimeException("boom");
         }
 
         @Override
         public RestRequest checkRestPartial(RestHandler restHandler, RestRequest restRequest) {
-            throw new RuntimeException("boom"); // to ensure we loaded the correct implementation
+            throw new RuntimeException("boom");
         }
     }
 
@@ -940,7 +940,6 @@ public class SecurityTests extends ESTestCase {
     }
 
     public void testLoadExtensions() throws Exception {
-        // the natural order is 1) plugin construction 2) load extensions 3) create components which is emulated here
         Settings settings = Settings.builder()
             .put("xpack.security.enabled", true)
             .put("path.home", createTempDir())
@@ -967,7 +966,6 @@ public class SecurityTests extends ESTestCase {
     }
 
     public void testLoadNoExtensions() throws Exception {
-        // the natural order is 1) plugin construction 2) load extensions 3) create components which is emulated here
         Settings settings = Settings.builder()
             .put("xpack.security.enabled", true)
             .put("path.home", createTempDir())
@@ -990,7 +988,6 @@ public class SecurityTests extends ESTestCase {
     }
 
     public void testLoadExtensionsWhenOperatorPrivsAreDisabled() throws Exception {
-        // the natural order is 1) plugin construction 2) load extensions 3) create components which is emulated here
         Settings.Builder settingsBuilder = Settings.builder().put("xpack.security.enabled", true).put("path.home", createTempDir());
 
         if (randomBoolean()) {

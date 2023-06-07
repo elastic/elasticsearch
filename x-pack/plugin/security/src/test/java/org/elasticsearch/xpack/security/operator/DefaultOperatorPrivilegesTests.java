@@ -294,7 +294,7 @@ public class DefaultOperatorPrivilegesTests extends ESTestCase {
         ThreadContext threadContext = new ThreadContext(settings);
         // not an operator (request is updated)
         assertThat(operatorPrivilegesService.checkRestPartial(restHandler, restRequest, threadContext), is(restRequestUpdated));
-        // is an operator (no request is not updated)
+        // is an operator (request is not updated)
         threadContext.putHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY, AuthenticationField.PRIVILEGE_CATEGORY_VALUE_OPERATOR);
         assertThat(operatorPrivilegesService.checkRestPartial(restHandler, restRequest, threadContext), is(restRequest));
     }

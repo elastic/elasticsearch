@@ -46,4 +46,5 @@ public abstract class InternalPercentilesTestCase<T extends InternalAggregation 
         assertThat(agg.percentile(value), equalTo(Double.NaN));
         assertThat(agg.percentileAsString(value), equalTo("NaN"));
     }
+
 }

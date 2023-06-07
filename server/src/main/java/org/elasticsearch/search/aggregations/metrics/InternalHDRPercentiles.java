@@ -53,6 +53,9 @@ public class InternalHDRPercentiles extends AbstractInternalHDRPercentiles imple
 
     @Override
     public Iterator<Percentile> iterator() {
+        if (state == null) {
+            return EMPTY_ITERATOR;
+        }
         return new Iter(keys, state);
     }
 

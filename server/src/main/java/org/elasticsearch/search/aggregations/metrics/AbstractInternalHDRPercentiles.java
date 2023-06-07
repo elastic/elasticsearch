@@ -21,13 +21,26 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.zip.DataFormatException;
 
 abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggregation.MultiValue {
 
+    protected static final Iterator<Percentile> EMPTY_ITERATOR = new Iterator<>() {
+        @Override
+        public boolean hasNext() {
+            return false;
+        }
+
+        @Override
+        public Percentile next() {
+            throw new NoSuchElementException();
+        }
+    };
     private static final DoubleHistogram EMPTY_HISTOGRAM_THREE_DIGITS = new DoubleHistogram(3);
     private static final DoubleHistogram EMPTY_HISTOGRAM_ZERO_DIGITS = new EmptyDoubleHdrHistogram();
 

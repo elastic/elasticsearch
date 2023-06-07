@@ -52,6 +52,9 @@ public class InternalTDigestPercentiles extends AbstractInternalTDigestPercentil
 
     @Override
     public Iterator<Percentile> iterator() {
+        if (state == null) {
+            return EMPTY_ITERATOR;
+        }
         return new Iter(keys, state);
     }
 

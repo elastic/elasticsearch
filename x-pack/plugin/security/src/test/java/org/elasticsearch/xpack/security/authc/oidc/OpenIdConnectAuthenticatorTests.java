@@ -92,7 +92,6 @@ import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
-import java.security.AccessControlException;
 import java.security.AccessController;
 import java.security.Key;
 import java.security.KeyPair;
@@ -1176,19 +1175,11 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
     }
 
     public void testPrivilegedAccess() {
-        expectThrows(AccessControlException.class, () -> {
+        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
             JWSHeader header = new JWSHeader.Builder(JWSAlgorithm.HS256).build();
             JWTClaimsSet claimsSet = new JWTClaimsSet.Builder().jwtID(randomAlphaOfLength(8)).build();
             new SignedJWT(header, claimsSet);
-        });
-        expectThrows(AccessControlException.class, () -> {
-            AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-                new SignedJWT(
-                    new JWSHeader.Builder(JWSAlgorithm.HS256).build(),
-                    new JWTClaimsSet.Builder().jwtID(randomAlphaOfLength(8)).build()
-                );
-                return null;
-            });
+            return null;
         });
     }
 

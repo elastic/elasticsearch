@@ -326,5 +326,5 @@
   - close_to: { aggregations.date_histogram.buckets.0.11.value: { value: 25.83, error: 0.01 } }
   - close_to: { aggregations.date_histogram.buckets.0.10.value: { value: 25.83, error: 0.01 } }
   - close_to: { aggregations.date_histogram.buckets.0.8.value: { value: 25.83, error: 0.01 } }
-  # Rate aggregation in time series indices uses the actual bucket time interval instead of the parent date histogram calendar interval
+  # Rate aggregation on counters uses the actual bucket time interval instead of the parent date histogram calendar interval
   - close_to: { aggregations.date_histogram.buckets.0.9.value: { value: 0.06, error: 0.01 } }

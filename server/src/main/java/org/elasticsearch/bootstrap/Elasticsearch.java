@@ -184,7 +184,9 @@ class Elasticsearch {
             // ReferenceDocs class does nontrivial static initialization which should always succeed but load it now (before SM) to be sure
             ReferenceDocs.class,
             // The following classes use MethodHandles.lookup during initialization, load them now (before SM) to be sure they succeed
-            AbstractRefCounted.class, SubscribableListener.class);
+            AbstractRefCounted.class,
+            SubscribableListener.class
+        );
 
         // install SM after natives, shutdown hooks, etc.
         org.elasticsearch.bootstrap.Security.configure(

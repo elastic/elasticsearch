@@ -352,8 +352,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                         // Use system user for cluster state requests (CCR has many calls of cluster state with end-user context)
                         logger.trace(
                             () -> format(
-                                "Switching to internal cross cluster access user for cluster state action towards [{}]. "
-                                    + "Original user is [%s]",
+                                "Switching to the system user for cluster state action towards [{}]. Original user is [%s]",
                                 remoteClusterAlias,
                                 user
                             )

@@ -33,7 +33,7 @@ grant {
   permission java.lang.RuntimePermission "getFileStoreAttributes";
 
   // TODO this shouldn't be necessary
-  permission java.lang.RuntimePermission "accessDeclaredMembers";
+  // permission java.lang.RuntimePermission "accessDeclaredMembers";
 };
 
 grant codeBase "${codebase.netty-common}" {

@@ -92,6 +92,7 @@ import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
+import java.security.AccessControlException;
 import java.security.AccessController;
 import java.security.Key;
 import java.security.KeyPair;
@@ -1175,13 +1176,19 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
     }
 
     public void testPrivilegedAccess() {
-        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+        expectThrows(AccessControlException.class, () -> {
             JWSHeader header = new JWSHeader.Builder(JWSAlgorithm.HS256).build();
             JWTClaimsSet claimsSet = new JWTClaimsSet.Builder().jwtID(randomAlphaOfLength(8)).build();
-            // This fails with [access denied ("java.lang.RuntimePermission" "accessDeclaredMembers")] unless we grant permissions inside
-            // `grant {}` block
             new SignedJWT(header, claimsSet);
-            return null;
+        });
+        expectThrows(AccessControlException.class, () -> {
+            AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+                new SignedJWT(
+                    new JWSHeader.Builder(JWSAlgorithm.HS256).build(),
+                    new JWTClaimsSet.Builder().jwtID(randomAlphaOfLength(8)).build()
+                );
+                return null;
+            });
         });
     }
 

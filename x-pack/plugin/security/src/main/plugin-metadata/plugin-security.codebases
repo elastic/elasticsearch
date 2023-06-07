@@ -1,2 +1,3 @@
 netty-common: io.netty.util.NettyRuntime
 netty-transport: io.netty.channel.Channel
+nimbus-jose-jwt: com.nimbusds.jwt.SignedJWT

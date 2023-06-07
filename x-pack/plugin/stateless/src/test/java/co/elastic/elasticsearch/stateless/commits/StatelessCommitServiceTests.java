@@ -196,7 +196,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             uploadedBlobs,
             requiredFiles
         );
-        try (var testHarness = createNode((n, r) -> r.run(), (compoundCommitFile, runnable) -> {
+        try (var testHarness = createNode(fileCapture(uploadedBlobs), (compoundCommitFile, runnable) -> {
             if (compoundCommitFile.equals(firstCommitFile.get())) {
                 try {
                     startingUpload.countDown();

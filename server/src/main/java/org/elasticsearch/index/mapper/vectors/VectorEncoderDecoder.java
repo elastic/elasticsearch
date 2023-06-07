@@ -67,7 +67,7 @@ public final class VectorEncoderDecoder {
         }
         ByteBuffer byteBuffer = ByteBuffer.wrap(vectorBR.bytes, vectorBR.offset, vectorBR.length);
         for (int dim = 0; dim < vector.length; dim++) {
-            vector[dim] = byteBuffer.getFloat((dim + vectorBR.offset) * Float.BYTES);
+            vector[dim] = byteBuffer.getFloat((dim * Float.BYTES) + vectorBR.offset);
         }
     }
 

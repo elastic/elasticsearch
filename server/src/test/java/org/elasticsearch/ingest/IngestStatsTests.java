@@ -9,7 +9,6 @@
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -161,10 +160,10 @@ public class IngestStatsTests extends ESTestCase {
     }
 
     private static IngestStats serialize(IngestStats stats) throws IOException {
-        BytesStreamOutput out = new BytesStreamOutput();
+        var out = new BytesStreamOutput();
         stats.writeTo(out);
-        StreamInput in = out.bytes().streamInput();
-        return new IngestStats(in);
+        var in = out.bytes().streamInput();
+        return IngestStats.read(in);
     }
 
     private static void assertIngestStats(IngestStats ingestStats, IngestStats serializedStats) {

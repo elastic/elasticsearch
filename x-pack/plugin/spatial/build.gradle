@@ -12,7 +12,6 @@ esplugin {
 
 dependencies {
   compileOnly project(path: ':modules:legacy-geo')
-  compileOnly project(path: ':modules:aggregations')
   compileOnly project(':modules:lang-painless:spi')
   compileOnly project(path: xpackModule('core'))
   api "org.apache.lucene:lucene-spatial3d:${versions.lucene}"
@@ -20,6 +19,7 @@ dependencies {
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(path: ':modules:percolator')
   testImplementation project(path: xpackModule('vector-tile'))
+  testImplementation project(path: ':modules:aggregations')
 }
 
 testClusters.configureEach {

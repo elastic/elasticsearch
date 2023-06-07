@@ -1,5 +1,5 @@
 pr: 94954
-summary: WIP Started `geo_line` for TSDB work
+summary: Asset tracking - geo_line for TSDB
 area: Geo
 type: enhancement
 issues: []

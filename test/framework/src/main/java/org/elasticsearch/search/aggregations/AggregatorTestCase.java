@@ -467,7 +467,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         throws IOException {
         IndexSettings indexSettings = createIndexSettings();
         // First run it to find circuit breaker leaks on the aggregator
-        // runWithCrankyCircuitBreaker(indexSettings, searcher, aggTestConfig);
+        runWithCrankyCircuitBreaker(indexSettings, searcher, aggTestConfig);
         // Second run it to the end
         CircuitBreakerService breakerService = new NoneCircuitBreakerService();
         return searchAndReduce(indexSettings, searcher, breakerService, aggTestConfig);

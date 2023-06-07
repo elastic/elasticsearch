@@ -11,6 +11,7 @@ import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.util.ArrayUtils;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.GeometryVisitor;
 import org.elasticsearch.geometry.Line;
@@ -30,6 +31,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.spatial.search.aggregations.GeoLineAggregationBuilder.SORT_FIELD;
 
@@ -45,11 +47,11 @@ import static org.elasticsearch.xpack.spatial.search.aggregations.GeoLineAggrega
  * Whenever the bucket id changes, the simplifier memory is copied into a new InternalGeoLine aggregation object
  * and the memory re-used for the next bucket. The last bucket is compied into InternalGeoLine in the doPostCollection
  */
-class TimeSeriesGeoLineBuckets {
+class TimeSeriesGeoLineBuckets implements Releasable {
     private static final long NO_BUCKET = -1;
     private final GeoLineMultiValuesSource valuesSources;
     private final int bucketSize;
-    private final Function<Long, InternalGeoLine> geoLineBuilder;
+    private final Supplier<InternalGeoLine> geoLineBuilder;
     private long currentBucket;
     private final Simplifier simplifier;
     private final HashMap<Long, InternalAggregation> geoLines = new HashMap<>();
@@ -65,7 +67,7 @@ class TimeSeriesGeoLineBuckets {
     TimeSeriesGeoLineBuckets(
         int bucketSize,
         GeoLineMultiValuesSource valuesSources,
-        Function<Long, InternalGeoLine> geoLineBuilder,
+        Supplier<InternalGeoLine> geoLineBuilder,
         Function<Long, Long> circuitBreaker
     ) {
         this.valuesSources = valuesSources;
@@ -88,7 +90,8 @@ class TimeSeriesGeoLineBuckets {
         flushBucket(NO_BUCKET);
     }
 
-    void doClose() {
+    @Override
+    public void close() {
         simplifier.reset();
     }
 
@@ -105,7 +108,7 @@ class TimeSeriesGeoLineBuckets {
                 if (geoLines.containsKey(currentBucket)) {
                     throw new IllegalStateException("Geoline already exists for bucket " + currentBucket);
                 }
-                geoLines.put(currentBucket, geoLineBuilder.apply(currentBucket));
+                geoLines.put(currentBucket, geoLineBuilder.get());
                 simplifier.reset();
             }
             currentBucket = bucket;
@@ -120,13 +123,9 @@ class TimeSeriesGeoLineBuckets {
      * so it is important that this method is called to copy that 'scratch' memory into the final InternalGeoLine aggregation
      * objects between each bucket collection phase.
      */
-    InternalGeoLine buildAggregation(long bucket, String name, Map<String, Object> metadata, boolean includeSorts, SortOrder sortOrder) {
+    InternalGeoLine buildInternalGeoLine(String name, Map<String, Object> metadata, boolean includeSorts, SortOrder sortOrder) {
         LineStream line = simplifier.produce();
         boolean complete = simplifier.length() < bucketSize;
-        if (line.isEmpty()) {
-            // TODO: Perhaps we should return an empty geo_line here?
-            throw new IllegalStateException("Invalid bucket " + bucket + " for geo_line");
-        }
         // TODO: For TSID perhaps we should save sortValues as longs
         double[] sortVals = line.sortValues;
         long[] bucketLine = line.encodedPoints;

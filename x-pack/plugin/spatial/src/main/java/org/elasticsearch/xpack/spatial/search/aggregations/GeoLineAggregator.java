@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.spatial.search.aggregations;
 
-import com.unboundid.util.NotNull;
-
 import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongArray;
@@ -55,7 +53,7 @@ abstract class GeoLineAggregator extends MetricsAggregator {
 
     @Override
     public ScoreMode scoreMode() {
-        if (valuesSources.needsScores()) {
+        if (valuesSources != null && valuesSources.needsScores()) {
             return ScoreMode.COMPLETE;
         }
         return super.scoreMode();
@@ -103,7 +101,7 @@ abstract class GeoLineAggregator extends MetricsAggregator {
 
         Normal(
             String name,
-            @NotNull GeoLineMultiValuesSource valuesSources,
+            GeoLineMultiValuesSource valuesSources,
             AggregationContext context,
             Aggregator parent,
             Map<String, Object> metaData,
@@ -153,7 +151,7 @@ abstract class GeoLineAggregator extends MetricsAggregator {
 
         TimeSeries(
             String name,
-            @NotNull GeoLineMultiValuesSource valuesSources,
+            GeoLineMultiValuesSource valuesSources,
             AggregationContext context,
             Aggregator parent,
             Map<String, Object> metaData,
@@ -162,12 +160,7 @@ abstract class GeoLineAggregator extends MetricsAggregator {
             int size
         ) throws IOException {
             super(name, valuesSources, context, parent, metaData, includeSorts, sortOrder, size);
-            this.geolineBuckets = new TimeSeriesGeoLineBuckets(
-                size,
-                valuesSources,
-                this::buildGeolineForBucket,
-                this::addRequestCircuitBreakerBytes
-            );
+            this.geolineBuckets = new TimeSeriesGeoLineBuckets(size, valuesSources, this::makeGeoline, this::addRequestCircuitBreakerBytes);
         }
 
         @Override
@@ -182,9 +175,9 @@ abstract class GeoLineAggregator extends MetricsAggregator {
             };
         }
 
-        private InternalGeoLine buildGeolineForBucket(long bucket) {
+        private InternalGeoLine makeGeoline() {
             // The time-series geo_line does not need to know about sortOrder or other fields until creation of the InternalGeoLine
-            return geolineBuckets.buildAggregation(bucket, name, metadata(), includeSorts, sortOrder);
+            return geolineBuckets.buildInternalGeoLine(name, metadata(), includeSorts, sortOrder);
         }
 
         @Override
@@ -201,7 +194,7 @@ abstract class GeoLineAggregator extends MetricsAggregator {
         @Override
         public void doClose() {
             super.doClose();
-            geolineBuckets.doClose();
+            Releasables.close(geolineBuckets);
         }
     }
 }

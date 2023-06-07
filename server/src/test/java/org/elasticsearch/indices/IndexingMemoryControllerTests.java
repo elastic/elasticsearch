@@ -7,17 +7,16 @@
  */
 package org.elasticsearch.indices;
 
-import org.apache.lucene.search.ReferenceManager;
-import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.engine.InternalEngine;
+import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.threadpool.Scheduler.Cancellable;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -160,12 +159,18 @@ public class IndexingMemoryControllerTests extends IndexShardTestCase {
     public void testShardAdditionAndRemoval() throws IOException {
 
         MockController controller = new MockController(Settings.builder().put("indices.memory.index_buffer_size", "4mb").build());
-        IndexShard shard0 = newStartedShard();
+        IndexShard shard0 = newStartedShard(
+            p -> newShard(p, new ShardId("index0", "uuid0", 0), Settings.EMPTY, new InternalEngineFactory()),
+            randomBoolean()
+        );
         controller.simulateIndexing(shard0);
         controller.assertBuffer(shard0, 1);
 
         // add another shard
-        IndexShard shard1 = newStartedShard();
+        IndexShard shard1 = newStartedShard(
+            p -> newShard(p, new ShardId("index1", "uuid1", 0), Settings.EMPTY, new InternalEngineFactory()),
+            randomBoolean()
+        );
         controller.simulateIndexing(shard1);
         controller.assertBuffer(shard0, 1);
         controller.assertBuffer(shard1, 1);
@@ -190,9 +195,15 @@ public class IndexingMemoryControllerTests extends IndexShardTestCase {
 
         MockController controller = new MockController(Settings.builder().put("indices.memory.index_buffer_size", "5mb").build());
 
-        IndexShard shard0 = newStartedShard();
+        IndexShard shard0 = newStartedShard(
+            p -> newShard(p, new ShardId("index0", "uuid0", 0), Settings.EMPTY, new InternalEngineFactory()),
+            randomBoolean()
+        );
         controller.simulateIndexing(shard0);
-        IndexShard shard1 = newStartedShard();
+        IndexShard shard1 = newStartedShard(
+            p -> newShard(p, new ShardId("index1", "uuid1", 0), Settings.EMPTY, new InternalEngineFactory()),
+            randomBoolean()
+        );
         controller.simulateIndexing(shard1);
 
         controller.assertBuffer(shard0, 1);
@@ -204,7 +215,7 @@ public class IndexingMemoryControllerTests extends IndexShardTestCase {
         controller.assertBuffer(shard0, 2);
         controller.assertBuffer(shard1, 2);
 
-        // index into one shard only, crosses the 5mb limit, so shard1 is refreshed
+        // index into one shard only, crosses the 5mb limit, so shard0 is refreshed
         controller.simulateIndexing(shard0);
         controller.simulateIndexing(shard0);
         controller.assertBuffer(shard0, 0);
@@ -283,28 +294,37 @@ public class IndexingMemoryControllerTests extends IndexShardTestCase {
     public void testThrottling() throws Exception {
 
         MockController controller = new MockController(Settings.builder().put("indices.memory.index_buffer_size", "4mb").build());
-        IndexShard shard0 = newStartedShard();
-        IndexShard shard1 = newStartedShard();
+        IndexShard shard0 = newStartedShard(
+            p -> newShard(p, new ShardId("index0", "uuid0", 0), Settings.EMPTY, new InternalEngineFactory()),
+            randomBoolean()
+        );
+        IndexShard shard1 = newStartedShard(
+            p -> newShard(p, new ShardId("index1", "uuid1", 0), Settings.EMPTY, new InternalEngineFactory()),
+            randomBoolean()
+        );
+
+        assertThat(shard0.routingEntry().shardId(), lessThan(shard1.routingEntry().shardId()));
+
         controller.simulateIndexing(shard0);
         controller.simulateIndexing(shard0);
-        controller.simulateIndexing(shard0);
-        controller.assertBuffer(shard0, 3);
+        controller.assertBuffer(shard0, 2);
+        controller.simulateIndexing(shard1);
         controller.simulateIndexing(shard1);
         controller.simulateIndexing(shard1);
 
-        // We are now using 5 MB, so we should be writing shard0 since it's using the most heap:
-        controller.assertWriting(shard0, 3);
+        // We are now using 5 MB, so we should be writing shard0 since shards get flushed by increasing shard id, even though shard1 uses
+        // more RAM buffer
+        controller.assertWriting(shard0, 2);
         controller.assertWriting(shard1, 0);
         controller.assertBuffer(shard0, 0);
-        controller.assertBuffer(shard1, 2);
+        controller.assertBuffer(shard1, 3);
 
         controller.simulateIndexing(shard0);
         controller.simulateIndexing(shard1);
-        controller.simulateIndexing(shard1);
 
-        // Now we are still writing 3 MB (shard0), and using 5 MB index buffers, so we should now 1) be writing shard1,
-        // and 2) be throttling shard1:
-        controller.assertWriting(shard0, 3);
+        // We crossed the limit again, so now we should be writing the next shard after shard0: shard1. And since bytes are still being
+        // written and haven't been released yet, we should be throttling the same shard we flushed: shard1.
+        controller.assertWriting(shard0, 2);
         controller.assertWriting(shard1, 4);
         controller.assertBuffer(shard0, 1);
         controller.assertBuffer(shard1, 0);
@@ -321,7 +341,7 @@ public class IndexingMemoryControllerTests extends IndexShardTestCase {
         controller.simulateIndexing(shard0);
 
         // Now we are using 5 MB again, so shard0 should also be writing and now also be throttled:
-        controller.assertWriting(shard0, 8);
+        controller.assertWriting(shard0, 7);
         controller.assertWriting(shard1, 4);
         controller.assertBuffer(shard0, 0);
         controller.assertBuffer(shard1, 0);
@@ -428,7 +448,7 @@ public class IndexingMemoryControllerTests extends IndexShardTestCase {
         ThreadPoolStats.Stats afterStats = getRefreshThreadPoolStats();
         // The number of completed tasks should be in the order of the size of the refresh thread pool, way below the number of iterations,
         // since we would not queue a shard to write its indexing buffer if it's already in the queue.
-        assertThat(afterStats.getCompleted() - beforeStats.getCompleted(), lessThan(100L));
+        assertThat(afterStats.completed() - beforeStats.completed(), lessThan(100L));
         closeShards(shard);
     }
 }

@@ -16,7 +16,6 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
@@ -33,15 +32,11 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.Deque;
 import java.util.EnumSet;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
-import java.util.PriorityQueue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -485,7 +480,10 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
                     totalBytesUsed -= shardAndBytesUsed.bytesUsed;
                     lastShardId = shardAndBytesUsed.shard.shardId();
                     if (doThrottle && throttled.contains(shardAndBytesUsed.shard) == false) {
-                        logger.debug("now throttling indexing for shard [{}]: segment writing can't keep up", shardAndBytesUsed.shard.shardId());
+                        logger.debug(
+                            "now throttling indexing for shard [{}]: segment writing can't keep up",
+                            shardAndBytesUsed.shard.shardId()
+                        );
                         throttled.add(shardAndBytesUsed.shard);
                         activateThrottling(shardAndBytesUsed.shard);
                     }

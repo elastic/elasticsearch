@@ -152,7 +152,7 @@ public class FrozenIndexInput extends MetadataCachingIndexInput {
                     final long endTimeNanos = stats.currentTimeNanos();
                     stats.addCachedBytesWritten(len, endTimeNanos - startTimeNanos);
                 }
-            }, SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME);
+            });
             assert bytesRead == length : bytesRead + " vs " + length;
             byteBufferReference.finish(bytesRead);
         } finally {

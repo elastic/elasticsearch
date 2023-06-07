@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.application.analytics.event.parser.field;
 
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.xcontent.ContextParser;
 import org.elasticsearch.xpack.application.analytics.event.AnalyticsEvent;
 
@@ -34,6 +33,6 @@ public class UserAnalyticsEventFieldTests extends AnalyticsEventFieldParserTestC
     }
 
     public static Map<String, String> randomEventUserField() {
-        return MapBuilder.<String, String>newMapBuilder().put(USER_ID_FIELD.getPreferredName(), randomIdentifier()).map();
+        return Map.of(USER_ID_FIELD.getPreferredName(), randomIdentifier());
     }
 }

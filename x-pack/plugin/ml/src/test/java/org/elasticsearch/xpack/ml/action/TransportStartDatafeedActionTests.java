@@ -119,10 +119,7 @@ public class TransportStartDatafeedActionTests extends ESTestCase {
             .put("old_cluster_1", Version.V_7_0_0)
             .map();
 
-        Map<String, Object> field = Collections.singletonMap(
-            "runtime_field_foo",
-            MapBuilder.<String, Object>newMapBuilder().put("type", "keyword").put("script", "").map()
-        );
+        Map<String, Object> field = Collections.singletonMap("runtime_field_foo", Map.of("type", "keyword", "script", ""));
 
         DatafeedConfig config = new DatafeedConfig.Builder(DatafeedConfigTests.createRandomizedDatafeedConfig("foo")).setRuntimeMappings(
             field

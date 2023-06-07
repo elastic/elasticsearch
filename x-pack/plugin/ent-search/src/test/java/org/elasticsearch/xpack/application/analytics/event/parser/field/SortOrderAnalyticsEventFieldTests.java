@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.application.analytics.event.parser.field;
 
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.xcontent.ContextParser;
 import org.elasticsearch.xpack.application.analytics.event.AnalyticsEvent;
 
@@ -35,9 +34,11 @@ public class SortOrderAnalyticsEventFieldTests extends AnalyticsEventFieldParser
     }
 
     public static Map<String, String> randomEventSearchSortOrderField() {
-        return MapBuilder.<String, String>newMapBuilder()
-            .put(SORT_ORDER_NAME_FIELD.getPreferredName(), randomIdentifier())
-            .put(SORT_ORDER_DIRECTION_FIELD.getPreferredName(), randomIdentifier())
-            .map();
+        return Map.of(
+            SORT_ORDER_NAME_FIELD.getPreferredName(),
+            randomIdentifier(),
+            SORT_ORDER_DIRECTION_FIELD.getPreferredName(),
+            randomIdentifier()
+        );
     }
 }

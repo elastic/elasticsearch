@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.application.analytics.event.parser.field;
 
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.xcontent.ContextParser;
 import org.elasticsearch.xpack.application.analytics.event.AnalyticsEvent;
 
@@ -40,15 +39,19 @@ public class SearchResultAnalyticsEventFieldTests extends AnalyticsEventFieldPar
     public static Map<String, Object> randomEventSearchResultField() {
         List<?> items = randomList(
             between(1, 10),
-            () -> MapBuilder.<String, Object>newMapBuilder()
-                .put(DOCUMENT_FIELD.getPreferredName(), randomEventDocumentField())
-                .put(PAGE_FIELD.getPreferredName(), PageAnalyticsEventFieldTests.randomEventPageField())
-                .map()
+            () -> Map.of(
+                DOCUMENT_FIELD.getPreferredName(),
+                randomEventDocumentField(),
+                PAGE_FIELD.getPreferredName(),
+                PageAnalyticsEventFieldTests.randomEventPageField()
+            )
         );
 
-        return MapBuilder.<String, Object>newMapBuilder()
-            .put(SEARCH_RESULTS_TOTAL_FIELD.getPreferredName(), randomNonNegativeInt())
-            .put(SEARCH_RESULT_ITEMS_FIELD.getPreferredName(), items)
-            .map();
+        return Map.of(
+            SEARCH_RESULTS_TOTAL_FIELD.getPreferredName(),
+            randomNonNegativeInt(),
+            SEARCH_RESULT_ITEMS_FIELD.getPreferredName(),
+            items
+        );
     }
 }

@@ -57,8 +57,12 @@ public class PercentileIntGroupingAggregatorFunctionTests extends GroupingAggreg
     protected void assertSimpleGroup(List<Page> input, Block result, int position, long group) {
         TDigestState td = new TDigestState(QuantileStates.DEFAULT_COMPRESSION);
         input.stream().flatMapToInt(p -> allInts(p, group)).forEach(td::add);
-        double expected = td.quantile(percentile / 100);
-        double value = ((DoubleBlock) result).getDouble(position);
-        assertThat(value, closeTo(expected, expected * 0.1));
+        if (td.size() > 0) {
+            double expected = td.quantile(percentile / 100);
+            double value = ((DoubleBlock) result).getDouble(position);
+            assertThat(value, closeTo(expected, expected * 0.1));
+        } else {
+            assertTrue(result.isNull(position));
+        }
     }
 }

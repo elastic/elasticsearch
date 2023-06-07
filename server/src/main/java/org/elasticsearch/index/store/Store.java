@@ -1258,13 +1258,34 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
         @Override
         public void writeBytes(byte[] b, int offset, int length) throws IOException {
-            if (writtenBytes + length > checksumPosition) {
-                for (int i = 0; i < length; i++) { // don't optimize writing the last block of bytes
-                    writeByte(b[offset + i]);
+            final int directWriteLength = Math.toIntExact(checksumPosition > this.writtenBytes ? Math.min(checksumPosition - this.writtenBytes, length) : 0);
+            out.writeBytes(b, offset, directWriteLength);
+            this.writtenBytes += directWriteLength;
+            final int leftLength = length - directWriteLength;
+            final int leftOffset = offset + directWriteLength;
+            final long writtenBytes = this.writtenBytes;
+            this.writtenBytes += leftLength;
+            if (this.writtenBytes > checksumPosition) {
+                if (writtenBytes == checksumPosition) {
+                    readAndCompareChecksum();
                 }
-            } else {
-                out.writeBytes(b, offset, length);
-                writtenBytes += length;
+                final int startIndex = Math.toIntExact(writtenBytes - checksumPosition);
+                final int endIndex = Math.toIntExact(this.writtenBytes - checksumPosition);
+                int position = leftOffset;
+                for (int index = startIndex; index < endIndex; index++) {
+                    if (index < footerChecksum.length) {
+                        footerChecksum[index] = b[position++];
+                        if (index == footerChecksum.length - 1) {
+                            verify(); // we have recorded the entire checksum
+                        }
+                    } else {
+                        verify(); // fail if we write more than expected
+                        throw new AssertionError("write past EOF expected length: " + metadata.length() + " writtenBytes: " + writtenBytes);
+                    }
+                }
+            }
+            if (leftLength > 0) {
+                out.writeBytes(b, leftOffset, leftLength);
             }
         }
     }

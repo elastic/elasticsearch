@@ -15,7 +15,6 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ResultDeduplicator;
-import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.CountDownActionListener;
 import org.elasticsearch.action.support.GroupedActionListener;
@@ -23,6 +22,7 @@ import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.EmptyTransportResponseHandler;
 import org.elasticsearch.transport.NodeDisconnectedException;
@@ -109,8 +109,8 @@ public class TaskCancellationService {
         final TaskId taskId = task.taskInfo(localNodeId(), false).taskId();
         if (task.shouldCancelChildrenOnCancellation()) {
             logger.trace("cancelling task [{}] and its descendants", taskId);
-            StepListener<Void> completedListener = new StepListener<>();
-            StepListener<Void> setBanListener = new StepListener<>();
+            ListenableFuture<Void> completedListener = new ListenableFuture<>();
+            ListenableFuture<Void> setBanListener = new ListenableFuture<>();
 
             Collection<Transport.Connection> childConnections;
             try (var refs = new RefCountingRunnable(() -> setBanListener.addListener(completedListener))) {

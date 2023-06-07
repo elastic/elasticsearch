@@ -106,10 +106,8 @@ public class NodeJoinExecutorTests extends ESTestCase {
     public void testPreventJoinClusterWithUnsupportedNodeVersions() {
         DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
         final Version version = randomCompatibleVersion(random(), Version.CURRENT);
-        builder.add(DiscoveryNodeUtils.create(UUIDs.base64UUID(), buildNewFakeTransportAddress(), version));
-        builder.add(
-            DiscoveryNodeUtils.create(UUIDs.base64UUID(), buildNewFakeTransportAddress(), randomCompatibleVersion(random(), version))
-        );
+        builder.add(DiscoveryNodeUtils.builder(UUIDs.base64UUID()).version(version).build());
+        builder.add(DiscoveryNodeUtils.builder(UUIDs.base64UUID()).version(randomCompatibleVersion(random(), version)).build());
         DiscoveryNodes nodes = builder.build();
 
         final Version maxNodeVersion = nodes.getMaxNodeVersion();

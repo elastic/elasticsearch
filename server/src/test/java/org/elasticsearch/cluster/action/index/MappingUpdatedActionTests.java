@@ -128,9 +128,7 @@ public class MappingUpdatedActionTests extends ESTestCase {
     }
 
     public void testSendUpdateMappingUsingAutoPutMappingAction() {
-        DiscoveryNodes nodes = DiscoveryNodes.builder()
-            .add(DiscoveryNodeUtils.create("first", buildNewFakeTransportAddress(), Version.V_7_9_0))
-            .build();
+        DiscoveryNodes nodes = DiscoveryNodes.builder().add(DiscoveryNodeUtils.builder("first").version(Version.V_7_9_0).build()).build();
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).nodes(nodes).build();
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(clusterState);

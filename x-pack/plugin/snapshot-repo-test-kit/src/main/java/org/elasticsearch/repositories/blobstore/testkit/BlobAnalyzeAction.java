@@ -16,7 +16,6 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -33,6 +32,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CancellableThreads;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
@@ -214,8 +214,8 @@ public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
         private final List<DiscoveryNode> earlyReadNodes;
         private final List<DiscoveryNode> readNodes;
         private final GroupedActionListener<NodeResponse> readNodesListener;
-        private final StepListener<WriteDetails> write1Step = new StepListener<>();
-        private final StepListener<WriteDetails> write2Step = new StepListener<>();
+        private final ListenableFuture<WriteDetails> write1Step = new ListenableFuture<>();
+        private final ListenableFuture<WriteDetails> write2Step = new ListenableFuture<>();
         private final CancellableThreads cancellableThreads = new CancellableThreads();
 
         BlobAnalysis(
@@ -253,7 +253,7 @@ public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
             Collections.shuffle(nodes, random);
             readNodes = nodes.stream().limit(request.readNodeCount).collect(Collectors.toList());
 
-            final StepListener<Collection<NodeResponse>> readsCompleteStep = new StepListener<>();
+            final ListenableFuture<Collection<NodeResponse>> readsCompleteStep = new ListenableFuture<>();
             readNodesListener = new GroupedActionListener<>(
                 earlyReadNodes.size() + readNodes.size(),
                 new ThreadedActionListener<>(transportService.getThreadPool().executor(ThreadPool.Names.SNAPSHOT), readsCompleteStep)
@@ -262,18 +262,24 @@ public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
             // The order is important in this chain: if writing fails then we may never even start all the reads, and we want to cancel
             // any read tasks that were started, but the reads step only fails after all the reads have completed so there's no need to
             // cancel anything.
-            write1Step.whenComplete(
-                write1Details -> write2Step.whenComplete(
-                    write2Details -> readsCompleteStep.whenComplete(
-                        responses -> onReadsComplete(responses, write1Details, write2Details),
-                        this::cleanUpAndReturnFailure
+            write1Step.addListener(
+                ActionListener.wrap(
+                    write1Details -> write2Step.addListener(
+                        ActionListener.wrap(
+                            write2Details -> readsCompleteStep.addListener(
+                                ActionListener.wrap(
+                                    responses -> onReadsComplete(responses, write1Details, write2Details),
+                                    this::cleanUpAndReturnFailure
+                                )
+                            ),
+                            this::cancelReadsCleanUpAndReturnFailure
+                        )
                     ),
                     this::cancelReadsCleanUpAndReturnFailure
-                ),
-                this::cancelReadsCleanUpAndReturnFailure
+                )
             );
 
-            task.addListener(() -> { cancellableThreads.cancel(task.getReasonCancelled()); });
+            task.addListener(() -> cancellableThreads.cancel(task.getReasonCancelled()));
         }
 
         void run() {
@@ -286,14 +292,21 @@ public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
 
             if (request.writeAndOverwrite) {
                 assert request.targetLength <= MAX_ATOMIC_WRITE_SIZE : "oversized atomic write";
-                write1Step.whenComplete(ignored -> writeRandomBlob(true, false, this::doReadAfterWrite, write2Step), ignored -> {});
+                write1Step.addListener(
+                    ActionListener.wrap(ignored -> writeRandomBlob(true, false, this::doReadAfterWrite, write2Step), ignored -> {})
+                );
             } else {
                 write2Step.onResponse(null);
                 doReadAfterWrite();
             }
         }
 
-        private void writeRandomBlob(boolean atomic, boolean failIfExists, Runnable onLastRead, StepListener<WriteDetails> stepListener) {
+        private void writeRandomBlob(
+            boolean atomic,
+            boolean failIfExists,
+            Runnable onLastRead,
+            ListenableFuture<WriteDetails> stepListener
+        ) {
             assert atomic == false || request.targetLength <= MAX_ATOMIC_WRITE_SIZE : "oversized atomic write";
             final RandomBlobContent content = new RandomBlobContent(
                 request.getRepositoryName(),

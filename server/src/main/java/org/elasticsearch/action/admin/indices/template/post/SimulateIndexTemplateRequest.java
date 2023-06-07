@@ -8,11 +8,9 @@
 
 package org.elasticsearch.action.admin.indices.template.post;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
-import org.elasticsearch.cluster.metadata.DataLifecycle;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -41,9 +39,6 @@ public class SimulateIndexTemplateRequest extends MasterNodeReadRequest<Simulate
         super(in);
         indexName = in.readString();
         indexTemplateRequest = in.readOptionalWriteable(PutComposableIndexTemplateAction.Request::new);
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0) && DataLifecycle.isEnabled()) {
-            includeDefaults = in.readBoolean();
-        }
     }
 
     @Override
@@ -51,9 +46,6 @@ public class SimulateIndexTemplateRequest extends MasterNodeReadRequest<Simulate
         super.writeTo(out);
         out.writeString(indexName);
         out.writeOptionalWriteable(indexTemplateRequest);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0) && DataLifecycle.isEnabled()) {
-            out.writeBoolean(includeDefaults);
-        }
     }
 
     @Override

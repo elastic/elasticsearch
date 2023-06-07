@@ -85,9 +85,8 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
             }
         }
 
-        if (data.containsKey(INDEX_FIELD) || data.containsKey(TYPE_FIELD) || data.containsKey(ID_FIELD)) {
-            data = mutableMap(data);
-        }
+        data = mutableMap(data);
+
         IndexRequest indexRequest = new IndexRequest();
         if (action.refreshPolicy != null) {
             indexRequest.setRefreshPolicy(action.refreshPolicy);

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ml.action;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsAction;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
@@ -26,6 +25,7 @@ import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -106,16 +106,16 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
 
         GetTrainedModelsStatsAction.Response.Builder responseBuilder = new GetTrainedModelsStatsAction.Response.Builder();
 
-        StepListener<Map<String, TrainedModelSizeStats>> modelSizeStatsListener = new StepListener<>();
-        modelSizeStatsListener.whenComplete(modelSizeStatsByModelId -> {
+        ListenableFuture<Map<String, TrainedModelSizeStats>> modelSizeStatsListener = new ListenableFuture<>();
+        modelSizeStatsListener.addListener(listener.delegateFailureAndWrap((l, modelSizeStatsByModelId) -> {
             responseBuilder.setModelSizeStatsByModelId(modelSizeStatsByModelId);
-            listener.onResponse(
+            l.onResponse(
                 responseBuilder.build(modelToDeployments(responseBuilder.getExpandedModelIdsWithAliases().keySet(), assignmentMetadata))
             );
-        }, listener::onFailure);
+        }));
 
-        StepListener<GetDeploymentStatsAction.Response> deploymentStatsListener = new StepListener<>();
-        deploymentStatsListener.whenComplete(deploymentStats -> {
+        ListenableFuture<GetDeploymentStatsAction.Response> deploymentStatsListener = new ListenableFuture<>();
+        deploymentStatsListener.addListener(listener.delegateFailureAndWrap((delegate, deploymentStats) -> {
             // deployment stats for each matching deployment
             // not necessarily for all models
             responseBuilder.setDeploymentStatsByDeploymentId(
@@ -130,20 +130,20 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
                 parentTaskId,
                 modelSizeStatsListener
             );
-        }, listener::onFailure);
+        }));
 
-        StepListener<List<InferenceStats>> inferenceStatsListener = new StepListener<>();
+        ListenableFuture<List<InferenceStats>> inferenceStatsListener = new ListenableFuture<>();
         // inference stats are per model and are only
         // persisted for boosted tree models
-        inferenceStatsListener.whenComplete(inferenceStats -> {
+        inferenceStatsListener.addListener(listener.delegateFailureAndWrap((l, inferenceStats) -> {
             responseBuilder.setInferenceStatsByModelId(
                 inferenceStats.stream().collect(Collectors.toMap(InferenceStats::getModelId, Function.identity()))
             );
             getDeploymentStats(client, request.getResourceId(), parentTaskId, assignmentMetadata, deploymentStatsListener);
-        }, listener::onFailure);
+        }));
 
-        StepListener<NodesStatsResponse> nodesStatsListener = new StepListener<>();
-        nodesStatsListener.whenComplete(nodesStatsResponse -> {
+        ListenableFuture<NodesStatsResponse> nodesStatsListener = new ListenableFuture<>();
+        nodesStatsListener.addListener(listener.delegateFailureAndWrap((delegate, nodesStatsResponse) -> {
             // find all pipelines whether using the model id,
             // alias or deployment id.
             Set<String> allPossiblePipelineReferences = responseBuilder.getExpandedModelIdsWithAliases()
@@ -165,10 +165,10 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
                 parentTaskId,
                 inferenceStatsListener
             );
-        }, listener::onFailure);
+        }));
 
-        StepListener<Tuple<Long, Map<String, Set<String>>>> idsListener = new StepListener<>();
-        idsListener.whenComplete(tuple -> {
+        ListenableFuture<Tuple<Long, Map<String, Set<String>>>> idsListener = new ListenableFuture<>();
+        idsListener.addListener(listener.delegateFailureAndWrap((delegate, tuple) -> {
             responseBuilder.setExpandedModelIdsWithAliases(tuple.v2()).setTotalModelCount(tuple.v1());
             executeAsyncWithOrigin(
                 client,
@@ -177,7 +177,7 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
                 nodeStatsRequest(clusterService.state(), parentTaskId),
                 nodesStatsListener
             );
-        }, listener::onFailure);
+        }));
 
         // When the request resource is a deployment find the
         // model used in that deployment for the model stats

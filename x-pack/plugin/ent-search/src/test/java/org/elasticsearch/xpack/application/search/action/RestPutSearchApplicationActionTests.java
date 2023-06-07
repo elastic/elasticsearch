@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.application.search.action;
 
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
@@ -26,12 +25,10 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class RestPutSearchApplicationActionTests extends ESTestCase {
     public void testWithNonCompliantLicense() throws Exception {
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.getOperationMode()).thenReturn(License.OperationMode.BASIC);
         final RestPutSearchApplicationAction action = new RestPutSearchApplicationAction(licenseState);
 
         final FakeRestRequest request = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withMethod(RestRequest.Method.PUT)

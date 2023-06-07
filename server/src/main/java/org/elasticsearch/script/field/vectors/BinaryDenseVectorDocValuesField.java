@@ -22,6 +22,7 @@ public class BinaryDenseVectorDocValuesField extends DenseVectorDocValuesField {
     private final BinaryDocValues input;
     private final float[] vectorValue;
     private final Version indexVersion;
+    private boolean decoded;
     private final int dims;
     private BytesRef value;
 
@@ -35,6 +36,7 @@ public class BinaryDenseVectorDocValuesField extends DenseVectorDocValuesField {
 
     @Override
     public void setNextDocId(int docId) throws IOException {
+        decoded = false;
         if (input.advanceExact(docId)) {
             value = input.binaryValue();
         } else {
@@ -57,7 +59,7 @@ public class BinaryDenseVectorDocValuesField extends DenseVectorDocValuesField {
         if (isEmpty()) {
             return DenseVector.EMPTY;
         }
-        VectorEncoderDecoder.decodeDenseVector(value, vectorValue);
+        decodeVectorIfNecessary();
         return new BinaryDenseVector(vectorValue, value, dims, indexVersion);
     }
 
@@ -66,12 +68,19 @@ public class BinaryDenseVectorDocValuesField extends DenseVectorDocValuesField {
         if (isEmpty()) {
             return defaultValue;
         }
-        VectorEncoderDecoder.decodeDenseVector(value, vectorValue);
+        decodeVectorIfNecessary();
         return new BinaryDenseVector(vectorValue, value, dims, indexVersion);
     }
 
     @Override
     public DenseVector getInternal() {
         return get(null);
+    }
+
+    private void decodeVectorIfNecessary() {
+        if (decoded == false && value != null) {
+            VectorEncoderDecoder.decodeDenseVector(value, vectorValue);
+            decoded = true;
+        }
     }
 }

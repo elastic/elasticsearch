@@ -85,9 +85,7 @@ public class ByteArrayStreamInput extends StreamInput {
 
     @Override
     public byte readByte() throws IOException {
-        if (limit - pos <= 0) {
-            throw new EOFException();
-        }
+        ensureCanReadBytes(1);
         return bytes[pos++];
     }
 

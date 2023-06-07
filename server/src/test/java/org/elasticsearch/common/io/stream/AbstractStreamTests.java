@@ -707,7 +707,7 @@ public abstract class AbstractStreamTests extends ESTestCase {
             input.readBytes(new byte[len], 0, len);
 
             assertEquals(-1, input.read());
-            expectThrows(IOException.class, input::readByte);
+            expectThrows(EOFException.class, input::readByte);
         }
     }
 

@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.application.search.action;
 
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
@@ -20,7 +20,10 @@ import java.util.List;
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
 @ServerlessScope(Scope.PUBLIC)
-public class RestDeleteSearchApplicationAction extends BaseRestHandler {
+public class RestDeleteSearchApplicationAction extends SearchApplicationRestHandler {
+    public RestDeleteSearchApplicationAction(XPackLicenseState licenseState) {
+        super(licenseState);
+    }
 
     @Override
     public String getName() {
@@ -33,7 +36,7 @@ public class RestDeleteSearchApplicationAction extends BaseRestHandler {
     }
 
     @Override
-    protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
+    protected RestChannelConsumer innerPrepareRequest(RestRequest restRequest, NodeClient client) {
         DeleteSearchApplicationAction.Request request = new DeleteSearchApplicationAction.Request(restRequest.param("name"));
         return channel -> client.execute(DeleteSearchApplicationAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }

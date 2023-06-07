@@ -400,7 +400,8 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
         }
         String commitFileName = StatelessCompoundCommit.NAME + maxGeneration.getAsLong();
         try (StreamInput streamInput = new InputStreamStreamInput(blobContainer.readBlob(commitFileName))) {
-            return StatelessCompoundCommit.readFromStore(streamInput);
+            long fileLength = allBlobs.get(commitFileName).length();
+            return StatelessCompoundCommit.readFromStore(streamInput, fileLength);
         }
     }
 

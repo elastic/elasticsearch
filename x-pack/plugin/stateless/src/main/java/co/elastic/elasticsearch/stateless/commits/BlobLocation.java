@@ -12,8 +12,15 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
  * References a location where a file is written on the blob store.
@@ -24,7 +31,10 @@ import java.io.IOException;
  * @param offset the offset inside the blob where the file is written
  * @param fileLength the length of the file
  */
-public record BlobLocation(long primaryTerm, String blobName, long blobLength, long offset, long fileLength) implements Writeable {
+public record BlobLocation(long primaryTerm, String blobName, long blobLength, long offset, long fileLength)
+    implements
+        Writeable,
+        ToXContentObject {
 
     public BlobLocation {
         assert offset + fileLength <= blobLength : "(offset + file) length is greater than blobLength " + this;
@@ -95,6 +105,41 @@ public record BlobLocation(long primaryTerm, String blobName, long blobLength, l
         }
         out.writeVLong(offset);
         out.writeVLong(fileLength);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        return builder.startObject()
+            .field("primary_term", primaryTerm)
+            .field("blob_name", blobName)
+            .field("blob_length", blobLength)
+            .field("offset", offset)
+            .field("file_length", fileLength)
+            .endObject();
+    }
+
+    private static final ConstructingObjectParser<BlobLocation, Void> PARSER = new ConstructingObjectParser<>(
+        "blob_location",
+        true,
+        args -> {
+            long primaryTerm = (long) args[0];
+            String blobName = (String) args[1];
+            long blobLength = (long) args[2];
+            long offset = (long) args[3];
+            long fileLength = (long) args[4];
+            return new BlobLocation(primaryTerm, blobName, blobLength, offset, fileLength);
+        }
+    );
+    static {
+        PARSER.declareLong(constructorArg(), new ParseField("primary_term"));
+        PARSER.declareString(constructorArg(), new ParseField("blob_name"));
+        PARSER.declareLong(constructorArg(), new ParseField("blob_length"));
+        PARSER.declareLong(constructorArg(), new ParseField("offset"));
+        PARSER.declareLong(constructorArg(), new ParseField("file_length"));
+    }
+
+    public static BlobLocation fromXContent(XContentParser parser) throws IOException {
+        return PARSER.parse(parser, null);
     }
 
     @Override

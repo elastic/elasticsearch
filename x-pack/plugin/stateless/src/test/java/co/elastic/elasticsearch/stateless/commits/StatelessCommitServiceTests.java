@@ -411,11 +411,13 @@ public class StatelessCommitServiceTests extends ESTestCase {
     private ArrayList<String> returnInternalFiles(FakeStatelessNode testHarness, List<String> compoundCommitFiles) throws IOException {
         ArrayList<String> filesOnObjectStore = new ArrayList<>();
         for (String commitFile : compoundCommitFiles) {
-            try (
-                InputStream inputStream = testHarness.objectStoreService.getBlobContainer(testHarness.shardId, primaryTerm)
-                    .readBlob(commitFile)
-            ) {
-                StatelessCompoundCommit compoundCommit = StatelessCompoundCommit.readFromStore(new InputStreamStreamInput(inputStream));
+            BlobContainer blobContainer = testHarness.objectStoreService.getBlobContainer(testHarness.shardId, primaryTerm);
+            try (InputStream inputStream = blobContainer.readBlob(commitFile)) {
+                long fileLength = blobContainer.listBlobs().get(commitFile).length();
+                StatelessCompoundCommit compoundCommit = StatelessCompoundCommit.readFromStore(
+                    new InputStreamStreamInput(inputStream),
+                    fileLength
+                );
                 compoundCommit.commitFiles()
                     .entrySet()
                     .stream()

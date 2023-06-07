@@ -236,7 +236,8 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
                 String commitFile = StatelessCompoundCommit.NAME + segmentInfos.getGeneration();
                 assertThat("" + commitFile, blobContainerForCommit.blobExists(commitFile), is(true));
                 StatelessCompoundCommit commit = StatelessCompoundCommit.readFromStore(
-                    new InputStreamStreamInput(blobContainerForCommit.readBlob(commitFile))
+                    new InputStreamStreamInput(blobContainerForCommit.readBlob(commitFile)),
+                    blobContainerForCommit.listBlobs().get(commitFile).length()
                 );
                 var localFiles = segmentInfos.files(false);
                 var expectedBlobFile = localFiles.stream().map(s -> commit.commitFiles().get(s).blobName()).collect(Collectors.toSet());
@@ -287,7 +288,8 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
             String commitFile = StatelessCompoundCommit.NAME + segmentInfos.getGeneration();
             assertBusy(() -> assertThat("" + commitFile, blobContainerForCommit.blobExists(commitFile), is(true)));
             StatelessCompoundCommit commit = StatelessCompoundCommit.readFromStore(
-                new InputStreamStreamInput(blobContainerForCommit.readBlob(commitFile))
+                new InputStreamStreamInput(blobContainerForCommit.readBlob(commitFile)),
+                blobContainerForCommit.listBlobs().get(commitFile).length()
             );
 
             for (String localFile : segmentInfos.files(false)) {

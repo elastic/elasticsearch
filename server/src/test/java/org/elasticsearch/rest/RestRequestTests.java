@@ -248,13 +248,16 @@ public class RestRequestTests extends ESTestCase {
     }
 
     public void testCopyRequestWithAdditionalParams() {
-        RestRequest request = contentRestRequest("content", new HashMap<>(Map.of("foo", "bar", "baz", "blah")));
+        RestRequest request = contentRestRequest("content", Map.of("foo", "bar", "baz", "blah"));
         assertEquals("bar", request.param("foo"));
         assertEquals("blah", request.param("baz"));
-        RestRequest.copyRequestWithAdditionalParams(request, Map.of("foo", "updated", "something", "new"));
-        assertEquals("updated", request.param("foo"));
+        RestRequest updatedRequest = RestRequest.copyRequestWithAdditionalParams(request, Map.of("foo", "updated", "something", "new"));
+        assertEquals("updated", updatedRequest.param("foo"));
+        assertEquals("blah", updatedRequest.param("baz"));
+        assertEquals("new", updatedRequest.param("something"));
+        // ensure no changes to the original request
+        assertEquals("bar", request.param("foo"));
         assertEquals("blah", request.param("baz"));
-        assertEquals("new", request.param("something"));
     }
 
     public static RestRequest contentRestRequest(String content, Map<String, String> params) {

@@ -227,7 +227,7 @@ public class TcpTransportTests extends ESTestCase {
         try {
             final TcpTransport tcpTransport = new TcpTransport(
                 settings,
-                    TransportVersion.current(),
+                TransportVersion.current(),
                 testThreadPool,
                 new MockPageCacheRecycler(settings),
                 new NoneCircuitBreakerService(),
@@ -602,7 +602,7 @@ public class TcpTransportTests extends ESTestCase {
                 lifecycle,
                 new OutboundHandler(
                     randomAlphaOfLength(10),
-                        TransportVersion.current(),
+                    TransportVersion.current(),
                     new StatsTracker(),
                     testThreadPool,
                     new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY)),

@@ -136,7 +136,7 @@ public class SeedHostsResolverTests extends ESTestCase {
         final InetAddress loopbackAddress = InetAddress.getLoopbackAddress();
         final Transport transport = new Netty4Transport(
             Settings.EMPTY,
-                TransportVersion.current(),
+            TransportVersion.current(),
             threadPool,
             networkService,
             PageCacheRecycler.NON_RECYCLING_INSTANCE,
@@ -182,7 +182,7 @@ public class SeedHostsResolverTests extends ESTestCase {
         final UnknownHostException unknownHostException = new UnknownHostException(hostname);
         final Transport transport = new Netty4Transport(
             Settings.EMPTY,
-                TransportVersion.current(),
+            TransportVersion.current(),
             threadPool,
             networkService,
             PageCacheRecycler.NON_RECYCLING_INSTANCE,
@@ -242,7 +242,7 @@ public class SeedHostsResolverTests extends ESTestCase {
         final CountDownLatch latch = new CountDownLatch(1);
         final Transport transport = new Netty4Transport(
             Settings.EMPTY,
-                TransportVersion.current(),
+            TransportVersion.current(),
             threadPool,
             networkService,
             PageCacheRecycler.NON_RECYCLING_INSTANCE,
@@ -316,7 +316,7 @@ public class SeedHostsResolverTests extends ESTestCase {
         final CountDownLatch conditionLatch = new CountDownLatch(1);
         final Transport transport = new Netty4Transport(
             Settings.EMPTY,
-                TransportVersion.current(),
+            TransportVersion.current(),
             threadPool,
             networkService,
             PageCacheRecycler.NON_RECYCLING_INSTANCE,
@@ -379,7 +379,7 @@ public class SeedHostsResolverTests extends ESTestCase {
     public void testInvalidHosts() {
         final Transport transport = new Netty4Transport(
             Settings.EMPTY,
-                TransportVersion.current(),
+            TransportVersion.current(),
             threadPool,
             new NetworkService(Collections.emptyList()),
             PageCacheRecycler.NON_RECYCLING_INSTANCE,

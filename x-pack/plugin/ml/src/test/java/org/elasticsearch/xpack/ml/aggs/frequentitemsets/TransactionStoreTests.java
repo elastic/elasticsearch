@@ -143,7 +143,7 @@ public class TransactionStoreTests extends ESTestCase {
                 writableRegistry(),
                 (out, value) -> value.writeTo(out),
                 in -> new HashBasedTransactionStore(in, mockBigArraysWithThrowingCircuitBreaker()),
-                    TransportVersion.current()
+                TransportVersion.current()
             );
         } catch (CircuitBreakingException ce) {
             assertEquals("cbe", ce.getMessage());
@@ -167,7 +167,7 @@ public class TransactionStoreTests extends ESTestCase {
             writableRegistry(),
             (out, value) -> value.writeTo(out),
             in -> new HashBasedTransactionStore(in, mockBigArrays()),
-                TransportVersion.current()
+            TransportVersion.current()
         );
 
         // create an immutable version

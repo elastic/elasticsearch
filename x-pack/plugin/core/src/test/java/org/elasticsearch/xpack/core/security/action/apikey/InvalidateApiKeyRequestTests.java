@@ -218,7 +218,9 @@ public class InvalidateApiKeyRequestTests extends ESTestCase {
             invalidateApiKeyRequest.writeTo(out);
 
             InputStreamStreamInput inputStreamStreamInput = new InputStreamStreamInput(new ByteArrayInputStream(outBuffer.toByteArray()));
-            inputStreamStreamInput.setTransportVersion(randomVersionBetween(random(), TransportVersion.V_7_10_0, TransportVersion.current()));
+            inputStreamStreamInput.setTransportVersion(
+                randomVersionBetween(random(), TransportVersion.V_7_10_0, TransportVersion.current())
+            );
             InvalidateApiKeyRequest requestFromInputStream = new InvalidateApiKeyRequest(inputStreamStreamInput);
 
             assertThat(requestFromInputStream, equalTo(invalidateApiKeyRequest));

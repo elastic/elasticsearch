@@ -164,7 +164,7 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
         TransportVersion version = TransportVersionUtils.randomVersionBetween(
             random(),
             TransportVersion.MINIMUM_COMPATIBLE,
-                TransportVersion.current()
+            TransportVersion.current()
         );
         outStream.setTransportVersion(version);
         diffs.writeTo(outStream);

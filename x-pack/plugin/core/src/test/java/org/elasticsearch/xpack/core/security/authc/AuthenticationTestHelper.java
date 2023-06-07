@@ -640,7 +640,11 @@ public class AuthenticationTestHelper {
                                     Authentication.newInternalFallbackAuthentication(user, nodeName)
                                 );
                             } else {
-                                authentication = Authentication.newInternalAuthentication(internalUser, TransportVersion.current(), nodeName);
+                                authentication = Authentication.newInternalAuthentication(
+                                    internalUser,
+                                    TransportVersion.current(),
+                                    nodeName
+                                );
                             }
                         } else {
                             throw new IllegalArgumentException(

@@ -2860,7 +2860,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         } else {
             return Authentication.newInternalAuthentication(
                 InternalUsers.SYSTEM_USER,
-                    TransportVersion.current(),
+                TransportVersion.current(),
                 randomAlphaOfLengthBetween(3, 8)
             );
         }

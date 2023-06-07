@@ -76,7 +76,7 @@ public class DiscoveryModuleTests extends ESTestCase {
         transportService = MockTransportService.createNewService(
             Settings.EMPTY,
             Version.CURRENT,
-                TransportVersion.current(),
+            TransportVersion.current(),
             mock(ThreadPool.class),
             null
         );

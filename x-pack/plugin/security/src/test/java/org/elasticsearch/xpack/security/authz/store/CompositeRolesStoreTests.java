@@ -1847,7 +1847,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         );
         AuditUtil.getOrGenerateRequestId(threadContext);
         final TransportVersion version = randomFrom(
-                TransportVersion.current(),
+            TransportVersion.current(),
             TransportVersionUtils.randomVersionBetween(random(), TransportVersion.V_7_0_0, TransportVersion.V_7_8_1)
         );
         final Authentication authentication = createApiKeyAuthentication(
@@ -1930,7 +1930,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         );
         AuditUtil.getOrGenerateRequestId(threadContext);
         final TransportVersion version = randomFrom(
-                TransportVersion.current(),
+            TransportVersion.current(),
             TransportVersionUtils.randomVersionBetween(random(), TransportVersion.V_7_0_0, TransportVersion.V_7_8_1)
         );
         final Authentication authentication = createApiKeyAuthentication(

@@ -63,7 +63,7 @@ public class RestPluginsActionTests extends ESTestCase {
             nodeInfos.add(
                 new NodeInfo(
                     Version.CURRENT,
-                        TransportVersion.current(),
+                    TransportVersion.current(),
                     null,
                     node(i),
                     null,

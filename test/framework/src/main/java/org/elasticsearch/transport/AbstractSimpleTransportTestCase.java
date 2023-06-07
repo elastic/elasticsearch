@@ -2230,7 +2230,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         TransportVersion transportVersion = TransportVersionUtils.randomVersionBetween(
             random(),
             TransportVersion.MINIMUM_COMPATIBLE,
-                TransportVersion.current()
+            TransportVersion.current()
         );
         try (
             MockTransportService service = buildService(

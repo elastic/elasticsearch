@@ -48,7 +48,7 @@ public class BytesRefArrayTests extends ESTestCase {
                 writableRegistry(),
                 (out, value) -> value.writeTo(out),
                 in -> new BytesRefArray(in, mockBigArrays()),
-                    TransportVersion.current()
+                TransportVersion.current()
             );
 
             assertEquality(array, copy);
@@ -97,7 +97,7 @@ public class BytesRefArrayTests extends ESTestCase {
                     writableRegistry(),
                     (out, value) -> value.writeTo(out),
                     in -> new BytesRefArray(in, mockBigArrays()),
-                        TransportVersion.current()
+                    TransportVersion.current()
                 );
                 assertEquality(inArray, array);
                 inArray.close();

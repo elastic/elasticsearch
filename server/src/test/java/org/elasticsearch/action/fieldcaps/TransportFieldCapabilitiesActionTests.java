@@ -54,7 +54,7 @@ public class TransportFieldCapabilitiesActionTests extends ESTestCase {
             TransportService transportService = MockTransportService.createNewService(
                 Settings.EMPTY,
                 Version.CURRENT,
-                    TransportVersion.current(),
+                TransportVersion.current(),
                 threadPool
             );
 
@@ -96,7 +96,10 @@ public class TransportFieldCapabilitiesActionTests extends ESTestCase {
                 containsString("[class org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest] is not compatible with version")
             );
             assertThat(ex.getMessage(), containsString("and the 'search.check_ccs_compatibility' setting is enabled."));
-            assertEquals("This query isn't serializable before transport version " + TransportVersion.current(), ex.getCause().getMessage());
+            assertEquals(
+                "This query isn't serializable before transport version " + TransportVersion.current(),
+                ex.getCause().getMessage()
+            );
         } finally {
             assertTrue(ESTestCase.terminate(threadPool));
         }

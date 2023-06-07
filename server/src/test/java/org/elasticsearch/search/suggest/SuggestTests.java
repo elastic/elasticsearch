@@ -243,7 +243,7 @@ public class SuggestTests extends ESTestCase {
         TransportVersion bwcVersion = TransportVersionUtils.randomVersionBetween(
             random(),
             TransportVersion.MINIMUM_COMPATIBLE,
-                TransportVersion.current()
+            TransportVersion.current()
         );
 
         final Suggest suggest = createTestItem();

@@ -101,7 +101,7 @@ public class TransportResyncReplicationActionTests extends ESTestCase {
             try (
                 TcpTransport transport = new Netty4Transport(
                     Settings.EMPTY,
-                        TransportVersion.current(),
+                    TransportVersion.current(),
                     threadPool,
                     new NetworkService(emptyList()),
                     PageCacheRecycler.NON_RECYCLING_INSTANCE,

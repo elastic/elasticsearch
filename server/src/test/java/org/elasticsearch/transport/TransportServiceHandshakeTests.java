@@ -118,7 +118,7 @@ public class TransportServiceHandshakeTests extends ESTestCase {
         TransportService transportServiceA = startServices(
             "TS_A",
             settings,
-                TransportVersion.current(),
+            TransportVersion.current(),
             Version.CURRENT,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR
         );
@@ -157,14 +157,14 @@ public class TransportServiceHandshakeTests extends ESTestCase {
         TransportService transportServiceA = startServices(
             "TS_A",
             Settings.builder().put("cluster.name", "a").build(),
-                TransportVersion.current(),
+            TransportVersion.current(),
             Version.CURRENT,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR
         );
         TransportService transportServiceB = startServices(
             "TS_B",
             Settings.builder().put("cluster.name", "b").build(),
-                TransportVersion.current(),
+            TransportVersion.current(),
             Version.CURRENT,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR
         );
@@ -198,7 +198,7 @@ public class TransportServiceHandshakeTests extends ESTestCase {
         TransportService transportServiceA = startServices(
             "TS_A",
             settings,
-                TransportVersion.current(),
+            TransportVersion.current(),
             Version.CURRENT,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR
         );
@@ -247,7 +247,7 @@ public class TransportServiceHandshakeTests extends ESTestCase {
         TransportService transportServiceA = startServices(
             "TS_A",
             settings,
-                TransportVersion.current(),
+            TransportVersion.current(),
             Version.CURRENT,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR
         );
@@ -285,14 +285,14 @@ public class TransportServiceHandshakeTests extends ESTestCase {
         TransportService transportServiceA = startServices(
             "TS_A",
             settings,
-                TransportVersion.current(),
+            TransportVersion.current(),
             Version.CURRENT,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR
         );
         TransportService transportServiceB = startServices(
             "TS_B",
             settings,
-                TransportVersion.current(),
+            TransportVersion.current(),
             Version.CURRENT,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR
         );
@@ -323,14 +323,14 @@ public class TransportServiceHandshakeTests extends ESTestCase {
         final TransportService transportServiceA = startServices(
             "TS_A",
             settings,
-                TransportVersion.current(),
+            TransportVersion.current(),
             Version.CURRENT,
             transportInterceptorA
         );
         final TransportService transportServiceB = startServices(
             "TS_B",
             settings,
-                TransportVersion.current(),
+            TransportVersion.current(),
             Version.CURRENT,
             transportInterceptorB
         );
@@ -376,14 +376,14 @@ public class TransportServiceHandshakeTests extends ESTestCase {
             final TransportService transportServiceA = startServices(
                 "TS_A",
                 settings,
-                    TransportVersion.current(),
+                TransportVersion.current(),
                 Version.CURRENT,
                 transportInterceptorA
             );
             final TransportService transportServiceB = startServices(
                 "TS_B",
                 settings,
-                    TransportVersion.current(),
+                TransportVersion.current(),
                 Version.CURRENT,
                 transportInterceptorB
             );
@@ -402,7 +402,7 @@ public class TransportServiceHandshakeTests extends ESTestCase {
         final TransportService transportServiceA = startServices(
             "TS_A",
             Settings.builder().put("cluster.name", "a").build(),
-                TransportVersion.current(),
+            TransportVersion.current(),
             Version.CURRENT,
             transportInterceptorA
         );

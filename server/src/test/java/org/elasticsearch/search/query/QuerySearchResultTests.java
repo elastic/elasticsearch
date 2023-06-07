@@ -102,7 +102,7 @@ public class QuerySearchResultTests extends ESTestCase {
             querySearchResult,
             namedWriteableRegistry,
             delayed ? in -> new QuerySearchResult(in, true) : QuerySearchResult::new,
-                TransportVersion.current()
+            TransportVersion.current()
         );
         assertEquals(querySearchResult.getContextId().getId(), deserialized.getContextId().getId());
         assertNull(deserialized.getSearchShardTarget());
@@ -127,7 +127,7 @@ public class QuerySearchResultTests extends ESTestCase {
             querySearchResult,
             namedWriteableRegistry,
             QuerySearchResult::new,
-                TransportVersion.current()
+            TransportVersion.current()
         );
         assertEquals(querySearchResult.isNull(), deserialized.isNull());
     }

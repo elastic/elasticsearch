@@ -110,7 +110,7 @@ public class NettyTransportMultiPortTests extends ESTestCase {
         PageCacheRecycler recycler = new MockPageCacheRecycler(Settings.EMPTY);
         TcpTransport transport = new Netty4Transport(
             settings,
-                TransportVersion.current(),
+            TransportVersion.current(),
             threadPool,
             new NetworkService(Collections.emptyList()),
             recycler,

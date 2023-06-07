@@ -104,7 +104,7 @@ public class SourceDestValidatorTests extends ESTestCase {
     private final TransportService transportService = MockTransportService.createNewService(
         Settings.EMPTY,
         Version.CURRENT,
-            TransportVersion.current(),
+        TransportVersion.current(),
         threadPool
     );
     private final RemoteClusterService remoteClusterService = transportService.getRemoteClusterService();

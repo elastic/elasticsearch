@@ -184,7 +184,7 @@ public class TaskManagerTests extends ESTestCase {
                             threadPool,
                             "action-" + i,
                             randomIntBetween(0, 1000),
-                                TransportVersion.current()
+                            TransportVersion.current()
                         );
                         taskManager.setBan(taskId, "test", tcpTransportChannel);
                     }
@@ -233,7 +233,7 @@ public class TaskManagerTests extends ESTestCase {
                     threadPool,
                     "action",
                     randomIntBetween(1, 10000),
-                        TransportVersion.current()
+                    TransportVersion.current()
                 )
             );
         }

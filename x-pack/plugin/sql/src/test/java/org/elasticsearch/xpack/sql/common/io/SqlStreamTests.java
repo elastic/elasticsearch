@@ -60,7 +60,7 @@ public class SqlStreamTests extends ESTestCase {
                     + "AP////8PAAAAAAAAAAAAAAAAAVoDAAICAAAAAAAAAAAKAP////8PAgFtCDJkMTBjNGJhBXZhbHVlAAEE"
                     + "QllURQFrCGJkZWY4OGU1AAABAwA=",
                 new NamedWriteableRegistry(List.of()),
-                    TransportVersion.current()
+                TransportVersion.current()
             )
         );
 

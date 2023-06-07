@@ -102,7 +102,7 @@ public class TransportNodeEnrollmentActionTests extends ESTestCase {
             nodeInfos.add(
                 new NodeInfo(
                     Version.CURRENT,
-                        TransportVersion.current(),
+                    TransportVersion.current(),
                     null,
                     n,
                     null,

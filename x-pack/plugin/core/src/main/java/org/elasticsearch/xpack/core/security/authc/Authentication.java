@@ -1262,7 +1262,7 @@ public final class Authentication implements ToXContentObject {
             new Subject(
                 getEffectiveSubject().getUser(),
                 authenticatedBy,
-                    TransportVersion.current(),
+                TransportVersion.current(),
                 crossClusterAccessSubjectInfo.copyWithCrossClusterAccessEntries(metadata)
             ),
             getAuthenticationType()

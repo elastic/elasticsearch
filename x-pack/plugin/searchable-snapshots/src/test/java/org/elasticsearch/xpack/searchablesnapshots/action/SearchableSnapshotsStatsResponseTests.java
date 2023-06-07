@@ -43,7 +43,7 @@ public class SearchableSnapshotsStatsResponseTests extends ESTestCase {
                 testInstance,
                 writableRegistry(),
                 SearchableSnapshotsStatsResponse::new,
-                    TransportVersion.current()
+                TransportVersion.current()
             );
             assertEqualInstances(testInstance, deserializedInstance);
         }

@@ -56,7 +56,7 @@ public class Netty4SizeHeaderFrameDecoderTests extends ESTestCase {
         PageCacheRecycler recycler = new MockPageCacheRecycler(Settings.EMPTY);
         nettyTransport = new Netty4Transport(
             settings,
-                TransportVersion.current(),
+            TransportVersion.current(),
             threadPool,
             networkService,
             recycler,

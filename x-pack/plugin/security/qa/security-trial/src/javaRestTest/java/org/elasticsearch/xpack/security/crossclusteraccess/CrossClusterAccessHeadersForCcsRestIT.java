@@ -1064,7 +1064,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                         actual.headers().get(CrossClusterAccessSubjectInfo.CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY)
                     );
                     final var expectedCrossClusterAccessSubjectInfo = SystemUser.crossClusterAccessSubjectInfo(
-                            TransportVersion.current(),
+                        TransportVersion.current(),
                         // Since we are running on a multi-node cluster the actual node name may be different between runs
                         // so just copy the one from the actual result
                         actualCrossClusterAccessSubjectInfo.getAuthentication().getEffectiveSubject().getRealm().getNodeName()
@@ -1107,7 +1107,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
         final MockTransportService service = MockTransportService.createNewService(
             settings,
             Version.CURRENT,
-                TransportVersion.current(),
+            TransportVersion.current(),
             threadPool,
             null
         );

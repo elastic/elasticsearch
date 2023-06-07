@@ -75,7 +75,7 @@ public class OutboundHandlerTests extends ESTestCase {
         compressionScheme = randomFrom(Compression.Scheme.DEFLATE, Compression.Scheme.LZ4);
         handler = new OutboundHandler(
             "node",
-                TransportVersion.current(),
+            TransportVersion.current(),
             statsTracker,
             threadPool,
             recycler,

@@ -170,7 +170,7 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
         final TransportVersion version = TransportVersionUtils.randomVersionBetween(
             random(),
             TransportVersion.V_8_2_0,
-                TransportVersion.current()
+            TransportVersion.current()
         );
         final FieldCapabilitiesResponse outResponse = copyInstance(inResponse, version);
         assertThat(

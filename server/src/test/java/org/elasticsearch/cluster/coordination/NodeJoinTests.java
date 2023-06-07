@@ -366,7 +366,7 @@ public class NodeJoinTests extends ESTestCase {
         joinNodeAndRun(
             new JoinRequest(
                 node1,
-                    TransportVersion.current(),
+                TransportVersion.current(),
                 newTerm,
                 Optional.of(new Join(node1, node0, newTerm, initialTerm, higherVersion))
             )
@@ -389,7 +389,7 @@ public class NodeJoinTests extends ESTestCase {
         joinNodeAndRun(
             new JoinRequest(
                 node0,
-                    TransportVersion.current(),
+                TransportVersion.current(),
                 newTerm,
                 Optional.of(new Join(node0, node0, newTerm, initialTerm, initialVersion))
             )
@@ -399,7 +399,7 @@ public class NodeJoinTests extends ESTestCase {
         joinNodeAndRun(
             new JoinRequest(
                 node1,
-                    TransportVersion.current(),
+                TransportVersion.current(),
                 newTerm,
                 Optional.of(new Join(node1, node0, newTerm, initialTerm, initialVersion))
             )
@@ -423,7 +423,7 @@ public class NodeJoinTests extends ESTestCase {
         joinNodeAndRun(
             new JoinRequest(
                 node0,
-                    TransportVersion.current(),
+                TransportVersion.current(),
                 newTerm,
                 Optional.of(new Join(node0, node0, newTerm, initialTerm, initialVersion))
             )
@@ -452,7 +452,7 @@ public class NodeJoinTests extends ESTestCase {
         Future<Void> futNode0 = joinNodeAsync(
             new JoinRequest(
                 node0,
-                    TransportVersion.current(),
+                TransportVersion.current(),
                 newTerm,
                 Optional.of(new Join(node0, node0, newTerm, initialTerm, initialVersion))
             )
@@ -463,7 +463,7 @@ public class NodeJoinTests extends ESTestCase {
         Future<Void> futNode1 = joinNodeAsync(
             new JoinRequest(
                 node1,
-                    TransportVersion.current(),
+                TransportVersion.current(),
                 newTerm,
                 Optional.of(new Join(node1, node0, newTerm, initialTerm, initialVersion))
             )
@@ -474,7 +474,7 @@ public class NodeJoinTests extends ESTestCase {
         joinNodeAndRun(
             new JoinRequest(
                 node2,
-                    TransportVersion.current(),
+                TransportVersion.current(),
                 newTerm,
                 Optional.of(new Join(node2, node0, newTerm, initialTerm, initialVersion))
             )
@@ -503,7 +503,7 @@ public class NodeJoinTests extends ESTestCase {
         joinNodeAndRun(
             new JoinRequest(
                 node1,
-                    TransportVersion.current(),
+                TransportVersion.current(),
                 newerTerm,
                 Optional.of(new Join(node1, node0, newerTerm, initialTerm, initialVersion))
             )
@@ -537,7 +537,7 @@ public class NodeJoinTests extends ESTestCase {
         joinNodeAndRun(
             new JoinRequest(
                 knownJoiningNode,
-                    TransportVersion.current(),
+                TransportVersion.current(),
                 initialTerm,
                 Optional.of(new Join(knownJoiningNode, initialNode, newerTerm, initialTerm, initialVersion))
             )
@@ -696,7 +696,7 @@ public class NodeJoinTests extends ESTestCase {
             .map(
                 node -> new JoinRequest(
                     node,
-                        TransportVersion.current(),
+                    TransportVersion.current(),
                     newTerm,
                     Optional.of(new Join(node, localNode, newTerm, initialTerm, initialVersion))
                 )
@@ -713,7 +713,7 @@ public class NodeJoinTests extends ESTestCase {
                 // a correct request
                 return new JoinRequest(
                     node,
-                        TransportVersion.current(),
+                    TransportVersion.current(),
                     newTerm,
                     Optional.of(new Join(node, localNode, newTerm, initialTerm, initialVersion))
                 );
@@ -721,7 +721,7 @@ public class NodeJoinTests extends ESTestCase {
                 // term too low
                 return new JoinRequest(
                     node,
-                        TransportVersion.current(),
+                    TransportVersion.current(),
                     newTerm,
                     Optional.of(new Join(node, localNode, randomLongBetween(0, initialTerm), initialTerm, initialVersion))
                 );
@@ -729,7 +729,7 @@ public class NodeJoinTests extends ESTestCase {
                 // better state
                 return new JoinRequest(
                     node,
-                        TransportVersion.current(),
+                    TransportVersion.current(),
                     newTerm,
                     Optional.of(new Join(node, localNode, newTerm, initialTerm, initialVersion + randomLongBetween(1, 10)))
                 );

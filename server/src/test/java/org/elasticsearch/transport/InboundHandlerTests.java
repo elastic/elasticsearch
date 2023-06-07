@@ -67,7 +67,7 @@ public class InboundHandlerTests extends ESTestCase {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
         final boolean ignoreDeserializationErrors = true; // suppress assertions to test production error-handling
         TransportHandshaker handshaker = new TransportHandshaker(
-                TransportVersion.current(),
+            TransportVersion.current(),
             threadPool,
             (n, c, r, v) -> {},
             ignoreDeserializationErrors
@@ -75,7 +75,7 @@ public class InboundHandlerTests extends ESTestCase {
         TransportKeepAlive keepAlive = new TransportKeepAlive(threadPool, TcpChannel::sendMessage);
         OutboundHandler outboundHandler = new OutboundHandler(
             "node",
-                TransportVersion.current(),
+            TransportVersion.current(),
             new StatsTracker(),
             threadPool,
             new BytesRefRecycler(PageCacheRecycler.NON_RECYCLING_INSTANCE),
@@ -168,7 +168,7 @@ public class InboundHandlerTests extends ESTestCase {
         OutboundMessage.Request request = new OutboundMessage.Request(
             threadPool.getThreadContext(),
             new TestRequest(requestValue),
-                TransportVersion.current(),
+            TransportVersion.current(),
             action,
             requestId,
             false,
@@ -182,7 +182,7 @@ public class InboundHandlerTests extends ESTestCase {
             fullRequestBytes.length() - 6,
             requestId,
             TransportStatus.setRequest((byte) 0),
-                TransportVersion.current()
+            TransportVersion.current()
         );
         InboundMessage requestMessage = new InboundMessage(requestHeader, ReleasableBytesReference.wrap(requestContent), () -> {});
         requestHeader.finishParsingHeader(requestMessage.openOrGetStreamInput());

@@ -394,7 +394,7 @@ public class BytesRefHashTests extends ESTestCase {
                 writableRegistry(),
                 (out, value) -> value.writeTo(out),
                 in -> new BytesRefArray(in, mockBigArrays()),
-                    TransportVersion.current()
+                TransportVersion.current()
             );
 
             BytesRefHash copy = new BytesRefHash(refArrayCopy, mockBigArrays());

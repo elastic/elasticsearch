@@ -63,7 +63,7 @@ public class RemoteClusterAwareClientTests extends ESTestCase {
                 MockTransportService service = MockTransportService.createNewService(
                     builder.build(),
                     Version.CURRENT,
-                        TransportVersion.current(),
+                    TransportVersion.current(),
                     threadPool,
                     null
                 )
@@ -111,7 +111,7 @@ public class RemoteClusterAwareClientTests extends ESTestCase {
                 MockTransportService service = MockTransportService.createNewService(
                     builder.build(),
                     Version.CURRENT,
-                        TransportVersion.current(),
+                    TransportVersion.current(),
                     threadPool,
                     null
                 )

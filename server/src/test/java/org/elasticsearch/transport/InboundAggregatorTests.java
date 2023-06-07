@@ -129,7 +129,7 @@ public class InboundAggregatorTests extends ESTestCase {
             randomInt(),
             randomNonNegativeLong(),
             TransportStatus.setRequest((byte) 0),
-                TransportVersion.current()
+            TransportVersion.current()
         );
         breakableHeader.headers = new Tuple<>(Collections.emptyMap(), Collections.emptyMap());
         breakableHeader.actionName = "action_name";
@@ -154,7 +154,7 @@ public class InboundAggregatorTests extends ESTestCase {
             randomInt(),
             randomNonNegativeLong(),
             TransportStatus.setRequest((byte) 0),
-                TransportVersion.current()
+            TransportVersion.current()
         );
         unbreakableHeader.headers = new Tuple<>(Collections.emptyMap(), Collections.emptyMap());
         unbreakableHeader.actionName = unBreakableAction;

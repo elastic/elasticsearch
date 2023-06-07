@@ -100,7 +100,7 @@ public class FieldCapabilitiesNodeResponseTests extends AbstractWireSerializingT
         final TransportVersion version = TransportVersionUtils.randomVersionBetween(
             random(),
             TransportVersion.V_8_2_0,
-                TransportVersion.current()
+            TransportVersion.current()
         );
         final FieldCapabilitiesNodeResponse outNode = copyInstance(inNode, version);
         assertThat(outNode.getFailures().keySet(), equalTo(inNode.getFailures().keySet()));

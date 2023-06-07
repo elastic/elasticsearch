@@ -53,7 +53,7 @@ public class InboundDecoderTests extends ESTestCase {
             message = new OutboundMessage.Request(
                 threadContext,
                 new TestRequest(randomAlphaOfLength(100)),
-                    TransportVersion.current(),
+                TransportVersion.current(),
                 action,
                 requestId,
                 false,
@@ -63,7 +63,7 @@ public class InboundDecoderTests extends ESTestCase {
             message = new OutboundMessage.Response(
                 threadContext,
                 new TestResponse(randomAlphaOfLength(100)),
-                    TransportVersion.current(),
+                TransportVersion.current(),
                 requestId,
                 false,
                 null
@@ -237,7 +237,7 @@ public class InboundDecoderTests extends ESTestCase {
             message = new OutboundMessage.Request(
                 threadContext,
                 transportMessage,
-                    TransportVersion.current(),
+                TransportVersion.current(),
                 action,
                 requestId,
                 false,

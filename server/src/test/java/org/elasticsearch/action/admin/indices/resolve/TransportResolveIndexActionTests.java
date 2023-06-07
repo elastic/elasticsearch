@@ -52,7 +52,7 @@ public class TransportResolveIndexActionTests extends ESTestCase {
             TransportService transportService = MockTransportService.createNewService(
                 Settings.EMPTY,
                 Version.CURRENT,
-                    TransportVersion.current(),
+                TransportVersion.current(),
                 threadPool
             );
 

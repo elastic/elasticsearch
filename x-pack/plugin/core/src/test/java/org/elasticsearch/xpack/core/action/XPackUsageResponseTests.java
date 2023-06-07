@@ -38,7 +38,7 @@ public class XPackUsageResponseTests extends ESTestCase {
         newVersion = TransportVersionUtils.randomVersionBetween(
             random(),
             TransportVersionUtils.getNextVersion(oldVersion),
-                TransportVersion.current()
+            TransportVersion.current()
         );
     }
 

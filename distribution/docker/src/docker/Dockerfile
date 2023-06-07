@@ -140,7 +140,7 @@ RUN chmod -R 0555 /opt/plugins
 # Add entrypoint
 ################################################################################
 
-FROM ${base_image}
+FROM ${base_image} as elasticsearch
 
 <% if (docker_base == "iron_bank") { %>
 <%

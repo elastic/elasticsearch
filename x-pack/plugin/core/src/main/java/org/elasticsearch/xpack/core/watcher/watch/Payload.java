@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.watcher.watch;
 
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -14,7 +13,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -31,11 +29,11 @@ public interface Payload extends ToXContentObject {
         private final Map<String, Object> data;
 
         public Simple() {
-            this(new HashMap<>());
+            this(Map.of());
         }
 
         public Simple(String key, Object value) {
-            this(new MapBuilder<String, Object>().put(key, value).map());
+            this(Map.of(key, value));
         }
 
         public Simple(Map<String, Object> data) {

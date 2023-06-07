@@ -139,7 +139,7 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
             );
 
             try (StreamInput in = output.bytes().streamInput()) {
-                StatelessCompoundCommit compoundCommit = StatelessCompoundCommit.readFromStore(in);
+                StatelessCompoundCommit compoundCommit = StatelessCompoundCommit.readFromStore(in, commitFileLength);
                 assertEqualInstances(withInternalFiles, compoundCommit);
             }
         }
@@ -166,10 +166,16 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
             for (Map.Entry<String, BlobLocation> entry : withOldBlobLengths.commitFiles().entrySet()) {
                 writer.addReferencedBlobFile(entry.getKey(), entry.getValue());
             }
-            writer.writeHeader(new PositionTrackingOutputStreamStreamOutput(output), StatelessCompoundCommit.VERSION_WITH_COMMIT_FILES);
+            writer.writeHeader(
+                new PositionTrackingOutputStreamStreamOutput(output),
+                randomFrom(StatelessCompoundCommit.VERSION_WITH_COMMIT_FILES, StatelessCompoundCommit.VERSION_WITH_BLOB_LENGTH)
+            );
 
             try (StreamInput in = output.bytes().streamInput()) {
-                StatelessCompoundCommit compoundCommit = StatelessCompoundCommit.readFromStore(in);
+                StatelessCompoundCommit compoundCommit = StatelessCompoundCommit.readFromStore(
+                    in,
+                    output.bytes().length() + writer.getInternalFilesLength()
+                );
                 assertEqualInstances(withOldBlobLengths, compoundCommit);
             }
         }
@@ -195,7 +201,7 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
             bytes[i] = (byte) ~bytes[i];
             try (StreamInput in = new ByteArrayStreamInput(bytes)) {
                 try {
-                    StatelessCompoundCommit.readFromStore(in);
+                    StatelessCompoundCommit.readFromStore(in, bytes.length + writer.getInternalFilesLength());
                     assert false : "Should have thrown";
                 } catch (IOException e) {
                     assertThat(e.getMessage(), containsString("Failed to read shard commit"));

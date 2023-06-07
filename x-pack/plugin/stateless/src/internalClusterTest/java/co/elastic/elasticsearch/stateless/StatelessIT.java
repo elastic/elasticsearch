@@ -87,7 +87,8 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
         String commitFile = StatelessCompoundCommit.NAME + Lucene.readSegmentInfos(indexShard.store().directory()).getGeneration();
         assertThat("" + commitFile, blobContainerForCommit.blobExists(commitFile), is(true));
         StatelessCompoundCommit commit = StatelessCompoundCommit.readFromStore(
-            new InputStreamStreamInput(blobContainerForCommit.readBlob(commitFile))
+            new InputStreamStreamInput(blobContainerForCommit.readBlob(commitFile)),
+            blobContainerForCommit.listBlobs().get(commitFile).length()
         );
         assertThat(
             "Expected that the compound commit has the ephemeral Id of the indexing node",

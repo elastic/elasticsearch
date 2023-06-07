@@ -25,7 +25,7 @@ public class VectorEncoderDecoderTests extends ESTestCase {
         }
         // Binary documents store magnitude in a float at the end of the buffer array
         magnitude /= 4;
-        byteBuffer.putFloat((float)magnitude);
+        byteBuffer.putFloat((float) magnitude);
         BytesRef floatBytes = new BytesRef(byteBuffer.array());
         // adjust so that we have an offset ignoring the first float
         floatBytes.length = 16;

@@ -19,25 +19,15 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.NoSuchElementException;
 import java.util.Objects;
 
 abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetricsAggregation.MultiValue {
 
-    protected static final Iterator<Percentile> EMPTY_ITERATOR = new Iterator<>() {
-        @Override
-        public boolean hasNext() {
-            return false;
-        }
-
-        @Override
-        public Percentile next() {
-            throw new NoSuchElementException();
-        }
-    };
+    protected static final Iterator<Percentile> EMPTY_ITERATOR = Collections.emptyIterator();
 
     // NOTE: using compression = 1.0 empty histograms will track just about 5 centroids.
     // This reduces the amount of data to serialize and deserialize.

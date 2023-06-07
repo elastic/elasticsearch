@@ -188,12 +188,12 @@ public class SubscribableListener<T> implements ActionListener<T> {
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
-    private static <T> boolean tryComplete(Object refValue, ActionListener<T> listener) {
-        if (refValue instanceof SuccessResult successResult) {
+    private static <T> boolean tryComplete(Object currentState, ActionListener<T> listener) {
+        if (currentState instanceof SuccessResult successResult) {
             successResult.complete(listener);
             return true;
         }
-        if (refValue instanceof FailureResult failureResult) {
+        if (currentState instanceof FailureResult failureResult) {
             failureResult.complete(listener);
             return true;
         }
@@ -250,8 +250,8 @@ public class SubscribableListener<T> implements ActionListener<T> {
         }
     }
 
-    private static boolean isDone(Object refValue) {
-        return refValue instanceof SubscribableListener.SuccessResult<?> || refValue instanceof SubscribableListener.FailureResult;
+    private static boolean isDone(Object currentState) {
+        return currentState instanceof SubscribableListener.SuccessResult<?> || currentState instanceof SubscribableListener.FailureResult;
     }
 
     /**

@@ -1,0 +1,6 @@
+pr: 96625
+summary: Create float type family
+area: Mapping
+type: enhancement
+issues:
+ - 67723

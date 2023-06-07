@@ -202,13 +202,20 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     }
 
     /**
-     * Similar to the lucene implementation but it will wait for all threads to fisinsh before returning even if an error is thrown.
-     * In that case, other exceptions will be ignored and the first exception is thrown after all threads are finished.
+     * Similar to the lucene implementation with the following changes:
+     * - it will wait for all threads to finish before returning even if an error is thrown. In that case, subsequent exceptions will be
+     * ignored and the first exception is thrown after all threads are finished.
+     * - {@link CollectorManager#reduce(Collection)} is called when exceptions are thrown in order to expose partial results
      * */
     private <C extends Collector, T> T search(Weight weight, CollectorManager<C, T> collectorManager, C firstCollector) throws IOException {
         if (queueSizeBasedExecutor == null || leafSlices.length <= 1) {
-            search(leafContexts, weight, firstCollector);
-            return collectorManager.reduce(Collections.singletonList(firstCollector));
+            try {
+                search(leafContexts, weight, firstCollector);
+                return collectorManager.reduce(Collections.singletonList(firstCollector));
+            } catch(Exception e) {
+                collectorManager.reduce(Collections.singletonList(firstCollector));
+                throw e;
+            }
         } else {
             final List<C> collectors = new ArrayList<>(leafSlices.length);
             collectors.add(firstCollector);
@@ -258,10 +265,11 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                     }
                 }
             }
+            T reduced = collectorManager.reduce(collectedCollectors);
             if (exception != null) {
                 throw exception;
             }
-            return collectorManager.reduce(collectedCollectors);
+            return reduced;
         }
     }
 

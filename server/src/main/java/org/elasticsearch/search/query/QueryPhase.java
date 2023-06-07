@@ -53,8 +53,10 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.search.internal.SearchContext.TRACK_TOTAL_HITS_DISABLED;
 import static org.elasticsearch.search.profile.query.CollectorResult.REASON_SEARCH_MIN_SCORE;
@@ -206,20 +208,21 @@ public class QueryPhase {
             );
 
             if (searchContext.terminateAfter() != SearchContext.DEFAULT_TERMINATE_AFTER) {
-                // add terminate_after before the filter collectors
-                // it will only be applied on documents accepted by these filter collectors
+                //add terminate_after before the filtered collector, so it's only applied on documents accepted by it
                 EarlyTerminatingCollector earlyTerminatingCollector = new EarlyTerminatingCollector(
                     EMPTY_COLLECTOR,
                     searchContext.terminateAfter(),
                     true
                 );
-                final Collector collector = collectorManager.newCollector();
-                collectorManager = wrapWithProfilerCollectorManagerIfNeeded(
-                    searchContext.getProfilers(),
-                    new SingleThreadCollectorManager(MultiCollector.wrap(earlyTerminatingCollector, collector)),
-                    REASON_SEARCH_TERMINATE_AFTER_COUNT,
-                    collector
-                );
+                if (searchContext.getProfilers() == null) {
+                    collectorManager = new MultiCollectorManager(new SingleThreadCollectorManager(earlyTerminatingCollector), collectorManager);
+                } else {
+                    CollectorManagerWrapper<? extends Collector> collectorManagerWrapper = new CollectorManagerWrapper<>(collectorManager);
+                    collectorManager = new MultiCollectorManager(new SingleThreadCollectorManager(earlyTerminatingCollector), collectorManagerWrapper);
+                    collectorManager = new InternalProfileCollectorManager(
+                        new InternalProfileCollector(collectorManager.newCollector(), REASON_SEARCH_TERMINATE_AFTER_COUNT,
+                            (InternalProfileCollector) collectorManagerWrapper.getCollector()));
+                }
             }
             if (searchContext.parsedPostFilter() != null) {
                 // add post filters before aggregations
@@ -229,7 +232,10 @@ public class QueryPhase {
                     ScoreMode.COMPLETE_NO_SCORES,
                     1f
                 );
-                final Collector collector = collectorManager.newCollector();
+
+                if (searchContext.getProfilers() == null) {
+                    
+                }
                 collectorManager = wrapWithProfilerCollectorManagerIfNeeded(
                     searchContext.getProfilers(),
                     new SingleThreadCollectorManager(new FilteredCollector(collector, filterWeight)),

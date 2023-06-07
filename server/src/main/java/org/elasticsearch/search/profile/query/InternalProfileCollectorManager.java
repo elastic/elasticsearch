@@ -8,7 +8,11 @@
 
 package org.elasticsearch.search.profile.query;
 
+import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.CollectorManager;
 import org.elasticsearch.search.query.SingleThreadCollectorManager;
+
+import java.io.IOException;
 
 /**
  * A {@link SingleThreadCollectorManager} that wraps a {@link InternalProfileCollector}.

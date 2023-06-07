@@ -108,7 +108,7 @@ public class CreateSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
         request.waitForCompletion(true);
         request.includeGlobalState(false);
         request.masterNodeTimeout(TimeValue.MAX_VALUE);
-        getClient().admin().cluster().createSnapshot(request, ActionListener.wrap(response -> {
+        getClient().admin().cluster().createSnapshot(request, listener.delegateFailureAndWrap((l, response) -> {
             logger.debug(
                 "create snapshot response for policy [{}] and index [{}] is: {}",
                 policyName,
@@ -120,7 +120,7 @@ public class CreateSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
             // Check that there are no failed shards, since the request may not entirely
             // fail, but may still have failures (such as in the case of an aborted snapshot)
             if (snapInfo.failedShards() == 0) {
-                listener.onResponse(true);
+                l.onResponse(true);
             } else {
                 int failures = snapInfo.failedShards();
                 int total = snapInfo.totalShards();
@@ -131,9 +131,9 @@ public class CreateSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
                     total
                 );
                 logger.warn(message);
-                listener.onResponse(false);
+                l.onResponse(false);
             }
-        }, listener::onFailure));
+        }));
     }
 
     @Override

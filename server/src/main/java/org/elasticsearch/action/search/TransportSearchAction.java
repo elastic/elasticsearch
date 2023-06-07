@@ -1094,7 +1094,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     task,
                     true,
                     searchService.getCoordinatorRewriteContextProvider(timeProvider::absoluteStartMillis),
-                    ActionListener.wrap(iters -> {
+                    listener.delegateFailureAndWrap((l, iters) -> {
                         SearchPhase action = newSearchPhase(
                             task,
                             searchRequest,
@@ -1110,7 +1110,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                             clusters
                         );
                         action.start();
-                    }, listener::onFailure)
+                    })
                 );
             } else {
                 final QueryPhaseResultConsumer queryResultConsumer = searchPhaseController.newSearchPhaseResults(

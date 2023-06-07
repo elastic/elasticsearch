@@ -11,6 +11,7 @@ package org.elasticsearch.aggregations.bucket;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
@@ -334,7 +335,6 @@ public class TimeSeriesAggregationsIT extends AggregationIntegTestCase {
         assertThat(e.getRootCause().getMessage(), containsString("Time series aggregations cannot be used inside global aggregation."));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/96501")
     public void testStandAloneTimeSeriesAggWithMetricFilter() {
         boolean above = randomBoolean();
         int metric = randomIntBetween(0, numberOfMetrics - 1);
@@ -366,7 +366,6 @@ public class TimeSeriesAggregationsIT extends AggregationIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/96487")
     public void testRetrievingHits() {
         Map.Entry<String, Double> filterMetric = randomMetricAndValue(data);
         double lowerVal = filterMetric.getValue() - randomDoubleBetween(0, 100000, true);
@@ -525,6 +524,7 @@ public class TimeSeriesAggregationsIT extends AggregationIntegTestCase {
         response = client().prepareSearch("test").setQuery(queryBuilder).setSize(10).addAggregation(timeSeries("by_ts")).get();
         assertSearchResponse(response);
 
+        assertAcked(client().admin().indices().delete(new DeleteIndexRequest("test")).actionGet());
     }
 
     public static TimeSeriesAggregationBuilder timeSeries(String name) {

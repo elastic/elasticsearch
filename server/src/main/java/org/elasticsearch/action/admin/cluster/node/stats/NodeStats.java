@@ -107,7 +107,7 @@ public class NodeStats extends BaseNodeResponse implements ChunkedToXContent {
         scriptStats = in.readOptionalWriteable(ScriptStats::new);
         scriptCacheStats = scriptStats != null ? scriptStats.toScriptCacheStats() : null;
         discoveryStats = in.readOptionalWriteable(DiscoveryStats::new);
-        ingestStats = in.readOptionalWriteable(IngestStats::read);
+        ingestStats = in.readOptionalWriteable(IngestStats::new);
         adaptiveSelectionStats = in.readOptionalWriteable(AdaptiveSelectionStats::new);
         indexingPressureStats = in.readOptionalWriteable(IndexingPressureStats::new);
     }

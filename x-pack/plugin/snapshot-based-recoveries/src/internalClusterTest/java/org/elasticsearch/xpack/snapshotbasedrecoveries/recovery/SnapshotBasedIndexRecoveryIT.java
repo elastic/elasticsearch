@@ -20,7 +20,9 @@ import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -42,6 +44,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.DelayRecoveryException;
@@ -665,7 +668,6 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/96618")
     @TestIssueLogging(
         issueUrl = "https://github.com/elastic/elasticsearch/issues/96618",
         value = "org.elasticsearch.indices.recovery:TRACE,org.elasticsearch.xpack.snapshotbasedrecoveries:TRACE"
@@ -719,19 +721,24 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
                             }
 
                             @Override
-                            public void sendResponse(Exception exception) {
-                                // Must not respond until the index deletion is applied on the target node, or else it will get an
-                                // IllegalIndexShardStateException which it considers to be retryable, and will reset the recovery and
-                                // generate a new `CancellableThreads` which is cancelled instead of the original `CancellableThreads`,
-                                // permitting a subsequent read.
-                                transportService.getThreadPool().generic().execute(() -> {
-                                    safeAwait(readFromBlobRespondLatch);
-                                    try {
-                                        channel.sendResponse(exception);
-                                    } catch (IOException e) {
-                                        throw new AssertionError("unexpected", e);
-                                    }
-                                });
+                            public void sendResponse(Exception exception) throws IOException {
+                                if (exception instanceof DelayRecoveryException) {
+                                    channel.sendResponse(exception);
+                                } else {
+                                    // Must not respond until the index deletion is applied on the target node, or else it will get an
+                                    // IllegalIndexShardStateException which it considers to be retryable, and will reset the recovery and
+                                    // generate a new `CancellableThreads` which is cancelled instead of the original `CancellableThreads`,
+                                    // permitting a subsequent read.
+                                    assert exception instanceof IndexShardClosedException : exception;
+                                    transportService.getThreadPool().generic().execute(() -> {
+                                        safeAwait(readFromBlobRespondLatch);
+                                        try {
+                                            channel.sendResponse(exception);
+                                        } catch (IOException e) {
+                                            throw new AssertionError("unexpected", e);
+                                        }
+                                    });
+                                }
                             }
                         }, task)
                     )

@@ -7,8 +7,8 @@
 ++++
 
 Creates an API key of the `cross_cluster` type for the API key based remote cluster access.
-A `cross_cluster` API key cannot be used to authenticate via the REST interface.
-On the contrary, a <<security-api-create-api-key,REST API key>> is meant to be used via the REST interface
+A `cross_cluster` API key cannot be used to authenticate through the REST interface.
+On the contrary, a <<security-api-create-api-key,REST API key>> is meant to be used through the REST interface
 and cannot be used for the API key based remote cluster access.
 
 [[security-api-create-cross-cluster-api-key-request]]
@@ -21,24 +21,22 @@ and cannot be used for the API key based remote cluster access.
 
 * To use this API, you must have at least the `manage_security` cluster privilege.
 
-IMPORTANT: The request must be made with a credential that is *not* itself an API key.
-If the credential that is used to authenticate this request is an API key,
-the API returns an error even if the API key has required privilege.
+IMPORTANT: To authenticate this request you must use a credential that is *not* an API key. Even if you use an API key that has the required privilege, the API returns an error.
 
 [[security-api-create-cross-cluster-api-key-desc]]
 ==== {api-description-title}
 
 Cross-cluster API keys are created by the {es} API key service, which is automatically enabled.
-For instructions on disabling the API key service, see <<api-key-service-settings>>.
+For instructions on disabling the API key service, refer to <<api-key-service-settings>>.
 
 A successful request returns a JSON structure that contains the
-API key, its unique id, and its name. If applicable, it also returns expiration
+API key, its unique ID, and its name. If applicable, it also returns expiration
 information for the API key in milliseconds.
 
 NOTE: By default, API keys never expire. You can specify expiration information
 when you create the API keys.
 
-See <<api-key-service-settings>> for configuration settings related to API key
+Refer to <<api-key-service-settings>> for configuration settings related to API key
 service.
 
 Cross-cluster API keys can only be updated with the
@@ -61,20 +59,19 @@ The following parameters can be specified in the body of a POST request:
 [[cross-cluster-api-key-access]]
 `access`::
 (required, object) The access to be granted to this API key. The access is
-composed of permissions for cross cluster search and cross cluster replication.
+composed of permissions for cross-cluster search and cross-cluster replication.
 At least one of them must be specified.
-`search`::: (optional, list) A list of indices permission entries for cross cluster search.
+`search`::: (optional, list) A list of indices permission entries for cross-cluster search.
 `names`:::: (required, list) A list of indices or name patterns to which the
 permissions in this entry apply.
 `field_security`:::: (optional, object) The document fields that the owners of the role have
-read access to. For more information, see <<field-and-document-access-control>>.
+read access to. For more information, check <<field-and-document-access-control>>.
 `query`:::: (optional) A search query that defines the documents the owners of the role have
-read access to. A document within the specified indices must match this query in
-order for it to be accessible by the owners of the role. For more information, see
+read access to. A document within the specified indices must match this query to be accessible by the owners of the role. For more information, check
 <<field-and-document-access-control>>.
 `allow_restricted_indices`:::: (optional, boolean) This needs to be set to `true` (default
 is `false`) if the patterns in the `names` field should cover <<system-indices,system indices>>.
-`replication`::: (optional, list) A list of indices permission entries for cross cluster replication.
+`replication`::: (optional, list) A list of indices permission entries for cross-cluster replication.
 `names`:::: (required, list) A list of indices or name patterns to which the
 permissions in this entry apply.
 
@@ -131,8 +128,8 @@ POST /_security/cross_cluster/api_key
 ----
 <1> Optional expiration for the API key being generated. If expiration is not
 provided then the API key does not expire.
-<2> Cross cluster search access to be granted to the API key.
-<3> Cross cluster replication access to be granted to the API key.
+<2> Cross-cluster search access to be granted to the API key.
+<3> Cross-cluster replication access to be granted to the API key.
 
 A successful call returns a JSON structure that provides API key information.
 
@@ -154,7 +151,7 @@ A successful call returns a JSON structure that provides API key information.
 <2> Optional expiration in milliseconds for this API key
 <3> Generated API key secret
 <4> API key credentials which is the Base64-encoding of the UTF-8
-representation of the `id` and `api_key` joined by a colon (`:`).
+representation of the `id` and `api_key` joined by a colon (`:`)
 
 The API key information can be retrieved with the <<security-api-get-api-key,Get API key API>>
 
@@ -233,11 +230,11 @@ A successful call returns a JSON structure that contains the information of the 
 contains exactly one role descriptor named `cross_cluster`.
 A cross-cluster API key has no limited-by role descriptors.
 <5> The cluster privileges necessary for the required cross-cluster access.
-The value is `cross_cluster_search` if only cross cluster search is required.
-It is `cross_cluster_replication` if only cross cluster replication is required.
-Or both if both search and replication are required.
-<6> The indices privileges corresponding to the required cross cluster search access.
-<7> The indices privileges corresponding to the required cross cluster replication access.
+The value is `cross_cluster_search` if only cross-cluster search is required.
+It is `cross_cluster_replication` if only cross-cluster replication is required.
+Or both, if search and replication are required.
+<6> The indices privileges corresponding to the required cross-cluster search access.
+<7> The indices privileges corresponding to the required cross-cluster replication access.
 
 
 To use the generated API key, configure it as the cluster credential as part of an API key based remote cluster configuration.

@@ -83,6 +83,9 @@ import java.util.Set;
  * API will fail. (See <a href="https://github.com/elastic/elasticsearch/pull/86707">PR #86707</a>) However, auto-creating the index by
  * writing a document to it will succeed. (See <a href="https://github.com/elastic/elasticsearch/pull/77045">PR #77045</a>)
  *
+ * <p>The mappings for managed system indices are automatically upgraded when all nodes in the cluster are compatible with the
+ * descriptor's mappings. See {@link SystemIndexMappingUpdateService} for details.
+ *
  * <p>We hope to remove the currently deprecated forms of access to system indices in a future release. A newly added system index with
  * no backwards-compatibility requirements may opt into our desired behavior by setting isNetNew to true. A "net new system index"
  * strictly enforces its allowed product origins, and cannot be accessed by any REST API request that lacks a correct product header.

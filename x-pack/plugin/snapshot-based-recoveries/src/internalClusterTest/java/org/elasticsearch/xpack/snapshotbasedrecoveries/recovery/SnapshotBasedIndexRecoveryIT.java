@@ -665,6 +665,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/96618")
     @TestIssueLogging(
         issueUrl = "https://github.com/elastic/elasticsearch/issues/96618",
         value = "org.elasticsearch.indices.recovery:TRACE,org.elasticsearch.xpack.snapshotbasedrecoveries:TRACE"

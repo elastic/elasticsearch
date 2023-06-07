@@ -268,7 +268,7 @@ final class H3Index {
         final int res = H3Index.H3_get_resolution(h);
 
         // center base cell hierarchy is entirely on this face
-        final boolean possibleOverage = BaseCells.isBaseCellPentagon(H3_get_base_cell(h)) != false
+        final boolean possibleOverage = BaseCells.isBaseCellPentagon(H3_get_base_cell(h))
             || (res != 0 && (fijk.coord.i != 0 || fijk.coord.j != 0 || fijk.coord.k != 0));
 
         for (int r = 1; r <= res; r++) {

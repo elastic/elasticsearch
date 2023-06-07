@@ -1,6 +1,6 @@
 [[esql-eval]]
 === `EVAL`
-`EVAL` enables you to add new columns to the end of a table:
+`EVAL` enables you to append new columns:
 
 [source,esql]
 ----

@@ -1,7 +1,7 @@
 [[esql-drop]]
 === `DROP`
 
-Use `DROP` to remove columns from a table:
+Use `DROP` to remove columns:
 
 [source,esql]
 ----

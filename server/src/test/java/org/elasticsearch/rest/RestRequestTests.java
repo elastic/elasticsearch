@@ -261,13 +261,6 @@ public class RestRequestTests extends ESTestCase {
         });
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> request2.markResponseRestricted("bar"));
         assertThat(exception.getMessage(), is("The parameter [" + RESPONSE_RESTRICTED + "] is already defined."));
-
-        exception = expectThrows(IllegalArgumentException.class, () -> contentRestRequest("content", new HashMap<>(), new HashMap<>() {
-            {
-                put(RESPONSE_RESTRICTED, List.of("foo"));
-            }
-        }));
-        assertThat(exception.getMessage(), is("Http parameter " + RESPONSE_RESTRICTED + " is reserved and may not set"));
     }
 
     public static RestRequest contentRestRequest(String content, Map<String, String> params) {

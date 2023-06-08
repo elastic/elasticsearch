@@ -31,8 +31,10 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
+import static org.elasticsearch.rest.RestRequest.RESPONSE_RESTRICTED;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -247,18 +249,19 @@ public class RestRequestTests extends ESTestCase {
         assertEquals("unknown content type", e.getMessage());
     }
 
-    // public void testCopyRequestWithAdditionalParams() {
-    // RestRequest request = contentRestRequest("content", Map.of("foo", "bar", "baz", "blah"));
-    // assertEquals("bar", request.param("foo"));
-    // assertEquals("blah", request.param("baz"));
-    // RestRequest updatedRequest = RestRequest.copyRequestWithAdditionalParams(request, Map.of("foo", "updated", "something", "new"));
-    // assertEquals("updated", updatedRequest.param("foo"));
-    // assertEquals("blah", updatedRequest.param("baz"));
-    // assertEquals("new", updatedRequest.param("something"));
-    // // ensure no changes to the original request
-    // assertEquals("bar", request.param("foo"));
-    // assertEquals("blah", request.param("baz"));
-    // }
+    public void testMarkResponseRestricted() {
+        RestRequest request1 = contentRestRequest("content", new HashMap<>());
+        request1.markResponseRestricted("foo");
+        assertEquals(request1.param(RESPONSE_RESTRICTED), "foo");
+
+        RestRequest request2 = contentRestRequest("content", new HashMap<>() {
+            {
+                put(RESPONSE_RESTRICTED, "foo");
+            }
+        });
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> request2.markResponseRestricted("bar"));
+        assertThat(exception.getMessage(), is("The parameter [" + RESPONSE_RESTRICTED + "] is already defined."));
+    }
 
     public static RestRequest contentRestRequest(String content, Map<String, String> params) {
         Map<String, List<String>> headers = new HashMap<>();

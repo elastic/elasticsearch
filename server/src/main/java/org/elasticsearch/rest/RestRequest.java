@@ -614,6 +614,9 @@ public class RestRequest implements ToXContent.Params {
     }
 
     public void markResponseRestricted(String restriction) {
+        if(params.get(RESPONSE_RESTRICTED) != null){
+            throw new IllegalArgumentException("The parameter [" + RESPONSE_RESTRICTED + "] is already defined.");
+        }
         params.put(RESPONSE_RESTRICTED, restriction);
         // this parameter is intended be consumed via ToXContent.Params.param(..), not this.params(..) so don't require it is consumed here
         consumedParams.add(RESPONSE_RESTRICTED);

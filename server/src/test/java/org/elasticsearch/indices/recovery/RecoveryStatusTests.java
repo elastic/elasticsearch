@@ -10,6 +10,7 @@ package org.elasticsearch.indices.recovery;
 import org.apache.lucene.backward_codecs.store.EndiannessReverserUtil;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.util.Version;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexVersion;
@@ -22,7 +23,7 @@ import java.util.Set;
 import java.util.regex.Pattern;
 
 public class RecoveryStatusTests extends ESSingleNodeTestCase {
-    private static final org.apache.lucene.util.Version MIN_SUPPORTED_LUCENE_VERSION = IndexVersion.MINIMUM_COMPATIBLE.luceneVersion();
+    private static final Version MIN_SUPPORTED_LUCENE_VERSION = IndexVersion.MINIMUM_COMPATIBLE.luceneVersion();
 
     public void testRenameTempFiles() throws IOException {
         IndexService service = createIndex("foo");

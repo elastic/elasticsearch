@@ -1,5 +1,5 @@
 {
-  "synonyms.list": {
+  "synonyms_sets.get": {
     "documentation": {
       "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/list-synonyms.html",
       "description": "Retrieves a summary of all defined synonym sets"

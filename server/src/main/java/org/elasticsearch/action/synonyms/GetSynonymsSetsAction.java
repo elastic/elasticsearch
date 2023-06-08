@@ -15,12 +15,12 @@ import org.elasticsearch.synonyms.SynonymSetSummary;
 import java.io.IOException;
 import java.util.function.IntFunction;
 
-public class ListSynonymsAction extends AbstractSynonymsPagedResultAction<ListSynonymsAction.Response> {
+public class GetSynonymsSetsAction extends AbstractSynonymsPagedResultAction<GetSynonymsSetsAction.Response> {
 
-    public static final ListSynonymsAction INSTANCE = new ListSynonymsAction();
+    public static final GetSynonymsSetsAction INSTANCE = new GetSynonymsSetsAction();
     public static final String NAME = "cluster:admin/synonyms/list";
 
-    public ListSynonymsAction() {
+    public GetSynonymsSetsAction() {
         super(NAME, Response::new);
     }
 

@@ -27,7 +27,7 @@ import java.util.function.IntFunction;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
- * Base class for synonyms retrieval actions, including {@link GetSynonymsAction} and {@link ListSynonymsAction}.
+ * Base class for synonyms retrieval actions, including {@link GetSynonymsAction} and {@link GetSynonymsSetsAction}.
  * Provides basic pagination requests and responses
  *
  * @param <T> Type to be returned by the response, wrapped in a {@link PagedResult}

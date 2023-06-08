@@ -16,20 +16,20 @@ import java.io.IOException;
 
 import static org.elasticsearch.action.synonyms.SynonymsTestUtils.randomSynonymsSetSummary;
 
-public class ListSynonymsActionResponseSerializingTests extends AbstractWireSerializingTestCase<ListSynonymsAction.Response> {
+public class GetSynonymsSetsActionResponseSerializingTests extends AbstractWireSerializingTestCase<GetSynonymsSetsAction.Response> {
 
     @Override
-    protected Writeable.Reader<ListSynonymsAction.Response> instanceReader() {
-        return ListSynonymsAction.Response::new;
+    protected Writeable.Reader<GetSynonymsSetsAction.Response> instanceReader() {
+        return GetSynonymsSetsAction.Response::new;
     }
 
     @Override
-    protected ListSynonymsAction.Response createTestInstance() {
-        return new ListSynonymsAction.Response(new PagedResult<>(randomLongBetween(0, Long.MAX_VALUE), randomSynonymsSetSummary()));
+    protected GetSynonymsSetsAction.Response createTestInstance() {
+        return new GetSynonymsSetsAction.Response(new PagedResult<>(randomLongBetween(0, Long.MAX_VALUE), randomSynonymsSetSummary()));
     }
 
     @Override
-    protected ListSynonymsAction.Response mutateInstance(ListSynonymsAction.Response instance) throws IOException {
+    protected GetSynonymsSetsAction.Response mutateInstance(GetSynonymsSetsAction.Response instance) throws IOException {
         return randomValueOtherThan(instance, this::createTestInstance);
     }
 }

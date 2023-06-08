@@ -27,7 +27,7 @@ setup:
 ---
 "List synonyms set":
   - do:
-      synonyms.list: { }
+      synonyms_sets.get: { }
 
   - match:
       count: 3
@@ -44,7 +44,7 @@ setup:
 ---
 "Pagination - size":
   - do:
-      synonyms.list:
+      synonyms_sets.get:
         size: 2
 
   - match:
@@ -59,7 +59,7 @@ setup:
 ---
 "Pagination - from":
   - do:
-      synonyms.list:
+      synonyms_sets.get:
         from: 1
 
   - match:
@@ -87,7 +87,7 @@ setup:
         synonyms_set: test-synonyms-3
 
   - do:
-      synonyms.list: { }
+      synonyms_sets.get: { }
 
   - match:
       count: 0

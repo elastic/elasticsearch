@@ -66,6 +66,11 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
  */
 public class DenseVectorFieldMapper extends FieldMapper {
 
+    // Dear reader, this is a weird bug.
+    // If we first load the PanamaVector module from a Painless context, we run into two failures
+    //   1. log4j needs privileged access to get environment variable values to print out the preferred bit size
+    //   2. loopBound proved by the module makes a privileged call `jdk.incubator.vector.VECTOR_ACCESS_OOB_CHECK`
+    //      this is apparently cached as once its loaded, we don't run into issues again
     private static final float LOADING_VECTOR_MODULE = VectorUtil.dotProduct(new float[257], new float[257]);
 
     public static final String CONTENT_TYPE = "dense_vector";

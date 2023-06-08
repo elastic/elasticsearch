@@ -10,12 +10,12 @@ package org.elasticsearch.search.dfs;
 
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.CollectionStatistics;
-import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TermStatistics;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopScoreDocCollector;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -23,11 +23,8 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.profile.dfs.DfsProfiler;
 import org.elasticsearch.search.profile.dfs.DfsTimingType;
-import org.elasticsearch.search.profile.query.CollectorResult;
-import org.elasticsearch.search.profile.query.InternalProfileCollector;
-import org.elasticsearch.search.profile.query.InternalProfileCollectorManager;
+import org.elasticsearch.search.profile.query.MultiProfileCollectorManager;
 import org.elasticsearch.search.profile.query.QueryProfiler;
-import org.elasticsearch.search.query.SingleThreadCollectorManager;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
@@ -178,19 +175,20 @@ public class DfsPhase {
         List<DfsKnnResults> knnResults = new ArrayList<>(knnVectorQueryBuilders.size());
         for (int i = 0; i < knnSearch.size(); i++) {
             Query knnQuery = searchExecutionContext.toQuery(knnVectorQueryBuilders.get(i)).query();
-            TopScoreDocCollector topScoreDocCollector = TopScoreDocCollector.create(knnSearch.get(i).k(), Integer.MAX_VALUE);
-            CollectorManager<Collector, Void> collectorManager = new SingleThreadCollectorManager(topScoreDocCollector);
+            CollectorManager<?, TopDocs> collectorManager = TopScoreDocCollector.createSharedManager(
+                knnSearch.get(i).k(),
+                null,
+                Integer.MAX_VALUE
+            );
             if (context.getProfilers() != null) {
-                InternalProfileCollectorManager ipcm = new InternalProfileCollectorManager(
-                    new InternalProfileCollector(collectorManager.newCollector(), CollectorResult.REASON_SEARCH_TOP_HITS)
-                );
+                MultiProfileCollectorManager<TopDocs> ipcm = new MultiProfileCollectorManager(collectorManager);
                 QueryProfiler knnProfiler = context.getProfilers().getDfsProfiler().addQueryProfiler(ipcm);
                 collectorManager = ipcm;
                 // Set the current searcher profiler to gather query profiling information for gathering top K docs
                 context.searcher().setProfiler(knnProfiler);
             }
-            context.searcher().search(knnQuery, collectorManager);
-            knnResults.add(new DfsKnnResults(topScoreDocCollector.topDocs().scoreDocs));
+            TopDocs topDocs = context.searcher().search(knnQuery, collectorManager);
+            knnResults.add(new DfsKnnResults(topDocs.scoreDocs));
         }
         // Set profiler back after running KNN searches
         if (context.getProfilers() != null) {

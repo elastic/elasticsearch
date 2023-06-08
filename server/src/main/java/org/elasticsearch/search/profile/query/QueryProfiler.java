@@ -29,14 +29,14 @@ public final class QueryProfiler extends AbstractProfiler<QueryProfileBreakdown,
     /**
      * The root Collector used in the search
      */
-    private InternalProfileCollectorManager collectorManager;
+    private MultiProfileCollectorManager collectorManager;
 
     public QueryProfiler() {
         super(new InternalQueryProfileTree());
     }
 
     /** Set the collector manager that is associated with this profiler. */
-    public void setCollectorManager(InternalProfileCollectorManager collectorManager) {
+    public void setCollectorManager(MultiProfileCollectorManager collectorManager) {
         if (this.collectorManager != null) {
             throw new IllegalStateException("The collector manager can only be set once.");
         }

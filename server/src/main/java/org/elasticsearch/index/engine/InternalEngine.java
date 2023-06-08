@@ -2113,7 +2113,7 @@ public class InternalEngine extends Engine {
                 // Only flush if (1) Lucene has uncommitted docs, or (2) forced by caller, or (3) the
                 // newly created commit points to a different translog generation (can free translog),
                 // or (4) the local checkpoint information in the last commit is stale, which slows down future recoveries.
-                boolean hasUncommittedChanges = indexWriter.hasUncommittedChanges();
+                boolean hasUncommittedChanges = hasUncommittedChanges();
                 if (hasUncommittedChanges
                     || force
                     || shouldPeriodicallyFlush()
@@ -2171,6 +2171,10 @@ public class InternalEngine extends Engine {
         }
 
         waitForCommitDurability(generation, listener.map(v -> new FlushResult(true, generation)));
+    }
+
+    protected boolean hasUncommittedChanges() {
+        return indexWriter.hasUncommittedChanges();
     }
 
     private void refreshLastCommittedSegmentInfos() {

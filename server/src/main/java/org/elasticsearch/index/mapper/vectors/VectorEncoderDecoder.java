@@ -12,6 +12,8 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.FloatBuffer;
 
 public final class VectorEncoderDecoder {
     public static final byte INT_BYTES = 4;
@@ -61,13 +63,20 @@ public final class VectorEncoderDecoder {
      * @param vectorBR - dense vector encoded in BytesRef
      * @param vector - array of floats where the decoded vector should be stored
      */
-    public static void decodeDenseVector(BytesRef vectorBR, float[] vector) {
+    public static void decodeDenseVector(Version indexVersion, BytesRef vectorBR, float[] vector) {
         if (vectorBR == null) {
             throw new IllegalArgumentException(DenseVectorScriptDocValues.MISSING_VECTOR_FIELD_MESSAGE);
         }
-        ByteBuffer byteBuffer = ByteBuffer.wrap(vectorBR.bytes, vectorBR.offset, vectorBR.length);
-        for (int dim = 0; dim < vector.length; dim++) {
-            vector[dim] = byteBuffer.getFloat((dim * Float.BYTES) + vectorBR.offset);
+        if (indexVersion.onOrAfter(DenseVectorFieldMapper.LITTLE_ENDIAN_FLOAT_STORED_INDEX_VERSION)) {
+            FloatBuffer fb = ByteBuffer.wrap(vectorBR.bytes, vectorBR.offset, vectorBR.length)
+                .order(ByteOrder.LITTLE_ENDIAN)
+                .asFloatBuffer();
+            fb.get(vector);
+        } else {
+            ByteBuffer byteBuffer = ByteBuffer.wrap(vectorBR.bytes, vectorBR.offset, vectorBR.length);
+            for (int dim = 0; dim < vector.length; dim++) {
+                vector[dim] = byteBuffer.getFloat((dim * Float.BYTES) + vectorBR.offset);
+            }
         }
     }
 

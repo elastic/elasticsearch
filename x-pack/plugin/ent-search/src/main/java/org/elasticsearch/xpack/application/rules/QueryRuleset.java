@@ -123,11 +123,7 @@ public class QueryRuleset implements Writeable, ToXContentObject {
         builder.startObject();
         {
             builder.field(ID_FIELD.getPreferredName(), id);
-            builder.startArray(RULES_FIELD.getPreferredName());
-            for (QueryRule rule : rules) {
-                rule.toXContent(builder, params);
-            }
-            builder.endArray();
+            builder.xContentList(RULES_FIELD.getPreferredName(), rules);
         }
         builder.endObject();
         return builder;

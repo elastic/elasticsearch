@@ -180,20 +180,10 @@ public class QueryRule implements Writeable, ToXContentObject {
         {
             builder.field(ID_FIELD.getPreferredName(), id);
             builder.field(TYPE_FIELD.getPreferredName(), type);
-            builder.startArray(CRITERIA_FIELD.getPreferredName());
-            {
-                for (QueryRuleCriteria queryRuleCriteria : criteria) {
-                    queryRuleCriteria.toXContent(builder, params);
-                }
-            }
-            builder.endArray();
-            builder.startObject(ACTIONS_FIELD.getPreferredName());
-            {
-                for (Map.Entry<String, Object> entry : actions.entrySet()) {
-                    builder.field(entry.getKey(), entry.getValue());
-                }
-            }
-            builder.endObject();
+            builder.xContentList(CRITERIA_FIELD.getPreferredName(), criteria);
+            builder.field(ACTIONS_FIELD.getPreferredName());
+            builder.map(actions);
+
         }
         builder.endObject();
         return builder;

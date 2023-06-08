@@ -21,7 +21,7 @@ public class WorkflowService {
 
     private static final Logger logger = LogManager.getLogger(WorkflowService.class);
 
-    public static final String WORKFLOW_HEADER = "_xpack_security_workflow";
+    private static final String WORKFLOW_HEADER = "_xpack_security_workflow";
 
     public Workflow resolveWorkflowAndStoreInThreadContext(RestHandler restHandler, ThreadContext threadContext) {
         Workflow workflow = resolveWorkflow(restHandler);
@@ -31,6 +31,14 @@ public class WorkflowService {
             threadContext.putHeader(WORKFLOW_HEADER, workflow.name());
         }
         return workflow;
+    }
+
+    public Workflow readWorkflowFromThreadContext(ThreadContext threadContext) {
+        String workflowName = threadContext.getHeader(WORKFLOW_HEADER);
+        if (workflowName == null) {
+            return null;
+        }
+        return WorkflowResolver.resolveWorkflowByName(workflowName);
     }
 
     private Workflow resolveWorkflow(RestHandler restHandler) {

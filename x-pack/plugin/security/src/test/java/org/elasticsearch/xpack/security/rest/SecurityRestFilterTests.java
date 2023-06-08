@@ -289,18 +289,19 @@ public class SecurityRestFilterTests extends ESTestCase {
             when(restHandler.getConcreteRestHandler()).thenReturn(new TestBaseRestHandler(randomFrom(workflow.allowedRestHandlers())));
         }
 
+        final WorkflowService workflowService = new WorkflowService();
         filter = new SecurityRestFilter(
             true,
             threadContext,
             secondaryAuthenticator,
             new AuditTrailService(null, null),
-            new WorkflowService(),
+            workflowService,
             restHandler
         );
 
         RestRequest request = mock(RestRequest.class);
         filter.handleRequest(request, channel, null);
-        assertThat(threadContext.getHeader(WorkflowService.WORKFLOW_HEADER), equalTo(workflow.name()));
+        assertThat(workflowService.readWorkflowFromThreadContext(threadContext), equalTo(workflow));
     }
 
     public void testProcessWithoutWorkflow() throws Exception {
@@ -314,18 +315,19 @@ public class SecurityRestFilterTests extends ESTestCase {
             restHandler = Mockito.mock(RestHandler.class);
         }
 
+        final WorkflowService workflowService = new WorkflowService();
         filter = new SecurityRestFilter(
             true,
             threadContext,
             secondaryAuthenticator,
             new AuditTrailService(null, null),
-            new WorkflowService(),
+            workflowService,
             restHandler
         );
 
         RestRequest request = mock(RestRequest.class);
         filter.handleRequest(request, channel, null);
-        assertThat(threadContext.getHeader(WorkflowService.WORKFLOW_HEADER), nullValue());
+        assertThat(workflowService.readWorkflowFromThreadContext(threadContext), nullValue());
     }
 
     private interface FilteredRestHandler extends RestHandler, RestRequestFilter {}

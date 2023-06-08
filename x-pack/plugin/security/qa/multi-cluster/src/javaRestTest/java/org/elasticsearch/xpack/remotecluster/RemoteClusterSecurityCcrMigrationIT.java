@@ -134,7 +134,7 @@ public class RemoteClusterSecurityCcrMigrationIT extends AbstractRemoteClusterSe
               "remote_cluster": "my_remote_cluster",
               "leader_index": "leader-index"
             }""");
-        final Response putCcrResponse = performRequestWithRcsUser(putCcrRequest);
+        final Response putCcrResponse = performRequestWithCcrUser(putCcrRequest);
         assertOK(putCcrResponse);
         responseAsMap(putCcrResponse).forEach((k, v) -> assertThat(k, v, is(true)));
 
@@ -150,7 +150,7 @@ public class RemoteClusterSecurityCcrMigrationIT extends AbstractRemoteClusterSe
               "remote_cluster" : "my_remote_cluster",
               "leader_index_patterns" : [ "metrics-*" ]
             }""");
-        final Response putAutoFollowResponse = performRequestWithRcsUser(putAllowFollowRequest);
+        final Response putAutoFollowResponse = performRequestWithCcrUser(putAllowFollowRequest);
         assertOK(putAutoFollowResponse);
 
         // Auto follow should work
@@ -335,7 +335,7 @@ public class RemoteClusterSecurityCcrMigrationIT extends AbstractRemoteClusterSe
         return performRequestWithAdminUser(client(), request);
     }
 
-    private Response performRequestWithRcsUser(final Request request) throws IOException {
+    private Response performRequestWithCcrUser(final Request request) throws IOException {
         request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", basicAuthHeaderValue(CCR_USER, PASS)));
         return client().performRequest(request);
     }
@@ -358,7 +358,7 @@ public class RemoteClusterSecurityCcrMigrationIT extends AbstractRemoteClusterSe
         assertBusy(() -> {
             final Response response;
             try {
-                response = performRequestWithRcsUser(searchRequest);
+                response = performRequestWithCcrUser(searchRequest);
             } catch (ResponseException e) {
                 throw new AssertionError(e);
             }
@@ -374,7 +374,7 @@ public class RemoteClusterSecurityCcrMigrationIT extends AbstractRemoteClusterSe
 
     private void assertFollowerInfo(String followIndexName, String leaderClusterName, String leadIndexName, String status)
         throws IOException {
-        final Response response = performRequestWithRcsUser(new Request("GET", "/" + followIndexName + "/_ccr/info"));
+        final Response response = performRequestWithCcrUser(new Request("GET", "/" + followIndexName + "/_ccr/info"));
         assertOK(response);
         final List<Map<String, Object>> followerIndices = ObjectPath.createFromResponse(response).evaluate("follower_indices");
         assertThat(followerIndices, hasSize(1));
@@ -387,7 +387,7 @@ public class RemoteClusterSecurityCcrMigrationIT extends AbstractRemoteClusterSe
     }
 
     private void assertFollowerStats(String followIndexName) throws IOException {
-        final Response response = performRequestWithRcsUser(new Request("GET", "/" + followIndexName + "/_ccr/stats"));
+        final Response response = performRequestWithCcrUser(new Request("GET", "/" + followIndexName + "/_ccr/stats"));
         assertOK(response);
         final List<Map<String, Object>> followerIndices = ObjectPath.createFromResponse(response).evaluate("indices");
         assertThat(followerIndices, hasSize(1));

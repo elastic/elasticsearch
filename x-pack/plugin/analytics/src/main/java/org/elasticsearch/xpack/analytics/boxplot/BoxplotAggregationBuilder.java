@@ -92,7 +92,9 @@ public class BoxplotAggregationBuilder extends ValuesSourceAggregationBuilder.Me
     @Override
     protected void innerWriteTo(StreamOutput out) throws IOException {
         out.writeDouble(compression);
-        out.writeBoolean(optimizeForAccuracy);
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_9_0)) {
+            out.writeBoolean(optimizeForAccuracy);
+        }
     }
 
     @Override

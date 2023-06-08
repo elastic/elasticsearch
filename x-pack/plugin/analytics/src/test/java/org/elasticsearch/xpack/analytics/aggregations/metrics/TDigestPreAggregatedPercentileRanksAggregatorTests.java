@@ -45,8 +45,15 @@ public class TDigestPreAggregatedPercentileRanksAggregatorTests extends Aggregat
 
     @Override
     protected AggregationBuilder createAggBuilderForTypeTest(MappedFieldType fieldType, String fieldName) {
+        var tdigestConfig = new PercentilesConfig.TDigest();
+        if (randomBoolean()) {
+            tdigestConfig.setCompression(randomDoubleBetween(50, 200, true));
+        }
+        if (randomBoolean()) {
+            tdigestConfig.setOptimizeForAccuracy(randomBoolean());
+        }
         return new PercentileRanksAggregationBuilder("tdigest_percentiles", new double[] { 1.0 }).field(fieldName)
-            .percentilesConfig(new PercentilesConfig.TDigest());
+            .percentilesConfig(tdigestConfig);
     }
 
     @Override

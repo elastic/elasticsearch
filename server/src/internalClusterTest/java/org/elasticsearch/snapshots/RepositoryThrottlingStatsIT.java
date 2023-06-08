@@ -35,11 +35,11 @@ public class RepositoryThrottlingStatsIT extends AbstractSnapshotIntegTestCase {
 
         IndicesStatsResponse indicesStats = client().admin().indices().prepareStats("test-idx").get();
         IndexStats indexStats = indicesStats.getIndex("test-idx");
-        long acc = 0;
+        long totalSizeInBytes = 0;
         for (ShardStats shard : indexStats.getShards()) {
-            acc += shard.getStats().getStore().getSizeInBytes();
+            totalSizeInBytes += shard.getStats().getStore().getSizeInBytes();
         }
-        logger.info("--> total shards size: {} bytes", acc);
+        logger.info("--> total shards size: {} bytes", totalSizeInBytes);
 
         logger.info("--> create repository with really low snapshot/restore rate-limits");
         createRepository(
@@ -48,8 +48,9 @@ public class RepositoryThrottlingStatsIT extends AbstractSnapshotIntegTestCase {
             Settings.builder()
                 .put("location", randomRepoPath())
                 .put("compress", false)
-                .put("max_snapshot_bytes_per_sec", ByteSizeValue.ofBytes(4096))
-                .put("max_restore_bytes_per_sec", ByteSizeValue.ofBytes(4096))
+                // set rate limits at ~25% of total size
+                .put("max_snapshot_bytes_per_sec", ByteSizeValue.ofBytes(totalSizeInBytes / 4))
+                .put("max_restore_bytes_per_sec", ByteSizeValue.ofBytes(totalSizeInBytes / 4))
         );
 
         logger.info("--> create snapshot");

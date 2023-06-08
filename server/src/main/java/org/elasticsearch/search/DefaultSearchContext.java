@@ -11,8 +11,6 @@ package org.elasticsearch.search;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
-import org.apache.lucene.search.Collector;
-import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
@@ -129,7 +127,6 @@ final class DefaultSearchContext extends SearchContext {
     private Profilers profilers;
 
     private final Map<String, SearchExtBuilder> searchExtBuilders = new HashMap<>();
-    private CollectorManager<Collector, Void> aggCollectorManager;
     private final SearchExecutionContext searchExecutionContext;
     private final FetchPhase fetchPhase;
 
@@ -761,16 +758,6 @@ final class DefaultSearchContext extends SearchContext {
     @Override
     public long getRelativeTimeInMillis() {
         return relativeTimeSupplier.getAsLong();
-    }
-
-    @Override
-    public CollectorManager<Collector, Void> getAggsCollectorManager() {
-        return aggCollectorManager;
-    }
-
-    @Override
-    public void registerAggsCollectorManager(CollectorManager<Collector, Void> collectorManager) {
-        this.aggCollectorManager = collectorManager;
     }
 
     @Override

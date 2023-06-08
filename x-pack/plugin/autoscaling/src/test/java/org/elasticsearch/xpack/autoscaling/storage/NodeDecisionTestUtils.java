@@ -7,14 +7,12 @@
 package org.elasticsearch.xpack.autoscaling.storage;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
-import static org.elasticsearch.test.ESTestCase.buildNewFakeTransportAddress;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 
@@ -25,7 +23,7 @@ class NodeDecisionTestUtils {
     }
 
     static DiscoveryNode randomDiscoveryNode() {
-        return TestDiscoveryNode.create(randomAlphaOfLength(6), buildNewFakeTransportAddress(), emptyMap(), emptySet());
+        return DiscoveryNodeUtils.builder(randomAlphaOfLength(6)).roles(emptySet()).build();
     }
 
     static Decision randomDecision() {

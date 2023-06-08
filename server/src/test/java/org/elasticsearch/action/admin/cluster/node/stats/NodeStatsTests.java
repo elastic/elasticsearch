@@ -17,7 +17,7 @@ import org.elasticsearch.cluster.coordination.ClusterStateSerializationStats;
 import org.elasticsearch.cluster.coordination.PendingClusterStateStats;
 import org.elasticsearch.cluster.coordination.PublishClusterStateStats;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -69,7 +69,6 @@ import org.elasticsearch.script.ScriptContextStats;
 import org.elasticsearch.script.ScriptStats;
 import org.elasticsearch.script.TimeSeries;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
-import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.ThreadPoolStats;
@@ -83,13 +82,14 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.IntStream;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.elasticsearch.test.AbstractChunkedSerializingTestCase.assertChunkCount;
+import static org.elasticsearch.threadpool.ThreadPoolStatsTests.randomStats;
 
 public class NodeStatsTests extends ESTestCase {
     public void testSerialization() throws IOException {
@@ -231,20 +231,10 @@ public class NodeStatsTests extends ESTestCase {
                 if (nodeStats.getThreadPool() == null) {
                     assertNull(deserializedNodeStats.getThreadPool());
                 } else {
-                    Iterator<ThreadPoolStats.Stats> threadPoolIterator = nodeStats.getThreadPool().iterator();
-                    Iterator<ThreadPoolStats.Stats> deserializedThreadPoolIterator = deserializedNodeStats.getThreadPool().iterator();
-                    while (threadPoolIterator.hasNext()) {
-                        ThreadPoolStats.Stats stats = threadPoolIterator.next();
-                        ThreadPoolStats.Stats deserializedStats = deserializedThreadPoolIterator.next();
-                        assertEquals(stats.getName(), deserializedStats.getName());
-                        assertEquals(stats.getThreads(), deserializedStats.getThreads());
-                        assertEquals(stats.getActive(), deserializedStats.getActive());
-                        assertEquals(stats.getLargest(), deserializedStats.getLargest());
-                        assertEquals(stats.getCompleted(), deserializedStats.getCompleted());
-                        assertEquals(stats.getQueue(), deserializedStats.getQueue());
-                        assertEquals(stats.getRejected(), deserializedStats.getRejected());
-                    }
+                    assertNotSame(nodeStats.getThreadPool(), deserializedNodeStats.getThreadPool());
+                    assertEquals(nodeStats.getThreadPool(), deserializedNodeStats.getThreadPool());
                 }
+
                 FsInfo fs = nodeStats.getFs();
                 FsInfo deserializedFs = deserializedNodeStats.getFs();
                 if (fs == null) {
@@ -316,34 +306,8 @@ public class NodeStatsTests extends ESTestCase {
                 if (scriptStats == null) {
                     assertNull(deserializedScriptStats);
                 } else {
-                    List<ScriptContextStats> deserialized = deserializedScriptStats.getContextStats();
-                    long evictions = 0;
-                    long limited = 0;
-                    long compilations = 0;
-                    List<ScriptContextStats> stats = scriptStats.getContextStats();
-                    for (ScriptContextStats generatedStats : stats) {
-                        List<ScriptContextStats> maybeDeserStats = deserialized.stream()
-                            .filter(s -> s.getContext().equals(generatedStats.getContext()))
-                            .toList();
-
-                        assertEquals(1, maybeDeserStats.size());
-                        ScriptContextStats deserStats = maybeDeserStats.get(0);
-
-                        evictions += generatedStats.getCacheEvictions();
-                        assertEquals(generatedStats.getCacheEvictions(), deserStats.getCacheEvictions());
-
-                        limited += generatedStats.getCompilationLimitTriggered();
-                        assertEquals(generatedStats.getCompilationLimitTriggered(), deserStats.getCompilationLimitTriggered());
-
-                        compilations += generatedStats.getCompilations();
-                        assertEquals(generatedStats.getCompilations(), deserStats.getCompilations());
-
-                        assertEquals(generatedStats.getCacheEvictions(), deserStats.getCacheEvictions());
-                        assertEquals(generatedStats.getCompilations(), deserStats.getCompilations());
-                    }
-                    assertEquals(evictions, scriptStats.getCacheEvictions());
-                    assertEquals(limited, scriptStats.getCompilationLimitTriggered());
-                    assertEquals(compilations, scriptStats.getCompilations());
+                    assertEquals(scriptStats, deserializedScriptStats);
+                    assertNotSame(scriptStats, deserializedScriptStats);
                 }
                 DiscoveryStats discoveryStats = nodeStats.getDiscoveryStats();
                 DiscoveryStats deserializedDiscoveryStats = deserializedNodeStats.getDiscoveryStats();
@@ -467,34 +431,8 @@ public class NodeStatsTests extends ESTestCase {
                 if (ingestStats == null) {
                     assertNull(deserializedIngestStats);
                 } else {
-                    IngestStats.Stats totalStats = ingestStats.totalStats();
-                    assertEquals(totalStats.ingestCount(), deserializedIngestStats.totalStats().ingestCount());
-                    assertEquals(totalStats.ingestCurrent(), deserializedIngestStats.totalStats().ingestCurrent());
-                    assertEquals(totalStats.ingestFailedCount(), deserializedIngestStats.totalStats().ingestFailedCount());
-                    assertEquals(totalStats.ingestTimeInMillis(), deserializedIngestStats.totalStats().ingestTimeInMillis());
-                    assertEquals(ingestStats.pipelineStats().size(), deserializedIngestStats.pipelineStats().size());
-                    for (IngestStats.PipelineStat pipelineStat : ingestStats.pipelineStats()) {
-                        String pipelineId = pipelineStat.pipelineId();
-                        IngestStats.Stats deserializedPipelineStats = getPipelineStats(deserializedIngestStats.pipelineStats(), pipelineId);
-                        assertEquals(pipelineStat.stats().ingestFailedCount(), deserializedPipelineStats.ingestFailedCount());
-                        assertEquals(pipelineStat.stats().ingestTimeInMillis(), deserializedPipelineStats.ingestTimeInMillis());
-                        assertEquals(pipelineStat.stats().ingestCurrent(), deserializedPipelineStats.ingestCurrent());
-                        assertEquals(pipelineStat.stats().ingestCount(), deserializedPipelineStats.ingestCount());
-                        List<IngestStats.ProcessorStat> processorStats = ingestStats.processorStats().get(pipelineId);
-                        // intentionally validating identical order
-                        Iterator<IngestStats.ProcessorStat> it = deserializedIngestStats.processorStats().get(pipelineId).iterator();
-                        for (IngestStats.ProcessorStat processorStat : processorStats) {
-                            IngestStats.ProcessorStat deserializedProcessorStat = it.next();
-                            assertEquals(processorStat.stats().ingestFailedCount(), deserializedProcessorStat.stats().ingestFailedCount());
-                            assertEquals(
-                                processorStat.stats().ingestTimeInMillis(),
-                                deserializedProcessorStat.stats().ingestTimeInMillis()
-                            );
-                            assertEquals(processorStat.stats().ingestCurrent(), deserializedProcessorStat.stats().ingestCurrent());
-                            assertEquals(processorStat.stats().ingestCount(), deserializedProcessorStat.stats().ingestCount());
-                        }
-                        assertFalse(it.hasNext());
-                    }
+                    assertNotSame(ingestStats, deserializedIngestStats);
+                    assertEquals(ingestStats, deserializedIngestStats);
                 }
                 AdaptiveSelectionStats adaptiveStats = nodeStats.getAdaptiveSelectionStats();
                 AdaptiveSelectionStats deserializedAdaptiveStats = deserializedNodeStats.getAdaptiveSelectionStats();
@@ -512,50 +450,30 @@ public class NodeStatsTests extends ESTestCase {
                         assertEquals(aStats.responseTime, bStats.responseTime, 0.01);
                     });
                 }
-                ScriptCacheStats scriptCacheStats = nodeStats.getScriptCacheStats();
-                ScriptCacheStats deserializedScriptCacheStats = deserializedNodeStats.getScriptCacheStats();
+                var scriptCacheStats = nodeStats.getScriptCacheStats();
+                var deserializedScriptCacheStats = deserializedNodeStats.getScriptCacheStats();
                 if (scriptCacheStats == null) {
                     assertNull(deserializedScriptCacheStats);
                 } else if (deserializedScriptCacheStats.getContextStats() != null) {
-                    Map<String, ScriptStats> deserialized = deserializedScriptCacheStats.getContextStats();
-                    long evictions = 0;
-                    long limited = 0;
-                    long compilations = 0;
-                    Map<String, ScriptStats> stats = scriptCacheStats.getContextStats();
-                    for (String context : stats.keySet()) {
-                        ScriptStats deserStats = deserialized.get(context);
-                        ScriptStats generatedStats = stats.get(context);
-
-                        evictions += generatedStats.getCacheEvictions();
-                        assertEquals(generatedStats.getCacheEvictions(), deserStats.getCacheEvictions());
-
-                        limited += generatedStats.getCompilationLimitTriggered();
-                        assertEquals(generatedStats.getCompilationLimitTriggered(), deserStats.getCompilationLimitTriggered());
-
-                        compilations += generatedStats.getCompilations();
-                        assertEquals(generatedStats.getCompilations(), deserStats.getCompilations());
-                    }
-                    ScriptStats sum = deserializedScriptCacheStats.sum();
-                    assertEquals(evictions, sum.getCacheEvictions());
-                    assertEquals(limited, sum.getCompilationLimitTriggered());
-                    assertEquals(compilations, sum.getCompilations());
+                    assertEquals(scriptCacheStats, deserializedScriptCacheStats);
+                    assertNotSame(scriptCacheStats, deserializedScriptCacheStats);
                 }
             }
         }
     }
 
     public void testChunking() {
-        AbstractChunkedSerializingTestCase.assertChunkCount(
+        assertChunkCount(
             createNodeStats(),
             randomFrom(ToXContent.EMPTY_PARAMS, new ToXContent.MapParams(Map.of("level", "node"))),
             nodeStats -> expectedChunks(nodeStats, NodeStatsLevel.NODE)
         );
-        AbstractChunkedSerializingTestCase.assertChunkCount(
+        assertChunkCount(
             createNodeStats(),
             new ToXContent.MapParams(Map.of("level", "indices")),
             nodeStats -> expectedChunks(nodeStats, NodeStatsLevel.INDICES)
         );
-        AbstractChunkedSerializingTestCase.assertChunkCount(
+        assertChunkCount(
             createNodeStats(),
             new ToXContent.MapParams(Map.of("level", "shards")),
             nodeStats -> expectedChunks(nodeStats, NodeStatsLevel.SHARDS)
@@ -563,9 +481,45 @@ public class NodeStatsTests extends ESTestCase {
     }
 
     private static int expectedChunks(NodeStats nodeStats, NodeStatsLevel level) {
-        return 4 + expectedChunks(nodeStats.getHttp()) + expectedChunks(nodeStats.getIndices(), level) + expectedChunks(
-            nodeStats.getTransport()
-        ) + expectedChunks(nodeStats.getIngestStats());
+        return 7 // one per each chunkeable object
+            + expectedChunks(nodeStats.getHttp()) //
+            + expectedChunks(nodeStats.getIndices(), level) //
+            + expectedChunks(nodeStats.getTransport()) //
+            + expectedChunks(nodeStats.getIngestStats()) //
+            + expectedChunks(nodeStats.getThreadPool()) //
+            + expectedChunks(nodeStats.getScriptStats()) //
+            + expectedChunks(nodeStats.getScriptCacheStats());
+    }
+
+    private static int expectedChunks(ScriptCacheStats scriptCacheStats) {
+        if (scriptCacheStats == null) return 0;
+
+        var chunks = 4;
+        if (scriptCacheStats.general() != null) {
+            chunks += 3;
+        } else {
+            chunks += 2;
+            chunks += scriptCacheStats.context().size() * 6;
+        }
+
+        return chunks;
+    }
+
+    private static int expectedChunks(ScriptStats scriptStats) {
+        return scriptStats == null ? 0 : 8 + scriptStats.contextStats().size();
+    }
+
+    private static int expectedChunks(ThreadPoolStats threadPool) {
+        return threadPool == null ? 0 : 2 + threadPool.stats().stream().mapToInt(s -> {
+            var chunks = 0;
+            chunks += s.threads() == -1 ? 0 : 1;
+            chunks += s.queue() == -1 ? 0 : 1;
+            chunks += s.active() == -1 ? 0 : 1;
+            chunks += s.rejected() == -1 ? 0 : 1;
+            chunks += s.largest() == -1 ? 0 : 1;
+            chunks += s.completed() == -1 ? 0 : 1;
+            return 2 + chunks; // start + endObject + chunks
+        }).sum();
     }
 
     private static int expectedChunks(@Nullable IngestStats ingestStats) {
@@ -696,7 +650,7 @@ public class NodeStatsTests extends ESTestCase {
     }
 
     public static NodeStats createNodeStats() {
-        DiscoveryNode node = TestDiscoveryNode.create(
+        DiscoveryNode node = DiscoveryNodeUtils.create(
             "test_node",
             buildNewFakeTransportAddress(),
             emptyMap(),
@@ -815,22 +769,9 @@ public class NodeStatsTests extends ESTestCase {
         }
         ThreadPoolStats threadPoolStats = null;
         if (frequently()) {
-            int numThreadPoolStats = randomIntBetween(0, 10);
-            List<ThreadPoolStats.Stats> threadPoolStatsList = new ArrayList<>();
-            for (int i = 0; i < numThreadPoolStats; i++) {
-                threadPoolStatsList.add(
-                    new ThreadPoolStats.Stats(
-                        randomAlphaOfLengthBetween(3, 10),
-                        randomIntBetween(1, 1000),
-                        randomIntBetween(1, 1000),
-                        randomIntBetween(1, 1000),
-                        randomNonNegativeLong(),
-                        randomIntBetween(1, 1000),
-                        randomIntBetween(1, 1000)
-                    )
-                );
-            }
-            threadPoolStats = new ThreadPoolStats(threadPoolStatsList);
+            threadPoolStats = new ThreadPoolStats(
+                IntStream.range(0, randomIntBetween(0, 10)).mapToObj(i -> randomStats(randomAlphaOfLengthBetween(3, 10))).toList()
+            );
         }
         FsInfo fsInfo = null;
         if (frequently()) {
@@ -937,7 +878,7 @@ public class NodeStatsTests extends ESTestCase {
                 contexts.add(context);
                 stats.add(new ScriptContextStats(context, randomLongBetween(0, 1024), randomTimeSeries(), randomTimeSeries()));
             }
-            scriptStats = new ScriptStats(stats);
+            scriptStats = ScriptStats.read(stats);
         }
         ClusterApplierRecordingService.Stats timeTrackerStats;
         if (randomBoolean()) {

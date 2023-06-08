@@ -23,7 +23,7 @@ public final class EventsIndex {
 
     private static final int MAX_EXPONENT = 11;
 
-    public static final EventsIndex FULL_INDEX = new EventsIndex(ALL_EVENTS, 1, 1);
+    public static final EventsIndex FULL_INDEX = new EventsIndex(ALL_EVENTS, 1, 0);
 
     // Start with counting the results in the index down-sampled by 5^6.
     // That is in the middle of our down-sampled indexes.

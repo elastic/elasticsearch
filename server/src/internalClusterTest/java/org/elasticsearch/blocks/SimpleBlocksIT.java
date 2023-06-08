@@ -369,7 +369,7 @@ public class SimpleBlocksIT extends ESIntegTestCase {
         ensureGreen(indexName);
 
         final APIBlock block = randomAddableBlock();
-        int nbDocs = 0;
+        long nbDocs = 0;
         try {
             try (BackgroundIndexer indexer = new BackgroundIndexer(indexName, client(), 1000)) {
                 indexer.setFailureAssertion(t -> {

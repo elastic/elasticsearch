@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.security.authz.store;
 
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
@@ -47,12 +49,14 @@ import org.elasticsearch.xpack.core.security.action.role.PutRoleRequest;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests;
+import org.elasticsearch.xpack.core.security.authz.RoleRestrictionTests;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.elasticsearch.xpack.security.support.SecuritySystemIndices;
 import org.elasticsearch.xpack.security.test.SecurityTestUtils;
 import org.junit.After;
 import org.junit.Before;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
 import java.io.IOException;
@@ -70,7 +74,9 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class NativeRolesStoreTests extends ESTestCase {
@@ -237,6 +243,61 @@ public class NativeRolesStoreTests extends ESTestCase {
         assertNotNull(role);
         assertFalse(role.getTransientMetadata().containsKey("unlicensed_features"));
         assertThat(role, equalTo(noFlsDlsRole));
+    }
+
+    public void testTransformingRoleWithRestrictionFails() throws IOException {
+        MockLicenseState licenseState = mock(MockLicenseState.class);
+        when(licenseState.isAllowed(DOCUMENT_LEVEL_SECURITY_FEATURE)).thenReturn(false);
+        RoleDescriptor roleWithRestriction = new RoleDescriptor(
+            "role_with_restriction",
+            randomSubsetOf(ClusterPrivilegeResolver.names()).toArray(String[]::new),
+            new IndicesPrivileges[] {
+                IndicesPrivileges.builder()
+                    .privileges("READ")
+                    .indices(generateRandomStringArray(5, randomIntBetween(3, 9), false, false))
+                    .grantedFields("*")
+                    .deniedFields(generateRandomStringArray(5, randomIntBetween(3, 9), false, false))
+                    .query(
+                        randomBoolean()
+                            ? "{ \"term\": { \""
+                                + randomAlphaOfLengthBetween(3, 24)
+                                + "\" : \""
+                                + randomAlphaOfLengthBetween(3, 24)
+                                + "\" }"
+                            : "{ \"match_all\": {} }"
+                    )
+                    .build() },
+            RoleDescriptorTests.randomApplicationPrivileges(),
+            RoleDescriptorTests.randomClusterPrivileges(),
+            generateRandomStringArray(5, randomIntBetween(2, 8), true, true),
+            RoleDescriptorTests.randomRoleDescriptorMetadata(ESTestCase.randomBoolean()),
+            null,
+            TcpTransport.isUntrustedRemoteClusterEnabled() ? RoleDescriptorTests.randomRemoteIndicesPrivileges(1, 2) : null,
+            RoleRestrictionTests.randomWorkflowsRestriction(1, 2)
+        );
+
+        XContentBuilder builder = roleWithRestriction.toXContent(
+            XContentBuilder.builder(XContentType.JSON.xContent()),
+            ToXContent.EMPTY_PARAMS
+        );
+
+        Logger mockedLogger = Mockito.mock(Logger.class);
+        BytesReference bytes = BytesReference.bytes(builder);
+        RoleDescriptor transformedRole = NativeRolesStore.transformRole(
+            RoleDescriptor.ROLE_TYPE + "-role_with_restriction",
+            bytes,
+            mockedLogger,
+            licenseState
+        );
+        assertThat(transformedRole, nullValue());
+        ArgumentCaptor<ElasticsearchParseException> exceptionCaptor = ArgumentCaptor.forClass(ElasticsearchParseException.class);
+        ArgumentCaptor<String> messageCaptor = ArgumentCaptor.forClass(String.class);
+        verify(mockedLogger).error(messageCaptor.capture(), exceptionCaptor.capture());
+        assertThat(messageCaptor.getValue(), containsString("error in the format of data for role [role_with_restriction]"));
+        assertThat(
+            exceptionCaptor.getValue().getMessage(),
+            containsString("failed to parse role [role_with_restriction]. unexpected field [restriction]")
+        );
     }
 
     public void testPutOfRoleWithFlsDlsUnlicensed() throws IOException {

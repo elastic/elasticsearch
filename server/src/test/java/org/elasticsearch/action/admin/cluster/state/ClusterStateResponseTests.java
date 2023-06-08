@@ -13,14 +13,12 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.test.ESTestCase;
 
-import java.util.Collections;
 import java.util.HashSet;
 
 public class ClusterStateResponseTests extends AbstractWireSerializingTestCase<ClusterStateResponse> {
@@ -32,12 +30,9 @@ public class ClusterStateResponseTests extends AbstractWireSerializingTestCase<C
         if (randomBoolean()) {
             ClusterState.Builder clusterStateBuilder = ClusterState.builder(clusterName).version(randomNonNegativeLong());
             if (randomBoolean()) {
-                final DiscoveryNode masterNode = TestDiscoveryNode.create(
-                    randomAlphaOfLength(4),
-                    ESTestCase.buildNewFakeTransportAddress(),
-                    Collections.emptyMap(),
-                    new HashSet<>(DiscoveryNodeRole.roles())
-                );
+                final DiscoveryNode masterNode = DiscoveryNodeUtils.builder(randomAlphaOfLength(4))
+                    .roles(new HashSet<>(DiscoveryNodeRole.roles()))
+                    .build();
                 clusterStateBuilder.nodes(DiscoveryNodes.builder().add(masterNode).masterNodeId(masterNode.getId()).build());
             }
             clusterState = clusterStateBuilder.build();

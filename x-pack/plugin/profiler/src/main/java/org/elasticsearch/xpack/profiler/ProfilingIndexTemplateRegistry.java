@@ -70,7 +70,7 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
     }
 
     private static final List<LifecyclePolicy> LIFECYCLE_POLICIES = List.of(
-        new LifecyclePolicyConfig("profiling", "/org/elasticsearch/xpack/profiler/ilm-policy/profiling.json").load(
+        new LifecyclePolicyConfig("profiling", "/org/elasticsearch/xpack/profiler/ilm-policy/profiling-60-days.json").load(
             LifecyclePolicyConfig.DEFAULT_X_CONTENT_REGISTRY
         )
     );
@@ -118,6 +118,12 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
             new IndexTemplateConfig(
                 "profiling-stacktraces",
                 "/org/elasticsearch/xpack/profiler/component-template/profiling-stacktraces.json",
+                INDEX_TEMPLATE_VERSION,
+                PROFILING_TEMPLATE_VERSION_VARIABLE
+            ),
+            new IndexTemplateConfig(
+                "profiling-symbols",
+                "/org/elasticsearch/xpack/profiler/component-template/profiling-symbols.json",
                 INDEX_TEMPLATE_VERSION,
                 PROFILING_TEMPLATE_VERSION_VARIABLE
             )
@@ -172,12 +178,6 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
         ),
         // templates for regular indices
         new IndexTemplateConfig(
-            ".profiling-ilm-lock",
-            "/org/elasticsearch/xpack/profiler/index-template/.profiling-ilm-lock.json",
-            INDEX_TEMPLATE_VERSION,
-            PROFILING_TEMPLATE_VERSION_VARIABLE
-        ),
-        new IndexTemplateConfig(
             "profiling-returnpads-private",
             "/org/elasticsearch/xpack/profiler/index-template/profiling-returnpads-private.json",
             INDEX_TEMPLATE_VERSION,
@@ -196,8 +196,14 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
             PROFILING_TEMPLATE_VERSION_VARIABLE
         ),
         new IndexTemplateConfig(
-            "profiling-symbols",
-            "/org/elasticsearch/xpack/profiler/index-template/profiling-symbols.json",
+            "profiling-symbols-global",
+            "/org/elasticsearch/xpack/profiler/index-template/profiling-symbols-global.json",
+            INDEX_TEMPLATE_VERSION,
+            PROFILING_TEMPLATE_VERSION_VARIABLE
+        ),
+        new IndexTemplateConfig(
+            "profiling-symbols-private",
+            "/org/elasticsearch/xpack/profiler/index-template/profiling-symbols-private.json",
             INDEX_TEMPLATE_VERSION,
             PROFILING_TEMPLATE_VERSION_VARIABLE
         )

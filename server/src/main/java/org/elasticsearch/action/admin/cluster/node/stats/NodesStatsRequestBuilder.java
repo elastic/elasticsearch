@@ -153,6 +153,11 @@ public class NodesStatsRequestBuilder extends NodesOperationRequestBuilder<
         return this;
     }
 
+    public NodesStatsRequestBuilder setRepositoryThrottlingStats(boolean repositoryThrottlingStats) {
+        addOrRemoveMetric(repositoryThrottlingStats, NodesStatsRequest.Metric.REPOSITORY);
+        return this;
+    }
+
     /**
      * Helper method for adding metrics to a request
      */

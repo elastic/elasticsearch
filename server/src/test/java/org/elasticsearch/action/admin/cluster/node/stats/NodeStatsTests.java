@@ -64,7 +64,7 @@ import org.elasticsearch.monitor.os.OsStats;
 import org.elasticsearch.monitor.process.ProcessStats;
 import org.elasticsearch.node.AdaptiveSelectionStats;
 import org.elasticsearch.node.ResponseCollectorService;
-import org.elasticsearch.repositories.RepositoriesThrottlingStats;
+import org.elasticsearch.repositories.RepositoriesStats;
 import org.elasticsearch.script.ScriptCacheStats;
 import org.elasticsearch.script.ScriptContextStats;
 import org.elasticsearch.script.ScriptStats;
@@ -460,10 +460,10 @@ public class NodeStatsTests extends ESTestCase {
                     assertNotSame(scriptCacheStats, deserializedScriptCacheStats);
                 }
 
-                RepositoriesThrottlingStats repoThrottlingStats = deserializedNodeStats.getRepositoriesThrottlingStats();
-                assertTrue(repoThrottlingStats.stats().containsKey("test-repository"));
-                assertEquals(100, repoThrottlingStats.stats().get("test-repository").getTotalReadThrottledNanos());
-                assertEquals(200, repoThrottlingStats.stats().get("test-repository").getTotalWriteThrottledNanos());
+                RepositoriesStats repoThrottlingStats = deserializedNodeStats.getRepositoriesStats();
+                assertTrue(repoThrottlingStats.getRepositoryThrottlingStats().containsKey("test-repository"));
+                assertEquals(100, repoThrottlingStats.getRepositoryThrottlingStats().get("test-repository").getTotalReadThrottledNanos());
+                assertEquals(200, repoThrottlingStats.getRepositoryThrottlingStats().get("test-repository").getTotalWriteThrottledNanos());
 
             }
         }
@@ -1033,9 +1033,7 @@ public class NodeStatsTests extends ESTestCase {
                 randomLongBetween(0, maxStatValue)
             );
         }
-        RepositoriesThrottlingStats repositoriesThrottlingStats = RepositoriesThrottlingStats.builder()
-            .add("test-repository", 100, 200)
-            .build();
+        RepositoriesStats repositoriesStats = RepositoriesStats.builder().add("test-repository", 100, 200).build();
 
         return new NodeStats(
             node,
@@ -1055,7 +1053,7 @@ public class NodeStatsTests extends ESTestCase {
             adaptiveSelectionStats,
             scriptCacheStats,
             indexingPressureStats,
-            repositoriesThrottlingStats
+            repositoriesStats
         );
     }
 

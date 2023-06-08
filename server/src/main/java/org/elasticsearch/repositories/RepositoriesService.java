@@ -677,8 +677,8 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         return repositoriesStats;
     }
 
-    public RepositoriesThrottlingStats getRepositoriesThrottlingStats() {
-        RepositoriesThrottlingStats.Builder b = RepositoriesThrottlingStats.builder();
+    public RepositoriesStats getRepositoriesThrottlingStats() {
+        RepositoriesStats.Builder b = RepositoriesStats.builder();
         repositories.values()
             .forEach(r -> b.add(r.getMetadata().name(), r.getRestoreThrottleTimeInNanos(), r.getSnapshotThrottleTimeInNanos()));
         return b.build();

@@ -21,35 +21,35 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-public class RepositoriesThrottlingStats implements Writeable, ToXContentFragment {
+public class RepositoriesStats implements Writeable, ToXContentFragment {
 
-    private final Map<String, ThrottlingStats> repositoryToThrottlingStats;
+    private final Map<String, ThrottlingStats> repositoryThrottlingStats;
 
-    public RepositoriesThrottlingStats(StreamInput in) throws IOException {
+    public RepositoriesStats(StreamInput in) throws IOException {
         if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_9_0)) {
-            repositoryToThrottlingStats = in.readMap(StreamInput::readString, ThrottlingStats::new);
+            repositoryThrottlingStats = in.readMap(StreamInput::readString, ThrottlingStats::new);
         } else {
-            repositoryToThrottlingStats = new HashMap<>();
+            repositoryThrottlingStats = new HashMap<>();
         }
     }
 
-    public RepositoriesThrottlingStats(Map<String, ThrottlingStats> repositoryThrottlingStats) {
-        repositoryToThrottlingStats = new HashMap<>(repositoryThrottlingStats);
+    public RepositoriesStats(Map<String, ThrottlingStats> repositoryThrottlingStats) {
+        this.repositoryThrottlingStats = new HashMap<>(repositoryThrottlingStats);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(repositoryToThrottlingStats, StreamOutput::writeString, (o, v) -> v.writeTo(o));
+        out.writeMap(repositoryThrottlingStats, StreamOutput::writeString, (o, v) -> v.writeTo(o));
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field("repository", repositoryToThrottlingStats);
+        builder.field("repository", repositoryThrottlingStats);
         return builder;
     }
 
-    public Map<String, ThrottlingStats> stats() {
-        return Collections.unmodifiableMap(repositoryToThrottlingStats);
+    public Map<String, ThrottlingStats> getRepositoryThrottlingStats() {
+        return Collections.unmodifiableMap(repositoryThrottlingStats);
     }
 
     public static class Builder {
@@ -60,8 +60,8 @@ public class RepositoriesThrottlingStats implements Writeable, ToXContentFragmen
             return this;
         }
 
-        public RepositoriesThrottlingStats build() {
-            return new RepositoriesThrottlingStats(repoThrottlingStats);
+        public RepositoriesStats build() {
+            return new RepositoriesStats(repoThrottlingStats);
         }
     }
 

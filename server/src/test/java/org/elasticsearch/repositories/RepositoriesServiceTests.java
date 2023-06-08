@@ -257,9 +257,9 @@ public class RepositoriesServiceTests extends ESTestCase {
         var repoName = randomAlphaOfLengthBetween(10, 25);
         var clusterState = createClusterStateWithRepo(repoName, TestRepository.TYPE);
         repositoriesService.applyClusterState(new ClusterChangedEvent("put test repository", clusterState, emptyState()));
-        RepositoriesThrottlingStats throttlingStats = repositoriesService.getRepositoriesThrottlingStats();
-        assertTrue(throttlingStats.stats().containsKey(repoName));
-        assertNotNull(throttlingStats.stats().get(repoName));
+        RepositoriesStats throttlingStats = repositoriesService.getRepositoriesThrottlingStats();
+        assertTrue(throttlingStats.getRepositoryThrottlingStats().containsKey(repoName));
+        assertNotNull(throttlingStats.getRepositoryThrottlingStats().get(repoName));
     }
 
     // InvalidRepository is created when current node is non-master node and failed to create repository by applying cluster state from

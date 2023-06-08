@@ -52,6 +52,18 @@ public class OperatorPrivileges {
             ThreadContext threadContext
         );
 
+        /**
+         * Checks to see if a given {@link RestHandler} is subject to operator-only restrictions for the REST API. Any REST API may be
+         * fully or partially restricted. A fully restricted REST API mandates that the implementation results in
+         * restChannel.sendResponse(...) and return a {@code false} to prevent any further processing. A partially restricted REST API
+         * mandates that the {@link RestRequest} is marked as restricted and return {@code true}. No restrictions should also return
+         * {@code true}.
+         * @param restHandler The {@link RestHandler} to check for any restrictions
+         * @param restRequest The {@link RestRequest} to check for any restrictions and mark any partially restricted REST API's
+         * @param restChannel The {@link RestChannel} to enforce fully restricted REST API's
+         * @return {@code true} if processing the request should continue, {@code false} if processing the request should halt due to
+         * a fully restricted REST API
+         */
         boolean checkRest(RestHandler restHandler, RestRequest restRequest, RestChannel restChannel, ThreadContext threadContext);
 
         /**

@@ -21,6 +21,18 @@ public interface OperatorOnlyRegistry {
      */
     OperatorPrivilegesViolation check(String action, TransportRequest request);
 
+    /**
+     * Checks to see if a given {@link RestHandler} is subject to operator-only restrictions for the REST API. Any REST API may be
+     * fully or partially restricted. A fully restricted REST API mandates that the implementation call restChannel.sendResponse(...) and
+     * return a {@link OperatorPrivilegesViolation}. A partially restricted REST API mandates that the {@link RestRequest} is marked as
+     * restricted so that the downstream handler can behave appropriately. For example, to restrict the REST response the implementation
+     * should call {@link RestRequest#markResponseRestricted(String)} so that the downstream handler can properly restrict the response
+     * before returning to the client and then return a {@link OperatorPrivilegesViolation}.
+     * @param restHandler The {@link RestHandler} to check for any restrictions
+     * @param restRequest The {@link RestRequest} to check for any restrictions and mark any partially restricted REST API's
+     * @param restChannel The {@link RestChannel} to enforce fully restricted REST API's
+     * @return {@link RestRequest} to use when calling the {@link RestHandler}, can be same or different object as the passed in parameter
+     */
     OperatorPrivilegesViolation checkRest(RestHandler restHandler, RestRequest restRequest, RestChannel restChannel);
 
 }

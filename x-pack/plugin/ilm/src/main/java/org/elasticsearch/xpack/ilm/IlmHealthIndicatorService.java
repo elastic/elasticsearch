@@ -22,18 +22,21 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.ilm.AllocateAction;
 import org.elasticsearch.xpack.core.ilm.DeleteAction;
 import org.elasticsearch.xpack.core.ilm.DeleteStep;
-import org.elasticsearch.xpack.core.ilm.DownsampleAction;
 import org.elasticsearch.xpack.core.ilm.ForceMergeAction;
+import org.elasticsearch.xpack.core.ilm.ForceMergeStep;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.MigrateAction;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
+import org.elasticsearch.xpack.core.ilm.RolloverStep;
 import org.elasticsearch.xpack.core.ilm.SearchableSnapshotAction;
+import org.elasticsearch.xpack.core.ilm.SegmentCountStep;
 import org.elasticsearch.xpack.core.ilm.ShrinkAction;
 import org.elasticsearch.xpack.core.ilm.WaitForActiveShardsStep;
 import org.elasticsearch.xpack.core.ilm.WaitForDataTierStep;
 import org.elasticsearch.xpack.core.ilm.WaitForIndexColorStep;
 import org.elasticsearch.xpack.core.ilm.WaitForNoFollowersStep;
+import org.elasticsearch.xpack.core.ilm.WaitForRolloverReadyStep;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -103,7 +106,11 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
 
     static final Map<String, RuleConfig> RULES_BY_ACTION_CONFIG = Map.of(
         RolloverAction.NAME,
-        actionRule(RolloverAction.NAME).stepRules(stepRule(WaitForActiveShardsStep.NAME, ONE_DAY)),
+        actionRule(RolloverAction.NAME).stepRules(
+            stepRule(WaitForActiveShardsStep.NAME, ONE_DAY),
+            stepRule(WaitForRolloverReadyStep.NAME, ONE_DAY),
+            stepRule(RolloverStep.NAME, ONE_DAY)
+        ),
         //
         MigrateAction.NAME,
         actionRule(MigrateAction.NAME).maxTimeOnAction(ONE_DAY).noStepRules(),
@@ -113,6 +120,7 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
             .stepRules(
                 stepRule(WaitForDataTierStep.NAME, ONE_DAY),
                 stepRule(WaitForIndexColorStep.NAME, ONE_DAY),
+                // The no-follower step is added here because an `UnfollowAction` is added before the `shrinkAction` in the follower cluster
                 stepRule(WaitForNoFollowersStep.NAME, ONE_DAY)
             ),
         //
@@ -120,16 +128,27 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
         actionRule(DeleteAction.NAME).stepRules(stepRule(DeleteStep.NAME, ONE_DAY)),
         //
         ShrinkAction.NAME,
-        actionRule(ShrinkAction.NAME).maxTimeOnAction(ONE_DAY).stepRules(stepRule(WaitForNoFollowersStep.NAME, ONE_DAY)),
+        actionRule(ShrinkAction.NAME).maxTimeOnAction(ONE_DAY)
+            .stepRules(
+                // The no-follower step is added here because an `unfollowAction` is added before the `shrinkAction` in the follower
+                // cluster.
+                stepRule(WaitForNoFollowersStep.NAME, ONE_DAY)
+            ),
         //
         AllocateAction.NAME,
         actionRule(AllocateAction.NAME).maxTimeOnAction(ONE_DAY).noStepRules(),
         //
         ForceMergeAction.NAME,
-        actionRule(ForceMergeAction.NAME).maxTimeOnAction(ONE_DAY).stepRules(stepRule(WaitForIndexColorStep.NAME, ONE_DAY)),
+        actionRule(ForceMergeAction.NAME).maxTimeOnAction(ONE_DAY)
+            .stepRules(
+                stepRule(WaitForIndexColorStep.NAME, ONE_DAY),
+                stepRule(ForceMergeStep.NAME, ONE_DAY),
+                stepRule(SegmentCountStep.NAME, ONE_DAY)
+            )
         //
-        DownsampleAction.NAME,
-        actionRule(DownsampleAction.NAME).maxTimeOnAction(ONE_DAY).stepRules(stepRule(WaitForNoFollowersStep.NAME, ONE_DAY))
+        // The next rule has to be commented because of this issue https://github.com/elastic/elasticsearch/issues/96705
+        // DownsampleAction.NAME,
+        // actionRule(DownsampleAction.NAME).maxTimeOnAction(ONE_DAY).stepRules(stepRule(WaitForNoFollowersStep.NAME, ONE_DAY))
     );
 
     public static final Collection<RuleConfig> ILM_RULE_EVALUATOR = RULES_BY_ACTION_CONFIG.values();

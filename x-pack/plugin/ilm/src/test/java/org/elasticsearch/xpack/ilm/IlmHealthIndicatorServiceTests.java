@@ -136,7 +136,8 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
         assertEquals(indicatorResult.status(), YELLOW);
         assertEquals(indicatorResult.symptom(), "An index has stayed on the same action longer than expected.");
         var expectedILMSummary = new HashMap<>();
-        expectedILMSummary.put("downsample", 0);
+        // Uncomment next line after https://github.com/elastic/elasticsearch/issues/96705 is fixed
+        // expectedILMSummary.put("downsample", 0);
         expectedILMSummary.put("allocate", 0);
         expectedILMSummary.put("shrink", 0);
         expectedILMSummary.put("searchable_snapshot", 0);
@@ -294,8 +295,8 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
                 "elasticsearch:health:ilm:diagnosis:stagnating_action:delete",
                 "elasticsearch:health:ilm:diagnosis:stagnating_action:shrink",
                 "elasticsearch:health:ilm:diagnosis:stagnating_action:forcemerge",
-                "elasticsearch:health:ilm:diagnosis:stagnating_action:allocate",
-                "elasticsearch:health:ilm:diagnosis:stagnating_action:downsample"
+                "elasticsearch:health:ilm:diagnosis:stagnating_action:allocate"
+                // "elasticsearch:health:ilm:diagnosis:stagnating_action:downsample"
             )
         );
     }

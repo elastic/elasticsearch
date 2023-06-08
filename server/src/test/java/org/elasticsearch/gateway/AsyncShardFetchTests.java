@@ -25,6 +25,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.Collections.emptySet;
@@ -354,7 +355,7 @@ public class AsyncShardFetchTests extends ESTestCase {
         test.fireSimulationAndWait(node1.getId());
         // there is still another on going request, so no data
         assertThat(test.getNumberOfInFlightFetches(), equalTo(1));
-        fetchData = test.fetchData(nodes, emptySet());
+        fetchData = test.fetchData(newNodes, emptySet());
         assertThat(fetchData.hasData(), equalTo(false));
 
         // fire the second simulation, this should allow us to get the data
@@ -437,9 +438,10 @@ public class AsyncShardFetchTests extends ESTestCase {
         }
 
         public void fireSimulationAndWait(String nodeId) throws InterruptedException {
-            simulations.get(nodeId).executeLatch.countDown();
-            simulations.get(nodeId).waitLatch.await();
-            simulations.remove(nodeId);
+            final TestFetch.Entry entry = simulations.get(nodeId);
+            entry.executeLatch.countDown();
+            assertTrue(entry.waitLatch.await(10, TimeUnit.SECONDS));
+            assertSame(entry, simulations.remove(nodeId));
         }
 
         @Override
@@ -451,34 +453,24 @@ public class AsyncShardFetchTests extends ESTestCase {
         protected void asyncFetch(DiscoveryNode[] nodes, long fetchingRound) {
             for (final DiscoveryNode node : nodes) {
                 final String nodeId = node.getId();
-                threadPool.generic().execute(new Runnable() {
-                    @Override
-                    public void run() {
-                        Entry entry = null;
-                        try {
-                            entry = simulations.get(nodeId);
-                            if (entry == null) {
-                                // we are simulating a master node switch, wait for it to not be null
-                                assertBusy(() -> assertTrue(simulations.containsKey(nodeId)));
-                            }
-                            assert entry != null;
-                            entry.executeLatch.await();
-                            if (entry.failure != null) {
-                                processAsyncFetch(
-                                    null,
-                                    Collections.singletonList(new FailedNodeException(nodeId, "unexpected", entry.failure)),
-                                    fetchingRound
-                                );
-                            } else {
-                                processAsyncFetch(Collections.singletonList(entry.response), null, fetchingRound);
-                            }
-                        } catch (Exception e) {
-                            logger.error("unexpected failure", e);
-                        } finally {
-                            if (entry != null) {
-                                entry.waitLatch.countDown();
-                            }
+                final Entry entry = simulations.get(nodeId);
+                assertNotNull(node.descriptionWithoutAttributes(), entry);
+                threadPool.generic().execute(() -> {
+                    try {
+                        assertTrue(entry.executeLatch.await(10, TimeUnit.SECONDS));
+                        if (entry.failure != null) {
+                            processAsyncFetch(
+                                null,
+                                Collections.singletonList(new FailedNodeException(nodeId, "unexpected", entry.failure)),
+                                fetchingRound
+                            );
+                        } else {
+                            processAsyncFetch(Collections.singletonList(entry.response), null, fetchingRound);
                         }
+                    } catch (Exception e) {
+                        throw new AssertionError("unexpected failure", e);
+                    } finally {
+                        entry.waitLatch.countDown();
                     }
                 });
             }

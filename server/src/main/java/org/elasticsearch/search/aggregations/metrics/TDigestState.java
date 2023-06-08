@@ -22,7 +22,9 @@ import java.util.Iterator;
 import java.util.List;
 
 /**
- * Decorates {@link org.elasticsearch.tdigest.TDigest} with custom serialization.
+ * Decorates {@link org.elasticsearch.tdigest.TDigest} with custom serialization. The underlying implementation for TDigest is selected
+ * through factory method params, providing one optimized for performance (e.g. MergingDigest or HybridDigest) by default, or optionally one
+ * that produces highly accurate results regardless of input size but its construction over the sample population takes 2x-10x longer.
  */
 public class TDigestState {
 
@@ -50,6 +52,7 @@ public class TDigestState {
     protected enum Type {
         HYBRID,
         AVL_TREE,
+        MERGING,
         SORTING;
 
         static Type defaultValue() {
@@ -63,10 +66,25 @@ public class TDigestState {
 
     private final Type type;
 
+    /**
+     * Default factory for TDigestState. The underlying {@link org.elasticsearch.tdigest.TDigest} implementation is optimized for
+     * performance, potentially providing slightly inaccurate results compared to other, substantially slower implementations.
+     * @param compression the compression factor for the underlying {@link org.elasticsearch.tdigest.TDigest} object
+     * @return a TDigestState object that's optimized for performance
+     */
     public static TDigestState create(double compression) {
         return create(compression, false);
     }
 
+
+    /**
+     * Factory for TDigestState. The underlying {@link org.elasticsearch.tdigest.TDigest} implementation is either optimized for
+     * performance, potentially providing slightly inaccurate results for large populations, or optimized for accuracy but taking 2x-10x
+     * more to build.
+     * @param compression the compression factor for the underlying {@link org.elasticsearch.tdigest.TDigest} object
+     * @param optimizeForAccuracy controls whether the constructed object is optimized for accuracy or performance
+     * @return a TDigestState object
+     */
     public static TDigestState create(double compression, boolean optimizeForAccuracy) {
         if (optimizeForAccuracy) {
             return new TDigestState(Type.valueForHighAccuracy(), compression);
@@ -74,6 +92,12 @@ public class TDigestState {
         return new TDigestState(Type.defaultValue(), compression);
     }
 
+    /**
+     * Factory for TDigestState. Uses the same initialization params as the passed TDigestState object. No data loading happens, and the
+     * input TDigestState object doesn't get altered in any way.
+     * @param state the TDigestState object providing the initialization params
+     * @return a TDigestState object
+     */
     public static TDigestState createUsingParamsFrom(TDigestState state) {
         return new TDigestState(state.type, state.compression);
     }
@@ -83,6 +107,7 @@ public class TDigestState {
             case HYBRID -> TDigest.createHybridDigest(compression);
             case AVL_TREE -> TDigest.createAvlTreeDigest(compression);
             case SORTING -> TDigest.createSortingDigest();
+            case MERGING -> TDigest.createMergingDigest(compression);
         };
         this.type = type;
         this.compression = compression;
@@ -94,7 +119,10 @@ public class TDigestState {
 
     public static void write(TDigestState state, StreamOutput out) throws IOException {
         out.writeDouble(state.compression);
-        out.writeString(state.type.toString());
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_9_0)) {
+            out.writeString(state.type.toString());
+        }
+
         out.writeVInt(state.centroidCount());
         for (Centroid centroid : state.centroids()) {
             out.writeDouble(centroid.mean());
@@ -106,8 +134,7 @@ public class TDigestState {
         double compression = in.readDouble();
         TDigestState state;
         if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_9_0)) {
-            Type type = Type.valueOf(in.readString());
-            state = new TDigestState(type, compression);
+            state = new TDigestState(Type.valueOf(in.readString()), compression);
         } else {
             state = new TDigestState(Type.valueForHighAccuracy(), compression);
         }

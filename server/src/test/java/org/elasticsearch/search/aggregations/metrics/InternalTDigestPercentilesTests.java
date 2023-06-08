@@ -91,7 +91,7 @@ public class InternalTDigestPercentilesTests extends InternalPercentilesTestCase
                 Arrays.sort(percents);
             }
             case 2 -> {
-                TDigestState newState = TDigestState.create(state.compression());
+                TDigestState newState = TDigestState.createUsingParamsFrom(state);
                 newState.add(state);
                 for (int i = 0; i < between(10, 100); i++) {
                     newState.add(randomDouble());

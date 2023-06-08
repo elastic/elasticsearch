@@ -239,7 +239,9 @@ public abstract class PercentilesConfig implements ToXContent, Writeable {
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeDouble(compression);
-            out.writeBoolean(optimizeForAccuracy);
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_9_0)) {
+                out.writeBoolean(optimizeForAccuracy);
+            }
         }
 
         @Override

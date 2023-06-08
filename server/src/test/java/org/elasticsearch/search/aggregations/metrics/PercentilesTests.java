@@ -96,4 +96,28 @@ public class PercentilesTests extends BaseAggregationTestCase<PercentilesAggrega
         );
         assertThat(e.getMessage(), containsString("[percentiles] failed to parse field [hdr]"));
     }
+
+    public void testParseTDigestWithParams() throws IOException {
+        final String percentileConfig = """
+            {
+               "percentiles": {
+                   "field": "load_time",
+                   "percents": [1, 99],
+                   "tdigest": {
+                       "compression": 200,
+                       "optimize_for_accuracy": true
+                   }
+               }
+            }""";
+        XContentParser parser = createParser(JsonXContent.jsonXContent, percentileConfig);
+        assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+        assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+
+        PercentilesAggregationBuilder parsed = PercentilesAggregationBuilder.PARSER.parse(parser, "myPercentiles");
+        assertArrayEquals(parsed.percentiles(), new double[] { 1.0, 99.0 }, 0.0);
+        assertEquals(PercentilesMethod.TDIGEST, parsed.percentilesConfig().getMethod());
+        var tdigestConfig = (PercentilesConfig.TDigest) parsed.percentilesConfig();
+        assertEquals(200.0, tdigestConfig.getCompression(), 0);
+        assertTrue(tdigestConfig.getOptimizeForAccuracy());
+    }
 }

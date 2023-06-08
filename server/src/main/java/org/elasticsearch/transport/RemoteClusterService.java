@@ -309,12 +309,12 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         updateRemoteCluster(clusterAlias, settings, ActionListener.runAfter(new ActionListener<>() {
             @Override
             public void onResponse(Void o) {
-                logger.debug("connected to new remote cluster [{}]", clusterAlias);
+                logger.info("connected to new remote cluster [{}]", clusterAlias);
             }
 
             @Override
             public void onFailure(Exception e) {
-                logger.debug(() -> "connection to new remote cluster [" + clusterAlias + "] failed", e);
+                logger.warn(() -> "connection to new remote cluster [" + clusterAlias + "] failed", e);
             }
         }, latch::countDown));
 

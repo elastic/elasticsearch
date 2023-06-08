@@ -123,6 +123,7 @@ public class SearchableSnapshotShutdownIntegTests extends BaseSearchableSnapshot
             SingleNodeShutdownMetadata.Type.RESTART,
             this.getTestName(),
             null,
+            null,
             null
         );
         assertTrue(client().execute(PutShutdownNodeAction.INSTANCE, putShutdownRequest).get().isAcknowledged());

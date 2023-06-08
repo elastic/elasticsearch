@@ -148,7 +148,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
         assertThat(migratedColdAllocateAction.getRequire().size(), is(0));
     }
 
-    public void testMigrateIlmPolicyFOrPhaseWithDeactivatedMigrateAction() {
+    public void testMigrateIlmPolicyForPhaseWithDeactivatedMigrateAction() {
         ShrinkAction shrinkAction = new ShrinkAction(2, null);
         AllocateAction warmAllocateAction = new AllocateAction(null, null, Map.of("data", "warm"), null, Map.of("rack", "rack1"));
 
@@ -511,7 +511,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
     }
 
     public void testConvertAttributeValueToTierPreference() {
-        assertThat(convertAttributeValueToTierPreference("frozen"), is("data_frozen,data_cold,data_warm,data_hot"));
+        assertThat(convertAttributeValueToTierPreference("frozen"), is("data_frozen"));
         assertThat(convertAttributeValueToTierPreference("cold"), is("data_cold,data_warm,data_hot"));
         assertThat(convertAttributeValueToTierPreference("warm"), is("data_warm,data_hot"));
         assertThat(convertAttributeValueToTierPreference("hot"), is("data_hot"));
@@ -558,6 +558,26 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
             IndexMetadata migratedIndex = migratedState.metadata().index("indexWithWarmDataAttribute");
             assertThat(migratedIndex.getSettings().get(DATA_ROUTING_INCLUDE_SETTING), nullValue());
             assertThat(migratedIndex.getSettings().get(TIER_PREFERENCE), is("data_warm,data_hot"));
+        }
+
+        {
+            // test the migration of `include.data: frozen` configuration to the equivalent _tier_preference routing
+            IndexMetadata.Builder indexWithFrozenDataAttribute = IndexMetadata.builder("indexWithFrozenDataAttribute")
+                .settings(getBaseIndexSettings().put(DATA_ROUTING_INCLUDE_SETTING, "frozen"));
+            ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
+                .metadata(Metadata.builder().put(indexWithFrozenDataAttribute))
+                .build();
+
+            Metadata.Builder mb = Metadata.builder(state.metadata());
+
+            List<String> migratedIndices = migrateIndices(mb, state, "data");
+            assertThat(migratedIndices.size(), is(1));
+            assertThat(migratedIndices.get(0), is("indexWithFrozenDataAttribute"));
+
+            ClusterState migratedState = ClusterState.builder(ClusterName.DEFAULT).metadata(mb).build();
+            IndexMetadata migratedIndex = migratedState.metadata().index("indexWithFrozenDataAttribute");
+            assertThat(migratedIndex.getSettings().get(DATA_ROUTING_INCLUDE_SETTING), nullValue());
+            assertThat(migratedIndex.getSettings().get(TIER_PREFERENCE), is("data_frozen"));
         }
 
         {

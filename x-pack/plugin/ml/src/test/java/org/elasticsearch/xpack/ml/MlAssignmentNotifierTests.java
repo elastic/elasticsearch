@@ -6,12 +6,11 @@
  */
 package org.elasticsearch.xpack.ml;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -81,7 +80,7 @@ public class MlAssignmentNotifierTests extends ESTestCase {
             // set local node master
             .nodes(
                 DiscoveryNodes.builder()
-                    .add(new DiscoveryNode("_node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9300), Version.CURRENT))
+                    .add(DiscoveryNodeUtils.create("_node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9300)))
                     .localNodeId("_node_id")
                     .masterNodeId("_node_id")
             )
@@ -98,7 +97,7 @@ public class MlAssignmentNotifierTests extends ESTestCase {
             .metadata(metadata)
             .nodes(
                 DiscoveryNodes.builder()
-                    .add(new DiscoveryNode("_node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9300), Version.CURRENT))
+                    .add(DiscoveryNodeUtils.create("_node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9300)))
                     .localNodeId("_node_id")
             )
             .build();
@@ -124,7 +123,7 @@ public class MlAssignmentNotifierTests extends ESTestCase {
             // set local node master
             .nodes(
                 DiscoveryNodes.builder()
-                    .add(new DiscoveryNode("_node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9200), Version.CURRENT))
+                    .add(DiscoveryNodeUtils.create("_node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9200)))
                     .localNodeId("_node_id")
                     .masterNodeId("_node_id")
             )
@@ -138,7 +137,7 @@ public class MlAssignmentNotifierTests extends ESTestCase {
             // set local node master
             .nodes(
                 DiscoveryNodes.builder()
-                    .add(new DiscoveryNode("_node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9200), Version.CURRENT))
+                    .add(DiscoveryNodeUtils.create("_node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9200)))
                     .localNodeId("_node_id")
                     .masterNodeId("_node_id")
             )
@@ -157,7 +156,7 @@ public class MlAssignmentNotifierTests extends ESTestCase {
             .metadata(metadata)
             .nodes(
                 DiscoveryNodes.builder()
-                    .add(new DiscoveryNode("_node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9200), Version.CURRENT))
+                    .add(DiscoveryNodeUtils.create("_node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9200)))
                     .localNodeId("_node_id")
             )
             .build();
@@ -184,7 +183,7 @@ public class MlAssignmentNotifierTests extends ESTestCase {
             // set local node master
             .nodes(
                 DiscoveryNodes.builder()
-                    .add(new DiscoveryNode("_node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9200), Version.CURRENT))
+                    .add(DiscoveryNodeUtils.create("_node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9200)))
                     .localNodeId("_node_id")
                     .masterNodeId("_node_id")
             )
@@ -198,7 +197,7 @@ public class MlAssignmentNotifierTests extends ESTestCase {
             .metadata(metadata)
             .nodes(
                 DiscoveryNodes.builder()
-                    .add(new DiscoveryNode("_node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9200), Version.CURRENT))
+                    .add(DiscoveryNodeUtils.create("_node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9200)))
                     .localNodeId("_node_id")
             )
             .build();
@@ -221,7 +220,7 @@ public class MlAssignmentNotifierTests extends ESTestCase {
             // set local node master
             .nodes(
                 DiscoveryNodes.builder()
-                    .add(new DiscoveryNode("_node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9200), Version.CURRENT))
+                    .add(DiscoveryNodeUtils.create("_node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9200)))
                     .localNodeId("_node_id")
                     .masterNodeId("_node_id")
             )

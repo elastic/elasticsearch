@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -39,6 +40,7 @@ import java.util.Set;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
 import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -64,6 +66,30 @@ public class ClusterInfoSimulatorTests extends ESTestCase {
                     .withNode("node-0", new DiskUsageBuilder(1000, 1000))
                     .withNode("node-1", new DiskUsageBuilder(1000, 1000))
                     .withShard(newPrimary, 0)
+                    .build()
+            )
+        );
+    }
+
+    public void testInitializeNewPrimaryWithKnownExpectedSize() {
+
+        var newPrimary = newShardRouting("index-1", 0, null, true, UNASSIGNED).initialize("node-0", null, 100);
+
+        var simulator = new ClusterInfoSimulator(
+            new ClusterInfoTestBuilder() //
+                .withNode("node-0", new DiskUsageBuilder(1000, 1000))
+                .withNode("node-1", new DiskUsageBuilder(1000, 1000))
+                .build()
+        );
+        simulator.simulateShardStarted(newPrimary);
+
+        assertThat(
+            simulator.getClusterInfo(),
+            equalTo(
+                new ClusterInfoTestBuilder() //
+                    .withNode("node-0", new DiskUsageBuilder(1000, 900))
+                    .withNode("node-1", new DiskUsageBuilder(1000, 1000))
+                    .withShard(newPrimary, 100)
                     .build()
             )
         );
@@ -316,15 +342,7 @@ public class ClusterInfoSimulatorTests extends ESTestCase {
     }
 
     private static DiscoveryNode createDiscoveryNode(String id, Set<DiscoveryNodeRole> roles) {
-        return new DiscoveryNode(
-            id,
-            id,
-            UUIDs.randomBase64UUID(random()),
-            buildNewFakeTransportAddress(),
-            Map.of(),
-            roles,
-            Version.CURRENT
-        );
+        return DiscoveryNodeUtils.builder(id).name(id).externalId(UUIDs.randomBase64UUID(random())).roles(roles).build();
     }
 
     private static void addIndex(Metadata.Builder metadataBuilder, RoutingTable.Builder routingTableBuilder, ShardRouting shardRouting) {

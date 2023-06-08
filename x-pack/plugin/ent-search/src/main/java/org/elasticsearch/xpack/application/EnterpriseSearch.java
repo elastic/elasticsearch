@@ -37,7 +37,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xpack.application.analytics.AnalyticsIngestPipelineRegistry;
 import org.elasticsearch.xpack.application.analytics.AnalyticsTemplateRegistry;
 import org.elasticsearch.xpack.application.analytics.action.DeleteAnalyticsCollectionAction;
 import org.elasticsearch.xpack.application.analytics.action.GetAnalyticsCollectionAction;
@@ -141,16 +140,16 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
             return Collections.emptyList();
         }
         return List.of(
-            new RestGetSearchApplicationAction(),
-            new RestListSearchApplicationAction(),
-            new RestPutSearchApplicationAction(),
-            new RestDeleteSearchApplicationAction(),
-            new RestQuerySearchApplicationAction(),
+            new RestGetSearchApplicationAction(getLicenseState()),
+            new RestListSearchApplicationAction(getLicenseState()),
+            new RestPutSearchApplicationAction(getLicenseState()),
+            new RestDeleteSearchApplicationAction(getLicenseState()),
+            new RestQuerySearchApplicationAction(getLicenseState()),
             new RestPutAnalyticsCollectionAction(),
             new RestGetAnalyticsCollectionAction(),
             new RestDeleteAnalyticsCollectionAction(),
             new RestPostAnalyticsEventAction(),
-            new RestRenderSearchApplicationQueryAction()
+            new RestRenderSearchApplicationQueryAction(getLicenseState())
         );
     }
 
@@ -183,13 +182,7 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
         );
         analyticsTemplateRegistry.initialize();
 
-        final AnalyticsIngestPipelineRegistry analyticsPipelineRegistry = new AnalyticsIngestPipelineRegistry(
-            clusterService,
-            threadPool,
-            client
-        );
-
-        return Arrays.asList(analyticsTemplateRegistry, analyticsPipelineRegistry);
+        return Arrays.asList(analyticsTemplateRegistry);
     }
 
     @Override

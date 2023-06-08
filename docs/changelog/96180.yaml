@@ -1,0 +1,6 @@
+pr: 96180
+summary: Prevent instantiation of `top_metrics` when sub-aggregations are present
+area: Search
+type: bug
+issues:
+  - 95663

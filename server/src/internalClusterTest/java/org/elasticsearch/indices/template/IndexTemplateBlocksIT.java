@@ -24,9 +24,7 @@ import static org.hamcrest.Matchers.hasSize;
 public class IndexTemplateBlocksIT extends ESIntegTestCase {
     public void testIndexTemplatesWithBlocks() throws IOException {
         // creates a simple index template
-        client().admin()
-            .indices()
-            .preparePutTemplate("template_blocks")
+        indicesAdmin().preparePutTemplate("template_blocks")
             .setPatterns(Collections.singletonList("te*"))
             .setOrder(0)
             .setMapping(
@@ -56,9 +54,7 @@ public class IndexTemplateBlocksIT extends ESIntegTestCase {
             assertThat(response.getIndexTemplates(), hasSize(1));
 
             assertBlocked(
-                client().admin()
-                    .indices()
-                    .preparePutTemplate("template_blocks_2")
+                indicesAdmin().preparePutTemplate("template_blocks_2")
                     .setPatterns(Collections.singletonList("block*"))
                     .setOrder(0)
                     .addAlias(new Alias("alias_1"))

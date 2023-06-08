@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.AssociatedIndexDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.indices.SystemIndexDescriptorUtils;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.rest.RestStatus;
@@ -566,14 +567,7 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         // And make sure they both have aliases
         final String systemIndexAlias = SystemIndexTestPlugin.SYSTEM_INDEX_NAME + "-alias";
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareAliases()
-                .addAlias(systemIndexName, systemIndexAlias)
-                .addAlias(regularIndex, regularAlias)
-                .get()
-        );
+        assertAcked(indicesAdmin().prepareAliases().addAlias(systemIndexName, systemIndexAlias).addAlias(regularIndex, regularAlias).get());
 
         // run a snapshot including global state
         CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(REPO_NAME, "test-snap")
@@ -708,11 +702,7 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         // Stop a random data node so we lose a shard from the partial index
         internalCluster().stopRandomDataNode();
-        assertBusy(
-            () -> assertEquals(ClusterHealthStatus.RED, client().admin().cluster().prepareHealth().get().getStatus()),
-            30,
-            TimeUnit.SECONDS
-        );
+        assertBusy(() -> assertEquals(ClusterHealthStatus.RED, clusterAdmin().prepareHealth().get().getStatus()), 30, TimeUnit.SECONDS);
 
         // Get ready to block
         blockMasterFromFinalizingSnapshotOnIndexFile(REPO_NAME);
@@ -825,7 +815,9 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         @Override
         public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-            return Collections.singletonList(new SystemIndexDescriptor(SYSTEM_INDEX_NAME + "*", "System indices for tests"));
+            return Collections.singletonList(
+                SystemIndexDescriptorUtils.createUnmanaged(SYSTEM_INDEX_NAME + "*", "System indices for tests")
+            );
         }
 
         @Override
@@ -845,7 +837,9 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         @Override
         public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-            return Collections.singletonList(new SystemIndexDescriptor(SYSTEM_INDEX_NAME + "*", "System indices for tests"));
+            return Collections.singletonList(
+                SystemIndexDescriptorUtils.createUnmanaged(SYSTEM_INDEX_NAME + "*", "System indices for tests")
+            );
         }
 
         @Override
@@ -866,7 +860,9 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         @Override
         public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-            return Collections.singletonList(new SystemIndexDescriptor(SYSTEM_INDEX_NAME + "*", "System & associated indices for tests"));
+            return Collections.singletonList(
+                SystemIndexDescriptorUtils.createUnmanaged(SYSTEM_INDEX_NAME + "*", "System & associated indices for tests")
+            );
         }
 
         @Override

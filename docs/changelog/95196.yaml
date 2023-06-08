@@ -1,5 +1,0 @@
-pr: 95196
-summary: Add logging for debug to Watcher webhook service
-area: Watcher
-type: bug
-issues: []

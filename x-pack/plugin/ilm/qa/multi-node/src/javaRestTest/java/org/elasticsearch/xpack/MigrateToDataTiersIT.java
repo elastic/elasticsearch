@@ -306,7 +306,7 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
         String composableTemplate = "no_need_to_migrate_composable_template";
         {
             Request composableTemplateRequest = new Request("PUT", "/_index_template/" + composableTemplate);
-            Settings indexSettings = Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0).build();
+            Settings indexSettings = indexSettings(1, 0).build();
             composableTemplateRequest.setJsonEntity(
                 "{\"index_patterns\":  [\"1notreallyimportant-*\"], \"template\":{\"settings\":  " + Strings.toString(indexSettings) + "}}"
             );

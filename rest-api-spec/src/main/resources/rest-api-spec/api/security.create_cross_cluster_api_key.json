@@ -1,0 +1,34 @@
+{
+  "security.create_cross_cluster_api_key": {
+    "documentation": {
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-create-cross-cluster-api-key.html",
+      "description": "Creates a cross-cluster API key for API key based remote cluster access."
+    },
+    "stability": "experimental",
+    "visibility": "feature_flag",
+    "feature_flag": "es.untrusted_remote_cluster_feature_flag_registered",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_security/cross_cluster/api_key",
+          "methods": [
+            "POST"
+          ]
+        }
+      ]
+    },
+    "params": {},
+    "body": {
+      "description": "The request to create a cross-cluster API key",
+      "required": true
+    }
+  }
+}

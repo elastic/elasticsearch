@@ -27,10 +27,8 @@ import java.util.stream.Collectors;
  */
 public class DeprecationChecks {
 
-    public static final Setting<List<String>> SKIP_DEPRECATIONS_SETTING = Setting.listSetting(
+    public static final Setting<List<String>> SKIP_DEPRECATIONS_SETTING = Setting.stringListSetting(
         "deprecation.skip_deprecated_settings",
-        Collections.emptyList(),
-        Function.identity(),
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );

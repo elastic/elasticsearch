@@ -106,9 +106,7 @@ public class SimpleSearchIT extends ESIntegTestCase {
     public void testSimpleIp() throws Exception {
         createIndex("test");
 
-        client().admin()
-            .indices()
-            .preparePutMapping("test")
+        indicesAdmin().preparePutMapping("test")
             .setSource(
                 XContentFactory.jsonBuilder()
                     .startObject()
@@ -138,9 +136,7 @@ public class SimpleSearchIT extends ESIntegTestCase {
     public void testIpCidr() throws Exception {
         createIndex("test");
 
-        client().admin()
-            .indices()
-            .preparePutMapping("test")
+        indicesAdmin().preparePutMapping("test")
             .setSource(
                 XContentFactory.jsonBuilder()
                     .startObject()

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.rest;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -24,6 +25,7 @@ import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.http.HttpHeadersValidationException;
 import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.http.HttpResponse;
@@ -86,6 +88,7 @@ public class RestControllerTests extends ESTestCase {
     private UsageService usageService;
     private NodeClient client;
     private Tracer tracer;
+    private List<RestRequest.Method> methodList;
 
     @Before
     public void setup() {
@@ -117,6 +120,7 @@ public class RestControllerTests extends ESTestCase {
             (request, channel, client) -> { throw new IllegalArgumentException("test error"); }
         );
         httpServerTransport.start();
+        methodList = Arrays.stream(RestRequest.Method.values()).filter(m -> m != OPTIONS).toList();
     }
 
     @After
@@ -205,7 +209,7 @@ public class RestControllerTests extends ESTestCase {
     public void testRegisterAsDeprecatedHandler() {
         RestController controller = mock(RestController.class);
 
-        RestRequest.Method method = randomFrom(RestRequest.Method.values());
+        RestRequest.Method method = randomFrom(methodList);
         String path = "/_" + randomAlphaOfLengthBetween(1, 6);
         RestHandler handler = (request, channel, client) -> {};
         String deprecationMessage = randomAlphaOfLengthBetween(1, 10);
@@ -226,10 +230,10 @@ public class RestControllerTests extends ESTestCase {
     public void testRegisterAsReplacedHandler() {
         final RestController controller = mock(RestController.class);
 
-        final RestRequest.Method method = randomFrom(RestRequest.Method.values());
+        final RestRequest.Method method = randomFrom(methodList);
         final String path = "/_" + randomAlphaOfLengthBetween(1, 6);
         final RestHandler handler = (request, channel, client) -> {};
-        final RestRequest.Method replacedMethod = randomFrom(RestRequest.Method.values());
+        final RestRequest.Method replacedMethod = randomFrom(methodList);
         final String replacedPath = "/_" + randomAlphaOfLengthBetween(1, 6);
         final RestApiVersion current = RestApiVersion.current();
         final RestApiVersion previous = RestApiVersion.previous();
@@ -259,8 +263,8 @@ public class RestControllerTests extends ESTestCase {
     public void testRegisterSecondMethodWithDifferentNamedWildcard() {
         final RestController restController = new RestController(null, null, circuitBreakerService, usageService, tracer, false);
 
-        RestRequest.Method firstMethod = randomFrom(RestRequest.Method.values());
-        RestRequest.Method secondMethod = randomFrom(Arrays.stream(RestRequest.Method.values()).filter(m -> m != firstMethod).toList());
+        RestRequest.Method firstMethod = randomFrom(methodList);
+        RestRequest.Method secondMethod = randomFrom(methodList.stream().filter(m -> m != firstMethod).toList());
 
         final String path = "/_" + randomAlphaOfLengthBetween(1, 6);
 
@@ -580,7 +584,7 @@ public class RestControllerTests extends ESTestCase {
     }
 
     public void testDoesNotConsumeContent() throws Exception {
-        final RestRequest.Method method = randomFrom(RestRequest.Method.values());
+        final RestRequest.Method method = randomFrom(methodList);
         restController.registerHandler(new Route(method, "/notconsumed"), new RestHandler() {
             @Override
             public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
@@ -618,6 +622,26 @@ public class RestControllerTests extends ESTestCase {
         restController.dispatchBadRequest(channel, client.threadPool().getThreadContext(), null);
         assertTrue(channel.getSendResponseCalled());
         assertThat(channel.getRestResponse().content().utf8ToString(), containsString("unknown cause"));
+    }
+
+    public void testDispatchBadRequestWithValidationException() {
+        final RestStatus status = randomFrom(RestStatus.values());
+        final Exception exception = new ElasticsearchStatusException("bad bad exception", status);
+        final FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).build();
+
+        // it's always a 400 bad request when dispatching "regular" {@code ElasticsearchException}
+        AssertingChannel channel = new AssertingChannel(fakeRestRequest, true, RestStatus.BAD_REQUEST);
+        assertFalse(channel.getSendResponseCalled());
+        restController.dispatchBadRequest(channel, client.threadPool().getThreadContext(), exception);
+        assertTrue(channel.getSendResponseCalled());
+        assertThat(channel.getRestResponse().content().utf8ToString(), containsString("bad bad exception"));
+
+        // but {@code HttpHeadersValidationException} do carry over the rest response code
+        channel = new AssertingChannel(fakeRestRequest, true, status);
+        assertFalse(channel.getSendResponseCalled());
+        restController.dispatchBadRequest(channel, client.threadPool().getThreadContext(), new HttpHeadersValidationException(exception));
+        assertTrue(channel.getSendResponseCalled());
+        assertThat(channel.getRestResponse().content().utf8ToString(), containsString("bad bad exception"));
     }
 
     public void testFavicon() {
@@ -873,7 +897,7 @@ public class RestControllerTests extends ESTestCase {
         for (String path : RestController.RESERVED_PATHS) {
             IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> {
                 restController.registerHandler(
-                    new Route(randomFrom(RestRequest.Method.values()), path),
+                    new Route(randomFrom(methodList), path),
                     (request, channel, client) -> channel.sendResponse(
                         new RestResponse(RestStatus.OK, RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY)
                     )

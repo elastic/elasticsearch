@@ -154,9 +154,7 @@ public class ReplicaShardAllocatorSyncIdIT extends ESIntegTestCase {
             Settings.builder().put(CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
         );
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate(indexName)
+            indicesAdmin().prepareCreate(indexName)
                 .setSettings(
                     indexSettings(1, 1)
                         // expire PRRLs quickly
@@ -222,9 +220,7 @@ public class ReplicaShardAllocatorSyncIdIT extends ESIntegTestCase {
         internalCluster().ensureAtLeastNumDataNodes(numOfReplicas + 2);
         String indexName = "test";
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate(indexName)
+            indicesAdmin().prepareCreate(indexName)
                 .setSettings(
                     indexSettings(1, numOfReplicas).put(
                         IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(),

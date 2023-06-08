@@ -1,8 +1,282 @@
 [[semantic-search-elser]]
-== Perform semantic search with ELSER
+== Tutorial: semantic search with ELSER
 ++++
 <titleabbrev>Semantic search with ELSER</titleabbrev>
 ++++
 
-:keywords: {ml-init}, {stack}, {nlp}, ELSER
-:description: ELSER is a learned sparse ranking model trained by Elastic.
+Elastic Learned Sparse EncodeR - or ELSER - is an NLP model trained by Elastic 
+that enables you to perform semantic search by using sparse vector 
+representation. Instead of literal matching on search terms, semantic search 
+retrieves results based on the intent and the contextual meaning of a search 
+query.
+
+The instructions in this tutorial shows you how to use ELSER to perform semantic 
+search on your data.
+
+NOTE: Only the first 512 extracted tokens per field are considered during 
+semantic search with ELSER v1. Refer to 
+{ml-docs}/ml-nlp-limitations.html#ml-nlp-elser-v1-limit-512[this page] for more 
+information.
+
+
+[discrete]
+[[requirements]]
+=== Requirements
+
+To perform semantic search by using ELSER, you must have the NLP model deployed 
+in your cluster. Refer to the 
+{ml-docs}/ml-nlp-elser.html[ELSER documentation] to learn how to download and 
+deploy the model.
+
+
+[discrete]
+[[elser-mappings]]
+=== Create the index mapping
+
+First, the mapping of the destination index - the index that contains the tokens 
+that the model created based on your text - must be created.  The destination 
+index must have a field with the <<rank-features, `rank_features`>> field type 
+to index the ELSER output.
+
+[source,console]
+----
+PUT my-index
+{
+  "mappings": {
+    "properties": {
+      "ml.tokens": {
+        "type": "rank_features" <1>
+      },
+      "text_field": {
+        "type": "text" <2>
+      }
+    }
+  }
+}
+----
+// TEST[skip:TBD]
+<1> The field that contains the prediction is a `rank_features` field.
+<2> The text field from which to create the sparse vector representation.
+
+
+[discrete]
+[[inference-ingest-pipeline]]
+=== Create an ingest pipeline with an inference processor
+
+Create an <<ingest,ingest pipeline>> with an 
+<<inference-processor,{infer} processor>> to use ELSER to infer against the data 
+that is being ingested in the pipeline.
+
+[source,console]
+----
+PUT _ingest/pipeline/elser-v1-test
+{
+  "processors": [
+    {
+      "inference": {
+        "model_id": ".elser_model_1",
+        "target_field": "ml",
+        "field_map": {
+          "text": "text_field"
+        },
+        "inference_config": {
+          "text_expansion": { <1>
+            "results_field": "tokens"
+          }
+        }
+      }
+    }
+  ]
+}
+----
+// TEST[skip:TBD]
+<1> The `text_expansion` inference type needs to be used in the {infer} ingest 
+processor.
+
+
+[discrete]
+[[load-data]]
+=== Load data
+
+In this step, you load the data that you later use in the {infer} ingest 
+pipeline to extract tokens from it.
+
+Use the `msmarco-passagetest2019-top1000` data set, which is a subset of the MS 
+MACRO Passage Ranking data set. It consists of 200 queries, each accompanied by 
+a list of relevant text passages. All unique passages, along with their IDs, 
+have been extracted from that data set and compiled into a 
+https://github.com/elastic/stack-docs/blob/main/docs/en/stack/ml/nlp/data/msmarco-passagetest2019-unique.tsv[tsv file].
+
+Download the file and upload it to your cluster using the 
+{kibana-ref}/connect-to-elasticsearch.html#upload-data-kibana[Data Visualizer] 
+in the {ml-app} UI. Assign the name `id` to the first column and `text` to the 
+second column. The index name is `test-data`. Once the upload is complete, you 
+can see an index named `test-data` with 182469 documents.
+
+
+[discrete]
+[[reindexing-data-elser]]
+=== Ingest the data through the {infer} ingest pipeline
+
+Create the tokens from the text by reindexing the data throught the {infer} 
+pipeline that uses ELSER as the inference model.
+
+[source,console]
+----
+POST _reindex?wait_for_completion=false
+{
+  "source": {
+    "index": "test-data"
+  },
+  "dest": {
+    "index": "my-index",
+    "pipeline": "elser-v1-test"
+  }
+}
+----
+// TEST[skip:TBD]
+
+The call returns a task ID to monitor the progress:
+
+[source,console]
+----
+GET _tasks/<task_id>
+----
+// TEST[skip:TBD]
+
+You can also open the Trained Models UI, select the Pipelines tab under ELSER to 
+follow the progress. It may take a couple of minutes to complete the process.
+
+
+[discrete]
+[[text-expansion-query]]
+=== Semantic search by using the `text_expansion` query
+
+To perform semantic search, use the `text_expansion` query, 
+and provide the query text and the ELSER model ID. The example below uses 
+the query text "How to avoid muscle soreness after running?":
+
+[source,console]
+----
+GET my-index/_search
+{
+   "query":{
+      "text_expansion":{
+         "ml.tokens":{
+            "model_id":".elser_model_1",
+            "model_text":"How to avoid muscle soreness after running?"
+         }
+      }
+   }
+}
+----
+// TEST[skip:TBD]
+
+The result is the top 10 documents that are closest in meaning to your query 
+text from the `my-index` index sorted by their relevancy. The result also 
+contains the extracted tokens for each of the relevant search results with their 
+weights.
+
+[source,consol-result]
+----
+"hits":[
+   {
+      "_index":"my-index",
+      "_id":"978UAYgBKCQMet06sLEy",
+      "_score":18.612831,
+      "_ignored":[
+         "text.keyword"
+      ],
+      "_source":{
+         "id":7361587,
+         "text":"For example, if you go for a run, you will mostly use the muscles in your lower body. Give yourself 2 days to rest those muscles so they have a chance to heal before you exercise them again. Not giving your muscles enough time to rest can cause muscle damage, rather than muscle development.",
+         "ml":{
+            "tokens":{
+               "muscular":0.075696334,
+               "mostly":0.52380747,
+               "practice":0.23430172,
+               "rehab":0.3673556,
+               "cycling":0.13947526,
+               "your":0.35725075,
+               "years":0.69484913,
+               "soon":0.005317828,
+               "leg":0.41748235,
+               "fatigue":0.3157955,
+               "rehabilitation":0.13636169,
+               "muscles":1.302141,
+               "exercises":0.36694175,
+               (...)
+            },
+            "model_id":".elser_model_1"
+         }
+      }
+   },
+   (...)
+]
+----
+// NOTCONSOLE
+
+
+[discrete]
+[[text-expansion-compound-query]]
+=== Combining semantic search with other queries
+
+You can combine `text_expansion` with other queries in a 
+<<compound-queries,compound query>>. For example using a filter clause in a 
+<<query-dsl-bool-query>> or a full text query which may or may not use the same 
+query text as the `text_expansion` query. This enables you to combine the search 
+results from both queries.
+
+The search hits from the `text_expansion` query tend to score higher than other 
+{es} queries. Those scores can be regularized by increasing or decreasing the 
+relevance scores of each query by using the `boost` parameter. Recall on the 
+`text_expansion` query can be high where there is a long tail of less relevant 
+results. Use the `min_score` parameter to prune those less relevant documents.
+
+[source,console]
+----
+GET my-index/_search
+{
+  "query": {
+    "bool": { <1>
+      "should": [
+        {
+          "text_expansion": { 
+            "ml.token": {
+              "model_text": "How to avoid muscle soreness after running?",
+              "model_id": ".elser_model_1",
+              "boost": 1 <2>
+            }
+          }
+        },
+        {
+          "query_string": {
+            "query": "toxins",
+            "boost": 4 <3>
+          }
+        }
+      ]
+    }
+  },
+  "min_score": 10 <4>
+}
+----
+// TEST[skip:TBD]
+<1> Both the `text_expansion` and the `query_string` queries are in a `should` 
+clause of a `bool` query.
+<2> The `boost` value is `1` for the `text_expansion` query which is the default 
+value. This means that the relevance score of the results of this query are not 
+boosted.
+<3> The `boost` value is `4` for the `query_string` query. The relevance score 
+of the results of this query is increased causing them to rank higher in the 
+search results.
+<4> Only the results with a score equal to or higher than `10` are displayed.
+
+
+[discrete]
+[[further-reading]]
+=== Further reading
+
+* {ml-docs}/ml-nlp-elser.html[How to download and deploy ELSER]
+* {ml-docs}/ml-nlp-limitations.html#ml-nlp-elser-v1-limit-512[ELSER v1 limitation]
+// TO DO: refer to the ELSER blog post

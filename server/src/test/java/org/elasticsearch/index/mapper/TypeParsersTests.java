@@ -10,8 +10,11 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -71,6 +74,16 @@ public class TypeParsersTests extends ESTestCase {
         MapperService mapperService = mock(MapperService.class);
         IndexAnalyzers indexAnalyzers = IndexAnalyzers.of(defaultAnalyzers());
         when(mapperService.getIndexAnalyzers()).thenReturn(indexAnalyzers);
+
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .build();
+        IndexMetadata metadata = IndexMetadata.builder("test").settings(settings).build();
+        IndexSettings indexSettings = new IndexSettings(metadata, Settings.EMPTY);
+        when(mapperService.getIndexSettings()).thenReturn(indexSettings);
+
         Version olderVersion = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
         MappingParserContext olderContext = new MappingParserContext(
             null,

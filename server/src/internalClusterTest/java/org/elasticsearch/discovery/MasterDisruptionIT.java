@@ -225,14 +225,7 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
 
     public void testMappingTimeout() throws Exception {
         startCluster(3);
-        createIndex(
-            "test",
-            Settings.builder()
-                .put("index.number_of_shards", 1)
-                .put("index.number_of_replicas", 1)
-                .put("index.routing.allocation.exclude._name", internalCluster().getMasterName())
-                .build()
-        );
+        createIndex("test", indexSettings(1, 1).put("index.routing.allocation.exclude._name", internalCluster().getMasterName()).build());
 
         // create one field
         index("test", "1", "{ \"f\": 1 }");

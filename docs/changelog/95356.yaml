@@ -1,5 +1,0 @@
-pr: 95356
-summary: Fix NPE when the start time of the last successful snapshot run is unknown
-area: Health
-type: bug
-issues: []

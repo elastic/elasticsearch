@@ -20,6 +20,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.AssociatedIndexDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.indices.SystemIndexDescriptorUtils;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -76,7 +77,8 @@ public class FeatureStateResetApiIT extends ESIntegTestCase {
                 ResetFeatureStateResponse.ResetFeatureStateStatus.success("SystemIndexTestPlugin"),
                 ResetFeatureStateResponse.ResetFeatureStateStatus.success("SecondSystemIndexTestPlugin"),
                 ResetFeatureStateResponse.ResetFeatureStateStatus.success("EvilSystemIndexTestPlugin"),
-                ResetFeatureStateResponse.ResetFeatureStateStatus.success("tasks")
+                ResetFeatureStateResponse.ResetFeatureStateStatus.success("tasks"),
+                ResetFeatureStateResponse.ResetFeatureStateStatus.success("synonyms")
             )
         );
 
@@ -145,7 +147,7 @@ public class FeatureStateResetApiIT extends ESIntegTestCase {
 
         @Override
         public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-            return Collections.singletonList(new SystemIndexDescriptor(SYSTEM_INDEX_PATTERN, "System indices for tests"));
+            return Collections.singletonList(SystemIndexDescriptorUtils.createUnmanaged(SYSTEM_INDEX_PATTERN, "System indices for tests"));
         }
 
         @Override
@@ -173,7 +175,7 @@ public class FeatureStateResetApiIT extends ESIntegTestCase {
 
         @Override
         public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-            return Collections.singletonList(new SystemIndexDescriptor(SYSTEM_INDEX_PATTERN, "System indices for tests"));
+            return Collections.singletonList(SystemIndexDescriptorUtils.createUnmanaged(SYSTEM_INDEX_PATTERN, "System indices for tests"));
         }
 
         @Override

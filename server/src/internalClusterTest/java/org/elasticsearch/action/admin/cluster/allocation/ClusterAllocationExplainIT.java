@@ -156,9 +156,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         // wait till we have passed any pending shard data fetching
         assertEquals(
             AllocationDecision.ALLOCATION_DELAYED,
-            client().admin()
-                .cluster()
-                .prepareAllocationExplain()
+            clusterAdmin().prepareAllocationExplain()
                 .setIndex("idx")
                 .setShard(0)
                 .setPrimary(false)
@@ -1063,11 +1061,9 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
             indexData();
         } else {
             logger.info("--> close the index, now the replica is stale");
-            assertAcked(client().admin().indices().prepareClose("idx"));
+            assertAcked(admin().indices().prepareClose("idx"));
 
-            final ClusterHealthResponse clusterHealthResponse = client().admin()
-                .cluster()
-                .prepareHealth("idx")
+            final ClusterHealthResponse clusterHealthResponse = clusterAdmin().prepareHealth("idx")
                 .setTimeout(TimeValue.timeValueSeconds(30))
                 .setWaitForActiveShards(ActiveShardCount.ONE)
                 .setWaitForNoInitializingShards(true)
@@ -1085,9 +1081,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
 
         // wait until the system has fetched shard data and we know there is no valid shard copy
         assertBusy(() -> {
-            ClusterAllocationExplanation explanation = client().admin()
-                .cluster()
-                .prepareAllocationExplain()
+            ClusterAllocationExplanation explanation = clusterAdmin().prepareAllocationExplain()
                 .setIndex("idx")
                 .setShard(0)
                 .setPrimary(true)
@@ -1176,8 +1170,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
     private ClusterAllocationExplanation runExplain(boolean primary, String nodeId, boolean includeYesDecisions, boolean includeDiskInfo)
         throws Exception {
 
-        ClusterAllocationExplanation explanation = client().admin()
-            .cluster()
+        ClusterAllocationExplanation explanation = admin().cluster()
             .prepareAllocationExplain()
             .setIndex("idx")
             .setShard(0)
@@ -1210,8 +1203,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
 
         logger.info("--> creating a {} index with {} primary, {} replicas", state, numPrimaries, numReplicas);
         assertAcked(
-            client().admin()
-                .indices()
+            admin().indices()
                 .prepareCreate("idx")
                 .setSettings(indexSettings(numPrimaries, numReplicas).put(settings))
                 .setWaitForActiveShards(activeShardCount)
@@ -1222,11 +1214,9 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
             indexData();
         }
         if (state == IndexMetadata.State.CLOSE) {
-            assertAcked(client().admin().indices().prepareClose("idx"));
+            assertAcked(admin().indices().prepareClose("idx"));
 
-            final ClusterHealthResponse clusterHealthResponse = client().admin()
-                .cluster()
-                .prepareHealth("idx")
+            final ClusterHealthResponse clusterHealthResponse = clusterAdmin().prepareHealth("idx")
                 .setTimeout(TimeValue.timeValueSeconds(30))
                 .setWaitForActiveShards(activeShardCount)
                 .setWaitForEvents(Priority.LANGUID)
@@ -1247,13 +1237,13 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
     }
 
     private String primaryNodeName() {
-        ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
+        ClusterState clusterState = admin().cluster().prepareState().get().getState();
         String nodeId = clusterState.getRoutingTable().index("idx").shard(0).primaryShard().currentNodeId();
         return clusterState.getRoutingNodes().node(nodeId).node().getName();
     }
 
     private DiscoveryNode replicaNode() {
-        ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
+        ClusterState clusterState = admin().cluster().prepareState().get().getState();
         String nodeId = clusterState.getRoutingTable().index("idx").shard(0).replicaShards().get(0).currentNodeId();
         return clusterState.getRoutingNodes().node(nodeId).node();
     }

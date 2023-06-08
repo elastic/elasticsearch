@@ -13,6 +13,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
@@ -37,8 +38,8 @@ import static org.hamcrest.Matchers.hasToString;
 public class TransportServiceDeserializationFailureTests extends ESTestCase {
 
     public void testDeserializationFailureLogIdentifiesListener() {
-        final DiscoveryNode localNode = new DiscoveryNode("local", buildNewFakeTransportAddress(), Version.CURRENT);
-        final DiscoveryNode otherNode = new DiscoveryNode("other", buildNewFakeTransportAddress(), Version.CURRENT);
+        final DiscoveryNode localNode = DiscoveryNodeUtils.create("local");
+        final DiscoveryNode otherNode = DiscoveryNodeUtils.create("other");
 
         final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue();
 

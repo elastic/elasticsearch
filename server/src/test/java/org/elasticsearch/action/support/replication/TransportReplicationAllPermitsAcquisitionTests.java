@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -62,7 +63,6 @@ import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_CREATION_DATE;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUID;
@@ -113,8 +113,8 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
 
         final ClusterState.Builder state = ClusterState.builder(clusterService.state());
         Set<DiscoveryNodeRole> roles = new HashSet<>(DiscoveryNodeRole.roles());
-        DiscoveryNode node1 = new DiscoveryNode("_name1", "_node1", buildNewFakeTransportAddress(), emptyMap(), roles, Version.CURRENT);
-        DiscoveryNode node2 = new DiscoveryNode("_name2", "_node2", buildNewFakeTransportAddress(), emptyMap(), roles, Version.CURRENT);
+        DiscoveryNode node1 = DiscoveryNodeUtils.builder("_node1").name("_name1").roles(roles).build();
+        DiscoveryNode node2 = DiscoveryNodeUtils.builder("_node2").name("_name2").roles(roles).build();
         state.nodes(DiscoveryNodes.builder().add(node1).add(node2).localNodeId(node1.getId()).masterNodeId(node1.getId()));
 
         shardId = new ShardId("index", UUID.randomUUID().toString(), 0);

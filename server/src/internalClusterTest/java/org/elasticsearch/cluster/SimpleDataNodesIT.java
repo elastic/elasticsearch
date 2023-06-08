@@ -46,9 +46,7 @@ public class SimpleDataNodesIT extends ESIntegTestCase {
 
         internalCluster().startNode(nonDataNode());
         assertThat(
-            client().admin()
-                .cluster()
-                .prepareHealth()
+            clusterAdmin().prepareHealth()
                 .setWaitForEvents(Priority.LANGUID)
                 .setWaitForNodes("2")
                 .setLocal(true)
@@ -69,9 +67,7 @@ public class SimpleDataNodesIT extends ESIntegTestCase {
         // now, start a node data, and see that it gets with shards
         internalCluster().startNode(dataNode());
         assertThat(
-            client().admin()
-                .cluster()
-                .prepareHealth()
+            clusterAdmin().prepareHealth()
                 .setWaitForEvents(Priority.LANGUID)
                 .setWaitForNodes("3")
                 .setLocal(true)
@@ -87,16 +83,11 @@ public class SimpleDataNodesIT extends ESIntegTestCase {
 
     public void testShardsAllocatedAfterDataNodesStart() {
         internalCluster().startNode(nonDataNode());
-        client().admin()
-            .indices()
-            .create(
-                new CreateIndexRequest("test").settings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0))
-                    .waitForActiveShards(ActiveShardCount.NONE)
-            )
-            .actionGet();
-        final ClusterHealthResponse healthResponse1 = client().admin()
-            .cluster()
-            .prepareHealth()
+        indicesAdmin().create(
+            new CreateIndexRequest("test").settings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0))
+                .waitForActiveShards(ActiveShardCount.NONE)
+        ).actionGet();
+        final ClusterHealthResponse healthResponse1 = clusterAdmin().prepareHealth()
             .setWaitForEvents(Priority.LANGUID)
             .execute()
             .actionGet();
@@ -107,9 +98,7 @@ public class SimpleDataNodesIT extends ESIntegTestCase {
         internalCluster().startNode(dataNode());
 
         assertThat(
-            client().admin()
-                .cluster()
-                .prepareHealth()
+            clusterAdmin().prepareHealth()
                 .setWaitForEvents(Priority.LANGUID)
                 .setWaitForNodes("2")
                 .setWaitForGreenStatus()
@@ -122,16 +111,11 @@ public class SimpleDataNodesIT extends ESIntegTestCase {
 
     public void testAutoExpandReplicasAdjustedWhenDataNodeJoins() {
         internalCluster().startNode(nonDataNode());
-        client().admin()
-            .indices()
-            .create(
-                new CreateIndexRequest("test").settings(Settings.builder().put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-all"))
-                    .waitForActiveShards(ActiveShardCount.NONE)
-            )
-            .actionGet();
-        final ClusterHealthResponse healthResponse1 = client().admin()
-            .cluster()
-            .prepareHealth()
+        indicesAdmin().create(
+            new CreateIndexRequest("test").settings(Settings.builder().put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-all"))
+                .waitForActiveShards(ActiveShardCount.NONE)
+        ).actionGet();
+        final ClusterHealthResponse healthResponse1 = clusterAdmin().prepareHealth()
             .setWaitForEvents(Priority.LANGUID)
             .execute()
             .actionGet();

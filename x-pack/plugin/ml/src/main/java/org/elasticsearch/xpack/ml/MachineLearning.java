@@ -1394,6 +1394,8 @@ public class MachineLearning extends Plugin
         actionHandlers.add(new ActionHandler<>(MlMemoryAction.INSTANCE, TransportMlMemoryAction.class));
         actionHandlers.add(new ActionHandler<>(SetUpgradeModeAction.INSTANCE, TransportSetUpgradeModeAction.class));
         actionHandlers.add(new ActionHandler<>(SetResetModeAction.INSTANCE, TransportSetResetModeAction.class));
+        // Included in this section as it's used by MlMemoryAction
+        actionHandlers.add(new ActionHandler<>(TrainedModelCacheInfoAction.INSTANCE, TransportTrainedModelCacheInfoAction.class));
         if (machineLearningExtension.get().isAnomalyDetectionEnabled()) {
             actionHandlers.add(new ActionHandler<>(GetJobsAction.INSTANCE, TransportGetJobsAction.class));
             actionHandlers.add(new ActionHandler<>(GetJobsStatsAction.INSTANCE, TransportGetJobsStatsAction.class));
@@ -1465,6 +1467,7 @@ public class MachineLearning extends Plugin
             );
             actionHandlers.add(new ActionHandler<>(InferModelAction.INSTANCE, TransportInternalInferModelAction.class));
             actionHandlers.add(new ActionHandler<>(InferModelAction.EXTERNAL_INSTANCE, TransportExternalInferModelAction.class));
+            actionHandlers.add(new ActionHandler<>(GetDeploymentStatsAction.INSTANCE, TransportGetDeploymentStatsAction.class));
             if (machineLearningExtension.get().isDataFrameAnalyticsEnabled()) {
                 actionHandlers.add(new ActionHandler<>(GetDataFrameAnalyticsAction.INSTANCE, TransportGetDataFrameAnalyticsAction.class));
                 actionHandlers.add(
@@ -1485,7 +1488,6 @@ public class MachineLearning extends Plugin
                 actionHandlers.add(
                     new ActionHandler<>(ExplainDataFrameAnalyticsAction.INSTANCE, TransportExplainDataFrameAnalyticsAction.class)
                 );
-                actionHandlers.add(new ActionHandler<>(TrainedModelCacheInfoAction.INSTANCE, TransportTrainedModelCacheInfoAction.class));
                 actionHandlers.add(
                     new ActionHandler<>(PreviewDataFrameAnalyticsAction.INSTANCE, TransportPreviewDataFrameAnalyticsAction.class)
                 );
@@ -1507,7 +1509,6 @@ public class MachineLearning extends Plugin
                     new ActionHandler<>(PutTrainedModelVocabularyAction.INSTANCE, TransportPutTrainedModelVocabularyAction.class)
                 );
                 actionHandlers.add(new ActionHandler<>(ClearDeploymentCacheAction.INSTANCE, TransportClearDeploymentCacheAction.class));
-                actionHandlers.add(new ActionHandler<>(GetDeploymentStatsAction.INSTANCE, TransportGetDeploymentStatsAction.class));
                 actionHandlers.add(
                     new ActionHandler<>(CreateTrainedModelAssignmentAction.INSTANCE, TransportCreateTrainedModelAssignmentAction.class)
                 );
@@ -2065,7 +2066,10 @@ public class MachineLearning extends Plugin
         ActionListener<CloseJobAction.Response> afterAnomalyDetectionClosed = ActionListener.wrap(closeJobResponse -> {
             // Handle the response
             results.put("anomaly_detectors", closeJobResponse.isClosed());
-
+            if (machineLearningExtension.get().isDataFrameAnalyticsEnabled() == false) {
+                afterDataframesStopped.onResponse(new StopDataFrameAnalyticsAction.Response(true));
+                return;
+            }
             // Stop data frame analytics
             StopDataFrameAnalyticsAction.Request stopDataFramesReq = new StopDataFrameAnalyticsAction.Request("_all").setAllowNoMatch(true);
             client.execute(
@@ -2085,7 +2089,10 @@ public class MachineLearning extends Plugin
         ActionListener<StopDatafeedAction.Response> afterDataFeedsStopped = ActionListener.wrap(datafeedResponse -> {
             // Handle the response
             results.put("datafeeds", datafeedResponse.isStopped());
-
+            if (machineLearningExtension.get().isAnomalyDetectionEnabled() == false) {
+                afterAnomalyDetectionClosed.onResponse(new CloseJobAction.Response(true));
+                return;
+            }
             CloseJobAction.Request closeJobsRequest = new CloseJobAction.Request().setAllowNoMatch(true).setJobId("_all");
             // First attempt to kill all anomaly jobs
             client.execute(
@@ -2112,6 +2119,10 @@ public class MachineLearning extends Plugin
         // Stop data feeds
         ActionListener<CancelJobModelSnapshotUpgradeAction.Response> cancelSnapshotUpgradesListener = ActionListener.wrap(
             cancelUpgradesResponse -> {
+                if (machineLearningExtension.get().isAnomalyDetectionEnabled() == false) {
+                    afterDataFeedsStopped.onResponse(new StopDatafeedAction.Response(true));
+                    return;
+                }
                 StopDatafeedAction.Request stopDatafeedsReq = new StopDatafeedAction.Request("_all").setAllowNoMatch(true);
                 client.execute(
                     StopDatafeedAction.INSTANCE,
@@ -2127,6 +2138,10 @@ public class MachineLearning extends Plugin
 
         // Cancel model snapshot upgrades
         ActionListener<AcknowledgedResponse> stopDeploymentsListener = ActionListener.wrap(acknowledgedResponse -> {
+            if (machineLearningExtension.get().isAnomalyDetectionEnabled() == false) {
+                cancelSnapshotUpgradesListener.onResponse(new CancelJobModelSnapshotUpgradeAction.Response(true));
+                return;
+            }
             CancelJobModelSnapshotUpgradeAction.Request cancelSnapshotUpgradesReq = new CancelJobModelSnapshotUpgradeAction.Request(
                 "_all",
                 "_all"
@@ -2136,7 +2151,7 @@ public class MachineLearning extends Plugin
 
         // Stop all model deployments
         ActionListener<AcknowledgedResponse> pipelineValidation = ActionListener.wrap(acknowledgedResponse -> {
-            if (trainedModelAllocationClusterServiceSetOnce.get() == null) {
+            if (trainedModelAllocationClusterServiceSetOnce.get() == null || machineLearningExtension.get().isNlpEnabled() == false) {
                 stopDeploymentsListener.onResponse(AcknowledgedResponse.TRUE);
                 return;
             }

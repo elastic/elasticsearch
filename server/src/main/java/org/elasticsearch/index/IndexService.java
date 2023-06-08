@@ -54,8 +54,8 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NodeMappingStats;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.SearchIndexNameMatcher;
-import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
+import org.elasticsearch.index.shard.GlobalCheckpointSyncer;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardClosedException;
@@ -148,8 +148,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final Supplier<Sort> indexSortSupplier;
     private final ValuesSourceRegistry valuesSourceRegistry;
 
-    private final ReplicationTracker.Factory replicationTrackerFactory;
-
     public IndexService(
         IndexSettings indexSettings,
         IndexCreationContext indexCreationContext,
@@ -181,8 +179,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         IndexStorePlugin.RecoveryStateFactory recoveryStateFactory,
         IndexStorePlugin.IndexFoldersDeletionListener indexFoldersDeletionListener,
         IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier,
-        Engine.IndexCommitListener indexCommitListener,
-        ReplicationTracker.Factory replicationTrackerFactory
+        Engine.IndexCommitListener indexCommitListener
     ) {
         super(indexSettings);
         this.allowExpensiveQueries = allowExpensiveQueries;
@@ -259,7 +256,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             this.globalCheckpointTask = new AsyncGlobalCheckpointTask(this);
             this.retentionLeaseSyncTask = new AsyncRetentionLeaseSyncTask(this);
         }
-        this.replicationTrackerFactory = replicationTrackerFactory;
         updateFsyncTaskIfNecessary();
     }
 
@@ -417,7 +413,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
 
     public synchronized IndexShard createShard(
         final ShardRouting routing,
-        final Consumer<ShardId> globalCheckpointSyncer,
+        final GlobalCheckpointSyncer globalCheckpointSyncer,
         final RetentionLeaseSyncer retentionLeaseSyncer
     ) throws IOException {
         Objects.requireNonNull(retentionLeaseSyncer);
@@ -525,13 +521,12 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 engineWarmer,
                 searchOperationListeners,
                 indexingOperationListeners,
-                () -> globalCheckpointSyncer.accept(shardId),
+                globalCheckpointSyncer,
                 retentionLeaseSyncer,
                 circuitBreakerService,
                 snapshotCommitSupplier,
                 System::nanoTime,
-                indexCommitListener,
-                replicationTrackerFactory
+                indexCommitListener
             );
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
             eventListener.afterIndexShardCreated(indexShard);

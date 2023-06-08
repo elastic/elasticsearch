@@ -92,6 +92,7 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegTestCase {
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/95987")
     public void testCreateAndRestoreSearchableSnapshot() throws Exception {
         final String fsRepoName = randomAlphaOfLength(10);
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
@@ -450,7 +451,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
             true,
             false,
             IntStream.range(0, nbDocs)
-                .mapToObj(i -> client().prepareIndex(indexName).setSource("foo", randomBoolean() ? "bar" : "baz"))
+                .mapToObj(i -> client().prepareIndex(indexName).setSource("foo", randomAlphaOfLength(1048)))
                 .collect(Collectors.toList())
         );
         refresh(indexName);
@@ -459,10 +460,13 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         final Settings.Builder repositorySettings = Settings.builder().put("location", randomRepoPath());
         final boolean useRateLimits = randomBoolean();
         if (useRateLimits) {
-            // we compute the min across all the max shard sizes by node in order to
+            // we compute the min across all the max shard (minimax) sizes by node in order to
             // trigger the rate limiter in all nodes. We could just use the min shard size
             // but that would make this test too slow.
-            long rateLimitInBytes = getMaxShardSizeByNodeInBytes(indexName).values().stream().min(Long::compareTo).get();
+            // Setting rate limit at a 90% of minimax value to increase probability to engage rate limiting mechanism
+            // which is defined in RateLimitingInputStream (see details in https://github.com/elastic/elasticsearch/pull/96444)
+            long minimax = getMaxShardSizeByNodeInBytes(indexName).values().stream().min(Long::compareTo).get();
+            long rateLimitInBytes = (long) (0.9 * minimax);
             repositorySettings.put("max_restore_bytes_per_sec", ByteSizeValue.ofBytes(rateLimitInBytes));
         } else {
             repositorySettings.put("max_restore_bytes_per_sec", ByteSizeValue.ZERO);

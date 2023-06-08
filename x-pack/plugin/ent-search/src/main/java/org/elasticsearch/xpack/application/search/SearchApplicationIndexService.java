@@ -33,6 +33,7 @@ import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
@@ -453,6 +454,8 @@ public class SearchApplicationIndexService {
             throw new ElasticsearchParseException("[" + SearchApplication.BINARY_CONTENT_FIELD.getPreferredName() + "] field is missing");
         } catch (IOException e) {
             throw new ElasticsearchParseException("Failed to parse: " + source.utf8ToString(), e);
+        } catch (ValidationException e) {
+            throw new ElasticsearchParseException("Invalid Search Application: " + source.utf8ToString(), e);
         }
     }
 

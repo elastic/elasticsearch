@@ -36,5 +36,5 @@ ccr_user_role:
       privileges: [ 'monitor', 'read', 'write', 'manage_follow_index' ]
   remote_indices:
     - names: [ 'leader-index', 'shared-*', 'metrics-*' ]
-      privileges: [ 'monitor', 'read' ]
+      privileges: [ 'cross_cluster_replication' ]
       clusters: [ "*" ]

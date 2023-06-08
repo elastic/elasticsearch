@@ -8,6 +8,12 @@ preview::[]
 
 Deletes the lifecycle from a set of data streams.
 
+[[delete-lifecycle-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `manage_dlm` index privilege or higher to
+use this API. For more information, see <<security-privileges>>.
+
 [[dlm-delete-lifecycle-request]]
 ==== {api-request-title}
 

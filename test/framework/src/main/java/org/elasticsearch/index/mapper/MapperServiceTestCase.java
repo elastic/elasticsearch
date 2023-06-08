@@ -58,7 +58,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.internal.SubSearchContext;
@@ -366,7 +365,6 @@ public abstract class MapperServiceTestCase extends ESTestCase {
     ) {
         return new AggregationContext() {
             private final CircuitBreaker breaker = mock(CircuitBreaker.class);
-            private final MultiBucketConsumer multiBucketConsumer = new MultiBucketConsumer(Integer.MAX_VALUE, breaker);
 
             @Override
             public IndexSearcher searcher() {
@@ -492,8 +490,13 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             }
 
             @Override
-            public MultiBucketConsumer multiBucketConsumer() {
-                return multiBucketConsumer;
+            public void removeReleasable(Aggregator aggregator) {
+                // TODO we'll have to handle this in the tests eventually
+            }
+
+            @Override
+            public int maxBuckets() {
+                return Integer.MAX_VALUE;
             }
 
             @Override

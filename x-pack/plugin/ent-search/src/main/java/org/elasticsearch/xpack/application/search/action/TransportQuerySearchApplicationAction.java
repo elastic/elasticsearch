@@ -12,28 +12,26 @@ import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xpack.application.search.SearchApplicationIndexService;
 import org.elasticsearch.xpack.application.search.SearchApplicationTemplateService;
 
-import java.io.IOException;
-
-public class TransportQuerySearchApplicationAction extends SearchApplicationTransportAction<
-    SearchApplicationSearchRequest,
-    SearchResponse> {
+public class TransportQuerySearchApplicationAction extends HandledTransportAction<SearchApplicationSearchRequest, SearchResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportQuerySearchApplicationAction.class);
-
+    protected final SearchApplicationIndexService systemIndexService;
     private final Client client;
 
     private final SearchApplicationTemplateService templateService;
@@ -46,38 +44,28 @@ public class TransportQuerySearchApplicationAction extends SearchApplicationTran
         ClusterService clusterService,
         NamedWriteableRegistry namedWriteableRegistry,
         BigArrays bigArrays,
-        XPackLicenseState licenseState,
         ScriptService scriptService,
         NamedXContentRegistry xContentRegistry
     ) {
-        super(
-            QuerySearchApplicationAction.NAME,
-            transportService,
-            actionFilters,
-            SearchApplicationSearchRequest::new,
-            client,
-            clusterService,
-            namedWriteableRegistry,
-            bigArrays,
-            licenseState
-        );
+        super(QuerySearchApplicationAction.NAME, transportService, actionFilters, SearchApplicationSearchRequest::new);
         this.client = client;
         this.templateService = new SearchApplicationTemplateService(scriptService, xContentRegistry);
+        this.systemIndexService = new SearchApplicationIndexService(client, clusterService, namedWriteableRegistry, bigArrays);
     }
 
     @Override
-    protected void doExecute(SearchApplicationSearchRequest request, ActionListener<SearchResponse> listener) {
+    protected void doExecute(Task task, SearchApplicationSearchRequest request, ActionListener<SearchResponse> listener) {
         systemIndexService.getSearchApplication(request.name(), listener.delegateFailure((l, searchApplication) -> {
             try {
                 SearchSourceBuilder sourceBuilder = templateService.renderQuery(searchApplication, request.queryParams());
-                SearchRequest searchRequest = new SearchRequest(searchApplication.indices()).source(sourceBuilder);
+                SearchRequest searchRequest = new SearchRequest(searchApplication.name()).source(sourceBuilder);
 
                 client.execute(
                     SearchAction.INSTANCE,
                     searchRequest,
                     listener.delegateFailure((l2, searchResponse) -> l2.onResponse(searchResponse))
                 );
-            } catch (IOException e) {
+            } catch (Exception e) {
                 l.onFailure(e);
             }
         }));

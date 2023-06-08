@@ -134,9 +134,7 @@ public class FieldUsageStatsIT extends ESIntegTestCase {
         // show that we also track stats in can_match
         assertEquals(
             2L * numShards,
-            client().admin()
-                .indices()
-                .prepareStats("test")
+            indicesAdmin().prepareStats("test")
                 .clear()
                 .setSearch(true)
                 .get()
@@ -164,9 +162,7 @@ public class FieldUsageStatsIT extends ESIntegTestCase {
         // to produce a valid search result with all the aggs etc., so we hit one of the two shards
         assertEquals(
             (2 * numShards) + 1,
-            client().admin()
-                .indices()
-                .prepareStats("test")
+            indicesAdmin().prepareStats("test")
                 .clear()
                 .setSearch(true)
                 .get()

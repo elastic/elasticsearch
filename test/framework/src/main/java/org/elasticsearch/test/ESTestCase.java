@@ -44,7 +44,9 @@ import org.elasticsearch.bootstrap.BootstrapForTesting;
 import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -796,6 +798,17 @@ public abstract class ESTestCase extends LuceneTestCase {
             bytes[i] = randomByte();
         }
         return bytes;
+    }
+
+    public static BytesReference randomBytesReference(int length) {
+        final var slices = new ArrayList<BytesReference>();
+        var remaining = length;
+        while (remaining > 0) {
+            final var sliceLen = between(1, remaining);
+            slices.add(new BytesArray(randomByteArrayOfLength(sliceLen)));
+            remaining -= sliceLen;
+        }
+        return CompositeBytesReference.of(slices.toArray(BytesReference[]::new));
     }
 
     public static short randomShort() {
@@ -1883,7 +1896,7 @@ public abstract class ESTestCase extends LuceneTestCase {
      * @param message an additional message or link with information on the fix
      */
     protected void skipTestWaitingForLuceneFix(org.apache.lucene.util.Version luceneVersionWithFix, String message) {
-        final boolean currentVersionHasFix = Version.CURRENT.luceneVersion.onOrAfter(luceneVersionWithFix);
+        final boolean currentVersionHasFix = Version.CURRENT.luceneVersion().onOrAfter(luceneVersionWithFix);
         assumeTrue("Skipping test as it is waiting on a Lucene fix: " + message, currentVersionHasFix);
         fail("Remove call of skipTestWaitingForLuceneFix in " + RandomizedTest.getContext().getTargetMethod());
     }
@@ -1988,5 +2001,10 @@ public abstract class ESTestCase extends LuceneTestCase {
             Thread.currentThread().interrupt();
             throw new AssertionError("unexpected", e);
         }
+    }
+
+    protected static boolean isTurkishLocale() {
+        return Locale.getDefault().getLanguage().equals(new Locale("tr").getLanguage())
+            || Locale.getDefault().getLanguage().equals(new Locale("az").getLanguage());
     }
 }

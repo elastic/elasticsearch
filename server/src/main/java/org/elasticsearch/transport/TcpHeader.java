@@ -68,7 +68,7 @@ public class TcpHeader {
         }
         output.writeLong(requestId);
         output.writeByte(status);
-        output.writeInt(version.id);
+        output.writeInt(version.id());
         if (version.onOrAfter(VERSION_WITH_HEADER_SIZE)) {
             assert variableHeaderSize != -1 : "Variable header size not set";
             output.writeInt(variableHeaderSize);

@@ -129,7 +129,7 @@ public class SearchStatsIT extends ESIntegTestCase {
         assertThat(indicesStats.getTotal().getSearch().getGroupStats().get("group1").getQueryTimeInMillis(), greaterThan(0L));
         assertThat(indicesStats.getTotal().getSearch().getGroupStats().get("group1").getFetchCount(), greaterThan(0L));
         assertThat(indicesStats.getTotal().getSearch().getGroupStats().get("group1").getFetchTimeInMillis(), greaterThan(0L));
-        NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats().get();
+        NodesStatsResponse nodeStats = clusterAdmin().prepareNodesStats().get();
 
         Set<String> nodeIdsWithIndex = nodeIdsWithIndex("test1", "test2");
         int num = 0;
@@ -150,7 +150,7 @@ public class SearchStatsIT extends ESIntegTestCase {
     }
 
     private Set<String> nodeIdsWithIndex(String... indices) {
-        ClusterState state = client().admin().cluster().prepareState().get().getState();
+        ClusterState state = clusterAdmin().prepareState().get().getState();
         GroupShardsIterator<ShardIterator> allAssignedShardsGrouped = state.routingTable().allAssignedShardsGrouped(indices, true);
         Set<String> nodes = new HashSet<>();
         for (ShardIterator shardIterator : allAssignedShardsGrouped) {
@@ -231,7 +231,7 @@ public class SearchStatsIT extends ESIntegTestCase {
     }
 
     protected int numAssignedShards(String... indices) {
-        ClusterState state = client().admin().cluster().prepareState().get().getState();
+        ClusterState state = clusterAdmin().prepareState().get().getState();
         GroupShardsIterator<?> allAssignedShardsGrouped = state.routingTable().allAssignedShardsGrouped(indices, true);
         return allAssignedShardsGrouped.size();
     }

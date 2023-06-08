@@ -12,13 +12,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.RequestValidators;
-import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryAction;
 import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryResponse;
@@ -110,6 +108,7 @@ import org.elasticsearch.cluster.metadata.MetadataDeleteIndexService;
 import org.elasticsearch.cluster.metadata.MetadataMappingService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.BatchedRerouteService;
 import org.elasticsearch.cluster.routing.RerouteService;
@@ -131,6 +130,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.env.Environment;
@@ -244,8 +244,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
         try {
             clearDisruptionsAndAwaitSync();
 
-            final StepListener<CleanupRepositoryResponse> cleanupResponse = new StepListener<>();
-            final StepListener<CreateSnapshotResponse> createSnapshotResponse = new StepListener<>();
+            final ListenableFuture<CleanupRepositoryResponse> cleanupResponse = new ListenableFuture<>();
+            final ListenableFuture<CreateSnapshotResponse> createSnapshotResponse = new ListenableFuture<>();
             // Create another snapshot and then clean up the repository to verify that the repository works correctly no matter the
             // failures seen during the previous test.
             client().admin()
@@ -290,7 +290,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             testClusterNodes.nodes.values().iterator().next().clusterService.state()
         );
 
-        final StepListener<CreateSnapshotResponse> createSnapshotResponseListener = new StepListener<>();
+        final ListenableFuture<CreateSnapshotResponse> createSnapshotResponseListener = new ListenableFuture<>();
 
         continueOrDie(createRepoAndIndex(repoName, index, shards), createIndexResponse -> {
             final Runnable afterIndexing = () -> client().admin()
@@ -305,7 +305,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 for (int i = 0; i < documents; ++i) {
                     bulkRequest.add(new IndexRequest(index).source(Collections.singletonMap("foo", "bar" + i)));
                 }
-                final StepListener<BulkResponse> bulkResponseStepListener = new StepListener<>();
+                final ListenableFuture<BulkResponse> bulkResponseStepListener = new ListenableFuture<>();
                 client().bulk(bulkRequest, bulkResponseStepListener);
                 continueOrDie(bulkResponseStepListener, bulkResponse -> {
                     assertFalse("Failures in bulk response: " + bulkResponse.buildFailureMessage(), bulkResponse.hasFailures());
@@ -315,14 +315,14 @@ public class SnapshotResiliencyTests extends ESTestCase {
             }
         });
 
-        final StepListener<AcknowledgedResponse> deleteIndexListener = new StepListener<>();
+        final ListenableFuture<AcknowledgedResponse> deleteIndexListener = new ListenableFuture<>();
 
         continueOrDie(
             createSnapshotResponseListener,
             createSnapshotResponse -> client().admin().indices().delete(new DeleteIndexRequest(index), deleteIndexListener)
         );
 
-        final StepListener<RestoreSnapshotResponse> restoreSnapshotResponseListener = new StepListener<>();
+        final ListenableFuture<RestoreSnapshotResponse> restoreSnapshotResponseListener = new ListenableFuture<>();
         continueOrDie(
             deleteIndexListener,
             ignored -> client().admin()
@@ -333,7 +333,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 )
         );
 
-        final StepListener<SearchResponse> searchResponseListener = new StepListener<>();
+        final ListenableFuture<SearchResponse> searchResponseListener = new ListenableFuture<>();
         continueOrDie(restoreSnapshotResponseListener, restoreSnapshotResponse -> {
             assertEquals(shards, restoreSnapshotResponse.getRestoreInfo().totalShards());
             client().search(
@@ -365,7 +365,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
     }
 
     private SnapshotInfo getSnapshotInfo(Repository repository, SnapshotId snapshotId) {
-        final StepListener<SnapshotInfo> listener = new StepListener<>();
+        final ListenableFuture<SnapshotInfo> listener = new ListenableFuture<>();
         repository.getSnapshotInfo(snapshotId, listener);
         deterministicTaskQueue.runAllRunnableTasks();
         return listener.result();
@@ -381,7 +381,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         final String index = "test";
         final int shards = randomIntBetween(1, 10);
 
-        final StepListener<CreateSnapshotResponse> createSnapshotResponseStepListener = new StepListener<>();
+        final ListenableFuture<CreateSnapshotResponse> createSnapshotResponseStepListener = new ListenableFuture<>();
 
         final boolean partial = randomBoolean();
         continueOrDie(createRepoAndIndex(repoName, index, shards), createIndexResponse -> {
@@ -400,7 +400,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
         final AtomicBoolean snapshotNeverStarted = new AtomicBoolean(false);
 
-        createSnapshotResponseStepListener.whenComplete(createSnapshotResponse -> {
+        createSnapshotResponseStepListener.addListener(ActionListener.wrap(createSnapshotResponse -> {
             for (int i = 0; i < randomIntBetween(0, dataNodes); ++i) {
                 scheduleNow(this::disconnectOrRestartDataNode);
             }
@@ -423,7 +423,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             } else {
                 throw new AssertionError(e);
             }
-        });
+        }));
 
         runUntil(() -> testClusterNodes.randomMasterNode().map(master -> {
             if (snapshotNeverStarted.get()) {
@@ -460,7 +460,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         final int shards = randomIntBetween(1, 10);
 
         final boolean waitForSnapshot = randomBoolean();
-        final StepListener<CreateSnapshotResponse> createSnapshotResponseStepListener = new StepListener<>();
+        final ListenableFuture<CreateSnapshotResponse> createSnapshotResponseStepListener = new ListenableFuture<>();
         continueOrDie(
             createRepoAndIndex(repoName, index, shards),
             createIndexResponse -> testClusterNodes.randomMasterNodeSafe().client.admin()
@@ -515,7 +515,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             testClusterNodes.nodes.values().iterator().next().clusterService.state()
         );
 
-        final StepListener<CreateSnapshotResponse> createSnapshotResponseStepListener = new StepListener<>();
+        final ListenableFuture<CreateSnapshotResponse> createSnapshotResponseStepListener = new ListenableFuture<>();
 
         continueOrDie(
             createRepoAndIndex(repoName, index, shards),
@@ -525,7 +525,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 .execute(createSnapshotResponseStepListener)
         );
 
-        final StepListener<AcknowledgedResponse> deleteSnapshotStepListener = new StepListener<>();
+        final ListenableFuture<AcknowledgedResponse> deleteSnapshotStepListener = new ListenableFuture<>();
 
         masterNode.clusterService.addListener(new ClusterStateListener() {
             @Override
@@ -537,7 +537,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             }
         });
 
-        final StepListener<CreateSnapshotResponse> createAnotherSnapshotResponseStepListener = new StepListener<>();
+        final ListenableFuture<CreateSnapshotResponse> createAnotherSnapshotResponseStepListener = new ListenableFuture<>();
 
         continueOrDie(
             deleteSnapshotStepListener,
@@ -580,7 +580,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             testClusterNodes.nodes.values().iterator().next().clusterService.state()
         );
 
-        final StepListener<CreateSnapshotResponse> createSnapshotResponseStepListener = new StepListener<>();
+        final ListenableFuture<CreateSnapshotResponse> createSnapshotResponseStepListener = new ListenableFuture<>();
 
         continueOrDie(
             createRepoAndIndex(repoName, index, shards),
@@ -591,7 +591,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 .execute(createSnapshotResponseStepListener)
         );
 
-        final StepListener<CreateSnapshotResponse> createOtherSnapshotResponseStepListener = new StepListener<>();
+        final ListenableFuture<CreateSnapshotResponse> createOtherSnapshotResponseStepListener = new ListenableFuture<>();
 
         continueOrDie(
             createSnapshotResponseStepListener,
@@ -601,7 +601,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 .execute(createOtherSnapshotResponseStepListener)
         );
 
-        final StepListener<AcknowledgedResponse> deleteSnapshotStepListener = new StepListener<>();
+        final ListenableFuture<AcknowledgedResponse> deleteSnapshotStepListener = new ListenableFuture<>();
 
         continueOrDie(
             createOtherSnapshotResponseStepListener,
@@ -611,7 +611,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 .execute(deleteSnapshotStepListener)
         );
 
-        final StepListener<CreateSnapshotResponse> createAnotherSnapshotResponseStepListener = new StepListener<>();
+        final ListenableFuture<CreateSnapshotResponse> createAnotherSnapshotResponseStepListener = new ListenableFuture<>();
 
         continueOrDie(deleteSnapshotStepListener, deleted -> {
             client().admin()
@@ -654,7 +654,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             testClusterNodes.nodes.values().iterator().next().clusterService.state()
         );
 
-        final StepListener<CreateSnapshotResponse> createSnapshotResponseStepListener = new StepListener<>();
+        final ListenableFuture<CreateSnapshotResponse> createSnapshotResponseStepListener = new ListenableFuture<>();
 
         continueOrDie(
             createRepoAndIndex(repoName, index, shards),
@@ -666,7 +666,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         );
 
         final int inProgressSnapshots = randomIntBetween(1, 5);
-        final StepListener<Collection<CreateSnapshotResponse>> createOtherSnapshotResponseStepListener = new StepListener<>();
+        final ListenableFuture<Collection<CreateSnapshotResponse>> createOtherSnapshotResponseStepListener = new ListenableFuture<>();
         final ActionListener<CreateSnapshotResponse> createSnapshotListener = new GroupedActionListener<>(
             inProgressSnapshots,
             createOtherSnapshotResponseStepListener
@@ -678,7 +678,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             }
         });
 
-        final StepListener<AcknowledgedResponse> deleteSnapshotStepListener = new StepListener<>();
+        final ListenableFuture<AcknowledgedResponse> deleteSnapshotStepListener = new ListenableFuture<>();
 
         continueOrDie(
             createOtherSnapshotResponseStepListener,
@@ -708,7 +708,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             testClusterNodes.nodes.values().iterator().next().clusterService.state()
         );
 
-        final StepListener<CreateSnapshotResponse> createSnapshotResponseStepListener = new StepListener<>();
+        final ListenableFuture<CreateSnapshotResponse> createSnapshotResponseStepListener = new ListenableFuture<>();
 
         final int documentsFirstSnapshot = randomIntBetween(0, 100);
 
@@ -727,7 +727,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
         final int documentsSecondSnapshot = randomIntBetween(0, 100);
 
-        final StepListener<CreateSnapshotResponse> createOtherSnapshotResponseStepListener = new StepListener<>();
+        final ListenableFuture<CreateSnapshotResponse> createOtherSnapshotResponseStepListener = new ListenableFuture<>();
 
         final String secondSnapshotName = "snapshot-2";
         continueOrDie(
@@ -743,8 +743,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
             )
         );
 
-        final StepListener<AcknowledgedResponse> deleteSnapshotStepListener = new StepListener<>();
-        final StepListener<RestoreSnapshotResponse> restoreSnapshotResponseListener = new StepListener<>();
+        final ListenableFuture<AcknowledgedResponse> deleteSnapshotStepListener = new ListenableFuture<>();
+        final ListenableFuture<RestoreSnapshotResponse> restoreSnapshotResponseListener = new ListenableFuture<>();
 
         continueOrDie(createOtherSnapshotResponseStepListener, createSnapshotResponse -> {
             scheduleNow(() -> client().admin().cluster().prepareDeleteSnapshot(repoName, snapshotName).execute(deleteSnapshotStepListener));
@@ -760,7 +760,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             );
         });
 
-        final StepListener<SearchResponse> searchResponseListener = new StepListener<>();
+        final ListenableFuture<SearchResponse> searchResponseListener = new ListenableFuture<>();
         continueOrDie(restoreSnapshotResponseListener, restoreSnapshotResponse -> {
             assertEquals(shards, restoreSnapshotResponse.getRestoreInfo().totalShards());
             client().search(
@@ -800,7 +800,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         for (int i = 0; i < documents; ++i) {
             bulkRequest.add(new IndexRequest(index).source(Collections.singletonMap("foo", "bar" + i)));
         }
-        final StepListener<BulkResponse> bulkResponseStepListener = new StepListener<>();
+        final ListenableFuture<BulkResponse> bulkResponseStepListener = new ListenableFuture<>();
         client().bulk(bulkRequest, bulkResponseStepListener);
         continueOrDie(bulkResponseStepListener, bulkResponse -> {
             assertFalse("Failures in bulk response: " + bulkResponse.buildFailureMessage(), bulkResponse.hasFailures());
@@ -820,7 +820,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             testClusterNodes.nodes.values().iterator().next().clusterService.state()
         );
 
-        final StepListener<Collection<CreateIndexResponse>> createIndicesListener = new StepListener<>();
+        final ListenableFuture<Collection<CreateIndexResponse>> createIndicesListener = new ListenableFuture<>();
         final int indices = randomIntBetween(5, 20);
 
         final SetOnce<Index> firstIndex = new SetOnce<>();
@@ -834,7 +834,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             }
         });
 
-        final StepListener<CreateSnapshotResponse> createSnapshotResponseStepListener = new StepListener<>();
+        final ListenableFuture<CreateSnapshotResponse> createSnapshotResponseStepListener = new ListenableFuture<>();
 
         final boolean partialSnapshot = randomBoolean();
 
@@ -911,7 +911,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             testClusterNodes.nodes.values().iterator().next().clusterService.state()
         );
 
-        final StepListener<CreateSnapshotResponse> createSnapshotResponseStepListener = new StepListener<>();
+        final ListenableFuture<CreateSnapshotResponse> createSnapshotResponseStepListener = new ListenableFuture<>();
 
         continueOrDie(
             createRepoAndIndex(repoName, index, shards),
@@ -922,12 +922,15 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 .execute(createSnapshotResponseStepListener)
         );
 
-        final Collection<StepListener<Boolean>> deleteSnapshotStepListeners = List.of(new StepListener<>(), new StepListener<>());
+        final Collection<ListenableFuture<Boolean>> deleteSnapshotStepListeners = List.of(
+            new ListenableFuture<>(),
+            new ListenableFuture<>()
+        );
 
         final AtomicInteger successfulDeletes = new AtomicInteger(0);
 
         continueOrDie(createSnapshotResponseStepListener, createSnapshotResponse -> {
-            for (StepListener<Boolean> deleteListener : deleteSnapshotStepListeners) {
+            for (ListenableFuture<Boolean> deleteListener : deleteSnapshotStepListeners) {
                 client().admin()
                     .cluster()
                     .prepareDeleteSnapshot(repoName, snapshotName)
@@ -943,7 +946,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             }
         });
 
-        for (StepListener<Boolean> deleteListener : deleteSnapshotStepListeners) {
+        for (ListenableFuture<Boolean> deleteListener : deleteSnapshotStepListeners) {
             continueOrDie(deleteListener, deleted -> {
                 if (deleted) {
                     successfulDeletes.incrementAndGet();
@@ -985,7 +988,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         final AtomicBoolean createdSnapshot = new AtomicBoolean();
         final AdminClient masterAdminClient = masterNode.client.admin();
 
-        final StepListener<ClusterStateResponse> clusterStateResponseStepListener = new StepListener<>();
+        final ListenableFuture<ClusterStateResponse> clusterStateResponseStepListener = new ListenableFuture<>();
 
         continueOrDie(
             createRepoAndIndex(repoName, index, shards),
@@ -1000,7 +1003,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             scheduleNow(new Runnable() {
                 @Override
                 public void run() {
-                    final StepListener<ClusterStateResponse> updatedClusterStateResponseStepListener = new StepListener<>();
+                    final ListenableFuture<ClusterStateResponse> updatedClusterStateResponseStepListener = new ListenableFuture<>();
                     masterAdminClient.cluster().state(new ClusterStateRequest(), updatedClusterStateResponseStepListener);
                     continueOrDie(updatedClusterStateResponseStepListener, updatedClusterState -> {
                         final ShardRouting shardRouting = updatedClusterState.getState()
@@ -1076,7 +1079,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             testClusterNodes.nodes.values().iterator().next().clusterService.state()
         );
 
-        final StepListener<CreateSnapshotResponse> createSnapshotResponseStepListener = new StepListener<>();
+        final ListenableFuture<CreateSnapshotResponse> createSnapshotResponseStepListener = new ListenableFuture<>();
 
         continueOrDie(createRepoAndIndex(repoName, index, shards), createIndexResponse -> {
             final AtomicBoolean initiatedSnapshot = new AtomicBoolean(false);
@@ -1101,7 +1104,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
         final String restoredIndex = "restored";
 
-        final StepListener<RestoreSnapshotResponse> restoreSnapshotResponseStepListener = new StepListener<>();
+        final ListenableFuture<RestoreSnapshotResponse> restoreSnapshotResponseStepListener = new ListenableFuture<>();
 
         continueOrDie(
             createSnapshotResponseStepListener,
@@ -1115,7 +1118,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 )
         );
 
-        final StepListener<SearchResponse> searchResponseStepListener = new StepListener<>();
+        final ListenableFuture<SearchResponse> searchResponseStepListener = new ListenableFuture<>();
 
         continueOrDie(restoreSnapshotResponseStepListener, restoreSnapshotResponse -> {
             assertEquals(shards, restoreSnapshotResponse.getRestoreInfo().totalShards());
@@ -1173,7 +1176,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             testClusterNodes.nodes.values().iterator().next().clusterService.state()
         );
 
-        final StepListener<Collection<CreateSnapshotResponse>> allSnapshotsListener = new StepListener<>();
+        final ListenableFuture<Collection<CreateSnapshotResponse>> allSnapshotsListener = new ListenableFuture<>();
         final ActionListener<CreateSnapshotResponse> snapshotListener = new GroupedActionListener<>(
             snapshotNames.size(),
             allSnapshotsListener
@@ -1193,7 +1196,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             for (int i = 0; i < documents; ++i) {
                 bulkRequest.add(new IndexRequest(index).source(Collections.singletonMap("foo", "bar" + i)));
             }
-            final StepListener<BulkResponse> bulkResponseStepListener = new StepListener<>();
+            final ListenableFuture<BulkResponse> bulkResponseStepListener = new ListenableFuture<>();
             client().bulk(bulkRequest, bulkResponseStepListener);
             continueOrDie(bulkResponseStepListener, bulkResponse -> {
                 assertFalse("Failures in bulk response: " + bulkResponse.buildFailureMessage(), bulkResponse.hasFailures());
@@ -1234,8 +1237,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
         return res.actionGet();
     }
 
-    private StepListener<CreateIndexResponse> createRepoAndIndex(String repoName, String index, int shards) {
-        final StepListener<AcknowledgedResponse> createRepositoryListener = new StepListener<>();
+    private ListenableFuture<CreateIndexResponse> createRepoAndIndex(String repoName, String index, int shards) {
+        final ListenableFuture<AcknowledgedResponse> createRepositoryListener = new ListenableFuture<>();
 
         client().admin()
             .cluster()
@@ -1244,7 +1247,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             .setSettings(Settings.builder().put("location", randomAlphaOfLength(10)))
             .execute(createRepositoryListener);
 
-        final StepListener<CreateIndexResponse> createIndexResponseStepListener = new StepListener<>();
+        final ListenableFuture<CreateIndexResponse> createIndexResponseStepListener = new ListenableFuture<>();
 
         continueOrDie(
             createRepositoryListener,
@@ -1373,8 +1376,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
             .build();
     }
 
-    private static <T> void continueOrDie(StepListener<T> listener, CheckedConsumer<T, Exception> onResponse) {
-        listener.whenComplete(onResponse, e -> { throw new AssertionError(e); });
+    private static <T> void continueOrDie(ListenableFuture<T> listener, CheckedConsumer<T, Exception> onResponse) {
+        listener.addListener(ActionListener.wrap(onResponse, e -> { throw new AssertionError(e); }));
     }
 
     public NodeClient client() {
@@ -1464,14 +1467,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
         private TestClusterNode newNode(String nodeName, DiscoveryNodeRole role) throws IOException {
             return new TestClusterNode(
-                new DiscoveryNode(
-                    nodeName,
-                    randomAlphaOfLength(10),
-                    buildNewFakeTransportAddress(),
-                    emptyMap(),
-                    Collections.singleton(role),
-                    Version.CURRENT
-                )
+                DiscoveryNodeUtils.builder(randomAlphaOfLength(10)).name(nodeName).roles(Collections.singleton(role)).build()
             );
         }
 
@@ -2150,7 +2146,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 scheduleSoon(() -> {
                     try {
                         final TestClusterNode restartedNode = new TestClusterNode(
-                            new DiscoveryNode(node.getName(), node.getId(), node.getAddress(), emptyMap(), node.getRoles(), Version.CURRENT)
+                            DiscoveryNodeUtils.create(node.getName(), node.getId(), node.getAddress(), emptyMap(), node.getRoles())
                         );
                         nodes.put(node.getName(), restartedNode);
                         restartedNode.start(oldState);

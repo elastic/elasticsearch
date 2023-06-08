@@ -1,0 +1,59 @@
+{
+  "template": {
+    "settings": {
+      "index": {
+        "number_of_shards": 16,
+        "number_of_replicas": 0,
+        "auto_expand_replicas": "0-1",
+        "refresh_interval": "10s",
+        "hidden": true,
+        "lifecycle.rollover_alias": "profiling-stackframes"
+      }
+    },
+    "mappings": {
+      /*
+      For the inline chain the profiling-stackframes index needs '_source' to be enabled.
+      Also, doc_values for the fields below are disabled to not store the values twice.
+      Using synthetic source reduces storage size by ~50% but requires "concatenation"
+      of arrays and adds latency when _source is reconstructed at query time.
+      This last point is why we don't want to use synthetic source right now.
+      */
+      "_source": {
+        "enabled": true
+      },
+      "properties": {
+        "ecs.version": {
+          "type": "keyword",
+          "index": true,
+          "doc_values": false,
+          "store": false
+        },
+        "Stackframe.line.number": {
+          "type": "integer",
+          "index": false,
+          "doc_values": false,
+          "store": false
+        },
+        "Stackframe.file.name": {
+          "type": "keyword",
+          "index": false,
+          "doc_values": false,
+          "store": false
+        },
+        "Stackframe.function.name": {
+          "type": "keyword",
+          "index": false,
+          "doc_values": false,
+          "store": false
+        },
+        "Stackframe.function.offset": {
+          "type": "integer",
+          "index": false,
+          "doc_values": false,
+          "store": false
+        }
+      }
+    }
+  },
+  "version": ${xpack.profiling.template.version}
+}

@@ -12,7 +12,6 @@ import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
@@ -161,7 +160,7 @@ public class NormalizeAggregatorTests extends AggregatorTestCase {
             MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType(VALUE_FIELD, NumberFieldMapper.NumberType.LONG);
             MappedFieldType termFieldType = new KeywordFieldMapper.KeywordFieldType(TERM_FIELD, false, true, Collections.emptyMap());
 
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
+            try (DirectoryReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = newIndexSearcher(indexReader);
                 InternalAggregation internalAggregation = searchAndReduce(
                     indexSearcher,

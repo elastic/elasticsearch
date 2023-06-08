@@ -29,7 +29,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -357,13 +357,7 @@ public class WatcherServiceTests extends ESTestCase {
     }
 
     private static DiscoveryNode newNode() {
-        return new DiscoveryNode(
-            "node",
-            ESTestCase.buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            DiscoveryNodeRole.roles(),
-            Version.CURRENT
-        );
+        return DiscoveryNodeUtils.create("node");
     }
 
     @SuppressWarnings("unchecked")

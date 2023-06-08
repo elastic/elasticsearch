@@ -82,6 +82,7 @@ import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.ShardSnapshotResult;
+import org.elasticsearch.repositories.SnapshotIndexCommit;
 import org.elasticsearch.repositories.SnapshotShardContext;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
@@ -627,7 +628,7 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
                             null,
                             snapshotId,
                             indexId,
-                            new Engine.IndexCommitRef(indexCommit, () -> {}),
+                            new SnapshotIndexCommit(new Engine.IndexCommitRef(indexCommit, () -> {})),
                             null,
                             snapshotStatus,
                             Version.CURRENT,
@@ -674,7 +675,7 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
                     )
                 ) {
                     final PlainActionFuture<Void> f = PlainActionFuture.newFuture();
-                    final boolean loaded = snapshotDirectory.loadSnapshot(recoveryState, f);
+                    final boolean loaded = snapshotDirectory.loadSnapshot(recoveryState, store::isClosing, f);
                     try {
                         f.get();
                     } catch (ExecutionException e) {
@@ -733,13 +734,13 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
                 randomFiles.add(
                     new BlobStoreIndexShardSnapshot.FileInfo(
                         blobName,
-                        new StoreFileMetadata(fileName, input.length, checksum, Version.CURRENT.luceneVersion.toString()),
+                        new StoreFileMetadata(fileName, input.length, checksum, Version.CURRENT.luceneVersion().toString()),
                         ByteSizeValue.ofBytes(input.length)
                     )
                 );
             }
 
-            final BlobStoreIndexShardSnapshot snapshot = new BlobStoreIndexShardSnapshot("_snapshot", 0L, randomFiles, 0L, 0L, 0, 0L);
+            final BlobStoreIndexShardSnapshot snapshot = new BlobStoreIndexShardSnapshot("_snapshot", randomFiles, 0L, 0L, 0, 0L);
             final BlobContainer blobContainer = new FsBlobContainer(
                 new FsBlobStore(randomIntBetween(1, 8) * 1024, shardSnapshotDir, true),
                 BlobPath.EMPTY,
@@ -779,7 +780,7 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
             ) {
                 final RecoveryState recoveryState = createRecoveryState(randomBoolean());
                 final PlainActionFuture<Void> f = PlainActionFuture.newFuture();
-                final boolean loaded = directory.loadSnapshot(recoveryState, f);
+                final boolean loaded = directory.loadSnapshot(recoveryState, () -> false, f);
                 f.get();
                 assertThat("Failed to load snapshot", loaded, is(true));
                 assertThat("Snapshot should be loaded", directory.snapshot(), sameInstance(snapshot));

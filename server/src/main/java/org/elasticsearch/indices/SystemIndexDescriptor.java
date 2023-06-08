@@ -174,67 +174,6 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
     private final ExecutorNames executorNames;
 
     /**
-     * Creates a descriptor for system indices matching the supplied pattern. These indices will not be managed
-     * by Elasticsearch internally.
-     * @param indexPattern The pattern of index names that this descriptor will be used for. Must start with a '.' character, must not
-     *                     overlap with any other descriptor patterns, and must allow a suffix (see note on
-     *                     {@link SystemIndexDescriptor#indexPattern} for details).
-     * @param description The name of the plugin responsible for this system index.
-     */
-    public SystemIndexDescriptor(String indexPattern, String description) {
-        this(
-            indexPattern,
-            null,
-            description,
-            null,
-            null,
-            null,
-            0,
-            null,
-            null,
-            Version.CURRENT.minimumCompatibilityVersion(),
-            Type.INTERNAL_UNMANAGED,
-            List.of(),
-            List.of(),
-            null,
-            false,
-            false
-        );
-    }
-
-    /**
-     * Creates a descriptor for system indices matching the supplied pattern. These indices will not be managed
-     * by Elasticsearch internally.
-     * @param indexPattern The pattern of index names that this descriptor will be used for. Must start with a '.' character, must not
-     *                            overlap with any other descriptor patterns, and must allow a suffix (see note on
-     *                            {@link SystemIndexDescriptor#indexPattern} for details).
-     * @param description The name of the plugin responsible for this system index.
-     * @param type The {@link Type} of system index
-     * @param allowedElasticProductOrigins A list of allowed origin values that should be allowed access in the case of external system
-     *                                     indices
-     */
-    public SystemIndexDescriptor(String indexPattern, String description, Type type, List<String> allowedElasticProductOrigins) {
-        this(
-            indexPattern,
-            null,
-            description,
-            null,
-            null,
-            null,
-            0,
-            null,
-            null,
-            Version.CURRENT.minimumCompatibilityVersion(),
-            type,
-            allowedElasticProductOrigins,
-            List.of(),
-            null,
-            false,
-            false
-        );
-    }
-
-    /**
      * Creates a descriptor for system indices matching the supplied pattern. These indices will be managed
      * by Elasticsearch internally if mappings or settings are provided.
      *
@@ -259,7 +198,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
      *                                    older versions of Elasticsearch
      * @param allowsTemplates if this system index descriptor allows templates to affect its settings (e.g. .kibana_ indices)
      */
-    SystemIndexDescriptor(
+    protected SystemIndexDescriptor(
         String indexPattern,
         String primaryIndex,
         String description,

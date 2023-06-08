@@ -54,13 +54,10 @@ import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
-import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
-import org.elasticsearch.xpack.core.security.user.CrossClusterAccessUser;
-import org.elasticsearch.xpack.core.security.user.SecurityProfileUser;
+import org.elasticsearch.xpack.core.security.user.InternalUser;
+import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
-import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
@@ -82,6 +79,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.cluster.metadata.DataLifecycle.DLM_ORIGIN;
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
@@ -184,7 +182,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         assertTrue(calledWrappedSender.get());
         assertEquals(user, sendingUser.get());
         assertEquals(user, securityContext.getUser());
-        verify(securityContext, never()).executeAsInternalUser(any(User.class), any(TransportVersion.class), anyConsumer());
+        verify(securityContext, never()).executeAsInternalUser(any(InternalUser.class), any(TransportVersion.class), anyConsumer());
     }
 
     public void testSendAsyncSwitchToSystem() throws Exception {
@@ -235,9 +233,9 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         sender.sendRequest(connection, "internal:foo", null, null, null);
         assertTrue(calledWrappedSender.get());
         assertNotEquals(user, sendingUser.get());
-        assertEquals(SystemUser.INSTANCE, sendingUser.get());
+        assertEquals(InternalUsers.SYSTEM_USER, sendingUser.get());
         assertEquals(user, securityContext.getUser());
-        verify(securityContext).executeAsInternalUser(any(User.class), eq(TransportVersion.CURRENT), anyConsumer());
+        verify(securityContext).executeAsInternalUser(any(InternalUser.class), eq(TransportVersion.CURRENT), anyConsumer());
     }
 
     public void testSendWithoutUser() throws Exception {
@@ -282,7 +280,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         );
         assertEquals("there should always be a user when sending a message for action [indices:foo]", e.getMessage());
         assertNull(securityContext.getUser());
-        verify(securityContext, never()).executeAsInternalUser(any(User.class), any(TransportVersion.class), anyConsumer());
+        verify(securityContext, never()).executeAsInternalUser(any(InternalUser.class), any(TransportVersion.class), anyConsumer());
     }
 
     public void testSendToNewerVersionSetsCorrectVersion() throws Exception {
@@ -341,7 +339,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             }
         };
         AsyncSender sender = interceptor.interceptSender(intercepted);
-        final TransportVersion connectionVersion = TransportVersion.fromId(Version.CURRENT.id + randomIntBetween(100, 100000));
+        final TransportVersion connectionVersion = TransportVersion.fromId(TransportVersion.CURRENT.id() + randomIntBetween(100, 100000));
         assertEquals(TransportVersion.CURRENT, TransportVersion.min(connectionVersion, TransportVersion.CURRENT));
 
         Transport.Connection connection = mock(Transport.Connection.class);
@@ -426,13 +424,15 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
     public void testSetUserBasedOnActionOrigin() {
         final Map<String, User> originToUserMap = Map.of(
             SECURITY_ORIGIN,
-            XPackSecurityUser.INSTANCE,
+            InternalUsers.XPACK_SECURITY_USER,
             SECURITY_PROFILE_ORIGIN,
-            SecurityProfileUser.INSTANCE,
+            InternalUsers.SECURITY_PROFILE_USER,
             TRANSFORM_ORIGIN,
-            XPackUser.INSTANCE,
+            InternalUsers.XPACK_USER,
             ASYNC_SEARCH_ORIGIN,
-            AsyncSearchUser.INSTANCE
+            InternalUsers.ASYNC_SEARCH_USER,
+            DLM_ORIGIN,
+            InternalUsers.DLM_USER
         );
 
         final String origin = randomFrom(originToUserMap.keySet());
@@ -678,11 +678,12 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             true,
             action,
             request,
-            AuthenticationTestHelper.builder().internal(SystemUser.INSTANCE).build()
+            AuthenticationTestHelper.builder().internal(InternalUsers.SYSTEM_USER).build()
         );
     }
 
     public void testSendWithCrossClusterAccessHeadersForSystemUserCcrInternalAction() throws Exception {
+        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
         final String action = randomFrom(
             "internal:admin/ccr/restore/session/put",
             "internal:admin/ccr/restore/session/clear",
@@ -693,11 +694,12 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             true,
             action,
             request,
-            AuthenticationTestHelper.builder().internal(SystemUser.INSTANCE).build()
+            AuthenticationTestHelper.builder().internal(InternalUsers.SYSTEM_USER).build()
         );
     }
 
     public void testSendWithCrossClusterAccessHeadersForRegularUserRegularAction() throws Exception {
+        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
         final Authentication authentication = randomValueOtherThanMany(
             authc -> authc.getAuthenticationType() == Authentication.AuthenticationType.INTERNAL,
             () -> AuthenticationTestHelper.builder().build()
@@ -708,6 +710,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
     }
 
     public void testSendWithCrossClusterAccessHeadersForRegularUserClusterStateAction() throws Exception {
+        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
         final Authentication authentication = randomValueOtherThanMany(
             authc -> authc.getAuthenticationType() == Authentication.AuthenticationType.INTERNAL,
             () -> AuthenticationTestHelper.builder().build()
@@ -810,7 +813,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             assertThat(
                 sentCrossClusterAccessSubjectInfo.get(),
                 equalTo(
-                    CrossClusterAccessUser.subjectInfo(
+                    SystemUser.crossClusterAccessSubjectInfo(
                         authentication.getEffectiveSubject().getTransportVersion(),
                         authentication.getEffectiveSubject().getRealm().getNodeName()
                     )
@@ -980,7 +983,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         });
         final Transport.Connection connection = mock(Transport.Connection.class);
         final TransportVersion versionBeforeCrossClusterAccessRealm = TransportVersionUtils.getPreviousVersion(
-            RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY
+            RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCR
         );
         final TransportVersion version = TransportVersionUtils.randomVersionBetween(
             random(),

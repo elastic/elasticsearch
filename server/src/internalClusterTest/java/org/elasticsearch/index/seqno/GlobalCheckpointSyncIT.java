@@ -255,11 +255,10 @@ public class GlobalCheckpointSyncIT extends ESIntegTestCase {
 
     public void testPersistLocalCheckpoint() {
         internalCluster().ensureAtLeastNumDataNodes(2);
-        Settings.Builder indexSettings = Settings.builder()
-            .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "10m")
-            .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST)
-            .put("index.number_of_shards", 1)
-            .put("index.number_of_replicas", randomIntBetween(0, 1));
+        Settings.Builder indexSettings = indexSettings(1, randomIntBetween(0, 1)).put(
+            IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(),
+            "10m"
+        ).put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST);
         prepareCreate("test", indexSettings).get();
         ensureGreen("test");
         int numDocs = randomIntBetween(1, 20);

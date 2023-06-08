@@ -44,7 +44,7 @@ public class MachineLearningPackageLoader extends Plugin implements ActionPlugin
     public static final String UTILITY_THREAD_POOL_NAME = "ml_utility";
 
     private static final String MODEL_REPOSITORY_DOCUMENTATION_LINK = format(
-        "https://www.elastic.co/guide/en/machine-learning/%d.%d/ml-nlp-deploy-models.html#ml-nlp-deploy-model-air-gapped",
+        "https://www.elastic.co/guide/en/machine-learning/%d.%d/ml-nlp-elser.html#air-gapped-install",
         Version.CURRENT.major,
         Version.CURRENT.minor
     );

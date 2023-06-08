@@ -17,6 +17,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
+import org.elasticsearch.xpack.core.security.user.InternalUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.Security;
 
@@ -78,7 +79,7 @@ public class OperatorPrivileges {
             final User user = authentication.getEffectiveSubject().getUser();
             // Let internal users pass, they are exempt from marking and checking
             // Also check run_as, it is impossible to run_as internal users, but just to be extra safe
-            if (User.isInternal(user) && false == authentication.isRunAs()) {
+            if (user instanceof InternalUser && false == authentication.isRunAs()) {
                 return;
             }
             // The header is already set by previous authentication either on this node or a remote node
@@ -105,7 +106,7 @@ public class OperatorPrivileges {
             }
             final User user = authentication.getEffectiveSubject().getUser();
             // Let internal users pass (also check run_as, it is impossible to run_as internal users, but just to be extra safe)
-            if (User.isInternal(user) && false == authentication.isRunAs()) {
+            if (user instanceof InternalUser && false == authentication.isRunAs()) {
                 return null;
             }
             if (false == AuthenticationField.PRIVILEGE_CATEGORY_VALUE_OPERATOR.equals(

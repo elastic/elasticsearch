@@ -37,11 +37,15 @@ public class SearchApplicationTemplateService {
         this.xContentRegistry = xContentRegistry;
     }
 
-    public SearchSourceBuilder renderQuery(SearchApplication searchApplication, Map<String, Object> templateParams) throws IOException {
+    public SearchSourceBuilder renderQuery(SearchApplication searchApplication, Map<String, Object> templateParams) throws IOException,
+        ValidationException {
+        final SearchApplicationTemplate template = searchApplication.searchApplicationTemplate();
+        template.validateTemplateParams(templateParams);
         final Map<String, Object> renderedTemplateParams = renderTemplate(searchApplication, templateParams);
-        final Script script = searchApplication.searchApplicationTemplate().script();
+        final Script script = template.script();
+
         TemplateScript compiledTemplate = scriptService.compile(script, TemplateScript.CONTEXT).newInstance(renderedTemplateParams);
-        String requestSource = compiledTemplate.execute();
+        final String requestSource = SearchTemplateHelper.stripTrailingComma(compiledTemplate.execute());
         XContentParserConfiguration parserConfig = XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry)
             .withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
         try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, requestSource)) {

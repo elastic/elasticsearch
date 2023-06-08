@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -109,13 +110,7 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
 
     public void testStartWithStateNotRecoveredBlock() {
         DiscoveryNodes.Builder nodes = new DiscoveryNodes.Builder().add(
-            new DiscoveryNode(
-                "id1",
-                ESTestCase.buildNewFakeTransportAddress(),
-                Collections.emptyMap(),
-                new HashSet<>(DiscoveryNodeRole.roles()),
-                Version.CURRENT
-            )
+            DiscoveryNodeUtils.builder("id1").roles(new HashSet<>(DiscoveryNodeRole.roles())).build()
         ).masterNodeId("id1").localNodeId("id1");
         ClusterState clusterState = ClusterState.builder(new ClusterName("my-cluster"))
             .blocks(ClusterBlocks.builder().addGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK))
@@ -398,29 +393,13 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
         ShardRouting shardRouting = TestShardRouting.newShardRouting(shardId, "node2", true, STARTED);
         IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index).addShard(shardRouting);
 
-        DiscoveryNode node1 = new DiscoveryNode(
-            "node_1",
-            ESTestCase.buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            new HashSet<>(asList(randomFrom(DiscoveryNodeRole.INGEST_ROLE, DiscoveryNodeRole.MASTER_ROLE))),
-            Version.CURRENT
-        );
+        DiscoveryNode node1 = DiscoveryNodeUtils.builder("node_1")
+            .roles(new HashSet<>(asList(randomFrom(DiscoveryNodeRole.INGEST_ROLE, DiscoveryNodeRole.MASTER_ROLE))))
+            .build();
 
-        DiscoveryNode node2 = new DiscoveryNode(
-            "node_2",
-            ESTestCase.buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            new HashSet<>(asList(DiscoveryNodeRole.DATA_ROLE)),
-            Version.CURRENT
-        );
+        DiscoveryNode node2 = DiscoveryNodeUtils.builder("node_2").roles(new HashSet<>(asList(DiscoveryNodeRole.DATA_ROLE))).build();
 
-        DiscoveryNode node3 = new DiscoveryNode(
-            "node_3",
-            ESTestCase.buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            new HashSet<>(asList(DiscoveryNodeRole.DATA_ROLE)),
-            Version.CURRENT
-        );
+        DiscoveryNode node3 = DiscoveryNodeUtils.builder("node_3").roles(new HashSet<>(asList(DiscoveryNodeRole.DATA_ROLE))).build();
 
         IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(Watch.INDEX).settings(indexSettings(Version.CURRENT, 1, 0));
 
@@ -520,15 +499,7 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
             .nodes(
                 new DiscoveryNodes.Builder().masterNodeId("node_1")
                     .localNodeId("node_1")
-                    .add(
-                        new DiscoveryNode(
-                            "node_1",
-                            ESTestCase.buildNewFakeTransportAddress(),
-                            Collections.emptyMap(),
-                            new HashSet<>(roles),
-                            Version.CURRENT
-                        )
-                    )
+                    .add(DiscoveryNodeUtils.builder("node_1").roles(new HashSet<>(roles)).build())
             )
             .build();
 
@@ -649,12 +620,6 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
     }
 
     private static DiscoveryNode newNode(String nodeName, Version version) {
-        return new DiscoveryNode(
-            nodeName,
-            ESTestCase.buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            DiscoveryNodeRole.roles(),
-            version
-        );
+        return DiscoveryNodeUtils.builder(nodeName).version(version).build();
     }
 }

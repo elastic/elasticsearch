@@ -106,10 +106,10 @@ public class DownsampleAction implements LifecycleAction {
         StepKey checkNotWriteIndex = new StepKey(phase, NAME, CheckNotDataStreamWriteIndexStep.NAME);
         StepKey waitForNoFollowerStepKey = new StepKey(phase, NAME, WaitForNoFollowersStep.NAME);
         StepKey readOnlyKey = new StepKey(phase, NAME, ReadOnlyStep.NAME);
-        StepKey cleanupRollupIndexKey = new StepKey(phase, NAME, CleanupTargetIndexStep.NAME);
-        StepKey generateRollupIndexNameKey = new StepKey(phase, NAME, GENERATE_DOWNSAMPLE_STEP_NAME);
-        StepKey rollupKey = new StepKey(phase, NAME, DownsampleStep.NAME);
-        StepKey waitForRollupIndexKey = new StepKey(phase, NAME, WaitForIndexColorStep.NAME);
+        StepKey cleanupDownsampleIndexKey = new StepKey(phase, NAME, CleanupTargetIndexStep.NAME);
+        StepKey generateDownsampleIndexNameKey = new StepKey(phase, NAME, GENERATE_DOWNSAMPLE_STEP_NAME);
+        StepKey downsampleKey = new StepKey(phase, NAME, DownsampleStep.NAME);
+        StepKey waitForDownsampleIndexKey = new StepKey(phase, NAME, WaitForIndexColorStep.NAME);
         StepKey copyMetadataKey = new StepKey(phase, NAME, CopyExecutionStateStep.NAME);
         StepKey dataStreamCheckBranchingKey = new StepKey(phase, NAME, CONDITIONAL_DATASTREAM_CHECK_KEY);
         StepKey replaceDataStreamIndexKey = new StepKey(phase, NAME, ReplaceDataStreamBackingIndexStep.NAME);
@@ -132,44 +132,51 @@ public class DownsampleAction implements LifecycleAction {
             checkNotWriteIndex,
             waitForNoFollowerStepKey
         );
-        WaitForNoFollowersStep waitForNoFollowersStep = new WaitForNoFollowersStep(waitForNoFollowerStepKey, cleanupRollupIndexKey, client);
+        WaitForNoFollowersStep waitForNoFollowersStep = new WaitForNoFollowersStep(waitForNoFollowerStepKey, readOnlyKey, client);
 
-        // We generate a unique rollup index name, but we also retry if the allocation of the rollup index is not possible, so we want to
-        // delete the "previously generated" rollup index (this is a no-op if it's the first run of the action, and we haven't generated a
-        // rollup index name)
-        CleanupTargetIndexStep cleanupRollupIndexStep = new CleanupTargetIndexStep(
-            cleanupRollupIndexKey,
-            readOnlyKey,
+        // Mark source index as read-only
+        ReadOnlyStep readOnlyStep = new ReadOnlyStep(readOnlyKey, cleanupDownsampleIndexKey, client);
+
+        // We generate a unique downsample index name, but we also retry if the allocation of the downsample index
+        // is not possible, so we want to delete the "previously generated" downsample index (this is a no-op if it's
+        // the first run of the action, and we haven't generated a downsample index name)
+        CleanupTargetIndexStep cleanupDownsampleIndexStep = new CleanupTargetIndexStep(
+            cleanupDownsampleIndexKey,
+            generateDownsampleIndexNameKey,
             client,
             (indexMetadata) -> IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME.get(indexMetadata.getSettings()),
             (indexMetadata) -> indexMetadata.getLifecycleExecutionState().downsampleIndexName()
         );
-        // Mark source index as read-only
-        ReadOnlyStep readOnlyStep = new ReadOnlyStep(readOnlyKey, generateRollupIndexNameKey, client);
 
-        // Generate a unique rollup index name and store it in the ILM execution state
-        GenerateUniqueIndexNameStep generateRollupIndexNameStep = new GenerateUniqueIndexNameStep(
-            generateRollupIndexNameKey,
-            rollupKey,
+        // Generate a unique downsample index name and store it in the ILM execution state
+        GenerateUniqueIndexNameStep generateDownsampleIndexNameStep = new GenerateUniqueIndexNameStep(
+            generateDownsampleIndexNameKey,
+            downsampleKey,
             DOWNSAMPLED_INDEX_PREFIX,
-            (rollupIndexName, lifecycleStateBuilder) -> lifecycleStateBuilder.setRollupIndexName(rollupIndexName)
+            (downsampleIndexName, lifecycleStateBuilder) -> lifecycleStateBuilder.setDownsampleIndexName(downsampleIndexName)
         );
 
-        // Here is where the actual rollup action takes place
-        DownsampleStep rollupStep = new DownsampleStep(rollupKey, waitForRollupIndexKey, client, fixedInterval);
+        // Here is where the actual downsample action takes place
+        DownsampleStep downsampleStep = new DownsampleStep(
+            downsampleKey,
+            waitForDownsampleIndexKey,
+            cleanupDownsampleIndexKey,
+            client,
+            fixedInterval
+        );
 
         // Wait until the downsampled index is recovered. We again wait until the configured threshold is breached and
-        // if the downsampled index has not successfully recovered until then, we rewind to the "cleanup-rollup-index"
-        // step to delete this unsuccessful downsampled index and retry the operation by generating a new downsampled index
+        // if the downsampled index has not successfully recovered until then, we rewind to the "cleanup-downsample-index"
+        // step to delete this unsuccessful downsampled index and retry the operation by generating a new downsample index
         // name and attempting to downsample again.
-        ClusterStateWaitUntilThresholdStep rollupAllocatedStep = new ClusterStateWaitUntilThresholdStep(
+        ClusterStateWaitUntilThresholdStep downsampleAllocatedStep = new ClusterStateWaitUntilThresholdStep(
             new WaitForIndexColorStep(
-                waitForRollupIndexKey,
+                waitForDownsampleIndexKey,
                 copyMetadataKey,
                 ClusterHealthStatus.YELLOW,
                 (indexName, lifecycleState) -> lifecycleState.downsampleIndexName()
             ),
-            cleanupRollupIndexKey
+            cleanupDownsampleIndexKey
         );
 
         CopyExecutionStateStep copyExecutionStateStep = new CopyExecutionStateStep(
@@ -213,11 +220,11 @@ public class DownsampleAction implements LifecycleAction {
             isTimeSeriesIndexBranchingStep,
             checkNotWriteIndexStep,
             waitForNoFollowersStep,
-            cleanupRollupIndexStep,
             readOnlyStep,
-            generateRollupIndexNameStep,
-            rollupStep,
-            rollupAllocatedStep,
+            cleanupDownsampleIndexStep,
+            generateDownsampleIndexNameStep,
+            downsampleStep,
+            downsampleAllocatedStep,
             copyExecutionStateStep,
             isDataStreamBranchingStep,
             replaceDataStreamBackingIndex,

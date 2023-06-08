@@ -103,9 +103,7 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
         ensureStableCluster(3);
 
         assertAcked(
-            client().admin()
-                .cluster()
-                .preparePutRepository("repo")
+            clusterAdmin().preparePutRepository("repo")
                 .setType(FsRepository.TYPE)
                 .setSettings(Settings.builder().put("location", randomRepoPath()).put("compress", randomBoolean()))
         );
@@ -131,7 +129,7 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
         assertThat(snapshotInfo.successfulShards(), is(snapshotInfo.totalShards()));
         assertThat(snapshotInfo.state(), is(SnapshotState.SUCCESS));
 
-        assertAcked(client().admin().indices().prepareDelete(indexName).get());
+        assertAcked(indicesAdmin().prepareDelete(indexName).get());
 
         // reduce disk size of node 0 so that no shards fit below the low watermark, forcing shards to be assigned to the other data node
         getTestFileStore(dataNodeName).setTotalSpace(smallestShard.size + WATERMARK_BYTES - 1L);
@@ -141,9 +139,7 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
             Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), Rebalance.NONE.toString())
         );
 
-        final RestoreSnapshotResponse restoreSnapshotResponse = client().admin()
-            .cluster()
-            .prepareRestoreSnapshot("repo", "snap")
+        final RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot("repo", "snap")
             .setWaitForCompletion(true)
             .get();
         final RestoreInfo restoreInfo = restoreSnapshotResponse.getRestoreInfo();
@@ -161,9 +157,7 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
 
     private Set<ShardId> getShardIds(final String nodeId, final String indexName) {
         final Set<ShardId> shardIds = new HashSet<>();
-        final IndexRoutingTable indexRoutingTable = client().admin()
-            .cluster()
-            .prepareState()
+        final IndexRoutingTable indexRoutingTable = clusterAdmin().prepareState()
             .clear()
             .setRoutingTable(true)
             .get()
@@ -196,9 +190,7 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
             forceMerge();
             refresh();
 
-            final ShardStats[] shardStates = client().admin()
-                .indices()
-                .prepareStats(indexName)
+            final ShardStats[] shardStates = indicesAdmin().prepareStats(indexName)
                 .clear()
                 .setStore(true)
                 .setTranslog(true)
@@ -243,13 +235,11 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
             .values()
             .stream()
             .allMatch(e -> e.getFreeBytes() > WATERMARK_BYTES)) {
-            assertAcked(client().admin().cluster().prepareReroute());
+            assertAcked(clusterAdmin().prepareReroute());
         }
 
         assertFalse(
-            client().admin()
-                .cluster()
-                .prepareHealth()
+            clusterAdmin().prepareHealth()
                 .setWaitForEvents(Priority.LANGUID)
                 .setWaitForNoRelocatingShards(true)
                 .setWaitForNoInitializingShards(true)

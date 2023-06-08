@@ -91,7 +91,7 @@ PUT _application/search_application/my-app?create
 ----
 // TEST[skip:TBD]
 
-The following example creates or updates an existing Search Application called `my_app`:
+The following example creates or updates an existing Search Application called `my-app`:
 
 [source,console]
 ----

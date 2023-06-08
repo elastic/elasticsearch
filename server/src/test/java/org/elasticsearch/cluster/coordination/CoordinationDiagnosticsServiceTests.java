@@ -8,13 +8,13 @@
 
 package org.elasticsearch.cluster.coordination;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -74,30 +74,9 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
 
     @Before
     public void setup() throws Exception {
-        node1 = new DiscoveryNode(
-            "node1",
-            randomNodeId(),
-            buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            DiscoveryNodeRole.roles(),
-            Version.CURRENT
-        );
-        node2 = new DiscoveryNode(
-            "node2",
-            randomNodeId(),
-            buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            DiscoveryNodeRole.roles(),
-            Version.CURRENT
-        );
-        node3 = new DiscoveryNode(
-            "node3",
-            randomNodeId(),
-            buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            DiscoveryNodeRole.roles(),
-            Version.CURRENT
-        );
+        node1 = DiscoveryNodeUtils.create("node1", randomNodeId());
+        node2 = DiscoveryNodeUtils.create("node2", randomNodeId());
+        node3 = DiscoveryNodeUtils.create("node3", randomNodeId());
         nullMasterClusterState = createClusterState(null);
         node1MasterClusterState = createClusterState(node1);
         node2MasterClusterState = createClusterState(node2);
@@ -1062,14 +1041,10 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
         var clusterService = mock(ClusterService.class);
         when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
         when(clusterService.state()).thenReturn(nullMasterClusterState);
-        DiscoveryNode localNode = new DiscoveryNode(
-            "node4",
-            randomNodeId(),
-            buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            Set.of(DiscoveryNodeRole.DATA_ROLE),
-            Version.CURRENT
-        );
+        DiscoveryNode localNode = DiscoveryNodeUtils.builder(randomNodeId())
+            .name("node4")
+            .roles(Set.of(DiscoveryNodeRole.DATA_ROLE))
+            .build();
         when(clusterService.localNode()).thenReturn(localNode);
         Coordinator coordinator = mock(Coordinator.class);
         when(coordinator.getFoundPeers()).thenReturn(List.of(node1, node2, localNode));

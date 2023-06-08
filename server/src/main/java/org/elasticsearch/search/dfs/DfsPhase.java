@@ -23,7 +23,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.profile.dfs.DfsProfiler;
 import org.elasticsearch.search.profile.dfs.DfsTimingType;
-import org.elasticsearch.search.profile.query.MultiProfileCollectorManager;
+import org.elasticsearch.search.profile.query.ProfileCollectorManager;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
@@ -32,6 +32,7 @@ import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -40,7 +41,6 @@ import java.util.function.Consumer;
 /**
  * DFS phase of a search request, used to make scoring 100% accurate by collecting additional info from each shard before the query phase.
  * The additional information is used to better compare the scores coming from all the shards, which depend on local factors (e.g. idf).
- *
  * When a kNN search is provided alongside the query, the DFS phase is also used to gather the top k candidates from each shard. Then the
  * global top k hits are passed on to the query phase.
  */
@@ -175,20 +175,36 @@ public class DfsPhase {
         List<DfsKnnResults> knnResults = new ArrayList<>(knnVectorQueryBuilders.size());
         for (int i = 0; i < knnSearch.size(); i++) {
             Query knnQuery = searchExecutionContext.toQuery(knnVectorQueryBuilders.get(i)).query();
-            CollectorManager<?, TopDocs> collectorManager = TopScoreDocCollector.createSharedManager(
-                knnSearch.get(i).k(),
-                null,
-                Integer.MAX_VALUE
-            );
+            int numHits = knnSearch.get(i).k();
+            final TopDocs[] topDocs = new TopDocs[1];
+            CollectorManager<TopScoreDocCollector, TopDocs> topDocsCollectorManager = new CollectorManager<>() {
+
+                final CollectorManager<TopScoreDocCollector, TopDocs> wrapped = TopScoreDocCollector.createSharedManager(
+                    numHits,
+                    null,
+                    Integer.MAX_VALUE
+                );
+
+                @Override
+                public TopScoreDocCollector newCollector() throws IOException {
+                    return wrapped.newCollector();
+                }
+
+                @Override
+                public TopDocs reduce(Collection<TopScoreDocCollector> collectors) throws IOException {
+                    return topDocs[0] = wrapped.reduce(collectors);
+                }
+            };
+            CollectorManager<?, ?> cm = topDocsCollectorManager;
             if (context.getProfilers() != null) {
-                MultiProfileCollectorManager<TopDocs> ipcm = new MultiProfileCollectorManager(collectorManager);
+                ProfileCollectorManager ipcm = new ProfileCollectorManager(topDocsCollectorManager);
                 QueryProfiler knnProfiler = context.getProfilers().getDfsProfiler().addQueryProfiler(ipcm);
-                collectorManager = ipcm;
+                cm = ipcm;
                 // Set the current searcher profiler to gather query profiling information for gathering top K docs
                 context.searcher().setProfiler(knnProfiler);
             }
-            TopDocs topDocs = context.searcher().search(knnQuery, collectorManager);
-            knnResults.add(new DfsKnnResults(topDocs.scoreDocs));
+            context.searcher().search(knnQuery, cm);
+            knnResults.add(new DfsKnnResults(topDocs[0].scoreDocs));
         }
         // Set profiler back after running KNN searches
         if (context.getProfilers() != null) {

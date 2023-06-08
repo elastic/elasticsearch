@@ -31,7 +31,9 @@ public final class VectorEncoderDecoder {
      */
     public static float decodeMagnitude(Version indexVersion, BytesRef vectorBR) {
         assert indexVersion.onOrAfter(Version.V_7_5_0);
-        ByteBuffer byteBuffer = ByteBuffer.wrap(vectorBR.bytes, vectorBR.offset, vectorBR.length);
+        ByteBuffer byteBuffer = indexVersion.onOrAfter(DenseVectorFieldMapper.LITTLE_ENDIAN_FLOAT_STORED_INDEX_VERSION) ?
+            ByteBuffer.wrap(vectorBR.bytes, vectorBR.offset, vectorBR.length).order(ByteOrder.LITTLE_ENDIAN) :
+            ByteBuffer.wrap(vectorBR.bytes, vectorBR.offset, vectorBR.length);
         return byteBuffer.getFloat(vectorBR.offset + vectorBR.length - INT_BYTES);
     }
 

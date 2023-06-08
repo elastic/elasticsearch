@@ -592,7 +592,7 @@ public class MergingDigest extends AbstractTDigest {
         // that one sample occurred at min so we can do some interpolation
         if (weight[0] > 1 && index < weightSoFar) {
             // there is a single sample at min so we interpolate with less weight
-            return (min * index + mean[0] * (weightSoFar - index)) / weightSoFar;
+            return weightedAverage(min, index, mean[0], weightSoFar - index);
         }
 
         // if the right-most centroid has more than one sample, we still know

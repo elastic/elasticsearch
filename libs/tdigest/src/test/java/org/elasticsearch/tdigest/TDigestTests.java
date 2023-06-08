@@ -161,7 +161,7 @@ public abstract class TDigestTests extends ESTestCase {
     /**
      * Brute force test that cdf and quantile give reference behavior in digest made up of all singletons.
      */
-    public void singletonQuantiles() {
+    public void testSingletonQuantiles() {
         double[] data = new double[11];
         TDigest digest = factory().create();
         for (int i = 0; i < data.length; i++) {

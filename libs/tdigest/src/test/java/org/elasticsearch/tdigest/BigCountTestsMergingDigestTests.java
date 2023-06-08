@@ -21,9 +21,9 @@
 
 package org.elasticsearch.tdigest;
 
-public class BigCountTreeDigestTests extends BigCount {
+public class BigCountTestsMergingDigestTests extends BigCountTests {
     @Override
     public TDigest createDigest() {
-        return new AVLTreeDigest(100);
+        return new MergingDigest(100);
     }
 }

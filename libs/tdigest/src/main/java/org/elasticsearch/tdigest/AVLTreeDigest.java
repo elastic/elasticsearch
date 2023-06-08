@@ -390,7 +390,7 @@ public class AVLTreeDigest extends AbstractTDigest {
                 return min + index * (values.mean(values.next(currentNode)) - min);
             }
             // Interpolate between min and first mean, otherwise.
-            return (min * index + values.mean(currentNode) * (weightSoFar - index)) / weightSoFar;
+            return weightedAverage(min, index, values.mean(currentNode), weightSoFar - index);
         }
 
         for (int i = 0; i < values.size() - 1; i++) {

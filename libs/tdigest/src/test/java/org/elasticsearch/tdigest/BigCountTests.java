@@ -23,7 +23,7 @@ package org.elasticsearch.tdigest;
 
 import org.elasticsearch.test.ESTestCase;
 
-public abstract class BigCount extends ESTestCase {
+public abstract class BigCountTests extends ESTestCase {
 
     public void testBigMerge() {
         TDigest digest = createDigest();

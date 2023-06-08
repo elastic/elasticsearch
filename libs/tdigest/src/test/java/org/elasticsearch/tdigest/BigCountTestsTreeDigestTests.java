@@ -18,11 +18,12 @@
  *
  * This project is based on a modification of https://github.com/tdunning/t-digest which is licensed under the Apache 2.0 License.
  */
+
 package org.elasticsearch.tdigest;
 
-public class BigCountMergingDigestTests extends BigCount {
+public class BigCountTestsTreeDigestTests extends BigCountTests {
     @Override
     public TDigest createDigest() {
-        return new MergingDigest(100);
+        return new AVLTreeDigest(100);
     }
 }

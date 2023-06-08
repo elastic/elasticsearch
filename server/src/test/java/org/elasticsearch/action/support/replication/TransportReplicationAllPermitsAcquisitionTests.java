@@ -22,8 +22,8 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -113,8 +113,8 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
 
         final ClusterState.Builder state = ClusterState.builder(clusterService.state());
         Set<DiscoveryNodeRole> roles = new HashSet<>(DiscoveryNodeRole.roles());
-        DiscoveryNode node1 = TestDiscoveryNode.builder("_node1").name("_name1").roles(roles).build();
-        DiscoveryNode node2 = TestDiscoveryNode.builder("_node2").name("_name2").roles(roles).build();
+        DiscoveryNode node1 = DiscoveryNodeUtils.builder("_node1").name("_name1").roles(roles).build();
+        DiscoveryNode node2 = DiscoveryNodeUtils.builder("_node2").name("_name2").roles(roles).build();
         state.nodes(DiscoveryNodes.builder().add(node1).add(node2).localNodeId(node1.getId()).masterNodeId(node1.getId()));
 
         shardId = new ShardId("index", UUID.randomUUID().toString(), 0);

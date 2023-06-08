@@ -17,7 +17,7 @@ import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -224,7 +224,7 @@ public class InternalEnrollmentTokenGeneratorTests extends ESTestCase {
                         Version.CURRENT,
                         TransportVersion.CURRENT,
                         null,
-                        TestDiscoveryNode.builder("1").name("node-name").roles(Set.of()).build(),
+                        DiscoveryNodeUtils.builder("1").name("node-name").roles(Set.of()).build(),
                         null,
                         null,
                         null,
@@ -257,7 +257,7 @@ public class InternalEnrollmentTokenGeneratorTests extends ESTestCase {
                         Version.CURRENT,
                         TransportVersion.CURRENT,
                         null,
-                        TestDiscoveryNode.builder("1").name("node-name").roles(Set.of()).build(),
+                        DiscoveryNodeUtils.builder("1").name("node-name").roles(Set.of()).build(),
                         null,
                         null,
                         null,

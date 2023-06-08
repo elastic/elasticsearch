@@ -13,8 +13,8 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.junit.Before;
@@ -37,7 +37,7 @@ public class RestNodesActionTests extends ESTestCase {
     public void testBuildTableDoesNotThrowGivenNullNodeInfoAndStats() {
         ClusterName clusterName = new ClusterName("cluster-1");
         DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
-        builder.add(TestDiscoveryNode.builder("node-1").roles(emptySet()).build());
+        builder.add(DiscoveryNodeUtils.builder("node-1").roles(emptySet()).build());
         DiscoveryNodes discoveryNodes = builder.build();
         ClusterState clusterState = mock(ClusterState.class);
         when(clusterState.nodes()).thenReturn(discoveryNodes);

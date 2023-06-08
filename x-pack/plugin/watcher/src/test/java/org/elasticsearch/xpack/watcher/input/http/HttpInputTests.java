@@ -161,12 +161,8 @@ public class HttpInputTests extends ESTestCase {
         String path = randomAlphaOfLength(3);
         TextTemplate pathTemplate = new TextTemplate(path);
         String body = randomBoolean() ? randomAlphaOfLength(3) : null;
-        Map<String, TextTemplate> params = randomBoolean()
-            ? new MapBuilder<String, TextTemplate>().put("a", new TextTemplate("b")).map()
-            : null;
-        Map<String, TextTemplate> headers = randomBoolean()
-            ? new MapBuilder<String, TextTemplate>().put("c", new TextTemplate("d")).map()
-            : null;
+        Map<String, TextTemplate> params = randomBoolean() ? Map.of("a", new TextTemplate("b")) : null;
+        Map<String, TextTemplate> headers = randomBoolean() ? Map.of("c", new TextTemplate("d")) : null;
         BasicAuth auth = randomBoolean() ? new BasicAuth("username", "password".toCharArray()) : null;
         HttpRequestTemplate.Builder requestBuilder = HttpRequestTemplate.builder(host, port)
             .scheme(scheme)

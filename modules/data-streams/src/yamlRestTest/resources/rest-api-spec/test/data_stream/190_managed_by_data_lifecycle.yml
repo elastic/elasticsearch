@@ -1,8 +1,8 @@
 ---
 "Create data stream with lifecycle":
   - skip:
-      version: " - 8.7.99"
-      reason: "Data lifecycle in index templates was added after 8.7"
+      version: " - 8.8.99"
+      reason: "Data lifecycle in index templates was added after 8.9"
       features: allowed_warnings
   - do:
       allowed_warnings:

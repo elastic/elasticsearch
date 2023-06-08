@@ -24,8 +24,8 @@ import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -191,7 +191,7 @@ public class DatabaseNodeServiceTests extends ESTestCase {
         ClusterState state = ClusterState.builder(createClusterState(tasksCustomMetadata))
             .nodes(
                 new DiscoveryNodes.Builder().add(
-                    TestDiscoveryNode.builder("_id1").name("_name1").roles(Set.of(DiscoveryNodeRole.MASTER_ROLE)).build()
+                    DiscoveryNodeUtils.builder("_id1").name("_name1").roles(Set.of(DiscoveryNodeRole.MASTER_ROLE)).build()
                 ).localNodeId("_id1")
             )
             .build();
@@ -213,7 +213,7 @@ public class DatabaseNodeServiceTests extends ESTestCase {
 
         ClusterState state = ClusterState.builder(new ClusterName("name"))
             .metadata(Metadata.builder().putCustom(TYPE, tasksCustomMetadata).build())
-            .nodes(new DiscoveryNodes.Builder().add(TestDiscoveryNode.create("_id1")).localNodeId("_id1"))
+            .nodes(new DiscoveryNodes.Builder().add(DiscoveryNodeUtils.create("_id1")).localNodeId("_id1"))
             .build();
 
         databaseNodeService.checkDatabases(state);
@@ -377,7 +377,7 @@ public class DatabaseNodeServiceTests extends ESTestCase {
         }
         return ClusterState.builder(new ClusterName("name"))
             .metadata(Metadata.builder().putCustom(TYPE, tasksCustomMetadata).put(idxMeta))
-            .nodes(DiscoveryNodes.builder().add(TestDiscoveryNode.create("_id1")).localNodeId("_id1"))
+            .nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.create("_id1")).localNodeId("_id1"))
             .routingTable(
                 RoutingTable.builder()
                     .add(

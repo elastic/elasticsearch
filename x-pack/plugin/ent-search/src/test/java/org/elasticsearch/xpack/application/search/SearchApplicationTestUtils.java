@@ -81,7 +81,7 @@ public final class SearchApplicationTestUtils {
     public static QueryRuleCriteria randomQueryRuleCriteria() {
         return new QueryRuleCriteria(
             randomFrom(QueryRuleCriteria.CriteriaType.values()),
-            randomFrom(QueryRuleCriteria.CriteriaMetadata.values()),
+            randomAlphaOfLengthBetween(1, 10),
             randomAlphaOfLengthBetween(1, 10)
         );
     }

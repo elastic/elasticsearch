@@ -29,8 +29,8 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 
 public class QueryRuleCriteria implements Writeable, ToXContentObject {
     private final CriteriaType criteriaType;
-    private final CriteriaMetadata criteriaMetadata;
-    private final String criteriaValue;
+    private final String criteriaMetadata;
+    private final Object criteriaValue;
 
     public enum CriteriaType {
         EXACT;
@@ -45,38 +45,24 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
         }
     }
 
-    public enum CriteriaMetadata {
-        QUERY_STRING;
-
-        public static CriteriaMetadata criteriaMetadata(String criteriaMetadata) {
-            for (CriteriaMetadata metadata : values()) {
-                if (metadata.name().equalsIgnoreCase(criteriaMetadata)) {
-                    return metadata;
-                }
-            }
-            throw new IllegalArgumentException("Unknown CriteriaMetadata: " + criteriaMetadata);
-        }
-    }
-
     /**
      *
      * @param criteriaType The {@link CriteriaType}, indicating how the criteria is matched
-     * @param criteriaMetadata The {@link CriteriaMetadata}, indicating what is matched against
+     * @param criteriaMetadata The metadata for this identifier, indicating the criteria key of what is matched against
      * @param criteriaValue The value to match against when evaluating {@link QueryRuleCriteria} against a {@link QueryRule}
      */
-    public QueryRuleCriteria(CriteriaType criteriaType, CriteriaMetadata criteriaMetadata, String criteriaValue) {
+    public QueryRuleCriteria(CriteriaType criteriaType, String criteriaMetadata, Object criteriaValue) {
 
         Objects.requireNonNull(criteriaType);
         Objects.requireNonNull(criteriaMetadata);
+        Objects.requireNonNull(criteriaValue);
 
-        if ((criteriaType == CriteriaType.EXACT && criteriaMetadata == CriteriaMetadata.QUERY_STRING) == false) {
-            throw new IllegalArgumentException(
-                "Invalid criteriaType and criteriaMetadata combination " + criteriaType + " + " + criteriaMetadata
-            );
+        if ((criteriaType == CriteriaType.EXACT) == false) {
+            throw new IllegalArgumentException("Invalid criteriaType " + criteriaType);
         }
 
-        if (Strings.isNullOrEmpty(criteriaValue)) {
-            throw new IllegalArgumentException("criteriaValue cannot be blank");
+        if (Strings.isNullOrEmpty(criteriaMetadata)) {
+            throw new IllegalArgumentException("criteriaMetadata cannot be blank");
         }
 
         this.criteriaType = criteriaType;
@@ -86,8 +72,8 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
 
     public QueryRuleCriteria(StreamInput in) throws IOException {
         this.criteriaType = in.readEnum(CriteriaType.class);
-        this.criteriaMetadata = in.readEnum(CriteriaMetadata.class);
-        this.criteriaValue = in.readString();
+        this.criteriaMetadata = in.readString();
+        this.criteriaValue = in.readGenericValue();
     }
 
     private static final ConstructingObjectParser<QueryRuleCriteria, String> PARSER = new ConstructingObjectParser<>(
@@ -95,8 +81,8 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
         false,
         (params, resourceName) -> {
             final CriteriaType type = CriteriaType.criteriaType((String) params[0]);
-            final CriteriaMetadata metadata = CriteriaMetadata.criteriaMetadata((String) params[1]);
-            final String value = (String) params[2];
+            final String metadata = (String) params[1];
+            final Object value = params[2];
             return new QueryRuleCriteria(type, metadata, value);
         }
     );
@@ -152,15 +138,15 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeEnum(criteriaType);
-        out.writeEnum(criteriaMetadata);
-        out.writeString(criteriaValue);
+        out.writeString(criteriaMetadata);
+        out.writeGenericValue(criteriaValue);
     }
 
     public CriteriaType criteriaType() {
         return criteriaType;
     }
 
-    public CriteriaMetadata criteriaMetadata() {
+    public String criteriaMetadata() {
         return criteriaMetadata;
     }
 
@@ -173,7 +159,9 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         QueryRuleCriteria that = (QueryRuleCriteria) o;
-        return criteriaType == that.criteriaType && criteriaMetadata == that.criteriaMetadata && criteriaValue.equals(that.criteriaValue);
+        return criteriaType == that.criteriaType
+            && Objects.equals(criteriaMetadata, that.criteriaMetadata)
+            && Objects.equals(criteriaValue, that.criteriaValue);
     }
 
     @Override

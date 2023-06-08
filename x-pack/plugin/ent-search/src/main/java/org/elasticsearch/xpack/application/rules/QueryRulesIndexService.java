@@ -203,8 +203,8 @@ public class QueryRulesIndexService {
             criteria.add(
                 new QueryRuleCriteria(
                     QueryRuleCriteria.CriteriaType.criteriaType((String) entry.get("type")),
-                    QueryRuleCriteria.CriteriaMetadata.criteriaMetadata((String) entry.get("metadata")),
-                    (String) entry.get("value")
+                    (String) entry.get("metadata"),
+                    entry.get("value")
                 )
             );
         }

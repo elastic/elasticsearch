@@ -30,7 +30,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.application.rules.QueryRule.QueryRuleType;
-import static org.elasticsearch.xpack.application.rules.QueryRuleCriteria.CriteriaMetadata;
 import static org.elasticsearch.xpack.application.rules.QueryRuleCriteria.CriteriaType;
 import static org.elasticsearch.xpack.application.rules.QueryRulesIndexService.QUERY_RULES_CONCRETE_INDEX_NAME;
 import static org.hamcrest.CoreMatchers.anyOf;
@@ -64,13 +63,13 @@ public class QueryRulesIndexServiceTests extends ESSingleNodeTestCase {
         final QueryRule myQueryRule1 = new QueryRule(
             "my_rule1",
             QueryRuleType.PINNED,
-            List.of(new QueryRuleCriteria(CriteriaType.EXACT, CriteriaMetadata.QUERY_STRING, "foo")),
+            List.of(new QueryRuleCriteria(CriteriaType.EXACT, "query_string", "foo")),
             Map.of("ids", List.of("id1", "id2"))
         );
         final QueryRule myQueryRule2 = new QueryRule(
             "my_rule2",
             QueryRuleType.PINNED,
-            List.of(new QueryRuleCriteria(CriteriaType.EXACT, CriteriaMetadata.QUERY_STRING, "bar")),
+            List.of(new QueryRuleCriteria(CriteriaType.EXACT, "query_string", "bar")),
             Map.of("ids", List.of("id3", "id4"))
         );
         final QueryRuleset myQueryRuleset = new QueryRuleset("my_ruleset", List.of(myQueryRule1, myQueryRule2));
@@ -90,7 +89,7 @@ public class QueryRulesIndexServiceTests extends ESSingleNodeTestCase {
             final QueryRule myQueryRule1 = new QueryRule(
                 "my_rule1",
                 QueryRuleType.PINNED,
-                List.of(new QueryRuleCriteria(CriteriaType.EXACT, CriteriaMetadata.QUERY_STRING, "foo")),
+                List.of(new QueryRuleCriteria(CriteriaType.EXACT, "query_string", "foo")),
                 Map.of("ids", List.of("id1", "id2"))
             );
             final QueryRuleset myQueryRuleset = new QueryRuleset("my_ruleset", Collections.singletonList(myQueryRule1));
@@ -105,13 +104,13 @@ public class QueryRulesIndexServiceTests extends ESSingleNodeTestCase {
         final QueryRule myQueryRule1 = new QueryRule(
             "my_rule1",
             QueryRuleType.PINNED,
-            List.of(new QueryRuleCriteria(CriteriaType.EXACT, CriteriaMetadata.QUERY_STRING, "foo")),
+            List.of(new QueryRuleCriteria(CriteriaType.EXACT, "query_string", "foo")),
             Map.of("docs", List.of(Map.of("_index", "my_index1", "_id", "id1"), Map.of("_index", "my_index2", "_id", "id2")))
         );
         final QueryRule myQueryRule2 = new QueryRule(
             "my_rule2",
             QueryRuleType.PINNED,
-            List.of(new QueryRuleCriteria(CriteriaType.EXACT, CriteriaMetadata.QUERY_STRING, "bar")),
+            List.of(new QueryRuleCriteria(CriteriaType.EXACT, "query_string", "bar")),
             Map.of("docs", List.of(Map.of("_index", "my_index1", "_id", "id3"), Map.of("_index", "my_index2", "_id", "id4")))
         );
         final QueryRuleset myQueryRuleset = new QueryRuleset("my_ruleset", List.of(myQueryRule1, myQueryRule2));
@@ -129,13 +128,13 @@ public class QueryRulesIndexServiceTests extends ESSingleNodeTestCase {
                 new QueryRule(
                     "my_rule_" + i,
                     QueryRuleType.PINNED,
-                    List.of(new QueryRuleCriteria(CriteriaType.EXACT, CriteriaMetadata.QUERY_STRING, "foo" + i)),
+                    List.of(new QueryRuleCriteria(CriteriaType.EXACT, "query_string", "foo" + i)),
                     Map.of("ids", List.of("id1", "id2"))
                 ),
                 new QueryRule(
                     "my_rule_" + i + "_" + (i + 1),
                     QueryRuleType.PINNED,
-                    List.of(new QueryRuleCriteria(CriteriaType.EXACT, CriteriaMetadata.QUERY_STRING, "bar" + i)),
+                    List.of(new QueryRuleCriteria(CriteriaType.EXACT, "query_string", "bar" + i)),
                     Map.of("ids", List.of("id3", "id4"))
                 )
             );
@@ -179,13 +178,13 @@ public class QueryRulesIndexServiceTests extends ESSingleNodeTestCase {
             final QueryRule myQueryRule1 = new QueryRule(
                 "my_rule1",
                 QueryRuleType.PINNED,
-                List.of(new QueryRuleCriteria(CriteriaType.EXACT, CriteriaMetadata.QUERY_STRING, "foo")),
+                List.of(new QueryRuleCriteria(CriteriaType.EXACT, "query_string", "foo")),
                 Map.of("ids", List.of("id1", "id2"))
             );
             final QueryRule myQueryRule2 = new QueryRule(
                 "my_rule2",
                 QueryRuleType.PINNED,
-                List.of(new QueryRuleCriteria(CriteriaType.EXACT, CriteriaMetadata.QUERY_STRING, "bar")),
+                List.of(new QueryRuleCriteria(CriteriaType.EXACT, "query_string", "bar")),
                 Map.of("ids", List.of("id3", "id4"))
             );
             final QueryRuleset myQueryRuleset = new QueryRuleset("my_ruleset", List.of(myQueryRule1, myQueryRule2));

@@ -117,7 +117,7 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
             ),
         //
         DeleteAction.NAME,
-        actionRule(DeleteAction.NAME).maxTimeOnAction(ONE_DAY).stepRules(stepRule(DeleteStep.NAME, ONE_DAY)),
+        actionRule(DeleteAction.NAME).stepRules(stepRule(DeleteStep.NAME, ONE_DAY)),
         //
         ShrinkAction.NAME,
         actionRule(ShrinkAction.NAME).maxTimeOnAction(ONE_DAY).stepRules(stepRule(WaitForNoFollowersStep.NAME, ONE_DAY)),

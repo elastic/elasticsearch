@@ -123,12 +123,12 @@ number of new shard responses (`5` by default).
 enforce the execution of a pre-filter roundtrip to retrieve statistics from
 each shard so that the ones that surely don't hold any document matching the
 query get skipped.
-* `ccs_minimize_roundtrips` defaults to `true` (same as the synchronous search API).
-When doing a cross-cluster search, setting it to `true` may improve overall search
-latency, particularly when searching clusters with a large number of nodes.
-However, when set to `true`, search progress on the remote clusters will not be
-received until the search finishes on all clusters. See <<modules-cross-cluster-search>>
-for more information.
+* `ccs_minimize_roundtrips` defaults to `false`. When doing a {ccs}, setting
+it to `true` may improve overall search latency, particularly when searching
+clusters with a large number of nodes. However, when set to `true`, search
+progress of searches on the remote clusters will not be received until the search
+finishes on all clusters. See <<modules-cross-cluster-search>> for more information.
+
 
 WARNING: Async search does not support <<scroll-search-results,scroll>>
 nor search requests that only include the <<search-suggesters,suggest section>>.

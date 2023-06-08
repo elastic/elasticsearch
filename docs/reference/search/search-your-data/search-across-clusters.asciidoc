@@ -292,10 +292,14 @@ means the document came from the local cluster.
 
 [discrete]
 [[ccs-async-search-minimize-roundtrips-true]]
-=== Using async search for CCS with ccs_minimize_roundtrips=true
+=== Using async search for {ccs} with ccs_minimize_roundtrips=true
 
-The following <<async-search,async search>> API request searches the `my-index-000001` index on
-three clusters:
+Remote clusters can be queried asynchronously using the <<async-search,async search>> API.
+Async searches accept a <<ccs-minimize-roundtrips,`ccs_minimize_roundtrips`>> parameter
+that defaults to `false`. See <<ccs-min-roundtrips>> to learn more about this option.
+
+The following request does an asynchronous search of the `my-index-000001` index using
+`ccs_minimize_roundtrips=true` against three clusters:
 
 * The local cluster, with 8 shards
 * Two remote clusters, `cluster_one` and `cluster_two`, with 10 shards each
@@ -506,10 +510,10 @@ were searched across all clusters and that all were successful.
 
 [discrete]
 [[ccs-async-search-minimize-roundtrips-false]]
-=== Using async search for CCS with ccs_minimize_roundtrips=false
+=== Using async search for {ccs} with ccs_minimize_roundtrips=false
 
 The `_shards` and `_clusters` section of the response behave differently
-when `ccs_minimize_roundtrips` is `false`.
+when `ccs_minimize_roundtrips` is `false` in asynchronous searches.
 
 Key differences are:
 
@@ -710,8 +714,9 @@ cluster receives and parses the request.
 +
 image:images/ccs/ccs-min-roundtrip-client-request.svg[]
 
-. The coordinating node sends a <<search-shards,search shards>> API request to
-each remote cluster.
+. The coordinating node sends a "search shards" transport layer request
+to each remote cluster to have them to perform a "can match" search to determine
+which shards on each cluster should be searched.
 +
 image:images/ccs/ccs-min-roundtrip-cluster-search.svg[]
 

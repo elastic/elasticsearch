@@ -151,8 +151,8 @@ public abstract class CancellableFanOut<Item, ItemResponse, FinalResponse> {
     protected abstract void onItemFailure(Item item, Exception e);
 
     /**
-     * Called when responses for all items have been processed, on the thread that processed the last per-item response. Not called if the
-     * task is cancelled.
+     * Called when responses for all items have been processed, on the thread that processed the last per-item response or possibly the
+     * thread which called {@link #run} if all items were processed before {@link #run} returns. Not called if the task is cancelled.
      * <p>
      * Note that it's easy to accidentally capture another reference to this class when implementing this method, and that will prevent the
      * early release of any accumulated results. Beware of lambdas, and test carefully.

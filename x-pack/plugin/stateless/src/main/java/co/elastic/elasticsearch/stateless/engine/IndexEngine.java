@@ -24,10 +24,8 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineException;
@@ -45,24 +43,20 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 
+import static org.elasticsearch.index.IndexSettings.INDEX_FAST_REFRESH_SETTING;
+import static org.elasticsearch.index.IndexSettings.INDEX_REFRESH_INTERVAL_SETTING;
+
 /**
  * {@link Engine} implementation for index shards
  */
 public class IndexEngine extends InternalEngine {
-
-    public static final Setting<Boolean> INDEX_FAST_REFRESH = Setting.boolSetting(
-        "index.fast_refresh",
-        false,
-        Setting.Property.Final,
-        Setting.Property.IndexScope
-    );
 
     private final TranslogReplicator translogReplicator;
     private final StatelessCommitService statelessCommitService;
     private final LongSupplier relativeTimeInNanosSupplier;
     private final AtomicLong lastFlushNanos;
     private final Function<String, BlobContainer> translogBlobContainer;
-    private final boolean fastRefresh;
+    private boolean fastRefresh;
     private volatile TimeValue indexFlushInterval;
     private volatile Scheduler.Cancellable cancellableFlushTask;
     private final ReleasableLock flushLock = new ReleasableLock(new ReentrantLock());
@@ -82,8 +76,8 @@ public class IndexEngine extends InternalEngine {
         this.statelessCommitService = statelessCommitService;
         this.relativeTimeInNanosSupplier = config().getRelativeTimeInNanosSupplier();
         this.lastFlushNanos = new AtomicLong(relativeTimeInNanosSupplier.getAsLong());
-        this.indexFlushInterval = IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.get(config().getIndexSettings().getSettings());
-        this.fastRefresh = INDEX_FAST_REFRESH.get(config().getIndexSettings().getSettings());
+        this.indexFlushInterval = INDEX_REFRESH_INTERVAL_SETTING.get(config().getIndexSettings().getSettings());
+        this.fastRefresh = INDEX_FAST_REFRESH_SETTING.get(config().getIndexSettings().getSettings());
         this.refreshThrottler = refreshThrottlerFactory.create(this::doExternalRefresh);
         this.cancellableFlushTask = scheduleFlushTask();
     }
@@ -91,7 +85,7 @@ public class IndexEngine extends InternalEngine {
     @Override
     public void onSettingsChanged() {
         super.onSettingsChanged();
-        this.indexFlushInterval = IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.get(config().getIndexSettings().getSettings());
+        this.indexFlushInterval = INDEX_REFRESH_INTERVAL_SETTING.get(config().getIndexSettings().getSettings());
         cancellableFlushTask.cancel();
         cancellableFlushTask = scheduleFlushTask();
     }

@@ -17,6 +17,8 @@
 
 package co.elastic.elasticsearch.stateless.engine;
 
+import co.elastic.elasticsearch.stateless.Stateless;
+
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
@@ -158,7 +160,8 @@ public class IndexEngineTests extends AbstractEngineTestCase {
     }
 
     public void testRefreshNeededBasedOnFastRefresh() throws Exception {
-        try (var engine = newIndexEngine(indexConfig())) {
+        Settings nodeSettings = Settings.builder().put(Stateless.STATELESS_ENABLED.getKey(), true).build();
+        try (var engine = newIndexEngine(indexConfig(Settings.EMPTY, nodeSettings))) {
             engine.index(randomDoc(String.valueOf(0)));
             // Refresh to warm-up engine
             engine.maybeRefresh("test");
@@ -171,9 +174,10 @@ public class IndexEngineTests extends AbstractEngineTestCase {
             var engine = newIndexEngine(
                 indexConfig(
                     Settings.builder()
-                        .put(IndexEngine.INDEX_FAST_REFRESH.getKey(), true)
+                        .put(IndexSettings.INDEX_FAST_REFRESH_SETTING.getKey(), true)
                         .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(60))
-                        .build()
+                        .build(),
+                    nodeSettings
                 )
             )
         ) {

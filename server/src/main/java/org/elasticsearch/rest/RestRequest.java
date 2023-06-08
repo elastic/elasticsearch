@@ -93,9 +93,6 @@ public class RestRequest implements ToXContent.Params {
         HttpChannel httpChannel,
         long requestId
     ) {
-        if (headers.containsKey(RESPONSE_RESTRICTED)) {
-            throw new IllegalArgumentException("Http parameter " + RESPONSE_RESTRICTED + " is reserved and may not set");
-        }
         try {
             this.parsedAccept = parseHeaderWithMediaType(httpRequest.getHeaders(), "Accept");
         } catch (IllegalArgumentException e) {

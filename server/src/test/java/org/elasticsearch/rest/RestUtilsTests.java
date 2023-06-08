@@ -156,6 +156,16 @@ public class RestUtilsTests extends ESTestCase {
         assertThat(params.size(), equalTo(1));
     }
 
+    public void testReservedParameters() {
+        Map<String, String> params = new HashMap<>();
+        String uri = "something?" + RestRequest.RESPONSE_RESTRICTED + "=value";
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> RestUtils.decodeQueryString(uri, uri.indexOf('?') + 1, params)
+        );
+        assertEquals(exception.getMessage(), "parameter [responseRestricted] is reserved and may not set");
+    }
+
     private void assertCorsSettingRegexIsNull(String settingsValue) {
         assertThat(RestUtils.checkCorsSettingForRegex(settingsValue), is(nullValue()));
     }

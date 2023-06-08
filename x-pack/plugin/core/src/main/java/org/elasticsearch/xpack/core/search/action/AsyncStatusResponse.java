@@ -150,7 +150,7 @@ public class AsyncStatusResponse extends ActionResponse implements SearchStatusR
         out.writeVInt(successfulShards);
         out.writeVInt(skippedShards);
         out.writeVInt(failedShards);
-        if (isRunning == false) { /// MP: Hmm, is this going to be a problem? Why is this not writeOptionalString?
+        if (isRunning == false) {
             RestStatus.writeTo(out, completionStatus);
         }
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_009)) {

@@ -58,11 +58,6 @@ public class TransportPostAnalyticsEventActionTests extends ESTestCase {
         XPackLicenseState xPackLicenseState,
         AnalyticsEventIngestService eventEmitter
     ) {
-        return new TransportPostAnalyticsEventAction(
-            mock(TransportService.class),
-            mock(ActionFilters.class),
-            eventEmitter,
-            xPackLicenseState
-        );
+        return new TransportPostAnalyticsEventAction(mock(TransportService.class), mock(ActionFilters.class), eventEmitter);
     }
 }

@@ -76,8 +76,7 @@ public class TransportGetAnalyticsCollectionActionTests extends ESTestCase {
             mock(ThreadPool.class),
             mock(ActionFilters.class),
             mock(IndexNameExpressionResolver.class),
-            analyticsCollectionService,
-            licenseState
+            analyticsCollectionService
         );
     }
 }

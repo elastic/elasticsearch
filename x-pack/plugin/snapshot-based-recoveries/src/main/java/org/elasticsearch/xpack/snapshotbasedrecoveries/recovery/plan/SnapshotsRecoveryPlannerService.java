@@ -13,6 +13,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.index.store.Store;
@@ -188,7 +189,7 @@ public class SnapshotsRecoveryPlannerService implements RecoveryPlannerService {
         // same version.
         if (commitVersion == null) {
             assert SEQ_NO_SNAPSHOT_RECOVERIES_SUPPORTED_VERSION.luceneVersion().onOrAfter(snapshot.getCommitLuceneVersion());
-            return Version.CURRENT.luceneVersion().onOrAfter(snapshot.getCommitLuceneVersion());
+            return IndexVersion.CURRENT.luceneVersion().onOrAfter(snapshot.getCommitLuceneVersion());
         }
         return commitVersion.onOrBefore(Version.CURRENT);
     }

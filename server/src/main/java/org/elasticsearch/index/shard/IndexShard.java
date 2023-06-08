@@ -2145,6 +2145,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         } else {
             if (origin == Engine.Operation.Origin.PRIMARY) {
                 assert assertPrimaryMode();
+                // We only do indexing into primaries that are started since:
+                // * TransportReplicationAction.ReroutePhase only allows to index into active primaries.
+                // * A relocation will retry the reroute phase.
+                // * Allocation ids protect against spurious requests towards old allocations.
+                // * We apply the cluster state on IndexShard instances before making it available for routing
+                assert state == IndexShardState.STARTED : "must be started to do primary indexing";
             } else if (origin == Engine.Operation.Origin.REPLICA) {
                 assert assertReplicationTarget();
             } else {

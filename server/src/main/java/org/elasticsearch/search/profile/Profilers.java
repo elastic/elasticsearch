@@ -88,7 +88,7 @@ public final class Profilers {
             QueryProfileShardResult result = new QueryProfileShardResult(
                 queryProfiler.getTree(),
                 queryProfiler.getRewriteTime(),
-                queryProfiler.getCollector()
+                queryProfiler.getCollectorResult()
             );
             queryResults.add(result);
         }

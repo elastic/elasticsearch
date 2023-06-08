@@ -65,6 +65,7 @@ dependencies {
   // logging
   api "org.apache.logging.log4j:log4j-api:${versions.log4j}"
   api "org.apache.logging.log4j:log4j-core:${versions.log4j}"
+  implementation "org.apache.logging.log4j:log4j-jul:${versions.log4j}"
 
   api "net.java.dev.jna:jna:${versions.jna}"
 

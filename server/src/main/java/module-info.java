@@ -39,6 +39,7 @@ module org.elasticsearch.server {
 
     requires org.apache.logging.log4j;
     requires org.apache.logging.log4j.core;
+    requires org.apache.logging.log4j.jul;
 
     requires org.apache.lucene.analysis.common;
     requires org.apache.lucene.backward_codecs;

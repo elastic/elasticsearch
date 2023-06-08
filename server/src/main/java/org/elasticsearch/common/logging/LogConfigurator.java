@@ -23,9 +23,11 @@ import org.apache.logging.log4j.core.config.builder.api.ConfigurationBuilderFact
 import org.apache.logging.log4j.core.config.builder.impl.BuiltConfiguration;
 import org.apache.logging.log4j.core.config.composite.CompositeConfiguration;
 import org.apache.logging.log4j.core.config.plugins.util.PluginManager;
+import org.apache.logging.log4j.core.config.plugins.util.PluginRegistry;
 import org.apache.logging.log4j.core.config.properties.PropertiesConfiguration;
 import org.apache.logging.log4j.core.config.properties.PropertiesConfigurationBuilder;
 import org.apache.logging.log4j.core.config.properties.PropertiesConfigurationFactory;
+import org.apache.logging.log4j.jul.Log4jBridgeHandler;
 import org.apache.logging.log4j.status.StatusConsoleListener;
 import org.apache.logging.log4j.status.StatusData;
 import org.apache.logging.log4j.status.StatusListener;
@@ -257,6 +259,8 @@ public class LogConfigurator {
                 );
         }
 
+        Log4jBridgeHandler.install(true, "", true);
+
         // Redirect stdout/stderr to log4j. While we ensure Elasticsearch code does not write to those streams,
         // third party libraries may do that. Note that we do NOT close the streams because other code may have
         // grabbed a handle to the streams and intend to write to it, eg log4j for writing to the console
@@ -271,7 +275,7 @@ public class LogConfigurator {
                     // MMapDirectory messages come from Lucene, suggesting to users as a warning that they should enable preview features in
                     // the JDK. Vector logs come from Lucene too, but only if the used explicitly disables the Vector API - no point warning
                     // in this case.
-                    List.of("MMapDirectory", "VectorUtilProvider", "WARNING: Java vector incubator module is not readable")
+                    List.of()//List.of("MMapDirectory", "VectorUtilProvider", "WARNING: Java vector incubator module is not readable")
                 ),
                 false,
                 StandardCharsets.UTF_8

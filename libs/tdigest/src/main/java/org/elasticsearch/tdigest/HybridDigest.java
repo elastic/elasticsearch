@@ -160,4 +160,21 @@ public class HybridDigest extends TDigest {
         }
         return sortingDigest.centroidCount();
     }
+
+    @Override
+    public double getMin() {
+        if (mergingDigest != null) {
+            return mergingDigest.getMin();
+        }
+        return sortingDigest.getMin();
+    }
+
+    @Override
+    public double getMax() {
+        if (mergingDigest != null) {
+            return mergingDigest.getMax();
+        }
+        return sortingDigest.getMax();
+    }
+
 }

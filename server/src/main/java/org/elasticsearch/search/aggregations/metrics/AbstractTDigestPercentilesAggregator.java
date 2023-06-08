@@ -32,6 +32,7 @@ abstract class AbstractTDigestPercentilesAggregator extends NumericMetricsAggreg
     protected final DocValueFormat formatter;
     protected ObjectArray<TDigestState> states;
     protected final double compression;
+    protected final boolean optimizeForAccuracy;
     protected final boolean keyed;
 
     AbstractTDigestPercentilesAggregator(
@@ -41,6 +42,7 @@ abstract class AbstractTDigestPercentilesAggregator extends NumericMetricsAggreg
         Aggregator parent,
         double[] keys,
         double compression,
+        boolean optimizeForAccuracy,
         boolean keyed,
         DocValueFormat formatter,
         Map<String, Object> metadata
@@ -53,6 +55,7 @@ abstract class AbstractTDigestPercentilesAggregator extends NumericMetricsAggreg
         this.states = context.bigArrays().newObjectArray(1);
         this.keys = keys;
         this.compression = compression;
+        this.optimizeForAccuracy = optimizeForAccuracy;
     }
 
     @Override
@@ -81,7 +84,7 @@ abstract class AbstractTDigestPercentilesAggregator extends NumericMetricsAggreg
         states = bigArrays.grow(states, bucket + 1);
         TDigestState state = states.get(bucket);
         if (state == null) {
-            state = new TDigestState(compression);
+            state = TDigestState.create(compression, optimizeForAccuracy);
             states.set(bucket, state);
         }
         return state;
@@ -96,8 +99,7 @@ abstract class AbstractTDigestPercentilesAggregator extends NumericMetricsAggreg
         if (bucketOrd >= states.size()) {
             return null;
         }
-        final TDigestState state = states.get(bucketOrd);
-        return state;
+        return states.get(bucketOrd);
     }
 
     @Override

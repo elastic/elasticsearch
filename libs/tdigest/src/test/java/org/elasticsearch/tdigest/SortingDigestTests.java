@@ -21,13 +21,7 @@
 
 package org.elasticsearch.tdigest;
 
-import org.junit.BeforeClass;
-
 public class SortingDigestTests extends TDigestTests {
-    @BeforeClass
-    public static void setup() {
-        TDigestTests.setup("sorting");
-    }
 
     protected DigestFactory factory(final double compression) {
         return SortingDigest::new;

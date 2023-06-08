@@ -64,6 +64,28 @@ public abstract class TDigest {
     }
 
     /**
+     * Creates a SortingDigest.  SortingDigest is the most accurate implementation but stores all samples internally so it uses
+     * much more memory than the rest.
+     *
+     * @return the SortingDigest
+     */
+    public static TDigest createSortingDigest() {
+        return new SortingDigest();
+    }
+
+    /**
+     * Creates a HybridDigest.  HybridDigest using a SortingDigest for small sample populations, then switches to a MergingDigest, thus
+     * combining the best of both implementations.
+     *
+     * @param compression The compression parameter.  100 is a common value for normal uses.  1000 is extremely large.
+     *                    The number of centroids retained will be a smallish (usually less than 10) multiple of this number.
+     * @return the HybridDigest
+     */
+    public static TDigest createHybridDigest(double compression) {
+        return new AVLTreeDigest(compression);
+    }
+
+    /**
      * Adds a sample to a histogram.
      *
      * @param x The value to add.

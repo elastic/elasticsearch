@@ -25,8 +25,8 @@ import java.util.Objects;
 
 abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetricsAggregation.MultiValue {
 
-    // NOTE: using compression = 1.0 empty histograms will track just about 5 centroids.
-    // This reduces the amount of data to serialize and deserialize.
+    // NOTE: empty histograms track 0 centroids.
+    // This reduces the amount of data to allocate, serialize and deserialize.
     private static final TDigestState EMPTY_HISTOGRAM = new EmptyTDigestState();
 
     protected final double[] keys;
@@ -136,7 +136,7 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
                 continue;
             }
             if (merged == null) {
-                merged = new TDigestState(percentiles.state.compression());
+                merged = TDigestState.createUsingParamsFrom(percentiles.state);
             }
             merged = merge(merged, percentiles.state);
         }

@@ -21,7 +21,7 @@ public class TDigestStateTests extends ESTestCase {
     public void testMoreThan4BValues() {
         // Regression test for #19528
         // See https://github.com/tdunning/t-digest/pull/70/files#diff-4487072cee29b939694825647928f742R439
-        TDigestState digest = new TDigestState(100);
+        TDigestState digest = TDigestState.create(100);
         for (int i = 0; i < 1000; ++i) {
             digest.add(randomDouble());
         }
@@ -47,15 +47,12 @@ public class TDigestStateTests extends ESTestCase {
     public void testTestEqualsHashCode() {
         final TDigestState empty1 = new EmptyTDigestState();
         final TDigestState empty2 = new EmptyTDigestState();
-        final TDigestState empty = new TDigestState(1.0D);
-        final TDigestState a = new TDigestState(200);
-        final TDigestState b = new TDigestState(100);
-        final TDigestState c = new TDigestState(100);
+        final TDigestState a = TDigestState.create(200);
+        final TDigestState b = TDigestState.create(100);
+        final TDigestState c = TDigestState.create(100);
 
         assertEquals(empty1, empty2);
         assertEquals(empty1.hashCode(), empty2.hashCode());
-        assertEquals(empty1, empty);
-        assertEquals(empty1.hashCode(), empty.hashCode());
 
         assertNotEquals(a, b);
         assertNotEquals(a.hashCode(), b.hashCode());
@@ -94,9 +91,9 @@ public class TDigestStateTests extends ESTestCase {
         final Set<TDigestState> set = new HashSet<>();
         final TDigestState empty1 = new EmptyTDigestState();
         final TDigestState empty2 = new EmptyTDigestState();
-        final TDigestState a = new TDigestState(200);
-        final TDigestState b = new TDigestState(100);
-        final TDigestState c = new TDigestState(100);
+        final TDigestState a = TDigestState.create(200);
+        final TDigestState b = TDigestState.create(100);
+        final TDigestState c = TDigestState.create(100);
 
         a.add(randomDouble());
         b.add(randomDouble());

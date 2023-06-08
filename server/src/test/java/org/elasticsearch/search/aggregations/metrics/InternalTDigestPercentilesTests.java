@@ -32,7 +32,7 @@ public class InternalTDigestPercentilesTests extends InternalPercentilesTestCase
         double[] percents,
         double[] values
     ) {
-        final TDigestState state = new TDigestState(100);
+        final TDigestState state = TDigestState.create(100);
         Arrays.stream(values).forEach(state::add);
 
         return new InternalTDigestPercentiles(name, percents, state, keyed, format, metadata);
@@ -40,7 +40,7 @@ public class InternalTDigestPercentilesTests extends InternalPercentilesTestCase
 
     @Override
     protected void assertReduced(InternalTDigestPercentiles reduced, List<InternalTDigestPercentiles> inputs) {
-        final TDigestState expectedState = new TDigestState(reduced.state.compression());
+        final TDigestState expectedState = TDigestState.createUsingParamsFrom(reduced.state);
 
         long totalCount = 0;
         for (InternalTDigestPercentiles input : inputs) {
@@ -91,7 +91,7 @@ public class InternalTDigestPercentilesTests extends InternalPercentilesTestCase
                 Arrays.sort(percents);
             }
             case 2 -> {
-                TDigestState newState = new TDigestState(state.compression());
+                TDigestState newState = TDigestState.create(state.compression());
                 newState.add(state);
                 for (int i = 0; i < between(10, 100); i++) {
                     newState.add(randomDouble());

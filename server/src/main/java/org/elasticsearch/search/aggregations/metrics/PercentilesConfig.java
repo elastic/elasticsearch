@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -123,17 +124,24 @@ public abstract class PercentilesConfig implements ToXContent, Writeable {
         static final double DEFAULT_COMPRESSION = 100.0;
         private double compression;
 
+        private boolean optimizeForAccuracy;
+
         public TDigest() {
             this(DEFAULT_COMPRESSION);
         }
 
         public TDigest(double compression) {
+            this(compression, false);
+        }
+
+        public TDigest(double compression, boolean optimizeForAccuracy) {
             super(PercentilesMethod.TDIGEST);
             setCompression(compression);
+            setOptimizeForAccuracy(optimizeForAccuracy);
         }
 
         TDigest(StreamInput in) throws IOException {
-            this(in.readDouble());
+            this(in.readDouble(), in.getTransportVersion().onOrAfter(TransportVersion.V_8_9_0) == false || in.readBoolean());
         }
 
         public void setCompression(double compression) {
@@ -147,6 +155,14 @@ public abstract class PercentilesConfig implements ToXContent, Writeable {
             return compression;
         }
 
+        public void setOptimizeForAccuracy(boolean optimizeForAccuracy) {
+            this.optimizeForAccuracy = optimizeForAccuracy;
+        }
+
+        public boolean getOptimizeForAccuracy() {
+            return optimizeForAccuracy;
+        }
+
         @Override
         public Aggregator createPercentilesAggregator(
             String name,
@@ -158,7 +174,18 @@ public abstract class PercentilesConfig implements ToXContent, Writeable {
             DocValueFormat formatter,
             Map<String, Object> metadata
         ) throws IOException {
-            return new TDigestPercentilesAggregator(name, config, context, parent, values, compression, keyed, formatter, metadata);
+            return new TDigestPercentilesAggregator(
+                name,
+                config,
+                context,
+                parent,
+                values,
+                compression,
+                optimizeForAccuracy,
+                keyed,
+                formatter,
+                metadata
+            );
         }
 
         @Override
@@ -183,7 +210,18 @@ public abstract class PercentilesConfig implements ToXContent, Writeable {
             DocValueFormat formatter,
             Map<String, Object> metadata
         ) throws IOException {
-            return new TDigestPercentileRanksAggregator(name, config, context, parent, values, compression, keyed, formatter, metadata);
+            return new TDigestPercentileRanksAggregator(
+                name,
+                config,
+                context,
+                parent,
+                values,
+                compression,
+                optimizeForAccuracy,
+                keyed,
+                formatter,
+                metadata
+            );
         }
 
         @Override
@@ -194,13 +232,14 @@ public abstract class PercentilesConfig implements ToXContent, Writeable {
             DocValueFormat formatter,
             Map<String, Object> metadata
         ) {
-            return InternalTDigestPercentileRanks.empty(name, values, compression, keyed, formatter, metadata);
+            return InternalTDigestPercentileRanks.empty(name, values, compression, optimizeForAccuracy, keyed, formatter, metadata);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeDouble(compression);
+            out.writeBoolean(optimizeForAccuracy);
         }
 
         @Override
@@ -218,12 +257,12 @@ public abstract class PercentilesConfig implements ToXContent, Writeable {
             if (super.equals(obj) == false) return false;
 
             TDigest other = (TDigest) obj;
-            return compression == other.getCompression();
+            return compression == other.getCompression() && optimizeForAccuracy == other.getOptimizeForAccuracy();
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(super.hashCode(), compression);
+            return Objects.hash(super.hashCode(), compression, optimizeForAccuracy);
         }
     }
 

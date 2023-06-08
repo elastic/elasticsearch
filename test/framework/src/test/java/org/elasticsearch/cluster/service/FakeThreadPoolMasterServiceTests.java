@@ -16,7 +16,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -43,7 +43,7 @@ public class FakeThreadPoolMasterServiceTests extends ESTestCase {
     public void testFakeMasterService() {
         List<Runnable> runnableTasks = new ArrayList<>();
         AtomicReference<ClusterState> lastClusterStateRef = new AtomicReference<>();
-        DiscoveryNode discoveryNode = TestDiscoveryNode.builder("node").roles(new HashSet<>(DiscoveryNodeRole.roles())).build();
+        DiscoveryNode discoveryNode = DiscoveryNodeUtils.builder("node").roles(new HashSet<>(DiscoveryNodeRole.roles())).build();
         lastClusterStateRef.set(ClusterStateCreationUtils.state(discoveryNode, discoveryNode));
         long firstClusterStateVersion = lastClusterStateRef.get().version();
         AtomicReference<ActionListener<Void>> publishingCallback = new AtomicReference<>();

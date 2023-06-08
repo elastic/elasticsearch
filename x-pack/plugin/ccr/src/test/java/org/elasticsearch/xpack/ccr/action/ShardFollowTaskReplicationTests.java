@@ -21,7 +21,7 @@ import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.action.support.replication.TransportWriteActionTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingHelper;
@@ -508,7 +508,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
 
             @Override
             protected synchronized void recoverPrimary(IndexShard primaryShard) {
-                DiscoveryNode localNode = TestDiscoveryNode.builder("foo").roles(emptySet()).build();
+                DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(emptySet()).build();
                 Snapshot snapshot = new Snapshot("foo", new SnapshotId("bar", UUIDs.randomBase64UUID()));
                 ShardRouting routing = ShardRoutingHelper.newWithRestoreSource(
                     primaryShard.routingEntry(),

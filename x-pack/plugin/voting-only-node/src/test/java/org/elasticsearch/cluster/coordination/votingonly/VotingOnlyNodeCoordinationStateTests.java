@@ -8,7 +8,7 @@ package org.elasticsearch.cluster.coordination.votingonly;
 
 import org.elasticsearch.cluster.coordination.CoordinationStateTestCluster;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Map;
@@ -22,7 +22,7 @@ public class VotingOnlyNodeCoordinationStateTests extends ESTestCase {
         new CoordinationStateTestCluster(
             IntStream.range(0, randomIntBetween(1, 5))
                 .mapToObj(
-                    i -> TestDiscoveryNode.create(
+                    i -> DiscoveryNodeUtils.create(
                         "node_" + i,
                         buildNewFakeTransportAddress(),
                         Map.of(),

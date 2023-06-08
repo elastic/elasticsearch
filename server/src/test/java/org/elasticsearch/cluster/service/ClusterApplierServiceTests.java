@@ -20,8 +20,8 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.logging.Loggers;
@@ -84,7 +84,7 @@ public class ClusterApplierServiceTests extends ESTestCase {
     }
 
     private ClusterApplierService createClusterApplierService(boolean makeMaster) {
-        final DiscoveryNode localNode = TestDiscoveryNode.builder("node1").roles(emptySet()).build();
+        final DiscoveryNode localNode = DiscoveryNodeUtils.builder("node1").roles(emptySet()).build();
         final ClusterApplierService clusterApplierService = new ClusterApplierService(
             "test_node",
             Settings.builder().put("cluster.name", "ClusterApplierServiceTests").build(),

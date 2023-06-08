@@ -23,8 +23,8 @@ import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
@@ -52,6 +52,7 @@ import org.elasticsearch.indices.InvalidAliasNameException;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.indices.SystemIndexDescriptorUtils;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -553,7 +554,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
     }
 
     private DiscoveryNode newNode(String nodeId) {
-        return TestDiscoveryNode.builder(nodeId).roles(Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE)).build();
+        return DiscoveryNodeUtils.builder(nodeId).roles(Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE)).build();
     }
 
     public void testValidateIndexName() throws Exception {
@@ -627,9 +628,9 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
 
     public void testValidateDotIndex() {
         List<SystemIndexDescriptor> systemIndexDescriptors = new ArrayList<>();
-        systemIndexDescriptors.add(new SystemIndexDescriptor(".test-one*", "test"));
-        systemIndexDescriptors.add(new SystemIndexDescriptor(".test-~(one*)", "test"));
-        systemIndexDescriptors.add(new SystemIndexDescriptor(".pattern-test*", "test-1"));
+        systemIndexDescriptors.add(SystemIndexDescriptorUtils.createUnmanaged(".test-one*", "test"));
+        systemIndexDescriptors.add(SystemIndexDescriptorUtils.createUnmanaged(".test-~(one*)", "test"));
+        systemIndexDescriptors.add(SystemIndexDescriptorUtils.createUnmanaged(".pattern-test*", "test-1"));
 
         withTemporaryClusterService(((clusterService, threadPool) -> {
             MetadataCreateIndexService checkerService = new MetadataCreateIndexService(

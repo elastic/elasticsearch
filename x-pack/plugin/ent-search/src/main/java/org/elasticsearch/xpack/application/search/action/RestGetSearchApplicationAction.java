@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.application.search.action;
 
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
@@ -20,7 +20,10 @@ import java.util.List;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 @ServerlessScope(Scope.PUBLIC)
-public class RestGetSearchApplicationAction extends BaseRestHandler {
+public class RestGetSearchApplicationAction extends SearchApplicationRestHandler {
+    public RestGetSearchApplicationAction(XPackLicenseState licenseState) {
+        super(licenseState);
+    }
 
     @Override
     public String getName() {
@@ -33,7 +36,7 @@ public class RestGetSearchApplicationAction extends BaseRestHandler {
     }
 
     @Override
-    protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
+    protected RestChannelConsumer innerPrepareRequest(RestRequest restRequest, NodeClient client) {
         GetSearchApplicationAction.Request request = new GetSearchApplicationAction.Request(restRequest.param("name"));
         return channel -> client.execute(GetSearchApplicationAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }

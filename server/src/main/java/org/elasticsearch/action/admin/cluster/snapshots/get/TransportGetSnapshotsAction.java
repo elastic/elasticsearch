@@ -10,7 +10,6 @@ package org.elasticsearch.action.admin.cluster.snapshots.get;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.admin.cluster.repositories.get.TransportGetRepositoriesAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.RefCountingListener;
@@ -26,6 +25,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.repositories.GetSnapshotInfoContext;
 import org.elasticsearch.repositories.IndexId;
@@ -254,32 +254,33 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             currentSnapshots.add(snapshotInfo.maybeWithoutIndices(indices));
         }
 
-        final StepListener<RepositoryData> repositoryDataListener = new StepListener<>();
+        final ListenableFuture<RepositoryData> repositoryDataListener = new ListenableFuture<>();
         if (isCurrentSnapshotsOnly(snapshots)) {
             repositoryDataListener.onResponse(null);
         } else {
             repositoriesService.getRepositoryData(repo, repositoryDataListener);
         }
 
-        repositoryDataListener.whenComplete(
-            repositoryData -> loadSnapshotInfos(
-                snapshotsInProgress,
-                repo,
-                snapshots,
-                ignoreUnavailable,
-                verbose,
-                allSnapshotIds,
-                currentSnapshots,
-                repositoryData,
-                task,
-                sortBy,
-                after,
-                order,
-                predicates,
-                indices,
-                listener
-            ),
-            listener::onFailure
+        repositoryDataListener.addListener(
+            listener.delegateFailureAndWrap(
+                (l, repositoryData) -> loadSnapshotInfos(
+                    snapshotsInProgress,
+                    repo,
+                    snapshots,
+                    ignoreUnavailable,
+                    verbose,
+                    allSnapshotIds,
+                    currentSnapshots,
+                    repositoryData,
+                    task,
+                    sortBy,
+                    after,
+                    order,
+                    predicates,
+                    indices,
+                    l
+                )
+            )
         );
     }
 

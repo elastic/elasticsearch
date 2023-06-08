@@ -24,9 +24,10 @@ import org.elasticsearch.cluster.SnapshotsInProgress.ShardState;
 import org.elasticsearch.cluster.SnapshotsInProgress.State;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -83,6 +84,9 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
     // A map of snapshots to the shardIds that we already reported to the master as failed
     private final ResultDeduplicator<UpdateIndexShardSnapshotStatusRequest, Void> remoteFailedRequestDeduplicator;
 
+    // Runs the tasks that promptly notify shards of aborted snapshots so that resources can be released ASAP
+    private final ThrottledTaskRunner notifyOnAbortTaskRunner;
+
     public SnapshotShardsService(
         Settings settings,
         ClusterService clusterService,
@@ -100,6 +104,13 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
             // this is only useful on the nodes that can hold data
             clusterService.addListener(this);
         }
+
+        // Abort notification may release the last store ref, closing the shard, so we do them in the background on a generic thread.
+        this.notifyOnAbortTaskRunner = new ThrottledTaskRunner(
+            "notify-on-abort",
+            threadPool.info(ThreadPool.Names.SNAPSHOT).getMax(),
+            threadPool.generic()
+        );
     }
 
     @Override
@@ -149,14 +160,14 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
         // abort any snapshots occurring on the soon-to-be closed shard
         synchronized (shardSnapshots) {
             for (Map.Entry<Snapshot, Map<ShardId, IndexShardSnapshotStatus>> snapshotShards : shardSnapshots.entrySet()) {
-                Map<ShardId, IndexShardSnapshotStatus> shards = snapshotShards.getValue();
-                if (shards.containsKey(shardId)) {
+                final var indexShardSnapshotStatus = snapshotShards.getValue().get(shardId);
+                if (indexShardSnapshotStatus != null) {
                     logger.debug(
                         "[{}] shard closing, abort snapshotting for snapshot [{}]",
                         shardId,
                         snapshotShards.getKey().getSnapshotId()
                     );
-                    shards.get(shardId).abortIfNotCompleted("shard is closing, aborting");
+                    indexShardSnapshotStatus.abortIfNotCompleted("shard is closing, aborting", notifyOnAbortTaskRunner::enqueueTask);
                 }
             }
         }
@@ -191,7 +202,10 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                 // state update, which is being processed here
                 it.remove();
                 for (IndexShardSnapshotStatus snapshotStatus : entry.getValue().values()) {
-                    snapshotStatus.abortIfNotCompleted("snapshot has been removed in cluster state, aborting");
+                    snapshotStatus.abortIfNotCompleted(
+                        "snapshot has been removed in cluster state, aborting",
+                        notifyOnAbortTaskRunner::enqueueTask
+                    );
                 }
             }
         }
@@ -258,7 +272,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                             notifyFailedSnapshotShard(snapshot, sid, shard.getValue().reason(), shard.getValue().generation());
                         }
                     } else {
-                        snapshotStatus.abortIfNotCompleted("snapshot has been aborted");
+                        snapshotStatus.abortIfNotCompleted("snapshot has been aborted", notifyOnAbortTaskRunner::enqueueTask);
                     }
                 }
             }
@@ -365,9 +379,10 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
             }
 
             final Repository repository = repositoriesService.repository(snapshot.getRepository());
-            Engine.IndexCommitRef snapshotRef = null;
+            SnapshotIndexCommit snapshotIndexCommit = null;
             try {
-                snapshotRef = indexShard.acquireIndexCommitForSnapshot();
+                snapshotIndexCommit = new SnapshotIndexCommit(indexShard.acquireIndexCommitForSnapshot());
+                snapshotStatus.addAbortListener(makeAbortListener(indexShard.shardId(), snapshot, snapshotIndexCommit));
                 snapshotStatus.ensureNotAborted();
                 repository.snapshotShard(
                     new SnapshotShardContext(
@@ -375,19 +390,61 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                         indexShard.mapperService(),
                         snapshot.getSnapshotId(),
                         indexId,
-                        new SnapshotIndexCommit(snapshotRef),
-                        getShardStateId(indexShard, snapshotRef.getIndexCommit()),
+                        snapshotIndexCommit,
+                        getShardStateId(indexShard, snapshotIndexCommit.indexCommit()),
                         snapshotStatus,
                         version,
                         entryStartTime,
                         listener
                     )
                 );
-            } catch (Exception e) {
-                IOUtils.close(snapshotRef);
-                throw e;
+                snapshotIndexCommit = null; // success
+            } finally {
+                if (snapshotIndexCommit != null) {
+                    snapshotIndexCommit.closingBefore(new ActionListener<Void>() {
+                        @Override
+                        public void onResponse(Void unused) {}
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            // we're already failing exceptionally, and prefer to propagate the original exception instead of this one
+                            logger.warn(Strings.format("exception closing commit for [%s] in [%s]", indexShard.shardId(), snapshot), e);
+                        }
+                    }).onResponse(null);
+                }
             }
         });
+    }
+
+    private static ActionListener<IndexShardSnapshotStatus.AbortStatus> makeAbortListener(
+        ShardId shardId,
+        Snapshot snapshot,
+        SnapshotIndexCommit snapshotIndexCommit
+    ) {
+        return new ActionListener<>() {
+            @Override
+            public void onResponse(IndexShardSnapshotStatus.AbortStatus abortStatus) {
+                if (abortStatus == IndexShardSnapshotStatus.AbortStatus.ABORTED) {
+                    assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC, ThreadPool.Names.SNAPSHOT);
+                    snapshotIndexCommit.onAbort();
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.error(() -> Strings.format("unexpected failure in %s", description()), e);
+                assert false : e;
+            }
+
+            @Override
+            public String toString() {
+                return description();
+            }
+
+            private String description() {
+                return Strings.format("abort listener for [%s] in [%s]", shardId, snapshot);
+            }
+        };
     }
 
     /**

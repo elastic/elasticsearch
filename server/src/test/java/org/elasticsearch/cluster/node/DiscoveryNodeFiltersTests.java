@@ -50,10 +50,10 @@ public class DiscoveryNodeFiltersTests extends ESTestCase {
         Settings settings = Settings.builder().put("xxx.name", "name1").build();
         DiscoveryNodeFilters filters = buildFromSettings(OR, "xxx.", settings);
 
-        DiscoveryNode node = TestDiscoveryNode.builder("id1").name("name1").roles(emptySet()).build();
+        DiscoveryNode node = DiscoveryNodeUtils.builder("id1").name("name1").roles(emptySet()).build();
         assertThat(filters.match(node), equalTo(true));
 
-        node = TestDiscoveryNode.builder("id2").name("name2").roles(emptySet()).build();
+        node = DiscoveryNodeUtils.builder("id2").name("name2").roles(emptySet()).build();
         assertThat(filters.match(node), equalTo(false));
     }
 
@@ -61,10 +61,10 @@ public class DiscoveryNodeFiltersTests extends ESTestCase {
         Settings settings = Settings.builder().put("xxx._id", "id1").build();
         DiscoveryNodeFilters filters = buildFromSettings(OR, "xxx.", settings);
 
-        DiscoveryNode node = TestDiscoveryNode.builder("id1").name("name1").roles(emptySet()).build();
+        DiscoveryNode node = DiscoveryNodeUtils.builder("id1").name("name1").roles(emptySet()).build();
         assertThat(filters.match(node), equalTo(true));
 
-        node = TestDiscoveryNode.builder("id2").name("name2").roles(emptySet()).build();
+        node = DiscoveryNodeUtils.builder("id2").name("name2").roles(emptySet()).build();
         assertThat(filters.match(node), equalTo(false));
     }
 
@@ -72,13 +72,13 @@ public class DiscoveryNodeFiltersTests extends ESTestCase {
         Settings settings = shuffleSettings(Settings.builder().put("xxx._id", "id1,blah").put("xxx.name", "blah,name2").build());
         DiscoveryNodeFilters filters = buildFromSettings(OR, "xxx.", settings);
 
-        DiscoveryNode node = TestDiscoveryNode.builder("id1").name("name1").roles(emptySet()).build();
+        DiscoveryNode node = DiscoveryNodeUtils.builder("id1").name("name1").roles(emptySet()).build();
         assertThat(filters.match(node), equalTo(true));
 
-        node = TestDiscoveryNode.builder("id2").name("name2").roles(emptySet()).build();
+        node = DiscoveryNodeUtils.builder("id2").name("name2").roles(emptySet()).build();
         assertThat(filters.match(node), equalTo(true));
 
-        node = TestDiscoveryNode.builder("id3").name("name3").roles(emptySet()).build();
+        node = DiscoveryNodeUtils.builder("id3").name("name3").roles(emptySet()).build();
         assertThat(filters.match(node), equalTo(false));
     }
 
@@ -89,24 +89,24 @@ public class DiscoveryNodeFiltersTests extends ESTestCase {
         Map<String, String> attributes = new HashMap<>();
         attributes.put("tag", "A");
         attributes.put("group", "B");
-        DiscoveryNode node = TestDiscoveryNode.create("name1", "id1", buildNewFakeTransportAddress(), attributes, emptySet());
+        DiscoveryNode node = DiscoveryNodeUtils.builder("id1").name("name1").attributes(attributes).roles(emptySet()).build();
         assertThat(filters.match(node), equalTo(true));
 
         attributes = new HashMap<>();
         attributes.put("tag", "A");
         attributes.put("group", "B");
         attributes.put("name", "X");
-        node = TestDiscoveryNode.create("name2", "id2", buildNewFakeTransportAddress(), attributes, emptySet());
+        node = DiscoveryNodeUtils.builder("id2").name("name2").attributes(attributes).roles(emptySet()).build();
         assertThat(filters.match(node), equalTo(true));
 
         attributes = new HashMap<>();
         attributes.put("tag", "A");
         attributes.put("group", "F");
         attributes.put("name", "X");
-        node = TestDiscoveryNode.create("name3", "id3", buildNewFakeTransportAddress(), attributes, emptySet());
+        node = DiscoveryNodeUtils.builder("id3").name("name3").attributes(attributes).roles(emptySet()).build();
         assertThat(filters.match(node), equalTo(false));
 
-        node = TestDiscoveryNode.builder("id4").name("name4").roles(emptySet()).build();
+        node = DiscoveryNodeUtils.builder("id4").name("name4").roles(emptySet()).build();
         assertThat(filters.match(node), equalTo(false));
     }
 
@@ -114,7 +114,7 @@ public class DiscoveryNodeFiltersTests extends ESTestCase {
         Settings settings = Settings.builder().put("xxx.name", "*").build();
         DiscoveryNodeFilters filters = buildFromSettings(OR, "xxx.", settings);
 
-        DiscoveryNode node = TestDiscoveryNode.builder("id1").name("name1").roles(emptySet()).build();
+        DiscoveryNode node = DiscoveryNodeUtils.builder("id1").name("name1").roles(emptySet()).build();
         assertThat(filters.match(node), equalTo(true));
     }
 

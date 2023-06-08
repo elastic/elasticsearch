@@ -20,8 +20,8 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -93,7 +93,7 @@ public class SystemIndexManagerTests extends ESTestCase {
      * Check that the manager skips over descriptors whose indices cannot be managed.
      */
     public void testManagerSkipsDescriptorsThatAreNotManaged() {
-        SystemIndexDescriptor d1 = new SystemIndexDescriptor(".foo-1*", "");
+        SystemIndexDescriptor d1 = SystemIndexDescriptorUtils.createUnmanaged(".foo-1*", "");
         SystemIndexDescriptor d2 = SystemIndexDescriptor.builder()
             .setIndexPattern(".bar-*")
             .setPrimaryIndex(".bar-1")
@@ -330,7 +330,7 @@ public class SystemIndexManagerTests extends ESTestCase {
     }
 
     private static ClusterState state() {
-        final DiscoveryNode node = TestDiscoveryNode.builder("1").roles(new HashSet<>(DiscoveryNodeRole.roles())).build();
+        final DiscoveryNode node = DiscoveryNodeUtils.builder("1").roles(new HashSet<>(DiscoveryNodeRole.roles())).build();
         final DiscoveryNodes nodes = DiscoveryNodes.builder().add(node).masterNodeId(node.getId()).localNodeId(node.getId()).build();
         return ClusterState.builder(CLUSTER_NAME).nodes(nodes).metadata(Metadata.builder().generateClusterUuidIfNeeded()).build();
     }

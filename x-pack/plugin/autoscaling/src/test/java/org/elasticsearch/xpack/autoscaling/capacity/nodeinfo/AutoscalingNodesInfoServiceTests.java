@@ -28,8 +28,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -564,7 +564,7 @@ public class AutoscalingNodesInfoServiceTests extends AutoscalingTestCase {
     }
 
     private DiscoveryNode newNode(String nodeName, Set<DiscoveryNodeRole> roles) {
-        return TestDiscoveryNode.builder(UUIDs.randomBase64UUID()).name(nodeName).roles(roles).build();
+        return DiscoveryNodeUtils.builder(UUIDs.randomBase64UUID()).name(nodeName).roles(roles).build();
     }
 
     private DiscoveryNode restartNode(DiscoveryNode node) {

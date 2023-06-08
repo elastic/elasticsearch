@@ -20,6 +20,9 @@ import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoLineMultiV
 import java.io.IOException;
 import java.util.Map;
 
+import static org.elasticsearch.cluster.metadata.DataStream.TIMESTAMP_FIELD;
+import static org.elasticsearch.xpack.spatial.search.aggregations.GeoLineAggregationBuilder.SORT_FIELD;
+
 final class GeoLineAggregatorFactory extends MultiValuesSourceAggregatorFactory {
 
     private final boolean includeSort;
@@ -58,11 +61,18 @@ final class GeoLineAggregatorFactory extends MultiValuesSourceAggregatorFactory 
         Map<String, Object> metaData
     ) throws IOException {
         GeoLineMultiValuesSource valuesSources = new GeoLineMultiValuesSource(configs);
-        if (context.isInSortOrderExecutionRequired()) {
+        if (context.isInSortOrderExecutionRequired() && isSortByTimestamp(configs)) {
+            // We require both that this aggregation is a sub-aggregation of time-series, and that the sort field is '@timestamp'
             return new GeoLineAggregator.TimeSeries(name, valuesSources, context, parent, metaData, includeSort, sortOrder, size);
         } else {
             return new GeoLineAggregator.Normal(name, valuesSources, context, parent, metaData, includeSort, sortOrder, size);
         }
+    }
+
+    private boolean isSortByTimestamp(Map<String, ValuesSourceConfig> configs) {
+        ValuesSourceConfig sortConfig = configs.get(SORT_FIELD.getPreferredName());
+        // TODO: for 'position' metric no sort field is required
+        return sortConfig.fieldContext().field().equals(TIMESTAMP_FIELD.getName());
     }
 
     @Override

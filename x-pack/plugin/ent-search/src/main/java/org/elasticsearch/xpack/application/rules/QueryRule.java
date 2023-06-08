@@ -138,7 +138,7 @@ public class QueryRule implements Writeable, ToXContentObject {
 
     static {
         PARSER.declareStringOrNull(optionalConstructorArg(), ID_FIELD);
-        PARSER.declareStringOrNull(constructorArg(), TYPE_FIELD);
+        PARSER.declareString(constructorArg(), TYPE_FIELD);
         PARSER.declareObjectArray(constructorArg(), (p, c) -> QueryRuleCriteria.fromXContent(p), CRITERIA_FIELD);
         PARSER.declareObject(constructorArg(), (p, c) -> p.map(), ACTIONS_FIELD);
     }

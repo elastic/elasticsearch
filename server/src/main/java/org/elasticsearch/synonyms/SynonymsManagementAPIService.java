@@ -115,7 +115,7 @@ public class SynonymsManagementAPIService {
         }
     }
 
-    public void listSynonymsSet(int from, int size, ActionListener<PagedResult<SynonymSetSummary>> listener) {
+    public void getSynonymsSets(int from, int size, ActionListener<PagedResult<SynonymSetSummary>> listener) {
         client.prepareSearch(SYNONYMS_ALIAS_NAME)
             .setSize(0)
             .addAggregation(new TermsAggregationBuilder(SYNONYM_SETS_AGG_NAME).field(SYNONYMS_SET_FIELD).order(BucketOrder.key(true)))
@@ -133,7 +133,7 @@ public class SynonymsManagementAPIService {
             }));
     }
 
-    public void getSynonymsSet(String resourceName, int from, int size, ActionListener<PagedResult<SynonymRule>> listener) {
+    public void getSynonymRules(String resourceName, int from, int size, ActionListener<PagedResult<SynonymRule>> listener) {
         client.prepareSearch(SYNONYMS_ALIAS_NAME)
             .setQuery(QueryBuilders.termQuery(SYNONYMS_SET_FIELD, resourceName))
             .setFrom(from)

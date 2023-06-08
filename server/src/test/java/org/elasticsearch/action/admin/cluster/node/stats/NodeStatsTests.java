@@ -488,8 +488,8 @@ public class NodeStatsTests extends ESTestCase {
     }
 
     private static int expectedChunks(NodeStats nodeStats, NodeStatsLevel level) {
-        return 7 // one per each chunkeable object
-            + expectedChunks(nodeStats.getHttp()) //
+        // expectedChunks = number of static chunks (8 at the moment, see NodeStats#toXContentChunked) + number of variable chunks
+        return 8 + expectedChunks(nodeStats.getHttp()) //
             + expectedChunks(nodeStats.getIndices(), level) //
             + expectedChunks(nodeStats.getTransport()) //
             + expectedChunks(nodeStats.getIngestStats()) //
@@ -1033,9 +1033,9 @@ public class NodeStatsTests extends ESTestCase {
                 randomLongBetween(0, maxStatValue)
             );
         }
-        RepositoriesThrottlingStats repositoriesThrottlingStats = new RepositoriesThrottlingStats(
-            Map.of("test-repository", new RepositoriesThrottlingStats.ThrottlingStats(100, 200))
-        );
+        RepositoriesThrottlingStats repositoriesThrottlingStats = RepositoriesThrottlingStats.builder()
+            .add("test-repository", 100, 200)
+            .build();
 
         return new NodeStats(
             node,

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.repositories;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -18,18 +19,18 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
-
-import static java.util.stream.Collectors.toMap;
 
 public class RepositoriesThrottlingStats implements Writeable, ToXContentFragment {
 
     private final Map<String, ThrottlingStats> repositoryToThrottlingStats;
 
     public RepositoriesThrottlingStats(StreamInput in) throws IOException {
-        repositoryToThrottlingStats = in.readMap(StreamInput::readString, ThrottlingStats::new);
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_9_0)) {
+            repositoryToThrottlingStats = in.readMap(StreamInput::readString, ThrottlingStats::new);
+        } else {
+            repositoryToThrottlingStats = new HashMap<>();
+        }
     }
 
     public RepositoriesThrottlingStats(Map<String, ThrottlingStats> repositoryThrottlingStats) {
@@ -51,19 +52,16 @@ public class RepositoriesThrottlingStats implements Writeable, ToXContentFragmen
         return Collections.unmodifiableMap(repositoryToThrottlingStats);
     }
 
-    public record RepositoryThrottling(String repositoryName, long totalReadThrottledNanos, long totalWriteThrottledNanos) {}
-
     public static class Builder {
-        private Set<RepositoryThrottling> recordAccumulator = new HashSet<>();
+        private final Map<String, ThrottlingStats> repoThrottlingStats = new HashMap<>();
 
-        public void add(RepositoryThrottling throttlingRecord) {
-            recordAccumulator.add(throttlingRecord);
+        public Builder add(String repoName, long totalReadThrottledNanos, long totalWriteThrottledNanos) {
+            repoThrottlingStats.put(repoName, new ThrottlingStats(totalReadThrottledNanos, totalWriteThrottledNanos));
+            return this;
         }
 
         public RepositoriesThrottlingStats build() {
-            Map<String, ThrottlingStats> repositoryNameToThrottlingStats = recordAccumulator.stream()
-                .collect(toMap(r -> r.repositoryName, r -> new ThrottlingStats(r.totalReadThrottledNanos, r.totalWriteThrottledNanos)));
-            return new RepositoriesThrottlingStats(repositoryNameToThrottlingStats);
+            return new RepositoriesThrottlingStats(repoThrottlingStats);
         }
     }
 

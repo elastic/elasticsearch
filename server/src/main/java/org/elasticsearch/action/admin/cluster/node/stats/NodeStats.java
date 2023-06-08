@@ -289,6 +289,7 @@ public class NodeStats extends BaseNodeResponse implements ChunkedToXContent {
         out.writeOptionalWriteable(ingestStats);
         out.writeOptionalWriteable(adaptiveSelectionStats);
         out.writeOptionalWriteable(indexingPressureStats);
+        out.writeOptionalWriteable(repositoriesThrottlingStats);
     }
 
     @Override
@@ -321,12 +322,7 @@ public class NodeStats extends BaseNodeResponse implements ChunkedToXContent {
 
             ifPresent(getIndices()).toXContentChunked(outerParams),
 
-            Iterators.single((builder, params) -> {
-                ifPresent(getOs()).toXContent(builder, params);
-                ifPresent(getProcess()).toXContent(builder, params);
-                ifPresent(getJvm()).toXContent(builder, params);
-                return builder;
-            }),
+            singleChunk(ifPresent(getOs()), ifPresent(getProcess()), ifPresent(getJvm())),
 
             ifPresent(getThreadPool()).toXContentChunked(outerParams),
             singleChunk(ifPresent(getFs())),

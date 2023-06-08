@@ -49,6 +49,7 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.synonyms.PagedResult;
 import org.elasticsearch.synonyms.SynonymRule;
 import org.elasticsearch.synonyms.SynonymsManagementAPIService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -303,7 +304,7 @@ public class Analysis {
         SynonymsManagementAPIService synonymsManagementAPIService
     ) {
         // TODO: this is a temporary solution for loading synonyms under feature flag, to be redesigned for GA
-        final PlainActionFuture<SynonymsManagementAPIService.SynonymsSetResult> synonymsLoadingFuture = new PlainActionFuture<>() {
+        final PlainActionFuture<PagedResult<SynonymRule>> synonymsLoadingFuture = new PlainActionFuture<>() {
             @Override
             protected boolean blockingAllowed() {
                 // allow blocking while loading synonyms under feature flag
@@ -313,9 +314,9 @@ public class Analysis {
         threadPool.executor(ThreadPool.Names.SYSTEM_READ).execute(() -> {
             synonymsManagementAPIService.getSynonymsSet(synonymsSet, 0, 10_000, synonymsLoadingFuture);
         });
-        final SynonymsManagementAPIService.SynonymsSetResult results = synonymsLoadingFuture.actionGet();
+        PagedResult<SynonymRule> results = synonymsLoadingFuture.actionGet();
 
-        SynonymRule[] synonymRules = results.synonymRules();
+        SynonymRule[] synonymRules = results.pageResults();
         StringBuilder sb = new StringBuilder();
         for (SynonymRule synonymRule : synonymRules) {
             sb.append(synonymRule.synonyms()).append(System.lineSeparator());

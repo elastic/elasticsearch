@@ -12,7 +12,6 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.synonym.SynonymFilter;
 import org.apache.lucene.analysis.synonym.SynonymMap;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -26,7 +25,6 @@ import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.CustomAnalyzer;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
-import org.elasticsearch.synonyms.SynonymRule;
 import org.elasticsearch.synonyms.SynonymsAPI;
 import org.elasticsearch.synonyms.SynonymsManagementAPIService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -154,7 +152,6 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
     }
 
     protected ReaderWithOrigin getRulesFromSettings(Environment env) {
-
         if (settings.getAsList("synonyms", null) != null) {
             List<String> rulesList = Analysis.getWordList(env, settings, "synonyms");
             StringBuilder sb = new StringBuilder();
@@ -176,26 +173,10 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
                     "fake [" + synonymsSet + "] synonyms_set in .synonyms index"
                 );
             }
-
-            // TODO: this is a temporary solution for loading synonyms under feature flag, to be redesigned for GA
-            final PlainActionFuture<SynonymsManagementAPIService.SynonymsSetResult> synonymsLoadingFuture = new PlainActionFuture<>() {
-                @Override
-                protected boolean blockingAllowed() {
-                    // allow blocking while loading synonyms under feature flag
-                    return true;
-                }
-            };
-            threadPool.executor(ThreadPool.Names.SYSTEM_READ).execute(() -> {
-                synonymsManagementAPIService.getSynonymsSet(synonymsSet, 0, 10_000, synonymsLoadingFuture);
-            });
-            final SynonymsManagementAPIService.SynonymsSetResult results = synonymsLoadingFuture.actionGet();
-
-            SynonymRule[] synonymRules = results.synonymRules();
-            StringBuilder sb = new StringBuilder();
-            for (SynonymRule synonymRule : synonymRules) {
-                sb.append(synonymRule.synonyms()).append(System.lineSeparator());
-            }
-            return new ReaderWithOrigin(new StringReader(sb.toString()), "[" + synonymsSet + "] synonyms_set in .synonyms index");
+            return new ReaderWithOrigin(
+                Analysis.getReaderFromIndex(synonymsSet, threadPool, synonymsManagementAPIService),
+                "[" + synonymsSet + "] synonyms_set in .synonyms index"
+            );
         } else if (settings.get("synonyms_path") != null) {
             String synonyms_path = settings.get("synonyms_path", null);
             return new ReaderWithOrigin(Analysis.getReaderFromFile(env, synonyms_path, "synonyms_path"), synonyms_path);

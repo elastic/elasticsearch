@@ -53,15 +53,20 @@ import org.elasticsearch.xpack.ql.querydsl.query.WildcardQuery;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.Check;
+import org.elasticsearch.xpack.ql.util.CollectionUtils;
+import org.elasticsearch.xpack.versionfield.Version;
 
 import java.time.OffsetTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.temporal.TemporalAccessor;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+
+import static org.elasticsearch.xpack.ql.type.DataTypes.VERSION;
 
 public final class ExpressionTranslators {
 
@@ -287,6 +292,12 @@ public final class ExpressionTranslators {
                 }
                 format = formatter.pattern();
                 isDateLiteralComparison = true;
+            } else if (field.dataType() == VERSION) {
+                // VersionStringFieldMapper#indexedValueForSearch() only accepts as input String or BytesRef with the String (i.e. not
+                // encoded) representation of the version as it'll do the encoding itself.
+                if (value instanceof Version version) {
+                    value = version.toString();
+                }
             }
 
             ZoneId zoneId = null;
@@ -389,14 +400,14 @@ public final class ExpressionTranslators {
 
         private static Query translate(In in, TranslatorHandler handler) {
             FieldAttribute field = checkIsFieldAttribute(in.value());
-            boolean isDateTimeComparison = DataTypes.isDateTime(field.dataType());
+            boolean needsTypeSpecificValueHandling = DataTypes.isDateTime(field.dataType()) || field.dataType() == VERSION;
 
             Set<Object> terms = new LinkedHashSet<>();
             List<Query> queries = new ArrayList<>();
 
             for (Expression rhs : in.list()) {
                 if (DataTypes.isNull(rhs.dataType()) == false) {
-                    if (isDateTimeComparison) {
+                    if (needsTypeSpecificValueHandling) {
                         // delegates to BinaryComparisons translator to ensure consistent handling of date and time values
                         Query query = BinaryComparisons.translate(new Equals(in.source(), in.value(), rhs, in.zoneId()), handler);
 
@@ -464,6 +475,15 @@ public final class ExpressionTranslators {
         if (right == null) {
             return left;
         }
-        return new BoolQuery(source, isAnd, left, right);
+        List<Query> queries;
+        // check if either side is already a bool query to an extra bool query
+        if (left instanceof BoolQuery bool && bool.isAnd() == isAnd) {
+            queries = CollectionUtils.combine(bool.queries(), right);
+        } else if (right instanceof BoolQuery bool && bool.isAnd() == isAnd) {
+            queries = CollectionUtils.combine(bool.queries(), left);
+        } else {
+            queries = Arrays.asList(left, right);
+        }
+        return new BoolQuery(source, isAnd, queries);
     }
 }

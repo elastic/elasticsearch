@@ -682,7 +682,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
 
     protected static ThreadPoolStats.Stats snapshotThreadPoolStats(final String node) {
         return StreamSupport.stream(internalCluster().getInstance(ThreadPool.class, node).stats().spliterator(), false)
-            .filter(threadPool -> threadPool.getName().equals(ThreadPool.Names.SNAPSHOT))
+            .filter(threadPool -> threadPool.name().equals(ThreadPool.Names.SNAPSHOT))
             .findFirst()
             .orElseThrow(() -> new AssertionError("Failed to find snapshot pool on node [" + node + "]"));
     }
@@ -690,7 +690,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     protected void awaitMasterFinishRepoOperations() throws Exception {
         logger.info("--> waiting for master to finish all repo operations on its SNAPSHOT pool");
         final String masterName = internalCluster().getMasterName();
-        assertBusy(() -> assertEquals(snapshotThreadPoolStats(masterName).getActive(), 0));
+        assertBusy(() -> assertEquals(snapshotThreadPoolStats(masterName).active(), 0));
     }
 
     protected List<String> createNSnapshots(String repoName, int count) throws Exception {

@@ -139,8 +139,8 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
                 });
             }
             final ThreadPoolStats.Stats stats = stats(threadPool, threadPoolName);
-            assertThat(stats.getQueue(), equalTo(numberOfTasks - size));
-            assertThat(stats.getLargest(), equalTo(size));
+            assertThat(stats.queue(), equalTo(numberOfTasks - size));
+            assertThat(stats.largest(), equalTo(size));
             latch.countDown();
             try {
                 taskLatch.await();
@@ -170,7 +170,7 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
                     }
                 });
             }
-            int threads = stats(threadPool, threadPoolName).getThreads();
+            int threads = stats(threadPool, threadPoolName).threads();
             assertEquals(128, threads);
             latch.countDown();
             // this while loop is the core of this test; if threads
@@ -181,7 +181,7 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
             // down
             do {
                 spinForAtLeastOneMillisecond();
-            } while (stats(threadPool, threadPoolName).getThreads() > min);
+            } while (stats(threadPool, threadPoolName).threads() > min);
             try {
                 taskLatch.await();
             } catch (InterruptedException e) {

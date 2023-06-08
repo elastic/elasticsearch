@@ -15,7 +15,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -23,6 +22,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -34,6 +34,19 @@ public record IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Ma
         Writeable,
         ChunkedToXContent {
 
+    private static final Comparator<PipelineStat> PIPELINE_STAT_COMPARATOR = (p1, p2) -> {
+        final Stats p2Stats = p2.stats;
+        final Stats p1Stats = p1.stats;
+        final int ingestTimeCompare = Long.compare(p2Stats.ingestTimeInMillis, p1Stats.ingestTimeInMillis);
+        if (ingestTimeCompare == 0) {
+            return Long.compare(p2Stats.ingestCount, p1Stats.ingestCount);
+        } else {
+            return ingestTimeCompare;
+        }
+    };
+
+    public static final IngestStats IDENTITY = new IngestStats(Stats.IDENTITY, List.of(), Map.of());
+
     /**
      * @param totalStats - The total stats for Ingest. This is logically the sum of all pipeline stats,
      *                   and pipeline stats are logically the sum of the processor stats.
@@ -41,49 +54,34 @@ public record IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Ma
      * @param processorStats - The per-processor stats for a given pipeline. A map keyed by the pipeline identifier.
      */
     public IngestStats {
-        pipelineStats = pipelineStats.stream().sorted((p1, p2) -> {
-            final IngestStats.Stats p2Stats = p2.stats;
-            final IngestStats.Stats p1Stats = p1.stats;
-            final int ingestTimeCompare = Long.compare(p2Stats.ingestTimeInMillis, p1Stats.ingestTimeInMillis);
-            if (ingestTimeCompare == 0) {
-                return Long.compare(p2Stats.ingestCount, p1Stats.ingestCount);
-            } else {
-                return ingestTimeCompare;
-            }
-        }).toList();
+        pipelineStats = pipelineStats.stream().sorted(PIPELINE_STAT_COMPARATOR).toList();
     }
 
     /**
      * Read from a stream.
      */
-    public IngestStats(StreamInput in) throws IOException {
-        this(new Stats(in), readPipelineStats(in));
-    }
-
-    IngestStats(Stats stats, Tuple<List<PipelineStat>, Map<String, List<ProcessorStat>>> tuple) {
-        this(stats, tuple.v1(), tuple.v2());
-    }
-
-    private static Tuple<List<PipelineStat>, Map<String, List<ProcessorStat>>> readPipelineStats(StreamInput in) throws IOException {
+    public static IngestStats read(StreamInput in) throws IOException {
+        var stats = new Stats(in);
         var size = in.readVInt();
         var pipelineStats = new ArrayList<PipelineStat>(size);
         var processorStats = Maps.<String, List<ProcessorStat>>newMapWithExpectedSize(size);
-        for (int i = 0; i < size; i++) {
-            String pipelineId = in.readString();
-            Stats pipelineStat = new Stats(in);
+
+        for (var i = 0; i < size; i++) {
+            var pipelineId = in.readString();
+            var pipelineStat = new Stats(in);
             pipelineStats.add(new PipelineStat(pipelineId, pipelineStat));
             int processorsSize = in.readVInt();
-            List<ProcessorStat> processorStatsPerPipeline = new ArrayList<>(processorsSize);
-            for (int j = 0; j < processorsSize; j++) {
-                String processorName = in.readString();
-                String processorType = in.readString();
-                Stats processorStat = new Stats(in);
+            var processorStatsPerPipeline = new ArrayList<ProcessorStat>(processorsSize);
+            for (var j = 0; j < processorsSize; j++) {
+                var processorName = in.readString();
+                var processorType = in.readString();
+                var processorStat = new Stats(in);
                 processorStatsPerPipeline.add(new ProcessorStat(processorName, processorType, processorStat));
             }
             processorStats.put(pipelineId, Collections.unmodifiableList(processorStatsPerPipeline));
         }
 
-        return Tuple.tuple(Collections.unmodifiableList(pipelineStats), Collections.unmodifiableMap(processorStats));
+        return new IngestStats(stats, pipelineStats, processorStats);
     }
 
     @Override
@@ -153,10 +151,29 @@ public record IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Ma
         );
     }
 
+    public static IngestStats merge(IngestStats first, IngestStats second) {
+        return new IngestStats(
+            Stats.merge(first.totalStats, second.totalStats),
+            PipelineStat.merge(first.pipelineStats, second.pipelineStats),
+            merge(first.processorStats, second.processorStats)
+        );
+    }
+
+    static Map<String, List<ProcessorStat>> merge(Map<String, List<ProcessorStat>> first, Map<String, List<ProcessorStat>> second) {
+        var totalsPerPipelineProcessor = new HashMap<String, List<ProcessorStat>>();
+
+        first.forEach((pipelineId, stats) -> totalsPerPipelineProcessor.merge(pipelineId, stats, ProcessorStat::merge));
+        second.forEach((pipelineId, stats) -> totalsPerPipelineProcessor.merge(pipelineId, stats, ProcessorStat::merge));
+
+        return totalsPerPipelineProcessor;
+    }
+
     public record Stats(long ingestCount, long ingestTimeInMillis, long ingestCurrent, long ingestFailedCount)
         implements
             Writeable,
             ToXContentFragment {
+
+        public static final Stats IDENTITY = new Stats(0, 0, 0, 0);
 
         /**
          * Read from a stream.
@@ -180,6 +197,15 @@ public record IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Ma
             builder.field("current", ingestCurrent);
             builder.field("failed", ingestFailedCount);
             return builder;
+        }
+
+        static Stats merge(Stats first, Stats second) {
+            return new Stats(
+                first.ingestCount + second.ingestCount,
+                first.ingestTimeInMillis + second.ingestTimeInMillis,
+                first.ingestCurrent + second.ingestCurrent,
+                first.ingestFailedCount + second.ingestFailedCount
+            );
         }
     }
 
@@ -216,10 +242,34 @@ public record IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Ma
     /**
      * Container for pipeline stats.
      */
-    public record PipelineStat(String pipelineId, Stats stats) {}
+    public record PipelineStat(String pipelineId, Stats stats) {
+        static List<PipelineStat> merge(List<PipelineStat> first, List<PipelineStat> second) {
+            var totalsPerPipeline = new HashMap<String, Stats>();
+
+            first.forEach(ps -> totalsPerPipeline.merge(ps.pipelineId, ps.stats, Stats::merge));
+            second.forEach(ps -> totalsPerPipeline.merge(ps.pipelineId, ps.stats, Stats::merge));
+
+            return totalsPerPipeline.entrySet()
+                .stream()
+                .map(v -> new PipelineStat(v.getKey(), v.getValue()))
+                .sorted(PIPELINE_STAT_COMPARATOR)
+                .toList();
+        }
+    }
 
     /**
      * Container for processor stats.
      */
-    public record ProcessorStat(String name, String type, Stats stats) {}
+    public record ProcessorStat(String name, String type, Stats stats) {
+
+        // The list of ProcessorStats has *always* stats for each processor (even if processor was executed or not), so it's safe to zip
+        // both lists using a common index iterator.
+        private static List<ProcessorStat> merge(List<ProcessorStat> first, List<ProcessorStat> second) {
+            var merged = new ArrayList<ProcessorStat>();
+            for (var i = 0; i < first.size(); i++) {
+                merged.add(new ProcessorStat(first.get(i).name, first.get(i).type, Stats.merge(first.get(i).stats, second.get(i).stats)));
+            }
+            return merged;
+        }
+    }
 }

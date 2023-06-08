@@ -17,8 +17,8 @@ import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -398,12 +398,12 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
             final ThreadPoolStats threadPoolStats = clusterService.getClusterApplierService().threadPool().stats();
             ThreadPoolStats.Stats generic = null;
             for (ThreadPoolStats.Stats threadPoolStat : threadPoolStats) {
-                if (ThreadPool.Names.GENERIC.equals(threadPoolStat.getName())) {
+                if (ThreadPool.Names.GENERIC.equals(threadPoolStat.name())) {
                     generic = threadPoolStat;
                 }
             }
             assertThat(generic, notNullValue());
-            assertThat(generic.getActive(), equalTo(nbActive));
+            assertThat(generic.active(), equalTo(nbActive));
         }, 30L, TimeUnit.SECONDS);
     }
 
@@ -465,7 +465,7 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
     }
 
     private ClusterState demoteMasterNode(final ClusterState currentState) {
-        final DiscoveryNode node = TestDiscoveryNode.create("other");
+        final DiscoveryNode node = DiscoveryNodeUtils.create("other");
         assertThat(currentState.nodes().get(node.getId()), nullValue());
 
         return ClusterState.builder(currentState)

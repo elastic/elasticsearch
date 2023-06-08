@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.security.apikey;
 
+import org.apache.http.client.methods.HttpGet;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -43,6 +44,7 @@ import static org.elasticsearch.test.SecuritySettingsSourceField.ES_TEST_ROOT_RO
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField.RUN_AS_USER_HEADER;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyString;
@@ -795,6 +797,37 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         assertThat(e.getMessage(), containsString("action [cluster:admin/xpack/security/cross_cluster/api_key/create] is unauthorized"));
     }
 
+    public void testCannotCreateDerivedCrossClusterApiKey() throws IOException {
+        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
+
+        final Request createRestApiKeyRequest = new Request("POST", "_security/api_key");
+        setUserForRequest(createRestApiKeyRequest, MANAGE_SECURITY_USER, END_USER_PASSWORD);
+        createRestApiKeyRequest.setJsonEntity("{\"name\":\"rest-key\"}");
+        final ObjectPath createRestApiKeyResponse = assertOKAndCreateObjectPath(client().performRequest(createRestApiKeyRequest));
+
+        final Request createDerivedRequest = new Request("POST", "/_security/cross_cluster/api_key");
+        createDerivedRequest.setJsonEntity("""
+            {
+              "name": "derived-cross-cluster-key",
+              "access": {
+                "replication": [
+                  {
+                    "names": [ "logs" ]
+                  }
+                ]
+              }
+            }""");
+        createDerivedRequest.setOptions(
+            RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "ApiKey " + createRestApiKeyResponse.evaluate("encoded"))
+        );
+        final ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(createDerivedRequest));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(
+            e.getMessage(),
+            containsString("authentication via API key not supported: An API key cannot be used to create a cross-cluster API key")
+        );
+    }
+
     public void testCrossClusterApiKeyDoesNotAllowEmptyAccess() throws IOException {
         assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
 
@@ -1103,41 +1136,226 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         final ResponseException e8 = expectThrows(ResponseException.class, () -> client().performRequest(anotherUpdateRequest));
         assertThat(e8.getResponse().getStatusLine().getStatusCode(), equalTo(403));
         assertThat(e8.getMessage(), containsString("action [cluster:admin/xpack/security/cross_cluster/api_key/update] is unauthorized"));
+    }
 
-        // Cross-cluster API key created by another API key cannot be updated
-        // This isn't the desired behaviour and more like a bug because we don't yet have a full story about API key's identity.
-        // Since we actively block it, we are checking it here. But it should be removed once we solve the issue of API key identity.
-        final Request createDerivedRequest = new Request("POST", "/_security/cross_cluster/api_key");
-        createDerivedRequest.setJsonEntity("""
+    public void testWorkflowsRestrictionSupportForApiKeys() throws IOException {
+        final Request createApiKeyRequest = new Request("POST", "_security/api_key");
+        createApiKeyRequest.setJsonEntity("""
             {
-              "name": "derived-cross-cluster-key",
-              "access": {
-                "replication": [
-                  {
-                    "names": [ "logs" ]
+                "name": "key1",
+                "role_descriptors":{
+                    "r1": {
+                        "restriction": {
+                            "workflows": ["search_application"]
+                        }
+                    }
+                }
+            }""");
+        Response response = performRequestWithManageOwnApiKeyUser(createApiKeyRequest);
+        String apiKeyId = assertOKAndCreateObjectPath(response).evaluate("id");
+        assertThat(apiKeyId, notNullValue());
+        fetchAndAssertApiKeyContainsWorkflows(apiKeyId, "r1", "search_application");
+
+        final Request grantApiKeyRequest = new Request("POST", "_security/api_key/grant");
+        grantApiKeyRequest.setJsonEntity(Strings.format("""
+            {
+               "grant_type":"password",
+               "username":"%s",
+               "password":"end-user-password",
+               "api_key":{
+                  "name":"key2",
+                  "role_descriptors":{
+                     "r1":{
+                        "restriction": {
+                            "workflows": ["search_application"]
+                        }
+                     }
                   }
-                ]
+               }
+            }""", MANAGE_OWN_API_KEY_USER));
+        response = adminClient().performRequest(grantApiKeyRequest);
+        String grantedApiKeyId = assertOKAndCreateObjectPath(response).evaluate("id");
+        fetchAndAssertApiKeyContainsWorkflows(grantedApiKeyId, "r1", "search_application");
+
+        final Request updateApiKeyRequest = new Request("PUT", "_security/api_key/" + apiKeyId);
+        updateApiKeyRequest.setJsonEntity("""
+            {
+              "role_descriptors": {
+                "r1": {
+                  "restriction": {
+                   "workflows": ["search_application", "search_analytics"]
+                  }
+                }
               }
             }""");
-        createDerivedRequest.setOptions(
-            RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "ApiKey " + createRestApiKeyResponse.evaluate("encoded"))
+        response = performRequestWithManageOwnApiKeyUser(updateApiKeyRequest);
+        assertThat(assertOKAndCreateObjectPath(response).evaluate("updated"), equalTo(true));
+        fetchAndAssertApiKeyContainsWorkflows(apiKeyId, "r1", "search_application", "search_analytics");
+
+        final Request bulkUpdateApiKeyRequest = new Request("POST", "_security/api_key/_bulk_update");
+        bulkUpdateApiKeyRequest.setJsonEntity(Strings.format("""
+            {
+              "ids": ["%s"],
+              "role_descriptors": {
+                "r1": {
+                  "restriction": {
+                     "workflows": ["search_application"]
+                  }
+                }
+              }
+            }""", apiKeyId));
+        response = performRequestWithManageOwnApiKeyUser(bulkUpdateApiKeyRequest);
+        assertThat(assertOKAndCreateObjectPath(response).evaluate("updated"), contains(apiKeyId));
+        fetchAndAssertApiKeyContainsWorkflows(apiKeyId, "r1", "search_application");
+
+        final Request removeRestrictionRequest = new Request("PUT", "_security/api_key/" + apiKeyId);
+        removeRestrictionRequest.setJsonEntity("""
+            {
+              "role_descriptors": {
+                "r1": {
+                }
+              }
+            }""");
+        response = performRequestWithManageOwnApiKeyUser(removeRestrictionRequest);
+        assertThat(assertOKAndCreateObjectPath(response).evaluate("updated"), equalTo(true));
+        fetchAndAssertApiKeyDoesNotContainWorkflows(apiKeyId, "r1");
+    }
+
+    public void testWorkflowsRestrictionValidation() throws IOException {
+        final Request createInvalidApiKeyRequest = new Request("POST", "_security/api_key");
+        final boolean secondRoleWithWorkflowsRestriction = randomBoolean();
+        final String r1 = """
+                "r1": {
+                    "restriction": {
+                        "workflows": ["search_application"]
+                    }
+                }
+            """;
+        final String r2 = secondRoleWithWorkflowsRestriction ? """
+            "r2": {
+                "restriction": {
+                    "workflows": ["search_analytics"]
+                }
+            }
+            """ : """
+            "r2": {}
+            """;
+        createInvalidApiKeyRequest.setJsonEntity(Strings.format("""
+            {
+                "name": "key1",
+                "role_descriptors":{
+                    %s,
+                    %s
+                }
+            }""", r1, r2));
+        var e = expectThrows(ResponseException.class, () -> performRequestWithManageOwnApiKeyUser(createInvalidApiKeyRequest));
+        if (secondRoleWithWorkflowsRestriction) {
+            assertThat(e.getMessage(), containsString("more than one role descriptor with restriction is not supported"));
+        } else {
+            assertThat(e.getMessage(), containsString("combining role descriptors with and without restriction is not supported"));
+        }
+
+        final Request grantApiKeyRequest = new Request("POST", "_security/api_key/grant");
+        grantApiKeyRequest.setJsonEntity(Strings.format("""
+            {
+               "grant_type":"password",
+               "username":"%s",
+               "password":"end-user-password",
+               "api_key":{
+                  "name":"key2",
+                  "role_descriptors":{
+                     %s,
+                     %s
+                  }
+               }
+            }""", MANAGE_OWN_API_KEY_USER, r1, r2));
+        e = expectThrows(ResponseException.class, () -> adminClient().performRequest(grantApiKeyRequest));
+        if (secondRoleWithWorkflowsRestriction) {
+            assertThat(e.getMessage(), containsString("more than one role descriptor with restriction is not supported"));
+        } else {
+            assertThat(e.getMessage(), containsString("combining role descriptors with and without restriction is not supported"));
+        }
+
+        final Request createApiKeyRequest = new Request("POST", "_security/api_key");
+        createApiKeyRequest.setJsonEntity("""
+            {
+                "name": "key1",
+                "role_descriptors":{
+                    "r1": {
+                        "restriction": {
+                            "workflows": ["search_application"]
+                        }
+                    }
+                }
+            }""");
+        Response response = performRequestWithManageOwnApiKeyUser(createApiKeyRequest);
+        assertOK(response);
+        String apiKeyId = ObjectPath.createFromResponse(response).evaluate("id");
+        assertThat(apiKeyId, notNullValue());
+
+        final Request updateApiKeyRequest = new Request("PUT", "_security/api_key/" + apiKeyId);
+        updateApiKeyRequest.setJsonEntity(Strings.format("""
+            {
+                "role_descriptors": {
+                    %s,
+                    %s
+              }
+            }""", r1, r2));
+        e = expectThrows(ResponseException.class, () -> performRequestWithManageOwnApiKeyUser(updateApiKeyRequest));
+        if (secondRoleWithWorkflowsRestriction) {
+            assertThat(e.getMessage(), containsString("more than one role descriptor with restriction is not supported"));
+        } else {
+            assertThat(e.getMessage(), containsString("combining role descriptors with and without restriction is not supported"));
+        }
+
+        final Request bulkUpdateApiKeyRequest = new Request("POST", "_security/api_key/_bulk_update");
+        bulkUpdateApiKeyRequest.setJsonEntity(Strings.format("""
+            {
+                "ids": ["%s"],
+                "role_descriptors": {
+                    %s,
+                    %s
+                }
+            }""", apiKeyId, r1, r2));
+        e = expectThrows(ResponseException.class, () -> performRequestWithManageOwnApiKeyUser(bulkUpdateApiKeyRequest));
+        if (secondRoleWithWorkflowsRestriction) {
+            assertThat(e.getMessage(), containsString("more than one role descriptor with restriction is not supported"));
+        } else {
+            assertThat(e.getMessage(), containsString("combining role descriptors with and without restriction is not supported"));
+        }
+    }
+
+    private Response performRequestWithManageOwnApiKeyUser(Request request) throws IOException {
+        request.setOptions(
+            RequestOptions.DEFAULT.toBuilder()
+                .addHeader("Authorization", headerFromRandomAuthMethod(MANAGE_OWN_API_KEY_USER, END_USER_PASSWORD))
         );
-        final ObjectPath createDerivedResponse = assertOKAndCreateObjectPath(client().performRequest(createDerivedRequest));
-        final String derivedApiKey = createDerivedResponse.evaluate("id");
-        // cannot be updated by the original creator user
-        final Request updateDerivedRequest = new Request("PUT", "/_security/cross_cluster/api_key/" + derivedApiKey);
-        setUserForRequest(updateDerivedRequest, MANAGE_SECURITY_USER, END_USER_PASSWORD);
-        updateDerivedRequest.setJsonEntity("{\"metadata\":{}}");
-        final ResponseException e9 = expectThrows(ResponseException.class, () -> client().performRequest(updateDerivedRequest));
-        assertThat(e9.getResponse().getStatusLine().getStatusCode(), equalTo(404));
-        assertThat(e9.getMessage(), containsString("no API key owned by requesting user found"));
-        // cannot be updated by the original API key either
-        updateDerivedRequest.setOptions(
-            RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "ApiKey " + createRestApiKeyResponse.evaluate("encoded"))
+        return client().performRequest(request);
+    }
+
+    @SuppressWarnings("unchecked")
+    private void fetchAndAssertApiKeyContainsWorkflows(String apiKeyId, String roleName, String... expectedWorkflows) throws IOException {
+        Response getApiKeyResponse = fetchApiKey(apiKeyId);
+        List<String> actualWorkflows = assertOKAndCreateObjectPath(getApiKeyResponse).evaluate(
+            "api_keys.0.role_descriptors." + roleName + ".restriction.workflows"
         );
-        final ResponseException e10 = expectThrows(ResponseException.class, () -> client().performRequest(updateDerivedRequest));
-        assertThat(e10.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-        assertThat(e10.getMessage(), containsString("authentication via API key not supported: only the owner user can update an API key"));
+        assertThat(actualWorkflows, containsInAnyOrder(expectedWorkflows));
+    }
+
+    @SuppressWarnings("unchecked")
+    private void fetchAndAssertApiKeyDoesNotContainWorkflows(String apiKeyId, String roleName) throws IOException {
+        Response getApiKeyResponse = fetchApiKey(apiKeyId);
+        Map<String, ?> restriction = assertOKAndCreateObjectPath(getApiKeyResponse).evaluate(
+            "api_keys.0.role_descriptors." + roleName + ".restriction"
+        );
+        assertThat(restriction, nullValue());
+    }
+
+    private Response fetchApiKey(String apiKeyId) throws IOException {
+        Request getApiKeyRequest = new Request(HttpGet.METHOD_NAME, "_security/api_key?id=" + apiKeyId);
+        Response getApiKeyResponse = adminClient().performRequest(getApiKeyRequest);
+        assertOK(getApiKeyResponse);
+        return getApiKeyResponse;
     }
 
     private void assertBadCreateCrossClusterApiKeyRequest(String body, String expectedErrorMessage) throws IOException {
@@ -1345,7 +1563,8 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
             null,
             null,
             new RoleDescriptor.RemoteIndicesPrivileges[] {
-                RoleDescriptor.RemoteIndicesPrivileges.builder(remoteIndicesClusterAliases).indices("*").privileges("read").build() }
+                RoleDescriptor.RemoteIndicesPrivileges.builder(remoteIndicesClusterAliases).indices("*").privileges("read").build() },
+            null
         );
         getSecurityClient().putRole(role);
     }

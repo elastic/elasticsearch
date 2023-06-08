@@ -144,6 +144,10 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
+import static org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder.CCR_CLUSTER_PRIVILEGE_NAMES;
+import static org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder.CCS_AND_CCR_CLUSTER_PRIVILEGE_NAMES;
+import static org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder.CCS_CLUSTER_PRIVILEGE_NAMES;
+import static org.elasticsearch.xpack.core.security.authz.RoleDescriptor.WORKFLOWS_RESTRICTION_VERSION;
 import static org.elasticsearch.xpack.security.Security.SECURITY_CRYPTO_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 
@@ -298,6 +302,8 @@ public class ApiKeyService {
         Set<RoleDescriptor> userRoleDescriptors,
         ActionListener<CreateApiKeyResponse> listener
     ) {
+        assert request.getType() != ApiKey.Type.CROSS_CLUSTER || false == authentication.isApiKey()
+            : "cannot create derived cross-cluster API keys";
         assert request.getType() != ApiKey.Type.CROSS_CLUSTER || userRoleDescriptors.isEmpty()
             : "owner user role descriptor must be empty for cross-cluster API keys";
         ensureEnabled();
@@ -328,6 +334,15 @@ public class ApiKeyService {
                 );
                 return;
             }
+            final IllegalArgumentException workflowsValidationException = validateWorkflowsRestrictionConstraints(
+                transportVersion,
+                request.getRoleDescriptors(),
+                userRoleDescriptors
+            );
+            if (workflowsValidationException != null) {
+                listener.onFailure(workflowsValidationException);
+                return;
+            }
 
             final Set<RoleDescriptor> filteredUserRoleDescriptors = maybeRemoveRemoteIndicesPrivileges(
                 userRoleDescriptors,
@@ -345,6 +360,43 @@ public class ApiKeyService {
 
     private static boolean hasRemoteIndices(Collection<RoleDescriptor> roleDescriptors) {
         return roleDescriptors != null && roleDescriptors.stream().anyMatch(RoleDescriptor::hasRemoteIndicesPrivileges);
+    }
+
+    private static IllegalArgumentException validateWorkflowsRestrictionConstraints(
+        TransportVersion transportVersion,
+        List<RoleDescriptor> requestRoleDescriptors,
+        Set<RoleDescriptor> userRoleDescriptors
+    ) {
+        if (getNumberOfRoleDescriptorsWithRestriction(userRoleDescriptors) > 0L) {
+            return new IllegalArgumentException("owner user role descriptors must not include restriction");
+        }
+        final long numberOfRoleDescriptorsWithRestriction = getNumberOfRoleDescriptorsWithRestriction(requestRoleDescriptors);
+        if (numberOfRoleDescriptorsWithRestriction > 0L) {
+            // creating/updating API keys with restrictions is not allowed in a mixed cluster.
+            if (transportVersion.before(WORKFLOWS_RESTRICTION_VERSION)) {
+                return new IllegalArgumentException(
+                    "all nodes must have transport version ["
+                        + WORKFLOWS_RESTRICTION_VERSION
+                        + "] or higher to support restrictions for API keys"
+                );
+            }
+            // It's only allowed to create/update API keys with a single role descriptor that is restricted.
+            if (numberOfRoleDescriptorsWithRestriction != 1L) {
+                return new IllegalArgumentException("more than one role descriptor with restriction is not supported");
+            }
+            // Combining roles with and without restriction is not allowed either.
+            if (numberOfRoleDescriptorsWithRestriction != requestRoleDescriptors.size()) {
+                return new IllegalArgumentException("combining role descriptors with and without restriction is not supported");
+            }
+        }
+        return null;
+    }
+
+    private static long getNumberOfRoleDescriptorsWithRestriction(Collection<RoleDescriptor> roleDescriptors) {
+        if (roleDescriptors == null || roleDescriptors.isEmpty()) {
+            return 0L;
+        }
+        return roleDescriptors.stream().filter(RoleDescriptor::hasRestriction).count();
     }
 
     private void createApiKeyAndIndexIt(
@@ -418,7 +470,6 @@ public class ApiKeyService {
         assert request.getType() != ApiKey.Type.CROSS_CLUSTER || userRoleDescriptors.isEmpty()
             : "owner user role descriptor must be empty for cross-cluster API keys";
         ensureEnabled();
-
         if (authentication == null) {
             listener.onFailure(new IllegalArgumentException("authentication must be provided"));
             return;
@@ -440,6 +491,15 @@ public class ApiKeyService {
                         + "] or higher to support remote indices privileges for API keys"
                 )
             );
+            return;
+        }
+        final Exception workflowsValidationException = validateWorkflowsRestrictionConstraints(
+            transportVersion,
+            request.getRoleDescriptors(),
+            userRoleDescriptors
+        );
+        if (workflowsValidationException != null) {
+            listener.onFailure(workflowsValidationException);
             return;
         }
 
@@ -574,7 +634,8 @@ public class ApiKeyService {
                         roleDescriptor.getRunAs(),
                         roleDescriptor.getMetadata(),
                         roleDescriptor.getTransientMetadata(),
-                        null
+                        null,
+                        roleDescriptor.getRestriction()
                     );
                 }
                 return roleDescriptor;
@@ -1234,6 +1295,48 @@ public class ApiKeyService {
         }
     }
 
+    public void crossClusterApiKeyUsageStats(ActionListener<Map<String, Object>> listener) {
+        if (false == isEnabled()) {
+            listener.onResponse(Map.of());
+            return;
+        }
+        final SecurityIndexManager frozenSecurityIndex = securityIndex.freeze();
+        if (frozenSecurityIndex.indexExists() == false) {
+            logger.debug("security index does not exist");
+            listener.onResponse(Map.of("total", 0, "ccs", 0, "ccr", 0, "ccs_ccr", 0));
+        } else if (frozenSecurityIndex.isAvailable() == false) {
+            listener.onFailure(frozenSecurityIndex.getUnavailableReason());
+        } else {
+            final BoolQueryBuilder boolQuery = QueryBuilders.boolQuery()
+                .filter(QueryBuilders.termQuery("doc_type", "api_key"))
+                .filter(QueryBuilders.termQuery("type", ApiKey.Type.CROSS_CLUSTER.value()));
+            findApiKeys(boolQuery, true, true, this::convertSearchHitToApiKeyInfo, ActionListener.wrap(apiKeyInfos -> {
+                int ccsKeys = 0, ccrKeys = 0, ccsCcrKeys = 0;
+                for (ApiKey apiKeyInfo : apiKeyInfos) {
+                    assert apiKeyInfo.getType() == ApiKey.Type.CROSS_CLUSTER;
+                    assert apiKeyInfo.getRoleDescriptors().size() == 1;
+                    final String[] clusterPrivileges = apiKeyInfo.getRoleDescriptors().iterator().next().getClusterPrivileges();
+                    if (Arrays.equals(clusterPrivileges, CCS_CLUSTER_PRIVILEGE_NAMES)) {
+                        ccsKeys += 1;
+                    } else if (Arrays.equals(clusterPrivileges, CCR_CLUSTER_PRIVILEGE_NAMES)) {
+                        ccrKeys += 1;
+                    } else if (Arrays.equals(clusterPrivileges, CCS_AND_CCR_CLUSTER_PRIVILEGE_NAMES)) {
+                        ccsCcrKeys += 1;
+                    } else {
+                        final String message = "invalid cluster privileges ["
+                            + Strings.arrayToCommaDelimitedString(clusterPrivileges)
+                            + "] for cross-cluster API key ["
+                            + apiKeyInfo.getId()
+                            + "]";
+                        assert false : message;
+                        listener.onFailure(new IllegalStateException(message));
+                    }
+                }
+                listener.onResponse(Map.of("total", apiKeyInfos.size(), "ccs", ccsKeys, "ccr", ccrKeys, "ccs_ccr", ccsCcrKeys));
+            }, listener::onFailure));
+        }
+    }
+
     // public class for testing
     public static final class ApiKeyCredentials implements AuthenticationToken, Closeable {
         private final String id;
@@ -1462,7 +1565,7 @@ public class ApiKeyService {
         }
         if (filterOutExpiredKeys) {
             final BoolQueryBuilder expiredQuery = QueryBuilders.boolQuery();
-            expiredQuery.should(QueryBuilders.rangeQuery("expiration_time").gt(Instant.now().toEpochMilli()));
+            expiredQuery.should(QueryBuilders.rangeQuery("expiration_time").gt(clock.instant().toEpochMilli()));
             expiredQuery.should(QueryBuilders.boolQuery().mustNot(QueryBuilders.existsQuery("expiration_time")));
             boolQuery.filter(expiredQuery);
         }

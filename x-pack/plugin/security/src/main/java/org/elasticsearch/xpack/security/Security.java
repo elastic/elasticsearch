@@ -7,11 +7,14 @@
 package org.elasticsearch.xpack.security;
 
 import io.netty.channel.Channel;
+import io.netty.handler.codec.http.HttpMethod;
+import io.netty.handler.codec.http.HttpUtil;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -82,6 +85,7 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestHeaderDefinition;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.threadpool.ExecutorBuilder;
@@ -646,7 +650,7 @@ public class Security extends Plugin
     ) throws Exception {
         logger.info("Security is {}", enabled ? "enabled" : "disabled");
         if (enabled == false) {
-            return Collections.singletonList(new SecurityUsageServices(null, null, null, null, null));
+            return Collections.singletonList(new SecurityUsageServices(null, null, null, null, null, null));
         }
 
         systemIndices.init(client, clusterService);
@@ -755,7 +759,8 @@ public class Security extends Plugin
             settings,
             client,
             systemIndices.getMainIndexManager(),
-            cacheInvalidatorRegistry
+            cacheInvalidatorRegistry,
+            clusterService
         );
         components.add(privilegeStore);
 
@@ -995,7 +1000,9 @@ public class Security extends Plugin
             )
         );
 
-        components.add(new SecurityUsageServices(realms, allRolesStore, nativeRoleMappingStore, ipFilter.get(), profileService));
+        components.add(
+            new SecurityUsageServices(realms, allRolesStore, nativeRoleMappingStore, ipFilter.get(), profileService, apiKeyService)
+        );
 
         reservedRoleMappingAction.set(new ReservedRoleMappingAction(nativeRoleMappingStore));
         systemIndices.getMainIndexManager().onStateRecovered(state -> reservedRoleMappingAction.get().securityIndexRecovered());
@@ -1654,26 +1661,6 @@ public class Security extends Plugin
             }
             final AuthenticationService authenticationService = this.authcService.get();
             final ThreadContext threadContext = this.threadContext.get();
-            final HttpValidator httpValidator = (httpRequest, channel, listener) -> {
-                HttpPreRequest httpPreRequest = HttpHeadersAuthenticatorUtils.asHttpPreRequest(httpRequest);
-                // step 1: Populate the thread context with credentials and any other HTTP request header values (eg run-as) that the
-                // authentication process looks for while doing its duty.
-                perRequestThreadContext.accept(httpPreRequest, threadContext);
-                populateClientCertificate.accept(channel, threadContext);
-                RemoteHostHeader.process(channel, threadContext);
-                // step 2: Run authentication on the now properly prepared thread-context.
-                // This inspects and modifies the thread context.
-                if (httpPreRequest.method() != RestRequest.Method.OPTIONS) {
-                    authenticationService.authenticate(
-                        httpPreRequest,
-                        ActionListener.wrap(ignored -> listener.onResponse(null), listener::onFailure)
-                    );
-                } else {
-                    // allow for unauthenticated OPTIONS request
-                    // this includes CORS preflight, and regular OPTIONS that return permitted methods for a given path
-                    listener.onResponse(null);
-                }
-            };
             return getHttpServerTransportWithHeadersValidator(
                 settings,
                 networkService,
@@ -1685,10 +1672,76 @@ public class Security extends Plugin
                 tracer,
                 new TLSConfig(sslConfiguration, sslService::createSSLEngine),
                 acceptPredicate,
-                httpValidator
+                (httpRequest, channel, listener) -> {
+                    HttpPreRequest httpPreRequest = HttpHeadersAuthenticatorUtils.asHttpPreRequest(httpRequest);
+                    // step 1: Populate the thread context with credentials and any other HTTP request header values (eg run-as) that the
+                    // authentication process looks for while doing its duty.
+                    perRequestThreadContext.accept(httpPreRequest, threadContext);
+                    populateClientCertificate.accept(channel, threadContext);
+                    RemoteHostHeader.process(channel, threadContext);
+                    // step 2: Run authentication on the now properly prepared thread-context.
+                    // This inspects and modifies the thread context.
+                    authenticationService.authenticate(httpPreRequest, listener.delegateFailureAndWrap((l, ignored) -> l.onResponse(null)));
+                },
+                (httpRequest, channel, listener) -> {
+                    // allow unauthenticated OPTIONS request through
+                    // this includes CORS preflight, and regular OPTIONS that return permitted methods for a given path
+                    // But still populate the thread context with the usual request headers (as for any other request that is dispatched)
+                    HttpPreRequest httpPreRequest = HttpHeadersAuthenticatorUtils.asHttpPreRequest(httpRequest);
+                    perRequestThreadContext.accept(httpPreRequest, threadContext);
+                    populateClientCertificate.accept(channel, threadContext);
+                    RemoteHostHeader.process(channel, threadContext);
+                    listener.onResponse(null);
+                }
             );
         });
         return httpTransports;
+    }
+
+    // "public" so it can be used in tests
+    public static Netty4HttpServerTransport getHttpServerTransportWithHeadersValidator(
+        Settings settings,
+        NetworkService networkService,
+        ThreadPool threadPool,
+        NamedXContentRegistry xContentRegistry,
+        HttpServerTransport.Dispatcher dispatcher,
+        ClusterSettings clusterSettings,
+        SharedGroupFactory sharedGroupFactory,
+        Tracer tracer,
+        TLSConfig tlsConfig,
+        @Nullable AcceptChannelHandler.AcceptPredicate acceptPredicate,
+        HttpValidator httpValidator,
+        HttpValidator httpOptionsValidator
+    ) {
+        return getHttpServerTransportWithHeadersValidator(
+            settings,
+            networkService,
+            threadPool,
+            xContentRegistry,
+            dispatcher,
+            clusterSettings,
+            sharedGroupFactory,
+            tracer,
+            tlsConfig,
+            acceptPredicate,
+            (httpRequest, channel, listener) -> {
+                if (httpRequest.method() == HttpMethod.OPTIONS) {
+                    if (HttpUtil.getContentLength(httpRequest, -1L) > 1 || HttpUtil.isTransferEncodingChunked(httpRequest)) {
+                        // OPTIONS requests with a body are not supported
+                        listener.onFailure(
+                            new ElasticsearchStatusException(
+                                "OPTIONS requests with a payload body are not supported",
+                                RestStatus.BAD_REQUEST
+                            )
+                        );
+                    } else {
+                        httpOptionsValidator.validate(httpRequest, channel, listener);
+                    }
+                } else {
+                    httpValidator.validate(httpRequest, channel, listener);
+                }
+            }
+        );
     }
 
     // "public" so it can be used in tests

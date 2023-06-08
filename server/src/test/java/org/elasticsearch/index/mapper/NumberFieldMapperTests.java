@@ -207,7 +207,7 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
         }
     }
 
-    protected void testNullValue() throws IOException {
+    public void testNullValue() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         SourceToParse source = source(b -> b.nullField("field"));
         ParsedDocument doc = mapper.parse(source);
@@ -220,14 +220,15 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
         }));
         doc = mapper.parse(source);
         List<IndexableField> fields = doc.rootDoc().getFields("field");
-        assertEquals(2, fields.size());
-        IndexableField pointField = fields.get(0);
-        assertEquals(1, pointField.fieldType().pointIndexDimensionCount());
-        assertFalse(pointField.fieldType().stored());
-        assertEquals(123, pointField.numericValue().doubleValue(), 0d);
-        IndexableField dvField = fields.get(1);
-        assertEquals(DocValuesType.SORTED_NUMERIC, dvField.fieldType().docValuesType());
-        assertFalse(dvField.fieldType().stored());
+        List<IndexableField> pointFields = fields.stream().filter(f -> f.fieldType().pointIndexDimensionCount() != 0).toList();
+        assertEquals(1, pointFields.size());
+        assertEquals(1, pointFields.get(0).fieldType().pointIndexDimensionCount());
+        assertFalse(pointFields.get(0).fieldType().stored());
+
+        List<IndexableField> dvFields = fields.stream().filter(f -> f.fieldType().docValuesType() != DocValuesType.NONE).toList();
+        assertEquals(1, dvFields.size());
+        assertEquals(DocValuesType.SORTED_NUMERIC, dvFields.get(0).fieldType().docValuesType());
+        assertFalse(dvFields.get(0).fieldType().stored());
     }
 
     public void testOutOfRangeValues() throws IOException {

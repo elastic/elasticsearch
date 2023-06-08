@@ -43,6 +43,7 @@ import org.elasticsearch.http.netty4.internal.HttpHeadersWithAuthenticationConte
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -681,4 +682,170 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
             testThreadPool.shutdownNow();
         }
     }
+
+    public void testOptionsRequestsFailWith400AndNoAuthn() throws Exception {
+        final Settings settings = Settings.builder().put(env.settings()).build();
+        AtomicReference<Throwable> badRequestCauseReference = new AtomicReference<>();
+        final HttpServerTransport.Dispatcher dispatcher = new HttpServerTransport.Dispatcher() {
+            @Override
+            public void dispatchRequest(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) {
+                logger.error("--> Unexpected dispatched request [" + FakeRestRequest.requestToString(channel.request()) + "]");
+                throw new AssertionError("Unexpected dispatched request");
+            }
+
+            @Override
+            public void dispatchBadRequest(final RestChannel channel, final ThreadContext threadContext, final Throwable cause) {
+                badRequestCauseReference.set(cause);
+            }
+        };
+        final ThreadPool testThreadPool = new TestThreadPool(TEST_MOCK_TRANSPORT_THREAD_PREFIX);
+        try (
+            Netty4HttpServerTransport transport = Security.getHttpServerTransportWithHeadersValidator(
+                settings,
+                new NetworkService(List.of()),
+                testThreadPool,
+                xContentRegistry(),
+                dispatcher,
+                randomClusterSettings(),
+                new SharedGroupFactory(settings),
+                Tracer.NOOP,
+                TLSConfig.noTLS(),
+                null,
+                (httpPreRequest, channel, listener) -> {
+                    throw new AssertionError("should not be invoked for OPTIONS requests");
+                },
+                (httpPreRequest, channel, listener) -> {
+                    throw new AssertionError("should not be invoked for OPTIONS requests with a body");
+                }
+            )
+        ) {
+            final ChannelHandler handler = transport.configureServerChannelHandler();
+            final EmbeddedChannel ch = new EmbeddedChannel(handler);
+            // OPTIONS request with fixed length content written in one chunk
+            {
+                ByteBuf buf = ch.alloc().buffer();
+                ByteBufUtil.copy(AsciiString.of("OPTIONS /url/whatever/fixed-length-single-chunk HTTP/1.1"), buf);
+                buf.writeByte(HttpConstants.LF);
+                if (randomBoolean()) {
+                    ByteBufUtil.copy(AsciiString.of("Host: localhost"), buf);
+                    buf.writeByte(HttpConstants.LF);
+                }
+                if (randomBoolean()) {
+                    ByteBufUtil.copy(AsciiString.of("Accept: */*"), buf);
+                    buf.writeByte(HttpConstants.LF);
+                }
+                if (randomBoolean()) {
+                    ByteBufUtil.copy(AsciiString.of("Content-Encoding: gzip"), buf);
+                    buf.writeByte(HttpConstants.LF);
+                }
+                if (randomBoolean()) {
+                    ByteBufUtil.copy(
+                        AsciiString.of("Content-Type: " + randomFrom("text/plain; charset=utf-8", "application/json; charset=utf-8")),
+                        buf
+                    );
+                    buf.writeByte(HttpConstants.LF);
+                }
+                String content = randomAlphaOfLengthBetween(4, 1024);
+                // having a "Content-Length" request header is what makes it "fixed length"
+                ByteBufUtil.copy(AsciiString.of("Content-Length: " + content.length()), buf);
+                buf.writeByte(HttpConstants.LF);
+                // end of headers
+                buf.writeByte(HttpConstants.LF);
+                ByteBufUtil.copy(AsciiString.of(content), buf);
+                // write everything in one single chunk
+                testThreadPool.generic().submit(() -> {
+                    ch.writeInbound(buf);
+                    ch.flushInbound();
+                }).get();
+                ch.runPendingTasks();
+                Throwable badRequestCause = badRequestCauseReference.get();
+                assertThat(badRequestCause, instanceOf(HttpHeadersValidationException.class));
+                assertThat(badRequestCause.getCause(), instanceOf(ElasticsearchException.class));
+                assertThat(((ElasticsearchException) badRequestCause.getCause()).status(), is(RestStatus.BAD_REQUEST));
+                assertThat(
+                    ((ElasticsearchException) badRequestCause.getCause()).getDetailedMessage(),
+                    containsString("OPTIONS requests with a payload body are not supported")
+                );
+            }
+            {
+                ByteBuf buf = ch.alloc().buffer();
+                ByteBufUtil.copy(AsciiString.of("OPTIONS /url/whatever/chunked-transfer?encoding HTTP/1.1"), buf);
+                buf.writeByte(HttpConstants.LF);
+                if (randomBoolean()) {
+                    ByteBufUtil.copy(AsciiString.of("Host: localhost"), buf);
+                    buf.writeByte(HttpConstants.LF);
+                }
+                if (randomBoolean()) {
+                    ByteBufUtil.copy(AsciiString.of("Accept: */*"), buf);
+                    buf.writeByte(HttpConstants.LF);
+                }
+                if (randomBoolean()) {
+                    ByteBufUtil.copy(AsciiString.of("Content-Encoding: gzip"), buf);
+                    buf.writeByte(HttpConstants.LF);
+                }
+                if (randomBoolean()) {
+                    ByteBufUtil.copy(
+                        AsciiString.of("Content-Type: " + randomFrom("text/plain; charset=utf-8", "application/json; charset=utf-8")),
+                        buf
+                    );
+                    buf.writeByte(HttpConstants.LF);
+                }
+                // do not write a "Content-Length" header to make the request "variable length"
+                if (randomBoolean()) {
+                    ByteBufUtil.copy(AsciiString.of("Transfer-Encoding: " + randomFrom("chunked", "gzip, chunked")), buf);
+                } else {
+                    ByteBufUtil.copy(AsciiString.of("Transfer-Encoding: chunked"), buf);
+                }
+                buf.writeByte(HttpConstants.LF);
+                buf.writeByte(HttpConstants.LF);
+                // maybe append some chunks as well
+                String[] contentParts = randomArray(0, 4, String[]::new, () -> randomAlphaOfLengthBetween(1, 64));
+                for (String content : contentParts) {
+                    ByteBufUtil.copy(AsciiString.of(Integer.toHexString(content.length())), buf);
+                    buf.writeByte(HttpConstants.CR);
+                    buf.writeByte(HttpConstants.LF);
+                    ByteBufUtil.copy(AsciiString.of(content), buf);
+                    buf.writeByte(HttpConstants.CR);
+                    buf.writeByte(HttpConstants.LF);
+                }
+                testThreadPool.generic().submit(() -> {
+                    ch.writeInbound(buf);
+                    ch.flushInbound();
+                }).get();
+                // append some more chunks as well
+                ByteBuf buf2 = ch.alloc().buffer();
+                contentParts = randomArray(1, 4, String[]::new, () -> randomAlphaOfLengthBetween(1, 64));
+                for (String content : contentParts) {
+                    ByteBufUtil.copy(AsciiString.of(Integer.toHexString(content.length())), buf2);
+                    buf2.writeByte(HttpConstants.CR);
+                    buf2.writeByte(HttpConstants.LF);
+                    ByteBufUtil.copy(AsciiString.of(content), buf2);
+                    buf2.writeByte(HttpConstants.CR);
+                    buf2.writeByte(HttpConstants.LF);
+                }
+                // finish chunked request
+                ByteBufUtil.copy(AsciiString.of("0"), buf2);
+                buf2.writeByte(HttpConstants.CR);
+                buf2.writeByte(HttpConstants.LF);
+                buf2.writeByte(HttpConstants.CR);
+                buf2.writeByte(HttpConstants.LF);
+                testThreadPool.generic().submit(() -> {
+                    ch.writeInbound(buf2);
+                    ch.flushInbound();
+                }).get();
+                ch.runPendingTasks();
+                Throwable badRequestCause = badRequestCauseReference.get();
+                assertThat(badRequestCause, instanceOf(HttpHeadersValidationException.class));
+                assertThat(badRequestCause.getCause(), instanceOf(ElasticsearchException.class));
+                assertThat(((ElasticsearchException) badRequestCause.getCause()).status(), is(RestStatus.BAD_REQUEST));
+                assertThat(
+                    ((ElasticsearchException) badRequestCause.getCause()).getDetailedMessage(),
+                    containsString("OPTIONS requests with a payload body are not supported")
+                );
+            }
+        } finally {
+            testThreadPool.shutdownNow();
+        }
+    }
+
 }

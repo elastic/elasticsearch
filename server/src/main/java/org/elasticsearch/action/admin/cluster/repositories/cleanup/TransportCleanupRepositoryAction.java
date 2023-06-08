@@ -11,7 +11,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
-import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
@@ -25,6 +24,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -153,9 +153,9 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
             return;
         }
         final BlobStoreRepository blobStoreRepository = (BlobStoreRepository) repository;
-        final StepListener<RepositoryData> repositoryDataListener = new StepListener<>();
+        final ListenableFuture<RepositoryData> repositoryDataListener = new ListenableFuture<>();
         repository.getRepositoryData(repositoryDataListener);
-        repositoryDataListener.whenComplete(repositoryData -> {
+        repositoryDataListener.addListener(listener.delegateFailureAndWrap((delegate, repositoryData) -> {
             final long repositoryStateId = repositoryData.getGenId();
             logger.info("Running cleanup operations on repository [{}][{}]", repositoryName, repositoryStateId);
             submitUnbatchedTask(
@@ -222,7 +222,7 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
                         threadPool.executor(ThreadPool.Names.SNAPSHOT)
                             .execute(
                                 ActionRunnable.wrap(
-                                    listener,
+                                    delegate,
                                     l -> blobStoreRepository.cleanup(
                                         repositoryStateId,
                                         SnapshotsService.minCompatibleVersion(newState.nodes().getMinNodeVersion(), repositoryData, null),
@@ -248,7 +248,7 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
                         assert failure != null || result != null;
                         if (startedCleanup == false) {
                             logger.debug("No cleanup task to remove from cluster state because we failed to start one", failure);
-                            listener.onFailure(failure);
+                            delegate.onFailure(failure);
                             return;
                         }
                         submitUnbatchedTask(
@@ -266,7 +266,7 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
                                         e.addSuppressed(failure);
                                     }
                                     logger.warn(() -> "[" + repositoryName + "] failed to remove repository cleanup task", e);
-                                    listener.onFailure(e);
+                                    delegate.onFailure(e);
                                 }
 
                                 @Override
@@ -278,7 +278,7 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
                                             repositoryStateId,
                                             result
                                         );
-                                        listener.onResponse(result);
+                                        delegate.onResponse(result);
                                     } else {
                                         logger.warn(
                                             () -> "Failed to run repository cleanup operations on ["
@@ -288,7 +288,7 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
                                                 + "]",
                                             failure
                                         );
-                                        listener.onFailure(failure);
+                                        delegate.onFailure(failure);
                                     }
                                 }
                             }
@@ -296,7 +296,7 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
                     }
                 }
             );
-        }, listener::onFailure);
+        }));
     }
 
     @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here

@@ -49,7 +49,7 @@ public class SubmitAsyncSearchRequest extends ActionRequest {
      */
     public SubmitAsyncSearchRequest(SearchSourceBuilder source, String... indices) {
         this.request = new SearchRequest(indices, source);
-        request.setCcsMinimizeRoundtrips(true);
+        request.setCcsMinimizeRoundtrips(false);
         request.setPreFilterShardSize(1);
         request.setBatchedReduceSize(5);
         request.requestCache(true);

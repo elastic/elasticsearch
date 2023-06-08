@@ -28,7 +28,7 @@ PUT /my-index-000001
 
 [source,console]
 --------------------------------------------------
-GET /my-index-000001/_search
+POST /my-index-000001/_search
 {
   "sort" : [
     { "post_date" : {"order" : "asc", "format": "strict_date_optional_time_nanos"}},

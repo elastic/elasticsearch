@@ -11,7 +11,9 @@ esplugin {
   hasNativeController false
   requiresKeystore true
 }
-archivesBaseName = 'x-pack-ilm'
+base {
+  archivesName = 'x-pack-ilm'
+}
 
 dependencies {
   compileOnly project(path: xpackModule('core'))

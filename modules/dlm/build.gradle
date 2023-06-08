@@ -18,7 +18,9 @@ esplugin {
   description 'Elasticsearch Plugin - Data Lifecycle Management'
   classname 'org.elasticsearch.dlm.DataLifecyclePlugin'
 }
-archivesBaseName = 'dlm'
+base {
+  archivesName = 'dlm'
+}
 dependencies {
   implementation project(path: ':modules:data-streams')
   testImplementation project(':modules:data-streams')

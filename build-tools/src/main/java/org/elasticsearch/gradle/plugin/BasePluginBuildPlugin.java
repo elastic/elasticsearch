@@ -63,6 +63,7 @@ public class BasePluginBuildPlugin implements Plugin<Project> {
 
     @Override
     public void apply(final Project project) {
+        project.getPluginManager().apply(BasePlugin.class);
         project.getPluginManager().apply(JavaPlugin.class);
         project.getPluginManager().apply(TestClustersPlugin.class);
         project.getPluginManager().apply(CompileOnlyResolvePlugin.class);

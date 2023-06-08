@@ -40,7 +40,7 @@ public abstract class CancellableFanOut<Item, ItemResponse, FinalResponse> {
      * @param itemsIterator The items over which to fan out. Iterated on the calling thread.
      * @param listener      A listener for the final response, which is completed after all the fanned-out actions have completed. It is not
      *                      completed promptly on cancellation. Completed on the thread that handles the final per-item response (or
-     *                      the calling thread if there are no items).
+     *                      the calling thread if there are no items), or on the cancelling thread if cancelled.
      */
     public final void run(@Nullable Task task, Iterator<Item> itemsIterator, ActionListener<FinalResponse> listener) {
 
@@ -74,7 +74,9 @@ public abstract class CancellableFanOut<Item, ItemResponse, FinalResponse> {
         try (var refs = new RefCountingRunnable(() -> {
             // When all sub-tasks are complete, pass the result from resultListener to the outer listener.
             resultListenerCompleter.run();
-            // resultListener is always complete by this point, so the outer listener is completed on this thread
+            // If not cancelled then resultListener is always complete by this point so the outer listener is completed on this thread.
+            // If it's being concurrently cancelled then the outer listener may be completed with the TaskCancelledException on the
+            // cancelling thread.
             resultListener.addListener(listener);
         })) {
             while (itemsIterator.hasNext()) {
@@ -149,8 +151,8 @@ public abstract class CancellableFanOut<Item, ItemResponse, FinalResponse> {
     protected abstract void onItemFailure(Item item, Exception e);
 
     /**
-     * Called when responses for all items have been processed, on the thread that processed the last per-item response. Not called if the
-     * task is cancelled.
+     * Called when responses for all items have been processed, on the thread that processed the last per-item response or possibly the
+     * thread which called {@link #run} if all items were processed before {@link #run} returns. Not called if the task is cancelled.
      * <p>
      * Note that it's easy to accidentally capture another reference to this class when implementing this method, and that will prevent the
      * early release of any accumulated results. Beware of lambdas, and test carefully.

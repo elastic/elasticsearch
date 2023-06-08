@@ -12,6 +12,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Assertions;
+import org.elasticsearch.internal.VersionExtension;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
@@ -137,7 +138,8 @@ public record TransportVersion(int id) implements Comparable<TransportVersion> {
      * Reference to the most recent transport version.
      * This should be the transport version with the highest id.
      */
-    public static final TransportVersion CURRENT = V_8_500_009;
+    public static final TransportVersion CURRENT = findCurrent(V_8_500_009);
+
 
     /**
      * Reference to the earliest compatible transport version to this version of the codebase.
@@ -263,6 +265,15 @@ public record TransportVersion(int id) implements Comparable<TransportVersion> {
 
     public static TransportVersion fromString(String str) {
         return TransportVersion.fromId(Integer.parseInt(str));
+    }
+
+    // finds the pluggable current version, or uses the given fallback
+    private static TransportVersion findCurrent(TransportVersion fallback) {
+        var versionExtension = VersionExtension.load();
+        if (versionExtension == null) {
+            return fallback;
+        }
+        return new TransportVersion(versionExtension.getCurrentTransportVersionId());
     }
 
     @Override

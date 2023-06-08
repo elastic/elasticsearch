@@ -40,7 +40,6 @@ import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
 import org.elasticsearch.xpack.core.security.transport.ProfileConfigurations;
-import org.elasticsearch.xpack.core.security.user.CrossClusterAccessUser;
 import org.elasticsearch.xpack.core.security.user.InternalUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -353,8 +352,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                         // Use system user for cluster state requests (CCR has many calls of cluster state with end-user context)
                         logger.trace(
                             () -> format(
-                                "Switching to internal cross cluster access user for cluster state action towards [{}]. "
-                                    + "Original user is [%s]",
+                                "Switching to the system user for cluster state action towards [{}]. Original user is [%s]",
                                 remoteClusterAlias,
                                 user
                             )
@@ -362,7 +360,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                     }
                     final var crossClusterAccessHeaders = new CrossClusterAccessHeaders(
                         remoteClusterCredentials.credentials(),
-                        CrossClusterAccessUser.subjectInfo(
+                        SystemUser.crossClusterAccessSubjectInfo(
                             authentication.getEffectiveSubject().getTransportVersion(),
                             authentication.getEffectiveSubject().getRealm().getNodeName()
                         )

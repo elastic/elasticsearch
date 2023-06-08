@@ -18,7 +18,6 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
-import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -39,6 +38,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -3330,13 +3330,13 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         TransportRequestOptions options,
         TransportResponseHandler<T> handler
     ) throws TransportException {
-        final StepListener<T> responseListener = new StepListener<>();
+        final ListenableFuture<T> responseListener = new ListenableFuture<>();
         final TransportResponseHandler<T> futureHandler = new ActionListenerResponseHandler<>(
             responseListener,
             handler,
             handler.executor()
         );
-        responseListener.whenComplete(handler::handleResponse, e -> handler.handleException((TransportException) e));
+        responseListener.addListener(ActionListener.wrap(handler::handleResponse, e -> handler.handleException((TransportException) e)));
         final PlainActionFuture<T> future = PlainActionFuture.newFuture();
         responseListener.addListener(future);
         transportService.sendRequest(node, action, request, options, futureHandler);

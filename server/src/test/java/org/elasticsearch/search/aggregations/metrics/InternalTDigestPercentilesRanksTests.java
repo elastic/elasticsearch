@@ -29,8 +29,12 @@ public class InternalTDigestPercentilesRanksTests extends InternalPercentilesRan
         boolean keyed,
         DocValueFormat format,
         double[] percents,
-        double[] values
+        double[] values,
+        boolean empty
     ) {
+        if (empty) {
+            return new InternalTDigestPercentileRanks(name, percents, null, keyed, format, metadata);
+        }
         final TDigestState state = new TDigestState(100);
         Arrays.stream(values).forEach(state::add);
 

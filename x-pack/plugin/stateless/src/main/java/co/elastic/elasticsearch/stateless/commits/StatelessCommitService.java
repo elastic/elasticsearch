@@ -30,7 +30,9 @@ import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -134,7 +136,10 @@ public class StatelessCommitService {
 
             @Override
             public void onFailure(Exception e) {
-                assert commitState.isClosed || e instanceof EsRejectedExecutionException;
+                assert commitState.isClosed
+                    || e instanceof EsRejectedExecutionException
+                    || e instanceof IndexNotFoundException
+                    || e instanceof ShardNotFoundException;
                 logger.warn(
                     () -> format(
                         "%s failed to upload commit [%s] to object store because shard was closed",

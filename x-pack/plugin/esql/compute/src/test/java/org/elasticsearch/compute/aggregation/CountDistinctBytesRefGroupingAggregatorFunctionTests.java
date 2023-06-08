@@ -7,7 +7,6 @@
 
 package org.elasticsearch.compute.aggregation;
 
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
@@ -22,7 +21,6 @@ import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.closeTo;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "generate bytes ref aggs")
 public class CountDistinctBytesRefGroupingAggregatorFunctionTests extends GroupingAggregatorFunctionTestCase {
 
     @Override

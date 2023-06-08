@@ -36,6 +36,7 @@ import static org.elasticsearch.compute.gen.Types.AGGREGATOR_STATE_VECTOR;
 import static org.elasticsearch.compute.gen.Types.AGGREGATOR_STATE_VECTOR_BUILDER;
 import static org.elasticsearch.compute.gen.Types.BIG_ARRAYS;
 import static org.elasticsearch.compute.gen.Types.BLOCK;
+import static org.elasticsearch.compute.gen.Types.BYTES_REF;
 import static org.elasticsearch.compute.gen.Types.GROUPING_AGGREGATOR_FUNCTION;
 import static org.elasticsearch.compute.gen.Types.INT_VECTOR;
 import static org.elasticsearch.compute.gen.Types.LONG_BLOCK;
@@ -60,6 +61,7 @@ public class GroupingAggregatorImplementer {
     private final ExecutableElement evaluateFinal;
     private final ClassName implementation;
     private final TypeName stateType;
+    private final boolean valuesIsBytesRef;
 
     public GroupingAggregatorImplementer(Elements elements, TypeElement declarationType) {
         this.declarationType = declarationType;
@@ -81,6 +83,7 @@ public class GroupingAggregatorImplementer {
             elements.getPackageOf(declarationType).toString(),
             (declarationType.getSimpleName() + "GroupingAggregatorFunction").replace("AggregatorGroupingAggregator", "GroupingAggregator")
         );
+        this.valuesIsBytesRef = BYTES_REF.equals(TypeName.get(combine.getParameters().get(combine.getParameters().size() - 1).asType()));
     }
 
     private TypeName choseStateType() {
@@ -189,6 +192,10 @@ public class GroupingAggregatorImplementer {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("addRawInput");
         builder.addModifiers(Modifier.PRIVATE);
         builder.addParameter(groupsType, "groups").addParameter(valuesType, "values");
+        if (valuesIsBytesRef) {
+            // Add bytes_ref scratch var that will be used for bytes_ref blocks/vectors
+            builder.addStatement("$T scratch = new $T()", BYTES_REF, BYTES_REF);
+        }
         builder.beginControlFlow("for (int position = 0; position < groups.getPositionCount(); position++)");
         {
             if (groupsIsBlock) {
@@ -229,6 +236,10 @@ public class GroupingAggregatorImplementer {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("addRawInput");
         builder.addModifiers(Modifier.PRIVATE);
         builder.addParameter(LONG_VECTOR, "groups").addParameter(valueVectorType(init, combine), "values");
+        if (valuesIsBytesRef) {
+            // Add bytes_ref scratch var that will be used for bytes_ref blocks/vectors
+            builder.addStatement("$T scratch = new $T()", BYTES_REF, BYTES_REF);
+        }
         builder.beginControlFlow("for (int position = 0; position < groups.getPositionCount(); position++)");
         {
             builder.addStatement("int groupId = Math.toIntExact(groups.getLong(position))");
@@ -242,6 +253,10 @@ public class GroupingAggregatorImplementer {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("addRawInput");
         builder.addModifiers(Modifier.PRIVATE);
         builder.addParameter(LONG_BLOCK, "groups").addParameter(valueBlockType(init, combine), "values");
+        if (valuesIsBytesRef) {
+            // Add bytes_ref scratch var that will be used for bytes_ref blocks/vectors
+            builder.addStatement("$T scratch = new $T()", BYTES_REF, BYTES_REF);
+        }
         builder.beginControlFlow("for (int position = 0; position < groups.getPositionCount(); position++)");
         {
             builder.beginControlFlow("if (groups.isNull(position) || values.isNull(position)");
@@ -265,6 +280,10 @@ public class GroupingAggregatorImplementer {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("addRawInput");
         builder.addModifiers(Modifier.PRIVATE);
         builder.addParameter(LONG_VECTOR, "groups").addParameter(valueVectorType(init, combine), "values");
+        if (valuesIsBytesRef) {
+            // Add bytes_ref scratch var that will be used for bytes_ref blocks/vectors
+            builder.addStatement("$T scratch = new $T()", BYTES_REF, BYTES_REF);
+        }
         builder.beginControlFlow("for (int position = 0; position < groups.getPositionCount(); position++)");
         {
             builder.addStatement("int groupId = Math.toIntExact(groups.getLong(position))");
@@ -275,6 +294,10 @@ public class GroupingAggregatorImplementer {
     }
 
     private void combineRawInput(MethodSpec.Builder builder, String blockVariable, String offsetVariable) {
+        if (valuesIsBytesRef) {
+            combineRawInputForBytesRef(builder, blockVariable, offsetVariable);
+            return;
+        }
         TypeName valueType = TypeName.get(combine.getParameters().get(combine.getParameters().size() - 1).asType());
         if (valueType.isPrimitive() == false) {
             throw new IllegalArgumentException("second parameter to combine must be a primitive");
@@ -322,6 +345,11 @@ public class GroupingAggregatorImplementer {
             secondParameterGetter,
             offsetVariable
         );
+    }
+
+    private void combineRawInputForBytesRef(MethodSpec.Builder builder, String blockVariable, String offsetVariable) {
+        // scratch is a BytesRef var that must have been defined before the iteration starts
+        builder.addStatement("$T.combine(state, groupId, $L.getBytesRef($L, scratch))", declarationType, blockVariable, offsetVariable);
     }
 
     private MethodSpec addIntermediateInput() {

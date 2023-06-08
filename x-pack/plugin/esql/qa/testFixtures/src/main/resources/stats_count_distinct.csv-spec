@@ -75,12 +75,10 @@ g:long | h:long
 ;
 
 countDistinctOfIp
-// TODO: This result is wrong because count_distinct does not support 
-// multi-values for bytes_ref fields
-from hosts | stats h = count_distinct(ip0);
+from hosts | stats h0 = count_distinct(ip0), h1 = count_distinct(ip1);
 
-h:long
-7
+h0:long   | h1:long
+7         | 8
 ;
 
 countDistinctOfDates
@@ -102,13 +100,11 @@ m:long  | languages:i
 ; 
 
 countDistinctOfIpGroupByKeyword
-// TODO: This result is wrong because count_distinct does not support 
-// multi-values for bytes_ref fields
-from hosts | stats h = count_distinct(ip0) by host | sort host;
+from hosts | stats h0 = count_distinct(ip0), h1 = count_distinct(ip1)  by host | sort host;
 
-h:long | host:keyword
-2      | alpha
-1      | beta
-2      | epsilon
-1      | gamma
+h0:long | h1:long | host:keyword
+2       | 2       | alpha
+1       | 3       | beta
+5       | 6       | epsilon
+1       | 2       | gamma
 ;

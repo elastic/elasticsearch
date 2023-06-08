@@ -41,7 +41,6 @@ public class CountDistinctBytesRefAggregatorFunctionTests extends AggregatorFunc
     @Override
     protected void assertSimpleOutput(List<Block> input, Block result) {
         long expected = input.stream().flatMap(b -> allBytesRefs(b)).distinct().count();
-
         long count = ((LongBlock) result).getLong(0);
         // HLL is an approximation algorithm and precision depends on the number of values computed and the precision_threshold param
         // https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-metrics-cardinality-aggregation.html

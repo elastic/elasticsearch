@@ -37,6 +37,9 @@ import static org.elasticsearch.compute.gen.Types.BIG_ARRAYS;
 import static org.elasticsearch.compute.gen.Types.BLOCK;
 import static org.elasticsearch.compute.gen.Types.BOOLEAN_BLOCK;
 import static org.elasticsearch.compute.gen.Types.BOOLEAN_VECTOR;
+import static org.elasticsearch.compute.gen.Types.BYTES_REF;
+import static org.elasticsearch.compute.gen.Types.BYTES_REF_BLOCK;
+import static org.elasticsearch.compute.gen.Types.BYTES_REF_VECTOR;
 import static org.elasticsearch.compute.gen.Types.DOUBLE_BLOCK;
 import static org.elasticsearch.compute.gen.Types.DOUBLE_VECTOR;
 import static org.elasticsearch.compute.gen.Types.ELEMENT_TYPE;
@@ -65,6 +68,7 @@ public class AggregatorImplementer {
     private final ExecutableElement evaluateFinal;
     private final ClassName implementation;
     private final TypeName stateType;
+    private final boolean valuesIsBytesRef;
 
     public AggregatorImplementer(Elements elements, TypeElement declarationType) {
         this.declarationType = declarationType;
@@ -87,6 +91,7 @@ public class AggregatorImplementer {
             elements.getPackageOf(declarationType).toString(),
             (declarationType.getSimpleName() + "AggregatorFunction").replace("AggregatorAggregator", "Aggregator")
         );
+        this.valuesIsBytesRef = BYTES_REF.equals(TypeName.get(combine.getParameters().get(combine.getParameters().size() - 1).asType()));
     }
 
     private TypeName choseStateType() {
@@ -97,7 +102,7 @@ public class AggregatorImplementer {
         return ClassName.get("org.elasticsearch.compute.aggregation", firstUpper(initReturn.toString()) + "State");
     }
 
-    static String primitiveType(ExecutableElement init, ExecutableElement combine) {
+    static String valueType(ExecutableElement init, ExecutableElement combine) {
         if (combine != null) {
             // If there's an explicit combine function it's final parameter is the type of the value.
             return combine.getParameters().get(combine.getParameters().size() - 1).asType().toString();
@@ -118,22 +123,24 @@ public class AggregatorImplementer {
     }
 
     static ClassName valueBlockType(ExecutableElement init, ExecutableElement combine) {
-        return switch (primitiveType(init, combine)) {
+        return switch (valueType(init, combine)) {
             case "boolean" -> BOOLEAN_BLOCK;
             case "double" -> DOUBLE_BLOCK;
             case "long" -> LONG_BLOCK;
             case "int" -> INT_BLOCK;
-            default -> throw new IllegalArgumentException("unknown block type for " + primitiveType(init, combine));
+            case "org.apache.lucene.util.BytesRef" -> BYTES_REF_BLOCK;
+            default -> throw new IllegalArgumentException("unknown block type for " + valueType(init, combine));
         };
     }
 
     static ClassName valueVectorType(ExecutableElement init, ExecutableElement combine) {
-        return switch (primitiveType(init, combine)) {
+        return switch (valueType(init, combine)) {
             case "boolean" -> BOOLEAN_VECTOR;
             case "double" -> DOUBLE_VECTOR;
             case "long" -> LONG_VECTOR;
             case "int" -> INT_VECTOR;
-            default -> throw new IllegalArgumentException("unknown vector type for " + primitiveType(init, combine));
+            case "org.apache.lucene.util.BytesRef" -> BYTES_REF_VECTOR;
+            default -> throw new IllegalArgumentException("unknown vector type for " + valueType(init, combine));
         };
     }
 
@@ -229,6 +236,10 @@ public class AggregatorImplementer {
     private MethodSpec addRawVector() {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("addRawVector");
         builder.addModifiers(Modifier.PRIVATE).addParameter(valueVectorType(init, combine), "vector");
+        if (valuesIsBytesRef) {
+            // Add bytes_ref scratch var that will be used for bytes_ref blocks/vectors
+            builder.addStatement("$T scratch = new $T()", BYTES_REF, BYTES_REF);
+        }
         builder.beginControlFlow("for (int i = 0; i < vector.getPositionCount(); i++)");
         {
             combineRawInput(builder, "vector");
@@ -243,6 +254,10 @@ public class AggregatorImplementer {
     private MethodSpec addRawBlock() {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("addRawBlock");
         builder.addModifiers(Modifier.PRIVATE).addParameter(valueBlockType(init, combine), "block");
+        if (valuesIsBytesRef) {
+            // Add bytes_ref scratch var that will only be used for bytes_ref blocks/vectors
+            builder.addStatement("$T scratch = new $T()", BYTES_REF, BYTES_REF);
+        }
         builder.beginControlFlow("for (int p = 0; p < block.getPositionCount(); p++)");
         {
             builder.beginControlFlow("if (block.isNull(p))");
@@ -262,6 +277,10 @@ public class AggregatorImplementer {
     }
 
     private void combineRawInput(MethodSpec.Builder builder, String blockVariable) {
+        if (valuesIsBytesRef) {
+            combineRawInputForBytesRef(builder, blockVariable);
+            return;
+        }
         TypeName returnType = TypeName.get(combine.getReturnType());
         if (returnType.isPrimitive()) {
             combineRawInputForPrimitive(returnType, builder, blockVariable);
@@ -292,6 +311,11 @@ public class AggregatorImplementer {
             blockVariable,
             firstUpper(combine.getParameters().get(1).asType().toString())
         );
+    }
+
+    private void combineRawInputForBytesRef(MethodSpec.Builder builder, String blockVariable) {
+        // scratch is a BytesRef var that must have been defined before the iteration starts
+        builder.addStatement("$T.combine(state, $L.getBytesRef(i, scratch))", declarationType, blockVariable);
     }
 
     private MethodSpec addIntermediateInput() {

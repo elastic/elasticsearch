@@ -9,10 +9,14 @@ package org.elasticsearch.compute.aggregation;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.ann.Aggregator;
+import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 
+@Aggregator
+@GroupingAggregator
 public class CountDistinctBytesRefAggregator {
     public static AggregatorFunctionSupplier supplier(BigArrays bigArrays, int channel, int precision) {
         return new AggregatorFunctionSupplier() {

@@ -1017,7 +1017,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         if (indexed) {
             return new IndexedSyntheticFieldLoader();
         }
-        return new DocValuesSyntheticFieldLoader();
+        return new DocValuesSyntheticFieldLoader(indexCreatedVersion);
     }
 
     private class IndexedSyntheticFieldLoader implements SourceLoader.SyntheticFieldLoader {
@@ -1077,6 +1077,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
     private class DocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFieldLoader {
         private BinaryDocValues values;
         private boolean hasValue;
+        private final Version indexCreatedVersion;
+
+        private DocValuesSyntheticFieldLoader(Version indexCreatedVersion) {
+            this.indexCreatedVersion = indexCreatedVersion;
+        }
 
         @Override
         public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
@@ -1108,6 +1113,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
             b.startArray(simpleName());
             BytesRef ref = values.binaryValue();
             ByteBuffer byteBuffer = ByteBuffer.wrap(ref.bytes, ref.offset, ref.length);
+            if (indexCreatedVersion.onOrAfter(LITTLE_ENDIAN_FLOAT_STORED_INDEX_VERSION)) {
+                byteBuffer.order(ByteOrder.LITTLE_ENDIAN);
+            }
             for (int dim = 0; dim < dims; dim++) {
                 elementType.readAndWriteValue(byteBuffer, b);
             }

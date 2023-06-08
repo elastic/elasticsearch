@@ -51,7 +51,6 @@ import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
@@ -159,16 +158,6 @@ public class SecurityTests extends ESTestCase {
     public static class DummyOperatorOnlyRegistry implements OperatorOnlyRegistry {
         @Override
         public OperatorPrivilegesViolation check(String action, TransportRequest request) {
-            throw new RuntimeException("boom");
-        }
-
-        @Override
-        public RestResponse checkRestFull(RestHandler restHandler, RestRequest restRequest) {
-            throw new RuntimeException("boom");
-        }
-
-        @Override
-        public RestRequest checkRestPartial(RestHandler restHandler, RestRequest restRequest) {
             throw new RuntimeException("boom");
         }
 

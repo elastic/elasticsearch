@@ -47,6 +47,7 @@ import static org.elasticsearch.core.TimeValue.parseTimeValue;
 
 public class RestRequest implements ToXContent.Params {
 
+    public static final String RESPONSE_RESTRICTED = "responseRestricted";
     // tchar pattern as defined by RFC7230 section 3.2.6
     private static final Pattern TCHAR_PATTERN = Pattern.compile("[a-zA-Z0-9!#$%&'*+\\-.\\^_`|~]+");
 
@@ -63,7 +64,6 @@ public class RestRequest implements ToXContent.Params {
     private final ParsedMediaType parsedContentType;
     private final RestApiVersion restApiVersion;
     private HttpRequest httpRequest;
-    private boolean restrictedByOperatorPrivilege;
 
     private boolean contentConsumed = false;
 
@@ -123,14 +123,7 @@ public class RestRequest implements ToXContent.Params {
     }
 
     protected RestRequest(RestRequest other) {
-        this(other, Map.of());
-    }
-
-    private RestRequest(RestRequest other, Map<String, String> additionalParams) {
         assert other.parserConfig.restApiVersion().equals(other.restApiVersion);
-        Map<String, String> paramsWithAdditions = new HashMap<>(other.params);
-        paramsWithAdditions.putAll(additionalParams);
-        this.params = paramsWithAdditions;
         this.parsedAccept = other.parsedAccept;
         this.parsedContentType = other.parsedContentType;
         if (other.xContentType.get() != null) {
@@ -140,6 +133,7 @@ public class RestRequest implements ToXContent.Params {
         this.parserConfig = other.parserConfig;
         this.httpRequest = other.httpRequest;
         this.httpChannel = other.httpChannel;
+        this.params = other.params;
         this.rawPath = other.rawPath;
         this.headers = other.headers;
         this.requestId = other.requestId;
@@ -188,10 +182,6 @@ public class RestRequest implements ToXContent.Params {
             httpChannel,
             requestIdGenerator.incrementAndGet()
         );
-    }
-
-    public static RestRequest copyRequestWithAdditionalParams(RestRequest original, Map<String, String> additionalParams) {
-        return new RestRequest(original, additionalParams);
     }
 
     private static Map<String, String> params(final String uri) {
@@ -623,12 +613,8 @@ public class RestRequest implements ToXContent.Params {
         return restApiVersion;
     }
 
-    public boolean isRestrictedByOperatorPrivilege() {
-        return restrictedByOperatorPrivilege;
-    }
-
-    public void setRestrictedByOperatorPrivilege(boolean restrictedByOperatorPrivilege) {
-        this.restrictedByOperatorPrivilege = restrictedByOperatorPrivilege;
+    public void markResponseRestricted(String restriction) {
+        params.put(RESPONSE_RESTRICTED, restriction);
     }
 
     public static class MediaTypeHeaderException extends RuntimeException {

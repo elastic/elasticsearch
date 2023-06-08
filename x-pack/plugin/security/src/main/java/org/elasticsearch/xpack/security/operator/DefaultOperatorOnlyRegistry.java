@@ -25,7 +25,6 @@ import org.elasticsearch.license.PutLicenseAction;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.transport.TransportRequest;
 
 import java.util.List;
@@ -81,16 +80,6 @@ public class DefaultOperatorOnlyRegistry implements OperatorOnlyRegistry {
         } else {
             return null;
         }
-    }
-
-    @Override
-    public RestResponse checkRestFull(RestHandler restHandler, RestRequest restRequest) {
-        return null; // no restrictions
-    }
-
-    @Override
-    public RestRequest checkRestPartial(RestHandler restHandler, RestRequest restRequest) {
-        return restRequest; // no restrictions
     }
 
     @Override

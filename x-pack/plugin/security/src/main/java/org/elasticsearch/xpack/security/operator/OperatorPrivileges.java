@@ -17,7 +17,6 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
@@ -52,30 +51,6 @@ public class OperatorPrivileges {
             TransportRequest request,
             ThreadContext threadContext
         );
-
-        /**
-         * Checks to see if a given {@link RestHandler} is subject to restrictions. This method may return a {@link RestResponse} if the
-         * request is restricted due to operator privileges. Null will be returned if there are no restrictions. Callers must short-circuit
-         * the request and respond back to the client with the given {@link RestResponse} without ever calling the {@link RestHandler}.
-         * If null is returned the caller must proceed as normal and call the {@link RestHandler}.
-         * @param restHandler The {@link RestHandler} to check for any restrictions
-         * @param restRequest The {@link RestRequest} to check for any restrictions
-         * @param threadContext Reference to the current {@link ThreadContext}
-         * @return null if no restrictions should be enforced, {@link RestResponse} if the request is restricted
-         */
-        RestResponse checkRestFull(RestHandler restHandler, RestRequest restRequest, ThreadContext threadContext);
-
-        /**
-         * Checks to see if a given {@link RestHandler} is subject to partial restrictions. A partial restriction still allows the request
-         * to proceed but will update/rewrite the provived {@link RestRequest} such that when the {@link RestHandler} is called the result
-         * is variant (likley a restricted view) of the response provided. The caller must use the returned {@link RestRequest} when calling
-         * the {@link RestHandler}
-         * @param restHandler The {@link RestHandler} to check for any restrictions
-         * @param restRequest The {@link RestRequest} to check for any restrictions
-         * @param threadContext Reference to the current {@link ThreadContext}
-         * @return {@link RestRequest} used when calling the {@link RestHandler} can be same or different object as the passed in parameter
-         */
-        RestRequest checkRestPartial(RestHandler restHandler, RestRequest restRequest, ThreadContext threadContext);
 
         boolean checkRest(RestHandler restHandler, RestRequest restRequest, RestChannel restChannel, ThreadContext threadContext);
 
@@ -153,25 +128,6 @@ public class OperatorPrivileges {
         }
 
         @Override
-        public RestResponse checkRestFull(RestHandler restHandler, RestRequest restRequest, ThreadContext threadContext) {
-            if (false == shouldProcess()) {
-                return null;
-            }
-            if (false == AuthenticationField.PRIVILEGE_CATEGORY_VALUE_OPERATOR.equals(
-                threadContext.getHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY)
-            )) {
-                // Only check whether request is operator-only when user is NOT an operator
-                if (logger.isTraceEnabled()) {
-                    Authentication authentication = threadContext.getTransient(AuthenticationField.AUTHENTICATION_KEY);
-                    final User user = authentication.getEffectiveSubject().getUser();
-                    logger.trace("Checking for full REST restriction for user [{}] and uri [{}]", user, restRequest.uri());
-                }
-                return operatorOnlyRegistry.checkRestFull(restHandler, restRequest);
-            }
-            return null;
-        }
-
-        @Override
         public boolean checkRest(RestHandler restHandler, RestRequest restRequest, RestChannel restChannel, ThreadContext threadContext) {
             if (false == shouldProcess()) {
                 return true;
@@ -203,25 +159,6 @@ public class OperatorPrivileges {
             return true;
         }
 
-        @Override
-        public RestRequest checkRestPartial(RestHandler restHandler, RestRequest restRequest, ThreadContext threadContext) {
-            if (false == shouldProcess()) {
-                return null;
-            }
-            if (false == AuthenticationField.PRIVILEGE_CATEGORY_VALUE_OPERATOR.equals(
-                threadContext.getHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY)
-            )) {
-                // Only check whether request is operator-only when user is NOT an operator
-                if (logger.isTraceEnabled()) {
-                    Authentication authentication = threadContext.getTransient(AuthenticationField.AUTHENTICATION_KEY);
-                    final User user = authentication.getEffectiveSubject().getUser();
-                    logger.trace("Checking operator-only violation for user [{}] and uri [{}]", user, restRequest.uri());
-                }
-                return operatorOnlyRegistry.checkRestPartial(restHandler, restRequest);
-            }
-            return restRequest;
-        }
-
         public void maybeInterceptRequest(ThreadContext threadContext, TransportRequest request) {
             if (request instanceof RestoreSnapshotRequest) {
                 logger.debug("Intercepting [{}] for operator privileges", request);
@@ -251,16 +188,6 @@ public class OperatorPrivileges {
             ThreadContext threadContext
         ) {
             return null;
-        }
-
-        @Override
-        public RestResponse checkRestFull(RestHandler restHandler, RestRequest restRequest, ThreadContext threadContext) {
-            return null;
-        }
-
-        @Override
-        public RestRequest checkRestPartial(RestHandler restHandler, RestRequest restRequest, ThreadContext threadContext) {
-            return restRequest;
         }
 
         @Override

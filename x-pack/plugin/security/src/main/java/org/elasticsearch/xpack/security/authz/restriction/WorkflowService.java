@@ -9,9 +9,7 @@ package org.elasticsearch.xpack.security.authz.restriction;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.xpack.core.security.authz.restriction.Workflow;
@@ -25,50 +23,31 @@ public class WorkflowService {
 
     public static final String WORKFLOW_HEADER = "_xpack_security_workflow";
 
-    private final XPackLicenseState licenseState;
-
-    public WorkflowService(XPackLicenseState licenseState) {
-        this.licenseState = licenseState;
-    }
-
-    public void resolveWorkflowAndStoreInThreadContext(
-        RestHandler restHandler,
-        ThreadContext threadContext,
-        ActionListener<Workflow> listener
-    ) {
-        resolveWorkflow(restHandler, ActionListener.wrap(workflow -> {
-            maybeStoreWorkflowInThreadContext(workflow, threadContext);
-            listener.onResponse(workflow);
-        }, listener::onFailure));
-    }
-
-    private static void maybeStoreWorkflowInThreadContext(Workflow workflow, ThreadContext threadContext) {
+    public Workflow resolveWorkflowAndStoreInThreadContext(RestHandler restHandler, ThreadContext threadContext) {
+        Workflow workflow = resolveWorkflow(restHandler);
         if (workflow != null) {
             assert threadContext.getHeader(WORKFLOW_HEADER) == null
                 : "thread context should not have workflow set. existing workflow [" + threadContext.getHeader(WORKFLOW_HEADER) + "]";
             threadContext.putHeader(WORKFLOW_HEADER, workflow.name());
         }
+        return workflow;
     }
 
-    private void resolveWorkflow(RestHandler restHandler, ActionListener<Workflow> listener) {
-        // TODO: Resolve workflow only if the current license allows it.
+    private Workflow resolveWorkflow(RestHandler restHandler) {
         final String restHandlerName = resolveRestHandlerName(restHandler);
         if (restHandlerName == null) {
             logger.trace(() -> format("unable to resolve name of REST handler [%s]", restHandler.getClass()));
-            listener.onResponse(null);
-            return;
+            return null;
         }
         Workflow workflow = WorkflowResolver.resolveWorkflowForRestHandler(restHandlerName);
         if (workflow != null) {
             logger.trace(() -> format("resolved workflow [%s] for REST handler [%s]", workflow.name(), restHandlerName));
         }
-        listener.onResponse(workflow);
+        return workflow;
     }
 
     private static String resolveRestHandlerName(RestHandler restHandler) {
         if (restHandler instanceof BaseRestHandler baseRestHandler) {
-            return baseRestHandler.getName();
-        } else if (restHandler.getConcreteRestHandler() instanceof BaseRestHandler baseRestHandler) {
             return baseRestHandler.getName();
         } else {
             return null;

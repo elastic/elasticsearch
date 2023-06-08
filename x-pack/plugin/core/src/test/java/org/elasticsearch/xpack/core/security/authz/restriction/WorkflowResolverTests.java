@@ -17,13 +17,13 @@ public class WorkflowResolverTests extends ESTestCase {
 
     public void testResolveWorkflowByName() {
         String invalidWorkflowName = randomValueOtherThanMany(
-            name -> WorkflowResolver.names().contains(name),
+            name -> WorkflowResolver.allWorkflows().stream().anyMatch(w -> w.name().equals(name)),
             () -> randomAlphaOfLengthBetween(5, 10)
         );
         var e = expectThrows(IllegalArgumentException.class, () -> WorkflowResolver.resolveWorkflowByName(invalidWorkflowName));
         assertThat(e.getMessage(), containsString("Unknown workflow [" + invalidWorkflowName + "]"));
 
-        String validWorkflowName = randomFrom(WorkflowResolver.names());
+        String validWorkflowName = randomFrom(WorkflowResolver.allWorkflows().stream().map(Workflow::name).toList());
         Workflow resolvedWorkflow = WorkflowResolver.resolveWorkflowByName(validWorkflowName);
         assertThat(resolvedWorkflow.name(), equalTo(validWorkflowName));
     }
@@ -31,9 +31,6 @@ public class WorkflowResolverTests extends ESTestCase {
     public void testResolveWorkflowForRestHandler() {
         Workflow actual = WorkflowResolver.resolveWorkflowForRestHandler("search_application_query_action");
         assertThat(actual, equalTo(WorkflowResolver.SEARCH_APPLICATION_QUERY_WORKFLOW));
-
-        actual = WorkflowResolver.resolveWorkflowForRestHandler("analytics_post_event_action");
-        assertThat(actual, equalTo(WorkflowResolver.SEARCH_APPLICATION_ANALYTICS_WORKFLOW));
 
         assertThat(WorkflowResolver.resolveWorkflowForRestHandler(randomAlphaOfLengthBetween(3, 5)), nullValue());
     }

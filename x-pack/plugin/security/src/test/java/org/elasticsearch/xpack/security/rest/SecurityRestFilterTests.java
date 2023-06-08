@@ -16,7 +16,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpRequest;
-import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestChannel;
@@ -94,7 +93,7 @@ public class SecurityRestFilterTests extends ESTestCase {
             threadContext,
             secondaryAuthenticator,
             new AuditTrailService(null, null),
-            new WorkflowService(MockLicenseState.createMock()),
+            new WorkflowService(),
             restHandler
         );
     }
@@ -220,7 +219,7 @@ public class SecurityRestFilterTests extends ESTestCase {
             threadContext,
             secondaryAuthenticator,
             new AuditTrailService(auditTrail, licenseState),
-            new WorkflowService(licenseState),
+            new WorkflowService(),
             restHandler
         );
 
@@ -295,7 +294,7 @@ public class SecurityRestFilterTests extends ESTestCase {
             threadContext,
             secondaryAuthenticator,
             new AuditTrailService(null, null),
-            new WorkflowService(MockLicenseState.createMock()),
+            new WorkflowService(),
             restHandler
         );
 
@@ -320,7 +319,7 @@ public class SecurityRestFilterTests extends ESTestCase {
             threadContext,
             secondaryAuthenticator,
             new AuditTrailService(null, null),
-            new WorkflowService(MockLicenseState.createMock()),
+            new WorkflowService(),
             restHandler
         );
 

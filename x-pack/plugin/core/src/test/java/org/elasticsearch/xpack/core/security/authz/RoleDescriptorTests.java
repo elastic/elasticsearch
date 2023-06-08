@@ -236,7 +236,7 @@ public class RoleDescriptorTests extends ESTestCase {
                 }
               ],
               "restriction":{
-                "workflows": ["search_application", "search_analytics"]
+                "workflows": ["search_application_query"]
               }
             }""";
         rd = RoleDescriptor.parse("test", new BytesArray(q), false, XContentType.JSON);
@@ -250,7 +250,7 @@ public class RoleDescriptorTests extends ESTestCase {
         assertArrayEquals(new String[] { "m", "n" }, rd.getRunAs());
         assertThat(rd.hasRestriction(), equalTo(true));
         assertThat(rd.getRestriction().hasWorkflows(), equalTo(true));
-        assertArrayEquals(new String[] { "search_application", "search_analytics" }, rd.getRestriction().getWorkflows());
+        assertArrayEquals(new String[] { "search_application_query" }, rd.getRestriction().getWorkflows());
         q = """
             {
               "cluster": [ "a", "b" ],

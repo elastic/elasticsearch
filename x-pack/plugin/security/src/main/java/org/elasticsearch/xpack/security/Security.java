@@ -674,7 +674,7 @@ public class Security extends Plugin
         securityContext.set(new SecurityContext(settings, threadPool.getThreadContext()));
         components.add(securityContext.get());
 
-        workflowService.set(new WorkflowService(getLicenseState()));
+        workflowService.set(new WorkflowService());
 
         final RestrictedIndices restrictedIndices = new RestrictedIndices(expressionResolver);
 

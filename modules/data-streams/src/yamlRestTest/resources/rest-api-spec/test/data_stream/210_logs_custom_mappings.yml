@@ -13,6 +13,10 @@
               properties:
                 numeric_field:
                   type: integer
+                socket:
+                  properties:
+                    ip:
+                      type: keyword
 
   - do:
       indices.create_data_stream:
@@ -35,3 +39,33 @@
         index: $idx0name
   # verify that the new field from the custom component template is applied
   - match: { .$idx0name.mappings.properties.numeric_field.type: "integer" }
+
+  - do:
+      index:
+        index: logs-generic-default
+        refresh: true
+        body:
+          test: 'doc-with-ip'
+          socket:
+            ip: 127.0.0.1
+  - match: {result: "created"}
+
+  - do:
+      search:
+        index: logs-generic-default
+        body:
+          query:
+            term:
+              test:
+                value: 'doc-with-ip'
+          fields:
+            - field: 'socket.ip'
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.socket.ip: '127.0.0.1' }
+
+  - do:
+      indices.get_mapping:
+        index: $idx0name
+  # test overriding of ECS dynamic template
+  - match: { .$idx0name.mappings.properties.socket.properties.ip.type: "keyword" }
+

@@ -401,11 +401,9 @@ public class SecurityTests extends ESTestCase {
     }
 
     public void testJoinValidatorForFIPSOnAllowedLicense() throws Exception {
-        DiscoveryNode node = DiscoveryNodeUtils.create(
-            "foo",
-            buildNewFakeTransportAddress(),
-            VersionUtils.randomVersionBetween(random(), null, Version.CURRENT)
-        );
+        DiscoveryNode node = DiscoveryNodeUtils.builder("foo")
+            .version(VersionUtils.randomVersionBetween(random(), null, Version.CURRENT))
+            .build();
         Metadata.Builder builder = Metadata.builder();
         License license = TestUtils.generateSignedLicense(
             randomFrom(License.OperationMode.ENTERPRISE, License.OperationMode.PLATINUM, License.OperationMode.TRIAL).toString(),
@@ -428,11 +426,9 @@ public class SecurityTests extends ESTestCase {
     }
 
     public void testJoinValidatorForFIPSOnForbiddenLicense() throws Exception {
-        DiscoveryNode node = DiscoveryNodeUtils.create(
-            "foo",
-            buildNewFakeTransportAddress(),
-            VersionUtils.randomVersionBetween(random(), null, Version.CURRENT)
-        );
+        DiscoveryNode node = DiscoveryNodeUtils.builder("foo")
+            .version(VersionUtils.randomVersionBetween(random(), null, Version.CURRENT))
+            .build();
         Metadata.Builder builder = Metadata.builder();
         final String forbiddenLicenseType = randomFrom(
             List.of(License.OperationMode.values())
@@ -486,7 +482,7 @@ public class SecurityTests extends ESTestCase {
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
-        DiscoveryNode existingOtherNode = DiscoveryNodeUtils.create("bar", buildNewFakeTransportAddress(), version);
+        DiscoveryNode existingOtherNode = DiscoveryNodeUtils.builder("bar").version(version).build();
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(existingOtherNode).build();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(discoveryNodes)
@@ -500,11 +496,9 @@ public class SecurityTests extends ESTestCase {
         BiConsumer<DiscoveryNode, ClusterState> joinValidator = security.getJoinValidator();
         assertNotNull(joinValidator);
         DiscoveryNode node = DiscoveryNodeUtils.create("foo");
-        DiscoveryNode existingOtherNode = DiscoveryNodeUtils.create(
-            "bar",
-            buildNewFakeTransportAddress(),
-            VersionUtils.randomCompatibleVersion(random(), Version.CURRENT)
-        );
+        DiscoveryNode existingOtherNode = DiscoveryNodeUtils.builder("bar")
+            .version(VersionUtils.randomCompatibleVersion(random(), Version.CURRENT))
+            .build();
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(existingOtherNode).build();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).nodes(discoveryNodes).build();
         joinValidator.accept(node, clusterState);

@@ -76,7 +76,7 @@ public final class DataTierAllocationDecider extends AllocationDecider {
         RoutingAllocation allocation
     ) {
         List<String> tierPreference = indexMd.getTierPreference();
-        if (tierPreference.isEmpty() != false) {
+        if (tierPreference.isEmpty()) {
             return YES_PASSES;
         }
         Optional<String> tier = preferredTierFunction.apply(tierPreference, allocation.nodes(), allocation.desiredNodes());

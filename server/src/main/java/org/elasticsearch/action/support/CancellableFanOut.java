@@ -82,11 +82,9 @@ public abstract class CancellableFanOut<Item, ItemResponse, FinalResponse> {
         try (var refs = new RefCountingRunnable(() -> {
             // When all sub-tasks are complete, pass the result from resultListener to the outer listener.
             resultListenerCompleter.getAndSet(() -> {}).run();
-            // may block (very briefly) if there's a concurrent cancellation, so that we are sure the resultListener is now complete
+            // May block (very briefly) if there's a concurrent cancellation, so that we are sure the resultListener is now complete and
+            // therefore the outer listener is completed on this thread.
             assert resultListener.isDone();
-            // If not cancelled then resultListener is always complete by this point so the outer listener is completed on this thread.
-            // If it's being concurrently cancelled then the outer listener may be completed with the TaskCancelledException on the
-            // cancelling thread.
             resultListener.addListener(listener);
         })) {
             while (itemsIterator.hasNext()) {

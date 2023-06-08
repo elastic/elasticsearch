@@ -151,7 +151,7 @@ public class OperatorPrivileges {
                 if (logger.isTraceEnabled()) {
                     Authentication authentication = threadContext.getTransient(AuthenticationField.AUTHENTICATION_KEY);
                     final User user = authentication.getEffectiveSubject().getUser();
-                    logger.trace("Checking for any operator-only violations for user [{}] and uri [{}]", user, restRequest.uri());
+                    logger.trace("Checking for any operator-only REST violations for user [{}] and uri [{}]", user, restRequest.uri());
                 }
                 OperatorPrivilegesViolation violation = operatorOnlyRegistry.checkRest(restHandler, restRequest, restChannel);
                 if (violation != null) {

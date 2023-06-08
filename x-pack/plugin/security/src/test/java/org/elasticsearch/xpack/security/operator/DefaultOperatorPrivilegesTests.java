@@ -277,7 +277,7 @@ public class DefaultOperatorPrivilegesTests extends ESTestCase {
         ThreadContext threadContext = new ThreadContext(settings);
 
         // not an operator
-        when(operatorOnlyRegistry.checkRest(restHandler, restRequest, restChannel)).thenReturn(() -> "boom");
+        when(operatorOnlyRegistry.checkRest(restHandler, restRequest, restChannel)).thenReturn(() -> "violation!");
         assertFalse(operatorPrivilegesService.checkRest(restHandler, restRequest, restChannel, threadContext));
 
         // is an operator

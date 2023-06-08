@@ -27,7 +27,7 @@ public interface OperatorOnlyRegistry {
      * return a {@link OperatorPrivilegesViolation}. A partially restricted REST API mandates that the {@link RestRequest} is marked as
      * restricted so that the downstream handler can behave appropriately. For example, to restrict the REST response the implementation
      * should call {@link RestRequest#markResponseRestricted(String)} so that the downstream handler can properly restrict the response
-     * before returning to the client and then return a {@link OperatorPrivilegesViolation}.
+     * before returning to the client. Note - a partial restriction should return null.
      * @param restHandler The {@link RestHandler} to check for any restrictions
      * @param restRequest The {@link RestRequest} to check for any restrictions and mark any partially restricted REST API's
      * @param restChannel The {@link RestChannel} to enforce fully restricted REST API's

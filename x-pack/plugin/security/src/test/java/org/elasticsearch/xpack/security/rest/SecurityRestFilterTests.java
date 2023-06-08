@@ -273,6 +273,8 @@ public class SecurityRestFilterTests extends ESTestCase {
         }
     }
 
+//    public void testCheckRest()
+
     // public void testFullRestRestriction() throws Exception {
     // final RestResponse fullyRestrictedResponse = new RestResponse(
     // RestStatus.NOT_FOUND,

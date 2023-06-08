@@ -121,6 +121,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Collections.emptyMap;
+import static java.util.Map.entry;
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.RESTRICTED_INDICES;
@@ -1109,17 +1110,12 @@ public class RBACEngineTests extends ESTestCase {
             containsInAnyOrder(
                 ResourcePrivileges.builder("user/hawkeye/name")
                     .addPrivileges(
-                        Map.of(
-                            "DATA:read/user/*",
-                            true,
-                            "ACTION:" + action1,
-                            true,
-                            "ACTION:" + action2,
-                            false,
-                            action1,
-                            true,
-                            action2,
-                            false
+                        Map.ofEntries(
+                            entry("DATA:read/user/*", true),
+                            entry("ACTION:" + action1, true),
+                            entry("ACTION:" + action2, false),
+                            entry(action1, true),
+                            entry(action2, false)
                         )
                     )
                     .build()

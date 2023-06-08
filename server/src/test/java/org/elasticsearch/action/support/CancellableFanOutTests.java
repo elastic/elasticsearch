@@ -228,11 +228,9 @@ public class CancellableFanOutTests extends ESTestCase {
 
             @Override
             public void onFailure(Exception e) {
-                if (e instanceof TaskCancelledException) {
-                    assertCurrentThread(anyOf(isTestThread, isProcessorThread, isCancelThread));
-                } else {
+                assertCurrentThread(anyOf(isTestThread, isProcessorThread));
+                if (e instanceof TaskCancelledException == false) {
                     assertEquals(items.size(), itemsProcessed.get());
-                    assertCurrentThread(anyOf(isTestThread, isProcessorThread));
                     assertThat(e, instanceOf(ElasticsearchException.class));
                     assertEquals("onCompletion", e.getMessage());
                 }

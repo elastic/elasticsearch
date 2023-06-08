@@ -183,7 +183,7 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
             client.executeLocally(
                 TransportShardRefreshAction.TYPE,
                 refreshRequest,
-                ActionListener.wrap(replicationResponse -> super.asyncShardOperation(request, shardId, listener), listener::onFailure)
+                listener.delegateFailureAndWrap((l, replicationResponse) -> super.asyncShardOperation(request, shardId, l))
             );
         } else if (request.realtime()) {
             TransportGetFromTranslogAction.Request getFromTranslogRequest = new TransportGetFromTranslogAction.Request(request, shardId);
@@ -204,12 +204,12 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
                         );
                         if (r.segmentGeneration() == -1) {
                             // Nothing to wait for (no previous unsafe generation), just handle the Get locally.
-                            ActionRunnable.supply(listener, () -> shardOperation(request, shardId)).run();
+                            ActionRunnable.supply(l, () -> shardOperation(request, shardId)).run();
                         } else {
                             assert r.segmentGeneration() > -1L;
                             indexShard.waitForSegmentGeneration(
                                 r.segmentGeneration(),
-                                ActionListener.wrap(aLong -> super.asyncShardOperation(request, shardId, listener), listener::onFailure)
+                                listener.delegateFailureAndWrap((ll, aLong) -> super.asyncShardOperation(request, shardId, ll))
                             );
                         }
                     }

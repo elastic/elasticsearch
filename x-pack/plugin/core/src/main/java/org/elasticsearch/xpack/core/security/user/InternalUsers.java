@@ -186,7 +186,6 @@ public class InternalUsers {
     );
 
     public static final SystemUser SYSTEM_USER = SystemUser.INSTANCE;
-    public static final InternalUser CROSS_CLUSTER_ACCESS_USER = CrossClusterAccessUser.INSTANCE;
 
     private static final Map<String, InternalUser> INTERNAL_USERS;
 
@@ -197,7 +196,6 @@ public class InternalUsers {
             XPACK_SECURITY_USER,
             SECURITY_PROFILE_USER,
             ASYNC_SEARCH_USER,
-            CROSS_CLUSTER_ACCESS_USER,
             STORAGE_USER,
             DLM_USER,
             SYNONYMS_USER

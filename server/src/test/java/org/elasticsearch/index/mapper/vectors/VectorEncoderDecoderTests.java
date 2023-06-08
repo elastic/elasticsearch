@@ -16,6 +16,8 @@ import org.elasticsearch.test.VersionUtils;
 import java.nio.ByteBuffer;
 import java.util.List;
 
+import static org.hamcrest.Matchers.equalTo;
+
 public class VectorEncoderDecoderTests extends ESTestCase {
 
     public void testVectorDecodingWithOffset() {
@@ -47,6 +49,7 @@ public class VectorEncoderDecoderTests extends ESTestCase {
             float[] outputFloats = new float[dims];
             VectorEncoderDecoder.decodeDenseVector(version, floatBytes, outputFloats);
             assertArrayEquals(outputFloats, expected, 0f);
+            assertThat(VectorEncoderDecoder.decodeMagnitude(version, floatBytes), equalTo((float) magnitude));
         }
     }
 

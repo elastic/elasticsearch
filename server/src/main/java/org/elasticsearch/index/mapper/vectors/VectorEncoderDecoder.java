@@ -15,13 +15,18 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
 
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.LITTLE_ENDIAN_FLOAT_STORED_INDEX_VERSION;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAGNITUDE_STORED_INDEX_VERSION;
+
 public final class VectorEncoderDecoder {
     public static final byte INT_BYTES = 4;
 
     private VectorEncoderDecoder() {}
 
     public static int denseVectorLength(Version indexVersion, BytesRef vectorBR) {
-        return indexVersion.onOrAfter(Version.V_7_5_0) ? (vectorBR.length - INT_BYTES) / INT_BYTES : vectorBR.length / INT_BYTES;
+        return indexVersion.onOrAfter(MAGNITUDE_STORED_INDEX_VERSION)
+            ? (vectorBR.length - INT_BYTES) / INT_BYTES
+            : vectorBR.length / INT_BYTES;
     }
 
     /**
@@ -30,10 +35,10 @@ public final class VectorEncoderDecoder {
      * equal to 7.5.0, since vectors created prior to that do not store the magnitude.
      */
     public static float decodeMagnitude(Version indexVersion, BytesRef vectorBR) {
-        assert indexVersion.onOrAfter(Version.V_7_5_0);
-        ByteBuffer byteBuffer = indexVersion.onOrAfter(DenseVectorFieldMapper.LITTLE_ENDIAN_FLOAT_STORED_INDEX_VERSION) ?
-            ByteBuffer.wrap(vectorBR.bytes, vectorBR.offset, vectorBR.length).order(ByteOrder.LITTLE_ENDIAN) :
-            ByteBuffer.wrap(vectorBR.bytes, vectorBR.offset, vectorBR.length);
+        assert indexVersion.onOrAfter(MAGNITUDE_STORED_INDEX_VERSION);
+        ByteBuffer byteBuffer = indexVersion.onOrAfter(LITTLE_ENDIAN_FLOAT_STORED_INDEX_VERSION)
+            ? ByteBuffer.wrap(vectorBR.bytes, vectorBR.offset, vectorBR.length).order(ByteOrder.LITTLE_ENDIAN)
+            : ByteBuffer.wrap(vectorBR.bytes, vectorBR.offset, vectorBR.length);
         return byteBuffer.getFloat(vectorBR.offset + vectorBR.length - INT_BYTES);
     }
 
@@ -53,7 +58,7 @@ public final class VectorEncoderDecoder {
         if (vectorBR == null) {
             throw new IllegalArgumentException(DenseVectorScriptDocValues.MISSING_VECTOR_FIELD_MESSAGE);
         }
-        if (indexVersion.onOrAfter(Version.V_7_5_0)) {
+        if (indexVersion.onOrAfter(MAGNITUDE_STORED_INDEX_VERSION)) {
             return decodeMagnitude(indexVersion, vectorBR);
         } else {
             return calculateMagnitude(decodedVector);
@@ -69,7 +74,7 @@ public final class VectorEncoderDecoder {
         if (vectorBR == null) {
             throw new IllegalArgumentException(DenseVectorScriptDocValues.MISSING_VECTOR_FIELD_MESSAGE);
         }
-        if (indexVersion.onOrAfter(DenseVectorFieldMapper.LITTLE_ENDIAN_FLOAT_STORED_INDEX_VERSION)) {
+        if (indexVersion.onOrAfter(LITTLE_ENDIAN_FLOAT_STORED_INDEX_VERSION)) {
             FloatBuffer fb = ByteBuffer.wrap(vectorBR.bytes, vectorBR.offset, vectorBR.length)
                 .order(ByteOrder.LITTLE_ENDIAN)
                 .asFloatBuffer();

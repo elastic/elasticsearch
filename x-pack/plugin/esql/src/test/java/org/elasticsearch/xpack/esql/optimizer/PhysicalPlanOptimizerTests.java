@@ -1318,9 +1318,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     private ExchangeExec asRemoteExchange(PhysicalPlan plan) {
-        ExchangeExec exchange = as(plan, ExchangeExec.class);
-        assertThat(exchange.mode(), equalTo(ExchangeExec.Mode.REMOTE));
-        return exchange;
+        return as(plan, ExchangeExec.class);
     }
 
     public void testFieldExtractWithoutSourceAttributes() {

@@ -47,7 +47,6 @@ import org.elasticsearch.xpack.ql.plan.logical.UnaryPlan;
 import static org.elasticsearch.xpack.esql.plan.physical.AggregateExec.Mode;
 import static org.elasticsearch.xpack.esql.plan.physical.AggregateExec.Mode.FINAL;
 import static org.elasticsearch.xpack.esql.plan.physical.AggregateExec.Mode.PARTIAL;
-import static org.elasticsearch.xpack.esql.plan.physical.ExchangeExec.Mode.LOCAL;
 
 @Experimental
 public class Mapper {
@@ -205,7 +204,7 @@ public class Mapper {
         // and clone it as a physical node along with the exchange
         if (child instanceof FragmentExec) {
             child = new FragmentExec(logical);
-            child = new ExchangeExec(child.source(), child, LOCAL);
+            child = new ExchangeExec(child.source(), child);
         }
         return child;
     }

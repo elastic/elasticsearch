@@ -36,9 +36,7 @@ import org.elasticsearch.compute.operator.StringExtractOperator;
 import org.elasticsearch.compute.operator.TopNOperator;
 import org.elasticsearch.compute.operator.TopNOperator.TopNOperatorFactory;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
-import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator.ExchangeSinkOperatorFactory;
-import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceOperator.ExchangeSourceOperatorFactory;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -63,7 +61,6 @@ import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.RowExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
-import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
@@ -270,31 +267,7 @@ public class LocalExecutionPlanner {
     }
 
     private PhysicalOperation planExchange(ExchangeExec exchangeExec, LocalExecutionPlannerContext context) {
-        return switch (exchangeExec.mode()) {
-            case LOCAL -> {
-                DriverParallelism parallelism = DriverParallelism.SINGLE;
-                context.driverParallelism(parallelism);
-                LocalExecutionPlannerContext subContext = context.createSubContext();
-                PhysicalOperation source = plan(exchangeExec.child(), subContext);
-                Layout layout = source.layout;
-
-                var pragmas = configuration.pragmas();
-                var sinkHandler = new ExchangeSinkHandler(pragmas.exchangeBufferSize());
-                var executor = threadPool.executor(EsqlPlugin.ESQL_THREAD_POOL_NAME);
-                var sourceHandler = new ExchangeSourceHandler(pragmas.exchangeBufferSize(), executor);
-                sourceHandler.addRemoteSink(sinkHandler::fetchPageAsync, pragmas.concurrentExchangeClients());
-                PhysicalOperation sinkOperator = source.withSink(
-                    new ExchangeSinkOperatorFactory(sinkHandler::createExchangeSink),
-                    source.layout
-                );
-                DriverParallelism driverParallelism = subContext.driverParallelism().get();
-                context.addDriverFactory(new DriverFactory(new DriverSupplier(context.bigArrays, sinkOperator), driverParallelism));
-                yield PhysicalOperation.fromSource(new ExchangeSourceOperatorFactory(sourceHandler::createExchangeSource), layout);
-            }
-            case REMOTE -> {
-                throw new EsqlIllegalArgumentException("Remote exchange needs to be replaced with a sink/source");
-            }
-        };
+        throw new EsqlIllegalArgumentException("Exchange needs to be replaced with a sink/source");
     }
 
     private PhysicalOperation planExchangeSink(ExchangeSinkExec exchangeSink, LocalExecutionPlannerContext context) {

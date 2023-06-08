@@ -39,7 +39,6 @@ import java.util.List;
 import static java.lang.Boolean.FALSE;
 import static java.lang.Boolean.TRUE;
 import static java.util.Arrays.asList;
-import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.TransformDirection.UP;
 
 /**
  * Performs global (coordinator) optimization of the physical plan.
@@ -68,7 +67,7 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
     }
 
     static List<RuleExecutor.Batch<PhysicalPlan>> initializeRules(boolean isOptimizedForEsSource) {
-        var boundary = new Batch<PhysicalPlan>("Plan Boundary", Limiter.ONCE, new ProjectAwayColumns(), new SwitchLocalExchangeForRemote());
+        var boundary = new Batch<PhysicalPlan>("Plan Boundary", Limiter.ONCE, new ProjectAwayColumns());
         return asList(boundary);
     }
 
@@ -144,18 +143,6 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
                 }
                 return p;
             });
-        }
-    }
-
-    private static class SwitchLocalExchangeForRemote extends PhysicalOptimizerRules.OptimizerRule<ExchangeExec> {
-
-        SwitchLocalExchangeForRemote() {
-            super(UP);
-        }
-
-        @Override
-        protected PhysicalPlan rule(ExchangeExec plan) {
-            return new ExchangeExec(plan.source(), plan.child(), ExchangeExec.Mode.REMOTE);
         }
     }
 }

@@ -11,47 +11,20 @@ import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 
-import java.util.Objects;
-
 @Experimental
 public class ExchangeExec extends UnaryExec {
-    private final Mode mode;
 
-    public ExchangeExec(Source source, PhysicalPlan child, Mode mode) {
+    public ExchangeExec(Source source, PhysicalPlan child) {
         super(source, child);
-        this.mode = mode;
-    }
-
-    public Mode mode() {
-        return mode;
     }
 
     @Override
     public UnaryExec replaceChild(PhysicalPlan newChild) {
-        return new ExchangeExec(source(), newChild, mode);
+        return new ExchangeExec(source(), newChild);
     }
 
     @Override
     protected NodeInfo<? extends PhysicalPlan> info() {
-        return NodeInfo.create(this, ExchangeExec::new, child(), mode);
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        if (super.equals(o) == false) return false;
-        ExchangeExec that = (ExchangeExec) o;
-        return mode == that.mode;
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(super.hashCode(), mode);
-    }
-
-    public enum Mode {
-        LOCAL,
-        REMOTE,
+        return NodeInfo.create(this, ExchangeExec::new, child());
     }
 }

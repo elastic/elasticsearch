@@ -152,18 +152,14 @@ public class SearchIdleIT extends ESSingleNodeTestCase {
         ensureGreen();
         client().prepareIndex("test").setId("0").setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
         IndexShard shard = indexService.getShard(0);
-        PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
-        shard.scheduledRefresh(future);
-        assertFalse(future.actionGet());
+        scheduleRefresh(shard, false);
         assertTrue(shard.isSearchIdle());
         CountDownLatch refreshLatch = new CountDownLatch(1);
         // async on purpose to make sure it happens concurrently
         client().admin().indices().prepareRefresh().execute(ActionListener.running(refreshLatch::countDown));
         assertHitCount(client().prepareSearch().get(), 1);
         client().prepareIndex("test").setId("1").setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
-        PlainActionFuture<Boolean> future2 = PlainActionFuture.newFuture();
-        shard.scheduledRefresh(future2);
-        assertFalse(future2.actionGet());
+        scheduleRefresh(shard, false);
         assertTrue(shard.hasRefreshPending());
 
         // now disable background refresh and make sure the refresh happens
@@ -182,9 +178,7 @@ public class SearchIdleIT extends ESSingleNodeTestCase {
         // otherwise, it will compete to call `Engine#maybeRefresh` with the `scheduledRefresh` that we are going to verify.
         ensureNoPendingScheduledRefresh(indexService.getThreadPool());
         client().prepareIndex("test").setId("2").setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
-        PlainActionFuture<Boolean> future3 = PlainActionFuture.newFuture();
-        shard.scheduledRefresh(future3);
-        assertTrue(future3.actionGet());
+        scheduleRefresh(shard, true);
         assertFalse(shard.hasRefreshPending());
         assertTrue(shard.isSearchIdle());
         assertHitCount(client().prepareSearch().get(), 3);
@@ -193,6 +187,16 @@ public class SearchIdleIT extends ESSingleNodeTestCase {
             if (shardStats.isSearchIdle()) {
                 assertTrue(shardStats.getSearchIdleTime() >= TimeValue.ZERO.millis());
             }
+        }
+    }
+
+    private static void scheduleRefresh(IndexShard shard, boolean expectRefresh) {
+        PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
+        shard.scheduledRefresh(future);
+        if (expectRefresh) {
+            assertTrue(future.actionGet());
+        } else {
+            assertFalse(future.actionGet());
         }
     }
 

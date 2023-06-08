@@ -1,0 +1,36 @@
+[[release-notes-8.8.1]]
+== {es} version 8.8.1
+
+coming[8.8.1]
+
+Also see <<breaking-changes-8.8,Breaking changes in 8.8>>.
+
+[[bug-8.8.1]]
+[float]
+=== Bug fixes
+
+Data streams::
+* Allow the removal of an in-use template if there are other ones matching the dependent data streams {es-pull}96286[#96286]
+
+Geo::
+* API rest compatibility for type parameter in `geo_bounding_box` query {es-pull}96317[#96317]
+
+Rollup::
+* Do not copy `index.default_pipeline` and `index.final_pipeline` {es-pull}96494[#96494] (issue: {es-issue}96478[#96478])
+
+TSDB::
+* Expand start and end time to nanoseconds during coordinator rewrite when needed {es-pull}96035[#96035] (issue: {es-issue}96030[#96030])
+* Fix NPE when indexing a document that just has been deleted in a tsdb index {es-pull}96461[#96461]
+
+Transform::
+* Improve error message on transform `_update` conflict {es-pull}96432[#96432]
+* Report version conflict on concurrent updates {es-pull}96293[#96293] (issue: {es-issue}96311[#96311])
+
+[[enhancement-8.8.1]]
+[float]
+=== Enhancements
+
+Query Languages::
+* Reduce nesting of same bool queries {es-pull}96265[#96265] (issue: {es-issue}96236[#96236])
+
+

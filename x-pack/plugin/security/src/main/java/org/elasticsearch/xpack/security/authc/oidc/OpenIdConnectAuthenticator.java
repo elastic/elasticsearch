@@ -593,7 +593,10 @@ public class OpenIdConnectAuthenticator {
                 httpClient.execute(httpPost, new FutureCallback<HttpResponse>() {
                     @Override
                     public void completed(HttpResponse result) {
-                        handleTokenResponse(result, tokensListener);
+                        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+                            handleTokenResponse(result, tokensListener);
+                            return null;
+                        });
                     }
 
                     @Override

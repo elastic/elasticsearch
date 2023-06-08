@@ -32,8 +32,8 @@ grant {
   permission java.lang.RuntimePermission "accessUserInformation";
   permission java.lang.RuntimePermission "getFileStoreAttributes";
 
-  // TODO this shouldn't be necessary
-  // permission java.lang.RuntimePermission "accessDeclaredMembers";
+  // TODO the ES security code also needs this permission (in addition to nimbus)
+  permission java.lang.RuntimePermission "accessDeclaredMembers";
 };
 
 grant codeBase "${codebase.netty-common}" {
@@ -47,9 +47,4 @@ grant codeBase "${codebase.netty-transport}" {
    // Netty NioEventLoop wants to change this, because of https://bugs.openjdk.java.net/browse/JDK-6427854
    // the bug says it only happened rarely, and that its fixed, but apparently it still happens rarely!
    permission java.util.PropertyPermission "sun.nio.ch.bugLevel", "write";
-};
-
-// TODO this still doesn't work
-grant codeBase "${codebase.nimbus-jose-jwt}" {
-   permission java.lang.RuntimePermission "accessDeclaredMembers";
 };

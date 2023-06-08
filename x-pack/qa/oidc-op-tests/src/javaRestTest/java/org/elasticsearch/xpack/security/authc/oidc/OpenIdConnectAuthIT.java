@@ -28,8 +28,6 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.net.URI;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -99,27 +97,16 @@ public class OpenIdConnectAuthIT extends C2IdOpTestCase {
         registerClients(codeClient, implicitClient, postClient, jwtClient);
     }
 
-    public void testAuthenticateWithCodeFlow() {
-        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-            doTestAuthenticateWithCodeFlow();
-            return null;
-        });
-    }
-
-    private void doTestAuthenticateWithCodeFlow() {
-        try {
-            final PrepareAuthResponse prepareAuthResponse = getRedirectedFromFacilitator(REALM_NAME);
-            final String redirectUri = authenticateAtOP(prepareAuthResponse.getAuthUri());
-            Tuple<String, String> tokens = completeAuthentication(
-                redirectUri,
-                prepareAuthResponse.getState(),
-                prepareAuthResponse.getNonce(),
-                REALM_NAME
-            );
-            verifyElasticsearchAccessTokenForCodeFlow(tokens.v1());
-        } catch (Exception ex) {
-            throw new RuntimeException(ex);
-        }
+    public void testAuthenticateWithCodeFlow() throws Exception {
+        final PrepareAuthResponse prepareAuthResponse = getRedirectedFromFacilitator(REALM_NAME);
+        final String redirectUri = authenticateAtOP(prepareAuthResponse.getAuthUri());
+        Tuple<String, String> tokens = completeAuthentication(
+            redirectUri,
+            prepareAuthResponse.getState(),
+            prepareAuthResponse.getNonce(),
+            REALM_NAME
+        );
+        verifyElasticsearchAccessTokenForCodeFlow(tokens.v1());
     }
 
     public void testAuthenticateWithCodeFlowAndClientPost() throws Exception {

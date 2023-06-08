@@ -140,7 +140,6 @@ public record TransportVersion(int id) implements Comparable<TransportVersion> {
      */
     public static final TransportVersion CURRENT = findCurrent(V_8_500_009);
 
-
     /**
      * Reference to the earliest compatible transport version to this version of the codebase.
      * This should be the transport version used by the highest minor version of the previous major.

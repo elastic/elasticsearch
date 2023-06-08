@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.application.rules;
 
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DelegatingActionListener;
@@ -25,11 +24,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.Streams;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.indices.ExecutorNames;
@@ -42,7 +37,6 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -66,7 +60,7 @@ public class QueryRulesIndexService {
     public static final String QUERY_RULES_INDEX_NAME_PATTERN = ".query-rules-*";
     private final Client clientWithOrigin;
 
-    public QueryRulesIndexService(Client client, NamedWriteableRegistry namedWriteableRegistry) {
+    public QueryRulesIndexService(Client client) {
         this.clientWithOrigin = new OriginSettingClient(client, ENT_SEARCH_ORIGIN);
     }
 
@@ -295,42 +289,6 @@ public class QueryRulesIndexService {
             .map(hit -> (String) hit.getDocumentFields().get(QueryRuleset.ID_FIELD.getPreferredName()).getValue())
             .toList();
         return new QueryRulesetResult(rulesetIds, (int) response.getHits().getTotalHits().value);
-    }
-
-    static QueryRuleset parseQueryRulesetBinaryWithVersion(StreamInput in) throws IOException {
-        TransportVersion version = TransportVersion.readVersion(in);
-        assert version.onOrBefore(TransportVersion.CURRENT) : version + " >= " + TransportVersion.CURRENT;
-        in.setTransportVersion(version);
-        return new QueryRuleset(in);
-    }
-
-    static QueryRule parseQueryRuleBinaryWithVersion(StreamInput in) throws IOException {
-        TransportVersion version = TransportVersion.readVersion(in);
-        assert version.onOrBefore(TransportVersion.CURRENT) : version + " >= " + TransportVersion.CURRENT;
-        in.setTransportVersion(version);
-        return new QueryRule(in);
-    }
-
-    static void writeQueryRulesetBinaryWithVersion(QueryRuleset queryRuleset, OutputStream os, TransportVersion minTransportVersion)
-        throws IOException {
-        // do not close the output
-        os = Streams.noCloseStream(os);
-        TransportVersion.writeVersion(minTransportVersion, new OutputStreamStreamOutput(os));
-        try (OutputStreamStreamOutput out = new OutputStreamStreamOutput(os)) {
-            out.setTransportVersion(minTransportVersion);
-            queryRuleset.writeTo(out);
-        }
-    }
-
-    static void writeQueryRuleBinaryWithVersion(QueryRule queryRule, OutputStream os, TransportVersion minTransportVersion)
-        throws IOException {
-        // do not close the output
-        os = Streams.noCloseStream(os);
-        TransportVersion.writeVersion(minTransportVersion, new OutputStreamStreamOutput(os));
-        try (OutputStreamStreamOutput out = new OutputStreamStreamOutput(os)) {
-            out.setTransportVersion(minTransportVersion);
-            queryRule.writeTo(out);
-        }
     }
 
     static class DelegatingIndexNotFoundActionListener<T, R> extends DelegatingActionListener<T, R> {

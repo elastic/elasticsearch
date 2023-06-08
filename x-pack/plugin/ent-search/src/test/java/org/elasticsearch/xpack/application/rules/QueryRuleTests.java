@@ -7,14 +7,9 @@
 
 package org.elasticsearch.xpack.application.rules;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.InputStreamStreamInput;
-import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.search.SearchModule;
@@ -49,7 +44,6 @@ public class QueryRuleTests extends ESTestCase {
             QueryRule testInstance = SearchApplicationTestUtils.randomQueryRule();
             assertTransportSerialization(testInstance);
             assertXContent(testInstance, randomBoolean());
-            assertIndexSerialization(testInstance);
         }
     }
 
@@ -177,23 +171,6 @@ public class QueryRuleTests extends ESTestCase {
 
     private void assertTransportSerialization(QueryRule testInstance) throws IOException {
         QueryRule deserializedInstance = copyInstance(testInstance);
-        assertNotSame(testInstance, deserializedInstance);
-        assertThat(testInstance, equalTo(deserializedInstance));
-    }
-
-    private void assertIndexSerialization(QueryRule testInstance) throws IOException {
-        final QueryRule deserializedInstance;
-        try (BytesStreamOutput output = new BytesStreamOutput()) {
-            QueryRulesIndexService.writeQueryRuleBinaryWithVersion(testInstance, output, TransportVersion.MINIMUM_COMPATIBLE);
-            try (
-                StreamInput in = new NamedWriteableAwareStreamInput(
-                    new InputStreamStreamInput(output.bytes().streamInput()),
-                    namedWriteableRegistry
-                )
-            ) {
-                deserializedInstance = QueryRulesIndexService.parseQueryRuleBinaryWithVersion(in);
-            }
-        }
         assertNotSame(testInstance, deserializedInstance);
         assertThat(testInstance, equalTo(deserializedInstance));
     }

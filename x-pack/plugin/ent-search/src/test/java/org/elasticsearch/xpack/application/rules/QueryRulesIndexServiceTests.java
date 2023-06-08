@@ -41,7 +41,7 @@ public class QueryRulesIndexServiceTests extends ESSingleNodeTestCase {
 
     @Before
     public void setup() {
-        this.queryRulesIndexService = new QueryRulesIndexService(client(), writableRegistry());
+        this.queryRulesIndexService = new QueryRulesIndexService(client());
     }
 
     @Override

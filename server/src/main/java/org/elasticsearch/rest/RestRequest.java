@@ -93,6 +93,9 @@ public class RestRequest implements ToXContent.Params {
         HttpChannel httpChannel,
         long requestId
     ) {
+        if(headers.containsKey(RESPONSE_RESTRICTED)){
+            throw new IllegalArgumentException("Http parameter " + RESPONSE_RESTRICTED + " is reserved and may not set");
+        }
         try {
             this.parsedAccept = parseHeaderWithMediaType(httpRequest.getHeaders(), "Accept");
         } catch (IllegalArgumentException e) {
@@ -614,7 +617,7 @@ public class RestRequest implements ToXContent.Params {
     }
 
     public void markResponseRestricted(String restriction) {
-        if(params.get(RESPONSE_RESTRICTED) != null){
+        if(params.containsKey(RESPONSE_RESTRICTED)){
             throw new IllegalArgumentException("The parameter [" + RESPONSE_RESTRICTED + "] is already defined.");
         }
         params.put(RESPONSE_RESTRICTED, restriction);

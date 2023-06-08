@@ -95,15 +95,14 @@ public class RemoteConnectionManager implements ConnectionManager {
         delegate.openConnection(
             node,
             profile,
-            ActionListener.wrap(
-                connection -> listener.onResponse(
+            listener.delegateFailureAndWrap(
+                (l, connection) -> l.onResponse(
                     new InternalRemoteConnection(
                         connection,
                         clusterAlias,
                         profile != null ? profile.getTransportProfile() : getConnectionProfile().getTransportProfile()
                     )
-                ),
-                listener::onFailure
+                )
             )
         );
     }

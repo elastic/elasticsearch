@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.application.search.action;
 
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
@@ -23,7 +23,10 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 @ServerlessScope(Scope.PUBLIC)
-public class RestQuerySearchApplicationAction extends BaseRestHandler {
+public class RestQuerySearchApplicationAction extends SearchApplicationRestHandler {
+    public RestQuerySearchApplicationAction(XPackLicenseState licenseState) {
+        super(licenseState);
+    }
 
     public static final String ENDPOINT_PATH = "/" + EnterpriseSearch.SEARCH_APPLICATION_API_ENDPOINT + "/{name}" + "/_search";
 
@@ -38,7 +41,7 @@ public class RestQuerySearchApplicationAction extends BaseRestHandler {
     }
 
     @Override
-    protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
+    protected RestChannelConsumer innerPrepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         final String searchAppName = restRequest.param("name");
         SearchApplicationSearchRequest request;
         if (restRequest.hasContentOrSourceParam()) {

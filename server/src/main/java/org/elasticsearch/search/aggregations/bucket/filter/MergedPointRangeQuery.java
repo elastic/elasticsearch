@@ -23,11 +23,11 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
+import org.apache.lucene.util.ArrayUtil;
 
 import java.io.IOException;
 import java.util.Objects;
 
-import static java.util.Arrays.compareUnsigned;
 
 /**
  * Query merging two point in range queries.
@@ -51,12 +51,14 @@ public class MergedPointRangeQuery extends Query {
     private final String field;
     private final Query delegateForMultiValuedSegments;
     private final Query delegateForSingleValuedSegments;
+    private final ArrayUtil.ByteArrayComparator comparator;
 
     private MergedPointRangeQuery(PointRangeQuery lhs, PointRangeQuery rhs) {
         field = lhs.getField();
         delegateForMultiValuedSegments = new BooleanQuery.Builder().add(lhs, Occur.MUST).add(rhs, Occur.MUST).build();
         int numDims = lhs.getNumDims();
         int bytesPerDim = lhs.getBytesPerDim();
+        this.comparator = ArrayUtil.getUnsignedComparator(bytesPerDim);
         this.delegateForSingleValuedSegments = pickDelegateForSingleValuedSegments(
             mergeBound(lhs.getLowerPoint(), rhs.getLowerPoint(), numDims, bytesPerDim, true),
             mergeBound(lhs.getUpperPoint(), rhs.getUpperPoint(), numDims, bytesPerDim, false),
@@ -69,7 +71,7 @@ public class MergedPointRangeQuery extends Query {
         // If we ended up with disjoint ranges in any dimension then on single valued segments we can't match any docs.
         for (int dim = 0; dim < numDims; dim++) {
             int offset = dim * bytesPerDim;
-            if (compareUnsigned(lower, offset, offset + bytesPerDim, upper, offset, offset + bytesPerDim) > 0) {
+            if (comparator.compare(lower, offset, upper, offset) > 0) {
                 return new MatchNoDocsQuery("disjoint ranges");
             }
         }
@@ -206,11 +208,11 @@ public class MergedPointRangeQuery extends Query {
         return Objects.hash(classHash(), delegateForMultiValuedSegments, delegateForSingleValuedSegments);
     }
 
-    private static byte[] mergeBound(byte[] lhs, byte[] rhs, int numDims, int bytesPerDim, boolean lower) {
+    private byte[] mergeBound(byte[] lhs, byte[] rhs, int numDims, int bytesPerDim, boolean lower) {
         byte[] merged = new byte[lhs.length];
         for (int dim = 0; dim < numDims; dim++) {
             int offset = dim * bytesPerDim;
-            boolean cmp = compareUnsigned(lhs, offset, offset + bytesPerDim, rhs, offset, offset + bytesPerDim) <= 0;
+            boolean cmp = comparator.compare(lhs, offset, rhs, offset) <= 0;
             byte[] from = (cmp ^ lower) ? lhs : rhs;
             System.arraycopy(from, offset, merged, offset, bytesPerDim);
         }

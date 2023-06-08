@@ -117,8 +117,8 @@
 ---
 "Add data lifecycle":
   - skip:
-      version: " - 8.7.99"
-      reason: "Data Lifecycle template was added after 8.7"
+      version: " - 8.8.99"
+      reason: "Data Lifecycle template was added after 8.8"
 
   - do:
       cluster.put_component_template:
@@ -144,8 +144,8 @@
 ---
 "Get data lifecycle with default rollover":
   - skip:
-      version: " - 8.7.99"
-      reason: "Data Lifecycle template was added after 8.7"
+      version: " - 8.8.99"
+      reason: "Data Lifecycle template was added after 8.8"
 
   - do:
       cluster.put_component_template:

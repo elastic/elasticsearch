@@ -18,6 +18,7 @@ import org.elasticsearch.index.mapper.SourceLoader;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 public class MultiGetShardRequest extends SingleShardRequest<MultiGetShardRequest> {
 
@@ -35,7 +36,7 @@ public class MultiGetShardRequest extends SingleShardRequest<MultiGetShardReques
      * of the worst case performance. Fetches with this enabled will be slower the
      * enabling synthetic source natively in the index.
      */
-    private final boolean forceSyntheticSource;
+    private boolean forceSyntheticSource;
 
     MultiGetShardRequest(MultiGetRequest multiGetRequest, String index, int shardId) {
         super(index);
@@ -46,6 +47,26 @@ public class MultiGetShardRequest extends SingleShardRequest<MultiGetShardReques
         realtime = multiGetRequest.realtime;
         refresh = multiGetRequest.refresh;
         forceSyntheticSource = multiGetRequest.isForceSyntheticSource();
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o instanceof MultiGetShardRequest == false) return false;
+        MultiGetShardRequest other = (MultiGetShardRequest) o;
+        return shardId == other.shardId
+            && realtime == other.realtime
+            && refresh == other.refresh
+            && forceSyntheticSource == other.forceSyntheticSource
+            && Objects.equals(preference, other.preference)
+            && Objects.equals(index, other.index)
+            && Objects.equals(locations, other.locations)
+            && Objects.equals(items, other.items);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(shardId, preference, realtime, refresh, index, locations, items, forceSyntheticSource);
     }
 
     MultiGetShardRequest(StreamInput in) throws IOException {
@@ -140,6 +161,11 @@ public class MultiGetShardRequest extends SingleShardRequest<MultiGetShardReques
      */
     public boolean isForceSyntheticSource() {
         return forceSyntheticSource;
+    }
+
+    public MultiGetShardRequest setForceSyntheticSource(boolean forceSyntheticSource) {
+        this.forceSyntheticSource = forceSyntheticSource;
+        return this;
     }
 
     void add(int location, MultiGetRequest.Item item) {

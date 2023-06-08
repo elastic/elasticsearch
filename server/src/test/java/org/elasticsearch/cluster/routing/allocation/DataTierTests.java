@@ -139,7 +139,7 @@ public class DataTierTests extends ESTestCase {
     }
 
     private static DiscoveryNode newNode(int nodeId, Map<String, String> attributes, Set<DiscoveryNodeRole> roles) {
-        return DiscoveryNodeUtils.create("name_" + nodeId, "node_" + nodeId, buildNewFakeTransportAddress(), attributes, roles);
+        return DiscoveryNodeUtils.builder("node_" + nodeId).name("name_" + nodeId).attributes(attributes).roles(roles).build();
     }
 
     private static List<DiscoveryNode> randomNodes(final int numNodes) {

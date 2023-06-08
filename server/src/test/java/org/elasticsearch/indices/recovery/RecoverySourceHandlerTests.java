@@ -24,7 +24,6 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
-import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
@@ -43,6 +42,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Strings;
@@ -1056,7 +1056,7 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
             }
         };
         cancelRecovery.set(() -> handler.cancel("test"));
-        final StepListener<RecoverySourceHandler.SendFileResult> phase1Listener = new StepListener<>();
+        final ListenableFuture<RecoverySourceHandler.SendFileResult> phase1Listener = new ListenableFuture<>();
         try {
             final CountDownLatch latch = new CountDownLatch(1);
             handler.phase1(DirectoryReader.listCommits(dir).get(0), 0, () -> 0, new LatchedActionListener<>(phase1Listener, latch));

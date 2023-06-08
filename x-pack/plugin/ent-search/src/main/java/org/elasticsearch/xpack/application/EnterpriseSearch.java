@@ -140,16 +140,16 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
             return Collections.emptyList();
         }
         return List.of(
-            new RestGetSearchApplicationAction(),
-            new RestListSearchApplicationAction(),
-            new RestPutSearchApplicationAction(),
-            new RestDeleteSearchApplicationAction(),
-            new RestQuerySearchApplicationAction(),
+            new RestGetSearchApplicationAction(getLicenseState()),
+            new RestListSearchApplicationAction(getLicenseState()),
+            new RestPutSearchApplicationAction(getLicenseState()),
+            new RestDeleteSearchApplicationAction(getLicenseState()),
+            new RestQuerySearchApplicationAction(getLicenseState()),
             new RestPutAnalyticsCollectionAction(),
             new RestGetAnalyticsCollectionAction(),
             new RestDeleteAnalyticsCollectionAction(),
             new RestPostAnalyticsEventAction(),
-            new RestRenderSearchApplicationQueryAction()
+            new RestRenderSearchApplicationQueryAction(getLicenseState())
         );
     }
 

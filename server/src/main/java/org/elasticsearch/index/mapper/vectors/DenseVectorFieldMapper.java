@@ -66,8 +66,7 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
  */
 public class DenseVectorFieldMapper extends FieldMapper {
 
-    private static final int INITIALIZED_BYTE_LANES = VectorUtil.dotProduct(new byte[128], new byte[128]);
-    private static final float INITIALIZED_FLOAT_LANES = VectorUtil.dotProduct(new float[257], new float[257]);
+    private static final float LOADING_VECTOR_MODULE = VectorUtil.dotProduct(new float[257], new float[257]);
 
     public static final String CONTENT_TYPE = "dense_vector";
     public static short MAX_DIMS_COUNT = 2048; // maximum allowed number of dimensions

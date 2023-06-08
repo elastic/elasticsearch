@@ -30,7 +30,6 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
-import org.elasticsearch.search.aggregations.bucket.IteratorAndCurrent;
 import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator;
 import org.elasticsearch.search.aggregations.bucket.range.InternalDateRange;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregationBuilder;
@@ -45,7 +44,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
@@ -333,8 +331,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
     }
 
     public List<Map<Long, List<AggregationAndBucket>>> mergeBucket(List<AggregationAndBucket> others, long thisBucket) {
-        // Need one extra slot in the queue for this aggregator
-        final PriorityQueue<IteratorAndAggregator> pq = new PriorityQueue<>(others.size() + 1) {
+        final PriorityQueue<IteratorAndAggregator> pq = new PriorityQueue<>(others.size()) {
             @Override
             public boolean lessThan(IteratorAndAggregator a, IteratorAndAggregator b) {
                 return a.current() < b.current();
@@ -347,7 +344,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
             nextLayer.add(new HashMap<>());
         }
 
-        pq.add(new IteratorAndAggregator(this.bucketOrds.keyOrderedIterator(thisBucket), this));
+        // Contract says that this instance should be included in the others list
         for (AggregationAndBucket other : others) {
             pq.add(
                 new IteratorAndAggregator(

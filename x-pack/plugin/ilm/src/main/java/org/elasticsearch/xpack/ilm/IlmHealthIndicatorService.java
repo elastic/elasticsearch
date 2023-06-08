@@ -143,7 +143,9 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
                     NAME,
                     "stagnating_action:" + entry.getKey(),
                     "Some indices have been stagnated on the action [" + entry.getKey() + "] longer than the expected time.",
-                    "Check the current status of the Index Lifecycle Management service using the [/_ilm/explain] API.",
+                    "Check the current status of the Index Lifecycle Management for every affected index using the "
+                        + "[GET /<affected_index_name>/_ilm/explain] API. Please replace the <affected_index_name> in the API "
+                        + "with the actual index name.",
                     "https://ela.st/ilm-explain"
                 )
             )
@@ -317,6 +319,16 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
             return (now, indexMetadata) -> test(now, indexMetadata) || other.test(now, indexMetadata);
         }
 
+        /**
+         * Builder class that provides a simple DSL to create composed `RuleConfig`s. It'll enforce that any rule to start with an action
+         * and then optionally define the max-time-on an action or a set of steps. In general, the output rule will be in the form:
+         *
+         *      action-rule AND (step-rule-1 OR step-rule-2 OR step-rule-3 ...)?
+         *
+         * Where the list of `step-rule-xx` could be empty.
+         *
+         * To have a clearer idea of the final shape of the rules, check the methods {@link ActionRule#test} and {@link StepRule#test}
+         */
         class Builder {
             private String action;
             private TimeValue maxTimeOn = null;
@@ -351,6 +363,12 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
         }
     }
 
+    /**
+     * Record defining a rule that will check the current action that an ILM-managed index is into.
+     *
+     * @param action    The action against which the rule will be checked.
+     * @param maxTimeOn Maximum time that an index should spend on this action.
+     */
     record ActionRule(String action, TimeValue maxTimeOn) implements RuleConfig {
 
         @Override
@@ -365,6 +383,13 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
         }
     }
 
+    /**
+     * Record defining a rule that will check the current step that an ILM-managed index is into.
+     *
+     * @param step       The step against which the rule will be checked.
+     * @param maxTimeOn  Maximum time that an index should spend on this step.
+     * @param maxRetries Maximum number of times that a step should be retried.
+     */
     public record StepRule(String step, TimeValue maxTimeOn, long maxRetries) implements RuleConfig {
         static StepRule stepRule(String name, TimeValue maxTimeOn) {
             return new StepRule(name, maxTimeOn, 100);

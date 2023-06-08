@@ -33,7 +33,7 @@ import java.util.List;
  */
 public class SortingDigest extends TDigest {
 
-    // Tracks all samples. Gets sorted on percentile and cdf calls.
+    // Tracks all samples. Gets sorted on quantile and cdf calls.
     final ArrayList<Double> values = new ArrayList<>();
 
     // Indicates if all values have been sorted.

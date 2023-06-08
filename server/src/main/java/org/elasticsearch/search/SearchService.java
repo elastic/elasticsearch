@@ -284,6 +284,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Tracer tracer
     ) {
         Settings settings = clusterService.getSettings();
+        setSettings(settings);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.indicesService = indicesService;
@@ -328,6 +329,18 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         enableRewriteAggsToFilterByFilter = ENABLE_REWRITE_AGGS_TO_FILTER_BY_FILTER.get(settings);
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(ENABLE_REWRITE_AGGS_TO_FILTER_BY_FILTER, this::setEnableRewriteAggsToFilterByFilter);
+    }
+
+    // Settings singleton, gets set when the service is created.
+    private static Optional<Settings> settings = Optional.empty();
+
+    private static void setSettings(Settings settings) {
+        assert SearchService.settings.isEmpty();
+        SearchService.settings = Optional.of(settings);
+    }
+
+    public static Optional<Settings> getSettings() {
+        return settings;
     }
 
     private static void validateKeepAlives(TimeValue defaultKeepAlive, TimeValue maxKeepAlive) {

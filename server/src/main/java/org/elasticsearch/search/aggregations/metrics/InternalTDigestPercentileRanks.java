@@ -45,11 +45,13 @@ public class InternalTDigestPercentileRanks extends AbstractInternalTDigestPerce
         String name,
         double[] keys,
         double compression,
+        boolean optimizeForAccuracy,
         boolean keyed,
         DocValueFormat format,
         Map<String, Object> metadata
     ) {
-        return new InternalTDigestPercentileRanks(name, keys, new TDigestState(compression), keyed, format, metadata);
+        TDigestState state = TDigestState.create(compression, optimizeForAccuracy);
+        return new InternalTDigestPercentileRanks(name, keys, state, keyed, format, metadata);
     }
 
     @Override

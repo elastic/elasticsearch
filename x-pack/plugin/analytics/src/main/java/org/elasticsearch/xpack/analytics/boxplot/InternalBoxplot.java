@@ -176,8 +176,14 @@ public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValu
         return results;
     }
 
-    static InternalBoxplot empty(String name, double compression, DocValueFormat format, Map<String, Object> metadata) {
-        return new InternalBoxplot(name, new TDigestState(compression), format, metadata);
+    static InternalBoxplot empty(
+        String name,
+        double compression,
+        boolean optimizeForAccuracy,
+        DocValueFormat format,
+        Map<String, Object> metadata
+    ) {
+        return new InternalBoxplot(name, TDigestState.create(compression, optimizeForAccuracy), format, metadata);
     }
 
     static final Set<String> METRIC_NAMES = Collections.unmodifiableSet(
@@ -288,7 +294,7 @@ public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValu
         for (InternalAggregation aggregation : aggregations) {
             final InternalBoxplot percentiles = (InternalBoxplot) aggregation;
             if (merged == null) {
-                merged = new TDigestState(percentiles.state.compression());
+                merged = TDigestState.createUsingParamsFrom(percentiles.state);
             }
             merged.add(percentiles.state);
         }

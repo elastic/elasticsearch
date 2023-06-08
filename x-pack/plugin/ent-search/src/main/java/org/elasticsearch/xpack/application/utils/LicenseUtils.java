@@ -39,11 +39,4 @@ public final class LicenseUtils {
         return e;
     }
 
-    public static void runIfSupportedLicense(XPackLicenseState licenseState, Runnable onSuccess, Consumer<Exception> onFailure) {
-        if (supportedLicense(licenseState)) {
-            onSuccess.run();
-        } else {
-            onFailure.accept(newComplianceException(licenseState));
-        }
-    }
 }

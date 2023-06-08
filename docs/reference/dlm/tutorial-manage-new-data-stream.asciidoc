@@ -110,7 +110,7 @@ If you want to see more information about how the individual backing indices are
 
 [source,console]
 --------------------------------------------------
-POST .ds-my-data-stream-*/_lifecycle/explain
+GET .ds-my-data-stream-*/_lifecycle/explain
 --------------------------------------------------
 // TEST[continued]
 The result will look like this:

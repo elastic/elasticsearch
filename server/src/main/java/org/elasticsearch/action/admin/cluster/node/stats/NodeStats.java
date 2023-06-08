@@ -326,11 +326,6 @@ public class NodeStats extends BaseNodeResponse implements ChunkedToXContent {
                 return builder;
             }),
 
-            Iterators.single((builder, params) -> {
-                ifPresent(getRepositoriesThrottlingStats()).toXContent(builder, params);
-                return builder;
-            }),
-
             ifPresent(getThreadPool()).toXContentChunked(outerParams),
 
             Iterators.single((builder, params) -> {
@@ -354,6 +349,7 @@ public class NodeStats extends BaseNodeResponse implements ChunkedToXContent {
                 ifPresent(getAdaptiveSelectionStats()).toXContent(builder, params);
                 ifPresent(getScriptCacheStats()).toXContent(builder, params);
                 ifPresent(getIndexingPressureStats()).toXContent(builder, params);
+                ifPresent(getRepositoriesThrottlingStats()).toXContent(builder, params);
                 return builder;
             })
         );

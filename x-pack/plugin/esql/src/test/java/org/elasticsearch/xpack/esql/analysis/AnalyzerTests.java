@@ -1178,6 +1178,47 @@ public class AnalyzerTests extends ESTestCase {
         verifyUnsupported("from test | eval to_string(point)", "line 1:28: Cannot use field [point] with unsupported type [geo_point]");
     }
 
+    public void testNonExistingEnrichPolicy() {
+        var e = expectThrows(VerificationException.class, () -> analyze("""
+            from test
+            | enrich foo on bar
+            """));
+        assertThat(e.getMessage(), containsString("unresolved enrich policy [foo]"));
+    }
+
+    public void testNonExistingEnrichPolicyWithSimilarName() {
+        var e = expectThrows(VerificationException.class, () -> analyze("""
+            from test
+            | enrich language on bar
+            """));
+        assertThat(e.getMessage(), containsString("unresolved enrich policy [language], did you mean [languages]"));
+    }
+
+    public void testEnrichPolicyWrongMatchField() {
+        var e = expectThrows(VerificationException.class, () -> analyze("""
+            from test
+            | enrich languages on bar
+            """));
+        assertThat(e.getMessage(), containsString("Unknown column [bar]"));
+    }
+
+    public void testValidEnrich() {
+        assertProjection("""
+            from test
+            | enrich languages on languages
+            | project first_name, language
+            """, "first_name", "language");
+    }
+
+    public void testEnrichExcludesPolicyKey() {
+        var e = expectThrows(VerificationException.class, () -> analyze("""
+            from test
+            | enrich languages on languages
+            | project first_name, language, id
+            """));
+        assertThat(e.getMessage(), containsString("Unknown column [id]"));
+    }
+
     private void verifyUnsupported(String query, String errorMessage) {
         verifyUnsupported(query, errorMessage, "mapping-multi-field-variation.json");
     }

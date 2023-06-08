@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
+import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -115,6 +116,10 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
                     });
                     if (p instanceof RegexExtractExec ree) {
                         attributes.removeAll(ree.extractedFields());
+                    }
+                    if (p instanceof EnrichExec ee) {
+                        // TODO double-check
+                        attributes.removeAll(ee.enrichFields());
                     }
                 }
                 if (p instanceof ExchangeExec exec) {

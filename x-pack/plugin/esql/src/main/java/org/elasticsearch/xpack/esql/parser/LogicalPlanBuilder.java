@@ -287,7 +287,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             NamedExpression matchField = ctx.ON() != null
                 ? new UnresolvedAttribute(source(ctx.matchField), visitSourceIdentifier(ctx.matchField))
                 : new EmptyAttribute(source);
-            return new Enrich(source, p, policyName, matchField);
+            return new Enrich(source, p, new Literal(source(ctx.policyName), policyName, DataTypes.KEYWORD), matchField);
         };
     }
 

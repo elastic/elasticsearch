@@ -12,7 +12,10 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
+import org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils;
+import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
+import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolution;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.IsNull;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateFormat;
@@ -25,6 +28,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer.FoldNull;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
+import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
@@ -70,6 +74,7 @@ import org.junit.BeforeClass;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -107,6 +112,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     private static Analyzer analyzer;
     private static LogicalPlanOptimizer logicalOptimizer;
     private static Map<String, EsField> mapping;
+    private static Map<String, EsField> languagesMapping;
 
     @BeforeClass
     public static void init() {
@@ -115,9 +121,21 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         mapping = loadMapping("mapping-basic.json");
         EsIndex test = new EsIndex("test", mapping);
         IndexResolution getIndexResult = IndexResolution.valid(test);
+
         logicalOptimizer = new LogicalPlanOptimizer();
+        EnrichPolicyResolution policy = AnalyzerTestUtils.loadEnrichPolicyResolution(
+            "languages_idx",
+            "id",
+            "languages_idx",
+            "mapping-languages.json"
+        );
         analyzer = new Analyzer(
-            new AnalyzerContext(EsqlTestUtils.TEST_CFG, new EsqlFunctionRegistry(), getIndexResult),
+            new AnalyzerContext(
+                EsqlTestUtils.TEST_CFG,
+                new EsqlFunctionRegistry(),
+                getIndexResult,
+                new EnrichResolution(Set.of(policy), Set.of("languages_idx", "something"))
+            ),
             new Verifier(new Metrics())
         );
     }
@@ -1021,6 +1039,44 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(fa.field().getName(), is("last_name"));
         as(filter.child(), EsRelation.class);
 
+    }
+
+    public void testEnrich() {
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | enrich languages_idx on languages
+            """);
+        var enrich = as(plan, Enrich.class);
+        assertTrue(enrich.policyName().resolved());
+        assertThat(enrich.policyName().fold(), is(BytesRefs.toBytesRef("languages_idx")));
+        var limit = as(enrich.child(), Limit.class);
+        as(limit.child(), EsRelation.class);
+    }
+
+    public void testPushDownEnrichPastProject() {
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | rename x = languages
+            | project x
+            | enrich languages_idx on x
+            """);
+
+        var project = as(plan, Project.class);
+        as(project.child(), Enrich.class);
+    }
+
+    public void testTopNEnrich() {
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | rename x = languages
+            | project x
+            | enrich languages_idx on x
+            | sort language
+            """);
+
+        var project = as(plan, Project.class);
+        var topN = as(project.child(), TopN.class);
+        as(topN.child(), Enrich.class);
     }
 
     private LogicalPlan optimizedPlan(String query) {

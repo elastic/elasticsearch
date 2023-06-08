@@ -1,0 +1,10 @@
+{
+    "properties" : {
+        "id" : {
+            "type" : "integer"
+        },
+        "language" : {
+            "type" : "keyword"
+        }
+    }
+}

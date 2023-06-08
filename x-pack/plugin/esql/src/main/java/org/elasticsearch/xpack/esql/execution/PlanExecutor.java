@@ -9,7 +9,9 @@ package org.elasticsearch.xpack.esql.execution;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
+import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
+import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -18,7 +20,6 @@ import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.esql.session.EsqlSession;
 import org.elasticsearch.xpack.esql.stats.Metrics;
 import org.elasticsearch.xpack.esql.stats.QueryMetric;
-import org.elasticsearch.xpack.ql.analyzer.PreAnalyzer;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
 
@@ -27,6 +28,7 @@ import static org.elasticsearch.action.ActionListener.wrap;
 public class PlanExecutor {
 
     private final IndexResolver indexResolver;
+    private final EnrichPolicyResolver enrichPolicyResolver;
     private final PreAnalyzer preAnalyzer;
     private final FunctionRegistry functionRegistry;
     private final LogicalPlanOptimizer logicalPlanOptimizer;
@@ -34,8 +36,9 @@ public class PlanExecutor {
     private final Metrics metrics;
     private final Verifier verifier;
 
-    public PlanExecutor(IndexResolver indexResolver) {
+    public PlanExecutor(IndexResolver indexResolver, EnrichPolicyResolver enrichPolicyResolver) {
         this.indexResolver = indexResolver;
+        this.enrichPolicyResolver = enrichPolicyResolver;
         this.preAnalyzer = new PreAnalyzer();
         this.functionRegistry = new EsqlFunctionRegistry();
         this.logicalPlanOptimizer = new LogicalPlanOptimizer();
@@ -55,7 +58,17 @@ public class PlanExecutor {
     }
 
     private EsqlSession newSession(String sessionId, EsqlConfiguration cfg) {
-        return new EsqlSession(sessionId, cfg, indexResolver, preAnalyzer, functionRegistry, logicalPlanOptimizer, mapper, verifier);
+        return new EsqlSession(
+            sessionId,
+            cfg,
+            indexResolver,
+            enrichPolicyResolver,
+            preAnalyzer,
+            functionRegistry,
+            logicalPlanOptimizer,
+            mapper,
+            verifier
+        );
     }
 
     public Metrics metrics() {

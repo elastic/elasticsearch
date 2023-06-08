@@ -1,0 +1,86 @@
+---
+setup:
+  - do:
+      indices.create:
+        index:  test
+        body:
+          settings:
+            number_of_shards: 5
+          mappings:
+            properties:
+              id:
+                type: long
+              name:
+                type: keyword
+              city:
+                type: long
+  - do:
+      bulk:
+        index: "test"
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "id": 1, "name": "Alice", "city": 10 }
+          - { "index": { } }
+          - { "id": 2, "name": "Bob", "city": 10 }
+          - { "index": { } }
+          - { "id": 3, "name": "Mario", "city": 20 }
+          - { "index": { } }
+          - { "id": 4, "name": "Denise", "city": 50 }
+  - do:
+      indices.create:
+        index:  cities
+        body:
+          settings:
+            number_of_shards: 5
+          mappings:
+            properties:
+              id:
+                type: long
+              name:
+                type: keyword
+              country:
+                type: keyword
+
+  - do:
+      bulk:
+        index: "cities"
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "id": 10, "name": "New York", "country": "USA" }
+          - { "index": { } }
+          - { "id": 20, "name": "Rome", "country": "Italy" }
+
+  - do:
+      enrich.put_policy:
+        name: cities_policy
+        body:
+          match:
+            indices: ["cities"]
+            match_field: "id"
+            enrich_fields: ["name", "country"]
+
+  - do:
+      enrich.execute_policy:
+        name: cities_policy
+
+
+---
+"Test only result columns, a false condition should be pushed down":
+  - do:
+      esql.query:
+        body:
+          query: 'from test | eval x = 1 | enrich cities_policy on city | project id, city, name, country, x | where x == 2'
+
+  - match: {columns.0.name: "id"}
+  - match: {columns.0.type: "long"}
+  - match: {columns.1.name: "city"}
+  - match: {columns.1.type: "long"}
+  - match: {columns.2.name: "name"}
+  - match: {columns.2.type: "keyword"}
+  - match: {columns.3.name: "country"}
+  - match: {columns.3.type: "keyword"}
+  - length: {values: 0}
+
+# TODO we'll need more meaningful data when Enrich evaluator is properly implemented

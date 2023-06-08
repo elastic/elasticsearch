@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.IsNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
+import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
@@ -101,6 +102,7 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
             new PushDownAndCombineFilters(),
             new PushDownEval(),
             new PushDownRegexExtract(),
+            new PushDownEnrich(),
             new PushDownAndCombineOrderBy(),
             new PruneOrderByBeforeStats(),
             new PruneRedundantSortClauses()
@@ -252,7 +254,7 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
                 var l2 = (int) childLimit.limit().fold();
                 return new Limit(limit.source(), Literal.of(limitSource, Math.min(l1, l2)), childLimit.child());
             } else if (limit.child() instanceof UnaryPlan unary) {
-                if (unary instanceof Eval || unary instanceof Project || unary instanceof RegexExtract) {
+                if (unary instanceof Eval || unary instanceof Project || unary instanceof RegexExtract || unary instanceof Enrich) {
                     return unary.replaceChild(limit.replaceChild(unary.child()));
                 }
                 // check if there's a 'visible' descendant limit lower than the current one
@@ -401,6 +403,10 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
                     attributes.add(ne.toAttribute());
                 }
                 plan = maybePushDownPastUnary(filter, re, e -> e instanceof Attribute && attributes.contains(e));
+            } else if (child instanceof Enrich enrich) {
+                // Push down filters that do not rely on attributes created by Enrich
+                List<Attribute> attributes = new ArrayList<>(enrich.enrichFields());
+                plan = maybePushDownPastUnary(filter, enrich, e -> attributes.contains(e));
             } else if (child instanceof Project) {
                 return pushDownPastProject(filter);
             } else if (child instanceof OrderBy orderBy) {
@@ -484,6 +490,23 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
         }
     }
 
+    // TODO double-check: this should be the same as EVAL and GROK/DISSECT, needed to avoid unbounded sort
+    protected static class PushDownEnrich extends OptimizerRules.OptimizerRule<Enrich> {
+        @Override
+        protected LogicalPlan rule(Enrich re) {
+            LogicalPlan child = re.child();
+
+            if (child instanceof OrderBy orderBy) {
+                return orderBy.replaceChild(re.replaceChild(orderBy.child()));
+            } else if (child instanceof Project) {
+                var projectWithChild = pushDownPastProject(re);
+                return projectWithChild.withProjections(mergeOutputExpressions(re.enrichFields(), projectWithChild.projections()));
+            }
+
+            return re;
+        }
+    }
+
     protected static class PushDownAndCombineOrderBy extends OptimizerRules.OptimizerRule<OrderBy> {
 
         @Override
@@ -518,9 +541,13 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
             OrderBy pullable = null;
             if (plan instanceof OrderBy o) {
                 pullable = o;
-            } else if (plan instanceof Eval || plan instanceof Filter || plan instanceof Project || plan instanceof RegexExtract) {
-                pullable = findPullableOrderBy(((UnaryPlan) plan).child());
-            }
+            } else if (plan instanceof Eval
+                || plan instanceof Filter
+                || plan instanceof Project
+                || plan instanceof RegexExtract
+                || plan instanceof Enrich) {
+                    pullable = findPullableOrderBy(((UnaryPlan) plan).child());
+                }
             return pullable;
         }
 

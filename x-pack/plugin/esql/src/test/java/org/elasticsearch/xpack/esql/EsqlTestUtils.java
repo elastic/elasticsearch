@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.BlockUtils;
+import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
@@ -26,6 +27,7 @@ import org.junit.Assert;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.ql.TestUtils.of;
@@ -62,5 +64,9 @@ public final class EsqlTestUtils {
 
     public static Map<String, EsField> loadMapping(String name) {
         return TypesTests.loadMapping(EsqlDataTypeRegistry.INSTANCE, name, true);
+    }
+
+    public static EnrichResolution emptyPolicyResolution() {
+        return new EnrichResolution(Set.of(), Set.of());
     }
 }

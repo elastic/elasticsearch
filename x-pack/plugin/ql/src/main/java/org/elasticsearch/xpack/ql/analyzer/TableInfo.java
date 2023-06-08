@@ -14,7 +14,7 @@ public class TableInfo {
     private final TableIdentifier id;
     private final boolean isFrozen;
 
-    TableInfo(TableIdentifier id, boolean isFrozen) {
+    public TableInfo(TableIdentifier id, boolean isFrozen) {
         this.id = id;
         this.isFrozen = isFrozen;
     }

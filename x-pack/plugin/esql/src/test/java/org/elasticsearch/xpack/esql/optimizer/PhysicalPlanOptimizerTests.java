@@ -67,6 +67,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyPolicyResolution;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerialization;
 import static org.elasticsearch.xpack.ql.expression.Expressions.name;
@@ -131,7 +132,10 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         FunctionRegistry functionRegistry = new EsqlFunctionRegistry();
         mapper = new Mapper(functionRegistry);
 
-        analyzer = new Analyzer(new AnalyzerContext(config, functionRegistry, getIndexResult), new Verifier(new Metrics()));
+        analyzer = new Analyzer(
+            new AnalyzerContext(config, functionRegistry, getIndexResult, emptyPolicyResolution()),
+            new Verifier(new Metrics())
+        );
     }
 
     public void testSingleFieldExtractor() {

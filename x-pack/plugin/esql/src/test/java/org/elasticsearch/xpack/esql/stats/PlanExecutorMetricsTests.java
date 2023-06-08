@@ -12,13 +12,18 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.analysis.VerificationException;
+import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
+import org.junit.After;
+import org.junit.Before;
 import org.mockito.stubbing.Answer;
 
 import java.util.HashMap;
@@ -35,9 +40,22 @@ import static org.mockito.Mockito.when;
 
 public class PlanExecutorMetricsTests extends ESTestCase {
 
+    private ThreadPool threadPool;
+
+    @Before
+    public void setUpThreadPool() throws Exception {
+        threadPool = new TestThreadPool(PlanExecutorMetricsTests.class.getSimpleName());
+    }
+
+    @After
+    public void shutdownThreadPool() throws Exception {
+        terminate(threadPool);
+    }
+
     public void testFailedMetric() {
         Client client = mock(Client.class);
-        var planExecutor = new PlanExecutor(new IndexResolver(client, randomAlphaOfLength(10), EsqlDataTypeRegistry.INSTANCE, Set::of));
+        IndexResolver idxResolver = new IndexResolver(client, randomAlphaOfLength(10), EsqlDataTypeRegistry.INSTANCE, Set::of);
+        var planExecutor = new PlanExecutor(idxResolver, new EnrichPolicyResolver(null, idxResolver, threadPool));
         String[] indices = new String[] { "test" };
 
         // simulate a valid field_caps response so we can parse and correctly analyze de query

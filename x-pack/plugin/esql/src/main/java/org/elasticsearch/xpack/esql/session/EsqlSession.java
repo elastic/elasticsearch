@@ -10,11 +10,16 @@ package org.elasticsearch.xpack.esql.session;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.RefCountingListener;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
+import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
+import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
+import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer;
@@ -22,7 +27,6 @@ import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.Mapper;
-import org.elasticsearch.xpack.ql.analyzer.PreAnalyzer;
 import org.elasticsearch.xpack.ql.analyzer.TableInfo;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
@@ -31,10 +35,12 @@ import org.elasticsearch.xpack.ql.index.MappingException;
 import org.elasticsearch.xpack.ql.plan.TableIdentifier;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 
+import java.util.HashSet;
 import java.util.Map;
-import java.util.function.Function;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiFunction;
 
-import static org.elasticsearch.action.ActionListener.wrap;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.xpack.ql.util.ActionListeners.map;
 
@@ -45,6 +51,7 @@ public class EsqlSession {
     private final String sessionId;
     private final EsqlConfiguration configuration;
     private final IndexResolver indexResolver;
+    private final EnrichPolicyResolver enrichPolicyResolver;
 
     private final PreAnalyzer preAnalyzer;
     private final Verifier verifier;
@@ -58,6 +65,7 @@ public class EsqlSession {
         String sessionId,
         EsqlConfiguration configuration,
         IndexResolver indexResolver,
+        EnrichPolicyResolver enrichPolicyResolver,
         PreAnalyzer preAnalyzer,
         FunctionRegistry functionRegistry,
         LogicalPlanOptimizer logicalPlanOptimizer,
@@ -67,7 +75,7 @@ public class EsqlSession {
         this.sessionId = sessionId;
         this.configuration = configuration;
         this.indexResolver = indexResolver;
-
+        this.enrichPolicyResolver = enrichPolicyResolver;
         this.preAnalyzer = preAnalyzer;
         this.verifier = verifier;
         this.functionRegistry = functionRegistry;
@@ -109,15 +117,34 @@ public class EsqlSession {
             return;
         }
 
-        preAnalyze(parsed, r -> {
-            Analyzer analyzer = new Analyzer(new AnalyzerContext(configuration, functionRegistry, r), verifier);
+        preAnalyze(parsed, (indices, policies) -> {
+            Analyzer analyzer = new Analyzer(new AnalyzerContext(configuration, functionRegistry, indices, policies), verifier);
             var plan = analyzer.analyze(parsed);
             LOGGER.debug("Analyzed plan:\n{}", plan);
             return plan;
         }, listener);
     }
 
-    private <T> void preAnalyze(LogicalPlan parsed, Function<IndexResolution, T> action, ActionListener<T> listener) {
+    private <T> void preAnalyze(LogicalPlan parsed, BiFunction<IndexResolution, EnrichResolution, T> action, ActionListener<T> listener) {
+        PreAnalyzer.PreAnalysis preAnalysis = preAnalyzer.preAnalyze(parsed);
+        Set<String> policyNames = new HashSet<>(preAnalysis.policyNames);
+        EnrichResolution resolution = new EnrichResolution(ConcurrentCollections.newConcurrentSet(), enrichPolicyResolver.allPolicyNames());
+        AtomicReference<IndexResolution> resolvedIndex = new AtomicReference<>();
+        ActionListener<Void> groupedListener = ActionListener.wrap(unused -> {
+            assert resolution.resolvedPolicies().size() == policyNames.size()
+                : resolution.resolvedPolicies().size() + " != " + policyNames.size();
+            assert resolvedIndex.get() != null : "index wasn't resolved";
+            listener.onResponse(action.apply(resolvedIndex.get(), resolution));
+        }, listener::onFailure);
+        try (RefCountingListener refs = new RefCountingListener(groupedListener)) {
+            preAnalyzeIndices(parsed, refs.acquire(resolvedIndex::set));
+            for (String policyName : policyNames) {
+                enrichPolicyResolver.resolvePolicy(policyName, refs.acquire(resolution.resolvedPolicies()::add));
+            }
+        }
+    }
+
+    private <T> void preAnalyzeIndices(LogicalPlan parsed, ActionListener<IndexResolution> listener) {
         PreAnalyzer.PreAnalysis preAnalysis = new PreAnalyzer().preAnalyze(parsed);
         // TODO we plan to support joins in the future when possible, but for now we'll just fail early if we see one
         if (preAnalysis.indices.size() > 1) {
@@ -126,17 +153,11 @@ public class EsqlSession {
         } else if (preAnalysis.indices.size() == 1) {
             TableInfo tableInfo = preAnalysis.indices.get(0);
             TableIdentifier table = tableInfo.id();
-
-            indexResolver.resolveAsMergedMapping(
-                table.index(),
-                false,
-                Map.of(),
-                wrap(indexResult -> listener.onResponse(action.apply(indexResult)), listener::onFailure)
-            );
+            indexResolver.resolveAsMergedMapping(table.index(), false, Map.of(), listener);
         } else {
             try {
                 // occurs when dealing with local relations (row a = 1)
-                listener.onResponse(action.apply(IndexResolution.invalid("[none specified]")));
+                listener.onResponse(IndexResolution.invalid("[none specified]"));
             } catch (Exception ex) {
                 listener.onFailure(ex);
             }

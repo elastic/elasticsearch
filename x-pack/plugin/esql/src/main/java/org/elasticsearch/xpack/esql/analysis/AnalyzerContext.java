@@ -11,4 +11,9 @@ import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 
-public record AnalyzerContext(EsqlConfiguration configuration, FunctionRegistry functionRegistry, IndexResolution indexResolution) {}
+public record AnalyzerContext(
+    EsqlConfiguration configuration,
+    FunctionRegistry functionRegistry,
+    IndexResolution indexResolution,
+    EnrichResolution enrichResolution
+) {}

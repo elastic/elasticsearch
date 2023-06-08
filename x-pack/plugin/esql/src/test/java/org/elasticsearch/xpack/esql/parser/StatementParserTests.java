@@ -599,12 +599,17 @@ public class StatementParserTests extends ESTestCase {
 
     public void testEnrich() {
         assertEquals(
-            new Enrich(EMPTY, PROCESSING_CMD_INPUT, "countries", new EmptyAttribute(EMPTY)),
+            new Enrich(EMPTY, PROCESSING_CMD_INPUT, new Literal(EMPTY, "countries", KEYWORD), new EmptyAttribute(EMPTY)),
             processingCommand("enrich countries")
         );
 
         assertEquals(
-            new Enrich(EMPTY, PROCESSING_CMD_INPUT, "countries", new UnresolvedAttribute(EMPTY, "country_code")),
+            new Enrich(
+                EMPTY,
+                PROCESSING_CMD_INPUT,
+                new Literal(EMPTY, "countries", KEYWORD),
+                new UnresolvedAttribute(EMPTY, "country_code")
+            ),
             processingCommand("enrich countries ON country_code")
         );
     }

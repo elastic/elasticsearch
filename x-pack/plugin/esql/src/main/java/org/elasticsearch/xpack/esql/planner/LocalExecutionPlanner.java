@@ -17,6 +17,7 @@ import org.elasticsearch.compute.lucene.DataPartitioning;
 import org.elasticsearch.compute.operator.ColumnExtractOperator;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.EnrichOperator;
 import org.elasticsearch.compute.operator.EvalOperator.EvalOperatorFactory;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.FilterOperator.FilterOperatorFactory;
@@ -44,6 +45,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
+import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
@@ -177,6 +179,10 @@ public class LocalExecutionPlanner {
             return planShow(show);
         } else if (node instanceof ExchangeSourceExec exchangeSource) {
             return planExchangeSource(exchangeSource);
+        }
+        // lookups and joins
+        else if (node instanceof EnrichExec enrich) {
+            return planEnrich(enrich, context);
         }
         // output
         else if (node instanceof OutputExec outputExec) {
@@ -388,6 +394,17 @@ public class LocalExecutionPlanner {
             layout
         );
         return source;
+    }
+
+    private PhysicalOperation planEnrich(EnrichExec enrich, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(enrich.child(), context);
+        Layout.Builder layoutBuilder = source.layout.builder();
+        List<Attribute> extractedFields = enrich.enrichFields();
+        for (Attribute attr : extractedFields) {
+            layoutBuilder.appendChannel(attr.id());
+        }
+        Layout layout = layoutBuilder.build();
+        return source.with(new EnrichOperator.EnrichOperatorFactory(), layout);
     }
 
     private Supplier<ExpressionEvaluator> toEvaluator(Expression exp, Layout layout) {

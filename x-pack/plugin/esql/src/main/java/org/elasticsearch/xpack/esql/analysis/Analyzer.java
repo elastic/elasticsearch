@@ -10,8 +10,11 @@ package org.elasticsearch.xpack.esql.analysis;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
+import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolution;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
+import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.ProjectReorder;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
@@ -23,15 +26,18 @@ import org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.ParameterizedAnalyzerRu
 import org.elasticsearch.xpack.ql.common.Failure;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.expression.EmptyAttribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
+import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.expression.UnresolvedStar;
 import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.index.EsIndex;
+import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.plan.TableIdentifier;
 import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
@@ -48,6 +54,7 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.ql.type.InvalidMappedField;
 import org.elasticsearch.xpack.ql.type.UnsupportedEsField;
+import org.elasticsearch.xpack.ql.util.CollectionUtils;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 
 import java.util.ArrayList;
@@ -59,6 +66,8 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
@@ -74,6 +83,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         var resolution = new Batch<>(
             "Resolution",
             new ResolveTable(),
+            new ResolveEnrich(),
             new ResolveRefs(),
             new ResolveFunctions(),
             new RemoveDuplicateProjections()
@@ -136,51 +146,117 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return new EsRelation(plan.source(), esIndex, mappingAsAttributes(plan.source(), esIndex.mapping()));
         }
 
-        /**
-         * Specific flattening method, different from the default EsRelation that:
-         * 1. takes care of data type widening (for certain types)
-         * 2. drops the object and keyword hierarchy
-         */
-        private static List<Attribute> mappingAsAttributes(Source source, Map<String, EsField> mapping) {
-            var list = new ArrayList<Attribute>();
-            mappingAsAttributes(list, source, null, mapping);
-            list.sort(Comparator.comparing(Attribute::qualifiedName));
-            return list;
-        }
+    }
 
-        private static void mappingAsAttributes(List<Attribute> list, Source source, String parentName, Map<String, EsField> mapping) {
-            for (Map.Entry<String, EsField> entry : mapping.entrySet()) {
-                String name = entry.getKey();
-                EsField t = entry.getValue();
+    /**
+     * Specific flattening method, different from the default EsRelation that:
+     * 1. takes care of data type widening (for certain types)
+     * 2. drops the object and keyword hierarchy
+     */
+    private static List<Attribute> mappingAsAttributes(Source source, Map<String, EsField> mapping) {
+        var list = new ArrayList<Attribute>();
+        mappingAsAttributes(list, source, null, mapping);
+        list.sort(Comparator.comparing(Attribute::qualifiedName));
+        return list;
+    }
 
-                if (t != null) {
-                    name = parentName == null ? name : parentName + "." + name;
-                    var fieldProperties = t.getProperties();
-                    // widen the data type
-                    var type = EsqlDataTypes.widenSmallNumericTypes(t.getDataType());
-                    // due to a bug also copy the field since the Attribute hierarchy extracts the data type
-                    // directly even if the data type is passed explicitly
-                    if (type != t.getDataType()) {
-                        t = new EsField(t.getName(), type, t.getProperties(), t.isAggregatable(), t.isAlias());
-                    }
+    private static void mappingAsAttributes(List<Attribute> list, Source source, String parentName, Map<String, EsField> mapping) {
+        for (Map.Entry<String, EsField> entry : mapping.entrySet()) {
+            String name = entry.getKey();
+            EsField t = entry.getValue();
 
-                    // primitive branch
-                    if (EsqlDataTypes.isPrimitive(type)) {
-                        Attribute attribute;
-                        if (t instanceof UnsupportedEsField uef) {
-                            attribute = new UnsupportedAttribute(source, name, uef);
-                        } else {
-                            attribute = new FieldAttribute(source, null, name, t);
-                        }
-                        list.add(attribute);
+            if (t != null) {
+                name = parentName == null ? name : parentName + "." + name;
+                var fieldProperties = t.getProperties();
+                // widen the data type
+                var type = EsqlDataTypes.widenSmallNumericTypes(t.getDataType());
+                // due to a bug also copy the field since the Attribute hierarchy extracts the data type
+                // directly even if the data type is passed explicitly
+                if (type != t.getDataType()) {
+                    t = new EsField(t.getName(), type, t.getProperties(), t.isAggregatable(), t.isAlias());
+                }
+
+                // primitive branch
+                if (EsqlDataTypes.isPrimitive(type)) {
+                    Attribute attribute;
+                    if (t instanceof UnsupportedEsField uef) {
+                        attribute = new UnsupportedAttribute(source, name, uef);
+                    } else {
+                        attribute = new FieldAttribute(source, null, name, t);
                     }
-                    // allow compound object even if they are unknown (but not NESTED)
-                    if (type != NESTED && fieldProperties.isEmpty() == false) {
-                        mappingAsAttributes(list, source, name, fieldProperties);
-                    }
+                    list.add(attribute);
+                }
+                // allow compound object even if they are unknown (but not NESTED)
+                if (type != NESTED && fieldProperties.isEmpty() == false) {
+                    mappingAsAttributes(list, source, name, fieldProperties);
                 }
             }
         }
+    }
+
+    private static class ResolveEnrich extends ParameterizedAnalyzerRule<Enrich, AnalyzerContext> {
+
+        @Override
+        protected LogicalPlan rule(Enrich plan, AnalyzerContext context) {
+            if (plan.policyName().resolved() == false) {
+                // the policy does not exist
+                return plan;
+            }
+            String policyName = (String) plan.policyName().fold();
+            EnrichPolicyResolution policyRes = context.enrichResolution()
+                .resolvedPolicies()
+                .stream()
+                .filter(x -> x.policyName().equals(policyName))
+                .findFirst()
+                .orElse(new EnrichPolicyResolution(policyName, null, null));
+
+            IndexResolution idx = policyRes.index();
+            EnrichPolicy policy = policyRes.policy();
+
+            var policyNameExp = policy == null || idx == null
+                ? new UnresolvedAttribute(
+                    plan.policyName().source(),
+                    policyName,
+                    null,
+                    unresolvedPolicyError(policyName, context.enrichResolution())
+                )
+                : plan.policyName();
+
+            var matchField = plan.matchField() == null || plan.matchField() instanceof EmptyAttribute
+                ? new UnresolvedAttribute(plan.source(), policy.getMatchField())
+                : plan.matchField();
+
+            List<Attribute> enrichFields = policy == null || idx == null
+                ? (plan.enrichFields() == null ? List.of() : plan.enrichFields())
+                : calculateEnrichFields(plan.source(), mappingAsAttributes(plan.source(), idx.get().mapping()), policy.getEnrichFields());
+
+            return new Enrich(plan.source(), plan.child(), policyNameExp, matchField, policyRes, enrichFields);
+        }
+
+        private String unresolvedPolicyError(String policyName, EnrichResolution enrichResolution) {
+            List<String> potentialMatches = StringUtils.findSimilar(policyName, enrichResolution.existingPolicies());
+            String msg = "unresolved enrich policy [" + policyName + "]";
+            if (CollectionUtils.isEmpty(potentialMatches) == false) {
+                msg += ", did you mean "
+                    + (potentialMatches.size() == 1 ? "[" + potentialMatches.get(0) + "]" : "any of " + potentialMatches)
+                    + "?";
+            }
+            return msg;
+        }
+
+        public static List<Attribute> calculateEnrichFields(Source source, List<Attribute> mapping, List<String> enrichFields) {
+            Map<String, Attribute> fieldMap = mapping.stream().collect(Collectors.toMap(NamedExpression::name, Function.identity()));
+            List<Attribute> result = new ArrayList<>();
+            for (String enrichField : enrichFields) {
+                Attribute mappedField = fieldMap.get(enrichField);
+                if (mappedField == null) {
+                    throw new IllegalStateException("Enrich policy field [" + enrichField + "] not found in index mapping");
+                }
+                result.add(new ReferenceAttribute(source, enrichField, mappedField.dataType()));
+            }
+            return result;
+        }
+
     }
 
     private static class ResolveRefs extends BaseAnalyzerRule {
@@ -208,6 +284,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
             if (plan instanceof Eval p) {
                 return resolveEval(p, childrenOutput);
+            }
+
+            if (plan instanceof Enrich p) {
+                return resolveEnrich(p, childrenOutput);
             }
 
             return plan.transformExpressionsUp(UnresolvedAttribute.class, ua -> resolveAttribute(ua, childrenOutput));
@@ -375,6 +455,18 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             projections.addAll(unresolved);
 
             return new EsqlProject(rename.source(), rename.child(), projections);
+        }
+
+        private LogicalPlan resolveEnrich(Enrich enrich, List<Attribute> childrenOutput) {
+
+            if (enrich.matchField().toAttribute() instanceof UnresolvedAttribute ua) {
+                Attribute resolved = resolveAttribute(ua, childrenOutput);
+                if (resolved.equals(ua)) {
+                    return enrich;
+                }
+                return new Enrich(enrich.source(), enrich.child(), enrich.policyName(), resolved, enrich.policy(), enrich.enrichFields());
+            }
+            return enrich;
         }
     }
 

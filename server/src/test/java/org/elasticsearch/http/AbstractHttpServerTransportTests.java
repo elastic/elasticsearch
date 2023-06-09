@@ -1054,7 +1054,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
     }
 
     public void testStopClosesChannelAfterRequest() {
-        try (TestHttpServerTransport transport = new TestHttpServerTransport(gracePeriod(1_000))) {
+        try (TestHttpServerTransport transport = new TestHttpServerTransport(gracePeriod(100))) {
             transport.bindServer();
 
             TestHttpChannel httpChannel = new TestHttpChannel();
@@ -1101,9 +1101,8 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/96632")
     public void testForceClosesOpenChannels() {
-        try (TestHttpServerTransport transport = new TestHttpServerTransport(gracePeriod(1_000))) {
+        try (TestHttpServerTransport transport = new TestHttpServerTransport(gracePeriod(100))) {
             transport.bindServer();
 
             TestHttpChannel httpChannel = new TestHttpChannel(true);
@@ -1292,7 +1291,9 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 }
                 if (waitForever) {
                     try {
-                        closeLatch.await(1, TimeUnit.SECONDS);
+                        if (closeLatch.await(1, TimeUnit.SECONDS) == false) {
+                            return;
+                        }
                     } catch (InterruptedException ie) {
                         throw new RuntimeException(ie);
                     }

@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.health.ClusterIndexHealth;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.SystemIndexMetadataUpgradeService;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.xcontent.XContentType;
@@ -47,10 +48,10 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_FORMAT_SETT
  * internally to Elasticsearch - others are created and managed externally, e.g.
  * Kibana indices.
  *
- * Other metadata updates are handled by {@link org.elasticsearch.cluster.metadata.SystemIndexMetadataUpgradeService}.
+ * Other metadata updates are handled by {@link SystemIndexMetadataUpgradeService}.
  */
-public class SystemIndexManager implements ClusterStateListener {
-    private static final Logger logger = LogManager.getLogger(SystemIndexManager.class);
+public class SystemIndexMappingUpdateService implements ClusterStateListener {
+    private static final Logger logger = LogManager.getLogger(SystemIndexMappingUpdateService.class);
 
     public static final Set<String> MANAGED_SYSTEM_INDEX_SETTING_UPDATE_ALLOWLIST;
     static {
@@ -71,7 +72,7 @@ public class SystemIndexManager implements ClusterStateListener {
      * @param systemIndices the indices to manage
      * @param client used to update the cluster
      */
-    public SystemIndexManager(SystemIndices systemIndices, Client client) {
+    public SystemIndexMappingUpdateService(SystemIndices systemIndices, Client client) {
         this.systemIndices = systemIndices;
         this.client = client;
         this.isUpgradeInProgress = new AtomicBoolean(false);
@@ -92,6 +93,7 @@ public class SystemIndexManager implements ClusterStateListener {
             return;
         }
 
+        // if we're in a mixed-version cluster, exit
         if (state.nodes().getMaxNodeVersion().after(state.nodes().getSmallestNonClientNodeVersion())) {
             logger.debug("Skipping system indices up-to-date check as cluster has mixed versions");
             return;
@@ -120,7 +122,7 @@ public class SystemIndexManager implements ClusterStateListener {
                     ActionListener.running(() -> isUpgradeInProgress.set(false))
                 );
 
-                descriptors.forEach(descriptor -> upgradeIndexMetadata(descriptor, listener));
+                descriptors.forEach(descriptor -> upgradeIndexMappings(descriptor, listener));
             } else {
                 isUpgradeInProgress.set(false);
             }
@@ -203,7 +205,7 @@ public class SystemIndexManager implements ClusterStateListener {
      * @param descriptor information about the system index
      * @param listener a listener to call upon success or failure
      */
-    private void upgradeIndexMetadata(SystemIndexDescriptor descriptor, ActionListener<AcknowledgedResponse> listener) {
+    private void upgradeIndexMappings(SystemIndexDescriptor descriptor, ActionListener<AcknowledgedResponse> listener) {
         final String indexName = descriptor.getPrimaryIndex();
 
         PutMappingRequest request = new PutMappingRequest(indexName).source(descriptor.getMappings(), XContentType.JSON);

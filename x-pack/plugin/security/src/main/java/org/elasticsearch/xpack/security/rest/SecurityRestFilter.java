@@ -21,6 +21,7 @@ import org.elasticsearch.rest.RestRequestFilter;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator;
+import org.elasticsearch.xpack.security.authz.restriction.WorkflowService;
 
 import java.util.List;
 
@@ -35,18 +36,21 @@ public class SecurityRestFilter implements RestHandler {
     private final AuditTrailService auditTrailService;
     private final boolean enabled;
     private final ThreadContext threadContext;
+    private final WorkflowService workflowService;
 
     public SecurityRestFilter(
         boolean enabled,
         ThreadContext threadContext,
         SecondaryAuthenticator secondaryAuthenticator,
         AuditTrailService auditTrailService,
+        WorkflowService workflowService,
         RestHandler restHandler
     ) {
         this.enabled = enabled;
         this.threadContext = threadContext;
         this.secondaryAuthenticator = secondaryAuthenticator;
         this.auditTrailService = auditTrailService;
+        this.workflowService = workflowService;
         this.restHandler = restHandler;
     }
 
@@ -83,6 +87,7 @@ public class SecurityRestFilter implements RestHandler {
             if (secondaryAuthentication != null) {
                 logger.trace("Found secondary authentication {} in REST request [{}]", secondaryAuthentication, request.uri());
             }
+            workflowService.resolveWorkflowAndStoreInThreadContext(restHandler, threadContext);
             doHandleRequest(request, channel, client);
         }, e -> handleException(request, channel, e)));
     }

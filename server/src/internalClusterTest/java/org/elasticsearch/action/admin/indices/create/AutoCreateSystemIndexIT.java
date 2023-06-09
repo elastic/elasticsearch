@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.indices.SystemIndexDescriptorUtils;
 import org.elasticsearch.indices.TestSystemIndexDescriptorAllowsTemplates;
 import org.elasticsearch.indices.TestSystemIndexPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -294,7 +295,9 @@ public class AutoCreateSystemIndexIT extends ESIntegTestCase {
 
         @Override
         public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-            return Collections.singletonList(new SystemIndexDescriptor(SYSTEM_INDEX_NAME + "*", "System indices for tests"));
+            return Collections.singletonList(
+                SystemIndexDescriptorUtils.createUnmanaged(SYSTEM_INDEX_NAME + "*", "System indices for tests")
+            );
         }
 
         @Override

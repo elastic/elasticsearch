@@ -35,7 +35,9 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
@@ -123,6 +125,11 @@ public class NumericTermsAggregator extends TermsAggregator {
     }
 
     @Override
+    public void merge(Map<Long, List<AggregationAndBucket>> toMerge) {
+        ResultStrategy.merge(toMerge);
+    }
+
+    @Override
     public void doClose() {
         Releasables.close(super::doClose, bucketOrds, resultStrategy);
     }
@@ -181,6 +188,26 @@ public class NumericTermsAggregator extends TermsAggregator {
                 result[ordIdx] = buildResult(owningBucketOrds[ordIdx], otherDocCounts[ordIdx], topBucketsPerOrd[ordIdx]);
             }
             return result;
+        }
+
+        public void merge(Map<Long, List<AggregationAndBucket>> toMerge) {
+            // It is an article of faith that all the aggregations have the same list of subAggregators in the same order
+            List<Map<Long, List<AggregationAndBucket>>> nextLayer = new ArrayList<>(subAggregators.length);
+            for (int i = 0; i < subAggregators.length; i++) {
+                nextLayer.add(new HashMap<>());
+            }
+            for (Map.Entry<Long, List<AggregationAndBucket>> mergeRow : toMerge.entrySet()) {
+                List<Map<Long, List<AggregationAndBucket>>> nextLayerBuckets = mergeBucket(mergeRow.getValue(), mergeRow.getKey());
+                assert nextLayer.size() == nextLayerBuckets.size();
+                for (int i = 0; i < subAggregators.length; i++) {
+                    nextLayer.get(i).putAll(nextLayerBuckets.get(i));
+                }
+            }
+            // Trigger the next layer merge.
+            for (int i = 0; i < subAggregators.length; i++) {
+                subAggregators[i].merge(nextLayer.get(i));
+            }
+
         }
 
         /**

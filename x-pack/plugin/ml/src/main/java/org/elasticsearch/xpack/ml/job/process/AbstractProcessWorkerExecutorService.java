@@ -109,29 +109,30 @@ public abstract class AbstractProcessWorkerExecutorService<T extends Runnable> e
                 }
             }
 
-            synchronized (this) {
-                // if shutdown with tasks pending notify the handlers
-                if (queue.isEmpty() == false) {
-                    List<Runnable> notExecuted = new ArrayList<>();
-                    queue.drainTo(notExecuted);
-
-                    String msg = "unable to process as " + processName + " worker service has shutdown";
-                    Exception ex = error.get();
-                    for (Runnable runnable : notExecuted) {
-                        if (runnable instanceof AbstractRunnable ar) {
-                            if (ex != null) {
-                                ar.onFailure(ex);
-                            } else {
-                                ar.onRejection(new EsRejectedExecutionException(msg, true));
-                            }
-                        }
-                    }
-                }
-            }
+            notifyQueueRunnables();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         } finally {
             awaitTermination.countDown();
+        }
+    }
+
+    protected synchronized void notifyQueueRunnables() {
+        if (queue.isEmpty() == false) {
+            List<Runnable> notExecuted = new ArrayList<>();
+            queue.drainTo(notExecuted);
+
+            String msg = "unable to process as " + processName + " worker service has shutdown";
+            Exception ex = error.get();
+            for (Runnable runnable : notExecuted) {
+                if (runnable instanceof AbstractRunnable ar) {
+                    if (ex != null) {
+                        ar.onFailure(ex);
+                    } else {
+                        ar.onRejection(new EsRejectedExecutionException(msg, true));
+                    }
+                }
+            }
         }
     }
 }

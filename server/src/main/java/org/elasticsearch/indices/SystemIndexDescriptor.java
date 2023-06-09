@@ -14,6 +14,7 @@ import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.SystemIndexMetadataUpgradeService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.RegExp;
 import org.elasticsearch.common.settings.Settings;
@@ -39,8 +40,7 @@ import java.util.Set;
  * <p>Any index name that matches a descriptor’s index pattern belongs to the descriptor. For example, if a descriptor had a pattern of
  * {@code ".example-index-*"}, then indices named {@code ".example-index-1"}, {@code ".example-index-reindex"}, and {@code
  * ".example-index-old"} would all belong to the descriptor. If a node gains a new system index descriptor after an upgrade, then matching
- * indices will automatically be marked as system indices (see
- * {@link org.elasticsearch.cluster.metadata.SystemIndexMetadataUpgradeService}).
+ * indices will automatically be marked as system indices (see {@link SystemIndexMetadataUpgradeService}).
  *
  * <p>SystemIndexDescriptor index patterns must begin with a "{@code .}" character. Index patterns also have a "gotcha": the pattern
  * definitions may look like the standard Elasticsearch multi-target syntax but the underlying implementation is different. Index
@@ -82,6 +82,9 @@ import java.util.Set;
  * behavior when creating a non-primary index is a little strange. A request to create a non-primary index with the Create Index
  * API will fail. (See <a href="https://github.com/elastic/elasticsearch/pull/86707">PR #86707</a>) However, auto-creating the index by
  * writing a document to it will succeed. (See <a href="https://github.com/elastic/elasticsearch/pull/77045">PR #77045</a>)
+ *
+ * <p>The mappings for managed system indices are automatically upgraded when all nodes in the cluster are compatible with the
+ * descriptor's mappings. See {@link SystemIndexMappingUpdateService} for details.
  *
  * <p>We hope to remove the currently deprecated forms of access to system indices in a future release. A newly added system index with
  * no backwards-compatibility requirements may opt into our desired behavior by setting isNetNew to true. A "net new system index"

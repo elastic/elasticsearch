@@ -29,6 +29,7 @@ import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.jdk.JarHell;
 import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.monitor.jvm.JvmInfo;
@@ -336,10 +337,10 @@ class Elasticsearch {
     }
 
     static void checkLucene() {
-        if (Version.CURRENT.luceneVersion().equals(org.apache.lucene.util.Version.LATEST) == false) {
+        if (IndexVersion.CURRENT.luceneVersion().equals(org.apache.lucene.util.Version.LATEST) == false) {
             throw new AssertionError(
                 "Lucene version mismatch this version of Elasticsearch requires lucene version ["
-                    + Version.CURRENT.luceneVersion()
+                    + IndexVersion.CURRENT.luceneVersion()
                     + "]  but the current lucene version is ["
                     + org.apache.lucene.util.Version.LATEST
                     + "]"

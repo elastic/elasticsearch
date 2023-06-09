@@ -43,6 +43,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
@@ -279,10 +280,11 @@ public class DefaultOperatorPrivilegesTests extends ESTestCase {
         // not an operator
         when(operatorOnlyRegistry.checkRest(restHandler, restRequest, restChannel)).thenReturn(() -> "violation!");
         assertFalse(operatorPrivilegesService.checkRest(restHandler, restRequest, restChannel, threadContext));
+        Mockito.clearInvocations(operatorOnlyRegistry);
 
         // is an operator
         threadContext.putHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY, AuthenticationField.PRIVILEGE_CATEGORY_VALUE_OPERATOR);
-        when(operatorOnlyRegistry.checkRest(restHandler, restRequest, restChannel)).thenReturn(null);
+        verifyNoInteractions(operatorOnlyRegistry);
         assertTrue(operatorPrivilegesService.checkRest(restHandler, restRequest, restChannel, threadContext));
     }
 }

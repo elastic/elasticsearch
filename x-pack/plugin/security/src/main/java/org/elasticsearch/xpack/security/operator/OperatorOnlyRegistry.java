@@ -31,7 +31,8 @@ public interface OperatorOnlyRegistry {
      * @param restHandler The {@link RestHandler} to check for any restrictions
      * @param restRequest The {@link RestRequest} to check for any restrictions and mark any partially restricted REST API's
      * @param restChannel The {@link RestChannel} to enforce fully restricted REST API's
-     * @return {@link RestRequest} to use when calling the {@link RestHandler}, can be same or different object as the passed in parameter
+     * @return {@link OperatorPrivilegesViolation} iff the request was fully restricted and the response has been sent back to the client.
+     * else returns null.
      */
     OperatorPrivilegesViolation checkRest(RestHandler restHandler, RestRequest restRequest, RestChannel restChannel);
 

@@ -253,13 +253,15 @@ public class RestRequestTests extends ESTestCase {
         RestRequest request1 = contentRestRequest("content", new HashMap<>());
         request1.markResponseRestricted("foo");
         assertEquals(request1.param(RESPONSE_RESTRICTED), "foo");
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> request1.markResponseRestricted("foo"));
+        assertThat(exception.getMessage(), is("The parameter [" + RESPONSE_RESTRICTED + "] is already defined."));
 
         RestRequest request2 = contentRestRequest("content", new HashMap<>() {
             {
                 put(RESPONSE_RESTRICTED, "foo");
             }
         });
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> request2.markResponseRestricted("bar"));
+        exception = expectThrows(IllegalArgumentException.class, () -> request2.markResponseRestricted("bar"));
         assertThat(exception.getMessage(), is("The parameter [" + RESPONSE_RESTRICTED + "] is already defined."));
     }
 

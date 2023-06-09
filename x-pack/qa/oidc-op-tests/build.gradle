@@ -1,17 +1,21 @@
-apply plugin: 'elasticsearch.legacy-java-rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.test.fixtures'
 
 dependencies {
-    javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
-    javaRestTestImplementation(testArtifact(project(xpackModule('security'))))
+  javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
+  javaRestTestImplementation(testArtifact(project(xpackModule('security'))))
 }
 
 testFixtures.useFixture ":x-pack:test:idp-fixture", "oidc-provider"
-testFixtures.useFixture ":x-pack:test:idp-fixture", "elasticsearch-node"
+
+tasks.named('javaRestTest') {
+  usesDefaultDistribution()
+}
 
 tasks.named("processJavaRestTestResources").configure {
   from project(':x-pack:plugin:core')
-          .files(
-                  'src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode_ec.crt'
-          )
+    .files(
+      'src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode_ec.crt'
+    )
 }

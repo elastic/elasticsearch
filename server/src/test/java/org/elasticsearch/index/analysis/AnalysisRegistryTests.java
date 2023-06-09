@@ -37,7 +37,6 @@ import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
-import java.io.Reader;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -81,64 +80,6 @@ public class AnalysisRegistryTests extends ESTestCase {
         public List<PreConfiguredTokenFilter> getPreConfiguredTokenFilters() {
             return singletonList(PreConfiguredTokenFilter.singleton("reverse", true, ReverseStringFilter::new));
         }
-
-        @Override
-        public Map<String, AnalysisProvider<CharFilterFactory>> getCharFilters() {
-            return Map.of("pattern_replace", new MockCharFilterFactoryAnalyzerProvider());
-        }
-
-        @Override
-        public Map<String, AnalysisProvider<TokenFilterFactory>> getTokenFilters() {
-            return Map.of("pattern_replace", new MockTokenFilterFactoryAnalyzerProvider());
-        }
-
-        protected static class MockCharFilterFactoryAnalyzerProvider implements AnalysisProvider<CharFilterFactory> {
-
-            public MockCharFilterFactoryAnalyzerProvider() {
-
-            }
-
-            @Override
-            public CharFilterFactory get(IndexSettings indexSettings, Environment environment, String name, Settings settings)
-                throws IOException {
-                return new CharFilterFactory() {
-                    @Override
-                    public String name() {
-                        return "pattern_replace";
-                    }
-
-                    @Override
-                    public Reader create(Reader reader) {
-                        return null;
-                    }
-                };
-            }
-        }
-
-        protected static class MockTokenFilterFactoryAnalyzerProvider implements AnalysisProvider<TokenFilterFactory> {
-
-            public MockTokenFilterFactoryAnalyzerProvider() {
-
-            }
-
-            @Override
-            public TokenFilterFactory get(IndexSettings indexSettings, Environment environment, String name, Settings settings)
-                throws IOException {
-                return new TokenFilterFactory() {
-                    @Override
-                    public String name() {
-                        return "pattern_replace";
-                    }
-
-                    @Override
-                    public TokenStream create(TokenStream tokenStream) {
-                        return null;
-                    }
-
-                };
-            }
-        }
-
     }
 
     private static IndexSettings indexSettingsOfCurrentVersion(Settings.Builder settings) {
@@ -277,19 +218,6 @@ public class AnalysisRegistryTests extends ESTestCase {
         assertThat(indexAnalyzers.getDefaultIndexAnalyzer().analyzer(), instanceOf(StandardAnalyzer.class));
         assertThat(indexAnalyzers.getDefaultSearchAnalyzer().analyzer(), instanceOf(EnglishAnalyzer.class));
         assertThat(indexAnalyzers.getDefaultSearchQuoteAnalyzer().analyzer(), instanceOf(EnglishAnalyzer.class));
-    }
-
-    public void testNormalizerTypePatternReplaceIsAccepted() throws IOException {
-        Version version = VersionUtils.randomVersion(random());
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, version)
-            .put("index.analysis.normalizer.personal.type", "pattern_replace")
-            .put("index.analysis.normalizer.personal.replacement", "")
-            .put("index.analysis.normalizer.personal.pattern", "^0+")
-            .build();
-        IndexAnalyzers indexAnalyzers = nonEmptyRegistry.build(IndexSettingsModule.newIndexSettings("index", settings));
-        assertThat(indexAnalyzers.getNormalizer("personal").analyzer(), instanceOf(CustomAnalyzer.class));
-
     }
 
     /**

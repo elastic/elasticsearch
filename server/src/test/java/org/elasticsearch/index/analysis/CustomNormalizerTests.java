@@ -8,8 +8,6 @@
 
 package org.elasticsearch.index.analysis;
 
-import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.pattern.PatternReplaceFilter;
 import org.apache.lucene.tests.analysis.MockLowerCaseFilter;
 import org.apache.lucene.tests.analysis.MockTokenizer;
 import org.apache.lucene.util.BytesRef;
@@ -25,7 +23,6 @@ import java.io.Reader;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
-import java.util.regex.Pattern;
 
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
@@ -123,28 +120,6 @@ public class CustomNormalizerTests extends ESTokenStreamTestCase {
         assertEquals("Custom normalizer [my_normalizer] may not use char filter [mock_forbidden]", e.getMessage());
     }
 
-    public void testPatternReplaceFilter() throws IOException {
-        Settings settings = Settings.builder()
-            .put("index.analysis.normalizer.personal.type", "pattern_replace")
-            .put("index.analysis.normalizer.personal.replacement", "z")
-            .put("index.analysis.normalizer.personal.pattern", "a")
-            .put("index.analysis.normalizer.personal.all", "true")
-            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-            .build();
-        ESTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(settings, MOCK_ANALYSIS_PLUGIN);
-        NamedAnalyzer normalizer = analysis.indexAnalyzers.getNormalizer("personal");
-        assertNotNull(normalizer);
-        assertEquals("personal", normalizer.name());
-        assertTokenStreamContents(normalizer.tokenStream("foo", "abc acd"), new String[] { "zbc zcd" });
-        assertEquals(new BytesRef("zbc"), normalizer.normalize("foo", "abc"));
-
-        normalizer = analysis.indexAnalyzers.getWhitespaceNormalizer("personal");
-        assertNotNull(normalizer);
-        assertEquals("personal", normalizer.name());
-        assertTokenStreamContents(normalizer.tokenStream("foo", "abc acd"), new String[] { "zbc", "zcd" });
-        assertEquals(new BytesRef("zbc"), normalizer.normalize("foo", "abc"));
-    }
-
     private static class MockAnalysisPlugin implements AnalysisPlugin {
         @Override
         public List<PreConfiguredTokenFilter> getPreConfiguredTokenFilters() {
@@ -158,7 +133,7 @@ public class CustomNormalizerTests extends ESTokenStreamTestCase {
 
         @Override
         public Map<String, AnalysisProvider<CharFilterFactory>> getCharFilters() {
-            return Map.of("mock_char_filter", (indexSettings, env, name, settings) -> {
+            return singletonMap("mock_char_filter", (indexSettings, env, name, settings) -> {
                 class Factory implements NormalizingCharFilterFactory {
                     @Override
                     public String name() {
@@ -184,63 +159,6 @@ public class CustomNormalizerTests extends ESTokenStreamTestCase {
                                 reader.close();
                             }
                         };
-                    }
-                }
-                return new Factory();
-            }, "pattern_replace", (indexSettings, env, name, settings) -> {
-                class Factory extends AbstractCharFilterFactory {
-
-                    private Factory() {
-                        super(name);
-                    }
-
-                    @Override
-                    public Reader create(Reader reader) {
-                        return new Reader() {
-                            @Override
-                            public int read(char[] cbuf, int off, int len) throws IOException {
-                                int result = reader.read(cbuf, off, len);
-                                for (int i = off; i < off + len; i++) {
-                                    if (cbuf[i] == 'a') {
-                                        cbuf[i] = 'z';
-                                    }
-                                }
-                                return result;
-                            }
-
-                            @Override
-                            public void close() throws IOException {
-                                reader.close();
-                            }
-                        };
-                    }
-
-                    @Override
-                    public Reader normalize(Reader reader) {
-                        return create(reader);
-                    }
-                }
-                return new Factory();
-            });
-        }
-
-        @Override
-        public Map<String, AnalysisProvider<TokenFilterFactory>> getTokenFilters() {
-            return singletonMap("pattern_replace", (indexSettings, env, name, settings) -> {
-                class Factory implements TokenFilterFactory {
-
-                    private Factory() {
-
-                    }
-
-                    @Override
-                    public String name() {
-                        return "pattern_replace";
-                    }
-
-                    @Override
-                    public TokenStream create(TokenStream tokenStream) {
-                        return new PatternReplaceFilter(tokenStream, Pattern.compile("a"), "z", true);
                     }
                 }
                 return new Factory();

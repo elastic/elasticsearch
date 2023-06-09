@@ -38,13 +38,16 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.support.SecondaryAuthentication;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
+import org.elasticsearch.xpack.core.security.authz.restriction.Workflow;
+import org.elasticsearch.xpack.core.security.authz.restriction.WorkflowResolver;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator;
-import org.elasticsearch.xpack.security.operator.OperatorPrivileges;
+import org.elasticsearch.xpack.security.authz.restriction.WorkflowServiceTests.TestBaseRestHandler;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
+import org.mockito.Mockito;
 
 import java.util.Base64;
 import java.util.Collections;
@@ -56,10 +59,12 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.xpack.security.operator.OperatorPrivileges.NOOP_OPERATOR_PRIVILEGES_SERVICE;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -95,6 +100,7 @@ public class SecurityRestFilterTests extends ESTestCase {
             threadContext,
             secondaryAuthenticator,
             new AuditTrailService(null, null),
+            new WorkflowService(),
             restHandler,
             privilegesService
         );
@@ -163,8 +169,15 @@ public class SecurityRestFilterTests extends ESTestCase {
     }
 
     public void testProcessWithSecurityDisabled() throws Exception {
-        filter = new SecurityRestFilter(false, threadContext, secondaryAuthenticator, mock(AuditTrailService.class), restHandler, null);
-        assertEquals(NOOP_OPERATOR_PRIVILEGES_SERVICE, filter.getOperatorPrivilegesService());
+        filter = new SecurityRestFilter(false, threadContext, secondaryAuthenticator, mock(AuditTrailService.class), restHandler);
+            threadContext,
+            secondaryAuthenticator,
+            mock(AuditTrailService.class),
+            mock(WorkflowService.class),
+            restHandler, 
+			null
+        );
+		assertEquals(NOOP_OPERATOR_PRIVILEGES_SERVICE, filter.getOperatorPrivilegesService());
         RestRequest request = mock(RestRequest.class);
         filter.handleRequest(request, channel, null);
         verify(restHandler).handleRequest(request, channel, null);
@@ -215,6 +228,7 @@ public class SecurityRestFilterTests extends ESTestCase {
             threadContext,
             secondaryAuthenticator,
             new AuditTrailService(auditTrail, licenseState),
+            new WorkflowService(),
             restHandler,
             NOOP_OPERATOR_PRIVILEGES_SERVICE
         );
@@ -276,7 +290,51 @@ public class SecurityRestFilterTests extends ESTestCase {
         }
     }
 
-    public void testCheckRest() throws Exception {
+    public void testProcessWithWorkflow() throws Exception {
+        final Workflow workflow = randomFrom(WorkflowResolver.allWorkflows());
+        restHandler = new TestBaseRestHandler(randomFrom(workflow.allowedRestHandlers()));
+
+        final WorkflowService workflowService = new WorkflowService();
+        filter = new SecurityRestFilter(
+            true,
+            threadContext,
+            secondaryAuthenticator,
+            new AuditTrailService(null, null),
+            workflowService,
+            restHandler
+        );
+
+        RestRequest request = mock(RestRequest.class);
+        filter.handleRequest(request, channel, null);
+        assertThat(workflowService.readWorkflowFromThreadContext(threadContext), equalTo(workflow));
+    }
+
+    public void testProcessWithoutWorkflow() throws Exception {
+        if (randomBoolean()) {
+            String restHandlerName = randomValueOtherThanMany(
+                name -> WorkflowResolver.resolveWorkflowForRestHandler(name) != null,
+                () -> randomAlphaOfLengthBetween(3, 6)
+            );
+            restHandler = new TestBaseRestHandler(restHandlerName);
+        } else {
+            restHandler = Mockito.mock(RestHandler.class);
+        }
+
+        final WorkflowService workflowService = new WorkflowService();
+        filter = new SecurityRestFilter(
+            true,
+            threadContext,
+            secondaryAuthenticator,
+            new AuditTrailService(null, null),
+            workflowService,
+            restHandler
+        );
+
+        RestRequest request = mock(RestRequest.class);
+        filter.handleRequest(request, channel, null);
+        assertThat(workflowService.readWorkflowFromThreadContext(threadContext), nullValue());
+    }
+ public void testCheckRest() throws Exception {
         for (Boolean isOperator : new Boolean[] { Boolean.TRUE, Boolean.FALSE }) {
             RestRequest request = mock(RestRequest.class);
             try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
@@ -317,6 +375,7 @@ public class SecurityRestFilterTests extends ESTestCase {
             }
         }
     }
+
 
     private interface FilteredRestHandler extends RestHandler, RestRequestFilter {}
 }

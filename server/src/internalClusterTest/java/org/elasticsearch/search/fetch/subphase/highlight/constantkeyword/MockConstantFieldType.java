@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.search.fetch.subphase.highlight;
+package org.elasticsearch.search.fetch.subphase.highlight.constantkeyword;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.TermsEnum;

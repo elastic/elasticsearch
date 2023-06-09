@@ -131,8 +131,6 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
     public void writeTo(StreamOutput out) throws IOException {
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_007)) {
             out.writeOptionalWriteable(dataRetention);
-        } else {
-            out.writeOptionalTimeValue(getEffectiveDataRetention());
         }
     }
 
@@ -140,12 +138,7 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
         if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_007)) {
             dataRetention = in.readOptionalWriteable(Retention::read);
         } else {
-            var value = in.readOptionalTimeValue();
-            if (value == null) {
-                dataRetention = null;
-            } else {
-                dataRetention = new Retention(value);
-            }
+            dataRetention = null;
         }
     }
 

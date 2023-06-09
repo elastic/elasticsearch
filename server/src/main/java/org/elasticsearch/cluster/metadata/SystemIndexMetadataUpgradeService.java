@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.indices.SystemIndexMappingUpdateService;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -28,7 +29,7 @@ import java.util.Map;
 /**
  * A service responsible for updating the metadata used by system indices.
  *
- * Mapping updates are handled by {@link org.elasticsearch.indices.SystemIndexManager}.
+ * Mapping updates are handled by {@link SystemIndexMappingUpdateService}.
  */
 public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
 

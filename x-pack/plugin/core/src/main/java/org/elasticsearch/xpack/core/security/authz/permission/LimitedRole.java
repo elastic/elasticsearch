@@ -21,6 +21,8 @@ import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessCo
 import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission.IsResourceAuthorizedPredicate;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.restriction.Workflow;
+import org.elasticsearch.xpack.core.security.authz.restriction.WorkflowsRestriction;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 
 import java.util.ArrayList;
@@ -72,6 +74,21 @@ public final class LimitedRole implements Role {
     @Override
     public RemoteIndicesPermission remoteIndices() {
         throw new UnsupportedOperationException("cannot retrieve remote indices permission on limited role");
+    }
+
+    @Override
+    public WorkflowsRestriction workflowsRestriction() {
+        throw new UnsupportedOperationException("cannot retrieve workflows restriction on limited role");
+    }
+
+    @Override
+    public boolean checkWorkflowRestriction(Workflow workflow) {
+        return baseRole.checkWorkflowRestriction(workflow) && limitedByRole.checkWorkflowRestriction(workflow);
+    }
+
+    @Override
+    public boolean hasWorkflowsRestriction() {
+        return baseRole.hasWorkflowsRestriction() || limitedByRole.hasWorkflowsRestriction();
     }
 
     @Override

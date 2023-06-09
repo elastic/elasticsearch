@@ -27,6 +27,8 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeRes
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
+import org.elasticsearch.xpack.core.security.authz.restriction.Workflow;
+import org.elasticsearch.xpack.core.security.authz.restriction.WorkflowsRestriction;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 
 import java.util.ArrayList;
@@ -46,6 +48,11 @@ public interface Role {
 
     Role EMPTY = builder(new RestrictedIndices(Automatons.EMPTY)).build();
 
+    /**
+     * This empty role is returned when effective role results in empty set of permissions due to workflows restriction.
+     */
+    Role EMPTY_RESTRICTED_BY_WORKFLOW = builder(new RestrictedIndices(Automatons.EMPTY)).build();
+
     String[] names();
 
     ClusterPermission cluster();
@@ -57,6 +64,24 @@ public interface Role {
     RunAsPermission runAs();
 
     RemoteIndicesPermission remoteIndices();
+
+    WorkflowsRestriction workflowsRestriction();
+
+    boolean checkWorkflowRestriction(Workflow workflow);
+
+    boolean hasWorkflowsRestriction();
+
+    default Role forWorkflow(Workflow workflow) {
+        if (hasWorkflowsRestriction()) {
+            if (checkWorkflowRestriction(workflow)) {
+                return this;
+            } else {
+                return EMPTY_RESTRICTED_BY_WORKFLOW;
+            }
+        } else {
+            return this;
+        }
+    }
 
     /**
      * Whether the Role has any field or document level security enabled index privileges
@@ -200,6 +225,7 @@ public interface Role {
         private final Map<Set<String>, List<IndicesPermissionGroupDefinition>> remoteGroups = new HashMap<>();
         private final List<Tuple<ApplicationPrivilege, Set<String>>> applicationPrivs = new ArrayList<>();
         private final RestrictedIndices restrictedIndices;
+        private WorkflowsRestriction workflowsRestriction = WorkflowsRestriction.ALLOW_ALL;
 
         private Builder(RestrictedIndices restrictedIndices, String[] names) {
             this.restrictedIndices = restrictedIndices;
@@ -259,6 +285,11 @@ public interface Role {
             return this;
         }
 
+        public Builder workflows(Set<String> workflowNames) {
+            this.workflowsRestriction = WorkflowsRestriction.resolve(workflowNames);
+            return this;
+        }
+
         public SimpleRole build() {
             final IndicesPermission indices;
             if (groups.isEmpty()) {
@@ -301,7 +332,7 @@ public interface Role {
             final ApplicationPermission applicationPermission = applicationPrivs.isEmpty()
                 ? ApplicationPermission.NONE
                 : new ApplicationPermission(applicationPrivs);
-            return new SimpleRole(names, cluster, indices, applicationPermission, runAs, remoteIndices);
+            return new SimpleRole(names, cluster, indices, applicationPermission, runAs, remoteIndices, workflowsRestriction);
         }
 
         private static class IndicesPermissionGroupDefinition {

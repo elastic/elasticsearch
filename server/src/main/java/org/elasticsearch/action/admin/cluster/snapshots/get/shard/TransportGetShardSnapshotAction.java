@@ -10,7 +10,6 @@ package org.elasticsearch.action.admin.cluster.snapshots.get.shard;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -20,8 +19,7 @@ import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.core.Tuple;
-import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.repositories.IndexSnapshotsService;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.RepositoryException;
@@ -30,20 +28,14 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.Collection;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 public class TransportGetShardSnapshotAction extends TransportMasterNodeAction<GetShardSnapshotRequest, GetShardSnapshotResponse> {
-    private static final Comparator<ShardSnapshotInfo> LATEST_SNAPSHOT_COMPARATOR = Comparator.comparing(ShardSnapshotInfo::getStartedAt)
-        .thenComparing(snapshotInfo -> snapshotInfo.getSnapshot().getSnapshotId());
+
     private final IndexSnapshotsService indexSnapshotsService;
 
     @Inject
@@ -76,79 +68,82 @@ public class TransportGetShardSnapshotAction extends TransportMasterNodeAction<G
         ClusterState state,
         ActionListener<GetShardSnapshotResponse> listener
     ) throws Exception {
-        final Set<String> repositories = getRequestedRepositories(request, state);
-        final ShardId shardId = request.getShardId();
-
-        if (repositories.isEmpty()) {
+        final Iterator<String> repositories = getRequestedRepositories(request, state);
+        if (repositories.hasNext()) {
+            new AsyncOperation(request, repositories, listener).processNextRepository();
+        } else {
             listener.onResponse(GetShardSnapshotResponse.EMPTY);
-            return;
+        }
+    }
+
+    private class AsyncOperation {
+
+        private static final Comparator<ShardSnapshotInfo> LATEST_SNAPSHOT_COMPARATOR = Comparator
+            // prefer latest-starting snapshot
+            .comparing(ShardSnapshotInfo::getStartedAt)
+            // break ties by snapshot ID
+            .thenComparing(snapshotInfo -> snapshotInfo.getSnapshot().getSnapshotId());
+
+        private final GetShardSnapshotRequest request;
+        private final Iterator<String> repositories;
+        private final ActionListener<GetShardSnapshotResponse> responseListener;
+
+        @Nullable
+        ShardSnapshotInfo latestShardSnapshot;
+        Map<String, RepositoryException> repositoryFailures = new HashMap<>();
+
+        AsyncOperation(GetShardSnapshotRequest request, Iterator<String> repositories, ActionListener<GetShardSnapshotResponse> listener) {
+            this.request = request;
+            this.repositories = repositories;
+            this.responseListener = listener;
         }
 
-        GroupedActionListener<Tuple<Optional<ShardSnapshotInfo>, RepositoryException>> groupedActionListener = new GroupedActionListener<>(
-            repositories.size(),
-            listener.map(TransportGetShardSnapshotAction::transformToResponse)
-        );
-
-        BlockingQueue<String> repositoriesQueue = new LinkedBlockingQueue<>(repositories);
-        getShardSnapshots(repositoriesQueue, shardId, new ActionListener<>() {
-            @Override
-            public void onResponse(Optional<ShardSnapshotInfo> shardSnapshotInfo) {
-                groupedActionListener.onResponse(Tuple.tuple(shardSnapshotInfo, null));
-            }
-
-            @Override
-            public void onFailure(Exception err) {
-                if (request.isSingleRepositoryRequest() == false && err instanceof RepositoryException) {
-                    groupedActionListener.onResponse(Tuple.tuple(Optional.empty(), (RepositoryException) err));
-                } else {
-                    groupedActionListener.onFailure(err);
+        void processNextRepository() {
+            assert repositories.hasNext();
+            indexSnapshotsService.getLatestSuccessfulSnapshotForShard(repositories.next(), request.getShardId(), new ActionListener<>() {
+                @Override
+                public void onResponse(Optional<ShardSnapshotInfo> optionalShardSnapshotInfo) {
+                    optionalShardSnapshotInfo.ifPresent(shardSnapshotInfo -> {
+                        if (latestShardSnapshot == null || LATEST_SNAPSHOT_COMPARATOR.compare(latestShardSnapshot, shardSnapshotInfo) < 0) {
+                            latestShardSnapshot = shardSnapshotInfo;
+                        }
+                    });
+                    next();
                 }
-            }
-        });
-    }
 
-    private void getShardSnapshots(
-        BlockingQueue<String> repositories,
-        ShardId shardId,
-        ActionListener<Optional<ShardSnapshotInfo>> listener
-    ) {
-        final String repository = repositories.poll();
-        if (repository == null) {
-            return;
+                @Override
+                public void onFailure(Exception e) {
+                    if (request.isSingleRepositoryRequest() == false && e instanceof RepositoryException repositoryException) {
+                        repositoryFailures.put(repositoryException.repository(), repositoryException);
+                        next();
+                    } else {
+                        responseListener.onFailure(e);
+                    }
+                }
+
+                private void next() {
+                    if (repositories.hasNext()) {
+                        // always forks, so no risk of stack overflow here
+                        processNextRepository();
+                    } else {
+                        responseListener.onResponse(new GetShardSnapshotResponse(latestShardSnapshot, repositoryFailures));
+                    }
+                }
+            });
         }
-
-        indexSnapshotsService.getLatestSuccessfulSnapshotForShard(
-            repository,
-            shardId,
-            ActionListener.runAfter(listener, () -> getShardSnapshots(repositories, shardId, listener))
-        );
     }
 
-    private static GetShardSnapshotResponse transformToResponse(
-        Collection<Tuple<Optional<ShardSnapshotInfo>, RepositoryException>> shardSnapshots
-    ) {
-        final Optional<ShardSnapshotInfo> latestSnapshot = shardSnapshots.stream()
-            .map(Tuple::v1)
-            .filter(Objects::nonNull)
-            .filter(Optional::isPresent)
-            .map(Optional::get)
-            .max(LATEST_SNAPSHOT_COMPARATOR);
-
-        final Map<String, RepositoryException> failures = shardSnapshots.stream()
-            .map(Tuple::v2)
-            .filter(Objects::nonNull)
-            .collect(Collectors.toMap(RepositoryException::repository, Function.identity()));
-
-        return new GetShardSnapshotResponse(latestSnapshot.orElse(null), failures);
-    }
-
-    private static Set<String> getRequestedRepositories(GetShardSnapshotRequest request, ClusterState state) {
-        RepositoriesMetadata repositories = state.metadata().custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY);
+    private static Iterator<String> getRequestedRepositories(GetShardSnapshotRequest request, ClusterState state) {
         if (request.getFromAllRepositories()) {
-            return repositories.repositories().stream().map(RepositoryMetadata::name).collect(Collectors.toUnmodifiableSet());
+            return state.metadata()
+                .custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY)
+                .repositories()
+                .stream()
+                .map(RepositoryMetadata::name)
+                .iterator();
+        } else {
+            return request.getRepositories().iterator();
         }
-
-        return request.getRepositories().stream().filter(Objects::nonNull).collect(Collectors.toUnmodifiableSet());
     }
 
     @Override

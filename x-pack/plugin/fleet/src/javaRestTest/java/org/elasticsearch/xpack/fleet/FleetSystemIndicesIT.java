@@ -103,6 +103,31 @@ public class FleetSystemIndicesIT extends ESRestTestCase {
         assertThat(responseBody, containsString("bid"));
     }
 
+    public void testCreationOfFleetFileDelivery() throws Exception {
+        Request request = new Request("PUT", ".fleet-filedelivery-meta-agent-00001");
+        Response response = client().performRequest(request);
+        assertEquals(200, response.getStatusLine().getStatusCode());
+
+        request = new Request("GET", ".fleet-filedelivery-meta-agent-00001/_mapping");
+        response = client().performRequest(request);
+        String responseBody = EntityUtils.toString(response.getEntity());
+        assertThat(responseBody, not(containsString("xpack.fleet.template.version"))); // assert templating worked
+        assertThat(responseBody, containsString("action_id"));
+    }
+
+    public void testCreationOfFleetFileDeliveryData() throws Exception {
+        Request request = new Request("PUT", ".fleet-filedelivery-data-agent-00001");
+        Response response = client().performRequest(request);
+        assertEquals(200, response.getStatusLine().getStatusCode());
+
+        request = new Request("GET", ".fleet-filedelivery-data-agent-00001/_mapping");
+        response = client().performRequest(request);
+        String responseBody = EntityUtils.toString(response.getEntity());
+        assertThat(responseBody, not(containsString("xpack.fleet.template.version"))); // assert templating worked
+        assertThat(responseBody, containsString("data"));
+        assertThat(responseBody, containsString("bid"));
+    }
+
     public void testCreationOfFleetArtifacts() throws Exception {
         Request request = new Request("PUT", ".fleet-artifacts");
         Response response = client().performRequest(request);

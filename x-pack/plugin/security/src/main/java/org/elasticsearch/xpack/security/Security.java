@@ -287,6 +287,7 @@ import org.elasticsearch.xpack.security.authz.interceptor.SearchRequestCacheDisa
 import org.elasticsearch.xpack.security.authz.interceptor.SearchRequestInterceptor;
 import org.elasticsearch.xpack.security.authz.interceptor.ShardSearchRequestInterceptor;
 import org.elasticsearch.xpack.security.authz.interceptor.UpdateRequestInterceptor;
+import org.elasticsearch.xpack.security.authz.restriction.WorkflowService;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.authz.store.DeprecationRoleDescriptorConsumer;
 import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
@@ -545,6 +546,8 @@ public class Security extends Plugin
 
     private final SetOnce<ReservedRoleMappingAction> reservedRoleMappingAction = new SetOnce<>();
 
+    private final SetOnce<WorkflowService> workflowService = new SetOnce<>();
+
     public Security(Settings settings) {
         this(settings, Collections.emptyList());
     }
@@ -675,6 +678,8 @@ public class Security extends Plugin
         securityContext.set(new SecurityContext(settings, threadPool.getThreadContext()));
         components.add(securityContext.get());
 
+        workflowService.set(new WorkflowService());
+
         final RestrictedIndices restrictedIndices = new RestrictedIndices(expressionResolver);
 
         // audit trail service construction
@@ -759,7 +764,8 @@ public class Security extends Plugin
             settings,
             client,
             systemIndices.getMainIndexManager(),
-            cacheInvalidatorRegistry
+            cacheInvalidatorRegistry,
+            clusterService
         );
         components.add(privilegeStore);
 
@@ -1680,10 +1686,7 @@ public class Security extends Plugin
                     RemoteHostHeader.process(channel, threadContext);
                     // step 2: Run authentication on the now properly prepared thread-context.
                     // This inspects and modifies the thread context.
-                    authenticationService.authenticate(
-                        httpPreRequest,
-                        ActionListener.wrap(ignored -> listener.onResponse(null), listener::onFailure)
-                    );
+                    authenticationService.authenticate(httpPreRequest, listener.delegateFailureAndWrap((l, ignored) -> l.onResponse(null)));
                 },
                 (httpRequest, channel, listener) -> {
                     // allow unauthenticated OPTIONS request through
@@ -1790,7 +1793,14 @@ public class Security extends Plugin
 
     @Override
     public UnaryOperator<RestHandler> getRestHandlerInterceptor(ThreadContext threadContext) {
-        return handler -> new SecurityRestFilter(enabled, threadContext, secondayAuthc.get(), auditTrailService.get(), handler);
+        return handler -> new SecurityRestFilter(
+            enabled,
+            threadContext,
+            secondayAuthc.get(),
+            auditTrailService.get(),
+            workflowService.get(),
+            handler
+        );
     }
 
     @Override

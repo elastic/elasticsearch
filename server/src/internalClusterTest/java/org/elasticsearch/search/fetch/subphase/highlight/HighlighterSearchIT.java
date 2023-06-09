@@ -3574,18 +3574,16 @@ public class HighlighterSearchIT extends ESIntegTestCase {
             .setSource(
                 jsonBuilder().startObject()
                     .field("level", "DEBUG")
-                    // .field("message", "some text")
+                     .field("message", "some text")
                     .endObject()
             )
             .get();
         refresh();
-        SearchResponse search = client().prepareSearch("test")
-            // .setQuery(new MatchQueryBuilder("level", "DEBUG"))
-            .setQuery(QueryBuilders.termQuery("level", "DEBUG"))
-            // .setSource(
-            // new SearchSourceBuilder().query(QueryBuilders.termQuery("level", "DEBUG"))
-            // .highlighter(new HighlightBuilder().field("*"))
-            // )
+        SearchResponse search = client().prepareSearch()
+            .setSource(
+                new SearchSourceBuilder().query(QueryBuilders.matchQuery("message", "some"))
+                    .highlighter(new HighlightBuilder().field("*"))
+            )
             .get();
         assertNoFailures(search);
 

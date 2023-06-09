@@ -17,8 +17,8 @@ separated by a pipe character: `|`. For example:
 
 [source,esql]
 ----
-source-command 
-| processing-command1 
+source-command
+| processing-command1
 | processing-command2
 ----
 
@@ -36,7 +36,7 @@ source-command | processing-command1 | processing-command2
 [discrete]
 [[esql-comments]]
 === Comments
-ESQL uses C++ style comments: 
+ESQL uses C++ style comments:
 
 * double slash `//` for single line comments
 * `/*` and `*/` for block comments
@@ -57,9 +57,9 @@ FROM /* Query the employees index */ employees
 [source,esql]
 ----
 FROM employees
-/* Query the 
-*  employees
-*  index */
+/* Query the
+ * employees
+ * index */
 | WHERE height > 2
 ----
 
@@ -90,13 +90,13 @@ For string comparison using wildcards or regular expressions, use `LIKE` or
 are supported:
 +
 --
-** `*` matches zero or more characters. 
-** `?` matches one character. 
+** `*` matches zero or more characters.
+** `?` matches one character.
 
 [source,esql]
 ----
-FROM employees 
-| WHERE first_name LIKE "?b*" 
+FROM employees
+| WHERE first_name LIKE "?b*"
 | PROJECT first_name, last_name
 ----
 --
@@ -105,8 +105,8 @@ FROM employees
 +
 [source,esql]
 ----
-FROM employees 
-| WHERE first_name RLIKE ".leja.*" 
+FROM employees
+| WHERE first_name RLIKE ".leja.*"
 | PROJECT first_name, last_name
 ----
 

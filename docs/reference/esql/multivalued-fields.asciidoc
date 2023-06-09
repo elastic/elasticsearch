@@ -1,0 +1,240 @@
+[[esql-multivalued-fields]]
+== ESQL multivalued fields
+
+++++
+<titleabbrev>Multivalued fields</titleabbrev>
+++++
+
+ESQL is fine reading from multivalued fields:
+
+[source,console,id=esql-multivalued-fields-reorders]
+----
+POST /mv/_bulk?refresh
+{ "index" : {} }
+{ "a": 1, "b": [2, 1] }
+{ "index" : {} }
+{ "a": 2, "b": 3 }
+
+POST /_esql
+{
+  "query": "FROM mv"
+}
+----
+
+Multivalued fields come back as a JSON array:
+
+[source,console-result]
+----
+{
+  "columns": [
+    { "name": "a", "type": "long"},
+    { "name": "b", "type": "long"}
+  ],
+  "values": [
+    [1, [1, 2]],
+    [2,      3]
+  ]
+}
+----
+
+The relative order of values in a multivalued field is undefined. They'll frequently be in
+ascending order but don't rely on that.
+
+[discrete]
+[[esql-multivalued-fields-dups]]
+==== Duplicate values
+
+Some field types, like <<keyword-field-type,`keyword`>> remove duplicate values on write:
+
+[source,console,id=esql-multivalued-fields-kwdups]
+----
+PUT /mv
+{
+  "mappings": {
+    "properties": {
+      "b": {"type": "keyword"}
+    }
+  }
+}
+
+POST /mv/_bulk?refresh
+{ "index" : {} }
+{ "a": 1, "b": ["foo", "foo", "bar"] }
+{ "index" : {} }
+{ "a": 2, "b": ["bar", "bar"] }
+
+POST /_esql
+{
+  "query": "FROM mv"
+}
+----
+
+And ESQL sees that removal:
+
+[source,console-result]
+----
+{
+  "columns": [
+    { "name": "a", "type": "long"},
+    { "name": "b", "type": "keyword"}
+  ],
+  "values": [
+    [1, ["bar", "foo"]],
+    [2,          "bar"]
+  ]
+}
+----
+
+But other types, like `long` don't remove duplicates.
+
+[source,console,id=esql-multivalued-fields-longdups]
+----
+PUT /mv
+{
+  "mappings": {
+    "properties": {
+      "b": {"type": "long"}
+    }
+  }
+}
+
+POST /mv/_bulk?refresh
+{ "index" : {} }
+{ "a": 1, "b": [2, 2, 1] }
+{ "index" : {} }
+{ "a": 2, "b": [1, 1] }
+
+POST /_esql
+{
+  "query": "FROM mv"
+}
+----
+
+And ESQL also sees that:
+
+[source,console-result]
+----
+{
+  "columns": [
+    { "name": "a", "type": "long"},
+    { "name": "b", "type": "long"}
+  ],
+  "values": [
+    [1, [1, 2, 2]],
+    [2,    [1, 1]]
+  ]
+}
+----
+
+This is all at the storage layer. If you store duplicate `long`s and then
+convert them to strings the duplicates will stay:
+
+[source,console,id=esql-multivalued-fields-longdups-tostring]
+----
+PUT /mv
+{
+  "mappings": {
+    "properties": {
+      "b": {"type": "long"}
+    }
+  }
+}
+
+POST /mv/_bulk?refresh
+{ "index" : {} }
+{ "a": 1, "b": [2, 2, 1] }
+{ "index" : {} }
+{ "a": 2, "b": [1, 1] }
+
+POST /_esql
+{
+  "query": "FROM mv | EVAL b=TO_STRING(b)"
+}
+----
+
+[source,console-result]
+----
+{
+  "columns": [
+    { "name": "a", "type": "long"},
+    { "name": "b", "type": "keyword"}
+  ],
+  "values": [
+    [1, ["1", "2", "2"]],
+    [2,      ["1", "1"]]
+  ]
+}
+----
+
+[discrete]
+[[esql-multivalued-fields-functions]]
+==== Functions
+
+Unless otherwise documented functions will return `null` when applied to a multivalued
+field. This behavior may change in a later version.
+
+[source,console,id=esql-multivalued-fields-mv-into-null]
+----
+POST /mv/_bulk?refresh
+{ "index" : {} }
+{ "a": 1, "b": [2, 1] }
+{ "index" : {} }
+{ "a": 2, "b": 3 }
+
+POST /_esql
+{
+  "query": "FROM mv | EVAL b + 2, a + b"
+}
+----
+
+[source,console-result]
+----
+{
+  "columns": [
+    { "name": "a",   "type": "long"},
+    { "name": "b",   "type": "long"},
+    { "name": "b+2", "type": "long"},
+    { "name": "a+b", "type": "long"}
+  ],
+  "values": [
+    [1, [1, 2], null, null],
+    [2,      3,    5,    5]
+  ]
+}
+----
+
+Work around this limitation by converting the field to single value with one of:
+
+* <<esql-mv_avg>>
+* <<esql-mv_concat>>
+* <<esql-mv_count>>
+* <<esql-mv_max>>
+* <<esql-mv_median>>
+* <<esql-mv_min>>
+* <<esql-mv_sum>>
+
+[source,console,esql-multivalued-fields-mv-into-null]
+----
+POST /_esql
+{
+  "query": "FROM mv | EVAL b=MV_MIN(b) | EVAL b + 2, a + b"
+}
+----
+// TEST[continued]
+
+[source,console-result]
+----
+{
+  "columns": [
+    { "name": "a",   "type": "long"},
+    { "name": "b",   "type": "long"},
+    { "name": "b+2", "type": "long"},
+    { "name": "a+b", "type": "long"}
+  ],
+  "values": [
+    [1, 1, 3, 2],
+    [2, 3, 5, 5]
+  ]
+}
+----
+

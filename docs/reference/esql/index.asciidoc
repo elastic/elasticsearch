@@ -90,7 +90,7 @@ POST /_esql?format=txt
   """
 }
 ----
-// TEST[continued]
+// TEST[setup:library]
 
 [discrete]
 ==== {kib}
@@ -108,15 +108,15 @@ with the time filter.
 
 ESQL currently supports the following <<mapping-types,field types>>:
 
-- alias
-- boolean
-- dates
-- ip
-- keyword family (strings)
-- double/float/half_float
-- long/int/short/byte
-- version
-
+- `alias`
+- `boolean`
+- `date`
+- `ip`
+- `keyword` family (`keyword`, `constant_keyword`, and `wildcard`)
+- `double`/`float`/`half_float` (represented as `double`)
+- `long`
+- `int`/`short`/`byte` (represented as `int`)
+- `version`
 --
 
 include::esql-get-started.asciidoc[]
@@ -128,6 +128,8 @@ include::esql-source-commands.asciidoc[]
 include::esql-processing-commands.asciidoc[]
 
 include::esql-functions.asciidoc[]
+
+include::multivalued-fields.asciidoc[]
 
 :esql-tests!:
 :esql-specs!:

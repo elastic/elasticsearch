@@ -20,6 +20,7 @@ import java.util.Set;
 public record Workflow(String name, Set<String> allowedRestHandlers) {
 
     public Workflow(String name, Set<String> allowedRestHandlers) {
+        assert false == allowedRestHandlers.isEmpty() : "allowed rest handlers must not be empty";
         this.name = Objects.requireNonNull(name, "workflow name must be provided");
         this.allowedRestHandlers = Set.copyOf(allowedRestHandlers);
     }

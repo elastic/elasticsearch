@@ -35,7 +35,7 @@ import static org.mockito.Mockito.when;
 
 public class GeoIpDownloaderTaskExecutorTests extends ESTestCase {
 
-    public void testHasAtLeastOneGeoipProcessorWhenPipelineIsManaged() {
+    public void testHasAtLeastOneGeoipProcessorWhenPipelineHasLazyDownloadEnabled() {
         ClusterState clusterState = mock(ClusterState.class);
         Metadata metadata = mock(Metadata.class);
         when(clusterState.getMetadata()).thenReturn(metadata);
@@ -50,7 +50,7 @@ public class GeoIpDownloaderTaskExecutorTests extends ESTestCase {
 
         List<String> pipelinesConfigJson = getPipelinesWithGeoIpProcessors().stream().map(jsonConfig -> {
             Map<String, Object> configMap = XContentHelper.convertToMap(JsonXContent.jsonXContent, jsonConfig, false);
-            configMap.put("_meta", Map.of("managed", true));
+            configMap.put("_meta", Map.of("geoip_database_lazy_download", true));
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             try (XContentBuilder builder = new XContentBuilder(XContentType.JSON.xContent(), baos)) {
                 builder.map(configMap).close();

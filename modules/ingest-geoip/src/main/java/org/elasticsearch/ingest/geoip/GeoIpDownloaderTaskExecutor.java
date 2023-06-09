@@ -229,7 +229,7 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
     static boolean hasAtLeastOneGeoipProcessor(ClusterState clusterState) {
         List<PipelineConfiguration> pipelineDefinitions = IngestService.getPipelines(clusterState);
         return pipelineDefinitions.stream().anyMatch(pipelineDefinition -> {
-            if (isManagedPipeline(pipelineDefinition) && (isPipelineUsed(clusterState, pipelineDefinition.getId()) == false)) {
+            if (isLazyDownloadPipeline(pipelineDefinition) && (isPipelineUsed(clusterState, pipelineDefinition.getId()) == false)) {
                 return false;
             }
             Map<String, Object> pipelineMap = pipelineDefinition.getConfigAsMap();
@@ -238,9 +238,9 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
     }
 
     @SuppressWarnings("unchecked")
-    private static boolean isManagedPipeline(PipelineConfiguration pipelineDefinition) {
+    private static boolean isLazyDownloadPipeline(PipelineConfiguration pipelineDefinition) {
         Map<String, Object> meta = (Map<String, Object>) pipelineDefinition.getConfigAsMap().getOrDefault("_meta", Collections.emptyMap());
-        return (boolean) meta.getOrDefault("managed", false);
+        return (boolean) meta.getOrDefault("geoip_database_lazy_download", false);
     }
 
     private static boolean isPipelineUsed(ClusterState clusterState, String pipelineId) {

@@ -72,7 +72,8 @@
     }
   ],
   "_meta": {
-    "managed": true
+    "managed": true,
+    "geoip_database_lazy_download": true
   },
   "version": ${xpack.entsearch.analytics.template.version}
 }

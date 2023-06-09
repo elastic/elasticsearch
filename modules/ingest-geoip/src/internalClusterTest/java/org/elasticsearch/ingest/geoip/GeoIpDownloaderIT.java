@@ -285,7 +285,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         }, 2, TimeUnit.MINUTES);
     }
 
-    public void testManagedPipelineGeoIpDatabasesDownload() throws Exception {
+    public void testGeoIpPipelineDatabasesLazyDownload() throws Exception {
         assumeTrue("only test with fixture to have stable results", getEndpoint() != null);
         String pipelineId = randomIdentifier();
 
@@ -295,21 +295,28 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         // Enabling the downloader.
         updateClusterSettings(Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), true));
 
-        // Creating a managed pipeline containing a geo processor: download should not be triggered (task state is null).
+        // Creating a pipeline containing a geo processor with lazy download enable.
+        // Download should not be triggered and task state should stay null.
         putGeoIpPipeline(pipelineId, true);
         assertNull(getTask().getState());
 
-        // Create an index that use the geo pipeline as default pipeline or final pipeline
+        // Create an index that use the newly created geo pipeline as default pipeline or final pipeline.
+        // This should trigger the database download.
         Setting<String> pipelineSetting = randomFrom(IndexSettings.FINAL_PIPELINE, IndexSettings.DEFAULT_PIPELINE);
-        client().admin()
+        String indexIdentifier = randomIdentifier();
+        assertAcked(client().admin()
             .indices()
-            .prepareCreate(randomIdentifier())
+            .prepareCreate(indexIdentifier)
             .setSettings(Settings.builder().put(pipelineSetting.getKey(), pipelineId))
-            .get();
+            .get());
+
         assertBusy(() -> {
             GeoIpTaskState state = getGeoIpTaskState();
             assertEquals(Set.of("GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb"), state.getDatabases().keySet());
-        });
+        }, 2, TimeUnit.MINUTES);
+
+        // Remove the created index.
+        assertAcked(client().admin().indices().prepareDelete(indexIdentifier).get());
     }
 
     @TestLogging(value = "org.elasticsearch.ingest.geoip:TRACE", reason = "https://github.com/elastic/elasticsearch/issues/69972")
@@ -486,10 +493,10 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
      * This creates a pipeline named pipelineId with a geoip processor, which ought to cause the geoip downloader to begin (assuming it is
      * enabled).
      * @param pipelineId The name of the new pipeline with a geoip processor
-    *      @param managed Indicates whether the pipeline should be created as a managed pipeline or not.
+    *  @param lazyDownload Indicates whether the pipeline creation should trigger databse dowload or not.
      * @throws IOException
      */
-    private void putGeoIpPipeline(String pipelineId, boolean managed) throws IOException {
+    private void putGeoIpPipeline(String pipelineId, boolean lazyDownload) throws IOException {
         BytesReference bytes;
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             builder.startObject();
@@ -532,8 +539,8 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
                 }
                 builder.endArray();
             }
-            if (managed) {
-                builder.startObject("_meta").field("managed", true).endObject();
+            if (lazyDownload) {
+                builder.startObject("_meta").field("geoip_database_lazy_download", true).endObject();
             }
             builder.endObject();
             bytes = BytesReference.bytes(builder);

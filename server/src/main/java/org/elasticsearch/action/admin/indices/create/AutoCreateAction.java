@@ -42,6 +42,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndices;
@@ -283,7 +284,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
 
                     if (isManagedSystemIndex) {
                         final SystemIndexDescriptor descriptor = mainDescriptor.getDescriptorCompatibleWith(
-                            currentState.nodes().getSmallestNonClientNodeVersion()
+                            IndexVersion.fromId(currentState.nodes().getSmallestNonClientNodeVersion().id)
                         );
                         if (descriptor == null) {
                             final String message = mainDescriptor.getMinimumNodeVersionMessage("auto-create index");

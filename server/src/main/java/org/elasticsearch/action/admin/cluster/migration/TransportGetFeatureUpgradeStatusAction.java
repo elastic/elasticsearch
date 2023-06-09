@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
@@ -51,7 +52,7 @@ public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeA
     /**
      * Once all feature migrations for 8.x -> 9.x have been tested, we can bump this to Version.V_8_0_0
      */
-    public static final Version NO_UPGRADE_REQUIRED_VERSION = Version.V_7_0_0;
+    public static final IndexVersion NO_UPGRADE_REQUIRED_VERSION = IndexVersion.V_7_0_0;
 
     private final SystemIndices systemIndices;
     PersistentTasksService persistentTasksService;
@@ -124,10 +125,10 @@ public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeA
 
         List<GetFeatureUpgradeStatusResponse.IndexInfo> indexInfos = getIndexInfos(state, feature);
 
-        Version minimumVersion = indexInfos.stream()
+        IndexVersion minimumVersion = indexInfos.stream()
             .map(GetFeatureUpgradeStatusResponse.IndexInfo::getVersion)
-            .min(Version::compareTo)
-            .orElse(Version.CURRENT);
+            .min(IndexVersion::compareTo)
+            .orElse(IndexVersion.CURRENT);
         GetFeatureUpgradeStatusResponse.UpgradeStatus initialStatus;
         if (featureName.equals(currentFeature)) {
             initialStatus = IN_PROGRESS;
@@ -165,7 +166,7 @@ public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeA
             .map(
                 indexMetadata -> new GetFeatureUpgradeStatusResponse.IndexInfo(
                     indexMetadata.getIndex().getName(),
-                    indexMetadata.getCreationVersion(),
+                    indexMetadata.getCreationVersion().indexVersion,
                     (indexMetadata.getIndex().getName().equals(failedFeatureName)
                         || indexMetadata.getIndex().getName().equals(failedFeatureUpgradedName)) ? exception : null
                 )

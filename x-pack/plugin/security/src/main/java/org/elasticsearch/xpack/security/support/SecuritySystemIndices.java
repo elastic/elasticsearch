@@ -788,7 +788,7 @@ public class SecuritySystemIndices {
             .setVersionMetaKey(SECURITY_VERSION_STRING)
             .setOrigin(SECURITY_PROFILE_ORIGIN) // new origin since 8.3
             .setThreadPools(ExecutorNames.CRITICAL_SYSTEM_INDEX_THREAD_POOLS)
-            .setMinimumNodeVersion(VERSION_SECURITY_PROFILE_ORIGIN)
+            .setMinimumNodeVersion(VERSION_SECURITY_PROFILE_ORIGIN.indexVersion)
             .setPriorSystemIndexDescriptors(
                 List.of(
                     SystemIndexDescriptor.builder()

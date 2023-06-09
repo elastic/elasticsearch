@@ -124,7 +124,7 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
         createRequest.setWaitForActiveShards(ActiveShardCount.ALL);
         createRequest.setSettings(
             Settings.builder()
-                .put("index.version.created", NEEDS_UPGRADE_VERSION)
+                .put("index.version.created", NEEDS_UPGRADE_VERSION.id())
                 .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
                 .put("index.hidden", true) // So we don't get a warning
                 .build()

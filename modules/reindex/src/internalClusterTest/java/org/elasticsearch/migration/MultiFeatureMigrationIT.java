@@ -9,7 +9,6 @@
 package org.elasticsearch.migration;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusAction;
 import org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusRequest;
@@ -23,6 +22,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
@@ -263,12 +263,12 @@ public class MultiFeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
         .setAliasName(".second-internal-managed-alias")
         .setPrimaryIndex(".second-int-man-old")
         .setType(SystemIndexDescriptor.Type.INTERNAL_MANAGED)
-        .setSettings(createSettings(Version.V_7_0_0, 0))
+        .setSettings(createSettings(IndexVersion.V_7_0_0, 0))
         .setMappings(createMapping(true, true))
         .setOrigin(ORIGIN)
         .setVersionMetaKey(VERSION_META_KEY)
         .setAllowedElasticProductOrigins(Collections.emptyList())
-        .setMinimumNodeVersion(Version.V_7_0_0)
+        .setMinimumNodeVersion(IndexVersion.V_7_0_0)
         .setPriorSystemIndexDescriptors(Collections.emptyList())
         .build();
 

@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.SystemIndices.SystemIndexAccessLevel;
@@ -132,7 +133,7 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
         // the index to the latest settings.
         if (isManagedSystemIndex && Strings.isNullOrEmpty(request.origin())) {
             final SystemIndexDescriptor descriptor = mainDescriptor.getDescriptorCompatibleWith(
-                state.nodes().getSmallestNonClientNodeVersion()
+                IndexVersion.fromId(state.nodes().getSmallestNonClientNodeVersion().id)
             );
             if (descriptor == null) {
                 final String message = mainDescriptor.getMinimumNodeVersionMessage("create index");

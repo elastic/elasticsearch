@@ -29,6 +29,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -81,8 +82,8 @@ import static org.mockito.Mockito.when;
 
 public final class DataStreamTestHelper {
 
-    private static final Version DATE_IN_BACKING_INDEX_VERSION = Version.V_7_11_0;
-    private static final Settings.Builder SETTINGS = ESTestCase.settings(Version.CURRENT).put("index.hidden", true);
+    private static final IndexVersion DATE_IN_BACKING_INDEX_VERSION = IndexVersion.V_7_11_0;
+    private static final Settings.Builder SETTINGS = ESTestCase.settings(IndexVersion.CURRENT.toVersion()).put("index.hidden", true);
     private static final int NUMBER_OF_SHARDS = 1;
     private static final int NUMBER_OF_REPLICAS = 1;
 
@@ -121,7 +122,7 @@ public final class DataStreamTestHelper {
         long epochMillis,
         Version minNodeVersion
     ) {
-        if (minNodeVersion.onOrAfter(DATE_IN_BACKING_INDEX_VERSION)) {
+        if (minNodeVersion.indexVersion.onOrAfter(DATE_IN_BACKING_INDEX_VERSION)) {
             return String.format(
                 Locale.ROOT,
                 BACKING_INDEX_PREFIX + "%s-%s-%06d",

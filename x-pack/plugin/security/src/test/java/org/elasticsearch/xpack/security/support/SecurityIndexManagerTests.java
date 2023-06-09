@@ -40,6 +40,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.rest.RestStatus;
@@ -319,7 +320,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
 
         // Hard-code a failure here.
         doReturn("Nope").when(descriptorSpy).getMinimumNodeVersionMessage(anyString());
-        doReturn(null).when(descriptorSpy).getDescriptorCompatibleWith(eq(Version.CURRENT));
+        doReturn(null).when(descriptorSpy).getDescriptorCompatibleWith(eq(IndexVersion.CURRENT));
 
         // Ensure that the mappings for the index are out-of-date, so that the security index manager will
         // attempt to update them.

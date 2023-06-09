@@ -1687,7 +1687,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
 
             // If we are on 7.x create an alias that includes both a system index and a non-system index so we can be sure it gets
             // upgraded properly. If we're already on 8.x, skip this part of the test.
-            if (minimumNodeVersion().before(SYSTEM_INDEX_ENFORCEMENT_VERSION)) {
+            if (minimumNodeVersion().indexVersion.before(SYSTEM_INDEX_ENFORCEMENT_VERSION)) {
                 // Create an alias to make sure it gets upgraded properly
                 Request putAliasRequest = new Request("POST", "/_aliases");
                 putAliasRequest.setJsonEntity("""
@@ -1721,7 +1721,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
                 final String tasksCreatedVersionString = tasksIndex.get("settings.index.version.created");
                 assertThat(tasksCreatedVersionString, notNullValue());
                 final Version tasksCreatedVersion = Version.fromId(Integer.parseInt(tasksCreatedVersionString));
-                if (tasksCreatedVersion.before(SYSTEM_INDEX_ENFORCEMENT_VERSION)) {
+                if (tasksCreatedVersion.indexVersion.before(SYSTEM_INDEX_ENFORCEMENT_VERSION)) {
                     // Verify that the alias survived the upgrade
                     Request getAliasRequest = new Request("GET", "/_alias/test-system-alias");
                     getAliasRequest.setOptions(expectVersionSpecificWarnings(v -> {

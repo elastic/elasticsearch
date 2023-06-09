@@ -252,7 +252,9 @@ public class SecurityIndexManager implements ClusterStateListener {
 
     private boolean checkIndexMappingUpToDate(ClusterState clusterState) {
         final Version minimumNonClientNodeVersion = clusterState.nodes().getSmallestNonClientNodeVersion();
-        final SystemIndexDescriptor descriptor = systemIndexDescriptor.getDescriptorCompatibleWith(minimumNonClientNodeVersion);
+        final SystemIndexDescriptor descriptor = systemIndexDescriptor.getDescriptorCompatibleWith(
+            minimumNonClientNodeVersion.indexVersion
+        );
         if (descriptor == null) {
             return false;
         }
@@ -264,7 +266,7 @@ public class SecurityIndexManager implements ClusterStateListener {
          *
          * ...which is true if the mappings have been updated.
          */
-        return checkIndexMappingVersionMatches(clusterState, descriptor.getMappingVersion()::onOrBefore);
+        return checkIndexMappingVersionMatches(clusterState, version -> descriptor.getMappingVersion().onOrBefore(version.indexVersion));
     }
 
     private boolean checkIndexMappingVersionMatches(ClusterState clusterState, Predicate<Version> predicate) {
@@ -374,7 +376,7 @@ public class SecurityIndexManager implements ClusterStateListener {
             } else if (state.indexExists() == false) {
                 assert state.concreteIndexName != null;
                 final SystemIndexDescriptor descriptorForVersion = systemIndexDescriptor.getDescriptorCompatibleWith(
-                    state.minimumNodeVersion
+                    state.minimumNodeVersion.indexVersion
                 );
 
                 if (descriptorForVersion == null) {
@@ -425,7 +427,7 @@ public class SecurityIndexManager implements ClusterStateListener {
                 }
             } else if (state.mappingUpToDate == false) {
                 final SystemIndexDescriptor descriptorForVersion = systemIndexDescriptor.getDescriptorCompatibleWith(
-                    state.minimumNodeVersion
+                    state.minimumNodeVersion.indexVersion
                 );
                 if (descriptorForVersion == null) {
                     final String error = systemIndexDescriptor.getMinimumNodeVersionMessage("updating mapping");

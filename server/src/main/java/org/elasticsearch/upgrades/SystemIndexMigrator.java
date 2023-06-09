@@ -359,7 +359,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
         if (indexMetadata == null) {
             return false;
         }
-        return indexMetadata.isSystem() && indexMetadata.getCreationVersion().before(NO_UPGRADE_REQUIRED_VERSION);
+        return indexMetadata.isSystem() && indexMetadata.getCreationVersion().before(NO_UPGRADE_REQUIRED_VERSION.toVersion());
     }
 
     private void migrateSingleIndex(ClusterState clusterState, Consumer<BulkByScrollResponse> listener) {

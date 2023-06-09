@@ -13,6 +13,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.SystemIndexDescriptor.Type;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -173,16 +174,16 @@ public class SystemIndexDescriptorTests extends ESTestCase {
         // different min version but prior is after latest!
         iae = expectThrows(
             IllegalArgumentException.class,
-            () -> priorSystemIndexDescriptorBuilder().setMinimumNodeVersion(Version.fromString("6.8.0"))
+            () -> priorSystemIndexDescriptorBuilder().setMinimumNodeVersion(Version.fromString("6.8.0").indexVersion)
                 .setPriorSystemIndexDescriptors(List.of(prior))
                 .build()
         );
-        assertThat(iae.getMessage(), containsString("has minimum node version [7.0.0] which is after [6.8.0]"));
+        assertThat(iae.getMessage(), containsString("has minimum node version [7000099] which is after [6080099]"));
 
         // prior has another prior!
         iae = expectThrows(
             IllegalArgumentException.class,
-            () -> priorSystemIndexDescriptorBuilder().setMinimumNodeVersion(Version.V_7_5_0)
+            () -> priorSystemIndexDescriptorBuilder().setMinimumNodeVersion(IndexVersion.V_7_5_0)
                 .setPriorSystemIndexDescriptors(
                     List.of(
                         SystemIndexDescriptor.builder()
@@ -195,7 +196,7 @@ public class SystemIndexDescriptorTests extends ESTestCase {
                             .setMappings(MAPPINGS)
                             .setVersionMetaKey("version")
                             .setOrigin("system")
-                            .setMinimumNodeVersion(Version.V_7_4_1)
+                            .setMinimumNodeVersion(IndexVersion.V_7_4_1)
                             .setPriorSystemIndexDescriptors(List.of(prior))
                             .build()
                     )
@@ -208,7 +209,7 @@ public class SystemIndexDescriptorTests extends ESTestCase {
         iae = expectThrows(
             IllegalArgumentException.class,
             () -> priorSystemIndexDescriptorBuilder().setIndexPattern(".system1*")
-                .setMinimumNodeVersion(Version.V_7_5_0)
+                .setMinimumNodeVersion(IndexVersion.V_7_5_0)
                 .setPriorSystemIndexDescriptors(List.of(prior))
                 .build()
         );
@@ -218,7 +219,7 @@ public class SystemIndexDescriptorTests extends ESTestCase {
         iae = expectThrows(
             IllegalArgumentException.class,
             () -> priorSystemIndexDescriptorBuilder().setPrimaryIndex(".system-2")
-                .setMinimumNodeVersion(Version.V_7_5_0)
+                .setMinimumNodeVersion(IndexVersion.V_7_5_0)
                 .setPriorSystemIndexDescriptors(List.of(prior))
                 .build()
         );
@@ -228,7 +229,7 @@ public class SystemIndexDescriptorTests extends ESTestCase {
         iae = expectThrows(
             IllegalArgumentException.class,
             () -> priorSystemIndexDescriptorBuilder().setAliasName(".system1")
-                .setMinimumNodeVersion(Version.V_7_5_0)
+                .setMinimumNodeVersion(IndexVersion.V_7_5_0)
                 .setPriorSystemIndexDescriptors(List.of(prior))
                 .build()
         );
@@ -236,7 +237,7 @@ public class SystemIndexDescriptorTests extends ESTestCase {
 
         // success!
         assertNotNull(
-            priorSystemIndexDescriptorBuilder().setMinimumNodeVersion(Version.V_7_5_0)
+            priorSystemIndexDescriptorBuilder().setMinimumNodeVersion(IndexVersion.V_7_5_0)
                 .setPriorSystemIndexDescriptors(List.of(prior))
                 .build()
         );
@@ -254,7 +255,7 @@ public class SystemIndexDescriptorTests extends ESTestCase {
             .setMappings(mappings)
             .setVersionMetaKey("version")
             .setOrigin("system")
-            .setMinimumNodeVersion(Version.V_7_0_0)
+            .setMinimumNodeVersion(IndexVersion.V_7_0_0)
             .build();
         final SystemIndexDescriptor descriptor = SystemIndexDescriptor.builder()
             .setIndexPattern(".system*")
@@ -266,23 +267,24 @@ public class SystemIndexDescriptorTests extends ESTestCase {
             .setMappings(mappings)
             .setVersionMetaKey("version")
             .setOrigin("system")
+            .setMinimumNodeVersion(IndexVersion.V_8_0_0)
             .setPriorSystemIndexDescriptors(List.of(prior))
             .build();
 
-        SystemIndexDescriptor compat = descriptor.getDescriptorCompatibleWith(Version.CURRENT);
+        SystemIndexDescriptor compat = descriptor.getDescriptorCompatibleWith(IndexVersion.CURRENT);
         assertSame(descriptor, compat);
 
-        assertNull(descriptor.getDescriptorCompatibleWith(Version.fromString("6.8.0")));
+        assertNull(descriptor.getDescriptorCompatibleWith(Version.fromString("6.8.0").indexVersion));
 
-        compat = descriptor.getDescriptorCompatibleWith(Version.CURRENT.minimumCompatibilityVersion());
+        compat = descriptor.getDescriptorCompatibleWith(IndexVersion.V_8_0_0);
         assertSame(descriptor, compat);
 
-        Version priorToMin = VersionUtils.getPreviousVersion(descriptor.getMinimumNodeVersion());
+        IndexVersion priorToMin = VersionUtils.getPreviousVersion(descriptor.getMinimumNodeVersion().toVersion()).indexVersion;
         compat = descriptor.getDescriptorCompatibleWith(priorToMin);
         assertSame(prior, compat);
 
         compat = descriptor.getDescriptorCompatibleWith(
-            VersionUtils.randomVersionBetween(random(), prior.getMinimumNodeVersion(), priorToMin)
+            VersionUtils.randomVersionBetween(random(), prior.getMinimumNodeVersion().toVersion(), priorToMin.toVersion()).indexVersion
         );
         assertSame(prior, compat);
     }
@@ -354,6 +356,6 @@ public class SystemIndexDescriptorTests extends ESTestCase {
             .setMappings(MAPPINGS)
             .setVersionMetaKey("version")
             .setOrigin("system")
-            .setMinimumNodeVersion(Version.V_7_0_0);
+            .setMinimumNodeVersion(IndexVersion.V_7_0_0);
     }
 }

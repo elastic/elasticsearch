@@ -20,6 +20,7 @@ import org.elasticsearch.common.lucene.RegExp;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -138,10 +139,10 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
     private final String origin;
 
     /** The minimum cluster node version required for this descriptor */
-    private final Version minimumNodeVersion;
+    private final IndexVersion minimumNodeVersion;
 
     /** Mapping version from the descriptor */
-    private final Version mappingVersion;
+    private final IndexVersion mappingVersion;
 
     /** Whether there are dynamic fields in this descriptor's mappings */
     private final boolean hasDynamicMappings;
@@ -211,7 +212,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
         int indexFormat,
         String versionMetaKey,
         String origin,
-        Version minimumNodeVersion,
+        IndexVersion minimumNodeVersion,
         Type type,
         List<String> allowedElasticProductOrigins,
         List<SystemIndexDescriptor> priorSystemIndexDescriptors,
@@ -292,7 +293,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
             // 3. Prior system index descriptors may not have other prior system index descriptors
             // to avoid multiple branches that need followed
             // 4. Must have same indexPattern, primaryIndex, and alias
-            Set<Version> versions = Sets.newHashSetWithExpectedSize(priorSystemIndexDescriptors.size() + 1);
+            Set<IndexVersion> versions = Sets.newHashSetWithExpectedSize(priorSystemIndexDescriptors.size() + 1);
             versions.add(minimumNodeVersion);
             for (SystemIndexDescriptor prior : priorSystemIndexDescriptors) {
                 if (versions.add(prior.minimumNodeVersion) == false) {
@@ -455,7 +456,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
         return this.versionMetaKey;
     }
 
-    public Version getMinimumNodeVersion() {
+    public IndexVersion getMinimumNodeVersion() {
         assert isAutomaticallyManaged() : "Do not request version minimum node version for unmanaged system indices";
         return minimumNodeVersion;
     }
@@ -506,7 +507,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
         return allowsTemplates;
     }
 
-    public Version getMappingVersion() {
+    public IndexVersion getMappingVersion() {
         if (isAutomaticallyManaged() == false) {
             throw new IllegalStateException(this + " is not managed so there are no mappings or version");
         }
@@ -522,7 +523,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
      */
     public String getMinimumNodeVersionMessage(String cause) {
         Objects.requireNonNull(cause);
-        final Version actualMinimumVersion = priorSystemIndexDescriptors.isEmpty()
+        final IndexVersion actualMinimumVersion = priorSystemIndexDescriptors.isEmpty()
             ? minimumNodeVersion
             : priorSystemIndexDescriptors.get(priorSystemIndexDescriptors.size() - 1).minimumNodeVersion;
         return String.format(
@@ -542,7 +543,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
      * @return <code>null</code> if the lowest node version is lower than the minimum version in this descriptor,
      * or the appropriate descriptor if the supplied version is acceptable.
      */
-    public SystemIndexDescriptor getDescriptorCompatibleWith(Version version) {
+    public SystemIndexDescriptor getDescriptorCompatibleWith(IndexVersion version) {
         if (minimumNodeVersion.onOrBefore(version)) {
             return this;
         }
@@ -625,7 +626,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
         private int indexFormat = 0;
         private String versionMetaKey = null;
         private String origin = null;
-        private Version minimumNodeVersion = Version.CURRENT.minimumCompatibilityVersion();
+        private IndexVersion minimumNodeVersion = IndexVersion.MINIMUM_COMPATIBLE;
         private Type type = Type.INTERNAL_MANAGED;
         private List<String> allowedElasticProductOrigins = List.of();
         private List<SystemIndexDescriptor> priorSystemIndexDescriptors = List.of();
@@ -693,7 +694,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
             return this;
         }
 
-        public Builder setMinimumNodeVersion(Version version) {
+        public Builder setMinimumNodeVersion(IndexVersion version) {
             this.minimumNodeVersion = version;
             return this;
         }
@@ -819,7 +820,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
     }
 
     @SuppressWarnings("unchecked")
-    private static Version extractVersionFromMappings(String mappings, String versionMetaKey) {
+    private static IndexVersion extractVersionFromMappings(String mappings, String versionMetaKey) {
         final Map<String, Object> mappingsMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), mappings, false);
         final Map<String, Object> doc = (Map<String, Object>) mappingsMap.get("_doc");
         final Map<String, Object> meta;
@@ -835,7 +836,8 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
         if (value == null) {
             throw new IllegalArgumentException("mappings do not have a version in _meta." + versionMetaKey);
         }
-        return Version.fromString(value);
+        // TODO[wrb]: is there a better way to parse?
+        return IndexVersion.fromId(Version.fromString(value).id);
     }
 
 }

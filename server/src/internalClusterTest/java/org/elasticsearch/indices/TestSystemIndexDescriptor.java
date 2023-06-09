@@ -12,6 +12,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -49,7 +50,7 @@ public class TestSystemIndexDescriptor extends SystemIndexDescriptor {
             0,
             "version",
             "stack",
-            Version.CURRENT.minimumCompatibilityVersion(),
+            IndexVersion.MINIMUM_COMPATIBLE,
             Type.INTERNAL_MANAGED,
             List.of(),
             List.of(),
@@ -70,7 +71,7 @@ public class TestSystemIndexDescriptor extends SystemIndexDescriptor {
             0,
             "version",
             "stack",
-            Version.CURRENT.minimumCompatibilityVersion(),
+            IndexVersion.MINIMUM_COMPATIBLE,
             Type.INTERNAL_MANAGED,
             List.of(),
             List.of(),

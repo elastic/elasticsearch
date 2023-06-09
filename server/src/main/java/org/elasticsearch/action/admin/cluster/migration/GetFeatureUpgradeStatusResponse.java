@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -124,7 +125,7 @@ public class GetFeatureUpgradeStatusResponse extends ActionResponse implements T
      */
     public static class FeatureUpgradeStatus implements Writeable, ToXContentObject {
         private final String featureName;
-        private final Version minimumIndexVersion;
+        private final IndexVersion minimumIndexVersion;
         private final UpgradeStatus upgradeStatus;
         private final List<IndexInfo> indexInfos;
 
@@ -136,7 +137,7 @@ public class GetFeatureUpgradeStatusResponse extends ActionResponse implements T
          */
         public FeatureUpgradeStatus(
             String featureName,
-            Version minimumIndexVersion,
+            IndexVersion minimumIndexVersion,
             UpgradeStatus upgradeStatus,
             List<IndexInfo> indexInfos
         ) {
@@ -152,7 +153,7 @@ public class GetFeatureUpgradeStatusResponse extends ActionResponse implements T
          */
         public FeatureUpgradeStatus(StreamInput in) throws IOException {
             this.featureName = in.readString();
-            this.minimumIndexVersion = Version.readVersion(in);
+            this.minimumIndexVersion = Version.readVersion(in).indexVersion;
             this.upgradeStatus = in.readEnum(UpgradeStatus.class);
             this.indexInfos = in.readImmutableList(IndexInfo::new);
         }
@@ -161,7 +162,7 @@ public class GetFeatureUpgradeStatusResponse extends ActionResponse implements T
             return this.featureName;
         }
 
-        public Version getMinimumIndexVersion() {
+        public IndexVersion getMinimumIndexVersion() {
             return this.minimumIndexVersion;
         }
 
@@ -176,7 +177,7 @@ public class GetFeatureUpgradeStatusResponse extends ActionResponse implements T
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(this.featureName);
-            Version.writeVersion(this.minimumIndexVersion, out);
+            Version.writeVersion(this.minimumIndexVersion.toVersion(), out);
             out.writeEnum(this.upgradeStatus);
             out.writeList(this.indexInfos);
         }
@@ -240,7 +241,7 @@ public class GetFeatureUpgradeStatusResponse extends ActionResponse implements T
         );
 
         private final String indexName;
-        private final Version version;
+        private final IndexVersion version;
         @Nullable
         private final Exception exception; // Present if this index failed
 
@@ -249,7 +250,7 @@ public class GetFeatureUpgradeStatusResponse extends ActionResponse implements T
          * @param version Version of Elasticsearch that created the index
          * @param exception The exception that this index's migration failed with, if applicable
          */
-        public IndexInfo(String indexName, Version version, Exception exception) {
+        public IndexInfo(String indexName, IndexVersion version, Exception exception) {
             this.indexName = indexName;
             this.version = version;
             this.exception = exception;
@@ -261,7 +262,7 @@ public class GetFeatureUpgradeStatusResponse extends ActionResponse implements T
          */
         public IndexInfo(StreamInput in) throws IOException {
             this.indexName = in.readString();
-            this.version = Version.readVersion(in);
+            this.version = Version.readVersion(in).indexVersion;
             boolean hasException = in.readBoolean();
             if (hasException) {
                 this.exception = in.readException();
@@ -274,7 +275,7 @@ public class GetFeatureUpgradeStatusResponse extends ActionResponse implements T
             return this.indexName;
         }
 
-        public Version getVersion() {
+        public IndexVersion getVersion() {
             return this.version;
         }
 
@@ -285,7 +286,7 @@ public class GetFeatureUpgradeStatusResponse extends ActionResponse implements T
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(this.indexName);
-            Version.writeVersion(this.version, out);
+            Version.writeVersion(this.version.toVersion(), out);
             if (exception != null) {
                 out.writeBoolean(true);
                 out.writeException(this.exception);

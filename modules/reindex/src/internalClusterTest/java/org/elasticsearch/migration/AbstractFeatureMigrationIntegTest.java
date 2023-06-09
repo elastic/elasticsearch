@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.AssociatedIndexDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.plugins.Plugin;
@@ -65,7 +66,8 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
     static final String INTERNAL_MANAGED_INDEX_NAME = ".int-man-old";
     static final int INDEX_DOC_COUNT = 100; // arbitrarily chosen
     static final int INTERNAL_MANAGED_FLAG_VALUE = 1;
-    public static final Version NEEDS_UPGRADE_VERSION = TransportGetFeatureUpgradeStatusAction.NO_UPGRADE_REQUIRED_VERSION.previousMajor();
+    public static final IndexVersion NEEDS_UPGRADE_VERSION = TransportGetFeatureUpgradeStatusAction.NO_UPGRADE_REQUIRED_VERSION.toVersion()
+        .previousMajor().indexVersion;
 
     static final SystemIndexDescriptor EXTERNAL_UNMANAGED = SystemIndexDescriptor.builder()
         .setIndexPattern(".ext-unman-*")
@@ -134,7 +136,7 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
     public void setup() {
         assumeTrue(
             "We can only create the test indices we need if they're in the previous major version",
-            NEEDS_UPGRADE_VERSION.onOrAfter(Version.CURRENT.previousMajor())
+            NEEDS_UPGRADE_VERSION.onOrAfter(Version.CURRENT.previousMajor().indexVersion)
         );
 
         internalCluster().setBootstrapMasterNodeIndex(0);
@@ -194,8 +196,8 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
         Assert.assertThat(indexStats.getIndex(indexName).getTotal().getDocs().getCount(), is((long) INDEX_DOC_COUNT));
     }
 
-    static Settings createSettings(Version creationVersion, int flagSettingValue) {
-        return indexSettings(creationVersion, 1, 0).put(FlAG_SETTING_KEY, flagSettingValue).build();
+    static Settings createSettings(IndexVersion creationVersion, int flagSettingValue) {
+        return indexSettings(creationVersion.toVersion(), 1, 0).put(FlAG_SETTING_KEY, flagSettingValue).build();
     }
 
     static String createMapping(boolean descriptorManaged, boolean descriptorInternal) {

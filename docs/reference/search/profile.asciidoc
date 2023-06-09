@@ -228,7 +228,6 @@ The API returns the following result:
 // TESTRESPONSE[s/"id": "\[q2aE02wS1R8qQFnYu6vDVQ\]\[my-index-000001\]\[0\]"/"id": $body.profile.shards.0.id/]
 // TESTRESPONSE[s/"node_id": "q2aE02wS1R8qQFnYu6vDVQ",/"node_id": "$body.profile.shards.0.node_id",/]
 
-
 <1> Search results are returned, but were omitted here for brevity.
 
 Even for a simple query, the response is relatively complicated. Let's break it
@@ -271,8 +270,7 @@ The overall structure of the profile response is as follows:
 // TESTRESPONSE[s/"aggregations": \[...\]/"aggregations": []/]
 // TESTRESPONSE[s/"fetch": \{...\}/"fetch": $body.$_path/]
 <1> A profile is returned for each shard that participated in the response, and
-is identified by a unique composite ID. The parts of that ID are split out into
-the "node_id", "shard_id", "index" and "cluster" fields below.
+is identified by a unique ID.
 <2> If the query was run on the local cluster, the cluster name is left out of the
 composite id and is marked "(local)" here. For a profile running on a remote_cluster
 using cross-cluster search, the "id" value would be something like
@@ -386,7 +384,6 @@ search"), our BooleanQuery holds two children TermQueries. They have identical
 information (type, time, breakdown, etc). Children are allowed to have their
 own children.
 
-
 ===== Timing Breakdown
 
 The `breakdown` component lists detailed timing statistics about low-level
@@ -436,15 +433,15 @@ The meaning of the stats are as follows:
 [horizontal]
 `create_weight`::
 
-A Query in Lucene must be capable of reuse across multiple IndexSearchers (think of it as the engine that
-executes a search against a specific Lucene Index). This puts Lucene in a tricky spot, since many queries
-need to accumulate temporary state/statistics associated with the index it is being used against, but the
-Query contract mandates that it must be immutable.
-{empty} +
-{empty} +
-To get around this, Lucene asks each query to generate a Weight object which acts as a temporary context
-object to hold state associated with this particular (IndexSearcher, Query) tuple. The `weight` metric
-shows how long this process takes
+    A Query in Lucene must be capable of reuse across multiple IndexSearchers (think of it as the engine that
+    executes a search against a specific Lucene Index). This puts Lucene in a tricky spot, since many queries
+    need to accumulate temporary state/statistics associated with the index it is being used against, but the
+    Query contract mandates that it must be immutable.
+    {empty} +
+    {empty} +
+    To get around this, Lucene asks each query to generate a Weight object which acts as a temporary context
+    object to hold state associated with this particular (IndexSearcher, Query) tuple. The `weight` metric
+    shows how long this process takes
 
 `build_scorer`::
 
@@ -492,10 +489,9 @@ shows how long this process takes
     This records the time taken to score a particular document via its Scorer
 
 `*_count`::
-Records the number of invocations of the particular method. For example, `"next_doc_count": 2,`
-means the `nextDoc()` method was called on two different documents. This can be used to help judge
-how selective queries are, by comparing counts between different query components.
-
+    Records the number of invocations of the particular method. For example, `"next_doc_count": 2,`
+    means the `nextDoc()` method was called on two different documents. This can be used to help judge
+    how selective queries are, by comparing counts between different query components.
 
 
 [[collectors-section]]
@@ -543,8 +539,8 @@ For reference, the various collector reasons are:
 [horizontal]
 `search_sorted`::
 
-A collector that scores and sorts documents. This is the most common collector and will be seen in most
-simple searches
+    A collector that scores and sorts documents. This is the most common collector and will be seen in most
+    simple searches
 
 `search_count`::
 
@@ -582,7 +578,6 @@ simple searches
     A collector that executes an aggregation against the global query scope, rather than the specified query.
     Because the global scope is necessarily different from the executed query, it must execute its own
     match_all query (which you will see added to the Query section) to collect your entire dataset
-
 
 
 [[rewrite-section]]
@@ -767,7 +762,6 @@ The API returns the following result:
 // TESTRESPONSE[s/(?<=[" ])\d+(\.\d+)?/$body.$_path/]
 // TESTRESPONSE[s/"id": "\[P6xvulHtQRWuD4YnubWb7A\]\[my-index-000001\]\[0\]"/"id": $body.profile.shards.0.id/]
 // TESTRESPONSE[s/"node_id": "P6xvulHtQRWuD4YnubWb7A",/"node_id": "$body.profile.shards.0.node_id",/]
-
 <1> The `"aggregations"` portion has been omitted because it will be covered in
 the next section.
 
@@ -781,8 +775,6 @@ The Collector tree is fairly straightforward, showing how a single
 CancellableCollector wraps a MultiCollector which also wraps a FilteredCollector
 to execute the post_filter (and in turn wraps the normal scoring
 SimpleCollector), a BucketCollector to run all scoped aggregations.
-
-
 
 ===== Understanding MultiTermQuery output
 
@@ -970,7 +962,6 @@ hack on aggregations but that we don't expect to be otherwise useful. They can
 vary wildly between versions, aggregations, and aggregation execution
 strategies.
 
-
 ===== Timing Breakdown
 
 The `breakdown` component lists detailed statistics about low-level execution:
@@ -1125,7 +1116,6 @@ multiple shards.
 Both of these cases can be profiled by setting `profile` to `true` as
 part of the search request.
 
-
 [[profiling-dfs-statistics]]
 ====== Profiling DFS Statistics
 
@@ -1212,12 +1202,9 @@ One of the `dfs` sections for a shard looks like the following:
 // TESTRESPONSE[s/}$/}, "aggregations": [], "searches": $body.$_path}]}}/]
 // TESTRESPONSE[s/(\-)?[0-9]+/ $body.$_path/]
 
-
 In the `dfs.statistics` portion of this response we see a `time_in_nanos`
 which is the total time it took to collect term statistics for this
 shard along with a further breakdown of the individual parts.
-
-
 
 [[profiling-knn-search]]
 ====== Profiling kNN Search

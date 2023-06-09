@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.cluster.node.stats;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -116,7 +117,11 @@ public class NodeStats extends BaseNodeResponse implements ChunkedToXContent {
         ingestStats = in.readOptionalWriteable(IngestStats::read);
         adaptiveSelectionStats = in.readOptionalWriteable(AdaptiveSelectionStats::new);
         indexingPressureStats = in.readOptionalWriteable(IndexingPressureStats::new);
-        repositoriesStats = in.readOptionalWriteable(RepositoriesStats::new);
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_010)) {
+            repositoriesStats = in.readOptionalWriteable(RepositoriesStats::new);
+        } else {
+            repositoriesStats = null;
+        }
     }
 
     public NodeStats(
@@ -289,7 +294,9 @@ public class NodeStats extends BaseNodeResponse implements ChunkedToXContent {
         out.writeOptionalWriteable(ingestStats);
         out.writeOptionalWriteable(adaptiveSelectionStats);
         out.writeOptionalWriteable(indexingPressureStats);
-        out.writeOptionalWriteable(repositoriesStats);
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_010)) {
+            out.writeOptionalWriteable(repositoriesStats);
+        }
     }
 
     @Override

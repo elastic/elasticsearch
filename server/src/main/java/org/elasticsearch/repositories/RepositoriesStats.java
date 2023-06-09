@@ -26,7 +26,7 @@ public class RepositoriesStats implements Writeable, ToXContentFragment {
     private final Map<String, ThrottlingStats> repositoryThrottlingStats;
 
     public RepositoriesStats(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_9_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_010)) {
             repositoryThrottlingStats = in.readMap(StreamInput::readString, ThrottlingStats::new);
         } else {
             repositoryThrottlingStats = new HashMap<>();
@@ -39,7 +39,7 @@ public class RepositoriesStats implements Writeable, ToXContentFragment {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_9_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_010)) {
             out.writeMap(repositoryThrottlingStats, StreamOutput::writeString, (o, v) -> v.writeTo(o));
         }
     }

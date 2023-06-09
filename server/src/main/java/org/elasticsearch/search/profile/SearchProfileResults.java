@@ -48,7 +48,7 @@ public final class SearchProfileResults implements Writeable, ToXContentFragment
     private static final String SHARDS_FIELD = "shards";
     public static final String PROFILE_FIELD = "profile";
 
-    /// MP: key to this map is [nodeId] [remote-index-name] [shardId] created from the SearchShardTarget.toString method
+    // map key is the composite "id" of form [nodeId][(clusterName:)indexName][shardId] created from SearchShardTarget.toString
     private Map<String, SearchProfileShardResult> shardResults;
 
     public SearchProfileResults(Map<String, SearchProfileShardResult> shardResults) {
@@ -148,7 +148,6 @@ public final class SearchProfileResults implements Writeable, ToXContentFragment
         return new SearchProfileResults(profileResults);
     }
 
-    /// MP: what is the key to this map?
     private static void parseProfileResultsEntry(XContentParser parser, Map<String, SearchProfileShardResult> searchProfileResults)
         throws IOException {
         XContentParser.Token token = parser.currentToken();

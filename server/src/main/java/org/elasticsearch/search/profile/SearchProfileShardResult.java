@@ -30,8 +30,6 @@ public class SearchProfileShardResult implements Writeable, ToXContentFragment {
     private final SearchProfileQueryPhaseResult queryPhase;
     private final ProfileResult fetchPhase;
 
-    /// MP: IDEA add SearchShardTarget as instance field - is this possible?
-
     public SearchProfileShardResult(SearchProfileQueryPhaseResult queryPhase, @Nullable ProfileResult fetch) {
         this.queryPhase = queryPhase;
         this.fetchPhase = fetch;

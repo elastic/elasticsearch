@@ -47,7 +47,6 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -94,7 +93,7 @@ public class ProfilingIndexTemplateRegistryTests extends ESTestCase {
             return null;
         });
 
-        ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyMap(), Collections.emptyMap(), nodes);
+        ClusterChangedEvent event = createClusterChangedEvent(Map.of(), Map.of(), nodes);
         registry.clusterChanged(event);
     }
 
@@ -107,7 +106,7 @@ public class ProfilingIndexTemplateRegistryTests extends ESTestCase {
         for (String templateName : registry.getComponentTemplateConfigs().keySet()) {
             componentTemplates.put(templateName, ProfilingIndexTemplateRegistry.INDEX_TEMPLATE_VERSION);
         }
-        ClusterChangedEvent event = createClusterChangedEvent(componentTemplates, Collections.emptyMap(), nodes);
+        ClusterChangedEvent event = createClusterChangedEvent(componentTemplates, Map.of(), nodes);
 
         AtomicInteger calledTimes = new AtomicInteger(0);
 
@@ -123,7 +122,7 @@ public class ProfilingIndexTemplateRegistryTests extends ESTestCase {
         // will not be issued anymore, leaving calledTimes to 0
         assertBusy(() -> {
             // now delete one template from the cluster state and lets retry
-            ClusterChangedEvent newEvent = createClusterChangedEvent(Collections.emptyMap(), Collections.emptyMap(), nodes);
+            ClusterChangedEvent newEvent = createClusterChangedEvent(Map.of(), Map.of(), nodes);
             registry.clusterChanged(newEvent);
             assertThat(calledTimes.get(), greaterThan(1));
         });
@@ -155,12 +154,7 @@ public class ProfilingIndexTemplateRegistryTests extends ESTestCase {
             }
         });
 
-        ClusterChangedEvent newEvent = createClusterChangedEvent(
-            Collections.emptyMap(),
-            Collections.emptyMap(),
-            Collections.emptyMap(),
-            nodes
-        );
+        ClusterChangedEvent newEvent = createClusterChangedEvent(Map.of(), Map.of(), Map.of(), nodes);
         registry.clusterChanged(newEvent);
         assertBusy(() -> assertThat(calledTimes.get(), equalTo(registry.getPolicyConfigs().size())));
     }
@@ -192,7 +186,7 @@ public class ProfilingIndexTemplateRegistryTests extends ESTestCase {
             return null;
         });
 
-        ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyMap(), Collections.emptyMap(), policyMap, nodes);
+        ClusterChangedEvent event = createClusterChangedEvent(Map.of(), Map.of(), policyMap, nodes);
         registry.clusterChanged(event);
     }
 
@@ -247,7 +241,7 @@ public class ProfilingIndexTemplateRegistryTests extends ESTestCase {
         ) {
             LifecyclePolicy different = LifecyclePolicy.parse(parser, policies.get(0).getName());
             policyMap.put(policies.get(0).getName(), different);
-            ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyMap(), Collections.emptyMap(), policyMap, nodes);
+            ClusterChangedEvent event = createClusterChangedEvent(Map.of(), Map.of(), policyMap, nodes);
             registry.clusterChanged(event);
         }
     }
@@ -308,7 +302,7 @@ public class ProfilingIndexTemplateRegistryTests extends ESTestCase {
         ) {
             LifecyclePolicy priorPolicy = LifecyclePolicy.parse(parser, policies.get(0).getName());
             policyMap.put(policies.get(0).getName(), priorPolicy);
-            ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyMap(), Collections.emptyMap(), policyMap, nodes);
+            ClusterChangedEvent event = createClusterChangedEvent(Map.of(), Map.of(), policyMap, nodes);
             registry.clusterChanged(event);
             // we've changed one policy that should be upgraded
             assertBusy(() -> assertThat(calledTimes.get(), equalTo(1)));
@@ -349,7 +343,7 @@ public class ProfilingIndexTemplateRegistryTests extends ESTestCase {
         Map<String, Integer> existingComposableTemplates,
         DiscoveryNodes nodes
     ) {
-        return createClusterChangedEvent(existingComponentTemplates, existingComposableTemplates, Collections.emptyMap(), nodes);
+        return createClusterChangedEvent(existingComponentTemplates, existingComposableTemplates, Map.of(), nodes);
     }
 
     private ClusterChangedEvent createClusterChangedEvent(
@@ -398,7 +392,7 @@ public class ProfilingIndexTemplateRegistryTests extends ESTestCase {
 
         Map<String, LifecyclePolicyMetadata> existingILMMeta = existingPolicies.entrySet()
             .stream()
-            .collect(Collectors.toMap(Map.Entry::getKey, e -> new LifecyclePolicyMetadata(e.getValue(), Collections.emptyMap(), 1, 1)));
+            .collect(Collectors.toMap(Map.Entry::getKey, e -> new LifecyclePolicyMetadata(e.getValue(), Map.of(), 1, 1)));
         IndexLifecycleMetadata ilmMeta = new IndexLifecycleMetadata(existingILMMeta, OperationMode.RUNNING);
 
         return ClusterState.builder(new ClusterName("test"))

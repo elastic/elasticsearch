@@ -29,6 +29,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -222,17 +223,24 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
     @Override
     protected boolean isUpgradeRequired(LifecyclePolicy currentPolicy, LifecyclePolicy newPolicy) {
         try {
-            return getVersion(currentPolicy) < getVersion(newPolicy);
-        } catch (NumberFormatException ex) {
-            logger.warn("Invalid version for profiling lifecycle policy.", ex);
+            return getVersion(currentPolicy, "current") < getVersion(newPolicy, "new");
+        } catch (IllegalArgumentException ex) {
+            logger.warn("Cannot determine whether lifecycle policy upgrade is required.", ex);
             // don't attempt an upgrade on invalid data
             return false;
         }
     }
 
-    private int getVersion(LifecyclePolicy policy) {
+    private int getVersion(LifecyclePolicy policy, String logicalVersion) {
         Map<String, Object> meta = policy.getMetadata();
-        return meta != null ? Integer.parseInt(meta.getOrDefault("version", Integer.MIN_VALUE).toString()) : Integer.MIN_VALUE;
+        try {
+            return meta != null ? Integer.parseInt(meta.getOrDefault("version", Integer.MIN_VALUE).toString()) : Integer.MIN_VALUE;
+        } catch (NumberFormatException ex) {
+            throw new IllegalArgumentException(
+                String.format(Locale.ROOT, "Invalid version metadata for %s lifecycle policy [%s]", logicalVersion, policy.getName()),
+                ex
+            );
+        }
     }
 
     public static boolean areAllTemplatesCreated(ClusterState state) {

@@ -37,6 +37,7 @@ import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -100,6 +101,17 @@ public class CppLogMessageHandler implements Closeable {
      * InputStream throws an exception.
      */
     public void tailStream() throws IOException {
+        tailStream(msg -> {});
+    }
+
+    /**
+     * The same as {@link #tailStream()} but the {@code specialErrorHandler} will receive
+     * all error and fatal messages.
+     *
+     * @param specialErrorHandler For special processing of error and above messages
+     * @throws IOException On input stream error
+     */
+    public void tailStream(Consumer<CppLogMessage> specialErrorHandler) throws IOException {
         XContent xContent = XContentFactory.xContent(XContentType.JSON);
         BytesReference bytesRef = null;
         try {
@@ -110,7 +122,7 @@ public class CppLogMessageHandler implements Closeable {
                 } else {
                     bytesRef = CompositeBytesReference.of(bytesRef, new BytesArray(readBuf, 0, bytesRead));
                 }
-                bytesRef = parseMessages(xContent, bytesRef);
+                bytesRef = parseMessages(xContent, bytesRef, specialErrorHandler);
                 readBuf = new byte[readBufSize];
             }
         } finally {
@@ -123,7 +135,7 @@ public class CppLogMessageHandler implements Closeable {
 
             // if the process crashed, a non-delimited JSON string might still be in the pipe
             if (bytesRef != null) {
-                parseMessage(xContent, bytesRef);
+                parseMessage(xContent, bytesRef, specialErrorHandler);
             }
         }
     }
@@ -235,7 +247,7 @@ public class CppLogMessageHandler implements Closeable {
         return errors.toString();
     }
 
-    private BytesReference parseMessages(XContent xContent, BytesReference bytesRef) {
+    private BytesReference parseMessages(XContent xContent, BytesReference bytesRef, Consumer<CppLogMessage> specialErrorHandler) {
         byte marker = xContent.streamSeparator();
         int from = 0;
         while (true) {
@@ -246,7 +258,7 @@ public class CppLogMessageHandler implements Closeable {
             }
             // Ignore blank lines
             if (nextMarker > from) {
-                parseMessage(xContent, bytesRef.slice(from, nextMarker - from));
+                parseMessage(xContent, bytesRef.slice(from, nextMarker - from), specialErrorHandler);
             }
             from = nextMarker + 1;
             if (from < bytesRef.length() && bytesRef.get(from) == (byte) 0) {
@@ -262,7 +274,7 @@ public class CppLogMessageHandler implements Closeable {
         return bytesRef.slice(from, bytesRef.length() - from);
     }
 
-    private void parseMessage(XContent xContent, BytesReference bytesRef) {
+    private void parseMessage(XContent xContent, BytesReference bytesRef, Consumer<CppLogMessage> specialErrorHandler) {
         try (
             InputStream stream = bytesRef.streamInput();
             XContentParser parser = xContent.createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)
@@ -275,6 +287,7 @@ public class CppLogMessageHandler implements Closeable {
             } else if (level.isMoreSpecificThan(Level.ERROR)) {
                 // Keep the last few error messages to report if the process dies
                 storeError(msg.getMessage());
+                specialErrorHandler.accept(msg);
                 if (level.isMoreSpecificThan(Level.FATAL)) {
                     seenFatalError = true;
                 }

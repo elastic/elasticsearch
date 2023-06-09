@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.ml.inference.pytorch.PriorityProcessWorkerExecutorService;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchProcessFactory;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchResultProcessor;
+import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
 import org.junit.After;
 import org.junit.Before;
 
@@ -77,7 +78,8 @@ public class DeploymentManagerTests extends ESTestCase {
             mock(NamedXContentRegistry.class),
             tp,
             mock(PyTorchProcessFactory.class),
-            10
+            10,
+            mock(InferenceAuditor.class)
         );
 
         PriorityProcessWorkerExecutorService priorityExecutorService = new PriorityProcessWorkerExecutorService(

@@ -951,7 +951,8 @@ public class MachineLearning extends Plugin
                 NativeController nativeController = NativeController.makeNativeController(
                     clusterService.getNodeName(),
                     environment,
-                    xContentRegistry
+                    xContentRegistry,
+                    systemAuditor
                 );
                 autodetectProcessFactory = new NativeAutodetectProcessFactory(
                     environment,
@@ -1075,7 +1076,14 @@ public class MachineLearning extends Plugin
         );
         this.modelLoadingService.set(modelLoadingService);
         this.deploymentManager.set(
-            new DeploymentManager(client, xContentRegistry, threadPool, pyTorchProcessFactory, getMaxModelDeploymentsPerNode())
+            new DeploymentManager(
+                client,
+                xContentRegistry,
+                threadPool,
+                pyTorchProcessFactory,
+                getMaxModelDeploymentsPerNode(),
+                inferenceAuditor
+            )
         );
 
         // Data frame analytics components

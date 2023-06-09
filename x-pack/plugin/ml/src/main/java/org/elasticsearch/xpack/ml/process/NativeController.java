@@ -12,6 +12,8 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xpack.ml.notifications.SystemAuditor;
+import org.elasticsearch.xpack.ml.process.logging.CppLogMessage;
 import org.elasticsearch.xpack.ml.process.logging.CppLogMessageHandler;
 import org.elasticsearch.xpack.ml.utils.NamedPipeHelper;
 
@@ -60,14 +62,39 @@ public class NativeController implements MlController {
     // a command.
     private final SetOnce<Iterator<ControllerResponse>> responseIteratorHolder = new SetOnce<>();
     private int nextCommandId = 1; // synchronized on commandStream so doesn't need to be volatile
+    private final SystemAuditor auditor;
 
-    public static NativeController makeNativeController(String localNodeName, Environment env, NamedXContentRegistry xContentRegistry)
-        throws IOException {
-        return new NativeController(localNodeName, env, new NamedPipeHelper(), xContentRegistry);
+    public static NativeController makeNativeController(
+        String localNodeName,
+        Environment env,
+        NamedXContentRegistry xContentRegistry,
+        SystemAuditor auditor
+    ) throws IOException {
+        var controller = new NativeController(localNodeName, env, new NamedPipeHelper(), xContentRegistry, auditor);
+        controller.tailLogsInThread(controller.cppLogHandler);
+        return controller;
     }
 
-    NativeController(String localNodeName, Environment env, NamedPipeHelper namedPipeHelper, NamedXContentRegistry xContentRegistry)
-        throws IOException {
+    // package-private for tests
+    static NativeController makeNativeController(
+        String localNodeName,
+        Environment env,
+        NamedPipeHelper namedPipeHelper,
+        NamedXContentRegistry xContentRegistry,
+        SystemAuditor auditor
+    ) throws IOException {
+        var controller = new NativeController(localNodeName, env, namedPipeHelper, xContentRegistry, auditor);
+        controller.tailLogsInThread(controller.cppLogHandler);
+        return controller;
+    }
+
+    private NativeController(
+        String localNodeName,
+        Environment env,
+        NamedPipeHelper namedPipeHelper,
+        NamedXContentRegistry xContentRegistry,
+        SystemAuditor auditor
+    ) throws IOException {
         this.localNodeName = localNodeName;
         ProcessPipes processPipes = new ProcessPipes(
             env,
@@ -84,17 +111,17 @@ public class NativeController implements MlController {
         );
         processPipes.connectLogStream();
         this.cppLogHandler = processPipes.getLogStreamHandler();
-        tailLogsInThread(cppLogHandler);
         processPipes.connectOtherStreams();
         this.commandStream = new BufferedOutputStream(processPipes.getCommandStream().get());
         this.responseStream = processPipes.getProcessOutStream().get();
         this.xContentRegistry = xContentRegistry;
+        this.auditor = auditor;
     }
 
-    static void tailLogsInThread(CppLogMessageHandler cppLogHandler) {
+    private void tailLogsInThread(CppLogMessageHandler cppLogHandler) {
         final Thread logTailThread = new Thread(() -> {
             try (CppLogMessageHandler h = cppLogHandler) {
-                h.tailStream();
+                h.tailStream(this::maybeAuditError);
             } catch (IOException e) {
                 LOGGER.error("Error tailing C++ controller logs", e);
             }
@@ -106,6 +133,19 @@ public class NativeController implements MlController {
          */
         logTailThread.setDaemon(true);
         logTailThread.start();
+    }
+
+    void maybeAuditError(CppLogMessage logMessage) {
+        // An error level message containing this text is reporting
+        // the unexpected termination of a child process (autodetect,
+        // pytorch_inference, etc). This is an event worth auditing.
+        //
+        // See CDetachedProcessSpawner.cc in the ml-cpp repo for details
+        if (logMessage.getMessage().contains("Child process with PID")) {
+            // Only Error or Fatal messages will be received here
+            // log both at Error
+            auditor.error(logMessage.getMessage());
+        }
     }
 
     public long getPid() throws TimeoutException {

@@ -12,6 +12,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xpack.ml.notifications.SystemAuditor;
 import org.elasticsearch.xpack.ml.utils.NamedPipeHelper;
 
 import java.io.ByteArrayInputStream;
@@ -29,8 +30,10 @@ import java.util.concurrent.TimeoutException;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.contains;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class NativeControllerTests extends ESTestCase {
@@ -41,6 +44,12 @@ public class NativeControllerTests extends ESTestCase {
         {"logger":"controller","timestamp":1478261151445,"level":"INFO","pid":10211,"thread":"0x7fff7d2a8000",\
         "message":"controller (64 bit): Version 6.0.0-alpha1-SNAPSHOT (Build a0d6ef8819418c) Copyright (c) 2017 Elasticsearch BV",\
         "method":"main","file":"Main.cc","line":123}
+        """;
+
+    private static final String CHILD_TERMINATED_MESSAGE = """
+        {"logger":"controller","timestamp":1686327232000,"level":"ERROR","pid":10212,"thread":"0x7fff7d2a8000",\
+        "message":"Child process with PID 10210 was terminated by signal 9",\
+        "method":"checkForDeadProcesses","file":"CDetachedProcessSpawner.cc","line":193}
         """;
 
     private final Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
@@ -67,12 +76,14 @@ public class NativeControllerTests extends ESTestCase {
         command.add("--arg2=42");
         command.add("--arg3=something with spaces");
 
-        NativeController nativeController = new NativeController(
+        NativeController nativeController = NativeController.makeNativeController(
             NODE_NAME,
             TestEnvironment.newEnvironment(settings),
             namedPipeHelper,
-            mock(NamedXContentRegistry.class)
+            mock(NamedXContentRegistry.class),
+            mock(SystemAuditor.class)
         );
+
         nativeController.startProcess(command);
 
         assertEquals(
@@ -105,11 +116,12 @@ public class NativeControllerTests extends ESTestCase {
         command.add("--arg2=666");
         command.add("--arg3=something different with spaces");
 
-        NativeController nativeController = new NativeController(
+        NativeController nativeController = NativeController.makeNativeController(
             NODE_NAME,
             TestEnvironment.newEnvironment(settings),
             namedPipeHelper,
-            mock(NamedXContentRegistry.class)
+            mock(NamedXContentRegistry.class),
+            mock(SystemAuditor.class)
         );
         IOException e = expectThrows(IOException.class, () -> nativeController.startProcess(command));
 
@@ -132,11 +144,12 @@ public class NativeControllerTests extends ESTestCase {
         ByteArrayInputStream outputStream = new ByteArrayInputStream("[]".getBytes(StandardCharsets.UTF_8));
         when(namedPipeHelper.openNamedPipeInputStream(contains("output"), any(Duration.class))).thenReturn(outputStream);
 
-        NativeController nativeController = new NativeController(
+        NativeController nativeController = NativeController.makeNativeController(
             NODE_NAME,
             TestEnvironment.newEnvironment(settings),
             namedPipeHelper,
-            mock(NamedXContentRegistry.class)
+            mock(NamedXContentRegistry.class),
+            mock(SystemAuditor.class)
         );
         Map<String, Object> nativeCodeInfo = nativeController.getNativeCodeInfo();
 
@@ -144,6 +157,28 @@ public class NativeControllerTests extends ESTestCase {
         assertEquals(2, nativeCodeInfo.size());
         assertEquals("6.0.0-alpha1-SNAPSHOT", nativeCodeInfo.get("version"));
         assertEquals("a0d6ef8819418c", nativeCodeInfo.get("build_hash"));
+    }
+
+    public void testChildProcessTerminatedMessageIsAudited() throws Exception {
+
+        NamedPipeHelper namedPipeHelper = mock(NamedPipeHelper.class);
+        ByteArrayInputStream logStream = new ByteArrayInputStream(CHILD_TERMINATED_MESSAGE.getBytes(StandardCharsets.UTF_8));
+        when(namedPipeHelper.openNamedPipeInputStream(contains("log"), any(Duration.class))).thenReturn(logStream);
+        ByteArrayOutputStream commandStream = new ByteArrayOutputStream();
+        when(namedPipeHelper.openNamedPipeOutputStream(contains("command"), any(Duration.class))).thenReturn(commandStream);
+        ByteArrayInputStream outputStream = new ByteArrayInputStream("[]".getBytes(StandardCharsets.UTF_8));
+        when(namedPipeHelper.openNamedPipeInputStream(contains("output"), any(Duration.class))).thenReturn(outputStream);
+
+        SystemAuditor auditor = mock(SystemAuditor.class);
+        NativeController nativeController = NativeController.makeNativeController(
+            NODE_NAME,
+            TestEnvironment.newEnvironment(settings),
+            namedPipeHelper,
+            mock(NamedXContentRegistry.class),
+            auditor
+        );
+
+        assertBusy(() -> verify(auditor).error(eq("Child process with PID 10210 was terminated by signal 9")));
     }
 
     public void testControllerDeath() throws Exception {
@@ -156,11 +191,12 @@ public class NativeControllerTests extends ESTestCase {
         ByteArrayInputStream outputStream = new ByteArrayInputStream("[".getBytes(StandardCharsets.UTF_8));
         when(namedPipeHelper.openNamedPipeInputStream(contains("output"), any(Duration.class))).thenReturn(outputStream);
 
-        NativeController nativeController = new NativeController(
+        NativeController nativeController = NativeController.makeNativeController(
             NODE_NAME,
             TestEnvironment.newEnvironment(settings),
             namedPipeHelper,
-            mock(NamedXContentRegistry.class)
+            mock(NamedXContentRegistry.class),
+            mock(SystemAuditor.class)
         );
 
         // As soon as the log stream ends startProcess should think the native controller has died

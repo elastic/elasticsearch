@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchProcessFactor
 import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchResultProcessor;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchStateStreamer;
 import org.elasticsearch.xpack.ml.inference.pytorch.results.ThreadSettings;
+import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -79,13 +80,15 @@ public class DeploymentManager {
     private final ThreadPool threadPool;
     private final ConcurrentMap<Long, ProcessContext> processContextByAllocation = new ConcurrentHashMap<>();
     private final int maxProcesses;
+    private final InferenceAuditor auditor;
 
     public DeploymentManager(
         Client client,
         NamedXContentRegistry xContentRegistry,
         ThreadPool threadPool,
         PyTorchProcessFactory pyTorchProcessFactory,
-        int maxProcesses
+        int maxProcesses,
+        InferenceAuditor auditor
     ) {
         this.client = Objects.requireNonNull(client);
         this.xContentRegistry = Objects.requireNonNull(xContentRegistry);
@@ -94,6 +97,7 @@ public class DeploymentManager {
         this.executorServiceForDeployment = threadPool.executor(UTILITY_THREAD_POOL_NAME);
         this.executorServiceForProcess = threadPool.executor(MachineLearning.NATIVE_INFERENCE_COMMS_THREAD_POOL_NAME);
         this.maxProcesses = maxProcesses;
+        this.auditor = Objects.requireNonNull(auditor);
     }
 
     public Optional<ModelStats> getStats(TrainedModelDeploymentTask task) {
@@ -465,7 +469,8 @@ public class DeploymentManager {
         }
 
         private void onProcessCrash(String reason) {
-            logger.error("[{}] inference process crashed due to reason [{}]", task.getDeploymentId(), reason);
+            String msg = "[" + task.getDeploymentId() + "] inference process crashed due to reason [" + task.getDeploymentId() + "]";
+            logger.error(msg);
             processContextByAllocation.remove(task.getId());
             isStopped = true;
             resultProcessor.stop();
@@ -475,6 +480,7 @@ public class DeploymentManager {
                 nlpTaskProcessor.get().close();
             }
             task.setFailed("inference process crashed due to reason [" + reason + "]");
+            auditor.error(task.getDeploymentId(), msg);
         }
 
         void loadModel(TrainedModelLocation modelLocation, ActionListener<Boolean> listener) {

@@ -304,11 +304,13 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         // This should trigger the database download.
         Setting<String> pipelineSetting = randomFrom(IndexSettings.FINAL_PIPELINE, IndexSettings.DEFAULT_PIPELINE);
         String indexIdentifier = randomIdentifier();
-        assertAcked(client().admin()
-            .indices()
-            .prepareCreate(indexIdentifier)
-            .setSettings(Settings.builder().put(pipelineSetting.getKey(), pipelineId))
-            .get());
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate(indexIdentifier)
+                .setSettings(Settings.builder().put(pipelineSetting.getKey(), pipelineId))
+                .get()
+        );
 
         assertBusy(() -> {
             GeoIpTaskState state = getGeoIpTaskState();

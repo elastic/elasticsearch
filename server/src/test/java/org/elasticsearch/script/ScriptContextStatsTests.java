@@ -19,7 +19,7 @@ public class ScriptContextStatsTests extends ESTestCase {
             var second = randomScriptContextStats();
 
             var e = expectThrows(AssertionError.class, () -> ScriptContextStats.merge(first, second));
-            assertEquals(e.getMessage(), "To merge 2 ScriptContextStats both of them must to have the same context.");
+            assertEquals(e.getMessage(), "To merge 2 ScriptContextStats both of them must have the same context.");
         }
         {
             var context = randomAlphaOfLength(30);

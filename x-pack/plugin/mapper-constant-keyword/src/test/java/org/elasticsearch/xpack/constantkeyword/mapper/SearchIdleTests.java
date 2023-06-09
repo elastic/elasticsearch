@@ -357,9 +357,10 @@ public class SearchIdleTests extends ESSingleNodeTestCase {
         assertTrue(refreshStatsBefore.containsAll(refreshStatsAfter));
     }
 
-    private static boolean canMatch(SearchService service, IndexShard indexShard, SearchRequest matchingSearchRequest) throws IOException {
+    private static boolean canMatch(final SearchService service, final IndexShard indexShard, final SearchRequest request)
+        throws IOException {
         return service.canMatch(
-            new ShardSearchRequest(OriginalIndices.NONE, matchingSearchRequest, indexShard.shardId(), 0, 1, AliasFilter.EMPTY, 1f, -1, null)
+            new ShardSearchRequest(OriginalIndices.NONE, request, indexShard.shardId(), 0, 1, AliasFilter.EMPTY, 1f, -1, null)
         ).canMatch();
     }
 }

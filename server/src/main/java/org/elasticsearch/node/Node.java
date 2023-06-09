@@ -128,7 +128,7 @@ import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.ShardLimitValidator;
-import org.elasticsearch.indices.SystemIndexManager;
+import org.elasticsearch.indices.SystemIndexMappingUpdateService;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.breaker.BreakerSettings;
@@ -240,6 +240,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
@@ -657,7 +658,7 @@ public class Node implements Closeable {
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
             if (DiscoveryNode.isMasterNode(settings)) {
-                clusterService.addListener(new SystemIndexManager(systemIndices, client));
+                clusterService.addListener(new SystemIndexMappingUpdateService(systemIndices, client));
                 clusterService.addListener(new TransportVersionsFixupListener(clusterService, client.admin().cluster(), threadPool));
             }
 
@@ -1699,7 +1700,20 @@ public class Node implements Closeable {
      * logic should use Node Shutdown, see {@link org.elasticsearch.cluster.metadata.NodesShutdownMetadata}.
      */
     public void prepareForClose() {
+        HttpServerTransport httpServerTransport = injector.getInstance(HttpServerTransport.class);
+        FutureTask<Void> stopper = new FutureTask<>(() -> {
+            httpServerTransport.stop();
+            return null;
+        });
+        new Thread(stopper, "http-server-transport-stop").start();
+
         Optional.ofNullable(terminationHandler.get()).ifPresent(TerminationHandler::handleTermination);
+
+        try {
+            stopper.get();
+        } catch (Exception e) {
+            logger.warn("unexpected exception while waiting for http server to close", e);
+        }
     }
 
     /**

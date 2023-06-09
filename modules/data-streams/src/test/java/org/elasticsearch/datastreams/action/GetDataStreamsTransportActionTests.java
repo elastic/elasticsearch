@@ -190,7 +190,6 @@ public class GetDataStreamsTransportActionTests extends ESTestCase {
         assertThat(response.getDataStreams().get(1).getTimeSeries().temporalRanges(), contains(new Tuple<>(sixHoursAgo, twoHoursAhead)));
     }
 
-
     public void testGetTimeSeriesMixedDataStream() {
         Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
         String dataStream1 = "ds-1";
@@ -221,6 +220,10 @@ public class GetDataStreamsTransportActionTests extends ESTestCase {
             systemIndices,
             ClusterSettings.createBuiltInClusterSettings()
         );
+
+        var name1 = DataStream.getDefaultBackingIndexName("ds-1", 1, now.toEpochMilli());
+        var name2 = DataStream.getDefaultBackingIndexName("ds-1", 2, now.toEpochMilli());
+        var name3 = DataStream.getDefaultBackingIndexName("ds-1", 3, now.toEpochMilli());
         assertThat(
             response.getDataStreams(),
             contains(
@@ -228,7 +231,7 @@ public class GetDataStreamsTransportActionTests extends ESTestCase {
                     transformedMatch(d -> d.getDataStream().getName(), equalTo(dataStream1)),
                     transformedMatch(
                         d -> d.getDataStream().getIndices().stream().map(Index::getName).toList(),
-                        contains(".ds-ds-1-2023.06.06-000001", ".ds-ds-1-2023.06.06-000002", ".ds-ds-1-2023.06.06-000003")
+                        contains(name1, name2, name3)
                     ),
                     transformedMatch(d -> d.getTimeSeries().temporalRanges(), contains(new Tuple<>(twoHoursAgo, twoHoursAhead)))
                 )

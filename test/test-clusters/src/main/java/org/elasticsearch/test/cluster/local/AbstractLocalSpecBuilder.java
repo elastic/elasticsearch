@@ -178,6 +178,12 @@ public abstract class AbstractLocalSpecBuilder<T extends LocalSpecBuilder<?>> im
         return cast(this);
     }
 
+    @Override
+    public T keystore(SettingsProvider settingsProvider) {
+        this.keystoreProviders.add(settingsProvider);
+        return cast(this);
+    }
+
     public List<SettingsProvider> getKeystoreProviders() {
         return inherit(() -> parent.getKeystoreProviders(), keystoreProviders);
     }

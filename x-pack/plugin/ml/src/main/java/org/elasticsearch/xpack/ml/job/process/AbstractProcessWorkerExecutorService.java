@@ -117,7 +117,18 @@ public abstract class AbstractProcessWorkerExecutorService<T extends Runnable> e
         }
     }
 
-    protected synchronized void notifyQueueRunnables() {
+    /**
+     * Drains the queue of runnables and notifies each as either
+     * a rejected execution or failure.
+     *
+     * Although public this method should be used with caution.
+     * It should only be called _after_ the worker has shutdown.
+     *
+     * The method is synchronised to protect concurrent calls.
+     */
+    public synchronized void notifyQueueRunnables() {
+        assert isShutdown() : "Queue runnables should only be drained and notified after the worker is shutdown";
+
         if (queue.isEmpty() == false) {
             List<Runnable> notExecuted = new ArrayList<>();
             queue.drainTo(notExecuted);

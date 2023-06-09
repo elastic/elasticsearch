@@ -108,6 +108,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         if (randomBoolean()) {
             result.fuzzyTranspositions(randomBoolean());
         }
+        result.type(randomFrom(MultiMatchQueryBuilder.Type.values()));
         return result;
     }
 
@@ -154,6 +155,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
             FuzzyQuery.defaultTranspositions,
             SimpleQueryStringBuilder.DEFAULT_FUZZY_TRANSPOSITIONS
         );
+        assertEquals(QueryStringQueryBuilder.DEFAULT_TYPE, qb.type());
     }
 
     public void testDefaultNullComplainFlags() {
@@ -179,10 +181,16 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
     public void testDefaultNullComplainOp() {
         SimpleQueryStringBuilder qb = new SimpleQueryStringBuilder("The quick brown fox.");
         qb.defaultOperator(null);
+        qb.type(null);
         assertEquals(
             "Setting operator to null should result in returning to default value.",
             SimpleQueryStringBuilder.DEFAULT_OPERATOR,
             qb.defaultOperator()
+        );
+        assertEquals(
+            "Setting operator to null should result in returning to default value.",
+            SimpleQueryStringBuilder.DEFAULT_TYPE,
+            qb.type()
         );
     }
 
@@ -345,7 +353,8 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
             {
               "simple_query_string" : {
                 "query" : "\\"fried eggs\\" +(eggplant | potato) -frittata",
-                "fields" : [ "body^5.0" ]
+                "fields" : [ "body^5.0" ],
+                "type" : "best_fields"
               }
             }""";
 
@@ -357,6 +366,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         assertEquals(json, 0, parsed.fuzzyPrefixLength());
         assertEquals(json, 50, parsed.fuzzyMaxExpansions());
         assertEquals(json, true, parsed.fuzzyTranspositions());
+        assertEquals(json, MultiMatchQueryBuilder.Type.BEST_FIELDS, parsed.type());
     }
 
     public void testFromJson() throws IOException {
@@ -375,7 +385,8 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
                 "fuzzy_prefix_length" : 1,
                 "fuzzy_max_expansions" : 5,
                 "fuzzy_transpositions" : false,
-                "boost" : 2.0
+                "boost" : 2.0,
+                "type" : "cross_fields"
               }
             }""";
 
@@ -389,6 +400,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         assertEquals(json, 1, parsed.fuzzyPrefixLength());
         assertEquals(json, 5, parsed.fuzzyMaxExpansions());
         assertEquals(json, false, parsed.fuzzyTranspositions());
+        assertEquals(json, MultiMatchQueryBuilder.Type.CROSS_FIELDS, parsed.type());
     }
 
     public void testMinimumShouldMatch() throws IOException {

@@ -1,5 +1,5 @@
 pr: 96738
-summary: Ensure inference queue is cleared after shutdown
+summary: Ensure NLP model inference queue is always cleared after shutdown or failure
 area: Machine Learning
 type: bug
 issues: []

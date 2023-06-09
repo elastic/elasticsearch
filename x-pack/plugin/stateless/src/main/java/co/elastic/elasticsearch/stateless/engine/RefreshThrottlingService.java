@@ -69,28 +69,42 @@ public class RefreshThrottlingService extends AbstractLifecycleComponent {
             final long hardwareFactorBytes = NODE_BUDGET_HARDWARE_FACTOR.getBytes();
             clusterService.addListener(event -> {
                 if (event.nodesChanged()) {
-                    final long localNodeBytes = Long.parseLong(clusterService.localNode().getAttributes().get(MEMORY_NODE_ATTR));
-                    long totalClusterBytes = 0;
-                    long totalIndexNodesBytes = 0;
+                    String localNodeMemStr = clusterService.localNode().getAttributes().get(MEMORY_NODE_ATTR);
+                    if (localNodeMemStr == null || localNodeMemStr.isEmpty()) {
+                        logger.debug("skipping updating refresh throttling multiplier since local node does not have a memory attribute");
+                    } else {
+                        final long localNodeBytes = Long.parseLong(localNodeMemStr);
+                        long totalClusterBytes = 0;
+                        long totalIndexNodesBytes = 0;
 
-                    for (var node : event.state().nodes()) {
-                        long nodeBytes = Long.parseLong(node.getAttributes().get(MEMORY_NODE_ATTR));
-                        totalClusterBytes += nodeBytes;
-                        if (node.getRoles().contains(DiscoveryNodeRole.INDEX_ROLE)) {
-                            totalIndexNodesBytes += nodeBytes;
+                        for (var node : event.state().nodes()) {
+                            String nodeMemStr = node.getAttributes().get(MEMORY_NODE_ATTR);
+                            if (nodeMemStr == null || nodeMemStr.isEmpty()) {
+                                logger.debug(
+                                    "skipping node [{}] when updating refresh throttling multiplier since it does not "
+                                        + "have a memory attribute",
+                                    node
+                                );
+                            } else {
+                                long nodeBytes = Long.parseLong(nodeMemStr);
+                                totalClusterBytes += nodeBytes;
+                                if (node.getRoles().contains(DiscoveryNodeRole.INDEX_ROLE)) {
+                                    totalIndexNodesBytes += nodeBytes;
+                                }
+                            }
                         }
+
+                        assert totalIndexNodesBytes <= totalClusterBytes
+                            : "index nodes bytes " + totalIndexNodesBytes + " more than total cluster bytes " + totalClusterBytes;
+
+                        double newMultiplier = Math.max(
+                            1.0,
+                            1.0 * localNodeBytes / totalIndexNodesBytes * totalClusterBytes / hardwareFactorBytes
+                        );
+                        logger.debug("Updating multiplier for refresh throttling to [{}]", newMultiplier);
+                        systemIndicesCreditManager.setMultiplier(newMultiplier);
+                        regularIndicesCreditManager.setMultiplier(newMultiplier);
                     }
-
-                    assert totalIndexNodesBytes <= totalClusterBytes
-                        : "index nodes bytes " + totalIndexNodesBytes + " more than total cluster bytes " + totalClusterBytes;
-
-                    double newMultiplier = Math.max(
-                        1.0,
-                        1.0 * localNodeBytes / totalIndexNodesBytes * totalClusterBytes / hardwareFactorBytes
-                    );
-                    logger.debug("Updating multiplier for refresh throttling to [{}]", newMultiplier);
-                    systemIndicesCreditManager.setMultiplier(newMultiplier);
-                    regularIndicesCreditManager.setMultiplier(newMultiplier);
                 }
             });
         }

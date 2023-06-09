@@ -34,6 +34,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
 public class ShardMultiGetFomTranslogActionIT extends ESIntegTestCase {
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/96749")
     public void testShardMultiGetFromTranslog() throws Exception {
         assertAcked(
             prepareCreate("test").setSettings(

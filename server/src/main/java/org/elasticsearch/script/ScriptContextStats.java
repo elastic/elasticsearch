@@ -81,7 +81,7 @@ public record ScriptContextStats(
     }
 
     public static ScriptContextStats merge(ScriptContextStats first, ScriptContextStats second) {
-        assert first.context.equals(second.context) : "To merge 2 ScriptContextStats both of them must to have the same context.";
+        assert first.context.equals(second.context) : "To merge 2 ScriptContextStats both of them must have the same context.";
         return new ScriptContextStats(
             first.context,
             first.compilations + second.compilations,

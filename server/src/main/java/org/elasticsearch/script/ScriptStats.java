@@ -73,19 +73,19 @@ public record ScriptStats(
     }
 
     public static ScriptStats merge(ScriptStats first, ScriptStats second) {
-        var mergedContextStats = List.<ScriptContextStats>of();
+        var mergedScriptContextStats = List.<ScriptContextStats>of();
 
         if (first.contextStats.isEmpty() == false || second.contextStats.isEmpty() == false) {
-            var mapToCollectMerges = new HashMap<String, ScriptContextStats>();
+            var mapToCollectMergedStats = new HashMap<String, ScriptContextStats>();
 
-            first.contextStats.forEach(cs -> mapToCollectMerges.merge(cs.context(), cs, ScriptContextStats::merge));
-            second.contextStats.forEach(cs -> mapToCollectMerges.merge(cs.context(), cs, ScriptContextStats::merge));
+            first.contextStats.forEach(cs -> mapToCollectMergedStats.merge(cs.context(), cs, ScriptContextStats::merge));
+            second.contextStats.forEach(cs -> mapToCollectMergedStats.merge(cs.context(), cs, ScriptContextStats::merge));
 
-            mergedContextStats = new ArrayList<>(mapToCollectMerges.values());
+            mergedScriptContextStats = new ArrayList<>(mapToCollectMergedStats.values());
         }
 
         return new ScriptStats(
-            mergedContextStats,
+            mergedScriptContextStats,
             first.compilations + second.compilations,
             first.cacheEvictions + second.cacheEvictions,
             first.compilationLimitTriggered + second.compilationLimitTriggered,

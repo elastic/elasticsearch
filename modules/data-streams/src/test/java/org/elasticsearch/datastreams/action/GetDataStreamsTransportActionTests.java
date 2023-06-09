@@ -224,18 +224,12 @@ public class GetDataStreamsTransportActionTests extends ESTestCase {
         var name1 = DataStream.getDefaultBackingIndexName("ds-1", 1, now.toEpochMilli());
         var name2 = DataStream.getDefaultBackingIndexName("ds-1", 2, now.toEpochMilli());
         var name3 = DataStream.getDefaultBackingIndexName("ds-1", 3, now.toEpochMilli());
+        assertThat(response.getDataStreams(), hasSize(1));
+        assertThat(response.getDataStreams().get(0).getDataStream().getName(), equalTo(dataStream1));
+        assertThat(response.getDataStreams().get(0).getTimeSeries().temporalRanges(), contains(new Tuple<>(twoHoursAgo, twoHoursAhead)));
         assertThat(
-            response.getDataStreams(),
-            contains(
-                allOf(
-                    transformedMatch(d -> d.getDataStream().getName(), equalTo(dataStream1)),
-                    transformedMatch(
-                        d -> d.getDataStream().getIndices().stream().map(Index::getName).toList(),
-                        contains(name1, name2, name3)
-                    ),
-                    transformedMatch(d -> d.getTimeSeries().temporalRanges(), contains(new Tuple<>(twoHoursAgo, twoHoursAhead)))
-                )
-            )
+            response.getDataStreams().get(0).getDataStream().getIndices().stream().map(Index::getName).toList(),
+            contains(name1, name2, name3)
         );
     }
 }

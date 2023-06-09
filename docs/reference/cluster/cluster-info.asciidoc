@@ -29,7 +29,7 @@ You can use the Cluster Info API to retrieve information of a cluster.
 
 
 `<target>`::
-(Optional, string) Limits the information returned to the specific `target`.
+(String) Limits the information returned to the specific `target`.
 A comma-separated list of the following options:
 +
 --

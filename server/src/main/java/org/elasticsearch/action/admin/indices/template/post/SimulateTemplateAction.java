@@ -14,7 +14,6 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
-import org.elasticsearch.cluster.metadata.DataLifecycle;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
@@ -64,7 +63,7 @@ public class SimulateTemplateAction extends ActionType<SimulateIndexTemplateResp
             super(in);
             templateName = in.readOptionalString();
             indexTemplateRequest = in.readOptionalWriteable(PutComposableIndexTemplateAction.Request::new);
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0) && DataLifecycle.isEnabled()) {
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_007)) {
                 includeDefaults = in.readBoolean();
             }
         }
@@ -74,7 +73,7 @@ public class SimulateTemplateAction extends ActionType<SimulateIndexTemplateResp
             super.writeTo(out);
             out.writeOptionalString(templateName);
             out.writeOptionalWriteable(indexTemplateRequest);
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0) && DataLifecycle.isEnabled()) {
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_007)) {
                 out.writeBoolean(includeDefaults);
             }
         }

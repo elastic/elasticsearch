@@ -287,6 +287,7 @@ import org.elasticsearch.xpack.security.authz.interceptor.SearchRequestCacheDisa
 import org.elasticsearch.xpack.security.authz.interceptor.SearchRequestInterceptor;
 import org.elasticsearch.xpack.security.authz.interceptor.ShardSearchRequestInterceptor;
 import org.elasticsearch.xpack.security.authz.interceptor.UpdateRequestInterceptor;
+import org.elasticsearch.xpack.security.authz.restriction.WorkflowService;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.authz.store.DeprecationRoleDescriptorConsumer;
 import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
@@ -545,6 +546,8 @@ public class Security extends Plugin
 
     private final SetOnce<ReservedRoleMappingAction> reservedRoleMappingAction = new SetOnce<>();
 
+    private final SetOnce<WorkflowService> workflowService = new SetOnce<>();
+
     public Security(Settings settings) {
         this(settings, Collections.emptyList());
     }
@@ -674,6 +677,8 @@ public class Security extends Plugin
         List<Object> components = new ArrayList<>();
         securityContext.set(new SecurityContext(settings, threadPool.getThreadContext()));
         components.add(securityContext.get());
+
+        workflowService.set(new WorkflowService());
 
         final RestrictedIndices restrictedIndices = new RestrictedIndices(expressionResolver);
 
@@ -1788,7 +1793,14 @@ public class Security extends Plugin
 
     @Override
     public UnaryOperator<RestHandler> getRestHandlerInterceptor(ThreadContext threadContext) {
-        return handler -> new SecurityRestFilter(enabled, threadContext, secondayAuthc.get(), auditTrailService.get(), handler);
+        return handler -> new SecurityRestFilter(
+            enabled,
+            threadContext,
+            secondayAuthc.get(),
+            auditTrailService.get(),
+            workflowService.get(),
+            handler
+        );
     }
 
     @Override

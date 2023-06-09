@@ -16,7 +16,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpRequest;
-import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestChannel;
@@ -94,7 +93,7 @@ public class SecurityRestFilterTests extends ESTestCase {
             threadContext,
             secondaryAuthenticator,
             new AuditTrailService(null, null),
-            new WorkflowService(MockLicenseState.createMock()),
+            new WorkflowService(),
             restHandler
         );
     }
@@ -220,7 +219,7 @@ public class SecurityRestFilterTests extends ESTestCase {
             threadContext,
             secondaryAuthenticator,
             new AuditTrailService(auditTrail, licenseState),
-            new WorkflowService(licenseState),
+            new WorkflowService(),
             restHandler
         );
 
@@ -290,18 +289,19 @@ public class SecurityRestFilterTests extends ESTestCase {
             when(restHandler.getConcreteRestHandler()).thenReturn(new TestBaseRestHandler(randomFrom(workflow.allowedRestHandlers())));
         }
 
+        final WorkflowService workflowService = new WorkflowService();
         filter = new SecurityRestFilter(
             true,
             threadContext,
             secondaryAuthenticator,
             new AuditTrailService(null, null),
-            new WorkflowService(MockLicenseState.createMock()),
+            workflowService,
             restHandler
         );
 
         RestRequest request = mock(RestRequest.class);
         filter.handleRequest(request, channel, null);
-        assertThat(threadContext.getHeader(WorkflowService.WORKFLOW_HEADER), equalTo(workflow.name()));
+        assertThat(workflowService.readWorkflowFromThreadContext(threadContext), equalTo(workflow));
     }
 
     public void testProcessWithoutWorkflow() throws Exception {
@@ -315,18 +315,19 @@ public class SecurityRestFilterTests extends ESTestCase {
             restHandler = Mockito.mock(RestHandler.class);
         }
 
+        final WorkflowService workflowService = new WorkflowService();
         filter = new SecurityRestFilter(
             true,
             threadContext,
             secondaryAuthenticator,
             new AuditTrailService(null, null),
-            new WorkflowService(MockLicenseState.createMock()),
+            workflowService,
             restHandler
         );
 
         RestRequest request = mock(RestRequest.class);
         filter.handleRequest(request, channel, null);
-        assertThat(threadContext.getHeader(WorkflowService.WORKFLOW_HEADER), nullValue());
+        assertThat(workflowService.readWorkflowFromThreadContext(threadContext), nullValue());
     }
 
     private interface FilteredRestHandler extends RestHandler, RestRequestFilter {}

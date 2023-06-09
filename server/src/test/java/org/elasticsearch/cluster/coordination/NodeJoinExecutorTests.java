@@ -23,8 +23,8 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
@@ -43,7 +43,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
@@ -107,10 +106,8 @@ public class NodeJoinExecutorTests extends ESTestCase {
     public void testPreventJoinClusterWithUnsupportedNodeVersions() {
         DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
         final Version version = randomCompatibleVersion(random(), Version.CURRENT);
-        builder.add(TestDiscoveryNode.create(UUIDs.base64UUID(), buildNewFakeTransportAddress(), version));
-        builder.add(
-            TestDiscoveryNode.create(UUIDs.base64UUID(), buildNewFakeTransportAddress(), randomCompatibleVersion(random(), version))
-        );
+        builder.add(DiscoveryNodeUtils.builder(UUIDs.base64UUID()).version(version).build());
+        builder.add(DiscoveryNodeUtils.builder(UUIDs.base64UUID()).version(randomCompatibleVersion(random(), version)).build());
         DiscoveryNodes nodes = builder.build();
 
         final Version maxNodeVersion = nodes.getMaxNodeVersion();
@@ -221,9 +218,9 @@ public class NodeJoinExecutorTests extends ESTestCase {
 
         final NodeJoinExecutor executor = new NodeJoinExecutor(allocationService, rerouteService);
 
-        final DiscoveryNode masterNode = TestDiscoveryNode.create(UUIDs.base64UUID());
+        final DiscoveryNode masterNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
 
-        final DiscoveryNode actualNode = TestDiscoveryNode.create(UUIDs.base64UUID());
+        final DiscoveryNode actualNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
         final DiscoveryNode bwcNode = new DiscoveryNode(
             actualNode.getName(),
             actualNode.getId(),
@@ -255,7 +252,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
         final long executorTerm = randomLongBetween(0L, Long.MAX_VALUE - 1);
         final var executor = new NodeJoinExecutor(allocationService, rerouteService);
 
-        final var masterNode = TestDiscoveryNode.create(UUIDs.randomBase64UUID(random()));
+        final var masterNode = DiscoveryNodeUtils.create(UUIDs.randomBase64UUID(random()));
         final var clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(DiscoveryNodes.builder().add(masterNode).localNodeId(masterNode.getId()).masterNodeId(masterNode.getId()).build())
             .metadata(
@@ -298,8 +295,8 @@ public class NodeJoinExecutorTests extends ESTestCase {
         final long executorTerm = randomNonNegativeLong();
         final var executor = new NodeJoinExecutor(allocationService, rerouteService);
 
-        final var masterNode = TestDiscoveryNode.create(UUIDs.randomBase64UUID(random()));
-        final var localNode = TestDiscoveryNode.create(UUIDs.randomBase64UUID(random()));
+        final var masterNode = DiscoveryNodeUtils.create(UUIDs.randomBase64UUID(random()));
+        final var localNode = DiscoveryNodeUtils.create(UUIDs.randomBase64UUID(random()));
         final var clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(
                 DiscoveryNodes.builder()
@@ -349,7 +346,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
         final long executorTerm = randomNonNegativeLong();
         final var executor = new NodeJoinExecutor(allocationService, rerouteService);
 
-        final var masterNode = TestDiscoveryNode.create(UUIDs.base64UUID());
+        final var masterNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
         final var clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(DiscoveryNodes.builder().add(masterNode).localNodeId(masterNode.getId()).build())
             .metadata(
@@ -381,8 +378,8 @@ public class NodeJoinExecutorTests extends ESTestCase {
         final long executorTerm = randomLongBetween(1, Long.MAX_VALUE);
         final var executor = new NodeJoinExecutor(allocationService, rerouteService);
 
-        final var masterNode = TestDiscoveryNode.create(UUIDs.randomBase64UUID(random()));
-        final var otherNodeOld = TestDiscoveryNode.create(UUIDs.randomBase64UUID(random()));
+        final var masterNode = DiscoveryNodeUtils.create(UUIDs.randomBase64UUID(random()));
+        final var otherNodeOld = DiscoveryNodeUtils.create(UUIDs.randomBase64UUID(random()));
         final var otherNodeNew = new DiscoveryNode(
             otherNodeOld.getName(),
             otherNodeOld.getId(),
@@ -446,14 +443,11 @@ public class NodeJoinExecutorTests extends ESTestCase {
         final long executorTerm = randomLongBetween(1, Long.MAX_VALUE);
         final var executor = new NodeJoinExecutor(allocationService, rerouteService);
 
-        final var masterNode = TestDiscoveryNode.create(UUIDs.randomBase64UUID(random()));
-        final var otherNode = TestDiscoveryNode.create(
-            UUIDs.randomBase64UUID(random()),
-            UUIDs.randomBase64UUID(random()),
-            buildNewFakeTransportAddress(),
-            Map.of(),
-            Set.of(DiscoveryNodeRole.MASTER_ROLE)
-        );
+        final var masterNode = DiscoveryNodeUtils.create(UUIDs.randomBase64UUID(random()));
+        final var otherNode = DiscoveryNodeUtils.builder(UUIDs.randomBase64UUID(random()))
+            .name(UUIDs.randomBase64UUID(random()))
+            .roles(Set.of(DiscoveryNodeRole.MASTER_ROLE))
+            .build();
 
         var clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(DiscoveryNodes.builder().add(masterNode).localNodeId(masterNode.getId()).build())
@@ -525,7 +519,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
         final long currentTerm = randomLongBetween(100, 1000);
         final var executor = new NodeJoinExecutor(allocationService, rerouteService);
 
-        final var masterNode = TestDiscoveryNode.create(UUIDs.randomBase64UUID(random()));
+        final var masterNode = DiscoveryNodeUtils.create(UUIDs.randomBase64UUID(random()));
         final var clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(DiscoveryNodes.builder().add(masterNode).localNodeId(masterNode.getId()).masterNodeId(masterNode.getId()).build())
             .metadata(Metadata.builder().coordinationMetadata(CoordinationMetadata.builder().term(currentTerm).build()).build())
@@ -635,7 +629,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
 
         final NodeJoinExecutor executor = new NodeJoinExecutor(allocationService, rerouteService);
 
-        final DiscoveryNode masterNode = TestDiscoveryNode.create(UUIDs.base64UUID());
+        final DiscoveryNode masterNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
         final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(DiscoveryNodes.builder().add(masterNode).localNodeId(masterNode.getId()).masterNodeId(masterNode.getId()))
             .build();
@@ -646,7 +640,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
             var ignored = appender.capturing(NodeJoinExecutor.class);
             var clusterService = ClusterServiceUtils.createClusterService(clusterState, threadPool)
         ) {
-            final var node1 = TestDiscoveryNode.create(UUIDs.base64UUID());
+            final var node1 = DiscoveryNodeUtils.create(UUIDs.base64UUID());
             appender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "info message",
@@ -666,7 +660,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
             );
             appender.assertAllExpectationsMatched();
 
-            final var node2 = TestDiscoveryNode.create(UUIDs.base64UUID());
+            final var node2 = DiscoveryNodeUtils.create(UUIDs.base64UUID());
             final var testReasonWithLink = new JoinReason("test", ReferenceDocs.UNSTABLE_CLUSTER_TROUBLESHOOTING);
             appender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(

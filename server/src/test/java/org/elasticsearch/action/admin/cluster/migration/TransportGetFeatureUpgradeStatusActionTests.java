@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.indices.SystemIndexDescriptorUtils;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.test.ESTestCase;
 
@@ -64,7 +65,7 @@ public class TransportGetFeatureUpgradeStatusActionTests extends ESTestCase {
     }
 
     private static SystemIndices.Feature getFeature() {
-        SystemIndexDescriptor descriptor = new SystemIndexDescriptor(TEST_SYSTEM_INDEX_PATTERN, "descriptor for tests");
+        SystemIndexDescriptor descriptor = SystemIndexDescriptorUtils.createUnmanaged(TEST_SYSTEM_INDEX_PATTERN, "descriptor for tests");
 
         List<SystemIndexDescriptor> descriptors = new ArrayList<>();
         descriptors.add(descriptor);

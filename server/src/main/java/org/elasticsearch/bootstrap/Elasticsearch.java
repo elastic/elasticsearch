@@ -16,6 +16,7 @@ import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.filesystem.FileSystemNatives;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
@@ -24,9 +25,11 @@ import org.elasticsearch.common.network.IfConfig;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
+import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.jdk.JarHell;
 import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.monitor.jvm.JvmInfo;
@@ -178,12 +181,13 @@ class Elasticsearch {
         // Log ifconfig output before SecurityManager is installed
         IfConfig.logIfNecessary();
 
-        try {
+        ensureInitialized(
             // ReferenceDocs class does nontrivial static initialization which should always succeed but load it now (before SM) to be sure
-            MethodHandles.publicLookup().ensureInitialized(ReferenceDocs.class);
-        } catch (IllegalAccessException unexpected) {
-            throw new AssertionError(unexpected);
-        }
+            ReferenceDocs.class,
+            // The following classes use MethodHandles.lookup during initialization, load them now (before SM) to be sure they succeed
+            AbstractRefCounted.class,
+            SubscribableListener.class
+        );
 
         // install SM after natives, shutdown hooks, etc.
         org.elasticsearch.bootstrap.Security.configure(
@@ -191,6 +195,16 @@ class Elasticsearch {
             SECURITY_FILTER_BAD_DEFAULTS_SETTING.get(args.nodeSettings()),
             args.pidFile()
         );
+    }
+
+    private static void ensureInitialized(Class<?>... classes) {
+        for (final var clazz : classes) {
+            try {
+                MethodHandles.publicLookup().ensureInitialized(clazz);
+            } catch (IllegalAccessException unexpected) {
+                throw new AssertionError(unexpected);
+            }
+        }
     }
 
     /**
@@ -323,10 +337,10 @@ class Elasticsearch {
     }
 
     static void checkLucene() {
-        if (Version.CURRENT.luceneVersion().equals(org.apache.lucene.util.Version.LATEST) == false) {
+        if (IndexVersion.CURRENT.luceneVersion().equals(org.apache.lucene.util.Version.LATEST) == false) {
             throw new AssertionError(
                 "Lucene version mismatch this version of Elasticsearch requires lucene version ["
-                    + Version.CURRENT.luceneVersion()
+                    + IndexVersion.CURRENT.luceneVersion()
                     + "]  but the current lucene version is ["
                     + org.apache.lucene.util.Version.LATEST
                     + "]"

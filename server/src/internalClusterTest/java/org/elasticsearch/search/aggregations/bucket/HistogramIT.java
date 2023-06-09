@@ -300,7 +300,7 @@ public class HistogramIT extends ESIntegTestCase {
         assertThat(histo.getName(), equalTo("histo"));
         assertThat(histo.getBuckets().size(), equalTo(expectedNumberOfBuckets));
 
-        int docsCounted = 0;
+        long docsCounted = 0;
         for (int i = 0; i < expectedNumberOfBuckets; ++i) {
             Histogram.Bucket bucket = histo.getBuckets().get(i);
             assertThat(bucket, notNullValue());

@@ -228,121 +228,111 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
             return;
         }
 
-        if (seedNodesSuppliers.hasNext()) {
-            final Consumer<Exception> onFailure = e -> {
-                if (isRetryableException(e) && seedNodesSuppliers.hasNext()) {
-                    logger.debug(() -> "fetching nodes from external cluster [" + clusterAlias + "] failed moving to next seed node", e);
-                    collectRemoteNodes(seedNodesSuppliers, listener);
-                } else {
-                    logger.warn(() -> "fetching nodes from external cluster [" + clusterAlias + "] failed", e);
-                    listener.onFailure(e);
-                }
-            };
+        assert seedNodesSuppliers.hasNext() : "Must have non empty seed nodes to connect";
 
-            final DiscoveryNode seedNode = seedNodesSuppliers.next().get();
-            logger.trace("[{}] opening transient connection to seed node: [{}]", clusterAlias, seedNode);
-            final ListenableFuture<Transport.Connection> openConnectionStep = new ListenableFuture<>();
-            try {
-                connectionManager.openConnection(seedNode, null, openConnectionStep);
-            } catch (Exception e) {
-                onFailure.accept(e);
+        final Consumer<Exception> onFailure = e -> {
+            if (isRetryableException(e) && seedNodesSuppliers.hasNext()) {
+                logger.debug(() -> "fetching nodes from external cluster [" + clusterAlias + "] failed moving to next seed node", e);
+                collectRemoteNodes(seedNodesSuppliers, listener);
+            } else {
+                logger.warn(() -> "fetching nodes from external cluster [" + clusterAlias + "] failed", e);
+                listener.onFailure(e);
+            }
+        };
+
+        final DiscoveryNode seedNode = seedNodesSuppliers.next().get();
+        logger.trace("[{}] opening transient connection to seed node: [{}]", clusterAlias, seedNode);
+        final ListenableFuture<Transport.Connection> openConnectionStep = new ListenableFuture<>();
+        try {
+            connectionManager.openConnection(seedNode, null, openConnectionStep);
+        } catch (Exception e) {
+            onFailure.accept(e);
+        }
+
+        final ListenableFuture<TransportService.HandshakeResponse> handshakeStep = new ListenableFuture<>();
+        openConnectionStep.addListener(ActionListener.wrap(connection -> {
+            ConnectionProfile connectionProfile = connectionManager.getConnectionProfile();
+            transportService.handshake(connection, connectionProfile.getHandshakeTimeout(), getRemoteClusterNamePredicate(), handshakeStep);
+        }, onFailure));
+
+        final ListenableFuture<Void> fullConnectionStep = new ListenableFuture<>();
+        handshakeStep.addListener(ActionListener.wrap(handshakeResponse -> {
+            final DiscoveryNode handshakeNode = handshakeResponse.getDiscoveryNode();
+
+            if (nodePredicate.test(handshakeNode) && shouldOpenMoreConnections()) {
+                logger.trace(
+                    "[{}] opening managed connection to seed node: [{}] proxy address: [{}]",
+                    clusterAlias,
+                    handshakeNode,
+                    proxyAddress
+                );
+                final DiscoveryNode handshakeNodeWithProxy = maybeAddProxyAddress(proxyAddress, handshakeNode);
+                connectionManager.connectToRemoteClusterNode(
+                    handshakeNodeWithProxy,
+                    getConnectionValidator(handshakeNodeWithProxy),
+                    fullConnectionStep
+                );
+            } else {
+                fullConnectionStep.onResponse(null);
+            }
+        }, e -> {
+            final Transport.Connection connection = openConnectionStep.result();
+            final DiscoveryNode node = connection.getNode();
+            logger.debug(() -> format("[%s] failed to handshake with seed node: [%s]", clusterAlias, node), e);
+            IOUtils.closeWhileHandlingException(connection);
+            onFailure.accept(e);
+        }));
+
+        fullConnectionStep.addListener(ActionListener.wrap(aVoid -> {
+            if (remoteClusterName.get() == null) {
+                TransportService.HandshakeResponse handshakeResponse = handshakeStep.result();
+                assert handshakeResponse.getClusterName().value() != null;
+                remoteClusterName.set(handshakeResponse.getClusterName());
+            }
+            final Transport.Connection connection = openConnectionStep.result();
+
+            // here we pass on the connection since we can only close it once the sendRequest returns otherwise
+            // due to the async nature (it will return before it's actually sent) this can cause the request to fail
+            // due to an already closed connection.
+            ThreadPool threadPool = transportService.getThreadPool();
+            ThreadContext threadContext = threadPool.getThreadContext();
+
+            final String action;
+            final TransportRequest request;
+            final AbstractSniffResponseHandler<?> sniffResponseHandler;
+            // Use different action to collect nodes information depending on the connection model
+            if (REMOTE_CLUSTER_PROFILE.equals(connectionManager.getConnectionProfile().getTransportProfile())) {
+                action = RemoteClusterNodesAction.NAME;
+                request = RemoteClusterNodesAction.Request.INSTANCE;
+                sniffResponseHandler = new RemoteClusterNodesSniffResponseHandler(connection, listener, seedNodesSuppliers);
+            } else {
+                action = ClusterStateAction.NAME;
+                final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
+                clusterStateRequest.clear();
+                clusterStateRequest.nodes(true);
+                request = clusterStateRequest;
+                sniffResponseHandler = new ClusterStateSniffResponseHandler(connection, listener, seedNodesSuppliers);
             }
 
-            final ListenableFuture<TransportService.HandshakeResponse> handshakeStep = new ListenableFuture<>();
-            openConnectionStep.addListener(ActionListener.wrap(connection -> {
-                ConnectionProfile connectionProfile = connectionManager.getConnectionProfile();
-                transportService.handshake(
+            try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+                // we stash any context here since this is an internal execution and should not leak any
+                // existing context information.
+                threadContext.markAsSystemContext();
+                transportService.sendRequest(
                     connection,
-                    connectionProfile.getHandshakeTimeout(),
-                    getRemoteClusterNamePredicate(),
-                    handshakeStep
+                    action,
+                    request,
+                    TransportRequestOptions.EMPTY,
+                    new TransportService.ContextRestoreResponseHandler<>(threadContext.newRestorableContext(false), sniffResponseHandler)
                 );
-            }, onFailure));
-
-            final ListenableFuture<Void> fullConnectionStep = new ListenableFuture<>();
-            handshakeStep.addListener(ActionListener.wrap(handshakeResponse -> {
-                final DiscoveryNode handshakeNode = handshakeResponse.getDiscoveryNode();
-
-                if (nodePredicate.test(handshakeNode) && shouldOpenMoreConnections()) {
-                    logger.trace(
-                        "[{}] opening managed connection to seed node: [{}] proxy address: [{}]",
-                        clusterAlias,
-                        handshakeNode,
-                        proxyAddress
-                    );
-                    final DiscoveryNode handshakeNodeWithProxy = maybeAddProxyAddress(proxyAddress, handshakeNode);
-                    connectionManager.connectToRemoteClusterNode(
-                        handshakeNodeWithProxy,
-                        getConnectionValidator(handshakeNodeWithProxy),
-                        fullConnectionStep
-                    );
-                } else {
-                    fullConnectionStep.onResponse(null);
-                }
-            }, e -> {
-                final Transport.Connection connection = openConnectionStep.result();
-                final DiscoveryNode node = connection.getNode();
-                logger.debug(() -> format("[%s] failed to handshake with seed node: [%s]", clusterAlias, node), e);
-                IOUtils.closeWhileHandlingException(connection);
-                onFailure.accept(e);
-            }));
-
-            fullConnectionStep.addListener(ActionListener.wrap(aVoid -> {
-                if (remoteClusterName.get() == null) {
-                    TransportService.HandshakeResponse handshakeResponse = handshakeStep.result();
-                    assert handshakeResponse.getClusterName().value() != null;
-                    remoteClusterName.set(handshakeResponse.getClusterName());
-                }
-                final Transport.Connection connection = openConnectionStep.result();
-
-                // here we pass on the connection since we can only close it once the sendRequest returns otherwise
-                // due to the async nature (it will return before it's actually sent) this can cause the request to fail
-                // due to an already closed connection.
-                ThreadPool threadPool = transportService.getThreadPool();
-                ThreadContext threadContext = threadPool.getThreadContext();
-
-                final String action;
-                final TransportRequest request;
-                final AbstractSniffResponseHandler<?> sniffResponseHandler;
-                // Use different action to collect nodes information depending on the connection model
-                if (REMOTE_CLUSTER_PROFILE.equals(connectionManager.getConnectionProfile().getTransportProfile())) {
-                    action = RemoteClusterNodesAction.NAME;
-                    request = RemoteClusterNodesAction.Request.INSTANCE;
-                    sniffResponseHandler = new RemoteClusterNodesSniffResponseHandler(connection, listener, seedNodesSuppliers);
-                } else {
-                    action = ClusterStateAction.NAME;
-                    final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
-                    clusterStateRequest.clear();
-                    clusterStateRequest.nodes(true);
-                    request = clusterStateRequest;
-                    sniffResponseHandler = new ClusterStateSniffResponseHandler(connection, listener, seedNodesSuppliers);
-                }
-
-                try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-                    // we stash any context here since this is an internal execution and should not leak any
-                    // existing context information.
-                    threadContext.markAsSystemContext();
-                    transportService.sendRequest(
-                        connection,
-                        action,
-                        request,
-                        TransportRequestOptions.EMPTY,
-                        new TransportService.ContextRestoreResponseHandler<>(
-                            threadContext.newRestorableContext(false),
-                            sniffResponseHandler
-                        )
-                    );
-                }
-            }, e -> {
-                final Transport.Connection connection = openConnectionStep.result();
-                final DiscoveryNode node = connection.getNode();
-                logger.debug(() -> format("[%s] failed to open managed connection to seed node: [%s]", clusterAlias, node), e);
-                IOUtils.closeWhileHandlingException(connection);
-                onFailure.accept(e);
-            }));
-        } else {
-            listener.onFailure(new NoSeedNodeLeftException("no seed node left for cluster: [" + clusterAlias + "]"));
-        }
+            }
+        }, e -> {
+            final Transport.Connection connection = openConnectionStep.result();
+            final DiscoveryNode node = connection.getNode();
+            logger.debug(() -> format("[%s] failed to open managed connection to seed node: [%s]", clusterAlias, node), e);
+            IOUtils.closeWhileHandlingException(connection);
+            onFailure.accept(e);
+        }));
     }
 
     private ConnectionManager.ConnectionValidator getConnectionValidator(DiscoveryNode node) {

@@ -85,7 +85,6 @@ public class TDigestBench {
 
     Random random;
     TDigest tdigest;
-    // AbstractDistribution distribution;
 
     double[] data = new double[1000000];
 

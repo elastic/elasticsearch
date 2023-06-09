@@ -75,17 +75,15 @@ public abstract class C2IdOpTestCase extends ESRestTestCase {
     private static final String CLIENT_SECRET = "b07efb7a1cf6ec9462afe7b6d3ab55c6c7880262aa61ac28dded292aca47c9a2";
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .nodes(1)
         .distribution(DistributionType.DEFAULT)
+        .nodes(1)
         // TODO remove these
         .setting("logger.org.elasticsearch.xpack.security.authc.oidc", "TRACE")
         .setting("logger.org.elasticsearch.xpack.security.rest.action.oidc", "TRACE")
         .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.security.enabled", "true")
         .setting("xpack.security.http.ssl.enabled", "true")
-        .setting("xpack.security.http.ssl.certificate", "node.crt")
-        .setting("xpack.security.http.ssl.key", "node.key")
-        .setting("xpack.security.http.ssl.certificate_authorities", "ca.crt")
+        .setting("xpack.security.http.ssl.keystore.path", "testnode.jks")
         .setting("xpack.security.authc.token.enabled", "true")
         .setting("xpack.security.authc.realms.file.file.order", "0")
         .setting("xpack.security.authc.realms.native.native.order", "1")
@@ -159,23 +157,23 @@ public abstract class C2IdOpTestCase extends ESRestTestCase {
         .setting("xpack.security.authc.realms.oidc.c2id-jwt.claims.mail", "email")
         .setting("xpack.security.authc.realms.oidc.c2id-jwt.claims.groups", "groups")
         .setting("xpack.security.authc.realms.jwt.op-jwt.order", "7")
+        // TODO double-check this
         .setting("xpack.security.authc.realms.jwt.op-jwt.allowed_issuer", "http://oidc-provider:8080/c2id")
+        // TODO double-check this
         .setting("xpack.security.authc.realms.jwt.op-jwt.allowed_audiences", "elasticsearch-jwt1,elasticsearch-jwt2")
         .setting("xpack.security.authc.realms.jwt.op-jwt.pkc_jwkset_path", "op-jwks.json")
         .setting("xpack.security.authc.realms.jwt.op-jwt.claims.principal", "sub")
         .setting("xpack.security.authc.realms.jwt.op-jwt.claims.groups", "groups")
         .setting("xpack.security.authc.realms.jwt.op-jwt.client_authentication.type", "shared_secret")
         .keystore("bootstrap.password", "x-pack-test-password")
-        .keystore("xpack.security.http.ssl.secure_key_passphrase", "node-password")
+        .keystore("xpack.security.http.ssl.keystore.secure_password", "testnode")
         .keystore("xpack.security.authc.realms.oidc.c2id.rp.client_secret", CLIENT_SECRET)
         .keystore("xpack.security.authc.realms.oidc.c2id-implicit.rp.client_secret", CLIENT_SECRET)
         .keystore("xpack.security.authc.realms.oidc.c2id-proxy.rp.client_secret", CLIENT_SECRET)
         .keystore("xpack.security.authc.realms.oidc.c2id-post.rp.client_secret", CLIENT_SECRET)
         .keystore("xpack.security.authc.realms.oidc.c2id-jwt.rp.client_secret", CLIENT_SECRET)
         .keystore("xpack.security.authc.realms.jwt.op-jwt.client_authentication.shared_secret", "jwt-realm-shared-secret")
-        .configFile("node.key", Resource.fromClasspath("ssl/node.key"))
-        .configFile("node.crt", Resource.fromClasspath("ssl/node.crt"))
-        .configFile("ca.crt", Resource.fromClasspath("ssl/ca.crt"))
+        .configFile("testnode.jks", Resource.fromClasspath("ssl/testnode.jks"))
         .configFile("op-jwks.json", Resource.fromClasspath("op-jwks.json"))
         .user("x_pack_rest_user", "x-pack-test-password", "superuser")
         .build();
@@ -192,9 +190,9 @@ public abstract class C2IdOpTestCase extends ESRestTestCase {
 
     @BeforeClass
     public static void readTrustedCert() throws Exception {
-        final URL resource = OpenIdConnectAuthIT.class.getResource("/ssl/node.crt");
+        final URL resource = OpenIdConnectAuthIT.class.getResource("/ssl/testnode_ec.crt");
         if (resource == null) {
-            throw new FileNotFoundException("Cannot find classpath resource /ssl/node.crt");
+            throw new FileNotFoundException("Cannot find classpath resource /ssl/testnode_ec.crt");
         }
         HTTP_TRUSTED_CERT = PathUtils.get(resource.toURI());
     }

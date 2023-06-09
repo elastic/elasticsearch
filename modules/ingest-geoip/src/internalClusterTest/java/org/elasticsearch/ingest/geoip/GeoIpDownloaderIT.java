@@ -301,9 +301,11 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
 
         // Create an index that use the geo pipeline as default pipeline or final pipeline
         Setting<String> pipelineSetting = randomFrom(IndexSettings.FINAL_PIPELINE, IndexSettings.DEFAULT_PIPELINE);
-        client().admin().indices().prepareCreate(randomIdentifier())
-                .setSettings(Settings.builder().put(pipelineSetting.getKey(), pipelineId))
-                .get();
+        client().admin()
+            .indices()
+            .prepareCreate(randomIdentifier())
+            .setSettings(Settings.builder().put(pipelineSetting.getKey(), pipelineId))
+            .get();
         assertBusy(() -> {
             GeoIpTaskState state = getGeoIpTaskState();
             assertEquals(Set.of("GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb"), state.getDatabases().keySet());

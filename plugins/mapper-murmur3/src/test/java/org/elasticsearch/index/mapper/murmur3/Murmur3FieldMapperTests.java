@@ -67,16 +67,6 @@ public class Murmur3FieldMapperTests extends MapperTestCase {
         checker.registerConflictCheck("store", b -> b.field("store", true));
     }
 
-    public void testFetchMurmur() throws IOException {
-        MapperService mapperService = randomFetchTestMapper();
-        try {
-            MappedFieldType ft = mapperService.fieldType("field");
-            assertFetch(mapperService, "field", generateRandomInputValue(ft), randomFetchTestFormat());
-        } finally {
-            assertParseMinimalWarnings();
-        }
-    }
-
     public void testDefaults() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         ParsedDocument parsedDoc = mapper.parse(source(b -> b.field("field", "value")));

@@ -7,12 +7,14 @@ dependencies {
   javaRestTestImplementation(testArtifact(project(xpackModule('security'))))
 }
 
+testFixtures.useFixture ":x-pack:test:idp-fixture", "http-proxy"
 testFixtures.useFixture ":x-pack:test:idp-fixture", "oidc-provider"
 
 tasks.named('javaRestTest') {
   usesDefaultDistribution()
 }
 
+// TODO remove
 tasks.named("processJavaRestTestResources").configure {
   from project(':x-pack:plugin:core')
     .files(

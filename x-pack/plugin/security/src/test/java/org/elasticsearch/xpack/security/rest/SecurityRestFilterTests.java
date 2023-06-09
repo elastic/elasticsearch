@@ -44,7 +44,9 @@ import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator;
+import org.elasticsearch.xpack.security.authz.restriction.WorkflowService;
 import org.elasticsearch.xpack.security.authz.restriction.WorkflowServiceTests.TestBaseRestHandler;
+import org.elasticsearch.xpack.security.operator.OperatorPrivileges;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
@@ -169,15 +171,16 @@ public class SecurityRestFilterTests extends ESTestCase {
     }
 
     public void testProcessWithSecurityDisabled() throws Exception {
-        filter = new SecurityRestFilter(false, threadContext, secondaryAuthenticator, mock(AuditTrailService.class), restHandler);
+        filter = new SecurityRestFilter(
+            false,
             threadContext,
             secondaryAuthenticator,
             mock(AuditTrailService.class),
             mock(WorkflowService.class),
-            restHandler, 
-			null
+            restHandler,
+            null
         );
-		assertEquals(NOOP_OPERATOR_PRIVILEGES_SERVICE, filter.getOperatorPrivilegesService());
+        assertEquals(NOOP_OPERATOR_PRIVILEGES_SERVICE, filter.getOperatorPrivilegesService());
         RestRequest request = mock(RestRequest.class);
         filter.handleRequest(request, channel, null);
         verify(restHandler).handleRequest(request, channel, null);
@@ -301,7 +304,8 @@ public class SecurityRestFilterTests extends ESTestCase {
             secondaryAuthenticator,
             new AuditTrailService(null, null),
             workflowService,
-            restHandler
+            restHandler,
+            null
         );
 
         RestRequest request = mock(RestRequest.class);
@@ -327,14 +331,16 @@ public class SecurityRestFilterTests extends ESTestCase {
             secondaryAuthenticator,
             new AuditTrailService(null, null),
             workflowService,
-            restHandler
+            restHandler,
+            null
         );
 
         RestRequest request = mock(RestRequest.class);
         filter.handleRequest(request, channel, null);
         assertThat(workflowService.readWorkflowFromThreadContext(threadContext), nullValue());
     }
- public void testCheckRest() throws Exception {
+
+    public void testCheckRest() throws Exception {
         for (Boolean isOperator : new Boolean[] { Boolean.TRUE, Boolean.FALSE }) {
             RestRequest request = mock(RestRequest.class);
             try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
@@ -375,7 +381,6 @@ public class SecurityRestFilterTests extends ESTestCase {
             }
         }
     }
-
 
     private interface FilteredRestHandler extends RestHandler, RestRequestFilter {}
 }

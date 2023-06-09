@@ -1,0 +1,5 @@
+pr: 96738
+summary: Ensure inference queue is cleared after shutdown
+area: Machine Learning
+type: bug
+issues: []

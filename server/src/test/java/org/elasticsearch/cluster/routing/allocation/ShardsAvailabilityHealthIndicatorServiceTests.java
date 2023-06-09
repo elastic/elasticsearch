@@ -18,8 +18,8 @@ import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -48,7 +48,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.ExecutorNames;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
-import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.indices.SystemIndexDescriptorUtils;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -838,7 +838,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     null,
                     List.of(
                         new NodeAllocationResult(
-                            TestDiscoveryNode.create(randomNodeId()),
+                            DiscoveryNodeUtils.create(randomNodeId()),
                             new Decision.Multi().add(Decision.single(Decision.Type.YES, EnableAllocationDecider.NAME, null))
                                 .add(Decision.single(Decision.Type.YES, "data_tier", null))
                                 .add(Decision.single(Decision.Type.YES, ShardsLimitAllocationDecider.NAME, null))
@@ -883,7 +883,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             List.of(
                 new NodeAllocationResult(
                     // Shard allocation is disabled on index
-                    TestDiscoveryNode.create(randomNodeId()),
+                    DiscoveryNodeUtils.create(randomNodeId()),
                     new Decision.Multi().add(Decision.single(Decision.Type.NO, EnableAllocationDecider.NAME, null)),
                     1
                 )
@@ -915,7 +915,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             List.of(
                 new NodeAllocationResult(
                     // Shard allocation is disabled on index
-                    TestDiscoveryNode.create(randomNodeId()),
+                    DiscoveryNodeUtils.create(randomNodeId()),
                     new NodeAllocationResult.ShardStoreInfo(10),
                     null
                 )
@@ -946,7 +946,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             List.of(
                 new NodeAllocationResult(
                     // Shard allocation is disabled on index
-                    TestDiscoveryNode.create(randomNodeId()),
+                    DiscoveryNodeUtils.create(randomNodeId()),
                     new Decision.Multi().add(Decision.single(Decision.Type.NO, EnableAllocationDecider.NAME, null)),
                     1
                 )
@@ -983,7 +983,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             List.of(
                 new NodeAllocationResult(
                     // Shard allocation is disabled on index
-                    TestDiscoveryNode.create(randomNodeId()),
+                    DiscoveryNodeUtils.create(randomNodeId()),
                     new Decision.Multi().add(Decision.single(Decision.Type.NO, EnableAllocationDecider.NAME, null)),
                     1
                 )
@@ -1016,7 +1016,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             List.of(
                 // Shard is not allowed due to data tier filter
                 new NodeAllocationResult(
-                    TestDiscoveryNode.create(randomNodeId()),
+                    DiscoveryNodeUtils.create(randomNodeId()),
                     new Decision.Multi().add(Decision.single(Decision.Type.NO, "data_tier", null)),
                     1
                 )
@@ -1044,7 +1044,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         Index index = indexMetadata.getIndex();
 
         // One node that is in the hot tier
-        DiscoveryNode hotNode = TestDiscoveryNode.create(
+        DiscoveryNode hotNode = DiscoveryNodeUtils.create(
             randomNodeId(),
             buildNewFakeTransportAddress(),
             Map.of(),
@@ -1102,7 +1102,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         Index index = indexMetadata.getIndex();
 
         // One node that is in the hot tier
-        DiscoveryNode hotNode = TestDiscoveryNode.create(
+        DiscoveryNode hotNode = DiscoveryNodeUtils.create(
             randomNodeId(),
             buildNewFakeTransportAddress(),
             Map.of(),
@@ -1167,7 +1167,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         Index index = indexMetadata.getIndex();
 
         // One node that is a generic data node
-        DiscoveryNode dataNode = TestDiscoveryNode.create(
+        DiscoveryNode dataNode = DiscoveryNodeUtils.create(
             randomNodeId(),
             buildNewFakeTransportAddress(),
             Map.of(),
@@ -1225,7 +1225,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         Index index = indexMetadata.getIndex();
 
         // One node that is a generic data node
-        DiscoveryNode dataNode = TestDiscoveryNode.create(
+        DiscoveryNode dataNode = DiscoveryNodeUtils.create(
             randomNodeId(),
             buildNewFakeTransportAddress(),
             Map.of(),
@@ -1297,7 +1297,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 // Shard is allowed on data tier, but disallowed because of allocation filters
                 new NodeAllocationResult(
                     // Node has no data attributes on it
-                    TestDiscoveryNode.create(randomNodeId()),
+                    DiscoveryNodeUtils.create(randomNodeId()),
                     new Decision.Multi().add(Decision.single(Decision.Type.YES, "data_tier", null))
                         .add(Decision.single(Decision.Type.NO, FilterAllocationDecider.NAME, null)),
                     1
@@ -1333,7 +1333,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 // Shard is allowed on data tier, but disallowed because of allocation filters
                 new NodeAllocationResult(
                     // Node has no data attributes on it
-                    TestDiscoveryNode.create(randomNodeId()),
+                    DiscoveryNodeUtils.create(randomNodeId()),
                     new Decision.Multi().add(Decision.single(Decision.Type.YES, "data_tier", null))
                         .add(Decision.single(Decision.Type.NO, FilterAllocationDecider.NAME, null)),
                     1
@@ -1368,7 +1368,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 // Shard is allowed on data tier, but disallowed because of allocation filters
                 new NodeAllocationResult(
                     // Node does not have data attribute on it
-                    TestDiscoveryNode.create(randomNodeId()),
+                    DiscoveryNodeUtils.create(randomNodeId()),
                     new Decision.Multi().add(Decision.single(Decision.Type.YES, "data_tier", null))
                         .add(Decision.single(Decision.Type.NO, FilterAllocationDecider.NAME, null)),
                     1
@@ -1402,7 +1402,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             List.of(
                 // Shard is allowed on data tier, but disallowed because node is already hosting a copy of it.
                 new NodeAllocationResult(
-                    TestDiscoveryNode.create(
+                    DiscoveryNodeUtils.create(
                         randomNodeId(),
                         buildNewFakeTransportAddress(),
                         Map.of(),
@@ -1441,7 +1441,12 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             List.of(
                 // Shard is allowed on data tier, but disallowed because node is already hosting a copy of it.
                 new NodeAllocationResult(
-                    TestDiscoveryNode.create(randomNodeId(), buildNewFakeTransportAddress(), Map.of(), Set.of(DiscoveryNodeRole.DATA_ROLE)),
+                    DiscoveryNodeUtils.create(
+                        randomNodeId(),
+                        buildNewFakeTransportAddress(),
+                        Map.of(),
+                        Set.of(DiscoveryNodeRole.DATA_ROLE)
+                    ),
                     new Decision.Multi().add(Decision.single(Decision.Type.YES, "data_tier", null))
                         .add(Decision.single(Decision.Type.NO, SameShardAllocationDecider.NAME, null)),
                     1
@@ -1537,7 +1542,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 new SystemIndices.Feature(
                     "feature-with-system-index",
                     "testing",
-                    List.of(new SystemIndexDescriptor(standaloneSystemIndexPattern, "feature with index"))
+                    List.of(SystemIndexDescriptorUtils.createUnmanaged(standaloneSystemIndexPattern, "feature with index"))
                 ),
                 new SystemIndices.Feature(
                     "feature-with-system-data-stream",

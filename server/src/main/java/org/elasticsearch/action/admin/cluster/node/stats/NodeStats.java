@@ -38,6 +38,8 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.singleChunk;
+
 /**
  * Node statistics (dynamic, changes depending on when created).
  */
@@ -104,10 +106,10 @@ public class NodeStats extends BaseNodeResponse implements ChunkedToXContent {
         transport = in.readOptionalWriteable(TransportStats::new);
         http = in.readOptionalWriteable(HttpStats::new);
         breaker = in.readOptionalWriteable(AllCircuitBreakerStats::new);
-        scriptStats = in.readOptionalWriteable(ScriptStats::new);
+        scriptStats = in.readOptionalWriteable(ScriptStats::read);
         scriptCacheStats = scriptStats != null ? scriptStats.toScriptCacheStats() : null;
         discoveryStats = in.readOptionalWriteable(DiscoveryStats::new);
-        ingestStats = in.readOptionalWriteable(IngestStats::new);
+        ingestStats = in.readOptionalWriteable(IngestStats::read);
         adaptiveSelectionStats = in.readOptionalWriteable(AdaptiveSelectionStats::new);
         indexingPressureStats = in.readOptionalWriteable(IndexingPressureStats::new);
     }
@@ -311,29 +313,20 @@ public class NodeStats extends BaseNodeResponse implements ChunkedToXContent {
                 ifPresent(getOs()).toXContent(builder, params);
                 ifPresent(getProcess()).toXContent(builder, params);
                 ifPresent(getJvm()).toXContent(builder, params);
-                ifPresent(getThreadPool()).toXContent(builder, params);
-                ifPresent(getFs()).toXContent(builder, params);
                 return builder;
             }),
 
+            ifPresent(getThreadPool()).toXContentChunked(outerParams),
+            singleChunk(ifPresent(getFs())),
             ifPresent(getTransport()).toXContentChunked(outerParams),
             ifPresent(getHttp()).toXContentChunked(outerParams),
-
-            Iterators.single((builder, params) -> {
-                ifPresent(getBreaker()).toXContent(builder, params);
-                ifPresent(getScriptStats()).toXContent(builder, params);
-                ifPresent(getDiscoveryStats()).toXContent(builder, params);
-                return builder;
-            }),
-
+            singleChunk(ifPresent(getBreaker())),
+            ifPresent(getScriptStats()).toXContentChunked(outerParams),
+            singleChunk(ifPresent(getDiscoveryStats())),
             ifPresent(getIngestStats()).toXContentChunked(outerParams),
-
-            Iterators.single((builder, params) -> {
-                ifPresent(getAdaptiveSelectionStats()).toXContent(builder, params);
-                ifPresent(getScriptCacheStats()).toXContent(builder, params);
-                ifPresent(getIndexingPressureStats()).toXContent(builder, params);
-                return builder;
-            })
+            singleChunk(ifPresent(getAdaptiveSelectionStats())),
+            ifPresent(getScriptCacheStats()).toXContentChunked(outerParams),
+            singleChunk(ifPresent(getIndexingPressureStats()))
         );
     }
 

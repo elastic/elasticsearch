@@ -54,9 +54,9 @@ import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
-import org.elasticsearch.xpack.core.security.user.CrossClusterAccessUser;
 import org.elasticsearch.xpack.core.security.user.InternalUser;
 import org.elasticsearch.xpack.core.security.user.InternalUsers;
+import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.Security;
@@ -683,6 +683,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
     }
 
     public void testSendWithCrossClusterAccessHeadersForSystemUserCcrInternalAction() throws Exception {
+        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
         final String action = randomFrom(
             "internal:admin/ccr/restore/session/put",
             "internal:admin/ccr/restore/session/clear",
@@ -698,6 +699,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
     }
 
     public void testSendWithCrossClusterAccessHeadersForRegularUserRegularAction() throws Exception {
+        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
         final Authentication authentication = randomValueOtherThanMany(
             authc -> authc.getAuthenticationType() == Authentication.AuthenticationType.INTERNAL,
             () -> AuthenticationTestHelper.builder().build()
@@ -708,6 +710,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
     }
 
     public void testSendWithCrossClusterAccessHeadersForRegularUserClusterStateAction() throws Exception {
+        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
         final Authentication authentication = randomValueOtherThanMany(
             authc -> authc.getAuthenticationType() == Authentication.AuthenticationType.INTERNAL,
             () -> AuthenticationTestHelper.builder().build()
@@ -810,7 +813,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             assertThat(
                 sentCrossClusterAccessSubjectInfo.get(),
                 equalTo(
-                    CrossClusterAccessUser.subjectInfo(
+                    SystemUser.crossClusterAccessSubjectInfo(
                         authentication.getEffectiveSubject().getTransportVersion(),
                         authentication.getEffectiveSubject().getRealm().getNodeName()
                     )

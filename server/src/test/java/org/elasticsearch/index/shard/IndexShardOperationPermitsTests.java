@@ -476,8 +476,8 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
          */
         assertBusy(() -> {
             for (final ThreadPoolStats.Stats stats : threadPool.stats()) {
-                if (ThreadPool.Names.GENERIC.equals(stats.getName())) {
-                    assertThat("Expected no active threads in GENERIC pool", stats.getActive(), equalTo(0));
+                if (ThreadPool.Names.GENERIC.equals(stats.name())) {
+                    assertThat("Expected no active threads in GENERIC pool", stats.active(), equalTo(0));
                     return;
                 }
             }

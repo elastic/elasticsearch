@@ -51,7 +51,6 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReadWriteLock;
@@ -839,39 +838,24 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     }
 
     /**
-     * Ensures that the given location has be synced / written to the underlying storage.
+     * Ensures that the given location and global checkpoint has be synced / written to the underlying storage.
      *
      * @return Returns <code>true</code> iff this call caused an actual sync operation otherwise <code>false</code>
      */
-    public boolean ensureSynced(Location location) throws IOException {
+    public boolean ensureSynced(Location location, long globalCheckpoint) throws IOException {
         try (ReleasableLock lock = readLock.acquire()) {
-            if (location.generation == current.getGeneration()) { // if we have a new one it's already synced
+            // if we have a new generation and the persisted global checkpoint is greater than or equal to the sync global checkpoint it's
+            // already synced
+            long persistedGlobalCheckpoint = current.getLastSyncedCheckpoint().globalCheckpoint;
+            if (location.generation == current.getGeneration() || persistedGlobalCheckpoint < globalCheckpoint) {
                 ensureOpen();
-                return current.syncUpTo(location.translogLocation + location.size);
+                return current.syncUpTo(location.translogLocation + location.size, globalCheckpoint);
             }
         } catch (final Exception ex) {
             closeOnTragicEvent(ex);
             throw ex;
         }
         return false;
-    }
-
-    /**
-     * Ensures that all locations in the given stream have been synced / written to the underlying storage.
-     * This method allows for internal optimization to minimize the amount of fsync operations if multiple
-     * locations must be synced.
-     *
-     * @return Returns <code>true</code> iff this call caused an actual sync operation otherwise <code>false</code>
-     */
-    public boolean ensureSynced(Stream<Location> locations) throws IOException {
-        final Optional<Location> max = locations.max(Location::compareTo);
-        // we only need to sync the max location since it will sync all other
-        // locations implicitly
-        if (max.isPresent()) {
-            return ensureSynced(max.get());
-        } else {
-            return false;
-        }
     }
 
     /**
@@ -928,6 +912,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     }
 
     public static class Location implements Comparable<Location> {
+
+        public static Location EMPTY = new Location(0, 0, 0);
 
         public final long generation;
         public final long translogLocation;

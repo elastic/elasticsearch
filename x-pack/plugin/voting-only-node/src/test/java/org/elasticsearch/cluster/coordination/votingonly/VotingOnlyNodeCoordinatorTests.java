@@ -6,17 +6,15 @@
  */
 package org.elasticsearch.cluster.coordination.votingonly;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.coordination.AbstractCoordinatorTestCase;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportInterceptor;
 
-import java.util.Collections;
 import java.util.Set;
 
 import static java.util.Collections.emptySet;
@@ -55,25 +53,19 @@ public class VotingOnlyNodeCoordinatorTests extends AbstractCoordinatorTestCase 
 
     @Override
     protected DiscoveryNode createDiscoveryNode(int nodeIndex, boolean masterEligible) {
-        final TransportAddress address = buildNewFakeTransportAddress();
-        return new DiscoveryNode(
-            "",
-            "node" + nodeIndex,
-            UUIDs.randomBase64UUID(random()), // generated deterministically for repeatable tests
-            address.address().getHostString(),
-            address.getAddress(),
-            address,
-            Collections.emptyMap(),
-            masterEligible ? ALL_ROLES_EXCEPT_VOTING_ONLY
-                : randomBoolean() ? emptySet()
-                : Set.of(
-                    DiscoveryNodeRole.DATA_ROLE,
-                    DiscoveryNodeRole.INGEST_ROLE,
-                    DiscoveryNodeRole.MASTER_ROLE,
-                    DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE
-                ),
-            Version.CURRENT
-        );
+        return DiscoveryNodeUtils.builder("node" + nodeIndex)
+            .ephemeralId(UUIDs.randomBase64UUID(random()))  // generated deterministically for repeatable tests
+            .roles(
+                masterEligible ? ALL_ROLES_EXCEPT_VOTING_ONLY
+                    : randomBoolean() ? emptySet()
+                    : Set.of(
+                        DiscoveryNodeRole.DATA_ROLE,
+                        DiscoveryNodeRole.INGEST_ROLE,
+                        DiscoveryNodeRole.MASTER_ROLE,
+                        DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE
+                    )
+            )
+            .build();
     }
 
 }

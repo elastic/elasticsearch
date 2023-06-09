@@ -697,6 +697,19 @@ public abstract class AbstractStreamTests extends ESTestCase {
         assertImmutableListSerialization(List.of(1, 2, 3), StreamInput::readVInt, StreamOutput::writeVInt);
     }
 
+    public void testReadAfterReachingEndOfStream() throws IOException {
+        try (var output = new BytesStreamOutput()) {
+            int len = randomIntBetween(1, 16);
+            for (int i = 0; i < len; i++) {
+                output.writeByte(randomByte());
+            }
+            StreamInput input = getStreamInput(output.bytes());
+            input.readBytes(new byte[len], 0, len);
+
+            assertEquals(-1, input.read());
+        }
+    }
+
     private void assertSerialization(
         CheckedConsumer<StreamOutput, IOException> outputAssertions,
         CheckedConsumer<StreamInput, IOException> inputAssertions

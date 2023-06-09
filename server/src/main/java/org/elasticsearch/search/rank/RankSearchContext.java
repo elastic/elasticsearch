@@ -8,8 +8,6 @@
 
 package org.elasticsearch.search.rank;
 
-import org.apache.lucene.search.Collector;
-import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TotalHits;
@@ -202,14 +200,6 @@ public class RankSearchContext extends SearchContext {
     @Override
     public long getRelativeTimeInMillis() {
         return parent.getRelativeTimeInMillis();
-    }
-
-    /**
-     * Aggregations are run as a separate query, so do not add any aggregations collectors.
-     */
-    @Override
-    public CollectorManager<Collector, Void> getAggsCollectorManager() {
-        return null;
     }
 
     /* ---- ALL METHODS ARE UNSUPPORTED BEYOND HERE ---- */
@@ -541,11 +531,6 @@ public class RankSearchContext extends SearchContext {
 
     @Override
     public void addFetchResult() {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public void registerAggsCollectorManager(CollectorManager<Collector, Void> collectorManager) {
         throw new UnsupportedOperationException();
     }
 

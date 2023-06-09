@@ -29,7 +29,7 @@ You can use the Cluster Info API to retrieve information of a cluster.
 
 
 `<target>`::
-(Optional, string) Limits the information returned to the specific `target`.
+(String) Limits the information returned to the specific `target`.
 A comma-separated list of the following options:
 +
 --
@@ -41,6 +41,9 @@ HTTP connection information.
 
 `ingest`::
 Ingest information.
+
+`thread_pool`::
+Statistics about each thread pool, including current size, queue size and rejected tasks.
 --
 
 [role="child_attributes"]
@@ -238,6 +241,46 @@ Number of failed operations for the processor.
 ======
 
 
+[[cluster-info-api-response-body-threadpool]]
+`thread_pool`::
+(object)
+Contains information about the thread pools of the cluster.
++
+.Properties of `thread_pool`
+[%collapsible%open]
+======
+`<thread_pool_name>`::
+(object)
+Contains information about the thread pool of the cluster with name `<thread_pool_name>`.
++
+.Properties of `<thread_pool_name>`
+[%collapsible%open]
+=======
+`threads`::
+(integer)
+Number of threads in the thread pool.
+
+`queue`::
+(integer)
+Number of tasks in queue for the thread pool.
+
+`active`::
+(integer)
+Number of active threads in the thread pool.
+
+`rejected`::
+(integer)
+Number of tasks rejected by the thread pool executor.
+
+`largest`::
+(integer)
+Highest number of active threads in the thread pool.
+
+`completed`::
+(integer)
+Number of tasks completed by the thread pool executor.
+=======
+======
 
 [[cluster-info-api-example]]
 ==== {api-examples-title}
@@ -252,6 +295,9 @@ GET /_info/http
 
 # returns the http info of the cluster
 GET /_info/ingest
+
+# returns the thread_pool info of the cluster
+GET /_info/thread_pool
 
 # returns the http and ingest info of the cluster
 GET /_info/http,ingest

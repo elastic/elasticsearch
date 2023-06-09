@@ -16,6 +16,7 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -25,6 +26,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.Preference;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
@@ -125,17 +127,31 @@ public class SynonymsManagementAPIService {
                     .size(MAX_SYNONYMS_SETS)
             )
             .setPreference(Preference.LOCAL.type())
-            .execute(listener.delegateFailure((searchResponseListener, searchResponse) -> {
-                Terms aggregation = searchResponse.getAggregations().get(SYNONYM_SETS_AGG_NAME);
-                List<? extends Terms.Bucket> buckets = aggregation.getBuckets();
-                SynonymSetSummary[] synonymSetSummaries = buckets.stream()
-                    .skip(from)
-                    .limit(size)
-                    .map(bucket -> new SynonymSetSummary(bucket.getDocCount(), bucket.getKeyAsString()))
-                    .toArray(SynonymSetSummary[]::new);
+            .execute(new ActionListener<>() {
+                @Override
+                public void onResponse(SearchResponse searchResponse) {
+                    Terms aggregation = searchResponse.getAggregations().get(SYNONYM_SETS_AGG_NAME);
+                    List<? extends Terms.Bucket> buckets = aggregation.getBuckets();
+                    SynonymSetSummary[] synonymSetSummaries = buckets.stream()
+                        .skip(from)
+                        .limit(size)
+                        .map(bucket -> new SynonymSetSummary(bucket.getDocCount(), bucket.getKeyAsString()))
+                        .toArray(SynonymSetSummary[]::new);
 
-                listener.onResponse(new PagedResult<>(buckets.size(), synonymSetSummaries));
-            }));
+                    listener.onResponse(new PagedResult<>(buckets.size(), synonymSetSummaries));
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    if (e instanceof IndexNotFoundException) {
+                        // If System index has not been created yet, no synonym sets have been stored
+                        listener.onResponse(new PagedResult<>(0L, new SynonymSetSummary[0]));
+                        return;
+                    }
+
+                    listener.onFailure(e);
+                }
+            });
     }
 
     public void getSynonymRules(String resourceName, int from, int size, ActionListener<PagedResult<SynonymRule>> listener) {

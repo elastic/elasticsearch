@@ -22,29 +22,25 @@ import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
 
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.LiveVersionMapArchive;
 import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.Optional;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.LongSupplier;
 
 import static org.elasticsearch.index.IndexSettings.INDEX_FAST_REFRESH_SETTING;
-import static org.elasticsearch.index.IndexSettings.INDEX_REFRESH_INTERVAL_SETTING;
 
 /**
  * {@link Engine} implementation for index shards
@@ -53,12 +49,8 @@ public class IndexEngine extends InternalEngine {
 
     private final TranslogReplicator translogReplicator;
     private final StatelessCommitService statelessCommitService;
-    private final LongSupplier relativeTimeInNanosSupplier;
-    private final AtomicLong lastFlushNanos;
     private final Function<String, BlobContainer> translogBlobContainer;
     private boolean fastRefresh;
-    private volatile TimeValue indexFlushInterval;
-    private volatile Scheduler.Cancellable cancellableFlushTask;
     private final ReleasableLock flushLock = new ReleasableLock(new ReentrantLock());
     private final RefreshThrottler refreshThrottler;
 
@@ -74,89 +66,19 @@ public class IndexEngine extends InternalEngine {
         this.translogReplicator = translogReplicator;
         this.translogBlobContainer = translogBlobContainer;
         this.statelessCommitService = statelessCommitService;
-        this.relativeTimeInNanosSupplier = config().getRelativeTimeInNanosSupplier();
-        this.lastFlushNanos = new AtomicLong(relativeTimeInNanosSupplier.getAsLong());
-        this.indexFlushInterval = INDEX_REFRESH_INTERVAL_SETTING.get(config().getIndexSettings().getSettings());
         this.fastRefresh = INDEX_FAST_REFRESH_SETTING.get(config().getIndexSettings().getSettings());
         this.refreshThrottler = refreshThrottlerFactory.create(this::doExternalRefresh);
-        this.cancellableFlushTask = scheduleFlushTask();
-    }
-
-    @Override
-    public void onSettingsChanged() {
-        super.onSettingsChanged();
-        this.indexFlushInterval = INDEX_REFRESH_INTERVAL_SETTING.get(config().getIndexSettings().getSettings());
-        cancellableFlushTask.cancel();
-        cancellableFlushTask = scheduleFlushTask();
-    }
-
-    private Scheduler.Cancellable scheduleFlushTask() {
-        if (indexFlushInterval.getMillis() > 0) {
-            return engineConfig.getThreadPool().schedule(this::scheduleFlush, indexFlushInterval, ThreadPool.Names.FLUSH);
-        } else {
-            return new Scheduler.Cancellable() {
-
-                private volatile boolean isCancelled;
-
-                @Override
-                public boolean cancel() {
-                    boolean thisCancelled = isCancelled == false;
-                    isCancelled = true;
-                    return thisCancelled;
-                }
-
-                @Override
-                public boolean isCancelled() {
-                    return isCancelled;
-                }
-            };
-        }
     }
 
     @Override
     public boolean refreshNeeded() {
-        // TODO: maybe read the routingEntry.isSearchable()?
         if (fastRefresh) {
             return super.refreshNeeded();
         } else {
-            return false;
+            // It is possible that the index writer has uncommitted changes. We could check here, but we will check before actually
+            // triggering the flush anyway.
+            return hasUncommittedChanges() || super.refreshNeeded();
         }
-    }
-
-    private void scheduleFlush() {
-        if (isClosed.get()) {
-            return;
-        }
-
-        TimeValue nextFlushDelay = indexFlushInterval;
-
-        try {
-            long sinceLastFlushNanos = relativeTimeInNanosSupplier.getAsLong() - lastFlushNanos.get();
-            if (sinceLastFlushNanos < indexFlushInterval.nanos()) {
-                // Try to maintain flushes happening within the indexFlushInterval in case of an unscheduled flush
-                nextFlushDelay = TimeValue.timeValueNanos(indexFlushInterval.nanos() - sinceLastFlushNanos);
-            } else {
-                try (ReleasableLock releasableLock = flushLock.tryAcquire()) {
-                    if (releasableLock != null) {
-                        performScheduledFlush();
-                    }
-                }
-            }
-        } catch (AlreadyClosedException e) {
-            // Ignore already closed exceptions as this is a known race
-        } catch (Exception e) {
-            logger.warn("unexpected exception performing scheduled flush", e);
-        } finally {
-            // Do not schedule another flush if closed
-            if (isClosed.get() == false) {
-                cancellableFlushTask = engineConfig.getThreadPool().schedule(this::scheduleFlush, nextFlushDelay, ThreadPool.Names.FLUSH);
-            }
-        }
-    }
-
-    // visible for testing
-    void performScheduledFlush() {
-        flush(false, false, ActionListener.noop());
     }
 
     @Override
@@ -165,13 +87,7 @@ public class IndexEngine extends InternalEngine {
             if (locked == null) {
                 listener.onResponse(FlushResult.NO_FLUSH);
             }
-            long newLastFlushNanos = relativeTimeInNanosSupplier.getAsLong();
-            long generationBeforeFlush = getLastCommittedSegmentInfos().getGeneration();
             super.flush(force, waitIfOngoing, listener);
-            // If the generation advanced a new commit was made with this call.
-            if (getLastCommittedSegmentInfos().getGeneration() > generationBeforeFlush) {
-                lastFlushNanos.set(newLastFlushNanos);
-            }
         }
     }
 
@@ -186,11 +102,6 @@ public class IndexEngine extends InternalEngine {
     }
 
     // visible for testing
-    long getLastFlushNanos() {
-        return lastFlushNanos.get();
-    }
-
-    // visible for testing
     long getCurrentGeneration() {
         return getLastCommittedSegmentInfos().getGeneration();
     }
@@ -202,7 +113,26 @@ public class IndexEngine extends InternalEngine {
         refreshThrottler.maybeThrottle(new RefreshThrottler.Request(source, listener));
     }
 
+    @Override
+    public void maybeRefresh(String source, ActionListener<RefreshResult> listener) throws EngineException {
+        // Maybe refresh is called on scheduled periodic refreshes and needs to flush so that the search shards received the data.
+        flush(
+            false,
+            false,
+            listener.delegateFailure(
+                (l, flushResult) -> engineConfig.getThreadPool().executor(ThreadPool.Names.REFRESH).execute(new ActionRunnable<>(listener) {
+
+                    @Override
+                    protected void doRun() {
+                        listener.onResponse(refresh(source, SearcherScope.EXTERNAL, false));
+                    }
+                })
+            )
+        );
+    }
+
     private void doExternalRefresh(RefreshThrottler.Request request) {
+        // TODO: A flush can end up on the SNAPSHOT thread, maybe dispatch back to REFRESH
         flush(true, true, request.listener().delegateFailure((l, flushResult) -> super.externalRefresh(request.source(), l)));
     }
 
@@ -251,11 +181,6 @@ public class IndexEngine extends InternalEngine {
         // Don't flush on closing to avoid doing blobstore IO for reading back the latest commit from the repository
         // if it's not cached or doing an actual flush if there's outstanding translog operations.
         close();
-    }
-
-    public void close() throws IOException {
-        cancellableFlushTask.cancel();
-        super.close();
     }
 
     @Override

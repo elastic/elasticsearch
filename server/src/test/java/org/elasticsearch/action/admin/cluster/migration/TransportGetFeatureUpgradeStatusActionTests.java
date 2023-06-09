@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptorUtils;
 import org.elasticsearch.indices.SystemIndices;
@@ -30,7 +31,7 @@ public class TransportGetFeatureUpgradeStatusActionTests extends ESTestCase {
     public static String TEST_SYSTEM_INDEX_PATTERN = ".test*";
     private static final ClusterState CLUSTER_STATE = getClusterState();
     private static final SystemIndices.Feature FEATURE = getFeature();
-    private static final Version TEST_OLD_VERSION = Version.fromString("6.0.0");
+    private static final IndexVersion TEST_OLD_VERSION = Version.fromString("6.0.0").indexVersion;
 
     public void testGetFeatureStatus() {
         GetFeatureUpgradeStatusResponse.FeatureUpgradeStatus status = TransportGetFeatureUpgradeStatusAction.getFeatureUpgradeStatus(
@@ -54,7 +55,7 @@ public class TransportGetFeatureUpgradeStatusActionTests extends ESTestCase {
 
         {
             GetFeatureUpgradeStatusResponse.IndexInfo version = versions.get(0);
-            assertThat(version.getVersion(), equalTo(Version.CURRENT));
+            assertThat(version.getVersion(), equalTo(IndexVersion.CURRENT));
             assertThat(version.getIndexName(), equalTo(".test-index-1"));
         }
         {

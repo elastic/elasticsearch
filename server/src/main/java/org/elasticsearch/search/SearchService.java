@@ -1608,9 +1608,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      * This method tries to rewrite a query without using a {@link SearchExecutionContext}. It takes advantage of the fact that
      * we can skip some shards in the query phase because we have enough information in the index mapping to decide the 'can match'
      * outcome. One such example is a term based query against a constant keyword field. This queries can rewrite themselves to a
-     * {@link MatchNoneQueryBuilder}. This allows us to avoid extra work other than
-     * making the shard search active and waiting for refreshes. As a result, we only wait for refreshes to happen on shards that have
-     * actual data.
+     * {@link MatchNoneQueryBuilder}. This allows us to avoid extra work for example making the shard search active and waiting for
+     * refreshes.
      */
     private static boolean canMatchAfterRewrite(final ShardSearchRequest request, final IndexService indexService) throws IOException {
         final QueryRewriteContext queryRewriteContext = indexService.newQueryRewriteContext(

@@ -18,11 +18,13 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
@@ -283,6 +285,31 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         }, 2, TimeUnit.MINUTES);
     }
 
+    public void testManagedPipelineGeoIpDatabasesDownload() throws Exception {
+        assumeTrue("only test with fixture to have stable results", getEndpoint() != null);
+        String pipelineId = randomIdentifier();
+
+        // Removing databases from tmp dir. So we can test the downloader.
+        deleteDatabasesInConfigDirectory();
+
+        // Enabling the downloader.
+        updateClusterSettings(Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), true));
+
+        // Creating a managed pipeline containing a geo processor: download should not be triggered (task state is null).
+        putGeoIpPipeline(pipelineId, true);
+        assertNull(getTask().getState());
+
+        // Create an index that use the geo pipeline as default pipeline or final pipeline
+        Setting<String> pipelineSetting = randomFrom(IndexSettings.FINAL_PIPELINE, IndexSettings.DEFAULT_PIPELINE);
+        client().admin().indices().prepareCreate(randomIdentifier())
+                .setSettings(Settings.builder().put(pipelineSetting.getKey(), pipelineId))
+                .get();
+        assertBusy(() -> {
+            GeoIpTaskState state = getGeoIpTaskState();
+            assertEquals(Set.of("GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb"), state.getDatabases().keySet());
+        });
+    }
+
     @TestLogging(value = "org.elasticsearch.ingest.geoip:TRACE", reason = "https://github.com/elastic/elasticsearch/issues/69972")
     public void testUseGeoIpProcessorWithDownloadedDBs() throws Exception {
         assumeTrue("only test with fixture to have stable results", getEndpoint() != null);
@@ -450,6 +477,17 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
      * @throws IOException
      */
     private void putGeoIpPipeline(String pipelineId) throws IOException {
+        putGeoIpPipeline(pipelineId, false);
+    }
+
+    /**
+     * This creates a pipeline named pipelineId with a geoip processor, which ought to cause the geoip downloader to begin (assuming it is
+     * enabled).
+     * @param pipelineId The name of the new pipeline with a geoip processor
+    *      @param managed Indicates whether the pipeline should be created as a managed pipeline or not.
+     * @throws IOException
+     */
+    private void putGeoIpPipeline(String pipelineId, boolean managed) throws IOException {
         BytesReference bytes;
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             builder.startObject();
@@ -491,6 +529,9 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
                     builder.endObject();
                 }
                 builder.endArray();
+            }
+            if (managed) {
+                builder.startObject("_meta").field("managed", true).endObject();
             }
             builder.endObject();
             bytes = BytesReference.bytes(builder);

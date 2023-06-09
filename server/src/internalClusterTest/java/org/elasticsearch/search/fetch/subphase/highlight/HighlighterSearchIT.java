@@ -13,15 +13,9 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.TermsEnum;
-import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
-import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.apache.lucene.tests.analysis.MockTokenizer;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
@@ -30,7 +24,6 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.common.time.DateFormatter;
@@ -39,18 +32,10 @@ import org.elasticsearch.index.analysis.AbstractIndexAnalyzerProvider;
 import org.elasticsearch.index.analysis.AnalyzerProvider;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.PreConfiguredTokenFilter;
-import org.elasticsearch.index.fielddata.FieldData;
-import org.elasticsearch.index.fielddata.FieldDataContext;
-import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.plain.ConstantIndexFieldData;
-import org.elasticsearch.index.mapper.ConstantFieldType;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.KeywordFieldMapper;
-import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.CombinedFieldsQueryBuilder;
 import org.elasticsearch.index.query.IdsQueryBuilder;
@@ -58,17 +43,13 @@ import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.query.functionscore.RandomScoreFunctionBuilder;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.plugins.AnalysisPlugin;
-import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.script.field.KeywordDocValuesField;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder.BoundaryScannerType;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder.Field;
@@ -3564,7 +3545,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
             return singletonMap("mock_whitespace", (indexSettings, environment, name, settings) -> {
                 return new AbstractIndexAnalyzerProvider<Analyzer>(name, settings) {
 
-                    final MockAnalyzer instance = new MockAnalyzer(random(), MockTokenizer.WHITESPACE, false);
+                    MockAnalyzer instance = new MockAnalyzer(random(), MockTokenizer.WHITESPACE, false);
 
                     @Override
                     public Analyzer get() {
@@ -3613,7 +3594,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
             // )
             .get();
         assertNoFailures(search);
-        System.out.println(search.getHits());
+
         assertThat(
 
             search.getHits().getAt(0).getHighlightFields().get("message").getFragments()[0].toString(),
@@ -3621,160 +3602,4 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         );
     }
 
-    public static class FakeConstantFieldType extends ConstantFieldType {
-
-        public static final String CONTENT_TYPE = "constant_keyword";
-        public final String value;
-
-        public FakeConstantFieldType(String name, String value, Map<String, String> meta) {
-            super(name, meta);
-            this.value = value;
-        }
-
-        public String value() {
-            return value;
-        }
-
-        @Override
-        public String typeName() {
-            return CONTENT_TYPE;
-        }
-
-        @Override
-        public String familyTypeName() {
-            return KeywordFieldMapper.CONTENT_TYPE;
-        }
-
-        @Override
-        public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
-            return new ConstantIndexFieldData.Builder(
-                value,
-                name(),
-                CoreValuesSourceType.KEYWORD,
-                (dv, n) -> new KeywordDocValuesField(FieldData.toString(dv), n)
-            );
-        }
-
-        @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            if (format != null) {
-                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
-            }
-
-            return value == null ? ValueFetcher.EMPTY : ValueFetcher.singleton(value);
-        }
-
-        @Override
-        public Object valueForDisplay(Object value) {
-            if (value == null) {
-                return null;
-            }
-            BytesRef binaryValue = (BytesRef) value;
-            return binaryValue.utf8ToString();
-        }
-
-        @Override
-        public TermsEnum getTerms(IndexReader reader, String prefix, boolean caseInsensitive, String searchAfter) {
-            if (value == null) {
-                return TermsEnum.EMPTY;
-            }
-            boolean matches = caseInsensitive
-                ? value.toLowerCase(Locale.ROOT).startsWith(prefix.toLowerCase(Locale.ROOT))
-                : value.startsWith(prefix);
-            if (matches == false) {
-                return TermsEnum.EMPTY;
-            }
-            if (searchAfter != null) {
-                if (searchAfter.compareTo(value) >= 0) {
-                    // The constant value is before the searchAfter value so must be ignored
-                    return TermsEnum.EMPTY;
-                }
-            }
-            return TermsEnum.EMPTY;
-        }
-
-        @Override
-        protected boolean matches(String pattern, boolean caseInsensitive, SearchExecutionContext context) {
-            if (value == null) {
-                return false;
-            }
-            return Regex.simpleMatch(pattern, value, caseInsensitive);
-        }
-
-        @Override
-        public Query existsQuery(SearchExecutionContext context) {
-            return value != null ? new MatchAllDocsQuery() : new MatchNoDocsQuery();
-        }
-    }
-
-    static class FakeConstantFieldMapper extends FieldMapper {
-        @Override
-        public FakeConstantFieldType fieldType() {
-            return (FakeConstantFieldType) super.fieldType();
-        }
-
-        final String indexedValue;
-        public static final TypeParser PARSER = new TypeParser((n, c) -> new FakeConstantFieldMapper.Builder(n));
-
-        private static FakeConstantFieldMapper toType(FieldMapper in) {
-            return (FakeConstantFieldMapper) in;
-        }
-
-        public static class Builder extends FieldMapper.Builder {
-
-            // This is defined as updateable because it can be updated once, from [null] to any value,
-            // by a dynamic mapping update. Once it has been set, however, the value cannot be changed.
-            private final Parameter<String> value = new Parameter<>("value", true, () -> null, (n, c, o) -> {
-                if (o instanceof Number == false && o instanceof CharSequence == false) {
-                    throw new MapperParsingException(
-                        "Property [value] on field [" + n + "] must be a number or a string, but got [" + o + "]"
-                    );
-                }
-                return o.toString();
-            }, m -> toType(m).fieldType().value, XContentBuilder::field, Objects::toString);
-            private final Parameter<Map<String, String>> meta = Parameter.metaParam();
-
-            protected Builder(String name) {
-                super(name);
-                value.setSerializerCheck((id, ic, v) -> v != null);
-                value.setMergeValidator((previous, current, c) -> previous == null || Objects.equals(previous, current));
-            }
-
-            @Override
-            protected Parameter<?>[] getParameters() {
-                return new Parameter<?>[] { value, meta };
-            }
-
-            @Override
-            public FakeConstantFieldMapper build(MapperBuilderContext context) {
-                return new FakeConstantFieldMapper(
-                    name,
-                    new FakeConstantFieldType(context.buildFullName(name), value.getValue(), meta.getValue())
-                );
-            }
-        }
-
-        FakeConstantFieldMapper(String indexedValue, FakeConstantFieldType fieldType) {
-            super(fieldType.name(), fieldType, MultiFields.empty(), CopyTo.empty());
-            this.indexedValue = indexedValue;
-        }
-
-        @Override
-        public Map<String, NamedAnalyzer> indexAnalyzers() {
-            return Map.of(mappedFieldType.name(), Lucene.KEYWORD_ANALYZER);
-        }
-
-        @Override
-        protected void parseCreateField(DocumentParserContext context) {}
-
-        @Override
-        protected String contentType() {
-            return FakeConstantFieldType.CONTENT_TYPE;
-        }
-
-        @Override
-        public FakeConstantFieldMapper.Builder getMergeBuilder() {
-            return new FakeConstantFieldMapper.Builder(mappedFieldType.name());
-        }
-    }
 }

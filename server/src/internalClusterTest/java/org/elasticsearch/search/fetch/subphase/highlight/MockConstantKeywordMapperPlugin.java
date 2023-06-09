@@ -19,7 +19,7 @@ import static java.util.Collections.singletonMap;
 public class MockConstantKeywordMapperPlugin extends Plugin implements MapperPlugin {
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {
-        return singletonMap(HighlighterSearchIT.FakeConstantFieldType.CONTENT_TYPE, HighlighterSearchIT.FakeConstantFieldMapper.PARSER);
+        return singletonMap(MockConstantFieldType.CONTENT_TYPE, MockConstantFieldMapper.PARSER);
     }
 
 }

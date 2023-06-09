@@ -3777,12 +3777,4 @@ public class HighlighterSearchIT extends ESIntegTestCase {
             return new FakeConstantFieldMapper.Builder(mappedFieldType.name());
         }
     }
-
-    public static class MockConstantKeywordMapperPlugin extends Plugin implements MapperPlugin {
-        @Override
-        public Map<String, Mapper.TypeParser> getMappers() {
-            return singletonMap(FakeConstantFieldType.CONTENT_TYPE, FakeConstantFieldMapper.PARSER);
-        }
-
-    }
 }

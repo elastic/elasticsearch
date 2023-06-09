@@ -136,9 +136,6 @@ public class SearchIdleTests extends ESSingleNodeTestCase {
 
         // THEN
         final IndicesStatsResponse afterStatsResponse = client().admin().indices().prepareStats("test*").get();
-        final List<ShardStats> activeShards = Arrays.stream(afterStatsResponse.getShards())
-            .filter(shardStats -> shardStats.isSearchIdle() == false)
-            .toList();
 
         assertIdleShardsRefreshStats(beforeStatsResponse, afterStatsResponse);
     }

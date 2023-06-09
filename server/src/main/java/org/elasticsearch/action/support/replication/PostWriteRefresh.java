@@ -18,6 +18,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.translog.Translog;
@@ -47,7 +48,9 @@ public class PostWriteRefresh {
             case WAIT_UNTIL -> waitUntil(indexShard, location, new ActionListener<>() {
                 @Override
                 public void onResponse(Boolean forced) {
-                    if (indexShard.routingEntry().isSearchable() == false && location != null) {
+                    // Fast refresh indices do not depend on the unpromotables being refreshed
+                    boolean fastRefresh = IndexSettings.INDEX_FAST_REFRESH_SETTING.get(indexShard.indexSettings().getSettings());
+                    if (location != null && (indexShard.routingEntry().isSearchable() == false && fastRefresh == false)) {
                         refreshUnpromotables(indexShard, location, listener, forced, postWriteRefreshTimeout);
                     } else {
                         listener.onResponse(forced);

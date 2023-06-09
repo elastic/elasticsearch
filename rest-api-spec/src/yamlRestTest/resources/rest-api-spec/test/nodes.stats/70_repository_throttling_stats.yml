@@ -1,6 +1,8 @@
 ---
 "Repository throttling stats (no repository exists)":
   - skip:
+      version: " - 8.8.99"
+      reason: "repository throttling stats was added in 8.9.0"
       features: [arbitrary_key]
 
   - do:
@@ -18,6 +20,8 @@
 ---
 "Repository throttling stats (some repositories exist)":
   - skip:
+      version: " - 8.8.99"
+      reason: "repository throttling stats was added in 8.9.0"
       features: [arbitrary_key]
 
   - do:

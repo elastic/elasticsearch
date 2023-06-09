@@ -36,7 +36,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.equalTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
-public class SystemIndexManagerIT extends ESIntegTestCase {
+public class SystemIndexMappingUpdateServiceIT extends ESIntegTestCase {
 
     @Before
     public void beforeEach() {

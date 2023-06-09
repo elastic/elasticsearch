@@ -1,6 +1,0 @@
-pr: 96265
-summary: Reduce nesting of same bool queries
-area: Query Languages
-type: enhancement
-issues:
- - 96236

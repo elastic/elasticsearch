@@ -7,24 +7,37 @@
 
 package org.elasticsearch.xpack.constantkeyword.mapper;
 
+import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
 import org.elasticsearch.index.query.WildcardQueryBuilder;
 import org.elasticsearch.index.refresh.RefreshStats;
+import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.internal.AliasFilter;
+import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.constantkeyword.ConstantKeywordMapperPlugin;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
 public class SearchIdleTests extends ESSingleNodeTestCase {
@@ -32,6 +45,36 @@ public class SearchIdleTests extends ESSingleNodeTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return List.of(ConstantKeywordMapperPlugin.class);
+    }
+
+    public void testCanMatchAfterRewrite() throws IOException {
+        final String indexName = randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
+        final String fieldName = randomAlphaOfLength(10);
+        final String matchingValue = randomAlphaOfLength(10);
+        final String nonMatchingValue = randomAlphaOfLength(8);
+        final XContentBuilder mapping = JsonXContent.contentBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject(fieldName)
+            .field("type", "constant_keyword")
+            .field("value", matchingValue)
+            .endObject()
+            .endObject()
+            .endObject();
+
+        createIndex(indexName, Settings.EMPTY, mapping);
+        final SearchService service = getInstanceFromNode(SearchService.class);
+        final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        final IndexService indexService = indicesService.indexServiceSafe(resolveIndex(indexName));
+        final IndexShard indexShard = indexService.getShard(0);
+
+        final SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true);
+
+        searchRequest.source(new SearchSourceBuilder().query(new MatchPhraseQueryBuilder(fieldName, matchingValue)));
+        assertTrue(canMatch(service, indexShard, searchRequest));
+
+        searchRequest.source(new SearchSourceBuilder().query(new MatchPhraseQueryBuilder(fieldName, nonMatchingValue)));
+        assertFalse(canMatch(service, indexShard, searchRequest));
     }
 
     public void testSearchIdleConstantKeywordMatchNoIndex() throws InterruptedException {
@@ -315,5 +358,11 @@ public class SearchIdleTests extends ESSingleNodeTestCase {
         assertEquals(refreshStatsBefore.size(), refreshStatsAfter.size());
         assertTrue(refreshStatsAfter.containsAll(refreshStatsBefore));
         assertTrue(refreshStatsBefore.containsAll(refreshStatsAfter));
+    }
+
+    private static boolean canMatch(SearchService service, IndexShard indexShard, SearchRequest matchingSearchRequest) throws IOException {
+        return service.canMatch(
+            new ShardSearchRequest(OriginalIndices.NONE, matchingSearchRequest, indexShard.shardId(), 0, 1, AliasFilter.EMPTY, 1f, -1, null)
+        ).canMatch();
     }
 }

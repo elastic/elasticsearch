@@ -3821,7 +3821,7 @@ public class IndexShardTests extends IndexShardTestCase {
             assertEquals(2, searcher.getIndexReader().numDocs());
         }
 
-        // No no documents were added and shard is search active so makeShardSearchActive(...) should behave like a nooo:
+        // No documents were added and shard is search active so makeShardSearchActive(...) should behave like a noop:
         assertFalse(primary.getEngine().refreshNeeded());
         CountDownLatch latch1 = new CountDownLatch(1);
         primary.ensureShardSearchActive(refreshed -> {

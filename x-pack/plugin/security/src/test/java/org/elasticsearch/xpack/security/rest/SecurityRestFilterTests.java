@@ -282,12 +282,7 @@ public class SecurityRestFilterTests extends ESTestCase {
 
     public void testProcessWithWorkflow() throws Exception {
         final Workflow workflow = randomFrom(WorkflowResolver.allWorkflows());
-        if (randomBoolean()) {
-            restHandler = new TestBaseRestHandler(randomFrom(workflow.allowedRestHandlers()));
-        } else {
-            restHandler = Mockito.mock(RestHandler.class);
-            when(restHandler.getConcreteRestHandler()).thenReturn(new TestBaseRestHandler(randomFrom(workflow.allowedRestHandlers())));
-        }
+        restHandler = new TestBaseRestHandler(randomFrom(workflow.allowedRestHandlers()));
 
         final WorkflowService workflowService = new WorkflowService();
         filter = new SecurityRestFilter(

@@ -435,7 +435,7 @@ public class ReadOnlyEngine extends Engine {
 
     @Override
     public void maybeRefresh(String source, ActionListener<RefreshResult> listener) throws EngineException {
-        ActionListener.completeWith(listener, () -> RefreshResult.NO_REFRESH);
+        listener.onResponse(RefreshResult.NO_REFRESH);
     }
 
     @Override

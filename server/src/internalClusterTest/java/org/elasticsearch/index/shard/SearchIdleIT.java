@@ -200,11 +200,7 @@ public class SearchIdleIT extends ESSingleNodeTestCase {
     private static void scheduleRefresh(IndexShard shard, boolean expectRefresh) {
         PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
         shard.scheduledRefresh(future);
-        if (expectRefresh) {
-            assertTrue(future.actionGet());
-        } else {
-            assertFalse(future.actionGet());
-        }
+        assertThat(future.actionGet(), equalTo(expectRefresh));
     }
 
     private void ensureNoPendingScheduledRefresh(ThreadPool threadPool) {

@@ -24,17 +24,9 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.engine.EngineConfig;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.translog.Translog;
-import org.mockito.Mockito;
 import org.mockito.stubbing.Answer;
-
-import java.io.IOException;
-import java.util.Collections;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.LongSupplier;
 
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doAnswer;
@@ -44,77 +36,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class IndexEngineTests extends AbstractEngineTestCase {
-
-    public void testPeriodicallyFlushesRegardlessOfIndexing() throws Exception {
-        var settings = Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(10)).build();
-        try (var engine = Mockito.spy(newIndexEngine(copy(indexConfig(), settings, System::nanoTime)));) {
-            int numberOfFlushes = randomIntBetween(1, 10);
-            CountDownLatch latch = new CountDownLatch(numberOfFlushes);
-            Mockito.doAnswer(invocation -> {
-                latch.countDown();
-                return invocation.callRealMethod();
-            }).when(engine).performScheduledFlush();
-            engine.onSettingsChanged(); // Refresh the reference on the scheduledFlush method
-
-            assertTrue(latch.await(10, TimeUnit.SECONDS));
-        }
-    }
-
-    public void testAdjustsPeriodicFlushingIntervalInCaseOfManualFlushes() throws Exception {
-        long flushInterval = TimeUnit.MILLISECONDS.toNanos(10);
-        var settings = Settings.builder()
-            .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.timeValueNanos(flushInterval))
-            .build();
-        try (var engine = Mockito.spy(newIndexEngine(copy(indexConfig(), settings, System::nanoTime)));) {
-            int numberOfFlushes = randomIntBetween(5, 10);
-            CountDownLatch latch = new CountDownLatch(numberOfFlushes);
-            Mockito.doAnswer(invocation -> {
-                // Keep flushing at flushInterval, don't flush if a manual flush happened recently
-                assertTrue(System.nanoTime() - engine.getLastFlushNanos() >= flushInterval);
-                latch.countDown();
-                return invocation.callRealMethod();
-            }).when(engine).performScheduledFlush();
-            engine.onSettingsChanged(); // Refresh the reference on the scheduledFlush method
-
-            AtomicBoolean running = new AtomicBoolean(true);
-            Thread manualFlushThread = new Thread(() -> {
-                while (running.get()) {
-                    if (randomBoolean()) {
-                        engine.flush();
-                    }
-                    try {
-                        Thread.sleep(randomIntBetween(10, 50));
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                        break;
-                    }
-                }
-            });
-            manualFlushThread.start();
-
-            assertTrue(latch.await(10, TimeUnit.SECONDS));
-            running.set(false);
-            manualFlushThread.join();
-        }
-    }
-
-    public void testPeriodicFlushGracefullyHandlesException() throws Exception {
-        var settings = Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(10)).build();
-        try (var engine = Mockito.spy(newIndexEngine(copy(indexConfig(), settings, System::nanoTime)));) {
-            int numberOfFlushes = 2;
-            CountDownLatch latch = new CountDownLatch(numberOfFlushes);
-            Mockito.doAnswer(invocation -> {
-                latch.countDown();
-                if (latch.getCount() > 0) {
-                    throw new IOException("Flush Exception");
-                }
-                return invocation.callRealMethod();
-            }).when(engine).performScheduledFlush();
-            engine.onSettingsChanged(); // Refresh the reference on the scheduledFlush method
-
-            assertTrue(latch.await(10, TimeUnit.SECONDS));
-        }
-    }
 
     public void testAsyncEnsureSync() throws Exception {
         TranslogReplicator replicator = mock(TranslogReplicator.class);
@@ -159,17 +80,8 @@ public class IndexEngineTests extends AbstractEngineTestCase {
         }
     }
 
-    public void testRefreshNeededBasedOnFastRefresh() throws Exception {
+    public void testRefreshNeededForFastRefreshesBasedOnSearcher() throws Exception {
         Settings nodeSettings = Settings.builder().put(Stateless.STATELESS_ENABLED.getKey(), true).build();
-        try (var engine = newIndexEngine(indexConfig(Settings.EMPTY, nodeSettings))) {
-            engine.index(randomDoc(String.valueOf(0)));
-            // Refresh to warm-up engine
-            engine.maybeRefresh("test");
-            assertFalse(engine.refreshNeeded());
-            engine.index(randomDoc(String.valueOf(1)));
-            assertFalse(engine.refreshNeeded());
-        }
-
         try (
             var engine = newIndexEngine(
                 indexConfig(
@@ -183,44 +95,43 @@ public class IndexEngineTests extends AbstractEngineTestCase {
         ) {
             engine.index(randomDoc(String.valueOf(0)));
             // Refresh to warm-up engine
-            engine.maybeRefresh("test");
+            engine.refresh("test");
             assertFalse(engine.refreshNeeded());
             engine.index(randomDoc(String.valueOf(1)));
+            engine.flush();
             assertTrue(engine.refreshNeeded());
         }
     }
 
-    private EngineConfig copy(EngineConfig config, Settings additionalIndexSettings, LongSupplier relativeTimeInNanosSupplier) {
-        return new EngineConfig(
-            config.getShardId(),
-            config.getThreadPool(),
-            new IndexSettings(
-                config.getIndexSettings().getIndexMetadata(),
-                Settings.builder().put(config.getIndexSettings().getNodeSettings()).put(additionalIndexSettings).build()
-            ),
-            config.getWarmer(),
-            config.getStore(),
-            config.getMergePolicy(),
-            config.getAnalyzer(),
-            config.getSimilarity(),
-            config.getCodecService(),
-            config.getEventListener(),
-            config.getQueryCache(),
-            config.getQueryCachingPolicy(),
-            config.getTranslogConfig(),
-            config.getFlushMergesAfter(),
-            config.getExternalRefreshListener(),
-            Collections.emptyList(),
-            config.getIndexSort(),
-            config.getCircuitBreakerService(),
-            config.getGlobalCheckpointSupplier(),
-            config.retentionLeasesSupplier(),
-            config.getPrimaryTermSupplier(),
-            config.getSnapshotCommitSupplier(),
-            config.getLeafSorter(),
-            relativeTimeInNanosSupplier,
-            config.getIndexCommitListener(),
-            config.isPromotableToPrimary()
-        );
+    public void testRefreshNeededForNonFastRefreshesBasedOnSearcherAndCommits() throws Exception {
+        Settings nodeSettings = Settings.builder().put(Stateless.STATELESS_ENABLED.getKey(), true).build();
+
+        try (
+            var engine = newIndexEngine(
+                indexConfig(
+                    Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(60)).build(),
+                    nodeSettings
+                )
+            )
+        ) {
+            engine.index(randomDoc(String.valueOf(0)));
+            // Refresh to warm-up engine
+            engine.refresh("test");
+            // Need refresh because only maybeRefresh / externalRefreshes commit
+            assertTrue(engine.refreshNeeded());
+            engine.index(randomDoc(String.valueOf(1)));
+            // Still need refresh
+            assertTrue(engine.refreshNeeded());
+            if (randomBoolean()) {
+                PlainActionFuture<Engine.RefreshResult> future = PlainActionFuture.newFuture();
+                engine.externalRefresh("test", future);
+                future.actionGet();
+            } else {
+                PlainActionFuture<Engine.RefreshResult> future = PlainActionFuture.newFuture();
+                engine.maybeRefresh("test", future);
+                future.actionGet();
+            }
+            assertFalse(engine.refreshNeeded());
+        }
     }
 }

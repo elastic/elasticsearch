@@ -173,8 +173,6 @@ public class QueryRulesIndexService {
                 return;
             }
             final Map<String, Object> source = getResponse.getSource();
-
-            final String id = getResponse.getId();
             @SuppressWarnings("unchecked")
             final List<QueryRule> rules = ((List<Map<String, Object>>) source.get("rules")).stream()
                 .map(
@@ -186,7 +184,7 @@ public class QueryRulesIndexService {
                     )
                 )
                 .collect(Collectors.toList());
-            final QueryRuleset res = new QueryRuleset(id, rules);
+            final QueryRuleset res = new QueryRuleset(resourceName, rules);
             l.onResponse(res);
         }));
     }

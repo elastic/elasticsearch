@@ -1,0 +1,5 @@
+pr: 96721
+summary: Port lucene tessellator fix github-12352 to Elasticsearch 7.17
+area: Geo
+type: bug
+issues: []

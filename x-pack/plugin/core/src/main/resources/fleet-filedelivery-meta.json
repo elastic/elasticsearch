@@ -1,0 +1,60 @@
+{
+  "index_patterns": [
+    ".fleet-filedelivery-meta-*-*"
+  ],
+  "priority": 200,
+  "composed_of": [],
+  "_meta": {
+    "description": "fleet file delivery index template",
+    "managed": true
+  },
+  "template": {
+    "settings": {
+      "index.auto_expand_replicas": "0-1",
+      "index.hidden": true
+    },
+    "mappings": {
+      "_doc": {
+        "_meta": {
+          "version": "${xpack.fleet.template.version}"
+        },
+        "dynamic": false,
+        "properties": {
+          "agent_id": {
+            "type": "keyword"
+          },
+          "action_id": {
+            "type": "keyword"
+          },
+          "source": {
+            "type": "keyword"
+          },
+          "file": {
+            "properties": {
+              "Status": {
+                "type": "keyword"
+              },
+              "ChunkSize": {
+                "type": "integer"
+              },
+              "Compression": {
+                "type": "keyword"
+              },
+              "name": {
+                "type": "keyword"
+              },
+              "Meta": {
+                "properties": {
+                  "target_agents": {
+                    "type": "keyword"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "version": ${xpack.fleet.template.version}
+}

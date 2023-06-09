@@ -216,6 +216,63 @@ weights.
 ----
 // NOTCONSOLE
 
+
+[discrete]
+[[text-expansion-compound-query]]
+=== Combining semantic search with other queries
+
+You can combine `text_expansion` with other queries in a 
+<<compound-queries,compound query>>. For example using a filter clause in a 
+<<query-dsl-bool-query>> or a full text query which may or may not use the same 
+query text as the `text_expansion` query. This enables you to combine the search 
+results from both queries.
+
+The search hits from the `text_expansion` query tend to score higher than other 
+{es} queries. Those scores can be regularized by increasing or decreasing the 
+relevance scores of each query by using the `boost` parameter. Recall on the 
+`text_expansion` query can be high where there is a long tail of less relevant 
+results. Use the `min_score` parameter to prune those less relevant documents.
+
+[source,console]
+----
+GET my-index/_search
+{
+  "query": {
+    "bool": { <1>
+      "should": [
+        {
+          "text_expansion": { 
+            "ml.tokens": {
+              "model_text": "How to avoid muscle soreness after running?",
+              "model_id": ".elser_model_1",
+              "boost": 1 <2>
+            }
+          }
+        },
+        {
+          "query_string": {
+            "query": "toxins",
+            "boost": 4 <3>
+          }
+        }
+      ]
+    }
+  },
+  "min_score": 10 <4>
+}
+----
+// TEST[skip:TBD]
+<1> Both the `text_expansion` and the `query_string` queries are in a `should` 
+clause of a `bool` query.
+<2> The `boost` value is `1` for the `text_expansion` query which is the default 
+value. This means that the relevance score of the results of this query are not 
+boosted.
+<3> The `boost` value is `4` for the `query_string` query. The relevance score 
+of the results of this query is increased causing them to rank higher in the 
+search results.
+<4> Only the results with a score equal to or higher than `10` are displayed.
+
+
 [discrete]
 [[further-reading]]
 === Further reading

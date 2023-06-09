@@ -544,7 +544,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     );
                 }
 
-            if (newRouting.active() != false && state != IndexShardState.STARTED && state != IndexShardState.CLOSED) {
+            if (newRouting.active() && state != IndexShardState.STARTED && state != IndexShardState.CLOSED) {
                 // If cluster.no_master_block: all then we remove all shards locally whenever there's no master, but there might still be
                 // a shard-started message in flight. When the new master is elected we start to recover our shards again and the stale
                 // shard-started message could arrive and move this shard to STARTED in the cluster state too soon. This is pretty rare so
@@ -2145,6 +2145,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         } else {
             if (origin == Engine.Operation.Origin.PRIMARY) {
                 assert assertPrimaryMode();
+                // We only do indexing into primaries that are started since:
+                // * TransportReplicationAction.ReroutePhase only allows to index into active primaries.
+                // * A relocation will retry the reroute phase.
+                // * Allocation ids protect against spurious requests towards old allocations.
+                // * We apply the cluster state on IndexShard instances before making it available for routing
+                assert state == IndexShardState.STARTED : "must be started to do primary indexing";
             } else if (origin == Engine.Operation.Origin.REPLICA) {
                 assert assertReplicationTarget();
             } else {

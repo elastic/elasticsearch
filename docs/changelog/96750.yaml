@@ -1,0 +1,5 @@
+pr: 96750
+summary: Try switching `SystemIndexDescriptor` to use `IndexVersion`
+area: Infra/Core
+type: enhancement
+issues: []

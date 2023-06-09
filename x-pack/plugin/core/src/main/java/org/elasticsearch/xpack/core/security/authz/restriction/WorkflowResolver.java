@@ -12,7 +12,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
 
 import java.util.HashMap;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -61,15 +60,16 @@ public final class WorkflowResolver {
     }
 
     /**
-     * Resolves a {@link Workflow} from a given {@code name}.
-     * Workflow names are unique, hence there can be only one {@link Workflow} for a given name.
+     * Resolves a {@link Workflow} from a given name. Workflow names are unique and case-sensitive,
+     * hence there can be only one {@link Workflow} for a given name.
      *
      * @param name a workflow name
      * @return a resolved {@link Workflow}
-     * @throws IllegalArgumentException if a workflow with the given {@code name} does not exist
+     * @throws IllegalArgumentException if a workflow with the given name does not exist
+     * @throws NullPointerException if name is null
      */
     public static Workflow resolveWorkflowByName(final String name) {
-        final String filteredName = Objects.requireNonNull(name).toLowerCase(Locale.ROOT).trim();
+        final String filteredName = Objects.requireNonNull(name);
 
         final Workflow resolvedWorkflow = WORKFLOW_LOOKUP_MAP_BY_NAME.get(filteredName);
         if (resolvedWorkflow != null) {

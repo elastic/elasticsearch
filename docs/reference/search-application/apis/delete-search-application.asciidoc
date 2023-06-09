@@ -2,7 +2,7 @@
 [[delete-search-application]]
 === Delete Search Application
 
-preview::[]
+beta::[]
 
 ++++
 <titleabbrev>Delete Search Application</titleabbrev>

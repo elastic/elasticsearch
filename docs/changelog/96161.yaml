@@ -1,0 +1,6 @@
+pr: 96161
+summary: Skip shards when querying constant keyword fields
+area: "Search"
+type: enhancement
+issues:
+ - 95541

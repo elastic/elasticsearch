@@ -1919,23 +1919,30 @@ public abstract class Engine implements Closeable {
      * @param translogRecoveryRunner the translog recovery runner
      * @param recoverUpToSeqNo       the upper bound, inclusive, of sequence number to be recovered
      */
-    // TODO move this blocking implementation into tests (adding a timeout) and make all the production usages async
+    // TODO move this blocking implementation into tests (adding a timeout) and make all the production usages fully async
     public final void recoverFromTranslog(TranslogRecoveryRunner translogRecoveryRunner, long recoverUpToSeqNo) throws IOException {
         final var future = new PlainActionFuture<Void>();
         recoverFromTranslog(translogRecoveryRunner, recoverUpToSeqNo, future);
         try {
             future.get();
         } catch (ExecutionException e) {
+            // This is a (temporary) adapter between the older synchronous (blocking) code and the newer (async) API. Callers expect
+            // exceptions to be thrown directly, but Future#get adds an ExecutionException wrapper which we must remove to preserve the
+            // expected exception semantics.
             if (e.getCause() instanceof IOException ioException) {
                 throw ioException;
             } else if (e.getCause() instanceof RuntimeException runtimeException) {
                 throw runtimeException;
             } else {
+                // the old code was "throws IOException" so we shouldn't see any other exception types here
                 logger.error("checked non-IOException unexpectedly thrown", e);
                 assert false : e;
                 throw new UncategorizedExecutionException("recoverFromTranslog", e);
             }
         } catch (InterruptedException e) {
+            // We don't really use interrupts in this area so this is somewhat unexpected (unless perhaps we're shutting down), just treat
+            // it like any other exception.
+            Thread.currentThread().interrupt();
             throw new RuntimeException(e);
         }
     }

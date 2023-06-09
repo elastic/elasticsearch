@@ -59,6 +59,7 @@ public class SynonymsManagementAPIService {
     public static final String SYNONYMS_FIELD = "synonyms";
     public static final String SYNONYM_RULE_ID_SEPARATOR = "|";
     public static final String SYNONYM_SETS_AGG_NAME = "synonym_sets_aggr";
+    public static final int MAX_SYNONYMS_SETS = 10_000;
 
     private final Client client;
 
@@ -118,7 +119,11 @@ public class SynonymsManagementAPIService {
     public void getSynonymsSets(int from, int size, ActionListener<PagedResult<SynonymSetSummary>> listener) {
         client.prepareSearch(SYNONYMS_ALIAS_NAME)
             .setSize(0)
-            .addAggregation(new TermsAggregationBuilder(SYNONYM_SETS_AGG_NAME).field(SYNONYMS_SET_FIELD).order(BucketOrder.key(true)))
+            .addAggregation(
+                new TermsAggregationBuilder(SYNONYM_SETS_AGG_NAME).field(SYNONYMS_SET_FIELD)
+                    .order(BucketOrder.key(true))
+                    .size(MAX_SYNONYMS_SETS)
+            )
             .setPreference(Preference.LOCAL.type())
             .execute(listener.delegateFailure((searchResponseListener, searchResponse) -> {
                 Terms aggregation = searchResponse.getAggregations().get(SYNONYM_SETS_AGG_NAME);

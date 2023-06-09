@@ -93,3 +93,66 @@ setup:
       count: 0
   - match:
       results: []
+
+---
+"More than 10 synonym sets":
+
+  - do:
+      synonyms.put:
+        synonyms_set: test-synonyms-4
+        body:
+          synonyms_set:
+            - synonyms: "test, check"
+  - do:
+      synonyms.put:
+        synonyms_set: test-synonyms-5
+        body:
+          synonyms_set:
+            - synonyms: "test, check"
+  - do:
+      synonyms.put:
+        synonyms_set: test-synonyms-6
+        body:
+          synonyms_set:
+            - synonyms: "test, check"
+  - do:
+      synonyms.put:
+        synonyms_set: test-synonyms-7
+        body:
+          synonyms_set:
+            - synonyms: "test, check"
+  - do:
+      synonyms.put:
+        synonyms_set: test-synonyms-8
+        body:
+          synonyms_set:
+            - synonyms: "test, check"
+  - do:
+      synonyms.put:
+        synonyms_set: test-synonyms-9
+        body:
+          synonyms_set:
+            - synonyms: "test, check"
+  - do:
+      synonyms.put:
+        synonyms_set: test-synonyms-10
+        body:
+          synonyms_set:
+            - synonyms: "test, check"
+  - do:
+      synonyms.put:
+        synonyms_set: test-synonyms-11
+        body:
+          synonyms_set:
+            - synonyms: "test, check"
+  - do:
+      synonyms.put:
+        synonyms_set: test-synonyms-12
+        body:
+          synonyms_set:
+            - synonyms: "test, check"
+  - do:
+      synonyms_sets.get: { }
+
+  - match:
+      count: 12

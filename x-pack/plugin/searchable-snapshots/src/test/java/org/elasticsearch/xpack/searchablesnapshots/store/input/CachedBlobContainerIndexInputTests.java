@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.searchablesnapshots.store.input;
 
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.blobcache.BlobCacheTestUtils;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
@@ -17,6 +16,7 @@ import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
@@ -75,7 +75,7 @@ public class CachedBlobContainerIndexInputTests extends AbstractSearchableSnapsh
                     fileName,
                     input.length,
                     checksum,
-                    Version.CURRENT.luceneVersion().toString()
+                    IndexVersion.CURRENT.luceneVersion().toString()
                 );
 
                 final int partSize = randomBoolean() ? input.length : randomIntBetween(1, input.length);
@@ -194,7 +194,7 @@ public class CachedBlobContainerIndexInputTests extends AbstractSearchableSnapsh
                 fileName,
                 input.length,
                 checksum,
-                Version.CURRENT.luceneVersion().toString()
+                IndexVersion.CURRENT.luceneVersion().toString()
             );
 
             final BlobStoreIndexShardSnapshot snapshot = new BlobStoreIndexShardSnapshot(

@@ -93,7 +93,7 @@ public class FeatureUpgradeIT extends AbstractRollingTestCase {
                     .orElse(Collections.emptyMap());
 
                 assertThat(feature.size(), equalTo(4));
-                assertThat(feature.get("minimum_index_version"), equalTo(UPGRADE_FROM_VERSION.indexVersion));
+                assertThat(feature.get("minimum_index_version"), equalTo(UPGRADE_FROM_VERSION.indexVersion.toString()));
                 if (UPGRADE_FROM_VERSION.before(TransportGetFeatureUpgradeStatusAction.NO_UPGRADE_REQUIRED_VERSION.toVersion())) {
                     assertThat(feature.get("migration_status"), equalTo("MIGRATION_NEEDED"));
                 } else {

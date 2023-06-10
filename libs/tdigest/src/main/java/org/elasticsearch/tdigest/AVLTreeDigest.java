@@ -366,31 +366,26 @@ public class AVLTreeDigest extends AbstractTDigest {
         }
 
         // if values were stored in a sorted array, index would be the offset we are interested in
-        final double index = q * (count - 1);
+        final double index = q * count;
 
         // deal with min and max as a special case singletons
         if (index <= 0) {
             return min;
         }
 
-        if (index >= count - 1) {
+        if (index >= count) {
             return max;
         }
 
         int currentNode = values.first();
         int currentWeight = values.count(currentNode);
 
-        // weightSoFar represents the total mass to the left of the center of the current node.
-        // If there's a singleton on the left boundary, there's no more mass on the left.
-        double weightSoFar = (currentWeight == 1) ? 0 : currentWeight / 2.0;
+        // Total mass to the left of the center of the current node.
+        double weightSoFar = currentWeight / 2.0;
 
-        if (index <= weightSoFar || (currentWeight == 1 && index <= currentWeight)) {
-            // If there's a singleton on the left boundary, interpolate between the first two centroids.
-            if (currentWeight == 1) {
-                return min + index * (values.mean(values.next(currentNode)) - min);
-            }
-            // Interpolate between min and first mean, otherwise.
-            return weightedAverage(min, index, values.mean(currentNode), weightSoFar - index);
+        if (index <= weightSoFar && weightSoFar > 1) {
+            // Interpolate between min and first mean, if there's no singleton on the left boundary.
+            return weightedAverage(min, weightSoFar - index, values.mean(currentNode), index);
         }
 
         for (int i = 0; i < values.size() - 1; i++) {
@@ -417,14 +412,8 @@ public class AVLTreeDigest extends AbstractTDigest {
         assert index - weightSoFar < count - currentWeight / 2.0;
         assert count - weightSoFar >= 0.5;
 
-        double w1 = index - weightSoFar;
-
-        // If there's a singleton on the right boundary, interpolate with the previous mean.
-        if (currentWeight == 1) {
-            double w2 = count - weightSoFar - w1;
-            return weightedAverage(values.mean(values.prev(currentNode)), w2, values.mean(currentNode), w1);
-        }
         // Interpolate between the last mean and the max.
+        double w1 = index - weightSoFar;
         double w2 = currentWeight / 2.0 - w1;
         return weightedAverage(values.mean(currentNode), w2, max, w1);
     }

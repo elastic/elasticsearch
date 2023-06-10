@@ -570,29 +570,24 @@ public class MergingDigest extends AbstractTDigest {
         int n = lastUsedCell;
 
         // if values were stored in a sorted array, index would be the offset we are interested in
-        final double index = q * (totalWeight - 1);
+        final double index = q * totalWeight;
 
         // beyond the boundaries, we return min or max
         // usually, the first and last centroids have unit weights so this will make it moot
         if (index < 0) {
             return min;
         }
-        if (index >= totalWeight - 1) {
+        if (index >= totalWeight) {
             return max;
         }
 
-        double weightSoFar = (weight[0] == 1) ? 0 : weight[0] / 2;
-
-        // If there's a singleton on the left boundary, interpolate between the first two centroids.
-        if (weight[0] == 1 && index <= weight[0]) {
-            return min + index * (mean[1] - min);
-        }
+        double weightSoFar = weight[0] / 2;
 
         // if the left centroid has more than one sample, we still know
         // that one sample occurred at min so we can do some interpolation
         if (weight[0] > 1 && index < weightSoFar) {
             // there is a single sample at min so we interpolate with less weight
-            return weightedAverage(min, index, mean[0], weightSoFar - index);
+            return weightedAverage(min, weightSoFar - index, mean[0], index);
         }
 
         // if the right-most centroid has more than one sample, we still know
@@ -615,17 +610,10 @@ public class MergingDigest extends AbstractTDigest {
 
         assert weight[n - 1] >= 1;
         assert index >= totalWeight - weight[n - 1];
-        double z1 = index - weightSoFar;
-
-        // If there's a singleton on the right boundary, interpolate between the last two centroids.
-        if (weight[n - 1] == 1) {
-            double z2 = totalWeight - weightSoFar - z1;
-            return weightedAverage(mean[n - 2], z2, mean[n - 1], z1);
-        }
 
         // Interpolate between the last mean and the max.
+        double z1 = index - weightSoFar;
         double z2 = weight[n - 1] / 2.0 - z1;
-
         return weightedAverage(mean[n - 1], z1, max, z2);
     }
 

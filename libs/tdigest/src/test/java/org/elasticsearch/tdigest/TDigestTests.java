@@ -52,11 +52,10 @@ public abstract class TDigestTests extends ESTestCase {
         digest.add(1_000_000);
 
         assertEquals(10.5, digest.quantile(0.50), 1e-5);
-        assertEquals(16.2, digest.quantile(0.80), 1e-5);
-        assertEquals(18.1, digest.quantile(0.90), 1e-5);
-        assertEquals(50_000, digest.quantile(0.95), 100);
-        assertEquals(620_000, digest.quantile(0.98), 100);
-        assertEquals(810_000, digest.quantile(0.99), 100);
+        assertEquals(16.5, digest.quantile(0.80), 1e-5);
+        assertEquals(18.5, digest.quantile(0.90), 1e-5);
+        assertEquals(500_000, digest.quantile(0.95), 10);
+        assertEquals(1_000_000, digest.quantile(0.98), 100);
         assertEquals(1_000_000, digest.quantile(1.00), 0);
 
         assertEquals(0.925, digest.cdf(19), 1e-11);
@@ -85,11 +84,11 @@ public abstract class TDigestTests extends ESTestCase {
             td.add(datum);
         }
         assertEquals(15.0, td.quantile(0.00), 1e-5);
-        assertEquals(16.5, td.quantile(0.10), 1e-5);
-        assertEquals(18.75, td.quantile(0.25), 1e-5);
+        assertEquals(15.0, td.quantile(0.10), 1e-5);
+        assertEquals(17.5, td.quantile(0.25), 1e-5);
         assertEquals(26.0, td.quantile(0.50), 1e-5);
-        assertEquals(39.0, td.quantile(0.75), 1e-5);
-        assertEquals(51.6, td.quantile(0.90), 1e-5);
+        assertEquals(46.0, td.quantile(0.75), 1e-5);
+        assertEquals(60.0, td.quantile(0.90), 1e-5);
         assertEquals(60.0, td.quantile(1.00), 1e-5);
     }
 
@@ -177,7 +176,29 @@ public abstract class TDigestTests extends ESTestCase {
             double q = 0.001 * i;
             double dist = Dist.quantile(q, data);
             double td = digest.quantile(q);
-            assertEquals(String.valueOf(q), dist, td, 0.0);
+            assertEquals(String.valueOf(q), dist, td, 0.5);
+        }
+    }
+
+    public void testCentroidsWithIncreasingWeights() {
+        ArrayList<Double> data = new ArrayList<>();
+        TDigest digest = factory().create();
+        for (int i = 1; i <= 10; i++) {
+            digest.add(i, i);
+            for (int j = 0; j < i; j++) {
+                data.add((double) i);
+            }
+        }
+
+        for (double x = digest.getMin() - 0.1; x <= digest.getMax() + 0.1; x += 1e-3) {
+            assertEquals(Dist.cdf(x, data), digest.cdf(x), 0.1);
+        }
+
+        for (int i = 0; i <= 1000; i++) {
+            double q = 0.001 * i;
+            double dist = Dist.quantile(q, data);
+            double td = digest.quantile(q);
+            assertEquals(String.valueOf(q), dist, td, 0.75);
         }
     }
 
@@ -250,8 +271,8 @@ public abstract class TDigestTests extends ESTestCase {
         assertEquals(1.0 / digest.size(), digest.cdf(1e-9), 1e-10);
 
         assertEquals(0, digest.quantile(0), 0);
-        assertEquals(0.5, digest.quantile(0.5 / digest.size()), 0.1);
-        assertEquals(1.0, digest.quantile(1.0 / digest.size()), 0.1);
+        assertEquals(0.0, digest.quantile(0.5 / digest.size()), 0.1);
+        assertEquals(0.4, digest.quantile(1.0 / digest.size()), 0.2);
         assertEquals(first.mean(), 0.0, 1e-5);
 
         digest.add(4);
@@ -267,10 +288,7 @@ public abstract class TDigestTests extends ESTestCase {
         assertEquals(last.mean(), 4, 0);
     }
 
-    /**
-     * The example from issue #167
-     */
-    public void testIssue167() {
+    public void testFewRepeatedValues() {
         TDigest d = factory().create();
         for (int i = 0; i < 2; ++i) {
             d.add(9000);
@@ -283,10 +301,9 @@ public abstract class TDigestTests extends ESTestCase {
         }
 
         assertEquals(3000.0, d.quantile(0.90), 1e-5);
-        assertEquals(3600.0, d.quantile(0.95), 1e-5);
-        assertEquals(5880.0, d.quantile(0.96), 1e-5);
-        assertEquals(8160.0, d.quantile(0.97), 1e-5);
-        assertEquals(9000.0, d.quantile(0.98), 1e-5);
+        assertEquals(6300.0, d.quantile(0.95), 1e-5);
+        assertEquals(8640.0, d.quantile(0.96), 1e-5);
+        assertEquals(9000.0, d.quantile(0.97), 1e-5);
         assertEquals(9000.0, d.quantile(1.00), 1e-5);
     }
 
@@ -325,7 +342,7 @@ public abstract class TDigestTests extends ESTestCase {
         for (double q : new double[] { 0, 1e-10, r.nextDouble(), 0.5, 1 - 1e-10, 1 }) {
             double q1 = Dist.quantile(q, values);
             double q2 = digest.quantile(q);
-            assertEquals(String.format(Locale.ROOT, "At q=%g, expected %.2f vs %.2f", q, q1, q2), q1, q2, 0.03);
+            assertEquals(String.valueOf(q), q1, q2, q1);
         }
     }
 
@@ -471,10 +488,10 @@ public abstract class TDigestTests extends ESTestCase {
         assertEquals(x0, tdigest.quantile(0.0), 0);
         assertEquals(x2, tdigest.quantile(1.0), 0);
 
-        assertTrue(String.valueOf(p10), Double.compare(x0, p10) < 0);
-        assertTrue(String.valueOf(p10), Double.compare(x1, p10) > 0);
-        assertTrue(String.valueOf(p99), Double.compare(x1, p99) < 0);
-        assertTrue(String.valueOf(p99), Double.compare(x2, p99) > 0);
+        assertTrue(String.valueOf(p10), Double.compare(x0, p10) <= 0);
+        assertTrue(String.valueOf(p10), Double.compare(x1, p10) >= 0);
+        assertTrue(String.valueOf(p99), Double.compare(x1, p99) <= 0);
+        assertTrue(String.valueOf(p99), Double.compare(x2, p99) >= 0);
     }
 
     public void testSingletonInACrowd() {

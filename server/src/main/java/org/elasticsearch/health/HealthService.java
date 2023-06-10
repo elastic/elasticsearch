@@ -8,17 +8,37 @@
 
 package org.elasticsearch.health;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.component.Lifecycle;
+import org.elasticsearch.common.logging.ESLogMessage;
+import org.elasticsearch.common.scheduler.SchedulerEngine;
+import org.elasticsearch.common.scheduler.TimeValueSchedule;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.health.node.FetchHealthInfoCacheAction;
 import org.elasticsearch.health.node.HealthInfo;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.Closeable;
+import java.time.Clock;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -33,7 +53,21 @@ import static java.util.stream.Collectors.toMap;
 /**
  * This service collects health indicators from all modules and plugins of elasticsearch
  */
-public class HealthService {
+public class HealthService implements ClusterStateListener, Closeable, SchedulerEngine.Listener {
+
+    public static final String HEALTH_SERVICE_POLL_INTERVAL = "health_service.poll_interval";
+    public static final Setting<TimeValue> HEALTH_SERVICE_POLL_INTERVAL_SETTING = Setting.timeSetting(
+        HEALTH_SERVICE_POLL_INTERVAL,
+        TimeValue.timeValueSeconds(15),
+        TimeValue.timeValueSeconds(15),
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Name constant for the job HealthService schedules
+     */
+    private static final String HEALTH_SERVICE_JOB_NAME = "health_service";
 
     // Visible for testing
     static final String UNKNOWN_RESULT_SUMMARY_PREFLIGHT_FAILED = "Could not determine health status. Check details on critical issues "
@@ -45,6 +79,18 @@ public class HealthService {
      * Detail map key that contains the reasons a result was marked as UNKNOWN
      */
     private static final String REASON = "reasons";
+    private final Settings settings;
+
+    private static final Logger logger = LogManager.getLogger(HealthService.class);
+
+    private final ClusterService clusterService;
+    private final NodeClient client;
+    private final Clock clock;
+
+    private volatile boolean isMaster = false;
+    private SchedulerEngine.Job scheduledJob;
+    private final SetOnce<SchedulerEngine> scheduler = new SetOnce<>();
+    private volatile TimeValue pollInterval;
 
     private final List<HealthIndicatorService> preflightHealthIndicatorServices;
     private final List<HealthIndicatorService> healthIndicatorServices;
@@ -58,17 +104,109 @@ public class HealthService {
      * likely to be degraded in some way or will not be able to calculate their state correctly. The remaining health indicators will return
      * UNKNOWN statuses in this case.
      *
+     * @param client
      * @param preflightHealthIndicatorServices indicators that are run first and represent a serious cascading health problem.
-     * @param healthIndicatorServices indicators that are run if the preflight indicators return GREEN results.
+     * @param healthIndicatorServices          indicators that are run if the preflight indicators return GREEN results.
      */
     public HealthService(
+        Settings settings,
+        ClusterService clusterService,
+        NodeClient client,
         List<HealthIndicatorService> preflightHealthIndicatorServices,
         List<HealthIndicatorService> healthIndicatorServices,
         ThreadPool threadPool
     ) {
+        this.settings = settings;
+        this.clusterService = clusterService;
+        this.client = client;
+        this.clock = getClock();
         this.preflightHealthIndicatorServices = preflightHealthIndicatorServices;
         this.healthIndicatorServices = healthIndicatorServices;
         this.threadPool = threadPool;
+        this.scheduledJob = null;
+        this.pollInterval = HEALTH_SERVICE_POLL_INTERVAL_SETTING.get(settings);
+    }
+
+    /**
+     * Initializer method to avoid the publication of a self reference in the constructor.
+     */
+    public void init() {
+        clusterService.addListener(this);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(HEALTH_SERVICE_POLL_INTERVAL_SETTING, this::updatePollInterval);
+    }
+
+    private void updatePollInterval(TimeValue newInterval) {
+        this.pollInterval = newInterval;
+        maybeScheduleJob();
+    }
+
+    protected Clock getClock() {
+        return Clock.systemUTC();
+    }
+
+    @Override
+    public void clusterChanged(ClusterChangedEvent event) {
+        // wait for the cluster state to be recovered
+        if (event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
+            return;
+        }
+
+        final boolean prevIsMaster = this.isMaster;
+        if (prevIsMaster != event.localNodeMaster()) {
+            this.isMaster = event.localNodeMaster();
+            if (this.isMaster) {
+                // we weren't the master, and now we are
+                maybeScheduleJob();
+            } else {
+                // we were the master, and now we aren't
+                cancelJob();
+            }
+        }
+    }
+
+    @Override
+    public void close() {
+        SchedulerEngine engine = scheduler.get();
+        if (engine != null) {
+            engine.stop();
+        }
+    }
+
+    private void cancelJob() {
+        if (scheduler.get() != null) {
+            scheduler.get().remove(HEALTH_SERVICE_JOB_NAME);
+            scheduledJob = null;
+        }
+    }
+
+    private boolean isClusterServiceStoppedOrClosed() {
+        final Lifecycle.State state = clusterService.lifecycleState();
+        return state == Lifecycle.State.STOPPED || state == Lifecycle.State.CLOSED;
+    }
+
+    private void maybeScheduleJob() {
+        if (this.isMaster == false) {
+            return;
+        }
+
+        // don't schedule the job if the node is shutting down
+        if (isClusterServiceStoppedOrClosed()) {
+            logger.trace(
+                "Skipping scheduling a HealthService job due to the cluster lifecycle state being: [{}] ",
+                clusterService.lifecycleState()
+            );
+            return;
+        }
+
+        if (scheduler.get() == null) {
+            scheduler.set(new SchedulerEngine(settings, clock));
+            scheduler.get().register(this);
+        }
+
+        assert scheduler.get() != null : "scheduler should be available";
+        scheduledJob = new SchedulerEngine.Job(HEALTH_SERVICE_JOB_NAME, new TimeValueSchedule(pollInterval));
+        scheduler.get().add(scheduledJob);
+
     }
 
     /**
@@ -108,7 +246,6 @@ public class HealthService {
             .filter(result -> indicatorName == null || result.name().equals(indicatorName));
 
         if (clusterHealthIsObtainable) {
-
             client.execute(FetchHealthInfoCacheAction.INSTANCE, new FetchHealthInfoCacheAction.Request(), new ActionListener<>() {
                 @Override
                 public void onResponse(FetchHealthInfoCacheAction.Response response) {
@@ -242,5 +379,44 @@ public class HealthService {
     private static Set<String> findDuplicatesByName(List<HealthIndicatorResult> indicators) {
         Set<String> items = new HashSet<>();
         return indicators.stream().map(HealthIndicatorResult::name).filter(name -> items.add(name) == false).collect(Collectors.toSet());
+    }
+
+    @Override
+    public void triggered(SchedulerEngine.Event event) {
+        if (event.getJobName().equals(HEALTH_SERVICE_JOB_NAME)) {
+            if (this.isMaster) {
+
+                this.getHealth(this.client, null, true, 0, new ActionListener<List<HealthIndicatorResult>>() {
+                    @Override
+                    public void onResponse(List<HealthIndicatorResult> healthIndicatorResults) {
+                        GetHealthAction.Response r = new GetHealthAction.Response(null, healthIndicatorResults, true);
+                        StringBuilder resultLine = new StringBuilder();
+                        resultLine.append(String.format("[status:%s]", r.getStatus().xContentValue()));
+
+                        Map<String, Object> jsonFields = new HashMap<>();
+                        jsonFields.put("elasticsearch.health.status", r.getStatus().xContentValue());
+
+                        healthIndicatorResults.forEach(
+
+                            (result) -> {
+                                jsonFields.put(
+                                    String.format("elasticsearch.health.%s.status", result.name()),
+                                    result.status().xContentValue()
+                                );
+                                resultLine.append(String.format("[<%s>:%s]", result.name(), result.status().xContentValue()));
+                            }
+                        );
+                        ESLogMessage msg = new ESLogMessage().withFields(jsonFields);
+                        logger.info("periodic_health_report:{}", resultLine);
+                        logger.info(msg);
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.warn("Health Service logging error:{}", e.toString());
+                    }
+                });
+            }
+        }
     }
 }

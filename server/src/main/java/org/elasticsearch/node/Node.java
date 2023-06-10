@@ -1029,8 +1029,11 @@ public class Node implements Closeable {
                 clusterModule,
                 coordinationDiagnosticsService,
                 threadPool,
-                systemIndices
+                systemIndices,
+                settings,
+                client
             );
+            healthService.init();
             HealthMetadataService healthMetadataService = HealthMetadataService.create(clusterService, settings);
             LocalHealthMonitor localHealthMonitor = LocalHealthMonitor.create(settings, clusterService, nodeService, threadPool, client);
             HealthInfoCache nodeHealthOverview = HealthInfoCache.create(clusterService);
@@ -1262,7 +1265,9 @@ public class Node implements Closeable {
         ClusterModule clusterModule,
         CoordinationDiagnosticsService coordinationDiagnosticsService,
         ThreadPool threadPool,
-        SystemIndices systemIndices
+        SystemIndices systemIndices,
+        Settings settings,
+        NodeClient client
     ) {
         List<HealthIndicatorService> preflightHealthIndicatorServices = Collections.singletonList(
             new StableMasterHealthIndicatorService(coordinationDiagnosticsService, clusterService)
@@ -1280,6 +1285,9 @@ public class Node implements Closeable {
             .flatMap(plugin -> plugin.getHealthIndicatorServices().stream())
             .toList();
         return new HealthService(
+            settings,
+            clusterService,
+            client,
             preflightHealthIndicatorServices,
             concatLists(serverHealthIndicatorServices, pluginHealthIndicatorServices),
             threadPool

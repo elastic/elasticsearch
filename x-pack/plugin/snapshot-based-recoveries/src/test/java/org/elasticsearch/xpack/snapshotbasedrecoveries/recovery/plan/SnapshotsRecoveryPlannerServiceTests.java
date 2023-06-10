@@ -27,6 +27,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.index.store.Store;
@@ -600,7 +601,7 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
     }
 
     private ShardSnapshot createShardSnapshotThatDoNotShareSegmentFiles(String repoName) {
-        return createShardSnapshotThatDoNotShareSegmentFiles(repoName, Version.CURRENT, Version.CURRENT.luceneVersion());
+        return createShardSnapshotThatDoNotShareSegmentFiles(repoName, Version.CURRENT, IndexVersion.CURRENT.luceneVersion());
     }
 
     private ShardSnapshot createShardSnapshotThatDoNotShareSegmentFiles(
@@ -629,7 +630,7 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
             );
             snapshotFiles.add(fileInfo);
         }
-        return createShardSnapshot(repository, snapshotFiles, Version.CURRENT, Version.CURRENT.luceneVersion());
+        return createShardSnapshot(repository, snapshotFiles, Version.CURRENT, IndexVersion.CURRENT.luceneVersion());
     }
 
     private ShardSnapshot createShardSnapshot(

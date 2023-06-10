@@ -14,6 +14,9 @@ import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotR
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
@@ -48,6 +51,20 @@ public class OperatorPrivileges {
             TransportRequest request,
             ThreadContext threadContext
         );
+
+        /**
+         * Checks to see if a given {@link RestHandler} is subject to operator-only restrictions for the REST API. Any REST API may be
+         * fully or partially restricted. A fully restricted REST API mandates that the implementation results in
+         * restChannel.sendResponse(...) and return a {@code false} to prevent any further processing. A partially restricted REST API
+         * mandates that the {@link RestRequest} is marked as restricted and return {@code true}. No restrictions should also return
+         * {@code true}.
+         * @param restHandler The {@link RestHandler} to check for any restrictions
+         * @param restRequest The {@link RestRequest} to check for any restrictions and mark any partially restricted REST API's
+         * @param restChannel The {@link RestChannel} to enforce fully restricted REST API's
+         * @return {@code true} if processing the request should continue, {@code false} if processing the request should halt due to
+         * a fully restricted REST API
+         */
+        boolean checkRest(RestHandler restHandler, RestRequest restRequest, RestChannel restChannel, ThreadContext threadContext);
 
         /**
          * When operator privileges are enabled, certain requests needs to be configured in a specific way
@@ -114,12 +131,44 @@ public class OperatorPrivileges {
             )) {
                 // Only check whether request is operator-only when user is NOT an operator
                 logger.trace("Checking operator-only violation for user [{}] and action [{}]", user, action);
-                final OperatorOnlyRegistry.OperatorPrivilegesViolation violation = operatorOnlyRegistry.check(action, request);
+                final OperatorPrivilegesViolation violation = operatorOnlyRegistry.check(action, request);
                 if (violation != null) {
                     return new ElasticsearchSecurityException("Operator privileges are required for " + violation.message());
                 }
             }
             return null;
+        }
+
+        @Override
+        public boolean checkRest(RestHandler restHandler, RestRequest restRequest, RestChannel restChannel, ThreadContext threadContext) {
+            if (false == shouldProcess()) {
+                return true;
+            }
+            if (false == AuthenticationField.PRIVILEGE_CATEGORY_VALUE_OPERATOR.equals(
+                threadContext.getHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY)
+            )) {
+                // Only check whether request is operator-only when user is NOT an operator
+                if (logger.isTraceEnabled()) {
+                    Authentication authentication = threadContext.getTransient(AuthenticationField.AUTHENTICATION_KEY);
+                    final User user = authentication.getEffectiveSubject().getUser();
+                    logger.trace("Checking for any operator-only REST violations for user [{}] and uri [{}]", user, restRequest.uri());
+                }
+                OperatorPrivilegesViolation violation = operatorOnlyRegistry.checkRest(restHandler, restRequest, restChannel);
+                if (violation != null) {
+                    if (logger.isDebugEnabled()) {
+                        Authentication authentication = threadContext.getTransient(AuthenticationField.AUTHENTICATION_KEY);
+                        final User user = authentication.getEffectiveSubject().getUser();
+                        logger.debug(
+                            "Found the following operator-only violation [{}] for user [{}] and uri [{}]",
+                            violation.message(),
+                            user,
+                            restRequest.uri()
+                        );
+                    }
+                    return false;
+                }
+            }
+            return true;
         }
 
         public void maybeInterceptRequest(ThreadContext threadContext, TransportRequest request) {
@@ -131,6 +180,11 @@ public class OperatorPrivileges {
 
         private boolean shouldProcess() {
             return Security.OPERATOR_PRIVILEGES_FEATURE.check(licenseState);
+        }
+
+        // for testing
+        public OperatorOnlyRegistry getOperatorOnlyRegistry() {
+            return operatorOnlyRegistry;
         }
     }
 
@@ -146,6 +200,11 @@ public class OperatorPrivileges {
             ThreadContext threadContext
         ) {
             return null;
+        }
+
+        @Override
+        public boolean checkRest(RestHandler restHandler, RestRequest restRequest, RestChannel restChannel, ThreadContext threadContext) {
+            return true;
         }
 
         @Override

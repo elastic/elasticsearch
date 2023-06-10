@@ -30,8 +30,12 @@ public class InternalTDigestPercentilesTests extends InternalPercentilesTestCase
         boolean keyed,
         DocValueFormat format,
         double[] percents,
-        double[] values
+        double[] values,
+        boolean empty
     ) {
+        if (empty) {
+            return new InternalTDigestPercentiles(name, percents, null, keyed, format, metadata);
+        }
         final TDigestState state = new TDigestState(100);
         Arrays.stream(values).forEach(state::add);
 
@@ -125,7 +129,8 @@ public class InternalTDigestPercentilesTests extends InternalPercentilesTestCase
             false,
             randomNumericDocValueFormat(),
             percents,
-            values
+            values,
+            false
         );
 
         Iterator<Percentile> iterator = aggregation.iterator();

@@ -69,6 +69,16 @@ public class WriteFieldTests extends ESTestCase {
         assertEquals("flat", wf.get("missing"));
     }
 
+    public void testResolveNestedThenDotted() {
+        Map<String, Object> root = Map.of("a", Map.of("b.c", 1));
+        assertEquals(1, new WriteField("a.b.c", () -> root).get(null));
+    }
+
+    public void testResolveDottedThenNested() {
+        Map<String, Object> root = Map.of("a.b", Map.of("c", 1));
+        assertEquals(1, new WriteField("a.b.c", () -> root).get(null));
+    }
+
     public void testExists() {
         Map<String, Object> a = new HashMap<>();
         a.put("b.c", null);
@@ -342,6 +352,23 @@ public class WriteFieldTests extends ESTestCase {
         assertEquals("dne", wf.get("dne"));
     }
 
+    public void testRemoveListElement() {
+        Map<String, Object> root = Map.of("a", new ArrayList<>(List.of(1, 2)));
+        WriteField wf = new WriteField("a.0", () -> root);
+        assertEquals(1, wf.get(null));
+
+        wf.remove();
+        assertEquals(2, wf.get(null));
+
+        wf.remove();
+        assertNull(wf.get(null));
+        assertFalse(wf.exists());
+
+        wf.remove();
+        assertNull(wf.get(null));
+        assertFalse(wf.exists());
+    }
+
     @SuppressWarnings("unchecked")
     public void testSet() {
         Map<String, Object> root = new HashMap<>();
@@ -370,6 +397,15 @@ public class WriteFieldTests extends ESTestCase {
         assertEquals("Segment [1:'b'] has value [foo] of type [java.lang.String]", err.getMessage());
     }
 
+    public void testSetList() {
+        Map<String, Object> root = Map.of("a.b", new ArrayList<>(List.of(1)));
+        new WriteField("a.b.0", () -> root).set(42);
+        assertEquals(List.of(42), root.get("a.b"));
+
+        new WriteField("a.b.1", () -> root).set("foo");
+        assertEquals(List.of(42), root.get("a.b"));
+    }
+
     @SuppressWarnings("unchecked")
     public void testSetCreate() {
         Map<String, Object> root = new HashMap<>();
@@ -394,6 +430,14 @@ public class WriteFieldTests extends ESTestCase {
         wf = new WriteField("a.b.c", () -> root);
         wf.append("bar");
         assertEquals(new ArrayList<>(List.of("bar")), b.get("c"));
+    }
+
+    public void testAppendListElement() {
+        Map<String, Object> root = new HashMap<>();
+        root.put("a.b.c", new ArrayList<>(List.of("foo")));
+        WriteField wf = new WriteField("a.b.c.0", () -> root);
+        wf.append("bar");
+        assertEquals(List.of(List.of("foo", "bar")), root.get("a.b.c"));
     }
 
     public void testSizeIsEmpty() {
@@ -557,11 +601,14 @@ public class WriteFieldTests extends ESTestCase {
     public void testGetIndex() {
         Map<String, Object> root = new HashMap<>();
         root.put("a", Map.of("b", List.of(1, 2, 3, 5), "c", "foo"));
-        WriteField wf = new WriteField("a.b", () -> root);
-        assertEquals(5, wf.get(3, 100));
+        assertEquals(5, new WriteField("a.b", () -> root).get(3, 100));
+        assertEquals(5, new WriteField("a.b.3", () -> root).get(100));
         assertEquals(100, new WriteField("c.d", () -> root).get(3, 100));
+        assertEquals(100, new WriteField("c.d.3", () -> root).get(100));
         assertEquals("bar", new WriteField("a.c", () -> root).get(1, "bar"));
+        assertEquals("bar", new WriteField("a.c.1", () -> root).get("bar"));
         assertEquals("foo", new WriteField("a.c", () -> root).get(0, "bar"));
+        assertEquals("bar", new WriteField("a.c.0", () -> root).get("bar"));
     }
 
     @SuppressWarnings("unchecked")
@@ -708,6 +755,34 @@ public class WriteFieldTests extends ESTestCase {
         assertEquals("cannot set NestedDocument [{foo=bar}] as path [b]", err.getMessage());
         err = expectThrows(IllegalArgumentException.class, () -> wfb.append(doc));
         assertEquals("cannot append NestedDocument [{foo=bar}] to path [b]", err.getMessage());
+    }
+
+    public void testGetListElement() {
+        Map<String, Object> root = Map.of("a", List.of("a1", "a2"));
+        WriteField wf = new WriteField("a.0", () -> root);
+        assertTrue(wf.exists());
+        assertThat(wf.get(null), equalTo("a1"));
+    }
+
+    public void testGetNestedListElement() {
+        Map<String, Object> root = Map.of("a", Map.of("b", List.of("b1", "b2")));
+        WriteField wf = new WriteField("a.b.0", () -> root);
+        assertTrue(wf.exists());
+        assertThat(wf.get(null), equalTo("b1"));
+    }
+
+    public void testGetObjectInList() {
+        Map<String, Object> root = Map.of("a", List.of(Map.of("b", 1)));
+        WriteField wf = new WriteField("a.0.b", () -> root);
+        assertTrue(wf.exists());
+        assertThat(wf.get(null), equalTo(1));
+    }
+
+    public void testGetDottedListElement() {
+        Map<String, Object> root = Map.of("a.b", List.of("b1", "b2"));
+        WriteField wf = new WriteField("a.b.0", () -> root);
+        assertTrue(wf.exists());
+        assertThat(wf.get(null), equalTo("b1"));
     }
 
     public MapOfMaps addPath(Map<String, Object> root, String path, Object value) {

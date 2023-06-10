@@ -24,11 +24,12 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 public class WriteField implements Field<Object> {
-    protected String path;
-    protected Supplier<Map<String, Object>> rootSupplier;
+    private String path;
+    private Supplier<Map<String, Object>> rootSupplier;
 
-    protected Map<String, Object> container;
-    protected String leaf;
+    private Map<String, Object> mapContainer;
+    private List<Object> listContainer;
+    private String leaf;
 
     private static final Object MISSING = new Object();
 
@@ -51,7 +52,15 @@ public class WriteField implements Field<Object> {
      * Does the path exist?
      */
     public boolean exists() {
-        return leaf != null && container.containsKey(leaf);
+        if (leaf == null) {
+            return false;
+        }
+        if (mapContainer != null) {
+            return mapContainer.containsKey(leaf);
+        } else {
+            assert listContainer != null;
+            return Integer.parseInt(leaf) < listContainer.size();
+        }
     }
 
     // Path Update
@@ -180,7 +189,15 @@ public class WriteField implements Field<Object> {
         if (leaf == null) {
             return;
         }
-        container.remove(leaf);
+        if (mapContainer != null) {
+            mapContainer.remove(leaf);
+        } else {
+            assert listContainer != null;
+            int index = Integer.parseInt(leaf);
+            if (index < listContainer.size()) {
+                listContainer.remove(index);
+            }
+        }
     }
 
     // Value Create
@@ -193,8 +210,20 @@ public class WriteField implements Field<Object> {
         if (value instanceof NestedDocument doc) {
             throw new IllegalArgumentException("cannot set NestedDocument [" + doc.getDoc() + "] as path [" + path + "]");
         }
-        container.put(leaf, value);
+        setToContainer(value);
         return this;
+    }
+
+    private void setToContainer(Object value) {
+        if (mapContainer != null) {
+            mapContainer.put(leaf, value);
+        } else {
+            assert listContainer != null;
+            int index = Integer.parseInt(leaf);
+            if (index < listContainer.size()) {
+                listContainer.set(index, value);
+            }
+        }
     }
 
     /**
@@ -204,23 +233,22 @@ public class WriteField implements Field<Object> {
     public WriteField append(Object value) {
         setLeaf();
 
-        container.compute(leaf, (k, v) -> {
-            List<Object> values;
-            if (v == null) {
-                values = new ArrayList<>(4);
-            } else if (v instanceof List<?> list) {
-                values = (List<Object>) list;
-            } else {
-                values = new ArrayList<>(4);
-                values.add(v);
-            }
-            if (value instanceof NestedDocument doc) {
-                throw new IllegalArgumentException("cannot append NestedDocument [" + doc.getDoc() + "] to path [" + path + "]");
-            } else {
-                values.add(value);
-            }
-            return values;
-        });
+        Object v = get(null);
+        List<Object> values;
+        if (v == null) {
+            values = new ArrayList<>(4);
+        } else if (v instanceof List<?> list) {
+            values = (List<Object>) list;
+        } else {
+            values = new ArrayList<>(4);
+            values.add(v);
+        }
+        if (value instanceof NestedDocument doc) {
+            throw new IllegalArgumentException("cannot append NestedDocument [" + doc.getDoc() + "] to path [" + path + "]");
+        } else {
+            values.add(value);
+        }
+        setToContainer(values);
         return this;
     }
 
@@ -243,7 +271,7 @@ public class WriteField implements Field<Object> {
             return 0;
         }
 
-        Object value = container.getOrDefault(leaf, MISSING);
+        Object value = get(MISSING);
         if (value == MISSING) {
             return 0;
         }
@@ -264,7 +292,7 @@ public class WriteField implements Field<Object> {
             return Collections.emptyIterator();
         }
 
-        Object value = container.getOrDefault(leaf, MISSING);
+        Object value = get(MISSING);
         if (value == MISSING) {
             return Collections.emptyIterator();
         }
@@ -282,8 +310,21 @@ public class WriteField implements Field<Object> {
         if (leaf == null) {
             return defaultValue;
         }
+        return getFromContainer(leaf, defaultValue);
+    }
 
-        return container.getOrDefault(leaf, defaultValue);
+    private Object getFromContainer(String leaf, Object defaultValue) {
+        if (mapContainer != null) {
+            return mapContainer.getOrDefault(leaf, defaultValue);
+        } else {
+            assert listContainer != null;
+            int index = Integer.parseInt(leaf);
+            if (index < listContainer.size()) {
+                return listContainer.get(index);
+            } else {
+                return defaultValue;
+            }
+        }
     }
 
     /**
@@ -294,7 +335,7 @@ public class WriteField implements Field<Object> {
             return defaultValue;
         }
 
-        Object value = container.getOrDefault(leaf, MISSING);
+        Object value = get(MISSING);
         if (value instanceof List<?> list) {
             if (index < list.size()) {
                 return list.get(index);
@@ -314,7 +355,7 @@ public class WriteField implements Field<Object> {
             return false;
         }
 
-        Object value = container.getOrDefault(leaf, MISSING);
+        Object value = get(MISSING);
         if (value == MISSING) {
             return false;
         }
@@ -337,7 +378,7 @@ public class WriteField implements Field<Object> {
             return this;
         }
 
-        Object value = container.getOrDefault(leaf, MISSING);
+        Object value = get(MISSING);
         if (value == MISSING) {
             return this;
         }
@@ -345,7 +386,7 @@ public class WriteField implements Field<Object> {
         if (value instanceof List<?> list) {
             ((List<Object>) list).replaceAll(transformer::apply);
         } else {
-            container.put(leaf, transformer.apply(value));
+            setToContainer(transformer.apply(value));
         }
 
         return this;
@@ -362,7 +403,7 @@ public class WriteField implements Field<Object> {
             return this;
         }
 
-        Object value = container.getOrDefault(leaf, MISSING);
+        Object value = get(MISSING);
         if (value == MISSING) {
             return this;
         }
@@ -386,7 +427,7 @@ public class WriteField implements Field<Object> {
             return this;
         }
 
-        Object value = container.getOrDefault(leaf, MISSING);
+        Object value = get(MISSING);
         if (value == MISSING) {
             return this;
         }
@@ -394,7 +435,7 @@ public class WriteField implements Field<Object> {
         if (value instanceof List<?> list) {
             list.removeIf(filter);
         } else if (filter.test(value)) {
-            container.remove(leaf);
+            remove();
         }
 
         return this;
@@ -409,7 +450,7 @@ public class WriteField implements Field<Object> {
             return this;
         }
 
-        Object value = container.getOrDefault(leaf, MISSING);
+        Object value = get(MISSING);
         if (value == MISSING) {
             return this;
         }
@@ -419,7 +460,7 @@ public class WriteField implements Field<Object> {
                 list.remove(index);
             }
         } else if (index == 0) {
-            container.remove(leaf);
+            remove();
         }
 
         return this;
@@ -429,7 +470,7 @@ public class WriteField implements Field<Object> {
      * Removes the {@param o} if this WriteField contains {@param o} using reference equality.
      */
     void remove(Object o) {
-        Object value = container.getOrDefault(leaf, MISSING);
+        Object value = get(MISSING);
         if (value == MISSING) {
             return;
         }
@@ -443,8 +484,8 @@ public class WriteField implements Field<Object> {
                     return;
                 }
             }
-        } else if (container.get(leaf) == value) {
-            container.remove(leaf);
+        } else if (get(null) == value) {
+            remove();
         }
     }
 
@@ -600,13 +641,14 @@ public class WriteField implements Field<Object> {
     }
 
     /**
-     * Change the path and clear the existing resolution by setting {@link #leaf} and {@link #container} to null.
+     * Change the path and clear the existing resolution.
      * Caller needs to re-resolve after this call.
      */
     protected void setPath(String path) {
         this.path = path;
         this.leaf = null;
-        this.container = null;
+        this.mapContainer = null;
+        this.listContainer = null;
     }
 
     /**
@@ -632,35 +674,51 @@ public class WriteField implements Field<Object> {
      *  II)  ['a']['b.c'] if 'a' is a Map at the root and 'b' does not exist in 'a's Map but 'b.c' does.
      *  III) ['a.b.c'] if 'a' doesn't exist at the root but 'a.b.c' does.
      *
-     * {@link #container} and {@link #leaf} and non-null if resolved.
+     * {@link #mapContainer} and {@link #leaf} and non-null if resolved.
      */
     @SuppressWarnings("unchecked")
     protected void resolveDepthFlat() {
-        container = rootSupplier.get();
+        mapContainer = rootSupplier.get();
+        listContainer = null;
 
         int index = path.indexOf('.');
         int lastIndex = 0;
         String segment;
+        boolean containerFound = true;
 
         while (index != -1) {
             segment = path.substring(lastIndex, index);
-            Object value = container.get(segment);
+            Object value = getFromContainer(segment, null);
             if (value instanceof Map<?, ?> map) {
-                container = (Map<String, Object>) map;
+                containerFound = true;
+                mapContainer = (Map<String, Object>) map;
+                listContainer = null;
+                lastIndex = index + 1;
+                index = path.indexOf('.', lastIndex);
+            } else if (value instanceof List<?> list) {
+                containerFound = true;
+                listContainer = (List<Object>) list;
+                mapContainer = null;
                 lastIndex = index + 1;
                 index = path.indexOf('.', lastIndex);
             } else {
                 // Check rest of segments as a single key
                 String rest = path.substring(lastIndex);
-                if (container.containsKey(rest)) {
+                if (mapContainer != null && mapContainer.containsKey(rest)) {
                     leaf = rest;
+                    return;
                 } else {
-                    leaf = null;
+                    // retry with current and next segment
+                    containerFound = false;
+                    index = path.indexOf('.', index + 1);
                 }
-                return;
             }
         }
-        leaf = path.substring(lastIndex);
+        if (containerFound) {
+            leaf = path.substring(lastIndex);
+        } else {
+            leaf = null;
+        }
     }
 
     /**
@@ -670,18 +728,18 @@ public class WriteField implements Field<Object> {
      */
     @SuppressWarnings("unchecked")
     protected void createDepth() {
-        container = rootSupplier.get();
+        mapContainer = rootSupplier.get();
 
         String[] segments = path.split("\\.");
         for (int i = 0; i < segments.length - 1; i++) {
             String segment = segments[i];
-            Object value = container.getOrDefault(segment, MISSING);
+            Object value = mapContainer.getOrDefault(segment, MISSING);
             if (value instanceof Map<?, ?> map) {
-                container = (Map<String, Object>) map;
+                mapContainer = (Map<String, Object>) map;
             } else if (value == MISSING) {
                 Map<String, Object> next = Maps.newHashMapWithExpectedSize(4);
-                container.put(segment, next);
-                container = next;
+                mapContainer.put(segment, next);
+                mapContainer = next;
             } else {
                 throw new IllegalArgumentException(
                     "Segment [" + i + ":'" + segment + "'] has value [" + value + "] of type [" + typeName(value) + "]"

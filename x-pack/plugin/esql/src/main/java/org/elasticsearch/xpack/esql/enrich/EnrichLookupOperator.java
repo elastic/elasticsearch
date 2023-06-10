@@ -11,6 +11,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.AsyncOperator;
+import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 
@@ -25,6 +27,46 @@ public final class EnrichLookupOperator extends AsyncOperator {
     private final String matchType;
     private final String matchField;
     private final List<Attribute> enrichFields;
+
+    public record Factory(
+        String sessionId,
+        CancellableTask parentTask,
+        int maxOutstandingRequests,
+        int inputChannel,
+        EnrichLookupService enrichLookupService,
+        String enrichIndex,
+        String matchType,
+        String matchField,
+        List<Attribute> enrichFields
+    ) implements OperatorFactory {
+        @Override
+        public String describe() {
+            return "EnrichOperator[index="
+                + enrichIndex
+                + " match_field="
+                + matchField
+                + " enrich_fields="
+                + enrichFields
+                + " inputChannel="
+                + inputChannel
+                + "]";
+        }
+
+        @Override
+        public Operator get(DriverContext driverContext) {
+            return new EnrichLookupOperator(
+                sessionId,
+                parentTask,
+                maxOutstandingRequests,
+                inputChannel,
+                enrichLookupService,
+                enrichIndex,
+                matchType,
+                matchField,
+                enrichFields
+            );
+        }
+    }
 
     public EnrichLookupOperator(
         String sessionId,

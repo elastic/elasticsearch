@@ -91,15 +91,6 @@ public class Mapper {
         if (p instanceof ShowInfo showInfo) {
             return new ShowExec(showInfo.source(), showInfo.output(), showInfo.values());
         }
-        if (p instanceof Enrich enrich) {
-            return new EnrichExec(
-                enrich.source(),
-                map(enrich.child()),
-                enrich.matchField(),
-                enrich.policy().index().get(),
-                enrich.enrichFields()
-            );
-        }
 
         //
         // Unary Plan
@@ -143,6 +134,10 @@ public class Mapper {
 
         if (p instanceof Grok grok) {
             return new GrokExec(grok.source(), child, grok.input(), grok.parser(), grok.extractedFields());
+        }
+
+        if (p instanceof Enrich enrich) {
+            return new EnrichExec(enrich.source(), child, enrich.matchField(), enrich.policy().index().get(), enrich.enrichFields());
         }
 
         //

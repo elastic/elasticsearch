@@ -14,7 +14,7 @@ user1:
   cluster:
     - cluster:monitor/main
   indices:
-    - names: ['index-user1', 'index' ]
+    - names: ['index-user1', 'index', "test-enrich" ]
       privileges:
         - read
         - write

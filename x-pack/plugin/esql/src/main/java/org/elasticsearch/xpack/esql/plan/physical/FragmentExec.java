@@ -74,9 +74,9 @@ public class FragmentExec extends LeafExec {
         sb.append(nodeName());
         sb.append("[filter=");
         sb.append(esFilter);
-        sb.append("[<>\n");
+        sb.append("[<>");
         sb.append(fragment.toString());
-        sb.append("\n<>]");
+        sb.append("<>]");
         return sb.toString();
     }
 }

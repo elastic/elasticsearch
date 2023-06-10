@@ -62,7 +62,15 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         exchangeService.registerTransportHandler(transportService);
         this.exchangeService = exchangeService;
         this.enrichLookupService = new EnrichLookupService(clusterService, searchService, transportService);
-        this.computeService = new ComputeService(searchService, clusterService, transportService, exchangeService, threadPool, bigArrays);
+        this.computeService = new ComputeService(
+            searchService,
+            clusterService,
+            transportService,
+            exchangeService,
+            enrichLookupService,
+            threadPool,
+            bigArrays
+        );
         this.settings = settings;
     }
 

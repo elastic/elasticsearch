@@ -47,6 +47,7 @@ import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
+import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
@@ -76,12 +77,14 @@ public class ComputeService {
     private final TransportService transportService;
     private final DriverTaskRunner driverRunner;
     private final ExchangeService exchangeService;
+    private final EnrichLookupService enrichLookupService;
 
     public ComputeService(
         SearchService searchService,
         ClusterService clusterService,
         TransportService transportService,
         ExchangeService exchangeService,
+        EnrichLookupService enrichLookupService,
         ThreadPool threadPool,
         BigArrays bigArrays
     ) {
@@ -98,6 +101,7 @@ public class ComputeService {
         );
         this.driverRunner = new DriverTaskRunner(transportService, threadPool.executor(ESQL_THREAD_POOL_NAME));
         this.exchangeService = exchangeService;
+        this.enrichLookupService = enrichLookupService;
     }
 
     public void execute(
@@ -175,16 +179,18 @@ public class ComputeService {
         });
     }
 
-    void runCompute(Task task, ComputeContext context, PhysicalPlan plan, ActionListener<Void> listener) {
+    void runCompute(CancellableTask task, ComputeContext context, PhysicalPlan plan, ActionListener<Void> listener) {
         List<Driver> drivers = new ArrayList<>();
         listener = ActionListener.releaseAfter(listener, () -> Releasables.close(drivers));
         try {
             LocalExecutionPlanner planner = new LocalExecutionPlanner(
                 context.sessionId,
+                task,
                 bigArrays,
                 threadPool,
                 context.configuration,
                 exchangeService,
+                enrichLookupService,
                 new EsPhysicalOperationProviders(context.searchContexts)
             );
 
@@ -296,7 +302,7 @@ public class ComputeService {
                 );
                 exchangeService.createSinkHandler(sessionId, request.pragmas().exchangeBufferSize());
                 runCompute(
-                    task,
+                    (CancellableTask) task,
                     new ComputeContext(sessionId, searchContexts, request.configuration()),
                     request.plan(),
                     ActionListener.releaseAfter(listener.map(unused -> new DataNodeResponse()), releasable)

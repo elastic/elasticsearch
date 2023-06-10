@@ -9,8 +9,11 @@ package org.elasticsearch.xpack.esql.enrich;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.support.ChannelActionListener;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
@@ -19,6 +22,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.ValueSources;
@@ -43,6 +47,7 @@ import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry;
@@ -79,7 +84,7 @@ import static org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanWriter
  * <p>
  * The positionCount of the output page must be equal to the positionCount of the input page.
  */
-public final class EnrichLookupService {
+public class EnrichLookupService {
     public static final String LOOKUP_ACTION_NAME = EsqlQueryAction.NAME + "/lookup";
 
     private final ClusterService clusterService;
@@ -125,15 +130,19 @@ public final class EnrichLookupService {
         }
         DiscoveryNode targetNode = clusterState.nodes().get(shardRouting.currentNodeId());
         LookupRequest lookupRequest = new LookupRequest(sessionId, shardIt.shardId(), matchType, matchField, inputPage, extractFields);
-        // TODO: handle retry and avoid forking for the local lookup
-        transportService.sendChildRequest(
-            targetNode,
-            LOOKUP_ACTION_NAME,
-            lookupRequest,
-            parentTask,
-            TransportRequestOptions.EMPTY,
-            new ActionListenerResponseHandler<>(listener.map(r -> r.page), LookupResponse::new)
-        );
+        ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
+        listener = ContextPreservingActionListener.wrapPreservingContext(listener, threadContext);
+        try (ThreadContext.StoredContext ignored = threadContext.stashWithOrigin(ClientHelper.ENRICH_ORIGIN)) {
+            // TODO: handle retry and avoid forking for the local lookup
+            transportService.sendChildRequest(
+                targetNode,
+                LOOKUP_ACTION_NAME,
+                lookupRequest,
+                parentTask,
+                TransportRequestOptions.EMPTY,
+                new ActionListenerResponseHandler<>(listener.map(r -> r.page), LookupResponse::new)
+            );
+        }
     }
 
     private void doLookup(
@@ -226,7 +235,7 @@ public final class EnrichLookupService {
         }
     }
 
-    private static class LookupRequest extends TransportRequest {
+    private static class LookupRequest extends TransportRequest implements IndicesRequest {
         private final String sessionId;
         private final ShardId shardId;
         private final String matchType;
@@ -271,6 +280,16 @@ public final class EnrichLookupService {
             out.writeWriteable(inputPage);
             PlanStreamOutput planOut = new PlanStreamOutput(out, PlanNameRegistry.INSTANCE);
             planOut.writeCollection(extractFields, writerFromPlanWriter(PlanStreamOutput::writeAttribute));
+        }
+
+        @Override
+        public String[] indices() {
+            return new String[] { shardId.getIndexName() };
+        }
+
+        @Override
+        public IndicesOptions indicesOptions() {
+            return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
         }
 
         @Override

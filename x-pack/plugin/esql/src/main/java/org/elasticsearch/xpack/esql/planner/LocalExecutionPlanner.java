@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.planner;
 
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.Block;
@@ -17,7 +18,6 @@ import org.elasticsearch.compute.lucene.DataPartitioning;
 import org.elasticsearch.compute.operator.ColumnExtractOperator;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EnrichOperator;
 import org.elasticsearch.compute.operator.EvalOperator.EvalOperatorFactory;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.FilterOperator.FilterOperatorFactory;
@@ -41,8 +41,11 @@ import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator.Exchange
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceOperator.ExchangeSourceOperatorFactory;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.enrich.EnrichLookupOperator;
+import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
 import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
@@ -101,24 +104,30 @@ import static org.elasticsearch.compute.operator.ProjectOperator.ProjectOperator
 public class LocalExecutionPlanner {
 
     private final String sessionId;
+    private final CancellableTask parentTask;
     private final BigArrays bigArrays;
     private final ThreadPool threadPool;
     private final EsqlConfiguration configuration;
     private final ExchangeService exchangeService;
+    private final EnrichLookupService enrichLookupService;
     private final PhysicalOperationProviders physicalOperationProviders;
 
     public LocalExecutionPlanner(
         String sessionId,
+        CancellableTask parentTask,
         BigArrays bigArrays,
         ThreadPool threadPool,
         EsqlConfiguration configuration,
         ExchangeService exchangeService,
+        EnrichLookupService enrichLookupService,
         PhysicalOperationProviders physicalOperationProviders
     ) {
         this.sessionId = sessionId;
+        this.parentTask = parentTask;
         this.bigArrays = bigArrays;
         this.threadPool = threadPool;
         this.exchangeService = exchangeService;
+        this.enrichLookupService = enrichLookupService;
         this.physicalOperationProviders = physicalOperationProviders;
         this.configuration = configuration;
     }
@@ -404,7 +413,25 @@ public class LocalExecutionPlanner {
             layoutBuilder.appendChannel(attr.id());
         }
         Layout layout = layoutBuilder.build();
-        return source.with(new EnrichOperator.EnrichOperatorFactory(), layout);
+        Set<String> indices = enrich.enrichIndex().concreteIndices();
+        if (indices.size() != 1) {
+            throw new EsqlIllegalArgumentException("Resolved enrich should have one concrete index; got " + indices);
+        }
+        String enrichIndex = Iterables.get(indices, 0);
+        return source.with(
+            new EnrichLookupOperator.Factory(
+                sessionId,
+                parentTask,
+                1, // TODO: Add a concurrent setting for enrich - also support unordered mode
+                source.layout.getChannel(enrich.matchField().id()),
+                enrichLookupService,
+                enrichIndex,
+                "match", // TODO: enrich should also resolve the match_type
+                enrich.matchField().name(),
+                enrich.enrichFields()
+            ),
+            layout
+        );
     }
 
     private Supplier<ExpressionEvaluator> toEvaluator(Expression exp, Layout layout) {

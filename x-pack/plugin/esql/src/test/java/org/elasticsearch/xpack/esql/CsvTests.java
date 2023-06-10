@@ -22,6 +22,8 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -32,6 +34,7 @@ import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
+import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
@@ -71,6 +74,7 @@ import org.elasticsearch.xpack.ql.util.Holder;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.junit.After;
 import org.junit.Before;
+import org.mockito.Mockito;
 
 import java.net.URL;
 import java.time.ZoneOffset;
@@ -275,10 +279,12 @@ public class CsvTests extends ESTestCase {
         String sessionId = "csv-test";
         LocalExecutionPlanner executionPlanner = new LocalExecutionPlanner(
             sessionId,
+            new CancellableTask(1, "transport", "esql", null, TaskId.EMPTY_TASK_ID, Map.of()),
             BigArrays.NON_RECYCLING_INSTANCE,
             threadPool,
             configuration,
             exchangeService,
+            Mockito.mock(EnrichLookupService.class),
             testOperationProviders(testDataset)
         );
         //

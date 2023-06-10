@@ -35,16 +35,13 @@ public class EnrichPolicyResolver {
     public void resolvePolicy(String policyName, ActionListener<EnrichPolicyResolution> listener) {
         EnrichPolicy policy = policies().get(policyName);
         ThreadContext threadContext = threadPool.getThreadContext();
-        ActionListener<EnrichPolicyResolution> wrappedListener = new ContextPreservingActionListener<>(
-            threadContext.newRestorableContext(false),
-            listener
-        );
+        listener = ContextPreservingActionListener.wrapPreservingContext(listener, threadContext);
         try (ThreadContext.StoredContext ignored = threadContext.stashWithOrigin(ClientHelper.ENRICH_ORIGIN)) {
             indexResolver.resolveAsMergedMapping(
                 EnrichPolicy.getBaseName(policyName),
                 false,
                 Map.of(),
-                wrappedListener.map(indexResult -> new EnrichPolicyResolution(policyName, policy, indexResult))
+                listener.map(indexResult -> new EnrichPolicyResolution(policyName, policy, indexResult))
             );
         }
     }

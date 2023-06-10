@@ -2,42 +2,15 @@
 setup:
   - do:
       indices.create:
-        index:  test
-        body:
-          settings:
-            number_of_shards: 5
-          mappings:
-            properties:
-              id:
-                type: long
-              name:
-                type: keyword
-              city:
-                type: long
-  - do:
-      bulk:
-        index: "test"
-        refresh: true
-        body:
-          - { "index": { } }
-          - { "id": 1, "name": "Alice", "city": 10 }
-          - { "index": { } }
-          - { "id": 2, "name": "Bob", "city": 10 }
-          - { "index": { } }
-          - { "id": 3, "name": "Mario", "city": 20 }
-          - { "index": { } }
-          - { "id": 4, "name": "Denise", "city": 50 }
-  - do:
-      indices.create:
         index:  cities
         body:
           settings:
             number_of_shards: 5
           mappings:
             properties:
-              id:
-                type: long
-              name:
+              city_code:
+                type: keyword
+              city:
                 type: keyword
               country:
                 type: keyword
@@ -48,9 +21,9 @@ setup:
         refresh: true
         body:
           - { "index": { } }
-          - { "id": 10, "name": "New York", "country": "USA" }
+          - { "city_code": "nyc", "city": "New York", "country": "USA" }
           - { "index": { } }
-          - { "id": 20, "name": "Rome", "country": "Italy" }
+          - { "city_code": "rom", "city": "Rome", "country": "Italy" }
 
   - do:
       enrich.put_policy:
@@ -58,29 +31,53 @@ setup:
         body:
           match:
             indices: ["cities"]
-            match_field: "id"
-            enrich_fields: ["name", "country"]
+            match_field: "city_code"
+            enrich_fields: ["city", "country"]
 
   - do:
       enrich.execute_policy:
         name: cities_policy
 
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              name:
+                type: keyword
+              city_code:
+                type: keyword
+  - do:
+      bulk:
+        index: "test"
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "name": "Alice", "city_code": "nyc" }
+          - { "index": { } }
+          - { "name": "Bob", "city_code": "nyc" }
+          - { "index": { } }
+          - { "name": "Mario", "city_code": "rom" }
+          - { "index": { } }
+          - { "name": "Denise", "city_code": "sgn" }
 
 ---
-"Test only result columns, a false condition should be pushed down":
+"Basic":
   - do:
       esql.query:
         body:
-          query: 'from test | eval x = 1 | enrich cities_policy on city | project id, city, name, country, x | where x == 2'
+          query: 'from test | enrich cities_policy on city_code | project name, city, country | sort name'
 
-  - match: {columns.0.name: "id"}
-  - match: {columns.0.type: "long"}
-  - match: {columns.1.name: "city"}
-  - match: {columns.1.type: "long"}
-  - match: {columns.2.name: "name"}
-  - match: {columns.2.type: "keyword"}
-  - match: {columns.3.name: "country"}
-  - match: {columns.3.type: "keyword"}
-  - length: {values: 0}
+  - match: { columns.0.name: "name" }
+  - match: { columns.0.type: "keyword" }
+  - match: { columns.1.name: "city" }
+  - match: { columns.1.type: "keyword" }
+  - match: { columns.2.name: "country" }
+  - match: { columns.2.type: "keyword" }
 
-# TODO we'll need more meaningful data when Enrich evaluator is properly implemented
+  - length: { values: 4 }
+  - match: { values.0: [ "Alice", "New York", "USA" ] }
+  - match: { values.1: [ "Bob", "New York", "USA" ] }
+  - match: { values.2: [ "Denise", null, null ] }
+  - match: { values.3: [ "Mario", "Rome", "Italy" ] }

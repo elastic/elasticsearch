@@ -111,7 +111,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
-
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLContext;
 
@@ -290,12 +289,12 @@ public class OpenIdConnectAuthenticator {
                 && JWSAlgorithm.Family.HMAC_SHA.contains(rpConfig.getSignatureAlgorithm()) == false
                 && opConfig.getJwkSetPath().startsWith("https://")) {
                 ((ReloadableJWKSource) ((JWSVerificationKeySelector) idTokenValidator.get().getJWSKeySelector()).getJWKSource())
-                    .triggerReload(ActionListener.wrap(v -> {
-                        getUserClaims(accessToken, idToken, expectedNonce, false, claimsListener);
-                    }, ex -> {
-                        LOGGER.trace("Attempted and failed to refresh JWK cache upon token validation failure", e);
-                        claimsListener.onFailure(ex);
-                    }));
+                    .triggerReload(
+                        ActionListener.wrap(v -> { getUserClaims(accessToken, idToken, expectedNonce, false, claimsListener); }, ex -> {
+                            LOGGER.trace("Attempted and failed to refresh JWK cache upon token validation failure", e);
+                            claimsListener.onFailure(ex);
+                        })
+                    );
             } else {
                 claimsListener.onFailure(new ElasticsearchSecurityException("Failed to parse or validate the ID Token", e));
             }
@@ -558,14 +557,20 @@ public class OpenIdConnectAuthenticator {
             } else if (rpConfig.getClientAuthenticationMethod().equals(ClientAuthenticationMethod.CLIENT_SECRET_JWT)) {
                 ClientSecretJWT clientSecretJWT = new ClientSecretJWT(
                     rpConfig.getClientId(),
+                    // TODO undo
+                    // new URI("http://oidc-provider:8080/c2id/token"),
                     opConfig.getTokenEndpoint(),
                     rpConfig.getClientAuthenticationJwtAlgorithm(),
                     new Secret(rpConfig.getClientSecret().toString())
                 );
                 for (Map.Entry<String, List<String>> entry : clientSecretJWT.toParameters().entrySet()) {
                     // Both client_assertion and client_assertion_type are singleton lists
+                    // TODO REMOVE ME
+                    LOGGER.info("JWT Param [{}] [{}]", entry.getKey(), entry.getValue().get(0));
                     params.add(new BasicNameValuePair(entry.getKey(), entry.getValue().get(0)));
                 }
+                // TODO REMOVE ME
+                LOGGER.info("JWT Params [{}]", params);
             } else {
                 tokensListener.onFailure(
                     new ElasticsearchSecurityException(

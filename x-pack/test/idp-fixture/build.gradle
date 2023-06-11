@@ -1,6 +1,6 @@
 import org.elasticsearch.gradle.VersionProperties
-import org.elasticsearch.gradle.Architecture
-import static org.elasticsearch.gradle.internal.distribution.InternalElasticsearchDistributionTypes.DOCKER;
+
+import static org.elasticsearch.gradle.internal.distribution.InternalElasticsearchDistributionTypes.DOCKER
 
 apply plugin: 'elasticsearch.test.fixtures'
 apply plugin: 'elasticsearch.internal-distribution-download'
@@ -40,6 +40,21 @@ tasks.named("preProcessFixture").configure {
 tasks.named('composeUp').configure {
   dependsOn "preProcessFixture"
 }
+
+// tasks.named("postProcessFixture").configure {
+//   inputs.dir("${testFixturesDir}/shared")
+//   services.each { service ->
+//     File confTemplate = file("${testFixturesDir}/shared/${service}/krb5.conf.template")
+//     File confFile = file("${testFixturesDir}/shared/${service}/krb5.conf")
+//     outputs.file(confFile)
+//     doLast {
+//       assert confTemplate.exists()
+//       String confContents = confTemplate.text
+//         .replace("\${MAPPED_PORT}", "${ext."test.fixtures.${service}.udp.88"}")
+//       confFile.text = confContents
+//     }
+//   }
+// }
 
 tasks.named('composePull').configure {
   enabled = false // this task fails due to docker-compose oddities

@@ -109,6 +109,7 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.health.HealthIndicatorService;
+import org.elasticsearch.health.HealthPeriodicLogger;
 import org.elasticsearch.health.HealthService;
 import org.elasticsearch.health.metadata.HealthMetadataService;
 import org.elasticsearch.health.node.DiskHealthIndicatorService;
@@ -1029,11 +1030,12 @@ public class Node implements Closeable {
                 clusterModule,
                 coordinationDiagnosticsService,
                 threadPool,
-                systemIndices,
-                settings,
-                client
+                systemIndices
             );
-            healthService.init();
+
+            HealthPeriodicLogger healthLogger = createHealthPeriodicLogger(clusterService, settings, client, healthService);
+            healthLogger.init();
+
             HealthMetadataService healthMetadataService = HealthMetadataService.create(clusterService, settings);
             LocalHealthMonitor localHealthMonitor = LocalHealthMonitor.create(settings, clusterService, nodeService, threadPool, client);
             HealthInfoCache nodeHealthOverview = HealthInfoCache.create(clusterService);
@@ -1265,9 +1267,7 @@ public class Node implements Closeable {
         ClusterModule clusterModule,
         CoordinationDiagnosticsService coordinationDiagnosticsService,
         ThreadPool threadPool,
-        SystemIndices systemIndices,
-        Settings settings,
-        NodeClient client
+        SystemIndices systemIndices
     ) {
         List<HealthIndicatorService> preflightHealthIndicatorServices = Collections.singletonList(
             new StableMasterHealthIndicatorService(coordinationDiagnosticsService, clusterService)
@@ -1285,13 +1285,19 @@ public class Node implements Closeable {
             .flatMap(plugin -> plugin.getHealthIndicatorServices().stream())
             .toList();
         return new HealthService(
-            settings,
-            clusterService,
-            client,
             preflightHealthIndicatorServices,
             concatLists(serverHealthIndicatorServices, pluginHealthIndicatorServices),
             threadPool
         );
+    }
+
+    private HealthPeriodicLogger createHealthPeriodicLogger(
+        ClusterService clusterService,
+        Settings settings,
+        NodeClient client,
+        HealthService healthService
+    ) {
+        return new HealthPeriodicLogger(settings, clusterService, client, healthService);
     }
 
     private RecoveryPlannerService getRecoveryPlannerService(

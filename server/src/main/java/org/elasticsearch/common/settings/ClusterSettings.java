@@ -72,6 +72,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.gateway.PersistedClusterStateService;
+import org.elasticsearch.health.HealthPeriodicLogger;
 import org.elasticsearch.health.HealthService;
 import org.elasticsearch.health.node.LocalHealthMonitor;
 import org.elasticsearch.health.node.action.TransportHealthNodeAction;
@@ -574,7 +575,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         TcpTransport.isUntrustedRemoteClusterEnabled() ? RemoteClusterPortSettings.TCP_SEND_BUFFER_SIZE : null,
         StatelessSecureSettings.STATELESS_SECURE_SETTINGS,
         DataLifecycle.isEnabled() ? DataLifecycle.CLUSTER_DLM_DEFAULT_ROLLOVER_SETTING : null,
-        HealthService.HEALTH_SERVICE_POLL_INTERVAL_SETTING,
+        HealthPeriodicLogger.HEALTH_SERVICE_POLL_INTERVAL_SETTING,
         IndicesClusterStateService.SHARD_LOCK_RETRY_INTERVAL_SETTING,
         IndicesClusterStateService.SHARD_LOCK_RETRY_TIMEOUT_SETTING,
         IngestSettings.GROK_WATCHDOG_INTERVAL,

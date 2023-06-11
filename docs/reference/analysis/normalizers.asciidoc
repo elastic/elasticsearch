@@ -9,7 +9,7 @@ allowed, but not a stemming filter, which needs to look at the keyword as a
 whole. The current list of filters that can be used in a normalizer is
 following: `arabic_normalization`, `asciifolding`, `bengali_normalization`,
 `cjk_width`, `decimal_digit`, `elision`, `german_normalization`,
-`hindi_normalization`, `indic_normalization`, `lowercase`,
+`hindi_normalization`, `indic_normalization`, `lowercase`, `pattern_replace`,
 `persian_normalization`, `scandinavian_folding`, `serbian_normalization`,
 `sorani_normalization`, `uppercase`.
 

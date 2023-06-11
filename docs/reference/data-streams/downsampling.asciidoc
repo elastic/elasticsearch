@@ -123,9 +123,11 @@ on a downsampled index that has been downsampled at an hourly resolution
 minute 0, then 59 empty buckets, and then a bucket with data again for the next
 hour.
 
-NOTE:
+[discrete]
+[[querying-downsampled-indices-notes]]
+==== Notes on downsample queries
 
-There are a few things to note when querying downsampled indices:
+There are a few things to note about querying downsampled indices:
 
 * When you run queries in {kib} and through Elastic solutions, a normal
 response is returned without notification that some of the queried indices are

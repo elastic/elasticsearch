@@ -426,7 +426,7 @@ public class PointInTimeIT extends ESIntegTestCase {
 
     public void testCloseInvalidPointInTime() {
         expectThrows(Exception.class, () -> client().execute(ClosePointInTimeAction.INSTANCE, new ClosePointInTimeRequest("")).actionGet());
-        List<TaskInfo> tasks = client().admin().cluster().prepareListTasks().setActions(ClosePointInTimeAction.NAME).get().getTasks();
+        List<TaskInfo> tasks = clusterAdmin().prepareListTasks().setActions(ClosePointInTimeAction.NAME).get().getTasks();
         assertThat(tasks, empty());
     }
 

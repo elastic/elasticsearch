@@ -44,7 +44,7 @@ public class DesiredNodesSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
         final var desiredNodesAfterSnapshot = getLatestDesiredNodes();
 
-        client().admin().cluster().prepareRestoreSnapshot(repositoryName, snapshotName).setRestoreGlobalState(true).get();
+        clusterAdmin().prepareRestoreSnapshot(repositoryName, snapshotName).setRestoreGlobalState(true).get();
 
         final var desiredNodesAfterRestore = getLatestDesiredNodes();
         assertThat(desiredNodesAfterRestore.historyID(), is(equalTo(desiredNodesAfterSnapshot.historyID())));

@@ -111,7 +111,11 @@ import static org.elasticsearch.index.query.QueryBuilders.wildcardQuery;
 import static org.elasticsearch.percolator.PercolatorFieldMapper.EXTRACTION_COMPLETE;
 import static org.elasticsearch.percolator.PercolatorFieldMapper.EXTRACTION_FAILED;
 import static org.elasticsearch.percolator.PercolatorFieldMapper.EXTRACTION_PARTIAL;
+import static org.elasticsearch.test.LambdaMatchers.transformedItemsMatch;
+import static org.elasticsearch.test.LambdaMatchers.transformedMatch;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -227,13 +231,10 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(document.getField(percolatorFieldType.extractionResultField.name()).stringValue(), equalTo(EXTRACTION_COMPLETE));
         List<IndexableField> fields = new ArrayList<>(document.getFields(percolatorFieldType.queryTermsField.name()));
         fields.sort(Comparator.comparing(IndexableField::binaryValue));
-        assertThat(fields.size(), equalTo(2));
-        assertThat(fields.get(0).binaryValue().utf8ToString(), equalTo("field\u0000term1"));
-        assertThat(fields.get(1).binaryValue().utf8ToString(), equalTo("field\u0000term2"));
+        assertThat(fields, transformedItemsMatch(b -> b.binaryValue().utf8ToString(), contains("field\u0000term1", "field\u0000term2")));
 
         fields = new ArrayList<>(document.getFields(percolatorFieldType.minimumShouldMatchField.name()));
-        assertThat(fields.size(), equalTo(1));
-        assertThat(fields.get(0).numericValue(), equalTo(1L));
+        assertThat(fields, transformedItemsMatch(IndexableField::numericValue, contains(1L)));
 
         // Now test conjunction:
         bq = new BooleanQuery.Builder();
@@ -247,13 +248,10 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(document.getField(percolatorFieldType.extractionResultField.name()).stringValue(), equalTo(EXTRACTION_COMPLETE));
         fields = new ArrayList<>(document.getFields(percolatorFieldType.queryTermsField.name()));
         fields.sort(Comparator.comparing(IndexableField::binaryValue));
-        assertThat(fields.size(), equalTo(2));
-        assertThat(fields.get(0).binaryValue().utf8ToString(), equalTo("field\u0000term1"));
-        assertThat(fields.get(1).binaryValue().utf8ToString(), equalTo("field\u0000term2"));
+        assertThat(fields, transformedItemsMatch(b -> b.binaryValue().utf8ToString(), contains("field\u0000term1", "field\u0000term2")));
 
         fields = new ArrayList<>(document.getFields(percolatorFieldType.minimumShouldMatchField.name()));
-        assertThat(fields.size(), equalTo(1));
-        assertThat(fields.get(0).numericValue(), equalTo(2L));
+        assertThat(fields, transformedItemsMatch(IndexableField::numericValue, contains(2L)));
     }
 
     public void testExtractRanges() throws Exception {
@@ -275,15 +273,25 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(document.getField(percolatorFieldType.extractionResultField.name()).stringValue(), equalTo(EXTRACTION_PARTIAL));
         List<IndexableField> fields = new ArrayList<>(document.getFields(percolatorFieldType.rangeField.name()));
         fields.sort(Comparator.comparing(IndexableField::binaryValue));
-        assertThat(fields.size(), equalTo(2));
-        assertThat(IntPoint.decodeDimension(fields.get(0).binaryValue().bytes, 12), equalTo(10));
-        assertThat(IntPoint.decodeDimension(fields.get(0).binaryValue().bytes, 28), equalTo(20));
-        assertThat(IntPoint.decodeDimension(fields.get(1).binaryValue().bytes, 12), equalTo(15));
-        assertThat(IntPoint.decodeDimension(fields.get(1).binaryValue().bytes, 28), equalTo(20));
+        assertThat(
+            fields,
+            transformedItemsMatch(
+                b -> b.binaryValue().bytes,
+                contains(
+                    allOf(
+                        transformedMatch(b -> IntPoint.decodeDimension(b, 12), equalTo(10)),
+                        transformedMatch(b -> IntPoint.decodeDimension(b, 28), equalTo(20))
+                    ),
+                    allOf(
+                        transformedMatch(b -> IntPoint.decodeDimension(b, 12), equalTo(15)),
+                        transformedMatch(b -> IntPoint.decodeDimension(b, 28), equalTo(20))
+                    )
+                )
+            )
+        );
 
         fields = new ArrayList<>(document.getFields(percolatorFieldType.minimumShouldMatchField.name()));
-        assertThat(fields.size(), equalTo(1));
-        assertThat(fields.get(0).numericValue(), equalTo(1L));
+        assertThat(fields, transformedItemsMatch(IndexableField::numericValue, contains(1L)));
 
         // Range queries on different fields:
         bq = new BooleanQuery.Builder();
@@ -298,15 +306,25 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(document.getField(percolatorFieldType.extractionResultField.name()).stringValue(), equalTo(EXTRACTION_PARTIAL));
         fields = new ArrayList<>(document.getFields(percolatorFieldType.rangeField.name()));
         fields.sort(Comparator.comparing(IndexableField::binaryValue));
-        assertThat(fields.size(), equalTo(2));
-        assertThat(IntPoint.decodeDimension(fields.get(0).binaryValue().bytes, 12), equalTo(10));
-        assertThat(IntPoint.decodeDimension(fields.get(0).binaryValue().bytes, 28), equalTo(20));
-        assertThat(LongPoint.decodeDimension(fields.get(1).binaryValue().bytes, 8), equalTo(15L));
-        assertThat(LongPoint.decodeDimension(fields.get(1).binaryValue().bytes, 24), equalTo(20L));
+        assertThat(
+            fields,
+            transformedItemsMatch(
+                b -> b.binaryValue().bytes,
+                contains(
+                    allOf(
+                        transformedMatch(b -> IntPoint.decodeDimension(b, 12), equalTo(10)),
+                        transformedMatch(b -> IntPoint.decodeDimension(b, 28), equalTo(20))
+                    ),
+                    allOf(
+                        transformedMatch(b -> LongPoint.decodeDimension(b, 8), equalTo(15L)),
+                        transformedMatch(b -> LongPoint.decodeDimension(b, 24), equalTo(20L))
+                    )
+                )
+            )
+        );
 
         fields = new ArrayList<>(document.getFields(percolatorFieldType.minimumShouldMatchField.name()));
-        assertThat(fields.size(), equalTo(1));
-        assertThat(fields.get(0).numericValue(), equalTo(2L));
+        assertThat(fields, transformedItemsMatch(IndexableField::numericValue, contains(2L)));
     }
 
     public void testExtractTermsAndRanges_failed() throws Exception {

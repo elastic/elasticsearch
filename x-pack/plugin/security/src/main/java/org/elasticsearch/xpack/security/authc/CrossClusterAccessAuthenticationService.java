@@ -10,13 +10,14 @@ package org.elasticsearch.xpack.security.authc;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
 
@@ -25,7 +26,7 @@ import java.util.List;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.transport.RemoteClusterPortSettings.VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY;
+import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCR;
 import static org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo.CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY;
 import static org.elasticsearch.xpack.security.authc.CrossClusterAccessHeaders.CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY;
 
@@ -55,19 +56,22 @@ public class CrossClusterAccessAuthenticationService {
         try {
             // parse and add as authentication token as early as possible so that failure events in audit log include API key ID
             crossClusterAccessHeaders = CrossClusterAccessHeaders.readFromContext(threadContext);
-            authcContext.addAuthenticationToken(crossClusterAccessHeaders.credentials());
+            final ApiKeyService.ApiKeyCredentials apiKeyCredentials = crossClusterAccessHeaders.credentials();
+            assert ApiKey.Type.CROSS_CLUSTER == apiKeyCredentials.getExpectedType();
+            authcContext.addAuthenticationToken(apiKeyCredentials);
             apiKeyService.ensureEnabled();
         } catch (Exception ex) {
             withRequestProcessingFailure(authcContext, ex, listener);
             return;
         }
 
-        if (getMinNodeVersion().before(VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)) {
+        // This check is to ensure all nodes understand cross_cluster_access subject type
+        if (getMinTransportVersion().before(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCR)) {
             withRequestProcessingFailure(
                 authcContext,
                 new IllegalArgumentException(
-                    "all nodes must have version ["
-                        + VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY
+                    "all nodes must have transport version ["
+                        + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCR
                         + "] or higher to support cross cluster requests through the dedicated remote cluster port"
                 ),
                 listener
@@ -108,8 +112,8 @@ public class CrossClusterAccessAuthenticationService {
         return authenticationService;
     }
 
-    private Version getMinNodeVersion() {
-        return clusterService.state().nodes().getMinNodeVersion();
+    private TransportVersion getMinTransportVersion() {
+        return clusterService.state().getMinTransportVersion();
     }
 
     private static void withRequestProcessingFailure(

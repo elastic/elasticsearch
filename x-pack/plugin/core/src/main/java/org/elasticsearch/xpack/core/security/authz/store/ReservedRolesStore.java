@@ -97,7 +97,8 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         .build(),
                     "*"
                 ) }
-            : null
+            : null,
+        null
     );
     private static final Map<String, RoleDescriptor> RESERVED_ROLES = initializeReservedRoles();
 
@@ -163,7 +164,8 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                             getRemoteIndicesReadPrivileges(".monitoring-*"),
                             getRemoteIndicesReadPrivileges("/metrics-(beats|elasticsearch|enterprisesearch|kibana|logstash).*/"),
                             getRemoteIndicesReadPrivileges("metricbeat-*") }
-                        : null
+                        : null,
+                    null
                 )
             )
             .put(
@@ -764,6 +766,13 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges("view_index_metadata", "monitor").build(),
                 // Endpoint diagnostic information. Kibana reads from these indices to send telemetry
                 RoleDescriptor.IndicesPrivileges.builder().indices(".logs-endpoint.diagnostic.collection-*").privileges("read").build(),
+                // Fleet secrets, Kibana can only write to this index.
+                // This definition must come before .fleet* below.
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".fleet-secrets*")
+                    .privileges("write", "delete", "create_index")
+                    .allowRestrictedIndices(true)
+                    .build(),
                 // Fleet Server indices. Kibana create this indice before Fleet Server use them.
                 // Fleet Server indices. Kibana read and write to this indice to manage Elastic Agents
                 RoleDescriptor.IndicesPrivileges.builder().indices(".fleet*").allowRestrictedIndices(true).privileges("all").build(),
@@ -915,7 +924,8 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         "logs-cloud_security_posture.vulnerabilities_latest-default*"
                     )
                     .privileges("create_index", "read", "index", "delete", IndicesAliasesAction.NAME, UpdateSettingsAction.NAME)
-                    .build() },
+                    .build(),
+                RoleDescriptor.IndicesPrivileges.builder().indices("risk-score.risk-*").privileges("all").build() },
             null,
             new ConfigurableClusterPrivilege[] {
                 new ManageApplicationPrivileges(Set.of("kibana-*")),
@@ -931,7 +941,8 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     getRemoteIndicesReadPrivileges("metrics-apm.*"),
                     getRemoteIndicesReadPrivileges("traces-apm.*"),
                     getRemoteIndicesReadPrivileges("traces-apm-*") }
-                : null
+                : null,
+            null
         );
     }
 

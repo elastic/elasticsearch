@@ -52,15 +52,8 @@ public class TaskRecoveryIT extends ESIntegTestCase {
         internalCluster().startMasterOnlyNode();
         String nodeWithPrimary = internalCluster().startDataOnlyNode();
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate(indexName)
-                .setSettings(
-                    Settings.builder()
-                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                        .put("index.routing.allocation.include._name", nodeWithPrimary)
-                )
+            indicesAdmin().prepareCreate(indexName)
+                .setSettings(indexSettings(1, 0).put("index.routing.allocation.include._name", nodeWithPrimary))
         );
         try {
             String nodeWithReplica = internalCluster().startDataOnlyNode();

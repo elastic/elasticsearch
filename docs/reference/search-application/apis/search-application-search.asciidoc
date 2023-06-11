@@ -1,0 +1,69 @@
+[role="xpack"]
+[[search-application-search]]
+=== Search Application Search
+
+beta::[]
+
+++++
+<titleabbrev>Search Application Search</titleabbrev>
+++++
+
+Given specified query parameters, creates an Elasticsearch query to run. Any unspecified template parameters will be
+assigned their default values if applicable.
+
+[[search-application-search-request]]
+==== {api-request-title}
+
+`POST _application/search_application/<name>/_search`
+
+[[search-application-search-prereqs]]
+==== {api-prereq-title}
+
+Requires read privileges on the backing alias of the search application.
+
+[[search-application-search-path-params]]
+
+[[search-application-search-request-body]]
+==== {api-request-body-title}
+
+`params`::
+(Optional, map of strings to objects)
+Query parameters specific to this request, which will override any defaults specified in the template.
+
+[[search-application-search-response-codes]]
+==== {api-response-codes-title}
+
+`404`::
+Search Application `<name>` does not exist.
+
+[[search-application-search-example]]
+==== {api-examples-title}
+
+The following example performs a search against a search application called `my-app`:
+
+[source,console]
+----
+POST _application/search_application/my-app/_search
+{
+  "params": {
+    "value": "my first query",
+    "size": 10,
+    "from": 0,
+    "text_fields": [
+        {
+            "name": "title",
+            "boost": 10
+        },
+        {
+            "name": "text",
+            "boost": 1
+        }
+    ]
+  }
+}
+----
+// TEST[skip:TBD]
+
+The expected results are search results from the query that was run.
+
+

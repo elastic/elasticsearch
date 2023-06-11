@@ -2,7 +2,7 @@
 [[list-search-applications]]
 === List Search Applications
 
-preview::[]
+beta::[]
 
 ++++
 <titleabbrev>List Search Applications</titleabbrev>
@@ -24,7 +24,7 @@ Requires the `manage_search_application` cluster privilege.
 ==== {api-path-parms-title}
 
 `q`::
-(Optional, string) Query in the Lucene query string syntax, to return only Search Applications matching the query.
+(Optional, string) Query in the Lucene query string syntax, to return only search applications matching the query.
 
 `size`::
 (Optional, integer) Maximum number of results to retrieve.
@@ -38,7 +38,7 @@ Requires the `manage_search_application` cluster privilege.
 [[list-search-applications-example]]
 ==== {api-examples-title}
 
-The following example lists all configured Search Applications:
+The following example lists all configured search applications:
 
 [source,console]
 ----
@@ -46,7 +46,7 @@ GET _application/search_application/
 ----
 // TEST[skip:TBD]
 
-The following example lists the first three Search Applications whose names match the query string `app`:
+The following example lists the first three search applications whose names match the query string `app`:
 
 [source,console]
 ----
@@ -69,6 +69,7 @@ A sample response:
       "name": "app-2",
       "indices": [ "index3", "index4" ]
     }
-  ]
+  ],
+  "updated_at_millis": 1682105622204
 }
 ----

@@ -134,7 +134,6 @@ module org.elasticsearch.server {
     exports org.elasticsearch.action.get;
     exports org.elasticsearch.action.index;
     exports org.elasticsearch.action.ingest;
-    exports org.elasticsearch.action.main;
     exports org.elasticsearch.action.resync;
     exports org.elasticsearch.action.search;
     exports org.elasticsearch.action.support;
@@ -278,6 +277,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.indices.recovery.plan;
     exports org.elasticsearch.indices.store;
     exports org.elasticsearch.ingest;
+    exports org.elasticsearch.internal to org.elasticsearch.serverless.version;
     exports org.elasticsearch.lucene.analysis.miscellaneous;
     exports org.elasticsearch.lucene.grouping;
     exports org.elasticsearch.lucene.queries;
@@ -291,11 +291,13 @@ module org.elasticsearch.server {
     exports org.elasticsearch.monitor.os;
     exports org.elasticsearch.monitor.process;
     exports org.elasticsearch.node;
+    exports org.elasticsearch.node.internal to org.elasticsearch.internal.sigterm;
     exports org.elasticsearch.persistent;
     exports org.elasticsearch.persistent.decider;
     exports org.elasticsearch.plugins;
     exports org.elasticsearch.plugins.interceptor to org.elasticsearch.security;
     exports org.elasticsearch.plugins.spi;
+    exports org.elasticsearch.plugins.internal to org.elasticsearch.settings.secure;
     exports org.elasticsearch.repositories;
     exports org.elasticsearch.repositories.blobstore;
     exports org.elasticsearch.repositories.fs;
@@ -357,6 +359,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.search.vectors;
     exports org.elasticsearch.shutdown;
     exports org.elasticsearch.snapshots;
+    exports org.elasticsearch.synonyms;
     exports org.elasticsearch.tasks;
     exports org.elasticsearch.threadpool;
     exports org.elasticsearch.tracing;
@@ -379,6 +382,8 @@ module org.elasticsearch.server {
 
     uses org.elasticsearch.reservedstate.ReservedClusterStateHandlerProvider;
     uses org.elasticsearch.jdk.ModuleQualifiedExportsService;
+    uses org.elasticsearch.node.internal.TerminationHandlerProvider;
+    uses org.elasticsearch.internal.VersionExtension;
 
     provides org.apache.lucene.codecs.PostingsFormat
         with

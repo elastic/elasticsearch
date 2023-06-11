@@ -16,7 +16,7 @@
         {
           "path": "/{index}/_lifecycle/explain",
           "methods": [
-            "POST"
+            "GET"
           ],
           "parts": {
             "index": {
@@ -31,6 +31,10 @@
       "include_defaults": {
         "type": "boolean",
         "description": "indicates if the API should return the default values the system uses for the index's lifecycle"
+      },
+      "master_timeout": {
+        "type": "time",
+        "description": "Specify timeout for connection to master"
       }
     }
   }

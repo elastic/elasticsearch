@@ -469,13 +469,6 @@ public class IndexingSlowLogTests extends ESTestCase {
     }
 
     private IndexMetadata newIndexMeta(String name, Settings indexSettings) {
-        Settings build = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(indexSettings)
-            .build();
-        IndexMetadata metadata = IndexMetadata.builder(name).settings(build).build();
-        return metadata;
+        return IndexMetadata.builder(name).settings(indexSettings(Version.CURRENT, 1, 1).put(indexSettings)).build();
     }
 }

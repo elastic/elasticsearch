@@ -11,11 +11,11 @@ import org.apache.logging.log4j.Level;
 import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -60,7 +60,7 @@ public class JoinHelperTests extends ESTestCase {
     public void testJoinDeduplication() {
         DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue();
         CapturingTransport capturingTransport = new HandshakingCapturingTransport();
-        DiscoveryNode localNode = new DiscoveryNode("node0", buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode localNode = DiscoveryNodeUtils.create("node0");
         final var threadPool = deterministicTaskQueue.getThreadPool();
         final var clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         final var taskManger = new TaskManager(Settings.EMPTY, threadPool, Set.of());
@@ -94,8 +94,8 @@ public class JoinHelperTests extends ESTestCase {
         );
         transportService.start();
 
-        DiscoveryNode node1 = new DiscoveryNode("node1", buildNewFakeTransportAddress(), Version.CURRENT);
-        DiscoveryNode node2 = new DiscoveryNode("node2", buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode node1 = DiscoveryNodeUtils.create("node1");
+        DiscoveryNode node2 = DiscoveryNodeUtils.create("node2");
         final boolean mightSucceed = randomBoolean();
 
         assertFalse(joinHelper.isJoinPending());
@@ -225,7 +225,7 @@ public class JoinHelperTests extends ESTestCase {
     public void testJoinFailureOnUnhealthyNodes() {
         DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue();
         CapturingTransport capturingTransport = new HandshakingCapturingTransport();
-        DiscoveryNode localNode = new DiscoveryNode("node0", buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode localNode = DiscoveryNodeUtils.create("node0");
         ThreadPool threadPool = deterministicTaskQueue.getThreadPool();
         final var clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         final var taskManger = new TaskManager(Settings.EMPTY, threadPool, Set.of());
@@ -260,8 +260,8 @@ public class JoinHelperTests extends ESTestCase {
         );
         transportService.start();
 
-        DiscoveryNode node1 = new DiscoveryNode("node1", buildNewFakeTransportAddress(), Version.CURRENT);
-        DiscoveryNode node2 = new DiscoveryNode("node2", buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode node1 = DiscoveryNodeUtils.create("node1");
+        DiscoveryNode node2 = DiscoveryNodeUtils.create("node2");
 
         assertFalse(joinHelper.isJoinPending());
 
@@ -301,7 +301,7 @@ public class JoinHelperTests extends ESTestCase {
     public void testLatestStoredStateFailure() {
         DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue();
         CapturingTransport capturingTransport = new HandshakingCapturingTransport();
-        DiscoveryNode localNode = new DiscoveryNode("node0", buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode localNode = DiscoveryNodeUtils.create("node0");
         final var threadPool = deterministicTaskQueue.getThreadPool();
         final var clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         final var taskManger = new TaskManager(Settings.EMPTY, threadPool, Set.of());

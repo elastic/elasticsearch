@@ -9,6 +9,7 @@
 package org.elasticsearch.common.settings;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -17,6 +18,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.reservedstate.service.ReservedStateVersion;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
@@ -24,12 +26,18 @@ import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.ByteBuffer;
+import java.nio.CharBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.GeneralSecurityException;
+import java.util.Arrays;
+import java.util.Base64;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.xcontent.XContentType.JSON;
 
@@ -48,9 +56,12 @@ import static org.elasticsearch.xcontent.XContentType.JSON;
  *                  "version": "1",
  *                  "compatibility": "8.7.0"
  *              },
- *              "secrets": {
+ *              "string_secrets": {
  *                  "secure.setting.key.one": "aaa",
  *                  "secure.setting.key.two": "bbb"
+ *              }
+ *              "file_secrets": {
+ *                  "secure.setting.key.three": "Y2Nj"
  *              }
  *         }
  */
@@ -59,13 +70,43 @@ public class LocallyMountedSecrets implements SecureSettings {
     public static final String SECRETS_FILE_NAME = "secrets.json";
     public static final String SECRETS_DIRECTORY = "secrets";
 
-    public static final ParseField SECRETS_FIELD = new ParseField("secrets");
+    // TODO[wrb]: remove deprecated name once controller and performance have updated their formats
+    public static final ParseField STRING_SECRETS_FIELD = new ParseField("string_secrets", "secrets");
+    public static final ParseField FILE_SECRETS_FIELD = new ParseField("file_secrets");
     public static final ParseField METADATA_FIELD = new ParseField("metadata");
 
     @SuppressWarnings("unchecked")
     private final ConstructingObjectParser<LocalFileSecrets, Void> secretsParser = new ConstructingObjectParser<>(
         "locally_mounted_secrets",
-        a -> new LocalFileSecrets((Map<String, String>) a[0], (ReservedStateVersion) a[1])
+        a -> {
+            final var decoder = Base64.getDecoder();
+
+            Map<String, byte[]> stringSecretsMap = a[0] == null
+                ? Map.of()
+                : ((Map<String, String>) a[0]).entrySet()
+                    .stream()
+                    .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().getBytes(StandardCharsets.UTF_8)));
+
+            Map<String, byte[]> fileSecretsByteMap = a[1] == null
+                ? Map.of()
+                : ((Map<String, String>) a[1]).entrySet()
+                    .stream()
+                    .collect(Collectors.toMap(Map.Entry::getKey, e -> decoder.decode(e.getValue())));
+
+            Set<String> duplicateKeys = fileSecretsByteMap.keySet()
+                .stream()
+                .filter(stringSecretsMap::containsKey)
+                .collect(Collectors.toSet());
+
+            if (duplicateKeys.isEmpty() == false) {
+                throw new IllegalStateException("Some settings were defined as both string and file settings: " + duplicateKeys);
+            }
+
+            Map<String, byte[]> allSecrets = Stream.concat(stringSecretsMap.entrySet().stream(), fileSecretsByteMap.entrySet().stream())
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+
+            return new LocalFileSecrets(allSecrets, (ReservedStateVersion) a[2]);
+        }
     );
 
     private final String secretsDir;
@@ -78,7 +119,8 @@ public class LocallyMountedSecrets implements SecureSettings {
     public LocallyMountedSecrets(Environment environment) {
         var secretsDirPath = resolveSecretsDir(environment);
         var secretsFilePath = resolveSecretsFile(environment);
-        secretsParser.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> p.map(), SECRETS_FIELD);
+        secretsParser.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(), STRING_SECRETS_FIELD);
+        secretsParser.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(), FILE_SECRETS_FIELD);
         secretsParser.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> ReservedStateVersion.parse(p), METADATA_FIELD);
         if (Files.exists(secretsDirPath) && Files.exists(secretsFilePath)) {
             try {
@@ -145,35 +187,44 @@ public class LocallyMountedSecrets implements SecureSettings {
     @Override
     public Set<String> getSettingNames() {
         assert isLoaded();
-        return secrets.get().map().keySet();
+        return secrets.get().entries().keySet();
     }
 
     @Override
     public SecureString getString(String setting) {
         assert isLoaded();
-        var value = secrets.get().map().get(setting);
+        var value = secrets.get().entries().get(setting);
         if (value == null) {
             return null;
         }
-        return new SecureString(value.toCharArray());
+        ByteBuffer byteBuffer = ByteBuffer.wrap(value);
+        CharBuffer charBuffer = StandardCharsets.UTF_8.decode(byteBuffer);
+        return new SecureString(Arrays.copyOfRange(charBuffer.array(), charBuffer.position(), charBuffer.limit()));
     }
 
     @Override
     public InputStream getFile(String setting) throws GeneralSecurityException {
         assert isLoaded();
-        return new ByteArrayInputStream(getString(setting).toString().getBytes(StandardCharsets.UTF_8));
+        return new ByteArrayInputStream(secrets.get().entries().get(setting));
     }
 
     @Override
     public byte[] getSHA256Digest(String setting) throws GeneralSecurityException {
         assert isLoaded();
-        return MessageDigests.sha256().digest(getString(setting).toString().getBytes(StandardCharsets.UTF_8));
+        return MessageDigests.sha256().digest(secrets.get().entries().get(setting));
+    }
+
+    /**
+     * Returns version number from the secrets file
+     */
+    public long getVersion() {
+        return secrets.get().metadata.version();
     }
 
     @Override
     public void close() throws IOException {
-        if (null != secrets.get() && secrets.get().map().isEmpty() == false) {
-            for (var entry : secrets.get().map().entrySet()) {
+        if (null != secrets.get() && secrets.get().entries().isEmpty() == false) {
+            for (var entry : secrets.get().entries().entrySet()) {
                 entry.setValue(null);
             }
         }
@@ -184,20 +235,36 @@ public class LocallyMountedSecrets implements SecureSettings {
         try (
             var fis = Files.newInputStream(path);
             var bis = new BufferedInputStream(fis);
-            var parser = JSON.xContent().createParser(XContentParserConfiguration.EMPTY, bis)
+            var parser = JSON.xContent()
+                .createParser(XContentParserConfiguration.EMPTY.withDeprecationHandler(DeprecationHandler.IGNORE_DEPRECATIONS), bis)
         ) {
             return secretsParser.apply(parser, null);
         }
     }
 
-    record LocalFileSecrets(Map<String, String> map, ReservedStateVersion metadata) implements Writeable {
+    record LocalFileSecrets(Map<String, byte[]> entries, ReservedStateVersion metadata) implements Writeable {
+
+        /**
+         * Read LocalFileSecrets from stream input
+         *
+         * <p>This class should only be used node-locally, to represent the local secrets on a particular
+         * node. Thus, the transport version should always be {@link TransportVersion#CURRENT}
+         */
         public static LocalFileSecrets readFrom(StreamInput in) throws IOException {
-            return new LocalFileSecrets(in.readMap(StreamInput::readString, StreamInput::readString), ReservedStateVersion.readFrom(in));
+            assert in.getTransportVersion() == TransportVersion.CURRENT;
+            return new LocalFileSecrets(in.readMap(StreamInput::readString, StreamInput::readByteArray), ReservedStateVersion.readFrom(in));
         }
 
+        /**
+         * Write LocalFileSecrets to stream output
+         *
+         * <p>This class should only be used node-locally, to represent the local secrets on a particular
+         * node. Thus, the transport version should always be {@link TransportVersion#CURRENT}
+         */
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeMap((map == null) ? Map.of() : map, StreamOutput::writeString, StreamOutput::writeString);
+            assert out.getTransportVersion() == TransportVersion.CURRENT;
+            out.writeMap((entries == null) ? Map.of() : entries, StreamOutput::writeString, StreamOutput::writeByteArray);
             metadata.writeTo(out);
         }
     }

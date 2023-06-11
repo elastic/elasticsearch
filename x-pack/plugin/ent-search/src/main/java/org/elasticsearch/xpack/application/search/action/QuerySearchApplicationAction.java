@@ -7,113 +7,16 @@
 
 package org.elasticsearch.xpack.application.search.action;
 
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.XContentParser;
-
-import java.io.IOException;
-import java.util.Map;
-import java.util.Objects;
-
-import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 public class QuerySearchApplicationAction extends ActionType<SearchResponse> {
 
     public static final QuerySearchApplicationAction INSTANCE = new QuerySearchApplicationAction();
-    public static final String NAME = "cluster:admin/xpack/application/search_application/search";
-
-    private static final ParseField QUERY_PARAMS_FIELD = new ParseField("params");
+    public static final String NAME = "indices:data/read/xpack/application/search_application/search";
 
     public QuerySearchApplicationAction() {
         super(NAME, SearchResponse::new);
     }
 
-    public static class Request extends ActionRequest {
-        private final String name;
-
-        private static final ConstructingObjectParser<Request, String> PARSER = new ConstructingObjectParser<>(
-            "query_params",
-            false,
-            (params, searchAppName) -> {
-                @SuppressWarnings("unchecked")
-                final Map<String, Object> queryParams = (Map<String, Object>) params[0];
-                return new Request(searchAppName, queryParams);
-            }
-        );
-
-        static {
-            PARSER.declareObject(constructorArg(), (p, c) -> p.map(), QUERY_PARAMS_FIELD);
-        }
-
-        private final Map<String, Object> queryParams;
-
-        public Request(StreamInput in) throws IOException {
-            super(in);
-            this.name = in.readString();
-            this.queryParams = in.readMap();
-        }
-
-        public Request(String name) {
-            this(name, Map.of());
-        }
-
-        public Request(String name, Map<String, Object> queryParams) {
-            Objects.requireNonNull(name, "Application name must be specified");
-            this.name = name;
-
-            Objects.requireNonNull(queryParams, "Query parameters must be specified");
-            this.queryParams = queryParams;
-        }
-
-        public static Request fromXContent(String name, XContentParser contentParser) {
-            return PARSER.apply(contentParser, name);
-        }
-
-        public String name() {
-            return name;
-        }
-
-        public Map<String, Object> queryParams() {
-            return queryParams;
-        }
-
-        @Override
-        public ActionRequestValidationException validate() {
-            ActionRequestValidationException validationException = null;
-
-            if (Strings.isEmpty(name)) {
-                validationException = addValidationError("Search Application name is missing", validationException);
-            }
-
-            return validationException;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeString(name);
-            out.writeGenericMap(queryParams);
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            QuerySearchApplicationAction.Request request = (QuerySearchApplicationAction.Request) o;
-            return Objects.equals(name, request.name) && Objects.equals(queryParams, request.queryParams);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(name, queryParams);
-        }
-    }
 }

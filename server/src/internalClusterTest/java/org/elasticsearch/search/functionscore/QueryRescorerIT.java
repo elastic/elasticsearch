@@ -33,7 +33,6 @@ import org.elasticsearch.xcontent.XContentFactory;
 import java.util.Arrays;
 import java.util.Comparator;
 
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.lucene.search.function.CombineFunction.REPLACE;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
@@ -773,10 +772,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
 
     // #11277
     public void testFromSize() throws Exception {
-        Builder settings = Settings.builder();
-        settings.put(SETTING_NUMBER_OF_SHARDS, 1);
-        settings.put(SETTING_NUMBER_OF_REPLICAS, 0);
-        assertAcked(prepareCreate("test").setSettings(settings));
+        assertAcked(prepareCreate("test").setSettings(indexSettings(1, 0)));
         for (int i = 0; i < 5; i++) {
             client().prepareIndex("test").setId("" + i).setSource("text", "hello world").get();
         }

@@ -21,12 +21,11 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -64,8 +63,9 @@ import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelDefinitionDo
 import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 
-import java.util.Collections;
+import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -73,6 +73,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
@@ -85,9 +86,8 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
     private static final Logger logger = LogManager.getLogger(TransportStartTrainedModelDeploymentAction.class);
 
     private final XPackLicenseState licenseState;
-    private final Client client;
+    private final OriginSettingClient client;
     private final TrainedModelAssignmentService trainedModelAssignmentService;
-    private final NamedXContentRegistry xContentRegistry;
     private final MlMemoryTracker memoryTracker;
     private final InferenceAuditor auditor;
 
@@ -118,7 +118,6 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
         );
         this.licenseState = Objects.requireNonNull(licenseState);
         this.client = new OriginSettingClient(Objects.requireNonNull(client), ML_ORIGIN);
-        this.xContentRegistry = Objects.requireNonNull(xContentRegistry);
         this.memoryTracker = Objects.requireNonNull(memoryTracker);
         this.trainedModelAssignmentService = Objects.requireNonNull(trainedModelAssignmentService);
         this.auditor = Objects.requireNonNull(auditor);
@@ -259,7 +258,7 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
                         error -> {
                             if (ExceptionsHelper.unwrapCause(error) instanceof ResourceNotFoundException) {
                                 // no name clash, continue with the deployment
-                                validateModelDefinition(trainedModelConfig, modelSizeListener);
+                                checkFullModelDefinitionIsPresent(client, trainedModelConfig, true, modelSizeListener);
                             } else {
                                 listener.onFailure(error);
                             }
@@ -267,7 +266,7 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
                     )
                 );
             } else {
-                validateModelDefinition(trainedModelConfig, modelSizeListener);
+                checkFullModelDefinitionIsPresent(client, trainedModelConfig, true, modelSizeListener);
             }
 
         }, listener::onFailure);
@@ -326,20 +325,44 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
 
     }
 
-    private void validateModelDefinition(TrainedModelConfig config, ActionListener<Tuple<String, Long>> listener) {
+    /**
+     * The model definition is spread over multiple docs.
+     * Check that all docs are present by summing up the
+     * individual per-document definition lengths and checking
+     * the total is equal to the total definition length as
+     * stored in the docs.
+     *
+     * On success the response is a tuple
+     * {@code <String, Long> (model id, total definition length)}
+     *
+     * If {@code errorIfDefinitionIsMissing == false} and some
+     * definition docs are missing then {@code listener::onResponse}
+     * is called with the total definition length == 0.
+     * This usage is to answer yes/no questions if the full model
+     * definition is present.
+     *
+     * @param mlOriginClient A client using ML_ORIGIN
+     * @param config trained model config
+     * @param errorIfDefinitionIsMissing If true missing definition parts cause errors.
+     *                                   If false and some parts are missing the total
+     *                                   definition length in the response is set to 0.
+     * @param listener response listener
+     */
+    static void checkFullModelDefinitionIsPresent(
+        OriginSettingClient mlOriginClient,
+        TrainedModelConfig config,
+        boolean errorIfDefinitionIsMissing,
+        ActionListener<Tuple<String, Long>> listener
+    ) {
         if (config.getLocation() instanceof IndexLocation == false) {
             listener.onResponse(null);
             return;
         }
+
         final String modelId = config.getModelId();
-        final String[] requiredSourceFields = new String[] {
-            TrainedModelDefinitionDoc.DEFINITION_LENGTH.getPreferredName(),
-            TrainedModelDefinitionDoc.DOC_NUM.getPreferredName(),
-            TrainedModelDefinitionDoc.TOTAL_DEFINITION_LENGTH.getPreferredName(),
-            TrainedModelDefinitionDoc.EOS.getPreferredName() };
-        final Set<String> requiredSet = Set.of(requiredSourceFields);
+
         String index = ((IndexLocation) config.getLocation()).getIndexName();
-        client.prepareSearch(index)
+        mlOriginClient.prepareSearch(index)
             .setQuery(
                 QueryBuilders.constantScoreQuery(
                     QueryBuilders.boolQuery()
@@ -349,84 +372,125 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
                         )
                 )
             )
-            .setFetchSource(requiredSourceFields, new String[0])
+            .setFetchSource(false)
+            .addDocValueField(TrainedModelDefinitionDoc.DEFINITION_LENGTH.getPreferredName())
+            .addDocValueField(TrainedModelDefinitionDoc.TOTAL_DEFINITION_LENGTH.getPreferredName())
             .setSize(MAX_NUM_NATIVE_DEFINITION_PARTS)
             .setTrackTotalHits(true)
             .addSort(SortBuilders.fieldSort(TrainedModelDefinitionDoc.DOC_NUM.getPreferredName()).order(SortOrder.ASC).unmappedType("long"))
             .execute(ActionListener.wrap(response -> {
                 SearchHit[] hits = response.getHits().getHits();
                 if (hits.length == 0) {
-                    listener.onFailure(new ResourceNotFoundException(Messages.getMessage(Messages.MODEL_DEFINITION_NOT_FOUND, modelId)));
+                    failOrRespondWith0(
+                        () -> new ResourceNotFoundException(Messages.getMessage(Messages.MODEL_DEFINITION_NOT_FOUND, modelId)),
+                        errorIfDefinitionIsMissing,
+                        modelId,
+                        listener
+                    );
                     return;
                 }
-                long firstTotalLength = ((Number) hits[0].getSourceAsMap()
-                    .get(TrainedModelDefinitionDoc.TOTAL_DEFINITION_LENGTH.getPreferredName())).longValue();
 
+                long firstTotalLength;
+                DocumentField firstTotalLengthField = hits[0].field(TrainedModelDefinitionDoc.TOTAL_DEFINITION_LENGTH.getPreferredName());
+                if (firstTotalLengthField != null && firstTotalLengthField.getValue() instanceof Long firstTotalDefinitionLength) {
+                    firstTotalLength = firstTotalDefinitionLength;
+                } else {
+                    failOrRespondWith0(
+                        () -> missingFieldsError(
+                            modelId,
+                            hits[0].getId(),
+                            List.of(TrainedModelDefinitionDoc.TOTAL_DEFINITION_LENGTH.getPreferredName())
+                        ),
+                        errorIfDefinitionIsMissing,
+                        modelId,
+                        listener
+                    );
+                    return;
+                }
+
+                Set<String> missingFields = new HashSet<>();
                 long summedLengths = 0;
                 for (SearchHit hit : hits) {
-                    Map<String, Object> fields = hit.getSourceAsMap();
-                    if (fields == null) {
-                        listener.onFailure(
-                            ExceptionsHelper.badRequestException(
-                                "[{}] model definition [{}] is missing required fields {}. {}",
-                                modelId,
-                                TrainedModelDefinitionDoc.docNum(modelId, Objects.requireNonNull(hit.getId())),
-                                List.of(requiredSourceFields),
-                                Messages.UNABLE_TO_DEPLOY_MODEL_BAD_PARTS
-                            )
+                    long totalLength = -1;
+                    DocumentField totalLengthField = hit.field(TrainedModelDefinitionDoc.TOTAL_DEFINITION_LENGTH.getPreferredName());
+                    if (totalLengthField != null && totalLengthField.getValue() instanceof Long totalDefinitionLength) {
+                        totalLength = totalDefinitionLength;
+                    } else {
+                        missingFields.add(TrainedModelDefinitionDoc.TOTAL_DEFINITION_LENGTH.getPreferredName());
+                    }
+
+                    DocumentField definitionLengthField = hit.field(TrainedModelDefinitionDoc.DEFINITION_LENGTH.getPreferredName());
+                    if (definitionLengthField != null && definitionLengthField.getValue() instanceof Long definitionLength) {
+                        summedLengths += definitionLength;
+                    } else {
+                        missingFields.add(TrainedModelDefinitionDoc.DEFINITION_LENGTH.getPreferredName());
+                    }
+
+                    if (missingFields.isEmpty() == false) {
+                        failOrRespondWith0(
+                            () -> missingFieldsError(modelId, hit.getId(), missingFields),
+                            errorIfDefinitionIsMissing,
+                            modelId,
+                            listener
                         );
                         return;
                     }
-                    Set<String> diff = Sets.difference(fields.keySet(), requiredSet);
-                    if (diff.isEmpty() == false) {
-                        listener.onFailure(
-                            ExceptionsHelper.badRequestException(
-                                "[{}] model definition [{}] is missing required fields {}. {}",
-                                modelId,
-                                TrainedModelDefinitionDoc.docNum(modelId, Objects.requireNonNull(hit.getId())),
-                                diff,
-                                Messages.UNABLE_TO_DEPLOY_MODEL_BAD_PARTS
-                            )
-                        );
-                        return;
-                    }
-                    summedLengths += ((Number) fields.get(TrainedModelDefinitionDoc.DEFINITION_LENGTH.getPreferredName())).longValue();
-                    long totalLength = ((Number) fields.get(TrainedModelDefinitionDoc.TOTAL_DEFINITION_LENGTH.getPreferredName()))
-                        .longValue();
+
                     if (totalLength != firstTotalLength) {
-                        listener.onFailure(
-                            ExceptionsHelper.badRequestException(
+                        final long finalTotalLength = totalLength;
+                        failOrRespondWith0(
+                            () -> ExceptionsHelper.badRequestException(
                                 "[{}] [total_definition_length] must be the same in all model definition parts. "
                                     + "The value [{}] in model definition part [{}] does not match the value [{}] in part [{}]. "
                                     + Messages.UNABLE_TO_DEPLOY_MODEL_BAD_PARTS,
                                 modelId,
-                                totalLength,
+                                finalTotalLength,
                                 TrainedModelDefinitionDoc.docNum(modelId, Objects.requireNonNull(hit.getId())),
                                 firstTotalLength,
                                 TrainedModelDefinitionDoc.docNum(modelId, Objects.requireNonNull(hits[0].getId()))
-                            )
+                            ),
+                            errorIfDefinitionIsMissing,
+                            modelId,
+                            listener
                         );
                         return;
                     }
 
                 }
-                Boolean eos = (Boolean) hits[hits.length - 1].getSourceAsMap().get(TrainedModelDefinitionDoc.EOS.getPreferredName());
-                if (summedLengths != firstTotalLength || eos == null || eos == false) {
-                    listener.onFailure(
-                        ExceptionsHelper.badRequestException(Messages.getMessage(Messages.MODEL_DEFINITION_TRUNCATED, modelId))
+                if (summedLengths != firstTotalLength) {
+                    failOrRespondWith0(
+                        () -> ExceptionsHelper.badRequestException(Messages.getMessage(Messages.MODEL_DEFINITION_TRUNCATED, modelId)),
+                        errorIfDefinitionIsMissing,
+                        modelId,
+                        listener
                     );
                     return;
                 }
                 listener.onResponse(new Tuple<>(modelId, summedLengths));
             }, e -> {
                 if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
-                    Exception ex = new ResourceNotFoundException(Messages.getMessage(Messages.MODEL_DEFINITION_NOT_FOUND, modelId));
-                    ex.addSuppressed(e);
-                    listener.onFailure(ex);
-                    return;
+                    failOrRespondWith0(() -> {
+                        Exception ex = new ResourceNotFoundException(Messages.getMessage(Messages.MODEL_DEFINITION_NOT_FOUND, modelId));
+                        ex.addSuppressed(e);
+                        return ex;
+                    }, errorIfDefinitionIsMissing, modelId, listener);
+                } else {
+                    listener.onFailure(e);
                 }
-                listener.onFailure(e);
             }));
+    }
+
+    private static void failOrRespondWith0(
+        Supplier<Exception> exceptionSupplier,
+        boolean errorIfDefinitionIsMissing,
+        String modelId,
+        ActionListener<Tuple<String, Long>> listener
+    ) {
+        if (errorIfDefinitionIsMissing) {
+            listener.onFailure(exceptionSupplier.get());
+        } else {
+            listener.onResponse(new Tuple<>(modelId, 0L));
+        }
     }
 
     @Override
@@ -435,6 +499,16 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
         // then delegating to PersistentTasksService doesn't make a whole lot of sense,
         // because PersistentTasksService will then fail.
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+    }
+
+    private static ElasticsearchStatusException missingFieldsError(String modelId, String hitId, Collection<String> missingFields) {
+        return ExceptionsHelper.badRequestException(
+            "[{}] model definition [{}] is missing required fields {}. {}",
+            modelId,
+            hitId,
+            missingFields,
+            Messages.UNABLE_TO_DEPLOY_MODEL_BAD_PARTS
+        );
     }
 
     private static class DeploymentStartedPredicate implements Predicate<ClusterState> {
@@ -511,10 +585,6 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
     }
 
     static Set<String> nodesShuttingDown(final ClusterState state) {
-        return NodesShutdownMetadata.getShutdowns(state)
-            .map(NodesShutdownMetadata::getAllNodeMetadataMap)
-            .map(Map::keySet)
-            .orElse(Collections.emptySet());
+        return state.metadata().nodeShutdowns().getAllNodeIds();
     }
-
 }

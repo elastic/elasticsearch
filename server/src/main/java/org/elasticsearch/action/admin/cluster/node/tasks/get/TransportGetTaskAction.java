@@ -9,7 +9,6 @@
 package org.elasticsearch.action.admin.cluster.node.tasks.get;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -151,34 +150,23 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
                     future.onResponse(null);
                 }
                 final ActionListener<Void> waitedForCompletionListener = ActionListener.runBefore(
-                    ActionListener.wrap(
-                        v -> waitedForCompletion(
-                            thisTask,
-                            request,
-                            runningTask.taskInfo(clusterService.localNode().getId(), true),
-                            listener
-                        ),
-                        listener::onFailure
+                    listener.delegateFailureAndWrap(
+                        (l, v) -> waitedForCompletion(thisTask, request, runningTask.taskInfo(clusterService.localNode().getId(), true), l)
                     ),
                     () -> taskManager.unregisterRemovedTaskListener(removedTaskListener)
                 );
-                if (future.isDone()) {
-                    // The task has already finished, we can run the completion listener in the same thread
-                    waitedForCompletionListener.onResponse(null);
-                } else {
-                    future.addListener(
-                        new ContextPreservingActionListener<>(
-                            threadPool.getThreadContext().newRestorableContext(false),
-                            waitedForCompletionListener
-                        )
-                    );
-                    var failByTimeout = threadPool.schedule(
-                        () -> future.onFailure(new ElasticsearchTimeoutException("Timed out waiting for completion of task")),
-                        requireNonNullElse(request.getTimeout(), DEFAULT_WAIT_FOR_COMPLETION_TIMEOUT),
-                        ThreadPool.Names.SAME
-                    );
-                    future.addListener(ActionListener.running(failByTimeout::cancel));
-                }
+
+                future.addListener(
+                    new ContextPreservingActionListener<>(
+                        threadPool.getThreadContext().newRestorableContext(false),
+                        waitedForCompletionListener
+                    )
+                );
+                future.addTimeout(
+                    requireNonNullElse(request.getTimeout(), DEFAULT_WAIT_FOR_COMPLETION_TIMEOUT),
+                    threadPool,
+                    ThreadPool.Names.SAME
+                );
             } else {
                 TaskInfo info = runningTask.taskInfo(clusterService.localNode().getId(), true);
                 listener.onResponse(new GetTaskResponse(new TaskResult(false, info)));

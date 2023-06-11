@@ -394,9 +394,7 @@ public class OpenCloseIndexIT extends ESIntegTestCase {
         assertAcked(client().admin().indices().prepareClose("test"));
 
         IndicesOptions indicesOptions = IndicesOptions.STRICT_EXPAND_OPEN;
-        IndicesStatsResponse stats = client().admin()
-            .indices()
-            .prepareStats(indexName)
+        IndicesStatsResponse stats = indicesAdmin().prepareStats(indexName)
             .setIndicesOptions(indicesOptions)
             .clear()
             .setTranslog(true)

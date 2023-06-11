@@ -169,7 +169,13 @@ public class TransportWriteActionTests extends ESTestCase {
 
             @SuppressWarnings({ "unchecked", "rawtypes" })
             ArgumentCaptor<ActionListener<Boolean>> refreshListener = ArgumentCaptor.forClass((Class) ActionListener.class);
-            verify(testAction.postWriteRefresh).refreshShard(eq(RefreshPolicy.IMMEDIATE), eq(indexShard), any(), refreshListener.capture());
+            verify(testAction.postWriteRefresh).refreshShard(
+                eq(RefreshPolicy.IMMEDIATE),
+                eq(indexShard),
+                any(),
+                refreshListener.capture(),
+                eq(request.timeout())
+            );
 
             // Now we can fire the listener manually and we'll get a response
             refreshListener.getValue().onResponse(true);
@@ -186,10 +192,15 @@ public class TransportWriteActionTests extends ESTestCase {
         final TransportReplicationAction.ReplicaResult result = future.actionGet();
         CapturingActionListener<TransportResponse.Empty> listener = new CapturingActionListener<>();
         result.runPostReplicaActions(listener.map(ignore -> TransportResponse.Empty.INSTANCE));
+        assertNull(listener.response); // Haven't responded yet
+        @SuppressWarnings({ "unchecked", "rawtypes" })
+        ArgumentCaptor<ActionListener<Engine.RefreshResult>> refreshListener = ArgumentCaptor.forClass((Class) ActionListener.class);
+        verify(indexShard).externalRefresh(eq(PostWriteRefresh.FORCED_REFRESH_AFTER_INDEX), refreshListener.capture());
+        verify(indexShard, never()).addRefreshListener(any(), any());
+        // Fire the listener manually
+        refreshListener.getValue().onResponse(new Engine.RefreshResult(randomBoolean(), randomNonNegativeLong()));
         assertNotNull(listener.response);
         assertNull(listener.failure);
-        verify(indexShard).refresh("refresh_flag_index");
-        verify(indexShard, never()).addRefreshListener(any(), any());
     }
 
     public void testPrimaryWaitForRefresh() throws Exception {
@@ -208,7 +219,8 @@ public class TransportWriteActionTests extends ESTestCase {
                 eq(RefreshPolicy.WAIT_UNTIL),
                 eq(indexShard),
                 any(),
-                refreshListener.capture()
+                refreshListener.capture(),
+                eq(request.timeout())
             );
 
             // Now we can fire the listener manually and we'll get a response

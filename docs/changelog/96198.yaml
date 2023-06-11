@@ -1,0 +1,6 @@
+pr: 96198
+summary: New HTTP info endpoint
+area: Stats
+type: feature
+issues:
+ - 95391

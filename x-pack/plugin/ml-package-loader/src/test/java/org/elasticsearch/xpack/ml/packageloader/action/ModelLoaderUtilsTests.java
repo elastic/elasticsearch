@@ -61,7 +61,7 @@ public class ModelLoaderUtilsTests extends ESTestCase {
         assertEquals("Repository must contain a scheme", e.getMessage());
     }
 
-    public void testSha256() throws IOException {
+    public void testSha256AndSize() throws IOException {
         byte[] bytes = randomByteArrayOfLength(randomIntBetween(10, 1_000_000));
         String expectedDigest = MessageDigests.toHexString(MessageDigests.sha256().digest(bytes));
         assertEquals(64, expectedDigest.length());
@@ -80,7 +80,7 @@ public class ModelLoaderUtilsTests extends ESTestCase {
         }
 
         assertEquals(bytes.length - (chunkSize * (totalParts - 1)), inputStreamChunker.next().length());
-
+        assertEquals(bytes.length, inputStreamChunker.getTotalBytesRead());
         assertEquals(expectedDigest, inputStreamChunker.getSha256());
     }
 }

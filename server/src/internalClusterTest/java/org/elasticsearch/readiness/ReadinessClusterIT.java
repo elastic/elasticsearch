@@ -96,15 +96,7 @@ public class ReadinessClusterIT extends ESIntegTestCase implements ReadinessClie
     private void expectMasterNotFound() {
         expectThrows(
             MasterNotDiscoveredException.class,
-            () -> client().admin()
-                .cluster()
-                .prepareState()
-                .setMasterNodeTimeout("100ms")
-                .execute()
-                .actionGet()
-                .getState()
-                .nodes()
-                .getMasterNodeId()
+            () -> clusterAdmin().prepareState().setMasterNodeTimeout("100ms").execute().actionGet().getState().nodes().getMasterNodeId()
         );
     }
 

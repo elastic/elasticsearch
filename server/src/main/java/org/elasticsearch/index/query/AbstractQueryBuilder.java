@@ -286,6 +286,38 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
     }
 
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+        // NOTE: sometimes rewrites are attempted after calling `QueryRewriteContext#convertToSearchExecutionContext`
+        // which returns `null` in the default implementation.
+        if (queryRewriteContext == null) {
+            return this;
+        }
+        final CoordinatorRewriteContext crc = queryRewriteContext.convertToCoordinatorRewriteContext();
+        if (crc != null) {
+            return doCoordinatorRewrite(crc);
+        }
+        final SearchExecutionContext sec = queryRewriteContext.convertToSearchExecutionContext();
+        if (sec != null) {
+            return doSearchRewrite(sec);
+        }
+        return this;
+    }
+
+    /**
+     * @param coordinatorRewriteContext A {@link QueryRewriteContext} that enables limited rewrite capabilities
+     *                                  happening on the coordinator node before execution moves to the data node.
+     * @return A {@link QueryBuilder} representing the rewritten query which could be executed without going to
+     * the date node.
+     */
+    protected QueryBuilder doCoordinatorRewrite(final CoordinatorRewriteContext coordinatorRewriteContext) {
+        return this;
+    }
+
+    /**
+     * @param searchExecutionContext A {@link QueryRewriteContext} that enables full rewrite capabilities
+     *                               happening on the data node with all information available for rewriting.
+     * @return A {@link QueryBuilder} representing the rewritten query.
+     */
+    protected QueryBuilder doSearchRewrite(final SearchExecutionContext searchExecutionContext) throws IOException {
         return this;
     }
 

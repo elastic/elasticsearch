@@ -1013,11 +1013,11 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         indexRandom(true, client().prepareIndex("test").setId("1").setSource("field1", "random permutation"));
 
         // Get search shards
-        ClusterSearchShardsResponse searchShardsResponse = client().admin().cluster().prepareSearchShards("test").get();
+        ClusterSearchShardsResponse searchShardsResponse = clusterAdmin().prepareSearchShards("test").get();
         List<Integer> shardIds = Arrays.stream(searchShardsResponse.getGroups()).map(s -> s.getShardId().id()).toList();
 
         // request termvectors of artificial document from each shard
-        int sumTotalTermFreq = 0;
+        long sumTotalTermFreq = 0;
         int sumDocFreq = 0;
         for (Integer shardId : shardIds) {
             TermVectorsResponse tvResponse = client().prepareTermVectors()

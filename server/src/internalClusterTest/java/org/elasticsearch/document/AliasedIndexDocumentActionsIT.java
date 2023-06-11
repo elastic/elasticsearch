@@ -22,9 +22,7 @@ public class AliasedIndexDocumentActionsIT extends DocumentActionsIT {
             // ignore
         }
         logger.info("--> creating index test");
-        client().admin()
-            .indices()
-            .create(new CreateIndexRequest("test1").simpleMapping("name", "type=keyword,store=true").alias(new Alias("test")))
+        indicesAdmin().create(new CreateIndexRequest("test1").simpleMapping("name", "type=keyword,store=true").alias(new Alias("test")))
             .actionGet();
     }
 

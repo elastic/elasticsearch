@@ -16,12 +16,14 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
+import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.ToXContentObject;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.Token;
 
@@ -34,7 +36,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 /**
  * A multi search response.
  */
-public class MultiSearchResponse extends ActionResponse implements Iterable<MultiSearchResponse.Item>, ToXContentObject {
+public class MultiSearchResponse extends ActionResponse implements Iterable<MultiSearchResponse.Item>, ChunkedToXContentObject {
 
     private static final ParseField RESPONSES = new ParseField(Fields.RESPONSES);
     private static final ParseField TOOK_IN_MILLIS = new ParseField("took");
@@ -52,7 +54,7 @@ public class MultiSearchResponse extends ActionResponse implements Iterable<Mult
     /**
      * A search response item, holding the actual search response, or an error message if it failed.
      */
-    public static class Item implements Writeable {
+    public static class Item implements Writeable, ChunkedToXContent {
         private final SearchResponse response;
         private final Exception exception;
 
@@ -79,6 +81,25 @@ public class MultiSearchResponse extends ActionResponse implements Iterable<Mult
             } else {
                 out.writeBoolean(false);
                 out.writeException(exception);
+            }
+        }
+
+        @Override
+        public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+            if (isFailure()) {
+                return Iterators.concat(
+                    ChunkedToXContentHelper.startObject(),
+                    Iterators.single((b, p) -> ElasticsearchException.generateFailureXContent(b, p, Item.this.getFailure(), true)),
+                    Iterators.single((b, p) -> b.field(Fields.STATUS, ExceptionsHelper.status(Item.this.getFailure()).getStatus())),
+                    ChunkedToXContentHelper.endObject()
+                );
+            } else {
+                return Iterators.concat(
+                    ChunkedToXContentHelper.startObject(),
+                    Item.this.getResponse().innerToXContentChunked(params),
+                    Iterators.single((b, p) -> b.field(Fields.STATUS, Item.this.getResponse().status().getStatus())),
+                    ChunkedToXContentHelper.endObject()
+                );
             }
         }
 
@@ -150,24 +171,14 @@ public class MultiSearchResponse extends ActionResponse implements Iterable<Mult
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        builder.field("took", tookInMillis);
-        builder.startArray(Fields.RESPONSES);
-        for (Item item : items) {
-            builder.startObject();
-            if (item.isFailure()) {
-                ElasticsearchException.generateFailureXContent(builder, params, item.getFailure(), true);
-                builder.field(Fields.STATUS, ExceptionsHelper.status(item.getFailure()).getStatus());
-            } else {
-                item.getResponse().innerToXContent(builder, params);
-                builder.field(Fields.STATUS, item.getResponse().status().getStatus());
-            }
-            builder.endObject();
-        }
-        builder.endArray();
-        builder.endObject();
-        return builder;
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+        return Iterators.concat(
+            ChunkedToXContentHelper.startObject(),
+            Iterators.single((b, p) -> b.field("took", tookInMillis).startArray(Fields.RESPONSES)),
+            Iterators.flatMap(Iterators.forArray(items), item -> item.toXContentChunked(params)),
+            Iterators.single((b, p) -> b.endArray()),
+            ChunkedToXContentHelper.endObject()
+        );
     }
 
     public static MultiSearchResponse fromXContext(XContentParser parser) {

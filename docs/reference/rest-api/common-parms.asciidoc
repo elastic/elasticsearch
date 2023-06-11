@@ -274,7 +274,7 @@ Type of data stream that wildcard patterns can match. Supports
 comma-separated values, such as `open,hidden`. Valid values are:
 
 `all`, `hidden`::
-Match any data stream, including <<hidden,hidden>> ones.
+Match any data stream, including <<multi-hidden,hidden>> ones.
 
 `open`, `closed`::
 Matches any non-hidden data stream. Data streams cannot be closed.
@@ -295,7 +295,7 @@ streams. Supports comma-separated values, such as `open,hidden`. Valid values
 are:
 
 `all`::
-Match any data stream or index, including <<hidden,hidden>> ones.
+Match any data stream or index, including <<multi-hidden,hidden>> ones.
 
 `open`::
 Match open, non-hidden indices. Also matches any non-hidden data stream.
@@ -510,7 +510,7 @@ Number of documents and deleted docs, which have not yet merged out.
 <<indices-refresh,Index refreshes>> can affect this statistic.
 
 `fielddata`::
-<<fielddata,Fielddata>> statistics.
+<<fielddata-mapping-param,Fielddata>> statistics.
 
 `flush`::
 <<indices-flush,Flush>> statistics.
@@ -554,9 +554,6 @@ Size of the index in <<byte-units, byte units>>.
 
 `translog`::
 <<index-modules-translog,Translog>> statistics.
-
-`warmer`::
-<<indices-warmers,Warmer>> statistics.
 --
 end::index-metric[]
 
@@ -714,12 +711,11 @@ tag::node-id[]
 returned information.
 end::node-id[]
 
-tag::node-id-query-parm[]
-`node_id`::
-(Optional, string)
-Comma-separated list of node IDs or names
-used to limit returned information.
-end::node-id-query-parm[]
+tag::nodes[]
+`nodes`::
+(Optional, string) Comma-separated list of node IDs or names used to limit
+returned information.
+end::nodes[]
 
 tag::offsets[]
 `<offsets>`::

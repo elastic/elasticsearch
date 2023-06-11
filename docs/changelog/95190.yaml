@@ -1,5 +1,0 @@
-pr: 95190
-summary: Add missing `text_similarity` config support to the Inference Processor
-area: Machine Learning
-type: bug
-issues: []

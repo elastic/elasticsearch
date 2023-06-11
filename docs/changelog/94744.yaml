@@ -1,5 +1,0 @@
-pr: 94744
-summary: Fix `FsInfo` device deduplication
-area: Stats
-type: bug
-issues: []

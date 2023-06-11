@@ -8,12 +8,12 @@
 
 package org.elasticsearch.action.admin.cluster.coordination;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.coordination.MasterHistory;
 import org.elasticsearch.cluster.coordination.MasterHistoryService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
@@ -29,10 +29,7 @@ import static org.mockito.Mockito.when;
 
 public class MasterHistoryActionTests extends ESTestCase {
     public void testSerialization() {
-        List<DiscoveryNode> masterHistory = List.of(
-            new DiscoveryNode("_id1", buildNewFakeTransportAddress(), Version.CURRENT),
-            new DiscoveryNode("_id2", buildNewFakeTransportAddress(), Version.CURRENT)
-        );
+        List<DiscoveryNode> masterHistory = List.of(DiscoveryNodeUtils.create("_id1"), DiscoveryNodeUtils.create("_id2"));
         MasterHistoryAction.Response response = new MasterHistoryAction.Response(masterHistory);
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(
             response,
@@ -52,7 +49,7 @@ public class MasterHistoryActionTests extends ESTestCase {
         switch (randomIntBetween(1, 4)) {
             case 1 -> {
                 List<DiscoveryNode> newNodes = new ArrayList<>(nodes);
-                newNodes.add(new DiscoveryNode("_id3", buildNewFakeTransportAddress(), Version.CURRENT));
+                newNodes.add(DiscoveryNodeUtils.create("_id3"));
                 return new MasterHistoryAction.Response(newNodes);
             }
             case 2 -> {
@@ -63,7 +60,7 @@ public class MasterHistoryActionTests extends ESTestCase {
             case 3 -> {
                 List<DiscoveryNode> newNodes = new ArrayList<>(nodes);
                 newNodes.remove(0);
-                newNodes.add(0, new DiscoveryNode("_id1", buildNewFakeTransportAddress(), Version.CURRENT));
+                newNodes.add(0, DiscoveryNodeUtils.create("_id1"));
                 return new MasterHistoryAction.Response(newNodes);
             }
             case 4 -> {

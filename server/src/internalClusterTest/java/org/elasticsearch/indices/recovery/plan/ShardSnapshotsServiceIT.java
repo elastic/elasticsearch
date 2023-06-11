@@ -20,6 +20,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshots;
@@ -192,7 +193,7 @@ public class ShardSnapshotsServiceIT extends ESIntegTestCase {
             assertThat(commitVersion, is(equalTo(Version.CURRENT)));
             final org.apache.lucene.util.Version commitLuceneVersion = shardSnapshotData.getCommitLuceneVersion();
             assertThat(commitLuceneVersion, is(notNullValue()));
-            assertThat(commitLuceneVersion, is(equalTo(Version.CURRENT.luceneVersion)));
+            assertThat(commitLuceneVersion, is(equalTo(IndexVersion.CURRENT.luceneVersion())));
 
             assertThat(shardSnapshotInfo.getShardId(), is(equalTo(shardId)));
             assertThat(shardSnapshotInfo.getSnapshot().getSnapshotId().getName(), is(equalTo(snapshotName)));

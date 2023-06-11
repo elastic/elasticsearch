@@ -79,10 +79,7 @@ public class TruncatedRecoveryIT extends ESIntegTestCase {
         assertAcked(
             prepareCreate("test").setMapping("field1", "type=text", "the_id", "type=text")
                 .setSettings(
-                    Settings.builder()
-                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards())
-                        .put("index.routing.allocation.include._name", primariesNode.getNode().getName())
+                    indexSettings(numberOfShards(), 0).put("index.routing.allocation.include._name", primariesNode.getNode().getName())
                 )
         ); // only allocate on the lucky node
 

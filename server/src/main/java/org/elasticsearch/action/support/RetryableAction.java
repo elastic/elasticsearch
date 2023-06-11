@@ -98,7 +98,7 @@ public abstract class RetryableAction<Response> {
         }
         this.timeoutMillis = timeoutValue.getMillis();
         this.startMillis = threadPool.relativeTimeInMillis();
-        this.finalListener = listener;
+        this.finalListener = ActionListener.assertOnce(listener);
         this.executor = executor;
 
     }

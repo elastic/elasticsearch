@@ -32,12 +32,6 @@ public class EnrichAdvancedSecurityIT extends CommonEnrichRestTestCase {
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
-    @Override
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/86061")
-    public void testBasicFlowLong() throws Exception {
-        super.testBasicFlowLong();
-    }
-
     public void testEnrichEnforcesDLS() throws IOException {
         // Create the index and policy using the admin client
         final String sourceIndexName = "dls-source-index";

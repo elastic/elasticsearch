@@ -22,13 +22,18 @@ import org.elasticsearch.action.admin.indices.mapping.put.AutoPutMappingAction;
 import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsAction;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryAction;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.action.datastreams.PromoteDataStreamAction;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
+import org.elasticsearch.action.search.SearchShardsAction;
+import org.elasticsearch.cluster.metadata.DataLifecycle;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.index.seqno.RetentionLeaseActions;
+import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xpack.core.ccr.action.ForgetFollowerAction;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.UnfollowAction;
@@ -43,9 +48,12 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Map.entry;
 import static org.elasticsearch.xpack.core.security.support.Automatons.patterns;
@@ -71,7 +79,8 @@ public final class IndexPrivilege extends Privilege {
     private static final Automaton READ_AUTOMATON = patterns("indices:data/read/*", ResolveIndexAction.NAME);
     private static final Automaton READ_CROSS_CLUSTER_AUTOMATON = patterns(
         "internal:transport/proxy/indices:data/read/*",
-        ClusterSearchShardsAction.NAME
+        ClusterSearchShardsAction.NAME,
+        SearchShardsAction.NAME
     );
     private static final Automaton CREATE_AUTOMATON = patterns("indices:data/write/index*", "indices:data/write/bulk*");
     private static final Automaton CREATE_DOC_AUTOMATON = patterns(
@@ -106,9 +115,12 @@ public final class IndexPrivilege extends Privilege {
         GetFieldMappingsAction.NAME + "*",
         GetMappingsAction.NAME,
         ClusterSearchShardsAction.NAME,
+        SearchShardsAction.NAME,
         ValidateQueryAction.NAME + "*",
         GetSettingsAction.NAME,
         ExplainLifecycleAction.NAME,
+        "indices:admin/dlm/get",
+        "indices:admin/dlm/explain",
         GetDataStreamAction.NAME,
         ResolveIndexAction.NAME,
         FieldCapabilitiesAction.NAME + "*",
@@ -124,6 +136,7 @@ public final class IndexPrivilege extends Privilege {
     );
     private static final Automaton MANAGE_LEADER_INDEX_AUTOMATON = patterns(ForgetFollowerAction.NAME + "*");
     private static final Automaton MANAGE_ILM_AUTOMATON = patterns("indices:admin/ilm/*");
+    private static final Automaton MANAGE_DLM_AUTOMATON = patterns("indices:admin/dlm/*");
     private static final Automaton MAINTENANCE_AUTOMATON = patterns(
         "indices:admin/refresh*",
         "indices:admin/flush*",
@@ -131,6 +144,21 @@ public final class IndexPrivilege extends Privilege {
         "indices:admin/forcemerge*"
     );
     private static final Automaton AUTO_CONFIGURE_AUTOMATON = patterns(AutoPutMappingAction.NAME, AutoCreateAction.NAME);
+
+    private static final Automaton CROSS_CLUSTER_REPLICATION_AUTOMATON = patterns(
+        "indices:data/read/xpack/ccr/shard_changes*",
+        IndicesStatsAction.NAME + "*",
+        RetentionLeaseActions.Add.ACTION_NAME + "*",
+        RetentionLeaseActions.Remove.ACTION_NAME + "*",
+        RetentionLeaseActions.Renew.ACTION_NAME + "*"
+    );
+    private static final Automaton CROSS_CLUSTER_REPLICATION_INTERNAL_AUTOMATON = patterns(
+        "indices:internal/admin/ccr/restore/session/clear*",
+        "indices:internal/admin/ccr/restore/file_chunk/get*",
+        "indices:internal/admin/ccr/restore/session/put*",
+        "internal:transport/proxy/indices:internal/admin/ccr/restore/session/clear*",
+        "internal:transport/proxy/indices:internal/admin/ccr/restore/file_chunk/get*"
+    );
 
     public static final IndexPrivilege NONE = new IndexPrivilege("none", Automatons.EMPTY);
     public static final IndexPrivilege ALL = new IndexPrivilege("all", ALL_AUTOMATON);
@@ -149,11 +177,21 @@ public final class IndexPrivilege extends Privilege {
     public static final IndexPrivilege MANAGE_FOLLOW_INDEX = new IndexPrivilege("manage_follow_index", MANAGE_FOLLOW_INDEX_AUTOMATON);
     public static final IndexPrivilege MANAGE_LEADER_INDEX = new IndexPrivilege("manage_leader_index", MANAGE_LEADER_INDEX_AUTOMATON);
     public static final IndexPrivilege MANAGE_ILM = new IndexPrivilege("manage_ilm", MANAGE_ILM_AUTOMATON);
+    public static final IndexPrivilege MANAGE_DLM = new IndexPrivilege("manage_dlm", MANAGE_DLM_AUTOMATON);
     public static final IndexPrivilege MAINTENANCE = new IndexPrivilege("maintenance", MAINTENANCE_AUTOMATON);
     public static final IndexPrivilege AUTO_CONFIGURE = new IndexPrivilege("auto_configure", AUTO_CONFIGURE_AUTOMATON);
+    public static final IndexPrivilege CROSS_CLUSTER_REPLICATION = new IndexPrivilege(
+        "cross_cluster_replication",
+        CROSS_CLUSTER_REPLICATION_AUTOMATON
+    );
+    public static final IndexPrivilege CROSS_CLUSTER_REPLICATION_INTERNAL = new IndexPrivilege(
+        "cross_cluster_replication_internal",
+        CROSS_CLUSTER_REPLICATION_INTERNAL_AUTOMATON
+    );
 
+    @SuppressWarnings("unchecked")
     private static final Map<String, IndexPrivilege> VALUES = sortByAccessLevel(
-        Map.ofEntries(
+        Stream.of(
             entry("none", NONE),
             entry("all", ALL),
             entry("manage", MANAGE),
@@ -171,9 +209,14 @@ public final class IndexPrivilege extends Privilege {
             entry("manage_follow_index", MANAGE_FOLLOW_INDEX),
             entry("manage_leader_index", MANAGE_LEADER_INDEX),
             entry("manage_ilm", MANAGE_ILM),
+            DataLifecycle.isEnabled() ? entry("manage_dlm", MANAGE_DLM) : null,
             entry("maintenance", MAINTENANCE),
-            entry("auto_configure", AUTO_CONFIGURE)
-        )
+            entry("auto_configure", AUTO_CONFIGURE),
+            TcpTransport.isUntrustedRemoteClusterEnabled() ? entry("cross_cluster_replication", CROSS_CLUSTER_REPLICATION) : null,
+            TcpTransport.isUntrustedRemoteClusterEnabled()
+                ? entry("cross_cluster_replication_internal", CROSS_CLUSTER_REPLICATION_INTERNAL)
+                : null
+        ).filter(Objects::nonNull).collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue))
     );
 
     public static final Predicate<String> ACTION_MATCHER = ALL.predicate();

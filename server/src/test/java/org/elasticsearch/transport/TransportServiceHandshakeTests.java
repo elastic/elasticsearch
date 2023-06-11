@@ -14,6 +14,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
@@ -128,7 +129,7 @@ public class TransportServiceHandshakeTests extends ESTestCase {
             VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(), Version.CURRENT),
             TransportService.NOOP_TRANSPORT_INTERCEPTOR
         );
-        DiscoveryNode discoveryNode = new DiscoveryNode(
+        DiscoveryNode discoveryNode = DiscoveryNodeUtils.create(
             "",
             transportServiceB.getLocalNode().getAddress(),
             emptyMap(),
@@ -167,7 +168,7 @@ public class TransportServiceHandshakeTests extends ESTestCase {
             Version.CURRENT,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR
         );
-        DiscoveryNode discoveryNode = new DiscoveryNode(
+        DiscoveryNode discoveryNode = DiscoveryNodeUtils.create(
             "",
             transportServiceB.getLocalNode().getAddress(),
             emptyMap(),
@@ -208,7 +209,7 @@ public class TransportServiceHandshakeTests extends ESTestCase {
             VersionUtils.getPreviousVersion(Version.CURRENT.minimumCompatibilityVersion()),
             TransportService.NOOP_TRANSPORT_INTERCEPTOR
         );
-        DiscoveryNode discoveryNode = new DiscoveryNode(
+        DiscoveryNode discoveryNode = DiscoveryNodeUtils.create(
             "",
             transportServiceB.getLocalNode().getAddress(),
             emptyMap(),
@@ -257,7 +258,7 @@ public class TransportServiceHandshakeTests extends ESTestCase {
             Version.CURRENT.minimumCompatibilityVersion(),
             TransportService.NOOP_TRANSPORT_INTERCEPTOR
         );
-        DiscoveryNode discoveryNode = new DiscoveryNode(
+        DiscoveryNode discoveryNode = DiscoveryNodeUtils.create(
             "",
             transportServiceB.getLocalNode().getAddress(),
             emptyMap(),
@@ -295,7 +296,7 @@ public class TransportServiceHandshakeTests extends ESTestCase {
             Version.CURRENT,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR
         );
-        DiscoveryNode discoveryNode = new DiscoveryNode(
+        DiscoveryNode discoveryNode = DiscoveryNodeUtils.create(
             randomAlphaOfLength(10),
             transportServiceB.getLocalNode().getAddress(),
             emptyMap(),
@@ -333,7 +334,7 @@ public class TransportServiceHandshakeTests extends ESTestCase {
             Version.CURRENT,
             transportInterceptorB
         );
-        final DiscoveryNode discoveryNode = new DiscoveryNode(
+        final DiscoveryNode discoveryNode = DiscoveryNodeUtils.create(
             "",
             transportServiceB.getLocalNode().getAddress(),
             emptyMap(),

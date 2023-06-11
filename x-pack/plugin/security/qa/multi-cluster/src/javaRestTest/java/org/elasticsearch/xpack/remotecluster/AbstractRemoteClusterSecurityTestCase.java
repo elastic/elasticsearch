@@ -122,23 +122,27 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
-    protected static Map<String, Object> createCrossClusterAccessApiKey(String roleDescriptorsJson) {
+    protected static Map<String, Object> createCrossClusterAccessApiKey(String accessJson) {
         initFulfillingClusterClient();
-        return createCrossClusterAccessApiKey(fulfillingClusterClient, roleDescriptorsJson);
+        return createCrossClusterAccessApiKey(fulfillingClusterClient, accessJson);
     }
 
-    static Map<String, Object> createCrossClusterAccessApiKey(RestClient targetClusterClient, String roleDescriptorsJson) {
+    protected static Map<String, Object> createCrossClusterAccessApiKey(RestClient targetClusterClient, String accessJson) {
+
         // Create API key on FC
-        final var createApiKeyRequest = new Request("POST", "/_security/api_key");
-        createApiKeyRequest.setJsonEntity(Strings.format("""
+        final var createCrossClusterApiKeyRequest = new Request("POST", "/_security/cross_cluster/api_key");
+        createCrossClusterApiKeyRequest.setJsonEntity(Strings.format("""
             {
               "name": "cross_cluster_access_key",
-              "role_descriptors": %s
-            }""", roleDescriptorsJson));
+              "access": %s
+            }""", accessJson));
         try {
-            final Response createApiKeyResponse = performRequestWithAdminUser(targetClusterClient, createApiKeyRequest);
-            assertOK(createApiKeyResponse);
-            return responseAsMap(createApiKeyResponse);
+            final Response createCrossClusterApiKeyResponse = performRequestWithAdminUser(
+                targetClusterClient,
+                createCrossClusterApiKeyRequest
+            );
+            assertOK(createCrossClusterApiKeyResponse);
+            return responseAsMap(createCrossClusterApiKeyResponse);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

@@ -1,0 +1,5 @@
+pr: 95734
+summary: Take into account `expectedShardSize` when initializing shard in simulation
+area: Allocation
+type: enhancement
+issues: []

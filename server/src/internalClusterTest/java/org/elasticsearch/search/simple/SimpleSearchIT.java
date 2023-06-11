@@ -39,8 +39,6 @@ import java.util.List;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
@@ -108,9 +106,7 @@ public class SimpleSearchIT extends ESIntegTestCase {
     public void testSimpleIp() throws Exception {
         createIndex("test");
 
-        client().admin()
-            .indices()
-            .preparePutMapping("test")
+        indicesAdmin().preparePutMapping("test")
             .setSource(
                 XContentFactory.jsonBuilder()
                     .startObject()
@@ -140,9 +136,7 @@ public class SimpleSearchIT extends ESIntegTestCase {
     public void testIpCidr() throws Exception {
         createIndex("test");
 
-        client().admin()
-            .indices()
-            .preparePutMapping("test")
+        indicesAdmin().preparePutMapping("test")
             .setSource(
                 XContentFactory.jsonBuilder()
                     .startObject()
@@ -310,7 +304,7 @@ public class SimpleSearchIT extends ESIntegTestCase {
     }
 
     public void testSimpleTerminateAfterCount() throws Exception {
-        prepareCreate("test").setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0)).get();
+        prepareCreate("test").setSettings(indexSettings(1, 0)).get();
         ensureGreen();
         int max = randomIntBetween(3, 29);
         List<IndexRequestBuilder> docbuilders = new ArrayList<>(max);
@@ -344,9 +338,7 @@ public class SimpleSearchIT extends ESIntegTestCase {
     }
 
     public void testSimpleIndexSortEarlyTerminate() throws Exception {
-        prepareCreate("test").setSettings(
-            Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0).put("index.sort.field", "rank")
-        ).setMapping("rank", "type=integer").get();
+        prepareCreate("test").setSettings(indexSettings(1, 0).put("index.sort.field", "rank")).setMapping("rank", "type=integer").get();
         ensureGreen();
         int max = randomIntBetween(3, 29);
         List<IndexRequestBuilder> docbuilders = new ArrayList<>(max);

@@ -1,0 +1,5 @@
+pr: 95672
+summary: Improve reporting status of the transform that is about to finish
+area: Transform
+type: bug
+issues: []

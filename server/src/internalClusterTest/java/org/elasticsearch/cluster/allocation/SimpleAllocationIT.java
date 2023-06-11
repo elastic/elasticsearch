@@ -29,7 +29,7 @@ public class SimpleAllocationIT extends ESIntegTestCase {
     public void testSaneAllocation() {
         assertAcked(prepareCreate("test", 3));
         if (randomBoolean()) {
-            assertAcked(client().admin().indices().prepareClose("test"));
+            assertAcked(indicesAdmin().prepareClose("test"));
         }
         ensureGreen("test");
 
@@ -54,7 +54,7 @@ public class SimpleAllocationIT extends ESIntegTestCase {
         // create another index
         assertAcked(prepareCreate("test2", 3));
         if (randomBoolean()) {
-            assertAcked(client().admin().indices().prepareClose("test2"));
+            assertAcked(indicesAdmin().prepareClose("test2"));
         }
         ensureGreen("test2");
 

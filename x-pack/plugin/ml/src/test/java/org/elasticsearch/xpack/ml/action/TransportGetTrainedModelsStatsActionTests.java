@@ -248,7 +248,7 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
         List<IngestStats.PipelineStat> pipelineNames,
         List<List<IngestStats.ProcessorStat>> processorStats
     ) {
-        List<String> pipelineids = pipelineNames.stream().map(IngestStats.PipelineStat::getPipelineId).collect(Collectors.toList());
+        List<String> pipelineids = pipelineNames.stream().map(IngestStats.PipelineStat::pipelineId).collect(Collectors.toList());
         IngestStats ingestStats = new IngestStats(
             overallStats,
             pipelineNames,

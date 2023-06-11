@@ -226,11 +226,7 @@ public class AnalysisStatsTests extends AbstractWireSerializingTestCase<Analysis
     public void testAccountsRegularIndices() {
         String mapping = """
             {"properties":{"bar":{"type":"text","analyzer":"german"}}}""";
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 4)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            .build();
+        Settings settings = indexSettings(Version.CURRENT, 4, 1).build();
         Metadata metadata = new Metadata.Builder().put(new IndexMetadata.Builder("foo").settings(settings).putMapping(mapping)).build();
         {
             AnalysisStats analysisStats = AnalysisStats.of(metadata, () -> {});
@@ -269,11 +265,7 @@ public class AnalysisStatsTests extends AbstractWireSerializingTestCase<Analysis
     public void testIgnoreSystemIndices() {
         String mapping = """
             {"properties":{"bar":{"type":"text","analyzer":"german"}}}""";
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 4)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            .build();
+        Settings settings = indexSettings(Version.CURRENT, 4, 1).build();
         IndexMetadata.Builder indexMetadata = new IndexMetadata.Builder("foo").settings(settings).putMapping(mapping).system(true);
         Metadata metadata = new Metadata.Builder().put(indexMetadata).build();
         AnalysisStats analysisStats = AnalysisStats.of(metadata, () -> {});
@@ -281,12 +273,7 @@ public class AnalysisStatsTests extends AbstractWireSerializingTestCase<Analysis
     }
 
     public void testChecksForCancellation() {
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 4)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            .build();
-        IndexMetadata.Builder indexMetadata = new IndexMetadata.Builder("foo").settings(settings);
+        IndexMetadata.Builder indexMetadata = new IndexMetadata.Builder("foo").settings(indexSettings(Version.CURRENT, 4, 1));
         Metadata metadata = new Metadata.Builder().put(indexMetadata).build();
         expectThrows(
             TaskCancelledException.class,

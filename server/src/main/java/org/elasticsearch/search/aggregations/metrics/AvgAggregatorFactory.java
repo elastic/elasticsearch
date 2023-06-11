@@ -49,7 +49,8 @@ class AvgAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     @Override
     protected Aggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException {
-        return new AvgAggregator(name, config, context, parent, metadata);
+        final InternalAvg empty = InternalAvg.empty(name, config.format(), metadata);
+        return new NonCollectingSingleMetricAggregator(name, context, parent, empty, metadata);
     }
 
     @Override

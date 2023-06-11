@@ -150,7 +150,7 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
                     .indices()
                     .prepareCreate(indexName)
                     .setMapping("id", "type=keyword", "field1", "type=text", "field2", "type=text")
-                    .setSettings(Settings.builder().put("index.number_of_replicas", 0).put("index.number_of_shards", 1))
+                    .setSettings(indexSettings(1, 0))
             );
             client().prepareIndex(indexName).setId("1").setSource("id", "1", "field1", "value1").setRefreshPolicy(IMMEDIATE).get();
 

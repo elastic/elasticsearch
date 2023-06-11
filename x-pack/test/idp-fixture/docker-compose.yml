@@ -170,9 +170,6 @@ services:
       - "8080"
     expose:
       - "8080"
-    environment:
-      - CATALINA_OPTS="-DsystemPropertiesURL=file:///etc/c2id/override.properties -Dlog4j.level=debug"
-    command: "/bin/bash /c2id-server/tomcat/bin/catalina.sh run"
     volumes:
       - ./oidc/override.properties:/etc/c2id/override.properties
 

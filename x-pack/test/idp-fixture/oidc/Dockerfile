@@ -7,6 +7,6 @@ COPY --from=c2id /etc/c2id /etc/c2id
 ENV CATALINA_OPTS="-DsystemPropertiesURL=file:///etc/c2id/override.properties -Dlog4j.level=debug"
 EXPOSE 8080
 
-CMD sleep infinity
+#CMD sleep infinity
 
-#CMD ["/bin/bash", "/c2id-server/tomcat/bin/catalina.sh", "run"]
+CMD ["/bin/bash", "/c2id-server/tomcat/bin/catalina.sh", "run"]

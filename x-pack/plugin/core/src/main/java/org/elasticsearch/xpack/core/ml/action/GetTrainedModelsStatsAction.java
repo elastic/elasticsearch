@@ -123,7 +123,7 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
                 } else {
                     modelSizeStats = null;
                 }
-                ingestStats = new IngestStats(in);
+                ingestStats = IngestStats.read(in);
                 pipelineCount = in.readVInt();
                 inferenceStats = in.readOptionalWriteable(InferenceStats::new);
                 if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0)) {

@@ -10,6 +10,7 @@ package org.elasticsearch.action;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.CheckedConsumer;
@@ -90,6 +91,14 @@ public interface ActionListener<Response> {
     }
 
     /**
+     * Same as {@link #delegateFailure(BiConsumer)} except that any failure thrown by {@code bc} or the delegate listener's
+     * {@link #onResponse} will be passed to the delegate listeners {@link #onFailure(Exception)}.
+     */
+    default <T> ActionListener<T> delegateFailureAndWrap(CheckedBiConsumer<ActionListener<Response>, T, ? extends Exception> bc) {
+        return new ActionListenerImplementations.ResponseWrappingActionListener<>(this, bc);
+    }
+
+    /**
      * Creates a listener which releases the given resource on completion (whether success or failure)
      */
     static <Response> ActionListener<Response> releasing(Releasable releasable) {
@@ -139,7 +148,9 @@ public interface ActionListener<Response> {
     /**
      * Creates a listener that executes the appropriate consumer when the response (or failure) is received. This listener is "wrapped" in
      * the sense that an exception from the {@code onResponse} consumer is passed into the {@code onFailure} consumer.
-     *
+     * <p>
+     * If the {@code onFailure} argument is {@code listener::onFailure} for some other {@link ActionListener}, prefer to use
+     * {@link #delegateFailureAndWrap} instead.
      * @param onResponse the checked consumer of the response, executed when the listener is completed successfully. If it throws an
      *                   exception, the exception is passed to the {@code onFailure} consumer.
      * @param onFailure the consumer of the failure, executed when the listener is completed with an exception (or it is completed
@@ -342,6 +353,20 @@ public interface ActionListener<Response> {
                 @Override
                 public String toString() {
                     return delegate.toString();
+                }
+
+                @Override
+                public int hashCode() {
+                    // It's legitimate to wrap the delegate twice, with two different assertOnce calls, which would yield different objects
+                    // if and only if assertions are enabled. So we'd better not ever use these things as map keys etc.
+                    throw new AssertionError("almost certainly a mistake to need the hashCode() of a one-shot ActionListener");
+                }
+
+                @Override
+                public boolean equals(Object obj) {
+                    // It's legitimate to wrap the delegate twice, with two different assertOnce calls, which would yield different objects
+                    // if and only if assertions are enabled. So we'd better not ever use these things as map keys etc.
+                    throw new AssertionError("almost certainly a mistake to compare a one-shot ActionListener for equality");
                 }
             };
         } else {

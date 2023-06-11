@@ -453,8 +453,10 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
                 coordinatorRewriteContext
             );
         }
-
-        return MappedFieldType.Relation.DISJOINT;
+        // If the field type is null or not of type DataFieldType then we have no idea whether this range query will match during
+        // coordinating rewrite. So we should return that it intersects, either the data node query rewrite or by actually running
+        // the query we know whether this range query actually matches.
+        return MappedFieldType.Relation.INTERSECTS;
     }
 
     protected MappedFieldType.Relation getRelation(final SearchExecutionContext searchExecutionContext) throws IOException {

@@ -18,6 +18,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.logging.ESLogMessage;
@@ -31,6 +32,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.health.node.FetchHealthInfoCacheAction;
 import org.elasticsearch.health.node.HealthInfo;
+import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -87,7 +89,7 @@ public class HealthService implements ClusterStateListener, Closeable, Scheduler
     private final NodeClient client;
     private final Clock clock;
 
-    private volatile boolean isMaster = false;
+    private volatile boolean isHealthNode = false;
     private SchedulerEngine.Job scheduledJob;
     private final SetOnce<SchedulerEngine> scheduler = new SetOnce<>();
     private volatile TimeValue pollInterval;
@@ -151,14 +153,20 @@ public class HealthService implements ClusterStateListener, Closeable, Scheduler
             return;
         }
 
-        final boolean prevIsMaster = this.isMaster;
-        if (prevIsMaster != event.localNodeMaster()) {
-            this.isMaster = event.localNodeMaster();
-            if (this.isMaster) {
-                // we weren't the master, and now we are
+        DiscoveryNode healthNode = HealthNode.findHealthNode(event.state());
+        if (healthNode == null) {
+            return;
+        }
+        final boolean isCurrentlyHealthNode = healthNode.getId().equals(this.clusterService.localNode().getId());
+
+        final boolean prevIsHealthNode = this.isHealthNode;
+        if (prevIsHealthNode != isCurrentlyHealthNode) {
+            this.isHealthNode = isCurrentlyHealthNode;
+            if (this.isHealthNode) {
+                // we weren't the health node, and now we are
                 maybeScheduleJob();
             } else {
-                // we were the master, and now we aren't
+                // we were the health node, and now we aren't
                 cancelJob();
             }
         }
@@ -185,7 +193,7 @@ public class HealthService implements ClusterStateListener, Closeable, Scheduler
     }
 
     private void maybeScheduleJob() {
-        if (this.isMaster == false) {
+        if (this.isHealthNode == false) {
             return;
         }
 
@@ -384,7 +392,7 @@ public class HealthService implements ClusterStateListener, Closeable, Scheduler
     @Override
     public void triggered(SchedulerEngine.Event event) {
         if (event.getJobName().equals(HEALTH_SERVICE_JOB_NAME)) {
-            if (this.isMaster) {
+            if (this.isHealthNode) {
 
                 this.getHealth(this.client, null, true, 0, new ActionListener<List<HealthIndicatorResult>>() {
                     @Override

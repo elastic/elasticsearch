@@ -1256,37 +1256,40 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             }
         }
 
+        private void maybeVerify() throws IOException {
+            if (this.writtenBytes == metadata.length()) {
+                verify(); // we have recorded the entire checksum
+            } else if (this.writtenBytes > metadata.length()) {
+                verify(); // fail if we write more than expected
+                throw new AssertionError("write past EOF expected length: " + metadata.length() + " writtenBytes: " + writtenBytes);
+            }
+        }
+
         @Override
         public void writeBytes(byte[] b, int offset, int length) throws IOException {
-            final int directWriteLength = Math.toIntExact(checksumPosition > this.writtenBytes ? Math.min(checksumPosition - this.writtenBytes, length) : 0);
-            out.writeBytes(b, offset, directWriteLength); // direct write through parts before the checksum position
-            this.writtenBytes += directWriteLength;
-            final int leftLength = length - directWriteLength;
-            final int leftOffset = offset + directWriteLength;
-
             final long writtenBytes = this.writtenBytes;
-            this.writtenBytes += leftLength;
-            if (this.writtenBytes > checksumPosition) { // we are writing parts of the checksum....
-                if (writtenBytes == checksumPosition) {
-                    readAndCompareChecksum();
+            this.writtenBytes += length;
+            if (writtenBytes + length > checksumPosition) {
+                if (writtenBytes <= checksumPosition) {
+                    // Conversion to int is safe here because (checksumPosition - writtenBytes) can be at most len, which is integer
+                    final int checksumOffset = (int) (checksumPosition - writtenBytes);
+                    final int checksumLength = Math.min(length - checksumOffset, footerChecksum.length);
+
+                    out.writeBytes(b, offset, checksumOffset); // write parts before checksum position to compare checksum
+                    readAndCompareChecksum(); // we compare checksum when write range cross checksum position (writtenBytes <= checksumPosition < writtenBytes + length)
+
+                    System.arraycopy(b, offset + checksumOffset, footerChecksum, 0, checksumLength); // fill the checksum as we can
+                    maybeVerify();
+                    out.writeBytes(b, offset + checksumOffset, length - checksumOffset);
+                } else {
+                    final int checksumOffset = Math.min(Math.toIntExact(writtenBytes - checksumPosition), footerChecksum.length);
+                    final int checksumLength = Math.min(footerChecksum.length - checksumOffset, length);
+                    System.arraycopy(b, offset, footerChecksum, checksumOffset, checksumLength); // fill the checksum as we can
+                    maybeVerify();
+                    out.writeBytes(b, offset, length);
                 }
-                final int startIndex = Math.toIntExact(writtenBytes - checksumPosition);
-                final int endIndex = Math.toIntExact(this.writtenBytes - checksumPosition);
-                int position = leftOffset;
-                for (int index = startIndex; index < endIndex; index++) {
-                    if (index < footerChecksum.length) {
-                        footerChecksum[index] = b[position++];
-                        if (index == footerChecksum.length - 1) {
-                            verify(); // we have recorded the entire checksum
-                        }
-                    } else {
-                        verify(); // fail if we write more than expected
-                        throw new AssertionError("write past EOF expected length: " + metadata.length() + " writtenBytes: " + writtenBytes);
-                    }
-                }
-            }
-            if (leftLength > 0) {
-                out.writeBytes(b, leftOffset, leftLength);
+            } else {
+                out.writeBytes(b, offset, length);
             }
         }
     }

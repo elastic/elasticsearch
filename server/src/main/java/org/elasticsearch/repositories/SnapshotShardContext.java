@@ -66,7 +66,7 @@ public final class SnapshotShardContext extends DelegatingActionListener<ShardSn
         final long snapshotStartTime,
         ActionListener<ShardSnapshotResult> listener
     ) {
-        super(ActionListener.runBefore(listener, commitRef::onCompletion));
+        super(commitRef.closingBefore(listener));
         this.store = store;
         this.mapperService = mapperService;
         this.snapshotId = snapshotId;

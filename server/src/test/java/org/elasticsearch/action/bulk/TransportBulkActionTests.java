@@ -36,7 +36,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.indices.EmptySystemIndices;
-import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.indices.SystemIndexDescriptorUtils;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -106,11 +106,9 @@ public class TransportBulkActionTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         threadPool = new TestThreadPool(getClass().getName());
-        DiscoveryNode discoveryNode = DiscoveryNodeUtils.create(
-            "node",
-            ESTestCase.buildNewFakeTransportAddress(),
-            VersionUtils.randomCompatibleVersion(random(), Version.CURRENT)
-        );
+        DiscoveryNode discoveryNode = DiscoveryNodeUtils.builder("node")
+            .version(VersionUtils.randomCompatibleVersion(random(), Version.CURRENT))
+            .build();
         clusterService = createClusterService(threadPool, discoveryNode);
         CapturingTransport capturingTransport = new CapturingTransport();
         transportService = capturingTransport.createTransportService(
@@ -288,7 +286,7 @@ public class TransportBulkActionTests extends ESTestCase {
             new ConcreteIndex(IndexMetadata.builder(".bar").settings(settings).system(true).numberOfShards(1).numberOfReplicas(0).build())
         );
         SystemIndices systemIndices = new SystemIndices(
-            List.of(new SystemIndices.Feature("plugin", "test feature", List.of(new SystemIndexDescriptor(".test*", ""))))
+            List.of(new SystemIndices.Feature("plugin", "test feature", List.of(SystemIndexDescriptorUtils.createUnmanaged(".test*", ""))))
         );
         List<String> onlySystem = List.of(".foo", ".bar");
         assertTrue(TransportBulkAction.isOnlySystem(buildBulkRequest(onlySystem), indicesLookup, systemIndices));

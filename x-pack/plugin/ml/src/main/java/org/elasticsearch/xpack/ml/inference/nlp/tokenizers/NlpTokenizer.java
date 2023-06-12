@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml.inference.nlp.tokenizers;
 
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertJapaneseTokenization;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertTokenization;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.MPNetTokenization;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RobertaTokenization;
@@ -389,6 +390,9 @@ public abstract class NlpTokenizer implements Releasable {
         ExceptionsHelper.requireNonNull(vocabulary, VOCABULARY);
         if (params instanceof BertTokenization) {
             return BertTokenizer.builder(vocabulary.get(), params).build();
+        }
+        if (params instanceof BertJapaneseTokenization) {
+            return BertJapaneseTokenizer.builder(vocabulary.get(), params).build();
         }
         if (params instanceof MPNetTokenization) {
             return MPNetTokenizer.mpBuilder(vocabulary.get(), params).build();

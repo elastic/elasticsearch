@@ -8,23 +8,17 @@
 
 package org.elasticsearch.health;
 
-
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.client.internal.Client;
-
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Nullable;
-
 import org.elasticsearch.health.node.FetchHealthInfoCacheAction;
 import org.elasticsearch.health.node.HealthInfo;
-
 import org.elasticsearch.threadpool.ThreadPool;
 
-
 import java.util.Collections;
-
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -65,14 +59,13 @@ public class HealthService {
      * UNKNOWN statuses in this case.
      *
      * @param preflightHealthIndicatorServices indicators that are run first and represent a serious cascading health problem.
-     * @param healthIndicatorServices          indicators that are run if the preflight indicators return GREEN results.
+     * @param healthIndicatorServices indicators that are run if the preflight indicators return GREEN results.
      */
     public HealthService(
         List<HealthIndicatorService> preflightHealthIndicatorServices,
         List<HealthIndicatorService> healthIndicatorServices,
         ThreadPool threadPool
     ) {
-
         this.preflightHealthIndicatorServices = preflightHealthIndicatorServices;
         this.healthIndicatorServices = healthIndicatorServices;
         this.threadPool = threadPool;
@@ -115,6 +108,7 @@ public class HealthService {
             .filter(result -> indicatorName == null || result.name().equals(indicatorName));
 
         if (clusterHealthIsObtainable) {
+
             client.execute(FetchHealthInfoCacheAction.INSTANCE, new FetchHealthInfoCacheAction.Request(), new ActionListener<>() {
                 @Override
                 public void onResponse(FetchHealthInfoCacheAction.Response response) {

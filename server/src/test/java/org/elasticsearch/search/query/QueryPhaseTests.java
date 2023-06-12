@@ -1010,8 +1010,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
         context.parsedQuery(
             new ParsedQuery(new BooleanQuery.Builder().add(queries.get(0), Occur.SHOULD).add(queries.get(1), Occur.SHOULD).build())
         );
-        List<SearchQueryWrapper> searchQueries = List.of(new SearchQueryWrapper(queries.get(0)), new SearchQueryWrapper(queries.get(1)));
-        context.rankShardContext(new RankShardContext(searchQueries, 0, 100) {
+        context.rankShardContext(new RankShardContext(queries, 0, 100) {
             @Override
             public RankShardResult combine(List<TopDocs> rankResults) {
                 return null;

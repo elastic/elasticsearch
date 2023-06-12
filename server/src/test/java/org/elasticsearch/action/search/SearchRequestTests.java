@@ -227,6 +227,9 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         {
             // cannot have both query and queries
             SearchRequest searchRequest = createSearchRequest().source(new SearchSourceBuilder());
+            if (searchRequest.scroll() != null) {
+                searchRequest.requestCache(false);
+            }
             searchRequest.source().query(new TermQueryBuilder("one", "two"));
             searchRequest.source()
                 .queries(

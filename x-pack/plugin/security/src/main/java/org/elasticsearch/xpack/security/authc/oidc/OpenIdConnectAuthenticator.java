@@ -111,6 +111,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
+
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLContext;
 
@@ -289,12 +290,12 @@ public class OpenIdConnectAuthenticator {
                 && JWSAlgorithm.Family.HMAC_SHA.contains(rpConfig.getSignatureAlgorithm()) == false
                 && opConfig.getJwkSetPath().startsWith("https://")) {
                 ((ReloadableJWKSource) ((JWSVerificationKeySelector) idTokenValidator.get().getJWSKeySelector()).getJWKSource())
-                    .triggerReload(
-                        ActionListener.wrap(v -> { getUserClaims(accessToken, idToken, expectedNonce, false, claimsListener); }, ex -> {
-                            LOGGER.trace("Attempted and failed to refresh JWK cache upon token validation failure", e);
-                            claimsListener.onFailure(ex);
-                        })
-                    );
+                    .triggerReload(ActionListener.wrap(v -> {
+                        getUserClaims(accessToken, idToken, expectedNonce, false, claimsListener);
+                    }, ex -> {
+                        LOGGER.trace("Attempted and failed to refresh JWK cache upon token validation failure", e);
+                        claimsListener.onFailure(ex);
+                    }));
             } else {
                 claimsListener.onFailure(new ElasticsearchSecurityException("Failed to parse or validate the ID Token", e));
             }

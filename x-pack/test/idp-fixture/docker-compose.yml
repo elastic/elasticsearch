@@ -1,7 +1,7 @@
 version: '3.7'
 services:
   # TODO remove
-#  elasticsearch-node:
+  #  elasticsearch-node:
   #    image: elasticsearch:test
   #    environment:
   #      - discovery.type=single-node
@@ -166,12 +166,15 @@ services:
       dockerfile: ./oidc/Dockerfile
     depends_on:
       - http-proxy
+    environment:
+      - CATALINA_OPTS="-DsystemPropertiesURL=file:///etc/c2id/override.properties"
+    command: "bash /c2id-server/tomcat/bin/catalina.sh run"
     ports:
       - "8080"
     expose:
       - "8080"
     volumes:
-      - ./oidc/override.properties:/etc/c2id/override.properties
+      - ./testfixtures_shared/shared/oidc/:/etc/c2id/
 
   http-proxy:
     image: "nginx:latest"

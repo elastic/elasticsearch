@@ -322,9 +322,7 @@ public class SimpleRoutingIT extends ESIntegTestCase {
     }
 
     public void testRequiredRoutingCrudApis() throws Exception {
-        client().admin()
-            .indices()
-            .prepareCreate("test")
+        indicesAdmin().prepareCreate("test")
             .addAlias(new Alias("alias"))
             .setMapping(
                 XContentFactory.jsonBuilder()
@@ -420,9 +418,7 @@ public class SimpleRoutingIT extends ESIntegTestCase {
     }
 
     public void testRequiredRoutingBulk() throws Exception {
-        client().admin()
-            .indices()
-            .prepareCreate("test")
+        indicesAdmin().prepareCreate("test")
             .addAlias(new Alias("alias"))
             .setMapping(
                 XContentFactory.jsonBuilder()
@@ -514,9 +510,7 @@ public class SimpleRoutingIT extends ESIntegTestCase {
 
     public void testRequiredRoutingMappingVariousAPIs() throws Exception {
 
-        client().admin()
-            .indices()
-            .prepareCreate("test")
+        indicesAdmin().prepareCreate("test")
             .addAlias(new Alias("alias"))
             .setMapping(
                 XContentFactory.jsonBuilder()

@@ -38,6 +38,7 @@ import org.elasticsearch.tracing.SpanId;
 
 import java.security.AccessController;
 import java.security.PrivilegedAction;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -141,7 +142,8 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     @Override
     protected void doClose() {}
 
-    private APMServices createApmServices() {
+    // package-private for tests
+    APMServices createApmServices() {
         assert this.enabled;
         assert this.services == null;
 
@@ -187,6 +189,11 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
             }
 
             setSpanAttributes(threadContext, attributes, spanBuilder);
+
+            Instant startTime = threadContext.getTransient(Task.TRACE_START_TIME);
+            if (startTime != null) {
+                spanBuilder.setStartTimestamp(startTime);
+            }
             final Span span = spanBuilder.startSpan();
             final Context contextForNewSpan = Context.current().with(span);
 

@@ -45,9 +45,7 @@ public class TransportClusterStateActionDisruptionIT extends ESIntegTestCase {
 
     public void testNonLocalRequestAlwaysFindsMaster() throws Exception {
         runRepeatedlyWhileChangingMaster(() -> {
-            final ClusterStateRequestBuilder clusterStateRequestBuilder = client().admin()
-                .cluster()
-                .prepareState()
+            final ClusterStateRequestBuilder clusterStateRequestBuilder = clusterAdmin().prepareState()
                 .clear()
                 .setNodes(true)
                 .setMasterNodeTimeout("100ms");
@@ -150,9 +148,7 @@ public class TransportClusterStateActionDisruptionIT extends ESIntegTestCase {
 
         assertBusy(
             () -> assertThat(
-                client().admin()
-                    .cluster()
-                    .prepareState()
+                clusterAdmin().prepareState()
                     .clear()
                     .setMetadata(true)
                     .get()

@@ -13,6 +13,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -88,13 +89,7 @@ public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase 
         try {
             connectToNode(
                 serviceA,
-                new DiscoveryNode(
-                    "C",
-                    new TransportAddress(InetAddress.getByName("localhost"), 9876),
-                    emptyMap(),
-                    emptySet(),
-                    Version.CURRENT
-                )
+                DiscoveryNodeUtils.create("C", new TransportAddress(InetAddress.getByName("localhost"), 9876), emptyMap(), emptySet())
             );
             fail("Expected ConnectTransportException");
         } catch (ConnectTransportException e) {
@@ -205,14 +200,14 @@ public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase 
             socket.bind(getLocalEphemeral(), 1);
             socket.setReuseAddress(true);
 
-            DiscoveryNode first = new DiscoveryNode(
+            DiscoveryNode first = DiscoveryNodeUtils.create(
                 "TEST",
                 new TransportAddress(socket.getInetAddress(), socket.getLocalPort()),
                 emptyMap(),
                 emptySet(),
                 version0
             );
-            DiscoveryNode second = new DiscoveryNode(
+            DiscoveryNode second = DiscoveryNodeUtils.create(
                 "TEST",
                 new TransportAddress(socket.getInetAddress(), socket.getLocalPort()),
                 emptyMap(),

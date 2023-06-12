@@ -220,11 +220,7 @@ public class IndexSettingsTests extends ESTestCase {
     public void testNodeSettingsAreContained() {
         final int numShards = randomIntBetween(1, 10);
         final int numReplicas = randomIntBetween(0, 10);
-        Settings theSettings = Settings.builder()
-            .put("index.foo.bar", 0)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numReplicas)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards)
-            .build();
+        Settings theSettings = indexSettings(numShards, numReplicas).put("index.foo.bar", 0).build();
 
         Settings nodeSettings = Settings.builder().put("index.foo.bar", 43).build();
         final AtomicInteger indexValue = new AtomicInteger(0);
@@ -236,44 +232,18 @@ public class IndexSettingsTests extends ESTestCase {
         assertEquals(0, indexValue.get());
 
         assertTrue(
-            settings.updateIndexMetadata(
-                newIndexMeta(
-                    "index",
-                    Settings.builder()
-                        .put("index.foo.bar", 42)
-                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numReplicas + 1)
-                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards)
-                        .build()
-                )
-            )
+            settings.updateIndexMetadata(newIndexMeta("index", indexSettings(numShards, numReplicas + 1).put("index.foo.bar", 42).build()))
         );
 
         assertEquals(42, indexValue.get());
         assertSame(nodeSettings, settings.getNodeSettings());
 
-        assertTrue(
-            settings.updateIndexMetadata(
-                newIndexMeta(
-                    "index",
-                    Settings.builder()
-                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numReplicas + 1)
-                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards)
-                        .build()
-                )
-            )
-        );
+        assertTrue(settings.updateIndexMetadata(newIndexMeta("index", indexSettings(numShards, numReplicas + 1).build())));
         assertEquals(43, indexValue.get());
-
     }
 
     public static IndexMetadata newIndexMeta(String name, Settings indexSettings) {
-        Settings build = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(indexSettings)
-            .build();
-        return IndexMetadata.builder(name).settings(build).build();
+        return IndexMetadata.builder(name).settings(indexSettings(Version.CURRENT, 1, 1).put(indexSettings)).build();
     }
 
     public void testUpdateDurability() {

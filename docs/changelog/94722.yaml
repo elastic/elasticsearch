@@ -1,5 +1,0 @@
-pr: 94722
-summary: Check no unassigned shards even if the node already left
-area: Infra/Core
-type: bug
-issues: []

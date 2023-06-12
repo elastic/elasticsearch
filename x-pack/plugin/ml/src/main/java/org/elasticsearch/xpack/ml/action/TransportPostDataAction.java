@@ -11,7 +11,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
-import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.PostDataAction;
@@ -51,7 +51,7 @@ public class TransportPostDataAction extends TransportJobTaskAction<PostDataActi
 
     @Override
     protected void taskOperation(
-        Task actionTask,
+        CancellableTask actionTask,
         PostDataAction.Request request,
         JobTask task,
         ActionListener<PostDataAction.Response> listener

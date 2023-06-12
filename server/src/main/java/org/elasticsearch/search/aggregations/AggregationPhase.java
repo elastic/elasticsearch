@@ -9,7 +9,6 @@ package org.elasticsearch.search.aggregations;
 
 import org.apache.lucene.search.Collector;
 import org.elasticsearch.action.search.SearchShardTask;
-import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.support.TimeSeriesIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.profile.query.CollectorResult;
@@ -57,9 +56,9 @@ public class AggregationPhase {
         }
         if (context.getProfilers() != null) {
             InternalProfileCollector profileCollector = new InternalProfileCollector(collector, CollectorResult.REASON_AGGREGATION);
-            context.registerAggsCollectorManager(new InternalProfileCollectorManager(profileCollector));
+            context.aggregations().registerAggsCollectorManager(new InternalProfileCollectorManager(profileCollector));
         } else {
-            context.registerAggsCollectorManager(new SingleThreadCollectorManager(collector));
+            context.aggregations().registerAggsCollectorManager(new SingleThreadCollectorManager(collector));
         }
     }
 
@@ -75,21 +74,11 @@ public class AggregationPhase {
             });
         }
 
-        boolean timeoutSet = context.scrollContext() == null
-            && context.timeout() != null
-            && context.timeout().equals(SearchService.NO_TIMEOUT) == false;
-
-        if (timeoutSet) {
-            final long startTime = context.getRelativeTimeInMillis();
-            final long timeout = context.timeout().millis();
-            final long maxTime = startTime + timeout;
-            cancellationChecks.add(() -> {
-                final long time = context.getRelativeTimeInMillis();
-                if (time > maxTime) {
-                    throw new QueryPhase.TimeExceededException();
-                }
-            });
+        final Runnable timeoutRunnable = QueryPhase.getTimeoutCheck(context);
+        if (timeoutRunnable != null) {
+            cancellationChecks.add(timeoutRunnable);
         }
+
         return cancellationChecks;
     }
 
@@ -107,10 +96,6 @@ public class AggregationPhase {
         Aggregator[] aggregators = context.aggregations().aggregators();
 
         List<InternalAggregation> aggregations = new ArrayList<>(aggregators.length);
-        if (context.aggregations().factories().context() != null) {
-            // Rollup can end up here with a null context but not null factories.....
-            context.aggregations().factories().context().multiBucketConsumer().reset();
-        }
         for (Aggregator aggregator : context.aggregations().aggregators()) {
             try {
                 aggregator.postCollection();
@@ -118,11 +103,12 @@ public class AggregationPhase {
             } catch (IOException e) {
                 throw new AggregationExecutionException("Failed to build aggregation [" + aggregator.name() + "]", e);
             }
+            // release the aggregator to claim the used bytes as we don't need it anymore
+            aggregator.releaseAggregations();
         }
         context.queryResult().aggregations(InternalAggregations.from(aggregations));
 
         // disable aggregations so that they don't run on next pages in case of scrolling
         context.aggregations(null);
-        context.registerAggsCollectorManager(null);
     }
 }

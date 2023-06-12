@@ -16,6 +16,7 @@ archivesBaseName = 'x-pack-ilm'
 dependencies {
   compileOnly project(path: xpackModule('core'))
   testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation project(xpackModule('ccr'))
   testImplementation project(':modules:data-streams')
   testImplementation project(':modules:dlm')
 }

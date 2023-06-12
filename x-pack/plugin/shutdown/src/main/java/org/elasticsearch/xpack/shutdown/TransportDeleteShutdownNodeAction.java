@@ -36,8 +36,6 @@ import org.elasticsearch.xpack.shutdown.DeleteShutdownNodeAction.Request;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.elasticsearch.cluster.metadata.NodesShutdownMetadata.getShutdownsOrEmpty;
-
 public class TransportDeleteShutdownNodeAction extends AcknowledgedTransportMasterNodeAction<Request> {
     private static final Logger logger = LogManager.getLogger(TransportDeleteShutdownNodeAction.class);
 
@@ -80,7 +78,7 @@ public class TransportDeleteShutdownNodeAction extends AcknowledgedTransportMast
     class DeleteShutdownNodeExecutor implements ClusterStateTaskExecutor<DeleteShutdownNodeTask> {
         @Override
         public ClusterState execute(BatchExecutionContext<DeleteShutdownNodeTask> batchExecutionContext) throws Exception {
-            var shutdownMetadata = new HashMap<>(getShutdownsOrEmpty(batchExecutionContext.initialState()).getAllNodeMetadataMap());
+            var shutdownMetadata = new HashMap<>(batchExecutionContext.initialState().metadata().nodeShutdowns().getAll());
             boolean changed = false;
             for (final var taskContext : batchExecutionContext.taskContexts()) {
                 var request = taskContext.getTask().request();
@@ -132,7 +130,7 @@ public class TransportDeleteShutdownNodeAction extends AcknowledgedTransportMast
         throws Exception {
         { // This block solely to ensure this NodesShutdownMetadata isn't accidentally used in the cluster state update task below
             NodesShutdownMetadata nodesShutdownMetadata = state.metadata().custom(NodesShutdownMetadata.TYPE);
-            if (nodesShutdownMetadata == null || nodesShutdownMetadata.getAllNodeMetadataMap().get(request.getNodeId()) == null) {
+            if (nodesShutdownMetadata == null || nodesShutdownMetadata.get(request.getNodeId()) == null) {
                 throw new ResourceNotFoundException("node [" + request.getNodeId() + "] is not currently shutting down");
             }
         }

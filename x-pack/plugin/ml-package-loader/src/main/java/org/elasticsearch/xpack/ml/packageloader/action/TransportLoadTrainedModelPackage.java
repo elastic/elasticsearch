@@ -42,6 +42,7 @@ import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
@@ -88,7 +89,8 @@ public class TransportLoadTrainedModelPackage extends TransportMasterNodeAction<
 
         threadPool.executor(MachineLearningPackageLoader.UTILITY_THREAD_POOL_NAME).execute(() -> {
             try {
-                logAndWriteNotificationAtDebug(modelId, "starting model upload");
+                final long relativeStartNanos = System.nanoTime();
+                logAndWriteNotificationAtInfo(modelId, "starting model upload");
 
                 URI uri = new URI(repository).resolve(packagedModelId + ModelLoaderUtils.MODEL_FILE_EXTENSION);
 
@@ -136,28 +138,45 @@ public class TransportLoadTrainedModelPackage extends TransportMasterNodeAction<
                     client.execute(PutTrainedModelDefinitionPartAction.INSTANCE, r).actionGet();
                 }
 
-                // get the last part, this time verify the checksum
+                // get the last part, this time verify the checksum and size
                 BytesArray definition = chunkIterator.next();
 
-                if (modelPackageConfig.getSha256().equals(chunkIterator.getSha256())) {
-                    PutTrainedModelDefinitionPartAction.Request r = new PutTrainedModelDefinitionPartAction.Request(
-                        modelId,
-                        definition,
-                        totalParts - 1,
-                        size,
-                        totalParts
-                    );
-
-                    client.execute(PutTrainedModelDefinitionPartAction.INSTANCE, r).actionGet();
-                    logAndWriteNotificationAtDebug(modelId, format("finished uploading model using [%d] parts", totalParts));
-                } else {
+                if (modelPackageConfig.getSha256().equals(chunkIterator.getSha256()) == false) {
                     String message = format(
                         "Model sha256 checksums do not match, expected [%s] but got [%s]",
                         modelPackageConfig.getSha256(),
                         chunkIterator.getSha256()
                     );
                     logAndWriteNotificationAtError(modelId, message);
+                    return;
                 }
+
+                if (modelPackageConfig.getSize() != chunkIterator.getTotalBytesRead()) {
+                    String message = format(
+                        "Model size does not match, expected [%d] but got [%d]",
+                        modelPackageConfig.getSize(),
+                        chunkIterator.getTotalBytesRead()
+                    );
+                    logAndWriteNotificationAtError(modelId, message);
+                    return;
+                }
+
+                PutTrainedModelDefinitionPartAction.Request r = new PutTrainedModelDefinitionPartAction.Request(
+                    modelId,
+                    definition,
+                    totalParts - 1,
+                    size,
+                    totalParts
+                );
+
+                client.execute(PutTrainedModelDefinitionPartAction.INSTANCE, r).actionGet();
+                logger.debug(format("finished uploading model [%s] using [%d] parts", modelId, totalParts));
+
+                final long totalRuntimeNanos = System.nanoTime() - relativeStartNanos;
+                logAndWriteNotificationAtInfo(
+                    modelId,
+                    format("finished model upload after [%d] seconds", TimeUnit.NANOSECONDS.toSeconds(totalRuntimeNanos))
+                );
             } catch (MalformedURLException e) {
                 logAndWriteNotificationAtError(modelId, format("Invalid URL [%s]", e));
             } catch (URISyntaxException e) {
@@ -177,7 +196,12 @@ public class TransportLoadTrainedModelPackage extends TransportMasterNodeAction<
 
     private void logAndWriteNotificationAtDebug(String modelId, String message) {
         writeNotification(modelId, message, Level.INFO); // info is the lowest level
-        logger.debug(format("[%s] %s", modelId, message));
+        logger.debug(() -> format("[%s] %s", modelId, message));
+    }
+
+    private void logAndWriteNotificationAtInfo(String modelId, String message) {
+        writeNotification(modelId, message, Level.INFO);
+        logger.info(format("[%s] %s", modelId, message));
     }
 
     private void writeNotification(String modelId, String message, Level level) {

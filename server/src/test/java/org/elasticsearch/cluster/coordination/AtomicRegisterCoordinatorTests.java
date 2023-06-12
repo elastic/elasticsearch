@@ -74,9 +74,16 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
     }
 
     @Override
-    @AwaitsFix(bugUrl = "ES-5645")
     public void testAckListenerReceivesNacksIfLeaderStandsDown() {
-        // The leader still has access to the register, therefore it acknowledges the state update
+        // must allow a little extra time for the heartbeat to expire before the election can happen
+        testAckListenerReceivesNacksIfLeaderStandsDown(
+            Settings.builder()
+                .put(MAX_MISSED_HEARTBEATS.getKey(), 1)
+                .put(HEARTBEAT_FREQUENCY.getKey(), TimeValue.timeValueSeconds(1))
+                .put(FollowersChecker.FOLLOWER_CHECK_RETRY_COUNT_SETTING.getKey(), 1000)
+                .build(),
+            TimeValue.timeValueSeconds(1)
+        );
     }
 
     @Override
@@ -195,20 +202,16 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
             Settings settings,
             ClusterSettings clusterSettings,
             CoordinationState.PersistedState persistedState,
-            BooleanSupplier isDisruptedSupplier
+            DisruptibleRegisterConnection disruptibleRegisterConnection
         ) {
             final TimeValue heartbeatFrequency = HEARTBEAT_FREQUENCY.get(settings);
-            final var atomicRegister = new AtomicRegister(currentTermRef, isDisruptedSupplier);
-            final var atomicHeartbeat = new StoreHeartbeatService(new DisruptibleHeartbeatStore(new SharedHeartbeatStore(heartBeatRef)) {
-                @Override
-                protected boolean isDisrupted() {
-                    return isDisruptedSupplier.getAsBoolean();
-                }
-            },
+            final var atomicRegister = new AtomicRegister(currentTermRef, disruptibleRegisterConnection);
+            final var atomicHeartbeat = new StoreHeartbeatService(
+                new DisruptibleHeartbeatStore(new SharedHeartbeatStore(heartBeatRef), disruptibleRegisterConnection),
                 threadPool,
                 heartbeatFrequency,
                 TimeValue.timeValueMillis(heartbeatFrequency.millis() * MAX_MISSED_HEARTBEATS.get(settings)),
-                listener -> ActionListener.completeWith(listener, () -> OptionalLong.of(atomicRegister.readCurrentTerm()))
+                listener -> atomicRegister.readCurrentTerm(listener.map(OptionalLong::of))
             );
             var reconfigurator = new SingleNodeReconfigurator(settings, clusterSettings);
             var electionStrategy = new AtomicRegisterElectionStrategy(atomicRegister, () -> disruptElections, () -> disruptPublications);
@@ -324,19 +327,25 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
 
         @Override
         public void onNewElection(DiscoveryNode localNode, long proposedTerm, ActionListener<StartJoinRequest> listener) {
-            ActionListener.completeWith(listener, () -> {
-                if (disruptElectionsSupplier.getAsBoolean()) {
-                    throw new IOException("simulating failure to acquire term during election");
-                }
+            if (disruptElectionsSupplier.getAsBoolean()) {
+                listener.onFailure(new IOException("simulating failure to acquire term during election"));
+                return;
+            }
 
-                final var currentTerm = register.readCurrentTerm();
+            register.readCurrentTerm(listener.delegateFailure((l1, currentTerm) -> {
                 final var electionTerm = Math.max(proposedTerm, currentTerm + 1);
-                final var witness = register.compareAndExchange(currentTerm, electionTerm);
-                if (witness != currentTerm) {
-                    throw new CoordinationStateRejectedException("could not claim " + electionTerm + ", current term is " + witness);
-                }
-                return new StartJoinRequest(localNode, electionTerm);
-            });
+                register.compareAndExchange(
+                    currentTerm,
+                    electionTerm,
+                    l1.delegateFailure((l2, witness) -> ActionListener.completeWith(l2, () -> {
+                        if (witness.equals(currentTerm)) {
+                            return new StartJoinRequest(localNode, electionTerm);
+                        } else {
+                            throw new CoordinationStateRejectedException("couldn't claim " + electionTerm + ", current term is " + witness);
+                        }
+                    }))
+                );
+            }));
         }
 
         @Override
@@ -352,12 +361,13 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
         @Override
         public void beforeCommit(long term, long version, ActionListener<Void> listener) {
             // TODO: add a test to ensure that this gets called
-            ActionListener.completeWith(listener, () -> {
-                if (disruptPublicationsSupplier.getAsBoolean()) {
-                    throw new IOException("simulating failure to verify term during publication");
-                }
 
-                final var currentTerm = register.readCurrentTerm();
+            if (disruptPublicationsSupplier.getAsBoolean()) {
+                listener.onFailure(new IOException("simulating failure to verify term during publication"));
+                return;
+            }
+
+            register.readCurrentTerm(listener.delegateFailure((l, currentTerm) -> ActionListener.completeWith(l, () -> {
                 if (currentTerm == term) {
                     return null;
                 } else {
@@ -371,7 +381,7 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
                         )
                     );
                 }
-            });
+            })));
         }
     }
 
@@ -422,29 +432,19 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
 
     private static class AtomicRegister {
         private final AtomicLong currentTermRef;
-        private final BooleanSupplier isDisruptedSupplier;
+        private final DisruptibleRegisterConnection disruptibleRegisterConnection;
 
-        AtomicRegister(AtomicLong currentTermRef, BooleanSupplier isDisruptedSupplier) {
+        AtomicRegister(AtomicLong currentTermRef, DisruptibleRegisterConnection disruptibleRegisterConnection) {
             this.currentTermRef = currentTermRef;
-            this.isDisruptedSupplier = isDisruptedSupplier;
+            this.disruptibleRegisterConnection = disruptibleRegisterConnection;
         }
 
-        private boolean isDisrupted() {
-            return isDisruptedSupplier.getAsBoolean();
+        void readCurrentTerm(ActionListener<Long> listener) {
+            disruptibleRegisterConnection.runDisrupted(listener, l -> l.onResponse(currentTermRef.get()));
         }
 
-        long readCurrentTerm() throws IOException {
-            if (isDisrupted()) {
-                throw new IOException("simulating disrupted access to shared store");
-            }
-            return currentTermRef.get();
-        }
-
-        long compareAndExchange(long expected, long updated) throws IOException {
-            if (isDisrupted()) {
-                throw new IOException("simulating disrupted access to shared store");
-            }
-            return currentTermRef.compareAndExchange(expected, updated);
+        void compareAndExchange(long expected, long updated, ActionListener<Long> listener) {
+            disruptibleRegisterConnection.runDisrupted(listener, l -> l.onResponse(currentTermRef.compareAndExchange(expected, updated)));
         }
     }
 

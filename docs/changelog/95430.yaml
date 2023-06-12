@@ -1,0 +1,5 @@
+pr: 95430
+summary: SIGTERM node shutdown type
+area: Infra/Node Lifecycle
+type: enhancement
+issues: []

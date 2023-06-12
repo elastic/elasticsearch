@@ -2091,7 +2091,7 @@ public final class TokenService {
         } catch (ExecutionException e) {
             throw new ElasticsearchSecurityException("Failed to compute secret key for active salt", e);
         }
-        cipher.updateAAD(ByteBuffer.allocate(4).putInt(version.id).array());
+        cipher.updateAAD(ByteBuffer.allocate(4).putInt(version.id()).array());
         cipher.updateAAD(salt.bytes);
         return cipher;
     }
@@ -2135,7 +2135,7 @@ public final class TokenService {
     private Cipher getDecryptionCipher(byte[] iv, SecretKey key, TransportVersion version, BytesKey salt) throws GeneralSecurityException {
         Cipher cipher = Cipher.getInstance(ENCRYPTION_CIPHER);
         cipher.init(Cipher.DECRYPT_MODE, key, new GCMParameterSpec(128, iv), secureRandom);
-        cipher.updateAAD(ByteBuffer.allocate(4).putInt(version.id).array());
+        cipher.updateAAD(ByteBuffer.allocate(4).putInt(version.id()).array());
         cipher.updateAAD(salt.bytes);
         return cipher;
     }

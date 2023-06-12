@@ -106,4 +106,9 @@ public interface ClusterHandle extends Closeable {
      * @param version version to upgrade to
      */
     void upgradeToVersion(Version version);
+
+    /**
+     * Cleans up any resources created by this cluster.
+     */
+    void close();
 }

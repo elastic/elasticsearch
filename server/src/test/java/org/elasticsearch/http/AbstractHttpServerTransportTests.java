@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
@@ -51,6 +52,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
+import org.mockito.ArgumentCaptor;
 
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
@@ -64,16 +66,30 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static java.net.InetAddress.getByName;
 import static java.util.Arrays.asList;
 import static org.elasticsearch.http.AbstractHttpServerTransport.resolvePublishPort;
+import static org.elasticsearch.http.DefaultRestChannel.CLOSE;
+import static org.elasticsearch.http.DefaultRestChannel.CONNECTION;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_CLIENT_STATS_ENABLED;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_SERVER_SHUTDOWN_GRACE_PERIOD;
+import static org.elasticsearch.test.LambdaMatchers.transformedMatch;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 
 public class AbstractHttpServerTransportTests extends ESTestCase {
 
@@ -219,6 +235,8 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 // specified request headers value are copied into the thread context
                 assertEquals("true", threadContext.getHeader("header.1"));
                 assertEquals("true", threadContext.getHeader("header.2"));
+                // trace start time is also set
+                assertThat(threadContext.getTransient(Task.TRACE_START_TIME), notNullValue());
                 // but unknown headers are not copied at all
                 assertNull(threadContext.getHeader("header.3"));
             }
@@ -229,6 +247,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 assertNull(threadContext.getHeader("header.1"));
                 assertNull(threadContext.getHeader("header.2"));
                 assertNull(threadContext.getHeader("header.3"));
+                assertNull(threadContext.getTransient(Task.TRACE_START_TIME));
             }
 
         };
@@ -312,6 +331,8 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 assertThat(threadContext.getHeader(Task.TRACE_ID), equalTo("0af7651916cd43dd8448eb211c80319c"));
                 assertThat(threadContext.getHeader(Task.TRACE_PARENT_HTTP_HEADER), nullValue());
                 assertThat(threadContext.getTransient("parent_" + Task.TRACE_PARENT_HTTP_HEADER), equalTo(traceParentValue));
+                // request trace start time is also set
+                assertThat(threadContext.getTransient(Task.TRACE_START_TIME), notNullValue());
             }
 
             @Override
@@ -320,6 +341,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 assertThat(threadContext.getHeader(Task.TRACE_ID), nullValue());
                 assertThat(threadContext.getHeader(Task.TRACE_PARENT_HTTP_HEADER), nullValue());
                 assertThat(threadContext.getTransient("parent_" + Task.TRACE_PARENT_HTTP_HEADER), nullValue());
+                assertThat(threadContext.getTransient(Task.TRACE_START_TIME), nullValue());
             }
 
         };
@@ -756,10 +778,16 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             transport.incomingRequest(fakeRestRequest.getHttpRequest(), fakeRestRequest.getHttpChannel());
 
             HttpStats httpStats = transport.stats();
-            assertThat(httpStats.getClientStats().size(), equalTo(1));
-            assertThat(httpStats.getClientStats().get(0).remoteAddress, equalTo(NetworkAddress.format(remoteAddress)));
-            assertThat(httpStats.getClientStats().get(0).opaqueId, equalTo(opaqueId));
-            assertThat(httpStats.getClientStats().get(0).lastUri, equalTo("/internal/stats_test"));
+            assertThat(
+                httpStats.getClientStats(),
+                contains(
+                    allOf(
+                        transformedMatch(HttpStats.ClientStats::remoteAddress, equalTo(NetworkAddress.format(remoteAddress))),
+                        transformedMatch(HttpStats.ClientStats::opaqueId, equalTo(opaqueId)),
+                        transformedMatch(HttpStats.ClientStats::lastUri, equalTo("/internal/stats_test"))
+                    )
+                )
+            );
 
             remoteAddress = new InetSocketAddress(randomIp(randomBoolean()), randomIntBetween(1, 65535));
             opaqueId = UUIDs.randomBase64UUID(random());
@@ -774,13 +802,13 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             assertThat(httpStats.getClientStats().size(), equalTo(2));
 
             // due to non-deterministic ordering in map iteration, the second client may not be the second entry in the list
-            HttpStats.ClientStats secondClientStats = httpStats.getClientStats().get(0).opaqueId.equals(opaqueId)
+            HttpStats.ClientStats secondClientStats = httpStats.getClientStats().get(0).opaqueId().equals(opaqueId)
                 ? httpStats.getClientStats().get(0)
                 : httpStats.getClientStats().get(1);
 
-            assertThat(secondClientStats.remoteAddress, equalTo(NetworkAddress.format(remoteAddress)));
-            assertThat(secondClientStats.opaqueId, equalTo(opaqueId));
-            assertThat(secondClientStats.lastUri, equalTo("/internal/stats_test2"));
+            assertThat(secondClientStats.remoteAddress(), equalTo(NetworkAddress.format(remoteAddress)));
+            assertThat(secondClientStats.opaqueId(), equalTo(opaqueId));
+            assertThat(secondClientStats.lastUri(), equalTo("/internal/stats_test2"));
         }
     }
 
@@ -834,7 +862,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             // HTTP client stats should default to enabled
             HttpStats httpStats = transport.stats();
             assertThat(httpStats.getClientStats().size(), equalTo(1));
-            assertThat(httpStats.getClientStats().get(0).opaqueId, equalTo(opaqueId));
+            assertThat(httpStats.getClientStats().get(0).opaqueId(), equalTo(opaqueId));
 
             clusterSettings.applySettings(
                 Settings.builder().put(HttpTransportSettings.SETTING_HTTP_CLIENT_STATS_ENABLED.getKey(), false).build()
@@ -874,6 +902,248 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             httpStats = transport.stats();
             assertThat(httpStats.getClientStats().size(), equalTo(1));
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testSetGracefulClose() {
+        try (AbstractHttpServerTransport transport = new TestHttpServerTransport(Settings.EMPTY)) {
+            final TestHttpRequest httpRequest = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/");
+
+            HttpChannel httpChannel = mock(HttpChannel.class);
+            transport.incomingRequest(httpRequest, httpChannel);
+
+            var response = ArgumentCaptor.forClass(TestHttpResponse.class);
+            var listener = ArgumentCaptor.forClass(ActionListener.class);
+            verify(httpChannel).sendResponse(response.capture(), listener.capture());
+
+            listener.getValue().onResponse(null);
+            assertThat(response.getValue().containsHeader(CONNECTION), is(false));
+            verify(httpChannel, never()).close();
+
+            httpChannel = mock(HttpChannel.class);
+            transport.gracefullyCloseConnections();
+            transport.incomingRequest(httpRequest, httpChannel);
+            verify(httpChannel).sendResponse(response.capture(), listener.capture());
+
+            listener.getValue().onResponse(null);
+            assertThat(response.getValue().headers().get(CONNECTION), containsInAnyOrder(DefaultRestChannel.CLOSE));
+            verify(httpChannel).close();
+        }
+    }
+
+    public void testStopDoesntWaitIfGraceIsZero() {
+        try (TestHttpServerTransport transport = new TestHttpServerTransport(Settings.EMPTY)) {
+            transport.bindServer();
+            final TestHttpRequest httpRequest = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/");
+
+            TestHttpChannel httpChannel = new TestHttpChannel();
+            transport.serverAcceptedChannel(httpChannel);
+            transport.incomingRequest(httpRequest, httpChannel);
+
+            transport.doStop();
+            assertFalse(transport.testHttpServerChannel.isOpen());
+            assertFalse(httpChannel.isOpen());
+        }
+    }
+
+    public void testStopWorksWithNoOpenRequests() {
+        try (TestHttpServerTransport transport = new TestHttpServerTransport(gracePeriod(1))) {
+            transport.bindServer();
+
+            final TestHttpRequest httpRequest = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/") {
+                @Override
+                public Map<String, List<String>> getHeaders() {
+                    // close connection before shutting down
+                    return Map.of(CONNECTION, List.of(CLOSE));
+                }
+            };
+            TestHttpChannel httpChannel = new TestHttpChannel();
+            transport.serverAcceptedChannel(httpChannel);
+            transport.incomingRequest(httpRequest, httpChannel);
+            assertFalse(httpChannel.isOpen());
+
+            // TestHttpChannel will throw if closed twice, so this ensures close is not called.
+            transport.doStop();
+            assertFalse(transport.testHttpServerChannel.isOpen());
+        }
+    }
+
+    public void testStopForceClosesConnection() {
+        final Logger mockLogger = LogManager.getLogger(AbstractHttpServerTransport.class);
+        Loggers.setLevel(mockLogger, Level.WARN);
+        final MockLogAppender appender = new MockLogAppender();
+        try (TestHttpServerTransport transport = new TestHttpServerTransport(gracePeriod(10))) {
+            Loggers.addAppender(mockLogger, appender);
+            appender.start();
+
+            appender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "message",
+                    AbstractHttpServerTransport.class.getName(),
+                    Level.WARN,
+                    "timed out while waiting [10]ms for clients to close connections"
+                )
+            );
+
+            transport.bindServer();
+            final TestHttpRequest httpRequest = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/");
+            TestHttpChannel httpChannel = new TestHttpChannel();
+            transport.serverAcceptedChannel(httpChannel);
+            transport.incomingRequest(httpRequest, httpChannel);
+            // idle connection
+            assertTrue(httpChannel.isOpen());
+            transport.doStop();
+            assertFalse(httpChannel.isOpen());
+            assertFalse(transport.testHttpServerChannel.isOpen());
+            // ensure we timed out waiting for connections to close naturally
+            appender.assertAllExpectationsMatched();
+        } finally {
+            appender.stop();
+            Loggers.removeAppender(mockLogger, appender);
+        }
+    }
+
+    public void testStopForceClosesConnectionDuringRequest() throws Exception {
+        final Logger mockLogger = LogManager.getLogger(AbstractHttpServerTransport.class);
+        Loggers.setLevel(mockLogger, Level.WARN);
+        final MockLogAppender appender = new MockLogAppender();
+        final var inDispatch = new CountDownLatch(1);
+        try (TestHttpServerTransport transport = new TestHttpServerTransport(gracePeriod(10), new HttpServerTransport.Dispatcher() {
+            @Override
+            public void dispatchRequest(RestRequest request, RestChannel channel, ThreadContext threadContext) {
+                inDispatch.countDown();
+            }
+
+            @Override
+            public void dispatchBadRequest(RestChannel channel, ThreadContext threadContext, Throwable cause) {
+                channel.sendResponse(emptyResponse(RestStatus.BAD_REQUEST));
+            }
+        })) {
+            Loggers.addAppender(mockLogger, appender);
+            appender.start();
+
+            appender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "message",
+                    AbstractHttpServerTransport.class.getName(),
+                    Level.WARN,
+                    "timed out while waiting [10]ms for clients to close connections"
+                )
+            );
+
+            transport.bindServer();
+            final TestHttpRequest httpRequest = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/");
+            TestHttpChannel httpChannel = new TestHttpChannel();
+            transport.serverAcceptedChannel(httpChannel);
+            new Thread(
+                () -> transport.incomingRequest(httpRequest, httpChannel),
+                "testStopForceClosesConnectionDuringRequest -> incomingRequest"
+            ).start();
+            inDispatch.await();
+            assertTrue(httpChannel.isOpen());
+            transport.doStop();
+            assertFalse(httpChannel.isOpen());
+            assertFalse(transport.testHttpServerChannel.isOpen());
+            assertThat(httpChannel.responses, hasSize(0));
+            // ensure we timed out waiting for connections to close naturally
+            appender.assertAllExpectationsMatched();
+        } finally {
+            appender.stop();
+            Loggers.removeAppender(mockLogger, appender);
+        }
+    }
+
+    public void testStopClosesChannelAfterRequest() {
+        try (TestHttpServerTransport transport = new TestHttpServerTransport(gracePeriod(100))) {
+            transport.bindServer();
+
+            TestHttpChannel httpChannel = new TestHttpChannel();
+            transport.serverAcceptedChannel(httpChannel);
+            transport.incomingRequest(new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/"), httpChannel);
+
+            TestHttpChannel idleChannel = new TestHttpChannel();
+            transport.serverAcceptedChannel(idleChannel);
+            transport.incomingRequest(new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/"), idleChannel);
+
+            CountDownLatch stopped = new CountDownLatch(1);
+
+            new Thread(() -> {
+                transport.doStop();
+                stopped.countDown();
+            }).start();
+
+            try {
+                assertTrue(transport.gracefullyCloseCalled.await(10, TimeUnit.SECONDS));
+            } catch (InterruptedException e) {
+                fail("server never called grace period");
+            }
+
+            // one last request, should cause httpChannel to close naturally now that we've set grace period
+            transport.incomingRequest(new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/"), httpChannel);
+            assertFalse(httpChannel.isOpen());
+
+            try {
+                assertTrue(stopped.await(10, TimeUnit.SECONDS));
+            } catch (InterruptedException e) {
+                fail("server never stopped");
+            }
+
+            assertFalse(transport.testHttpServerChannel.isOpen());
+            assertFalse(idleChannel.isOpen());
+
+            assertThat(httpChannel.responses, hasSize(2));
+            HttpResponse first = httpChannel.responses.get(0);
+            HttpResponse last = httpChannel.responses.get(1);
+            assertFalse(first.containsHeader(CONNECTION));
+            assertTrue(last.containsHeader(CONNECTION));
+            assertThat(last, instanceOf(TestHttpResponse.class));
+            assertThat(((TestHttpResponse) last).headers().get(CONNECTION).get(0), equalTo(CLOSE));
+        }
+    }
+
+    public void testForceClosesOpenChannels() {
+        try (TestHttpServerTransport transport = new TestHttpServerTransport(gracePeriod(100))) {
+            transport.bindServer();
+
+            TestHttpChannel httpChannel = new TestHttpChannel(true);
+            transport.serverAcceptedChannel(httpChannel);
+            transport.incomingRequest(new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/"), httpChannel);
+
+            CountDownLatch stopped = new CountDownLatch(1);
+
+            new Thread(() -> {
+                try {
+                    assertTrue(transport.gracefullyCloseCalled.await(100, TimeUnit.MILLISECONDS));
+                } catch (InterruptedException e) {
+                    fail("server never called grace period");
+                }
+                // one last request, will attempt to close naturally, but we are blocking it
+                transport.incomingRequest(new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/"), httpChannel);
+            }).start();
+
+            new Thread(() -> {
+                transport.doStop();
+                stopped.countDown();
+            }).start();
+
+            try {
+                assertTrue(stopped.await(10, TimeUnit.SECONDS));
+            } catch (InterruptedException e) {
+                fail("server never stopped");
+            }
+
+            assertFalse(transport.testHttpServerChannel.isOpen());
+            assertFalse(httpChannel.isOpen());
+
+            assertThat(httpChannel.responses, hasSize(2));
+            HttpResponse first = httpChannel.responses.get(0);
+            HttpResponse last = httpChannel.responses.get(1);
+            assertFalse(first.containsHeader(CONNECTION));
+            assertTrue(last.containsHeader(CONNECTION));
+            assertThat(last, instanceOf(TestHttpResponse.class));
+            assertThat(((TestHttpResponse) last).headers().get(CONNECTION).get(0), equalTo(CLOSE));
+        }
+
     }
 
     private static RestResponse emptyResponse(RestStatus status) {
@@ -920,5 +1190,143 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             mock(ClusterService.class),
             List.of()
         );
+    }
+
+    private class TestHttpServerTransport extends AbstractHttpServerTransport {
+        public TestHttpChannel testHttpServerChannel = new TestHttpChannel(false);
+        public CountDownLatch gracefullyCloseCalled = new CountDownLatch(1);
+
+        TestHttpServerTransport(Settings settings, HttpServerTransport.Dispatcher dispatcher) {
+            super(
+                Settings.builder().put(settings).put(SETTING_HTTP_CLIENT_STATS_ENABLED.getKey(), false).build(),
+                AbstractHttpServerTransportTests.this.networkService,
+                AbstractHttpServerTransportTests.this.recycler,
+                AbstractHttpServerTransportTests.this.threadPool,
+                xContentRegistry(),
+                dispatcher,
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                Tracer.NOOP
+            );
+        }
+
+        TestHttpServerTransport(Settings settings) {
+            this(settings, new HttpServerTransport.Dispatcher() {
+                @Override
+                public void dispatchRequest(RestRequest request, RestChannel channel, ThreadContext threadContext) {
+                    channel.sendResponse(emptyResponse(RestStatus.OK));
+                }
+
+                @Override
+                public void dispatchBadRequest(RestChannel channel, ThreadContext threadContext, Throwable cause) {
+                    channel.sendResponse(emptyResponse(RestStatus.BAD_REQUEST));
+                }
+            });
+        }
+
+        @Override
+        void gracefullyCloseConnections() {
+            super.gracefullyCloseConnections();
+            gracefullyCloseCalled.countDown();
+        }
+
+        @Override
+        protected HttpServerChannel bind(InetSocketAddress hostAddress) {
+            testHttpServerChannel.setLocalAddress(hostAddress);
+            return testHttpServerChannel;
+        }
+
+        @Override
+        protected void doStart() {
+            bindServer();
+        }
+
+        @Override
+        protected void stopInternal() {}
+    }
+
+    private static class TestHttpChannel implements HttpChannel, HttpServerChannel {
+        private boolean open = true;
+        private int numCloses = 0;
+        private final CountDownLatch closeLatch;
+        private ActionListener<Void> closeListener;
+        private InetSocketAddress localAddress;
+
+        public List<HttpResponse> responses = new ArrayList<>();
+
+        TestHttpChannel() {
+            this(false);
+        }
+
+        TestHttpChannel(boolean blockFirstClose) {
+            closeLatch = blockFirstClose ? new CountDownLatch(1) : null;
+        }
+
+        @Override
+        public void sendResponse(HttpResponse response, ActionListener<Void> listener) {
+            responses.add(response);
+            listener.onResponse(null);
+        }
+
+        public void setLocalAddress(InetSocketAddress localAddress) {
+            this.localAddress = localAddress;
+        }
+
+        @Override
+        public InetSocketAddress getLocalAddress() {
+            return localAddress;
+        }
+
+        @Override
+        public InetSocketAddress getRemoteAddress() {
+            return null;
+        }
+
+        @Override
+        public void close() {
+            if (closeLatch != null) {
+                boolean waitForever;
+                synchronized (this) {
+                    waitForever = numCloses == 0;
+                    numCloses++;
+                }
+                if (waitForever) {
+                    try {
+                        if (closeLatch.await(1, TimeUnit.SECONDS) == false) {
+                            return;
+                        }
+                    } catch (InterruptedException ie) {
+                        throw new RuntimeException(ie);
+                    }
+                }
+            }
+            if (open == false) {
+                throw new IllegalStateException("channel already closed!");
+            }
+            open = false;
+            if (closeListener != null) {
+                closeListener.onResponse(null);
+            }
+        }
+
+        @Override
+        public boolean isOpen() {
+            return open;
+        }
+
+        @Override
+        public void addCloseListener(ActionListener<Void> listener) {
+            if (open == false) {
+                listener.onResponse(null);
+            } else {
+                if (closeListener != null) {
+                    throw new IllegalStateException("close listener already set");
+                }
+                closeListener = listener;
+            }
+        }
+    }
+
+    private Settings gracePeriod(int ms) {
+        return Settings.builder().put(SETTING_HTTP_SERVER_SHUTDOWN_GRACE_PERIOD.getKey(), new TimeValue(ms)).build();
     }
 }

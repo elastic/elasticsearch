@@ -33,6 +33,7 @@ import org.elasticsearch.index.reindex.RemoteInfo;
 import org.elasticsearch.index.reindex.UpdateByQueryAction;
 import org.elasticsearch.index.reindex.UpdateByQueryRequestBuilder;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.root.MainRestPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.netty4.Netty4Plugin;
@@ -70,7 +71,7 @@ public class RetryTests extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(ReindexPlugin.class, Netty4Plugin.class);
+        return Arrays.asList(ReindexPlugin.class, Netty4Plugin.class, MainRestPlugin.class);
     }
 
     /**
@@ -171,11 +172,7 @@ public class RetryTests extends ESIntegTestCase {
             .put("node.attr.color", "blue")
             .build();
         final String node = internalCluster().startDataOnlyNode(nodeSettings);
-        final Settings indexSettings = Settings.builder()
-            .put("index.number_of_shards", 1)
-            .put("index.number_of_replicas", 0)
-            .put("index.routing.allocation.include.color", "blue")
-            .build();
+        final Settings indexSettings = indexSettings(1, 0).put("index.routing.allocation.include.color", "blue").build();
 
         // Create the source index on the node with small thread pools so we can block them.
         client().admin().indices().prepareCreate("source").setSettings(indexSettings).execute().actionGet();

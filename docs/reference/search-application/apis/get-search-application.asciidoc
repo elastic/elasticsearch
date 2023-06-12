@@ -2,7 +2,7 @@
 [[get-search-application]]
 === Get Search Application
 
-preview::[]
+beta::[]
 
 ++++
 <titleabbrev>Get Search Application</titleabbrev>
@@ -53,6 +53,22 @@ A sample response:
 {
     "name": "my-app",
     "indices": [ "index1", "index2" ],
-    "analytics_collection_name": "my-analytics"
+    "updated_at_millis": 1682105622204,
+    "template": {
+      "script": {
+        "source": {
+          "query": {
+            "query_string": {
+              "query": "{{query_string}}",
+              "default_field": "{{default_field}}"
+            }
+          }
+        },
+        "params": {
+          "query_string": "*",
+          "default_field": "*"
+        }
+      }
+  }
 }
 ----

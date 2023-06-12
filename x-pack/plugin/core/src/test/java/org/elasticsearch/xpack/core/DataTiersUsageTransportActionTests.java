@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -700,13 +701,7 @@ public class DataTiersUsageTransportActionTests extends ESTestCase {
     }
 
     private static DiscoveryNode newNode(int nodeId, DiscoveryNodeRole... roles) {
-        return new DiscoveryNode(
-            "node_" + nodeId,
-            ESTestCase.buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            Set.of(roles),
-            Version.CURRENT
-        );
+        return DiscoveryNodeUtils.builder("node_" + nodeId).roles(Set.of(roles)).build();
     }
 
     private static IndexMetadata indexMetadata(String indexName, int numberOfShards, int numberOfReplicas, String... dataTierPrefs) {
@@ -779,7 +774,7 @@ public class DataTiersUsageTransportActionTests extends ESTestCase {
         Path fakePath = PathUtils.get("test/dir/" + routing.shardId().getIndex().getUUID() + "/" + routing.shardId().id());
         ShardPath fakeShardPath = new ShardPath(false, fakePath, fakePath, routing.shardId());
 
-        return new ShardStats(routing, fakeShardPath, commonStats, null, null, null);
+        return new ShardStats(routing, fakeShardPath, commonStats, null, null, null, false, 0);
     }
 
     private static NodeStats mockNodeStats(DiscoveryNode node, NodeIndicesStats indexStats) {

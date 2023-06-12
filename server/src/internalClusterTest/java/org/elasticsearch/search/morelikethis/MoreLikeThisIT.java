@@ -34,7 +34,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.index.query.QueryBuilders.moreLikeThisQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
@@ -201,9 +200,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
             )
         );
         logger.info("Creating aliases alias release");
-        client().admin()
-            .indices()
-            .prepareAliases()
+        indicesAdmin().prepareAliases()
             .addAlias("test", "release", termQuery("text", "release"))
             .addAlias("test", "beta", termQuery("text", "beta"))
             .get();
@@ -319,7 +316,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
 
     // Issue #3039
     public void testMoreLikeThisIssueRoutingNotSerialized() throws Exception {
-        assertAcked(prepareCreate("foo", 2, Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 2).put(SETTING_NUMBER_OF_REPLICAS, 0)));
+        assertAcked(prepareCreate("foo", 2, indexSettings(2, 0)));
         ensureGreen();
 
         client().prepareIndex("foo")

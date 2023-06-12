@@ -2,7 +2,7 @@
 [[put-search-application]]
 === Put Search Application
 
-preview::[]
+beta::[]
 
 ++++
 <titleabbrev>Put Search Application</titleabbrev>
@@ -24,9 +24,33 @@ Also requires <<privileges-list-indices,manage privileges>> on all indices that 
 [[put-search-application-path-params]]
 ==== {api-path-parms-title}
 
+
 `create`::
 (Optional, Boolean) If `true`, this request cannot replace or update existing Search Applications.
 Defaults to `false`.
+
+`<body>`::
+(Required, object)
+Contains parameters for a search application:
++
+.Properties of `<body>` objects
+[%collapsible%open]
+====
+`indices`::
+(Required, array of strings)
+The <<indices,indices>> associated with this search application. All indices need to exist in order to be added to a search application.
+
+`template`::
+(Optional, object)
+The <<search-template,search template>> associated with this search application. The search application's template is only stored and accessible through the search application.
+
+- This search template must be a Mustache template.
+- The template must contain a Mustache script and script source.
+- The template may be modified with subsequent <<put-search-application,put search application>> requests.
+- If no template is specified when creating a search application, or if a template is removed from a search application, we use the <<query-string-query-ex-request,query_string>> defined in the template examples as a default.
+- This template will be used by the <<search-application-search,search application search>> API to execute searches.
+====
+
 
 [[put-search-application-response-codes]]
 ==== {api-response-codes-title}
@@ -47,19 +71,49 @@ The following example creates a new Search Application called `my-app`:
 PUT _application/search_application/my-app?create
 {
   "indices": [ "index1", "index2" ],
-  "analytics_collection_name": "my-analytics-collection"
+  "template": {
+    "script": {
+      "source": {
+        "query": {
+          "query_string": {
+            "query": "{{query_string}}",
+            "default_field": "{{default_field}}"
+          }
+        }
+      },
+      "params": {
+        "query_string": "*",
+        "default_field": "*"
+      }
+    }
+  }
 }
 ----
 // TEST[skip:TBD]
 
-The following example creates or updates an existing Search Application called `my_app`:
+The following example creates or updates an existing Search Application called `my-app`:
 
 [source,console]
 ----
 PUT _application/search_application/my-app
 {
   "indices": [ "index1", "index2", "index3" ],
-  "analytics_collection_name": "my-analytics-collection"
+  "template": {
+    "script": {
+      "source": {
+        "query": {
+          "query_string": {
+            "query": "{{query_string}}",
+            "default_field": "{{default_field}}"
+          }
+        }
+      },
+      "params": {
+        "query_string": "*",
+        "default_field": "*"
+      }
+    }
+  }
 }
 ----
 // TEST[skip:TBD]

@@ -376,7 +376,7 @@ DELETE /sample-01
 ==== View the results
 
 
-Re-run your search query:
+Re-run your search query (note that when querying downsampled indices there are <<querying-downsampled-indices-notes,a few nuances to be aware of>>):
 
 [source,console]
 ----

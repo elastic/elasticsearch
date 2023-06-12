@@ -15,12 +15,32 @@ dependencies {
   compileOnly project(path: xpackModule('core'))
   api project(':modules:lang-mustache')
 
+  // JSON Schema dependencies
+  implementation "org.apache.commons:commons-lang3:${versions.commons_lang3}"
+  implementation "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+  implementation "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
+  implementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
+  implementation "org.slf4j:slf4j-api:${versions.slf4j}"
+  implementation "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"
+  implementation "com.networknt:json-schema-validator:${versions.networknt_json_schema_validator}"
+
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation(project(':modules:lang-mustache'))
 
   javaRestTestImplementation(project(path: xpackModule('core')))
   javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
   javaRestTestImplementation(project(':modules:lang-mustache'))
+}
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: /jackson.*/, to: 'jackson'
+}
+
+tasks.named("thirdPartyAudit").configure {
+  ignoreMissingClasses(
+    // [missing classes] SLF4j includes an optional class that depends on an extension class (!)
+    'org.slf4j.ext.EventData'
+  )
 }
 
 addQaCheckDependencies(project)

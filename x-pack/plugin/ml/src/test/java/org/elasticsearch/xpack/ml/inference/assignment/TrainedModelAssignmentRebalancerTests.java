@@ -8,10 +8,8 @@
 package org.elasticsearch.xpack.ml.inference.assignment;
 
 import org.elasticsearch.ResourceAlreadyExistsException;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
@@ -1087,17 +1085,18 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
     }
 
     private static DiscoveryNode buildNode(String name, long nativeMemory, int allocatedProcessors) {
-        return new DiscoveryNode(
-            name,
-            name,
-            buildNewFakeTransportAddress(),
-            MapBuilder.<String, String>newMapBuilder()
-                .put(MachineLearning.MACHINE_MEMORY_NODE_ATTR, String.valueOf(nativeMemory))
-                .put(MachineLearning.MAX_JVM_SIZE_NODE_ATTR, String.valueOf(10))
-                .put(MachineLearning.ALLOCATED_PROCESSORS_NODE_ATTR, String.valueOf(allocatedProcessors))
-                .map(),
-            DiscoveryNodeRole.roles(),
-            Version.CURRENT
-        );
+        return DiscoveryNodeUtils.builder(name)
+            .name(name)
+            .attributes(
+                Map.of(
+                    MachineLearning.MACHINE_MEMORY_NODE_ATTR,
+                    String.valueOf(nativeMemory),
+                    MachineLearning.MAX_JVM_SIZE_NODE_ATTR,
+                    String.valueOf(10),
+                    MachineLearning.ALLOCATED_PROCESSORS_NODE_ATTR,
+                    String.valueOf(allocatedProcessors)
+                )
+            )
+            .build();
     }
 }

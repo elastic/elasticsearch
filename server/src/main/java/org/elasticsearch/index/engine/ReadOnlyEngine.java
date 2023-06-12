@@ -19,6 +19,7 @@ import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.Lock;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.lucene.Lucene;
@@ -338,6 +339,11 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
+    public void asyncEnsureGlobalCheckpointSynced(long globalCheckpoint, Consumer<Exception> listener) {
+        listener.accept(null);
+    }
+
+    @Override
     public void syncTranslog() {}
 
     @Override
@@ -428,8 +434,8 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public RefreshResult maybeRefresh(String source) throws EngineException {
-        return RefreshResult.NO_REFRESH;
+    public void maybeRefresh(String source, ActionListener<RefreshResult> listener) throws EngineException {
+        listener.onResponse(RefreshResult.NO_REFRESH);
     }
 
     @Override
@@ -441,8 +447,8 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public boolean flush(boolean force, boolean waitIfOngoing) throws EngineException {
-        return true; // noop
+    public void flush(boolean force, boolean waitIfOngoing, ActionListener<FlushResult> listener) throws EngineException {
+        listener.onResponse(new FlushResult(true, lastCommittedSegmentInfos.getGeneration()));
     }
 
     @Override

@@ -9,6 +9,7 @@
 package org.elasticsearch.rest;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
@@ -26,6 +27,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.xcontent.MediaType;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
@@ -40,6 +42,7 @@ import static org.elasticsearch.ElasticsearchExceptionTests.assertDeepEquals;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -116,6 +119,48 @@ public class RestResponseTests extends ESTestCase {
             {"type":"file_not_found_exception\""""));
         assertThat(text, containsString("""
             "stack_trace":"org.elasticsearch.ElasticsearchException$1: an error occurred reading data"""));
+    }
+
+    public void testAuthenticationFailedNoStackTrace() throws IOException {
+        for (Exception authnException : List.of(
+            new ElasticsearchSecurityException("failed authn", RestStatus.UNAUTHORIZED),
+            new ElasticsearchSecurityException("failed authn", RestStatus.UNAUTHORIZED, new ElasticsearchException("cause"))
+        )) {
+            for (RestRequest request : List.of(
+                new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).build(),
+                new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withParams(Map.of("error_trace", Boolean.toString(true))).build()
+            )) {
+                for (RestChannel channel : List.of(new SimpleExceptionRestChannel(request), new DetailedExceptionRestChannel(request))) {
+                    RestResponse response = new RestResponse(channel, authnException);
+                    assertThat(response.status(), is(RestStatus.UNAUTHORIZED));
+                    assertThat(response.content().utf8ToString(), not(containsString(ElasticsearchException.STACK_TRACE)));
+                }
+            }
+        }
+    }
+
+    public void testStackTrace() throws IOException {
+        for (Exception exception : List.of(new ElasticsearchException("dummy"), new IllegalArgumentException("dummy"))) {
+            for (RestRequest request : List.of(
+                new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).build(),
+                new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withParams(Map.of("error_trace", Boolean.toString(true))).build()
+            )) {
+                for (RestChannel channel : List.of(new SimpleExceptionRestChannel(request), new DetailedExceptionRestChannel(request))) {
+                    RestResponse response = new RestResponse(channel, exception);
+                    if (exception instanceof ElasticsearchException) {
+                        assertThat(response.status(), is(RestStatus.INTERNAL_SERVER_ERROR));
+                    } else {
+                        assertThat(response.status(), is(RestStatus.BAD_REQUEST));
+                    }
+                    boolean traceExists = request.paramAsBoolean("error_trace", false) && channel.detailedErrorsEnabled();
+                    if (traceExists) {
+                        assertThat(response.content().utf8ToString(), containsString(ElasticsearchException.STACK_TRACE));
+                    } else {
+                        assertThat(response.content().utf8ToString(), not(containsString(ElasticsearchException.STACK_TRACE)));
+                    }
+                }
+            }
+        }
     }
 
     public void testGuessRootCause() throws IOException {

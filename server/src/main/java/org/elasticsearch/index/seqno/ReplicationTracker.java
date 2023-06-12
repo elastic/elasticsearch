@@ -10,7 +10,7 @@ package org.elasticsearch.index.seqno;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.GroupedActionListener;
+import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.AllocationId;
@@ -52,8 +52,6 @@ import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
-
 /**
  * This class is responsible for tracking the replication group with its progress and safety markers (local and global checkpoints).
  *
@@ -66,28 +64,6 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
  * The global checkpoint is maintained by the primary shard and is replicated to all the replicas (via {@link GlobalCheckpointSyncAction}).
  */
 public class ReplicationTracker extends AbstractIndexShardComponent implements LongSupplier {
-
-    public static final ReplicationTracker.Factory DEFAULT_FACTORY = (
-        shardId,
-        allocationId,
-        indexSettings,
-        operationPrimaryTerm,
-        onGlobalCheckpointUpdated,
-        currentTimeMillisSupplier,
-        onSyncRetentionLeases,
-        safeCommitInfoSupplier,
-        onReplicationGroupUpdated) -> new ReplicationTracker(
-            shardId,
-            allocationId,
-            indexSettings,
-            operationPrimaryTerm,
-            UNASSIGNED_SEQ_NO,
-            onGlobalCheckpointUpdated,
-            currentTimeMillisSupplier,
-            onSyncRetentionLeases,
-            safeCommitInfoSupplier,
-            onReplicationGroupUpdated
-        );
 
     /**
      * The allocation ID for the shard to which this tracker is a component of.
@@ -289,7 +265,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         final Collection<RetentionLease> expiredLeases = partitionByExpiration.get(true);
         if (expiredLeases == null) {
             // early out as no retention leases have expired
-            logger.debug("no retention leases are expired from current retention leases [{}]", retentionLeases);
+            logger.trace("no retention leases are expired from current retention leases [{}]", retentionLeases);
             return retentionLeases;
         }
         final List<RetentionLease> nonExpiredLeases = partitionByExpiration.get(false) != null
@@ -1505,36 +1481,33 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      */
     public synchronized void createMissingPeerRecoveryRetentionLeases(ActionListener<Void> listener) {
         if (hasAllPeerRecoveryRetentionLeases == false) {
-            final List<ShardRouting> shardRoutings = routingTable.assignedShards()
-                .stream()
-                .filter(ShardRouting::isPromotableToPrimary)
-                .toList();
-            final GroupedActionListener<ReplicationResponse> groupedActionListener = new GroupedActionListener<>(
-                shardRoutings.size(),
-                ActionListener.wrap(vs -> {
-                    setHasAllPeerRecoveryRetentionLeases();
-                    listener.onResponse(null);
-                }, listener::onFailure)
-            );
-            for (ShardRouting shardRouting : shardRoutings) {
-                if (retentionLeases.contains(getPeerRecoveryRetentionLeaseId(shardRouting))) {
-                    groupedActionListener.onResponse(null);
-                } else {
+            try (var listeners = new RefCountingListener(listener.delegateFailure((l, ignored) -> {
+                setHasAllPeerRecoveryRetentionLeases();
+                l.onResponse(null);
+            }))) {
+                for (ShardRouting shardRouting : routingTable.assignedShards()) {
+                    if (shardRouting.isPromotableToPrimary() == false) {
+                        continue;
+                    }
+
+                    if (retentionLeases.contains(getPeerRecoveryRetentionLeaseId(shardRouting))) {
+                        continue;
+                    }
+
                     final CheckpointState checkpointState = checkpoints.get(shardRouting.allocationId().getId());
                     if (checkpointState.tracked == false) {
-                        groupedActionListener.onResponse(null);
-                    } else {
-                        logger.trace("createMissingPeerRecoveryRetentionLeases: adding missing lease for {}", shardRouting);
-                        try {
-                            addPeerRecoveryRetentionLease(
-                                shardRouting.currentNodeId(),
-                                Math.max(SequenceNumbers.NO_OPS_PERFORMED, checkpointState.globalCheckpoint),
-                                groupedActionListener
-                            );
-                        } catch (Exception e) {
-                            groupedActionListener.onFailure(e);
-                        }
+                        continue;
                     }
+
+                    logger.trace("createMissingPeerRecoveryRetentionLeases: adding missing lease for {}", shardRouting);
+                    ActionListener.run(
+                        listeners.acquire((ReplicationResponse replicationResponse) -> {}),
+                        l -> addPeerRecoveryRetentionLease(
+                            shardRouting.currentNodeId(),
+                            Math.max(SequenceNumbers.NO_OPS_PERFORMED, checkpointState.globalCheckpoint),
+                            l
+                        )
+                    );
                 }
             }
         } else {
@@ -1663,23 +1636,5 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             result = 31 * result + routingTable.hashCode();
             return result;
         }
-    }
-
-    /**
-     * Factory interface used by {@link org.elasticsearch.index.IndexModule#setReplicationTrackerFactory(Factory)} to enable custom
-     * overrides of this class.
-     */
-    public interface Factory {
-        ReplicationTracker create(
-            ShardId shardId,
-            String allocationId,
-            IndexSettings indexSettings,
-            long operationPrimaryTerm,
-            LongConsumer onGlobalCheckpointUpdated,
-            LongSupplier currentTimeMillisSupplier,
-            BiConsumer<RetentionLeases, ActionListener<ReplicationResponse>> onSyncRetentionLeases,
-            Supplier<SafeCommitInfo> safeCommitInfoSupplier,
-            Consumer<ReplicationGroup> onReplicationGroupUpdated
-        );
     }
 }

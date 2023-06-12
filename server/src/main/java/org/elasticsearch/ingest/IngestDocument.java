@@ -179,7 +179,7 @@ public final class IngestDocument {
     /**
      * Returns the value contained in the document with the provided templated path
      * @param pathTemplate The path within the document in dot-notation
-     * @param clazz The expected class fo the field value
+     * @param clazz The expected class of the field value
      * @return the value for the provided path if existing, null otherwise
      * @throws IllegalArgumentException if the pathTemplate is null, empty, invalid, if the field doesn't exist,
      * or if the field that is found at the provided path is not of the expected type.

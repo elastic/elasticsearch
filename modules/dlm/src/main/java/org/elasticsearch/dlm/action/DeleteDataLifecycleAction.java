@@ -27,7 +27,7 @@ import java.util.Objects;
 public class DeleteDataLifecycleAction extends ActionType<AcknowledgedResponse> {
 
     public static final DeleteDataLifecycleAction INSTANCE = new DeleteDataLifecycleAction();
-    public static final String NAME = "indices:admin/data_lifecycle/delete";
+    public static final String NAME = "indices:admin/dlm/delete";
 
     private DeleteDataLifecycleAction() {
         super(NAME, AcknowledgedResponse::readFrom);

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.application.analytics.ingest;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkProcessor2;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -57,11 +58,11 @@ public class BulkProcessorFactoryTests extends ESTestCase {
         Client client = mock(Client.class);
 
         doReturn(testThreadPool).when(client).threadPool();
-        BulkProcessor2 bulkProcessor = new BulkProcessorFactory(config).create(client);
+        BulkProcessor2 bulkProcessor = new BulkProcessorFactory(client, config).create();
         IndexRequest indexRequest = mock(IndexRequest.class);
         bulkProcessor.add(indexRequest);
 
-        assertBusy(() -> verify(client).bulk(argThat((BulkRequest bulkRequest) -> {
+        assertBusy(() -> verify(client).execute(any(BulkAction.class), argThat((BulkRequest bulkRequest) -> {
             assertThat(bulkRequest.numberOfActions(), equalTo(1));
             assertThat(bulkRequest.requests().stream().findFirst().get(), equalTo(indexRequest));
             return true;
@@ -80,13 +81,13 @@ public class BulkProcessorFactoryTests extends ESTestCase {
         InOrder inOrder = Mockito.inOrder(client);
 
         doReturn(testThreadPool).when(client).threadPool();
-        BulkProcessor2 bulkProcessor = new BulkProcessorFactory(config).create(client);
+        BulkProcessor2 bulkProcessor = new BulkProcessorFactory(client, config).create();
 
         for (int i = 0; i < totalEvents; i++) {
             bulkProcessor.add(mock(IndexRequest.class));
         }
 
-        inOrder.verify(client, times(totalEvents / maxBulkActions)).bulk(argThat((BulkRequest bulkRequest) -> {
+        inOrder.verify(client, times(totalEvents / maxBulkActions)).execute(any(BulkAction.class), argThat((BulkRequest bulkRequest) -> {
             // Verify a bulk is executed immediately with maxNumberOfEventsPerBulk is reached.
             assertThat(bulkRequest.numberOfActions(), equalTo(maxBulkActions));
             return true;
@@ -95,7 +96,7 @@ public class BulkProcessorFactoryTests extends ESTestCase {
         bulkProcessor.awaitClose(1, TimeUnit.SECONDS);
 
         if (totalEvents % maxBulkActions > 0) {
-            inOrder.verify(client).bulk(argThat((BulkRequest bulkRequest) -> {
+            inOrder.verify(client).execute(any(BulkAction.class), argThat((BulkRequest bulkRequest) -> {
                 // Verify another bulk with only 1 event (the remaining) is executed when closing the processor.
                 assertThat(bulkRequest.numberOfActions(), equalTo(totalEvents % maxBulkActions));
                 return true;
@@ -112,16 +113,16 @@ public class BulkProcessorFactoryTests extends ESTestCase {
 
         Client client = mock(Client.class);
         doAnswer(i -> {
-            i.getArgument(1, ActionListener.class).onFailure(new ElasticsearchStatusException("", RestStatus.TOO_MANY_REQUESTS));
+            i.getArgument(2, ActionListener.class).onFailure(new ElasticsearchStatusException("", RestStatus.TOO_MANY_REQUESTS));
             return null;
-        }).when(client).bulk(any(), any());
+        }).when(client).execute(any(), any(), any());
         doReturn(testThreadPool).when(client).threadPool();
-        BulkProcessor2 bulkProcessor = new BulkProcessorFactory(config).create(client);
+        BulkProcessor2 bulkProcessor = new BulkProcessorFactory(client, config).create();
 
         IndexRequest indexRequest = mock(IndexRequest.class);
         bulkProcessor.add(indexRequest);
 
-        verify(client, times(numberOfRetries + 1)).bulk(argThat((BulkRequest bulkRequest) -> {
+        verify(client, times(numberOfRetries + 1)).execute(any(BulkAction.class), argThat((BulkRequest bulkRequest) -> {
             assertThat(bulkRequest.numberOfActions(), equalTo(1));
             assertThat(bulkRequest.requests().stream().findFirst().get(), equalTo(indexRequest));
             return true;

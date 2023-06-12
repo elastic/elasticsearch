@@ -57,16 +57,16 @@ public class ClusterInfoSimulator {
         }
     }
 
-    private Long getEstimatedShardSize(ShardRouting routing) {
-        if (routing.relocatingNodeId() != null) {
+    private Long getEstimatedShardSize(ShardRouting shard) {
+        if (shard.relocatingNodeId() != null) {
             // relocation existing shard, get size of the source shard
-            return shardSizes.get(ClusterInfo.shardIdentifierFromRouting(routing));
-        } else if (routing.primary() == false) {
+            return shardSizes.get(ClusterInfo.shardIdentifierFromRouting(shard));
+        } else if (shard.primary() == false) {
             // initializing new replica, get size of the source primary shard
-            return shardSizes.get(ClusterInfo.shardIdentifierFromRouting(routing.shardId(), true));
+            return shardSizes.get(ClusterInfo.shardIdentifierFromRouting(shard.shardId(), true));
         } else {
-            // initializing new (empty) primary
-            return 0L;
+            // initializing new (empty?) primary
+            return shard.getExpectedShardSize();
         }
     }
 

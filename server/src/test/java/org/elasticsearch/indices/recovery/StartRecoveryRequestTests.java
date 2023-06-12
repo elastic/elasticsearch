@@ -10,7 +10,7 @@ package org.elasticsearch.indices.recovery;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
@@ -45,8 +45,8 @@ public class StartRecoveryRequestTests extends ESTestCase {
         final StartRecoveryRequest outRequest = new StartRecoveryRequest(
             new ShardId("test", "_na_", 0),
             UUIDs.randomBase64UUID(),
-            new DiscoveryNode("a", buildNewFakeTransportAddress(), emptyMap(), emptySet(), targetNodeVersion),
-            new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), targetNodeVersion),
+            DiscoveryNodeUtils.create("a", buildNewFakeTransportAddress(), emptyMap(), emptySet(), targetNodeVersion),
+            DiscoveryNodeUtils.create("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), targetNodeVersion),
             metadataSnapshot,
             randomBoolean(),
             randomNonNegativeLong(),
@@ -72,6 +72,27 @@ public class StartRecoveryRequestTests extends ESTestCase {
         assertThat(outRequest.isPrimaryRelocation(), equalTo(inRequest.isPrimaryRelocation()));
         assertThat(outRequest.recoveryId(), equalTo(inRequest.recoveryId()));
         assertThat(outRequest.startingSeqNo(), equalTo(inRequest.startingSeqNo()));
+    }
+
+    public void testDescription() {
+        final var node = DiscoveryNodeUtils.builder("a").roles(emptySet()).build();
+        assertEquals(
+            "recovery of [index][0] to "
+                + node.descriptionWithoutAttributes()
+                + " [recoveryId=1, targetAllocationId=allocationId, startingSeqNo=-2, "
+                + "primaryRelocation=false, canDownloadSnapshotFiles=true]",
+            new StartRecoveryRequest(
+                new ShardId("index", "uuid", 0),
+                "allocationId",
+                null,
+                node,
+                Store.MetadataSnapshot.EMPTY,
+                false,
+                1,
+                SequenceNumbers.UNASSIGNED_SEQ_NO,
+                true
+            ).getDescription()
+        );
     }
 
 }

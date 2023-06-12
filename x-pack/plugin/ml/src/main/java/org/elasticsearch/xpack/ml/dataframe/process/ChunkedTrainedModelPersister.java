@@ -28,7 +28,7 @@ import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.PreProcessor;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.TrainedModelMetadata;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.core.security.user.XPackUser;
+import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.ml.dataframe.process.results.ModelMetadata;
 import org.elasticsearch.xpack.ml.dataframe.process.results.TrainedModelDefinitionChunk;
 import org.elasticsearch.xpack.ml.extractor.ExtractedField;
@@ -294,7 +294,7 @@ public class ChunkedTrainedModelPersister {
         return TrainedModelConfig.builder()
             .setModelId(modelId)
             .setModelType(trainedModelType)
-            .setCreatedBy(XPackUser.NAME)
+            .setCreatedBy(InternalUsers.XPACK_USER.principal())
             .setVersion(Version.CURRENT)
             .setCreateTime(createTime)
             // NOTE: GET _cat/ml/trained_models relies on the creating analytics ID being in the tags

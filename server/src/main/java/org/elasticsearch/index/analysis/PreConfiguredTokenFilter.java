@@ -70,7 +70,7 @@ public final class PreConfiguredTokenFilter extends PreConfiguredAnalysisCompone
             useFilterForMultitermQueries,
             true,
             CachingStrategy.LUCENE,
-            (tokenStream, version) -> create.apply(tokenStream, version.luceneVersion)
+            (tokenStream, version) -> create.apply(tokenStream, version.luceneVersion())
         );
     }
 
@@ -118,13 +118,6 @@ public final class PreConfiguredTokenFilter extends PreConfiguredAnalysisCompone
         this.useFilterForMultitermQueries = useFilterForMultitermQueries;
         this.allowForSynonymParsing = allowForSynonymParsing;
         this.create = create;
-    }
-
-    /**
-     * Can this {@link TokenFilter} be used in multi-term queries?
-     */
-    public boolean shouldUseFilterForMultitermQueries() {
-        return useFilterForMultitermQueries;
     }
 
     @Override

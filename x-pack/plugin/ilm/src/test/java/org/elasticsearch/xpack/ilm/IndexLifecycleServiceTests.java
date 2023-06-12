@@ -57,6 +57,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.SortedMap;
 import java.util.TreeMap;
@@ -522,151 +523,166 @@ public class IndexLifecycleServiceTests extends ESTestCase {
     }
 
     public void testIndicesOnShuttingDownNodesInDangerousStep() {
-        ClusterState state = ClusterState.builder(ClusterName.DEFAULT).build();
-        assertThat(IndexLifecycleService.indicesOnShuttingDownNodesInDangerousStep(state, "regular_node"), equalTo(Collections.emptySet()));
-        assertThat(
-            IndexLifecycleService.indicesOnShuttingDownNodesInDangerousStep(state, "shutdown_node"),
-            equalTo(Collections.emptySet())
-        );
-
-        IndexMetadata nonDangerousIndex = IndexMetadata.builder("no_danger")
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, "mypolicy"))
-            .putCustom(
-                ILM_CUSTOM_METADATA_KEY,
-                LifecycleExecutionState.builder()
-                    .setPhase("warm")
-                    .setAction("shrink")
-                    .setStep(GenerateUniqueIndexNameStep.NAME)
-                    .build()
-                    .asMap()
-            )
-            .numberOfShards(randomIntBetween(1, 5))
-            .numberOfReplicas(randomIntBetween(0, 5))
-            .build();
-        IndexMetadata dangerousIndex = IndexMetadata.builder("danger")
-            .settings(
-                settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, "mypolicy")
-                    .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_id", "shutdown_node")
-            )
-            .putCustom(
-                ILM_CUSTOM_METADATA_KEY,
-                LifecycleExecutionState.builder()
-                    .setPhase("warm")
-                    .setAction("shrink")
-                    .setStep(
-                        randomFrom(
-                            SetSingleNodeAllocateStep.NAME,
-                            CheckShrinkReadyStep.NAME,
-                            ShrinkStep.NAME,
-                            ShrunkShardsAllocatedStep.NAME
-                        )
-                    )
-                    .build()
-                    .asMap()
-            )
-            .numberOfShards(randomIntBetween(1, 5))
-            .numberOfReplicas(randomIntBetween(0, 5))
-            .build();
-        Map<String, IndexMetadata> indices = Map.of("no_danger", nonDangerousIndex, "danger", dangerousIndex);
-
-        Metadata metadata = Metadata.builder()
-            .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(Collections.emptyMap(), OperationMode.RUNNING))
-            .indices(indices)
-            .persistentSettings(settings(Version.CURRENT).build())
-            .build();
-
-        state = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(metadata)
-            .nodes(
-                DiscoveryNodes.builder()
-                    .localNodeId(nodeId)
-                    .masterNodeId(nodeId)
-                    .add(masterNode)
-                    .add(
-                        DiscoveryNode.createLocal(
-                            NodeRoles.masterNode(settings(Version.CURRENT).build()),
-                            new TransportAddress(TransportAddress.META_ADDRESS, 9301),
-                            "regular_node"
-                        )
-                    )
-                    .add(
-                        DiscoveryNode.createLocal(
-                            NodeRoles.masterNode(settings(Version.CURRENT).build()),
-                            new TransportAddress(TransportAddress.META_ADDRESS, 9302),
-                            "shutdown_node"
-                        )
-                    )
-                    .build()
-            )
-            .build();
-
-        // No danger yet, because no node is shutting down
-        assertThat(IndexLifecycleService.indicesOnShuttingDownNodesInDangerousStep(state, "regular_node"), equalTo(Collections.emptySet()));
-        assertThat(
-            IndexLifecycleService.indicesOnShuttingDownNodesInDangerousStep(state, "shutdown_node"),
-            equalTo(Collections.emptySet())
-        );
-
-        state = ClusterState.builder(state)
-            .metadata(
-                Metadata.builder(state.metadata())
-                    .putCustom(
-                        NodesShutdownMetadata.TYPE,
-                        new NodesShutdownMetadata(
-                            Collections.singletonMap(
-                                "shutdown_node",
-                                SingleNodeShutdownMetadata.builder()
-                                    .setNodeId("shutdown_node")
-                                    .setReason("shut down for test")
-                                    .setStartedAtMillis(randomNonNegativeLong())
-                                    .setType(SingleNodeShutdownMetadata.Type.RESTART)
-                                    .build()
-                            )
-                        )
-                    )
-                    .build()
-            )
-            .build();
-
-        assertThat(IndexLifecycleService.indicesOnShuttingDownNodesInDangerousStep(state, "regular_node"), equalTo(Collections.emptySet()));
-        // No danger, because this is a "RESTART" type shutdown
-        assertThat(
-            "restart type shutdowns are not considered dangerous",
-            IndexLifecycleService.indicesOnShuttingDownNodesInDangerousStep(state, "shutdown_node"),
-            equalTo(Collections.emptySet())
-        );
-
-        final SingleNodeShutdownMetadata.Type type = randomFrom(
+        for (SingleNodeShutdownMetadata.Type type : List.of(
             SingleNodeShutdownMetadata.Type.REMOVE,
+            SingleNodeShutdownMetadata.Type.SIGTERM,
             SingleNodeShutdownMetadata.Type.REPLACE
-        );
-        final String targetNodeName = type == SingleNodeShutdownMetadata.Type.REPLACE ? randomAlphaOfLengthBetween(10, 20) : null;
-        state = ClusterState.builder(state)
-            .metadata(
-                Metadata.builder(state.metadata())
-                    .putCustom(
-                        NodesShutdownMetadata.TYPE,
-                        new NodesShutdownMetadata(
-                            Collections.singletonMap(
-                                "shutdown_node",
-                                SingleNodeShutdownMetadata.builder()
-                                    .setNodeId("shutdown_node")
-                                    .setReason("shut down for test")
-                                    .setStartedAtMillis(randomNonNegativeLong())
-                                    .setType(type)
-                                    .setTargetNodeName(targetNodeName)
-                                    .build()
+        )) {
+            ClusterState state = ClusterState.builder(ClusterName.DEFAULT).build();
+            assertThat(
+                IndexLifecycleService.indicesOnShuttingDownNodesInDangerousStep(state, "regular_node"),
+                equalTo(Collections.emptySet())
+            );
+            assertThat(
+                IndexLifecycleService.indicesOnShuttingDownNodesInDangerousStep(state, "shutdown_node"),
+                equalTo(Collections.emptySet())
+            );
+
+            IndexMetadata nonDangerousIndex = IndexMetadata.builder("no_danger")
+                .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, "mypolicy"))
+                .putCustom(
+                    ILM_CUSTOM_METADATA_KEY,
+                    LifecycleExecutionState.builder()
+                        .setPhase("warm")
+                        .setAction("shrink")
+                        .setStep(GenerateUniqueIndexNameStep.NAME)
+                        .build()
+                        .asMap()
+                )
+                .numberOfShards(randomIntBetween(1, 5))
+                .numberOfReplicas(randomIntBetween(0, 5))
+                .build();
+            IndexMetadata dangerousIndex = IndexMetadata.builder("danger")
+                .settings(
+                    settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, "mypolicy")
+                        .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_id", "shutdown_node")
+                )
+                .putCustom(
+                    ILM_CUSTOM_METADATA_KEY,
+                    LifecycleExecutionState.builder()
+                        .setPhase("warm")
+                        .setAction("shrink")
+                        .setStep(
+                            randomFrom(
+                                SetSingleNodeAllocateStep.NAME,
+                                CheckShrinkReadyStep.NAME,
+                                ShrinkStep.NAME,
+                                ShrunkShardsAllocatedStep.NAME
                             )
                         )
-                    )
-                    .build()
-            )
-            .build();
+                        .build()
+                        .asMap()
+                )
+                .numberOfShards(randomIntBetween(1, 5))
+                .numberOfReplicas(randomIntBetween(0, 5))
+                .build();
+            Map<String, IndexMetadata> indices = Map.of("no_danger", nonDangerousIndex, "danger", dangerousIndex);
 
-        // The dangerous index should be calculated as being in danger now
-        assertThat(
-            IndexLifecycleService.indicesOnShuttingDownNodesInDangerousStep(state, "shutdown_node"),
-            equalTo(Collections.singleton("danger"))
-        );
+            Metadata metadata = Metadata.builder()
+                .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(Collections.emptyMap(), OperationMode.RUNNING))
+                .indices(indices)
+                .persistentSettings(settings(Version.CURRENT).build())
+                .build();
+
+            state = ClusterState.builder(ClusterName.DEFAULT)
+                .metadata(metadata)
+                .nodes(
+                    DiscoveryNodes.builder()
+                        .localNodeId(nodeId)
+                        .masterNodeId(nodeId)
+                        .add(masterNode)
+                        .add(
+                            DiscoveryNode.createLocal(
+                                NodeRoles.masterNode(settings(Version.CURRENT).build()),
+                                new TransportAddress(TransportAddress.META_ADDRESS, 9301),
+                                "regular_node"
+                            )
+                        )
+                        .add(
+                            DiscoveryNode.createLocal(
+                                NodeRoles.masterNode(settings(Version.CURRENT).build()),
+                                new TransportAddress(TransportAddress.META_ADDRESS, 9302),
+                                "shutdown_node"
+                            )
+                        )
+                        .build()
+                )
+                .build();
+
+            // No danger yet, because no node is shutting down
+            assertThat(
+                IndexLifecycleService.indicesOnShuttingDownNodesInDangerousStep(state, "regular_node"),
+                equalTo(Collections.emptySet())
+            );
+            assertThat(
+                IndexLifecycleService.indicesOnShuttingDownNodesInDangerousStep(state, "shutdown_node"),
+                equalTo(Collections.emptySet())
+            );
+
+            state = ClusterState.builder(state)
+                .metadata(
+                    Metadata.builder(state.metadata())
+                        .putCustom(
+                            NodesShutdownMetadata.TYPE,
+                            new NodesShutdownMetadata(
+                                Collections.singletonMap(
+                                    "shutdown_node",
+                                    SingleNodeShutdownMetadata.builder()
+                                        .setNodeId("shutdown_node")
+                                        .setReason("shut down for test")
+                                        .setStartedAtMillis(randomNonNegativeLong())
+                                        .setType(SingleNodeShutdownMetadata.Type.RESTART)
+                                        .build()
+                                )
+                            )
+                        )
+                        .build()
+                )
+                .build();
+
+            assertThat(
+                IndexLifecycleService.indicesOnShuttingDownNodesInDangerousStep(state, "regular_node"),
+                equalTo(Collections.emptySet())
+            );
+            // No danger, because this is a "RESTART" type shutdown
+            assertThat(
+                "restart type shutdowns are not considered dangerous",
+                IndexLifecycleService.indicesOnShuttingDownNodesInDangerousStep(state, "shutdown_node"),
+                equalTo(Collections.emptySet())
+            );
+
+            final String targetNodeName = type == SingleNodeShutdownMetadata.Type.REPLACE ? randomAlphaOfLengthBetween(10, 20) : null;
+            final TimeValue grace = type == SingleNodeShutdownMetadata.Type.SIGTERM
+                ? TimeValue.parseTimeValue(randomTimeValue(), this.getTestName())
+                : null;
+            state = ClusterState.builder(state)
+                .metadata(
+                    Metadata.builder(state.metadata())
+                        .putCustom(
+                            NodesShutdownMetadata.TYPE,
+                            new NodesShutdownMetadata(
+                                Collections.singletonMap(
+                                    "shutdown_node",
+                                    SingleNodeShutdownMetadata.builder()
+                                        .setNodeId("shutdown_node")
+                                        .setReason("shut down for test")
+                                        .setStartedAtMillis(randomNonNegativeLong())
+                                        .setType(type)
+                                        .setTargetNodeName(targetNodeName)
+                                        .setGracePeriod(grace)
+                                        .build()
+                                )
+                            )
+                        )
+                        .build()
+                )
+                .build();
+
+            // The dangerous index should be calculated as being in danger now
+            assertThat(
+                IndexLifecycleService.indicesOnShuttingDownNodesInDangerousStep(state, "shutdown_node"),
+                equalTo(Collections.singleton("danger"))
+            );
+        }
     }
 }

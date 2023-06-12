@@ -34,6 +34,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -43,6 +44,11 @@ import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK
 public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
 
     private static final Logger logger = LogManager.getLogger(NodeJoinExecutor.class);
+
+    /**
+     * The transport versions that are forbidden from joining a cluster with this node due to critical bugs with those versions
+     */
+    private static final Set<TransportVersion> FORBIDDEN_VERSIONS = Set.of();
 
     private final AllocationService allocationService;
     private final RerouteService rerouteService;
@@ -136,6 +142,7 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
                             ensureVersionBarrier(node.getVersion(), minClusterNodeVersion);
                             ensureTransportVersionBarrier(transportVersion, transportVersions.values());
                         }
+                        blockForbiddenVersions(transportVersion);
                         ensureNodesCompatibility(node.getVersion(), minClusterNodeVersion, maxClusterNodeVersion);
                         // we do this validation quite late to prevent race conditions between nodes joining and importing dangling indices
                         // we have to reject nodes that don't support all indices we have in this cluster
@@ -298,6 +305,14 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
     public boolean runOnlyOnMaster() {
         // we validate that we are allowed to change the cluster state during cluster state processing
         return false;
+    }
+
+    private static void blockForbiddenVersions(TransportVersion joiningTransportVersion) {
+        if (FORBIDDEN_VERSIONS.contains(joiningTransportVersion)) {
+            throw new IllegalStateException(
+                "A node with transport version " + joiningTransportVersion + " is forbidden from joining this cluster"
+            );
+        }
     }
 
     /**

@@ -12,6 +12,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterInfo;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
@@ -37,7 +38,6 @@ import java.util.List;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING;
 import static org.elasticsearch.cluster.routing.RoutingNodesHelper.numberOfShardsWithState;
 import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithState;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
@@ -65,10 +65,7 @@ public class SameShardRoutingTests extends ESAllocationTestCase {
         RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
             .addAsNew(metadata.index("test"))
             .build();
-        ClusterState clusterState = ClusterState.builder(CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-            .metadata(metadata)
-            .routingTable(routingTable)
-            .build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(routingTable).build();
 
         logger.info("--> adding two nodes with the same host");
         clusterState = ClusterState.builder(clusterState)
@@ -84,7 +81,7 @@ public class SameShardRoutingTests extends ESAllocationTestCase {
                             buildNewFakeTransportAddress(),
                             emptyMap(),
                             MASTER_DATA_ROLES,
-                            Version.CURRENT
+                            null
                         )
                     )
                     .add(
@@ -97,7 +94,7 @@ public class SameShardRoutingTests extends ESAllocationTestCase {
                             buildNewFakeTransportAddress(),
                             emptyMap(),
                             MASTER_DATA_ROLES,
-                            Version.CURRENT
+                            null
                         )
                     )
             )
@@ -126,7 +123,7 @@ public class SameShardRoutingTests extends ESAllocationTestCase {
                             buildNewFakeTransportAddress(),
                             emptyMap(),
                             MASTER_DATA_ROLES,
-                            Version.CURRENT
+                            null
                         )
                     )
             )
@@ -158,10 +155,7 @@ public class SameShardRoutingTests extends ESAllocationTestCase {
         RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
             .addAsNew(metadata.index("test"))
             .build();
-        ClusterState clusterState = ClusterState.builder(CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-            .metadata(metadata)
-            .routingTable(routingTable)
-            .build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(routingTable).build();
 
         String host1 = randomFrom("test1", "test2");
         String host2 = randomFrom("test1", "test2");
@@ -179,7 +173,7 @@ public class SameShardRoutingTests extends ESAllocationTestCase {
                             buildNewFakeTransportAddress(),
                             emptyMap(),
                             MASTER_DATA_ROLES,
-                            Version.CURRENT
+                            null
                         )
                     )
                     .add(
@@ -192,7 +186,7 @@ public class SameShardRoutingTests extends ESAllocationTestCase {
                             buildNewFakeTransportAddress(),
                             emptyMap(),
                             MASTER_DATA_ROLES,
-                            Version.CURRENT
+                            null
                         )
                     )
             )
@@ -271,7 +265,7 @@ public class SameShardRoutingTests extends ESAllocationTestCase {
             buildNewFakeTransportAddress(),
             emptyMap(),
             MASTER_DATA_ROLES,
-            Version.CURRENT
+            null
         );
 
         final DiscoveryNode node2 = new DiscoveryNode(
@@ -283,11 +277,11 @@ public class SameShardRoutingTests extends ESAllocationTestCase {
             buildNewFakeTransportAddress(),
             emptyMap(),
             MASTER_DATA_ROLES,
-            Version.CURRENT
+            null
         );
 
         final ClusterState clusterState = applyStartedShardsUntilNoChange(
-            ClusterState.builder(CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            ClusterState.builder(ClusterName.DEFAULT)
                 .metadata(metadata)
                 .routingTable(
                     RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(metadata.index("test")).build()

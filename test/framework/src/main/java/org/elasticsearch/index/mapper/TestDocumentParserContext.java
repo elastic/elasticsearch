@@ -61,7 +61,9 @@ public class TestDocumentParserContext extends DocumentParserContext {
                 MapperTestCase.createIndexSettings(Version.CURRENT, Settings.EMPTY),
                 null
             ),
-            source
+            source,
+            mappingLookup.getMapping().getRoot(),
+            ObjectMapper.Dynamic.getRootDynamic(mappingLookup)
         );
         this.parser = parser;
     }

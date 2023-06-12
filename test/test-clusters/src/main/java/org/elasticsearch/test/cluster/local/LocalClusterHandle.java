@@ -141,7 +141,7 @@ public class LocalClusterHandle implements ClusterHandle {
     public void upgradeNodeToVersion(int index, Version version) {
         Node node = nodes.get(index);
         node.stop(false);
-        LOGGER.info("Upgrading node '{}' to version {}", node.getSpec().getName(), version);
+        LOGGER.info("Upgrading node '{}' to version {}", node.getName(), version);
         node.start(version);
         waitUntilReady();
     }
@@ -156,7 +156,7 @@ public class LocalClusterHandle implements ClusterHandle {
         waitUntilReady();
     }
 
-    private void waitUntilReady() {
+    protected void waitUntilReady() {
         writeUnicastHostsFile();
         try {
             WaitForHttpResource wait = configureWaitForReady();

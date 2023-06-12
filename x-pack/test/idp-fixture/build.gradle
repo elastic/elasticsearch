@@ -15,10 +15,7 @@ tasks.register("copyFiles", Sync) {
   into "${buildDir}/config"
   doLast {
     file("${buildDir}/config").setReadable(true, false)
-    file("${buildDir}/certs/override.properties.template").setReadable(true, false)
-    File file = file("${testFixturesDir}/shared/oidc")
-    file.mkdirs()
-    file.setWritable(true, false)
+    file("${buildDir}/config/override.properties.template").setReadable(true, false)
   }
 }
 

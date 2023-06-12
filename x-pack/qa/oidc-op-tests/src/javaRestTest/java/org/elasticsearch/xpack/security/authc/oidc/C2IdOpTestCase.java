@@ -220,7 +220,10 @@ public abstract class C2IdOpTestCase extends ESRestTestCase {
             SocketAccess.doPrivileged(() -> {
                 for (HttpPost httpPost : requests) {
                     try (CloseableHttpResponse response = httpClient.execute(httpPost, context)) {
-                        assertThat(response.getStatusLine().getStatusCode(), equalTo(201));
+                        assertBusy(() -> { assertThat(response.getStatusLine().getStatusCode(), equalTo(201)); });
+                    } catch (Exception e) {
+                        // TODO
+                        throw new RuntimeException(e);
                     }
                 }
             });

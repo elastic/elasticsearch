@@ -1,42 +1,42 @@
 version: '3.7'
 services:
-#  openldap:
-  #    command: --copy-service --loglevel debug
-  #    image: "osixia/openldap:1.4.0"
-  #    ports:
-  #      - "389"
-  #      - "636"
-  #    environment:
-  #      LDAP_ADMIN_PASSWORD: "NickFuryHeartsES"
-  #      LDAP_DOMAIN: "oldap.test.elasticsearch.com"
-  #      LDAP_BASE_DN: "DC=oldap,DC=test,DC=elasticsearch,DC=com"
-  #      LDAP_TLS: "true"
-  #      LDAP_TLS_CRT_FILENAME: "ldap_server.pem"
-  #      LDAP_TLS_CA_CRT_FILENAME: "ca_server.pem"
-  #      LDAP_TLS_KEY_FILENAME: "ldap_server.key"
-  #      LDAP_TLS_VERIFY_CLIENT: "never"
-  #      LDAP_TLS_CIPHER_SUITE: "NORMAL"
-  #      LDAP_LOG_LEVEL: 256
-  #    volumes:
-  #      - ./openldap/ldif/users.ldif:/container/service/slapd/assets/config/bootstrap/ldif/custom/20-bootstrap-users.ldif
-  #      - ./openldap/ldif/config.ldif:/container/service/slapd/assets/config/bootstrap/ldif/custom/10-bootstrap-config.ldif
-  #      - ./openldap/certs:/container/service/slapd/assets/certs
-  #
-  #  shibboleth-idp:
-  #    build:
-  #      context: .
-  #      dockerfile: ./idp/Dockerfile
-  #    depends_on:
-  #      - openldap
-  #    environment:
-  #      - JETTY_MAX_HEAP=64m
-  #    ports:
-  #      - 4443
-  #    expose:
-  #      - 4443
-  #    links:
-  #      - openldap:openldap
-  #    restart: always #ensure ephemeral port mappings are properly updated
+  openldap:
+    command: --copy-service --loglevel debug
+    image: "osixia/openldap:1.4.0"
+    ports:
+      - "389"
+      - "636"
+    environment:
+      LDAP_ADMIN_PASSWORD: "NickFuryHeartsES"
+      LDAP_DOMAIN: "oldap.test.elasticsearch.com"
+      LDAP_BASE_DN: "DC=oldap,DC=test,DC=elasticsearch,DC=com"
+      LDAP_TLS: "true"
+      LDAP_TLS_CRT_FILENAME: "ldap_server.pem"
+      LDAP_TLS_CA_CRT_FILENAME: "ca_server.pem"
+      LDAP_TLS_KEY_FILENAME: "ldap_server.key"
+      LDAP_TLS_VERIFY_CLIENT: "never"
+      LDAP_TLS_CIPHER_SUITE: "NORMAL"
+      LDAP_LOG_LEVEL: 256
+    volumes:
+      - ./openldap/ldif/users.ldif:/container/service/slapd/assets/config/bootstrap/ldif/custom/20-bootstrap-users.ldif
+      - ./openldap/ldif/config.ldif:/container/service/slapd/assets/config/bootstrap/ldif/custom/10-bootstrap-config.ldif
+      - ./openldap/certs:/container/service/slapd/assets/certs
+
+  shibboleth-idp:
+    build:
+      context: .
+      dockerfile: ./idp/Dockerfile
+    depends_on:
+      - openldap
+    environment:
+      - JETTY_MAX_HEAP=64m
+    ports:
+      - 4443
+    expose:
+      - 4443
+    links:
+      - openldap:openldap
+    restart: always #ensure ephemeral port mappings are properly updated
 
   oidc-provider:
     build:
@@ -45,14 +45,14 @@ services:
     depends_on:
       - http-proxy
     environment:
-      - CATALINA_OPTS="-DsystemPropertiesURL=file:///etc/c2id/override.properties"
-    command: "bash /c2id-server/tomcat/bin/catalina.sh run"
+      - CATALINA_OPTS="-DsystemPropertiesURL=file:///config/c2id/override.properties"
+    command: "bash /setup.sh"
     ports:
       - "8080"
     expose:
       - "8080"
     volumes:
-      - ./testfixtures_shared/shared/oidc/:/etc/c2id/
+      - ./testfixtures_shared/shared/oidc/:/config/c2id/
 
   http-proxy:
     image: "nginx:latest"

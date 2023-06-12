@@ -80,6 +80,18 @@ public record ScriptContextStats(
         );
     }
 
+    public static ScriptContextStats merge(ScriptContextStats first, ScriptContextStats second) {
+        assert first.context.equals(second.context) : "To merge 2 ScriptContextStats both of them must have the same context.";
+        return new ScriptContextStats(
+            first.context,
+            first.compilations + second.compilations,
+            TimeSeries.merge(first.compilationsHistory, second.compilationsHistory),
+            first.cacheEvictions + second.cacheEvictions,
+            TimeSeries.merge(first.cacheEvictionsHistory, second.cacheEvictionsHistory),
+            first.compilationLimitTriggered + second.compilationLimitTriggered
+        );
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(context);

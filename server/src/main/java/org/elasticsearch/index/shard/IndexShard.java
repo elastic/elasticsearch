@@ -3738,11 +3738,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Executes a scheduled refresh if necessary.
-     *
-     * @return <code>true</code> iff the engine got refreshed otherwise <code>false</code>
+     * Executes a scheduled refresh if necessary. Completes the listener with true if a refreshed was performed otherwise false.
      */
-    public boolean scheduledRefresh() {
+    public void scheduledRefresh(ActionListener<Boolean> listener) {
         verifyNotClosed();
         boolean listenerNeedsRefresh = refreshListeners.refreshNeeded();
         if (isReadAllowed() && (listenerNeedsRefresh || getEngine().refreshNeeded())) {
@@ -3756,15 +3754,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 final Engine engine = getEngine();
                 engine.maybePruneDeletes(); // try to prune the deletes in the engine if we accumulated some
                 setRefreshPending(engine);
-                return false;
+                ActionListener.completeWith(listener, () -> false);
             } else {
                 logger.trace("refresh with source [schedule]");
-                return getEngine().maybeRefresh("schedule").refreshed();
+                getEngine().maybeRefresh("schedule", listener.map(Engine.RefreshResult::refreshed));
             }
         }
         final Engine engine = getEngine();
         engine.maybePruneDeletes(); // try to prune the deletes in the engine if we accumulated some
-        return false;
+        ActionListener.completeWith(listener, () -> false);
     }
 
     /**
@@ -3835,8 +3833,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * <p>
      * This is achieved by registering a refresh listener and invoking the provided listener from the refresh listener once the shard is
      * active again and all pending refresh translog location has been refreshed. A refresh may be executed to avoid waiting for
-     * {@link #scheduledRefresh()} to be invoked. If there is no pending refresh location registered the provided listener will be invoked
-     * immediately.
+     * {@link #scheduledRefresh(ActionListener)} to be invoked. If there is no pending refresh location registered the provided listener
+     * will be invoked immediately.
      *
      * @param listener the listener to invoke once the pending refresh location is visible. The listener will be called with
      *                 <code>true</code> if the listener was registered to wait for a refresh.
@@ -3857,7 +3855,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 // a refresh can be a costly operation, so we should fork to a refresh thread to be safe:
                 threadPool.executor(ThreadPool.Names.REFRESH).execute(() -> {
                     if (location == pendingRefreshLocation.get()) {
-                        getEngine().maybeRefresh("ensure-shard-search-active");
+                        getEngine().maybeRefresh("ensure-shard-search-active", PlainActionFuture.newFuture());
                     }
                 });
             }

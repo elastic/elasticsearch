@@ -1,30 +1,55 @@
 ---
 Test flattened document with subobjects-false:
 # NOTE: this doesn't work. In order to run this test set "subobjects: false" through logs-mappings.json
-#  - do:
-#      cluster.put_component_template:
-#        name: logs@custom
-#        body:
-#          template:
-#            mappings:
-#              subobjects: false
+  - do:
+      cluster.put_component_template:
+        name: logs-test-subobjects-mappings
+        body:
+          template:
+            settings:
+              mapping:
+                ignore_malformed: true
+            mappings:
+              subobjects: false
+              date_detection: false
+              properties:
+                data_stream.type:
+                  type: constant_keyword
+                  value: logs
+                data_stream.dataset:
+                  type: constant_keyword
+                data_stream.namespace:
+                  type: constant_keyword
+
+  - do:
+      indices.put_index_template:
+        name: logs-ecs-test-template
+        body:
+          priority: 200
+          data_stream: {}
+          index_patterns:
+            - logs-*-*
+          composed_of:
+            - logs-test-subobjects-mappings
+            - ecs@dynamic_templates
 
   - do:
       indices.create_data_stream:
-        name: logs-generic-default
+        name: logs-ecs-test-subobjects
   - is_true: acknowledged
 
   - do:
       indices.get_data_stream:
-        name: logs-generic-default
+        name: logs-ecs-test-subobjects
   - set: { data_streams.0.indices.0.index_name: idx0name }
 
   - do:
       index:
-        index: logs-generic-default
+        index: logs-ecs-test-subobjects
         refresh: true
         body: >
           {
+            "@timestamp": "2023-06-12",
             "start_timestamp": "2023-06-08",
             "location" : "POINT (-71.34 41.12)",
             "test": "flattened",
@@ -76,7 +101,7 @@ Test flattened document with subobjects-false:
 
   - do:
       search:
-        index: logs-generic-default
+        index: logs-ecs-test-subobjects
         body:
           query:
             term:
@@ -116,7 +141,7 @@ Test flattened document with subobjects-false:
 
   - do:
       indices.get_mapping:
-        index: logs-generic-default
+        index: logs-ecs-test-subobjects
   - match: { .$idx0name.mappings.properties.error\.message.type: "match_only_text" }
   - match: { .$idx0name.mappings.properties.registry\.data\.strings.type: "wildcard" }
   - match: { .$idx0name.mappings.properties.parent\.registry\.data\.strings.type: "wildcard" }

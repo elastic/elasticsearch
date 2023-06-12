@@ -130,7 +130,13 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
             .execute(ActionListener.wrap(searchResponse -> {
                 long sampleCount = searchResponse.getHits().getTotalHits().value;
                 EventsIndex resampledIndex = mediumDownsampled.getResampledIndex(request.getSampleSize(), sampleCount);
-                log.debug("getResampledIndex took [" + (System.nanoTime() - start) / 1_000_000.0d + " ms].");
+                log.debug(
+                    "getResampledIndex took ["
+                        + (System.nanoTime() - start) / 1_000_000.0d
+                        + " ms]. Using ["
+                        + resampledIndex.getName()
+                        + "]"
+                );
                 searchEventGroupByStackTrace(client, request, resampledIndex, submitListener);
             }, e -> {
                 // All profiling-events data streams are created lazily. In a relatively empty cluster it can happen that there are so few
@@ -194,7 +200,13 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
                         stackTraceEvents.put(bucket.getKeyAsString(), finalCount);
                     }
                 }
-                log.debug("searchEventGroupByStackTrace took [" + (System.nanoTime() - start) / 1_000_000.0d + " ms].");
+                log.debug(
+                    "searchEventGroupByStackTrace took ["
+                        + (System.nanoTime() - start) / 1_000_000.0d
+                        + " ms]. Found ["
+                        + stackTraceEvents.size()
+                        + "] events."
+                );
                 if (stackTraceEvents.isEmpty() == false) {
                     responseBuilder.setStart(Instant.ofEpochMilli(minTime));
                     responseBuilder.setEnd(Instant.ofEpochMilli(maxTime));
@@ -267,6 +279,10 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
         private final AtomicInteger totalFrames = new AtomicInteger();
         private final long start = System.nanoTime();
 
+        private final int expectedStackTraceCount;
+
+        private final Set<String> allStackTraceIds;
+
         private StackTraceHandler(
             ClusterState clusterState,
             Client client,
@@ -276,7 +292,9 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
             int slices
         ) {
             this.clusterState = clusterState;
+            this.expectedStackTraceCount = stackTraceCount;
             this.stackTracePerId = new ConcurrentHashMap<>(stackTraceCount);
+            this.allStackTraceIds = Collections.newSetFromMap(new ConcurrentHashMap<>(stackTraceCount));
             this.remainingSlices = new AtomicInteger(slices);
             this.client = client;
             this.responseBuilder = responseBuilder;
@@ -285,6 +303,7 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
 
         public void onResponse(MultiGetResponse multiGetItemResponses) {
             for (MultiGetItemResponse trace : multiGetItemResponses) {
+                allStackTraceIds.add(trace.getId());
                 if (trace.isFailed() == false && trace.getResponse().isExists()) {
                     String id = trace.getId();
                     // Duplicates are expected as we query multiple indices - do a quick pre-check before we deserialize a response
@@ -299,6 +318,10 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
                     }
                 }
             }
+            if (allStackTraceIds.size() == this.expectedStackTraceCount) {
+                log.debug("retrieveStackTraces completing ids took [" + (System.nanoTime() - start) / 1_000_000.0d + " ms].");
+            }
+
             if (this.remainingSlices.decrementAndGet() == 0) {
                 responseBuilder.setStackTraces(stackTracePerId);
                 responseBuilder.setTotalFrames(totalFrames.get());

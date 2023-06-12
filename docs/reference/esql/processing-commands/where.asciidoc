@@ -1,0 +1,32 @@
+[[esql-where]]
+=== `WHERE`
+
+Use `WHERE` to produce a table that contains all the rows from the input table
+for which the provided condition evaluates to `true`:
+
+[source,esql]
+----
+include::{esql-specs}/docs.csv-spec[tag=where]
+----
+
+Which, if `still_hired` is a boolean field, can be simplified to:
+
+[source,esql]
+----
+include::{esql-specs}/docs.csv-spec[tag=whereBoolean]
+----
+
+[discrete]
+==== Operators
+
+Refer to <<esql-operators>> for an overview of the supported operators.
+
+[discrete]
+==== Functions
+`WHERE` supports various functions for calculating values. Refer to
+<<esql-functions,Functions>> for more information.
+
+[source,esql]
+----
+include::{esql-specs}/docs.csv-spec[tag=whereFunction]
+----

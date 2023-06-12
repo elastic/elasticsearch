@@ -15,10 +15,17 @@ foo bar   | null
 
 
 complexPattern
-row a = "1953-01-23T12:15:00Z 127.0.0.1 some.email@foo.com 42" | grok a "%{TIMESTAMP_ISO8601:date} %{IP:ip} %{EMAILADDRESS:email} %{NUMBER:num:int}" | project date, ip, email, num;
+// tag::grok[]
+ROW a = "1953-01-23T12:15:00Z 127.0.0.1 some.email@foo.com 42" 
+| GROK a "%{TIMESTAMP_ISO8601:date} %{IP:ip} %{EMAILADDRESS:email} %{NUMBER:num:int}" 
+| PROJECT date, ip, email, num
+// end::grok[]
+;
 
+// tag::grok-result[]
 date:keyword          | ip:keyword    | email:keyword       | num:integer
 1953-01-23T12:15:00Z  | 127.0.0.1     | some.email@foo.com  | 42
+// end::grok-result[]
 ;
 
 

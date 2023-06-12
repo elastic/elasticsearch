@@ -1,0 +1,35 @@
+[[esql-eval]]
+=== `EVAL`
+`EVAL` enables you to append new columns:
+
+[source,esql]
+----
+include::{esql-specs}/docs.csv-spec[tag=eval]
+----
+
+Returns:
+
+[%header,format=dsv,separator=|]
+|===
+include::{esql-specs}/docs.csv-spec[tag=eval-result]
+|===
+
+If the specified column already exists, the existing column will be dropped, and
+the new column will be appended to the table:
+
+[source,esql]
+----
+include::{esql-specs}/docs.csv-spec[tag=evalReplace]
+----
+
+Returns:
+
+[%header,format=dsv,separator=|]
+|===
+include::{esql-specs}/docs.csv-spec[tag=evalReplace-result]
+|===
+
+[discrete]
+==== Functions
+`EVAL` supports various functions for calculating values. Refer to
+<<esql-functions,Functions>> for more information.

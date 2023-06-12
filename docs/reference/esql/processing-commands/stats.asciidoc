@@ -1,0 +1,57 @@
+[[esql-stats-by]]
+=== `STATS ... BY`
+Use `STATS ... BY` to group rows according to a common value and calculate one
+or more aggregated values over the grouped rows.
+
+[source,esql]
+----
+include::{esql-specs}/docs.csv-spec[tag=stats]
+----
+
+Which returns:
+
+[%header,format=dsv,separator=|]
+|===
+include::{esql-specs}/docs.csv-spec[tag=stats-result]
+|===
+
+If `BY` is omitted, the output table contains exactly one row with the
+aggregations applied over the entire dataset:
+
+[source,esql]
+----
+include::{esql-specs}/docs.csv-spec[tag=statsWithoutBy]
+----
+
+Returning:
+
+[%header,format=dsv,separator=|]
+|===
+include::{esql-specs}/docs.csv-spec[tag=statsWithoutBy-result]
+|===
+
+It's possible to calculate multiple values:
+
+[source,esql]
+----
+include::{esql-specs}/docs.csv-spec[tag=statsCalcMultipleValues]
+----
+
+It's also possible to group by multiple values (only supported for long and
+keyword family fields):
+
+[source,esql]
+----
+include::{esql-specs}/docs.csv-spec[tag=statsGroupByMultipleValues]
+----
+
+The following aggregation functions are supported:
+
+* `AVG`
+* `COUNT`
+* `COUNT_DISTINCT`
+* `MAX`
+* `MEDIAN`
+* `MEDIAN_ABSOLUTE_DEVIATION`
+* `MIN`
+* `SUM`

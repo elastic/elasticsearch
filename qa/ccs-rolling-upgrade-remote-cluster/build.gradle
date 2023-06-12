@@ -59,6 +59,9 @@ BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
     doFirst {
       localCluster.get().nextNodeToNextVersion()
     }
+    if (BuildParams.inFipsJvm) {
+      enabled = false
+    }
   }
 
   tasks.register("${baseName}#oneThirdUpgraded", StandaloneRestIntegTestTask) {

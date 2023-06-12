@@ -67,7 +67,6 @@ public abstract class C2IdOpTestCase extends ESRestTestCase {
     private static final String C2ID_REGISTRATION_URL = C2ID_HOST + "/c2id/clients";
     protected static final String C2ID_AUTH_ENDPOINT = C2ID_HOST + "/c2id-login";
 
-    // private static final String ES_PORT = getEphemeralTcpPortFromProperty("elasticsearch-node", "9200");
     // SHA256 of this is defined in x-pack/test/idp-fixture/oidc/override.properties
     private static final String OP_API_BEARER_TOKEN = "811fa888f3e0fdc9e01d4201bfeee46a";
 
@@ -158,9 +157,7 @@ public abstract class C2IdOpTestCase extends ESRestTestCase {
         .setting("xpack.security.authc.realms.oidc.c2id-jwt.claims.mail", "email")
         .setting("xpack.security.authc.realms.oidc.c2id-jwt.claims.groups", "groups")
         .setting("xpack.security.authc.realms.jwt.op-jwt.order", "7")
-        // TODO double-check this
         .setting("xpack.security.authc.realms.jwt.op-jwt.allowed_issuer", C2ID_ISSUER)
-        // TODO double-check this
         .setting("xpack.security.authc.realms.jwt.op-jwt.allowed_audiences", "elasticsearch-jwt1,elasticsearch-jwt2")
         .setting("xpack.security.authc.realms.jwt.op-jwt.pkc_jwkset_path", "op-jwks.json")
         .setting("xpack.security.authc.realms.jwt.op-jwt.claims.principal", "sub")

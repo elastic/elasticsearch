@@ -5,9 +5,6 @@ COPY --from=c2id /c2id-server /c2id-server
 COPY --from=c2id /etc/c2id /etc/c2id
 
 EXPOSE 8080
-
+# We will launch the c2id server as part via a docker-compose command; we need to do this so that the c2id config with
+# the injected ephemeral port is available
 CMD sleep infinity
-
-#ENV CATALINA_OPTS="-DsystemPropertiesURL=file:///etc/c2id/override.created.properties -Dlog4j.level=debug"
-
-# CMD ["/bin/bash", "/c2id-server/tomcat/bin/catalina.sh", "run"]

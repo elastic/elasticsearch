@@ -558,20 +558,14 @@ public class OpenIdConnectAuthenticator {
             } else if (rpConfig.getClientAuthenticationMethod().equals(ClientAuthenticationMethod.CLIENT_SECRET_JWT)) {
                 ClientSecretJWT clientSecretJWT = new ClientSecretJWT(
                     rpConfig.getClientId(),
-                    // TODO undo
-                    // new URI("http://oidc-provider:8080/c2id/token"),
                     opConfig.getTokenEndpoint(),
                     rpConfig.getClientAuthenticationJwtAlgorithm(),
                     new Secret(rpConfig.getClientSecret().toString())
                 );
                 for (Map.Entry<String, List<String>> entry : clientSecretJWT.toParameters().entrySet()) {
                     // Both client_assertion and client_assertion_type are singleton lists
-                    // TODO REMOVE ME
-                    LOGGER.info("JWT Param [{}] [{}]", entry.getKey(), entry.getValue().get(0));
                     params.add(new BasicNameValuePair(entry.getKey(), entry.getValue().get(0)));
                 }
-                // TODO REMOVE ME
-                LOGGER.info("JWT Params [{}]", params);
             } else {
                 tokensListener.onFailure(
                     new ElasticsearchSecurityException(

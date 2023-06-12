@@ -1,164 +1,42 @@
 version: '3.7'
 services:
-  # TODO remove
-  #  elasticsearch-node:
-  #    image: elasticsearch:test
-  #    environment:
-  #      - discovery.type=single-node
-  #      - node.name=elasticsearch-node
-  #      - cluster.name=elasticsearch-node
-  #      - bootstrap.memory_lock=true
-  #      - network.publish_host=127.0.0.1
-  #      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
-  #      - path.repo=/tmp/es-repo
-  #      - node.attr.testattr=test
-  #      - cluster.routing.allocation.disk.watermark.low=1b
-  #      - cluster.routing.allocation.disk.watermark.high=1b
-  #      - cluster.routing.allocation.disk.watermark.flood_stage=1b
-  #      - node.store.allow_mmap=false
-  #      - ingest.geoip.downloader.enabled=false
-  #      - xpack.license.self_generated.type=trial
-  #      - xpack.security.enabled=true
-  #      - xpack.security.http.ssl.enabled=true
-  #      - xpack.security.http.ssl.keystore.path=testnode.jks
-  #      - xpack.security.authc.token.enabled=true
-  #      - xpack.security.authc.realms.file.file.order=0
-  #      - xpack.security.authc.realms.native.native.order=1
-  #      - xpack.security.authc.realms.oidc.c2id.order=2
-  #      - xpack.security.authc.realms.oidc.c2id.op.issuer=http://oidc-provider:8080/c2id
-  #      - xpack.security.authc.realms.oidc.c2id.op.authorization_endpoint=http://oidc-provider:8080/c2id-login
-  #      - xpack.security.authc.realms.oidc.c2id.op.token_endpoint=http://oidc-provider:8080/c2id/token
-  #      - xpack.security.authc.realms.oidc.c2id.op.userinfo_endpoint=http://oidc-provider:8080/c2id/userinfo
-  #      - xpack.security.authc.realms.oidc.c2id.op.jwkset_path=op-jwks.json
-  #      - xpack.security.authc.realms.oidc.c2id.rp.redirect_uri=https://my.fantastic.rp/cb
-  #      - xpack.security.authc.realms.oidc.c2id.rp.client_id=https://my.elasticsearch.org/rp
-  #      - xpack.security.authc.realms.oidc.c2id.rp.response_type=code
-  #      - xpack.security.authc.realms.oidc.c2id.claims.principal=sub
-  #      - xpack.security.authc.realms.oidc.c2id.claims.name=name
-  #      - xpack.security.authc.realms.oidc.c2id.claims.mail=email
-  #      - xpack.security.authc.realms.oidc.c2id.claims.groups=groups
-  #      - xpack.security.authc.realms.oidc.c2id-implicit.order=3
-  #      - xpack.security.authc.realms.oidc.c2id-implicit.op.issuer=http://oidc-provider:8080/c2id
-  #      - xpack.security.authc.realms.oidc.c2id-implicit.op.authorization_endpoint=http://oidc-provider:8080/c2id-login
-  #      - xpack.security.authc.realms.oidc.c2id-implicit.op.token_endpoint=http://oidc-provider:8080/c2id/token
-  #      - xpack.security.authc.realms.oidc.c2id-implicit.op.userinfo_endpoint=http://oidc-provider:8080/c2id/userinfo
-  #      - xpack.security.authc.realms.oidc.c2id-implicit.op.jwkset_path=op-jwks.json
-  #      - xpack.security.authc.realms.oidc.c2id-implicit.rp.redirect_uri=https://my.fantastic.rp/cb
-  #      - xpack.security.authc.realms.oidc.c2id-implicit.rp.client_id=elasticsearch-rp
-  #      - xpack.security.authc.realms.oidc.c2id-implicit.rp.response_type=id_token token
-  #      - xpack.security.authc.realms.oidc.c2id-implicit.claims.principal=sub
-  #      - xpack.security.authc.realms.oidc.c2id-implicit.claims.name=name
-  #      - xpack.security.authc.realms.oidc.c2id-implicit.claims.mail=email
-  #      - xpack.security.authc.realms.oidc.c2id-implicit.claims.groups=groups
-  #      - xpack.security.authc.realms.oidc.c2id-proxy.order=4
-  #      - xpack.security.authc.realms.oidc.c2id-proxy.op.issuer=http://oidc-provider:8080/c2id
-  #      - xpack.security.authc.realms.oidc.c2id-proxy.op.authorization_endpoint=http://oidc-provider:8080/c2id-login
-  #      - xpack.security.authc.realms.oidc.c2id-proxy.op.token_endpoint=http://oidc-provider:8080/c2id/token
-  #      - xpack.security.authc.realms.oidc.c2id-proxy.op.userinfo_endpoint=http://oidc-provider:8080/c2id/userinfo
-  #      - xpack.security.authc.realms.oidc.c2id-proxy.op.jwkset_path=op-jwks.json
-  #      - xpack.security.authc.realms.oidc.c2id-proxy.rp.redirect_uri=https://my.fantastic.rp/cb
-  #      - xpack.security.authc.realms.oidc.c2id-proxy.rp.client_id=https://my.elasticsearch.org/rp
-  #      - xpack.security.authc.realms.oidc.c2id-proxy.rp.response_type=code
-  #      - xpack.security.authc.realms.oidc.c2id-proxy.claims.principal=sub
-  #      - xpack.security.authc.realms.oidc.c2id-proxy.claims.name=name
-  #      - xpack.security.authc.realms.oidc.c2id-proxy.claims.mail=email
-  #      - xpack.security.authc.realms.oidc.c2id-proxy.claims.groups=groups
-  #      - xpack.security.authc.realms.oidc.c2id-proxy.http.proxy.host=http-proxy
-  #      - xpack.security.authc.realms.oidc.c2id-proxy.http.proxy.port=8888
-  #      - xpack.security.authc.realms.oidc.c2id-post.order=5
-  #      - xpack.security.authc.realms.oidc.c2id-post.op.issuer=http://oidc-provider:8080/c2id
-  #      - xpack.security.authc.realms.oidc.c2id-post.op.authorization_endpoint=http://oidc-provider:8080/c2id-login
-  #      - xpack.security.authc.realms.oidc.c2id-post.op.token_endpoint=http://oidc-provider:8080/c2id/token
-  #      - xpack.security.authc.realms.oidc.c2id-post.op.userinfo_endpoint=http://oidc-provider:8080/c2id/userinfo
-  #      - xpack.security.authc.realms.oidc.c2id-post.op.jwkset_path=op-jwks.json
-  #      - xpack.security.authc.realms.oidc.c2id-post.rp.redirect_uri=https://my.fantastic.rp/cb
-  #      - xpack.security.authc.realms.oidc.c2id-post.rp.client_id=elasticsearch-post
-  #      - xpack.security.authc.realms.oidc.c2id-post.rp.client_auth_method=client_secret_post
-  #      - xpack.security.authc.realms.oidc.c2id-post.rp.response_type=code
-  #      - xpack.security.authc.realms.oidc.c2id-post.claims.principal=sub
-  #      - xpack.security.authc.realms.oidc.c2id-post.claims.name=name
-  #      - xpack.security.authc.realms.oidc.c2id-post.claims.mail=email
-  #      - xpack.security.authc.realms.oidc.c2id-post.claims.groups=groups
-  #      - xpack.security.authc.realms.oidc.c2id-jwt.order=6
-  #      - xpack.security.authc.realms.oidc.c2id-jwt.op.issuer=http://oidc-provider:8080/c2id
-  #      - xpack.security.authc.realms.oidc.c2id-jwt.op.authorization_endpoint=http://oidc-provider:8080/c2id-login
-  #      - xpack.security.authc.realms.oidc.c2id-jwt.op.token_endpoint=http://oidc-provider:8080/c2id/token
-  #      - xpack.security.authc.realms.oidc.c2id-jwt.op.userinfo_endpoint=http://oidc-provider:8080/c2id/userinfo
-  #      - xpack.security.authc.realms.oidc.c2id-jwt.op.jwkset_path=op-jwks.json
-  #      - xpack.security.authc.realms.oidc.c2id-jwt.rp.redirect_uri=https://my.fantastic.rp/cb
-  #      - xpack.security.authc.realms.oidc.c2id-jwt.rp.client_id=elasticsearch-post-jwt
-  #      - xpack.security.authc.realms.oidc.c2id-jwt.rp.client_auth_method=client_secret_jwt
-  #      - xpack.security.authc.realms.oidc.c2id-jwt.rp.response_type=code
-  #      - xpack.security.authc.realms.oidc.c2id-jwt.claims.principal=sub
-  #      - xpack.security.authc.realms.oidc.c2id-jwt.claims.name=name
-  #      - xpack.security.authc.realms.oidc.c2id-jwt.claims.mail=email
-  #      - xpack.security.authc.realms.oidc.c2id-jwt.claims.groups=groups
-  #      - xpack.security.authc.realms.jwt.op-jwt.order=7
-  #      - xpack.security.authc.realms.jwt.op-jwt.allowed_issuer=http://oidc-provider:8080/c2id
-  #      - xpack.security.authc.realms.jwt.op-jwt.allowed_audiences=elasticsearch-jwt1,elasticsearch-jwt2
-  #      - xpack.security.authc.realms.jwt.op-jwt.pkc_jwkset_path=op-jwks.json
-  #      - xpack.security.authc.realms.jwt.op-jwt.claims.principal=sub
-  #      - xpack.security.authc.realms.jwt.op-jwt.claims.groups=groups
-  #      - xpack.security.authc.realms.jwt.op-jwt.client_authentication.type=shared_secret
-  #    volumes:
-  #      - ./testfixtures_shared/logs/node1:/usr/share/elasticsearch/logs
-  #      - ./build/certs/testnode.jks:/usr/share/elasticsearch/config/testnode.jks
-  #      - ./docker-test-entrypoint.sh:/docker-test-entrypoint.sh
-  #      - ./oidc/op-jwks.json:/usr/share/elasticsearch/config/op-jwks.json
-  #    ports:
-  #      - "9200"
-  #    ulimits:
-  #      memlock:
-  #        soft: -1
-  #        hard: -1
-  #      nofile:
-  #        soft: 65536
-  #        hard: 65536
-  #    entrypoint: /docker-test-entrypoint.sh
-  #    healthcheck:
-  #      start_period: 15s
-  #      test: [ "CMD", "curl", "-f", "-u", "x_pack_rest_user:x-pack-test-password", "-k", "https://localhost:9200" ]
-  #      interval: 10s
-  #      timeout: 2s
-  #      retries: 5
+  openldap:
+    command: --copy-service --loglevel debug
+    image: "osixia/openldap:1.4.0"
+    ports:
+      - "389"
+      - "636"
+    environment:
+      LDAP_ADMIN_PASSWORD: "NickFuryHeartsES"
+      LDAP_DOMAIN: "oldap.test.elasticsearch.com"
+      LDAP_BASE_DN: "DC=oldap,DC=test,DC=elasticsearch,DC=com"
+      LDAP_TLS: "true"
+      LDAP_TLS_CRT_FILENAME: "ldap_server.pem"
+      LDAP_TLS_CA_CRT_FILENAME: "ca_server.pem"
+      LDAP_TLS_KEY_FILENAME: "ldap_server.key"
+      LDAP_TLS_VERIFY_CLIENT: "never"
+      LDAP_TLS_CIPHER_SUITE: "NORMAL"
+      LDAP_LOG_LEVEL: 256
+    volumes:
+      - ./openldap/ldif/users.ldif:/container/service/slapd/assets/config/bootstrap/ldif/custom/20-bootstrap-users.ldif
+      - ./openldap/ldif/config.ldif:/container/service/slapd/assets/config/bootstrap/ldif/custom/10-bootstrap-config.ldif
+      - ./openldap/certs:/container/service/slapd/assets/certs
 
-  #  openldap:
-  #    command: --copy-service --loglevel debug
-  #    image: "osixia/openldap:1.4.0"
-  #    ports:
-  #      - "389"
-  #      - "636"
-  #    environment:
-  #      LDAP_ADMIN_PASSWORD: "NickFuryHeartsES"
-  #      LDAP_DOMAIN: "oldap.test.elasticsearch.com"
-  #      LDAP_BASE_DN: "DC=oldap,DC=test,DC=elasticsearch,DC=com"
-  #      LDAP_TLS: "true"
-  #      LDAP_TLS_CRT_FILENAME: "ldap_server.pem"
-  #      LDAP_TLS_CA_CRT_FILENAME: "ca_server.pem"
-  #      LDAP_TLS_KEY_FILENAME: "ldap_server.key"
-  #      LDAP_TLS_VERIFY_CLIENT: "never"
-  #      LDAP_TLS_CIPHER_SUITE: "NORMAL"
-  #      LDAP_LOG_LEVEL: 256
-  #    volumes:
-  #      - ./openldap/ldif/users.ldif:/container/service/slapd/assets/config/bootstrap/ldif/custom/20-bootstrap-users.ldif
-  #      - ./openldap/ldif/config.ldif:/container/service/slapd/assets/config/bootstrap/ldif/custom/10-bootstrap-config.ldif
-  #      - ./openldap/certs:/container/service/slapd/assets/certs
-  #
-  #  shibboleth-idp:
-  #    build:
-  #      context: .
-  #      dockerfile: ./idp/Dockerfile
-  #    depends_on:
-  #      - openldap
-  #    environment:
-  #      - JETTY_MAX_HEAP=64m
-  #    ports:
-  #      - 4443
-  #    expose:
-  #      - 4443
-  #    links:
-  #      - openldap:openldap
-  #    restart: always #ensure ephemeral port mappings are properly updated
+  shibboleth-idp:
+    build:
+      context: .
+      dockerfile: ./idp/Dockerfile
+    depends_on:
+      - openldap
+    environment:
+      - JETTY_MAX_HEAP=64m
+    ports:
+      - 4443
+    expose:
+      - 4443
+    links:
+      - openldap:openldap
+    restart: always #ensure ephemeral port mappings are properly updated
 
   oidc-provider:
     build:

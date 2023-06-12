@@ -1,6 +1,4 @@
 apply plugin: 'elasticsearch.internal-java-rest-test'
-// TODO do we need this?
-apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.test.fixtures'
 
 dependencies {
@@ -13,12 +11,4 @@ testFixtures.useFixture ":x-pack:test:idp-fixture", "oidc-provider"
 
 tasks.named('javaRestTest') {
   usesDefaultDistribution()
-}
-
-// TODO remove
-tasks.named("processJavaRestTestResources").configure {
-  from project(':x-pack:plugin:core')
-    .files(
-      'src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode_ec.crt'
-    )
 }

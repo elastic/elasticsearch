@@ -21,7 +21,10 @@
                           "type":"list",
                           "options":[
                               "_all",
-                              "http"
+                              "http",
+                              "ingest",
+                              "thread_pool",
+                              "script"
                           ],
                           "description":"Limit the information returned to the specified target."
                       }

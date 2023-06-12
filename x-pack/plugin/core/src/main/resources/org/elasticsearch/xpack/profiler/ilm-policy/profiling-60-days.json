@@ -1,0 +1,39 @@
+{
+  "phases": {
+    "hot": {
+      "actions": {
+        "rollover": {
+          "max_primary_shard_size": "50gb",
+          "max_age": "30d",
+          "min_docs": 1
+        },
+        "set_priority": {
+          "priority": 100
+        },
+        "readonly": {}
+      }
+    },
+    "warm": {
+      "min_age": "30d",
+      "actions": {
+        "set_priority": {
+          "priority": 50
+        },
+        "forcemerge": {
+          "max_num_segments": 1
+        }
+      }
+    },
+    "delete": {
+      "min_age": "60d",
+      "actions": {
+        "delete": {}
+      }
+    }
+  },
+  "_meta": {
+    "description": "default policy for Elastic Universal Profiling",
+    "managed": true,
+    "version": ${xpack.profiling.template.version}
+  }
+}

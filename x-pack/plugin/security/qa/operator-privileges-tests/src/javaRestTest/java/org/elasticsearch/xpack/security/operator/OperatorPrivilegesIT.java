@@ -97,18 +97,18 @@ public class OperatorPrivilegesIT extends ESRestTestCase {
     @SuppressWarnings("unchecked")
     public void testEveryActionIsEitherOperatorOnlyOrNonOperator() throws IOException {
         final String message = "An action should be declared to be either operator-only in ["
-            + OperatorOnlyRegistry.class.getName()
+            + DefaultOperatorOnlyRegistry.class.getName()
             + "] or non-operator in ["
             + Constants.class.getName()
             + "]";
 
-        Set<String> doubleLabelled = Sets.intersection(Constants.NON_OPERATOR_ACTIONS, OperatorOnlyRegistry.SIMPLE_ACTIONS);
+        Set<String> doubleLabelled = Sets.intersection(Constants.NON_OPERATOR_ACTIONS, DefaultOperatorOnlyRegistry.SIMPLE_ACTIONS);
         assertTrue("Actions are both operator-only and non-operator: [" + doubleLabelled + "]. " + message, doubleLabelled.isEmpty());
 
         final Request request = new Request("GET", "/_test/get_actions");
         final Map<String, Object> response = responseAsMap(client().performRequest(request));
         Set<String> allActions = Set.copyOf((List<String>) response.get("actions"));
-        final HashSet<String> labelledActions = new HashSet<>(OperatorOnlyRegistry.SIMPLE_ACTIONS);
+        final HashSet<String> labelledActions = new HashSet<>(DefaultOperatorOnlyRegistry.SIMPLE_ACTIONS);
         labelledActions.addAll(Constants.NON_OPERATOR_ACTIONS);
 
         final Set<String> unlabelled = Sets.difference(allActions, labelledActions);
@@ -119,7 +119,7 @@ public class OperatorPrivilegesIT extends ESRestTestCase {
             "Actions may no longer be valid: ["
                 + redundant
                 + "]. They should be removed from either the operator-only action registry in ["
-                + OperatorOnlyRegistry.class.getName()
+                + DefaultOperatorOnlyRegistry.class.getName()
                 + "] or the non-operator action list in ["
                 + Constants.class.getName()
                 + "]",

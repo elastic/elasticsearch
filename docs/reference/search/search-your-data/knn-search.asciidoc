@@ -40,11 +40,11 @@ based on a similarity metric, the better its match.
 
 {es} supports two methods for kNN search:
 
-* <<exact-knn,Exact, brute-force kNN>> using a `script_score` query with a
-vector function
-
 * <<approximate-knn,Approximate kNN>> using the `knn` search
 option
+
+* <<exact-knn,Exact, brute-force kNN>> using a `script_score` query with a
+vector function
 
 In most cases, you'll want to use approximate kNN. Approximate kNN offers lower
 latency at the cost of slower indexing and imperfect accuracy.
@@ -56,89 +56,6 @@ search speeds. However, you can improve latency by using a <<query-dsl,query>>
 to limit the number of matching documents passed to the function. If you
 filter your data to a small subset of documents, you can get good search
 performance using this approach.
-
-[discrete]
-[[exact-knn]]
-=== Exact kNN
-
-To run an exact kNN search, use a `script_score` query with a vector function.
-
-. Explicitly map one or more `dense_vector` fields. If you don't intend to use
-the field for approximate kNN, omit the `index` mapping option or set it to
-`false`. This can significantly improve indexing speed.
-+
-[source,console]
-----
-PUT product-index
-{
-  "mappings": {
-    "properties": {
-      "product-vector": {
-        "type": "dense_vector",
-        "dims": 5,
-        "index": false
-      },
-      "price": {
-        "type": "long"
-      }
-    }
-  }
-}
-----
-
-. Index your data.
-+
-[source,console]
-----
-POST product-index/_bulk?refresh=true
-{ "index": { "_id": "1" } }
-{ "product-vector": [230.0, 300.33, -34.8988, 15.555, -200.0], "price": 1599 }
-{ "index": { "_id": "2" } }
-{ "product-vector": [-0.5, 100.0, -13.0, 14.8, -156.0], "price": 799 }
-{ "index": { "_id": "3" } }
-{ "product-vector": [0.5, 111.3, -13.0, 14.8, -156.0], "price": 1099 }
-...
-----
-//TEST[continued]
-//TEST[s/\.\.\.//]
-
-. Use the <<search-search,search API>> to run a `script_score` query containing
-a <<vector-functions,vector function>>.
-+
-TIP: To limit the number of matched documents passed to the vector function, we
-recommend you specify a filter query in the `script_score.query` parameter. If
-needed, you can use a <<query-dsl-match-all-query,`match_all` query>> in this
-parameter to match all documents. However, matching all documents can
-significantly increase search latency.
-+
-[source,console]
-----
-POST product-index/_search
-{
-  "query": {
-    "script_score": {
-      "query" : {
-        "bool" : {
-          "filter" : {
-            "range" : {
-              "price" : {
-                "gte": 1000
-              }
-            }
-          }
-        }
-      },
-      "script": {
-        "source": "cosineSimilarity(params.queryVector, 'product-vector') + 1.0",
-        "params": {
-          "queryVector": [-0.5, 90.0, -10, 14.8, -156.0]
-        }
-      }
-    }
-  }
-}
-----
-//TEST[continued]
 
 [discrete]
 [[approximate-knn]]
@@ -417,8 +334,6 @@ calculated on the combined set of `knn` and `query` matches.
 [[semantic-search]]
 ==== Perform semantic search
 
-experimental[]
-
 kNN search enables you to perform semantic search by using a previously deployed
 {ml-docs}/ml-nlp-search-compare.html#ml-nlp-text-embedding[text embedding model].
 Instead of literal matching on search terms, semantic search retrieves results
@@ -627,4 +542,87 @@ NOTE: Approximate kNN search always uses the
 <<dfs-query-then-fetch,`dfs_query_then_fetch`>> search type in order to gather
 the global top `k` matches across shards. You cannot set the
 `search_type` explicitly when running kNN search.
+
+[discrete]
+[[exact-knn]]
+=== Exact kNN
+
+To run an exact kNN search, use a `script_score` query with a vector function.
+
+. Explicitly map one or more `dense_vector` fields. If you don't intend to use
+the field for approximate kNN, omit the `index` mapping option or set it to
+`false`. This can significantly improve indexing speed.
++
+[source,console]
+----
+PUT product-index
+{
+  "mappings": {
+    "properties": {
+      "product-vector": {
+        "type": "dense_vector",
+        "dims": 5,
+        "index": false
+      },
+      "price": {
+        "type": "long"
+      }
+    }
+  }
+}
+----
+
+. Index your data.
++
+[source,console]
+----
+POST product-index/_bulk?refresh=true
+{ "index": { "_id": "1" } }
+{ "product-vector": [230.0, 300.33, -34.8988, 15.555, -200.0], "price": 1599 }
+{ "index": { "_id": "2" } }
+{ "product-vector": [-0.5, 100.0, -13.0, 14.8, -156.0], "price": 799 }
+{ "index": { "_id": "3" } }
+{ "product-vector": [0.5, 111.3, -13.0, 14.8, -156.0], "price": 1099 }
+...
+----
+//TEST[continued]
+//TEST[s/\.\.\.//]
+
+. Use the <<search-search,search API>> to run a `script_score` query containing
+a <<vector-functions,vector function>>.
++
+TIP: To limit the number of matched documents passed to the vector function, we
+recommend you specify a filter query in the `script_score.query` parameter. If
+needed, you can use a <<query-dsl-match-all-query,`match_all` query>> in this
+parameter to match all documents. However, matching all documents can
+significantly increase search latency.
++
+[source,console]
+----
+POST product-index/_search
+{
+  "query": {
+    "script_score": {
+      "query" : {
+        "bool" : {
+          "filter" : {
+            "range" : {
+              "price" : {
+                "gte": 1000
+              }
+            }
+          }
+        }
+      },
+      "script": {
+        "source": "cosineSimilarity(params.queryVector, 'product-vector') + 1.0",
+        "params": {
+          "queryVector": [-0.5, 90.0, -10, 14.8, -156.0]
+        }
+      }
+    }
+  }
+}
+----
+//TEST[continued]
 

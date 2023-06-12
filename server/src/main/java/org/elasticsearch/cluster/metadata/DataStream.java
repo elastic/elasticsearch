@@ -613,12 +613,12 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      * is treated differently for the write index (i.e. they first need to be rolled over)
      */
     public List<Index> getIndicesPastRetention(Function<String, IndexMetadata> indexMetadataSupplier, LongSupplier nowSupplier) {
-        if (lifecycle == null || lifecycle.getDataRetention() == null) {
+        if (lifecycle == null || lifecycle.getEffectiveDataRetention() == null) {
             return List.of();
         }
 
         List<Index> indicesPastRetention = getNonWriteIndicesOlderThan(
-            lifecycle.getDataRetention(),
+            lifecycle.getEffectiveDataRetention(),
             indexMetadataSupplier,
             this::isIndexManagedByDLM,
             nowSupplier
@@ -759,9 +759,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             in.readBoolean(),
             in.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0) ? in.readBoolean() : false,
             in.getTransportVersion().onOrAfter(TransportVersion.V_8_1_0) ? in.readOptionalEnum(IndexMode.class) : null,
-            in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0) && DataLifecycle.isEnabled()
-                ? in.readOptionalWriteable(DataLifecycle::new)
-                : null
+            in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_007) ? in.readOptionalWriteable(DataLifecycle::new) : null
         );
     }
 
@@ -790,7 +788,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_1_0)) {
             out.writeOptionalEnum(indexMode);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0) && DataLifecycle.isEnabled()) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_007)) {
             out.writeOptionalWriteable(lifecycle);
         }
     }

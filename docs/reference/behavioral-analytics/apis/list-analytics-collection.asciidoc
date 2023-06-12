@@ -2,6 +2,8 @@
 [[list-analytics-collection]]
 === List Analytics Collections
 
+beta::[]
+
 ++++
 <titleabbrev>List Analytics Collections</titleabbrev>
 ++++

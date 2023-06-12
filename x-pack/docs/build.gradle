@@ -37,6 +37,8 @@ restResources {
 tasks.named("yamlRestTest").configure {
   if (BuildParams.isSnapshotBuild()) {
     systemProperty 'tests.rest.blacklist', '*/get-builtin-privileges/*'
+  } else {
+    systemProperty 'tests.rest.blacklist', ['*/create-cross-cluster-api-key/*', '*/update-cross-cluster-api-key/*']
   }
 }
 

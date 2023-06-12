@@ -25,8 +25,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
 
 import java.io.Closeable;
-import java.util.Collections;
-import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -42,28 +41,16 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 public class ProfilingIndexManager implements ClusterStateListener, Closeable {
     private static final Logger logger = LogManager.getLogger(ProfilingIndexManager.class);
     // For testing
-    public static final Map<String, String> INDICES_AND_ALIASES;
-
-    static {
-        String versionSuffix = "-v" + ProfilingIndexTemplateRegistry.INDEX_TEMPLATE_VERSION;
-
-        Map<String, String> indicesAndAliases = new HashMap<>();
-        // TODO: Define behavior on upgrade (delete, reindex, ...), to be done after 8.9.0
-        // TODO: This index will be gone with the 8.9 release. Don't bother to implement versioning support.
-        indicesAndAliases.put(".profiling-ilm-lock", null);
-        indicesAndAliases.put(".profiling-returnpads-private" + versionSuffix, "profiling-returnpads-private");
-        indicesAndAliases.put(".profiling-sq-executables" + versionSuffix, "profiling-sq-executables");
-        indicesAndAliases.put(".profiling-sq-leafframes" + versionSuffix, "profiling-sq-leafframes");
-        indicesAndAliases.put(".profiling-symbols" + versionSuffix, "profiling-symbols");
-        indicesAndAliases.put(".profiling-symbols-private" + versionSuffix, "profiling-symbols-private");
-        // TODO: Update these to the new K/V strategy after all readers have been adjusted
-        String[] kvIndices = new String[] { "profiling-executables", "profiling-stackframes", "profiling-stacktraces" };
-        for (String idx : kvIndices) {
-            indicesAndAliases.put(idx + versionSuffix + "-000001", idx);
-            indicesAndAliases.put(idx + versionSuffix + "-000002", idx + "-next");
-        }
-        INDICES_AND_ALIASES = Collections.unmodifiableMap(indicesAndAliases);
-    }
+    public static final List<ProfilingIndex> PROFILING_INDICES = List.of(
+        ProfilingIndex.regular("profiling-returnpads-private"),
+        ProfilingIndex.regular("profiling-sq-executables"),
+        ProfilingIndex.regular("profiling-sq-leafframes"),
+        ProfilingIndex.regular("profiling-symbols-private"),
+        ProfilingIndex.kv("profiling-executables"),
+        ProfilingIndex.kv("profiling-stackframes"),
+        ProfilingIndex.kv("profiling-stacktraces"),
+        ProfilingIndex.kv("profiling-symbols-global")
+    );
 
     private final ThreadPool threadPool;
     private final Client client;
@@ -125,15 +112,20 @@ public class ProfilingIndexManager implements ClusterStateListener, Closeable {
 
     private void addIndicesIfMissing(ClusterState state) {
         Map<String, IndexMetadata> indicesMetadata = state.metadata().indices();
-        for (Map.Entry<String, String> idxAlias : INDICES_AND_ALIASES.entrySet()) {
-            String index = idxAlias.getKey();
-            String alias = idxAlias.getValue();
+        for (ProfilingIndex profilingIndex : PROFILING_INDICES) {
+            String index = profilingIndex.toString();
             final AtomicBoolean creationInProgress = creationInProgressPerIndex.computeIfAbsent(index, key -> new AtomicBoolean(false));
             if (creationInProgress.compareAndSet(false, true)) {
-                final boolean indexNeedsToBeCreated = indicesMetadata == null || indicesMetadata.get(index) == null;
+                // Do a quick (exact) check first
+                boolean indexNeedsToBeCreated = indicesMetadata == null || indicesMetadata.get(index) == null;
+                // for K/V indices we must not create the index if a newer generation exists
+                if (indexNeedsToBeCreated && profilingIndex.isKvIndex()) {
+                    indexNeedsToBeCreated = indicesMetadata != null
+                        && indicesMetadata.keySet().stream().anyMatch(profilingIndex::isMatchWithoutGeneration) == false;
+                }
                 if (indexNeedsToBeCreated) {
                     logger.debug("adding index [{}], because it doesn't exist", index);
-                    putIndex(index, alias, creationInProgress);
+                    putIndex(index, profilingIndex.getAlias(), creationInProgress);
                 } else {
                     logger.trace("not adding index [{}], because it already exists", index);
                     creationInProgress.set(false);
@@ -189,5 +181,58 @@ public class ProfilingIndexManager implements ClusterStateListener, Closeable {
                 (req, listener) -> client.admin().indices().create(req, listener)
             );
         });
+    }
+
+    /**
+     * An index that is used by Universal Profiling.
+     */
+    static class ProfilingIndex {
+        private final String name;
+        private final String generation;
+
+        public static ProfilingIndex regular(String name) {
+            return new ProfilingIndex(name, null);
+        }
+
+        public static ProfilingIndex kv(String name) {
+            return new ProfilingIndex(name, "000001");
+        }
+
+        private ProfilingIndex(String namePrefix, String generation) {
+            this.name = namePrefix;
+            this.generation = generation;
+        }
+
+        public boolean isMatchWithoutGeneration(String indexName) {
+            return indexName.startsWith(indexPrefix());
+        }
+
+        public boolean isKvIndex() {
+            return generation != null;
+        }
+
+        public String getAlias() {
+            return name;
+        }
+
+        private String indexPrefix() {
+            StringBuilder sb = new StringBuilder();
+            sb.append(".");
+            sb.append(name);
+            sb.append("-v");
+            sb.append(ProfilingIndexTemplateRegistry.INDEX_TEMPLATE_VERSION);
+            return sb.toString();
+        }
+
+        @Override
+        public String toString() {
+            StringBuilder sb = new StringBuilder();
+            sb.append(indexPrefix());
+            if (generation != null) {
+                sb.append("-");
+                sb.append(generation);
+            }
+            return sb.toString();
+        }
     }
 }

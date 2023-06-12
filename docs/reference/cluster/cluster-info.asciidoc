@@ -29,7 +29,7 @@ You can use the Cluster Info API to retrieve information of a cluster.
 
 
 `<target>`::
-(Optional, string) Limits the information returned to the specific `target`.
+(String) Limits the information returned to the specific `target`.
 A comma-separated list of the following options:
 +
 --
@@ -41,6 +41,12 @@ HTTP connection information.
 
 `ingest`::
 Ingest information.
+
+`thread_pool`::
+Statistics about each thread pool, including current size, queue size and rejected tasks.
+
+`script`::
+Contains script statistics of the cluster.
 --
 
 [role="child_attributes"]
@@ -238,6 +244,105 @@ Number of failed operations for the processor.
 ======
 
 
+[[cluster-info-api-response-body-threadpool]]
+`thread_pool`::
+(object)
+Contains information about the thread pools of the cluster.
++
+.Properties of `thread_pool`
+[%collapsible%open]
+======
+`<thread_pool_name>`::
+(object)
+Contains information about the thread pool of the cluster with name `<thread_pool_name>`.
++
+.Properties of `<thread_pool_name>`
+[%collapsible%open]
+=======
+`threads`::
+(integer)
+Number of threads in the thread pool.
+
+`queue`::
+(integer)
+Number of tasks in queue for the thread pool.
+
+`active`::
+(integer)
+Number of active threads in the thread pool.
+
+`rejected`::
+(integer)
+Number of tasks rejected by the thread pool executor.
+
+`largest`::
+(integer)
+Highest number of active threads in the thread pool.
+
+`completed`::
+(integer)
+Number of tasks completed by the thread pool executor.
+=======
+======
+
+[[cluster-info-api-response-body-script]]
+`script`::
+(object)
+Contains script statistics of the cluster.
++
+.Properties of `script`
+[%collapsible%open]
+======
+`compilations`::
+(integer)
+Total number of inline script compilations performed by the cluster.
+
+`compilations_history`::
+(object)
+Contains the recent history of script compilations.
+
+.Properties of `compilations_history`
+[%collapsible%open]
+=======
+`5m`::
+(long)
+The number of script compilations in the last five minutes.
+`15m`::
+(long)
+The number of script compilations in the last fifteen minutes.
+`24h`::
+(long)
+The number of script compilations in the last twenty-four hours.
+=======
+
+`cache_evictions`::
+(integer)
+Total number of times the script cache has evicted old data.
+
+
+`cache_evictions_history`::
+(object)
+Contains the recent history of script cache evictions.
+
+.Properties of `cache_evictions`
+[%collapsible%open]
+=======
+`5m`::
+(long)
+The number of script cache evictions in the last five minutes.
+`15m`::
+(long)
+The number of script cache evictions in the last fifteen minutes.
+`24h`::
+(long)
+The number of script cache evictions in the last twenty-four hours.
+=======
+
+`compilation_limit_triggered`::
+(integer)
+Total number of times the <<script-compilation-circuit-breaker,script
+compilation>> circuit breaker has limited inline script compilations.
+======
 
 [[cluster-info-api-example]]
 ==== {api-examples-title}
@@ -252,6 +357,12 @@ GET /_info/http
 
 # returns the http info of the cluster
 GET /_info/ingest
+
+# returns the thread_pool info of the cluster
+GET /_info/thread_pool
+
+# returns the script info of the cluster
+GET /_info/script
 
 # returns the http and ingest info of the cluster
 GET /_info/http,ingest

@@ -65,7 +65,9 @@ public class PostWriteRefresh {
             case IMMEDIATE -> immediate(indexShard, new ActionListener<>() {
                 @Override
                 public void onResponse(Engine.RefreshResult refreshResult) {
-                    if (indexShard.getReplicationGroup().getRoutingTable().unpromotableShards().size() > 0) {
+                    // Fast refresh indices do not depend on the unpromotables being refreshed
+                    boolean fastRefresh = IndexSettings.INDEX_FAST_REFRESH_SETTING.get(indexShard.indexSettings().getSettings());
+                    if (indexShard.getReplicationGroup().getRoutingTable().unpromotableShards().size() > 0 && fastRefresh == false) {
                         sendUnpromotableRequests(indexShard, refreshResult.generation(), true, listener, postWriteRefreshTimeout);
                     } else {
                         listener.onResponse(true);

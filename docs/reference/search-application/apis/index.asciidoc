@@ -1,7 +1,7 @@
 [[search-application-apis]]
 == Search Application APIs
 
-preview::[]
+beta::[]
 
 ++++
 <titleabbrev>Search Application APIs</titleabbrev>

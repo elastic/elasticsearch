@@ -18,12 +18,15 @@ import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.query.SearchQueryWrapper;
 import org.elasticsearch.usage.SearchUsage;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
+
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
  * {@code SearchQueryBuilder} is a wrapper class for containing all
@@ -33,27 +36,21 @@ import java.util.Objects;
  */
 public class SearchQueryWrapperBuilder implements ToXContent, Writeable, Rewriteable<SearchQueryWrapperBuilder> {
 
-    public static SearchQueryWrapperBuilder parseXContent(XContentParser parser, SearchUsage searchUsage) throws IOException {
-        XContentParser.Token token;
-        String currentFieldName = null;
+    private static final ConstructingObjectParser<SearchQueryWrapperBuilder, SearchUsage> PARSER = new ConstructingObjectParser<>(
+        "search_query_wrapper",
+        args -> new SearchQueryWrapperBuilder((QueryBuilder) args[0])
+    );
 
-        QueryBuilder queryBuilder = null;
+    static {
+        PARSER.declareObject(
+            constructorArg(),
+            (p, c) -> AbstractQueryBuilder.parseTopLevelQuery(p, c::trackQueryUsage),
+            SearchSourceBuilder.QUERY_FIELD
+        );
+    }
 
-        if (parser.currentToken() == null) {
-            parser.nextToken();
-        }
-
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                currentFieldName = parser.currentName();
-            } else if (token == XContentParser.Token.START_OBJECT) {
-                if (SearchSourceBuilder.QUERY_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    queryBuilder = AbstractQueryBuilder.parseTopLevelQuery(parser, searchUsage::trackQueryUsage);
-                }
-            }
-        }
-
-        return new SearchQueryWrapperBuilder(queryBuilder);
+    public static SearchQueryWrapperBuilder fromXContent(XContentParser parser, SearchUsage searchUsage) throws IOException {
+        return PARSER.parse(parser, searchUsage);
     }
 
     @Override
@@ -74,16 +71,17 @@ public class SearchQueryWrapperBuilder implements ToXContent, Writeable, Rewrite
     private final QueryBuilder queryBuilder;
 
     public SearchQueryWrapperBuilder(QueryBuilder queryBuilder) {
+        Objects.requireNonNull(queryBuilder);
         this.queryBuilder = queryBuilder;
     }
 
     public SearchQueryWrapperBuilder(StreamInput in) throws IOException {
-        this.queryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
+        this.queryBuilder = in.readNamedWriteable(QueryBuilder.class);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalNamedWriteable(queryBuilder);
+        out.writeNamedWriteable(queryBuilder);
     }
 
     @Override

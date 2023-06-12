@@ -1540,11 +1540,11 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                     searchQueryWrapperBuilders = new ArrayList<>();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         if (token == XContentParser.Token.START_OBJECT) {
-                            searchQueryWrapperBuilders.add(SearchQueryWrapperBuilder.parseXContent(parser, searchUsage));
+                            searchQueryWrapperBuilders.add(SearchQueryWrapperBuilder.fromXContent(parser, searchUsage));
                         } else {
                             throw new XContentParseException(
                                 parser.getTokenLocation(),
-                                "malformed queries format within the queries search array only objects are allowed; found " + token
+                                "malformed query within the [queries] field; found " + token
                             );
                         }
                     }

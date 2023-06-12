@@ -363,7 +363,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
                 }
                 out.writeNamedWriteableList(rankQueryBuilders);
             } else if (source != null && source.queries().isEmpty() == false) {
-                throw new IllegalArgumentException("cannot serialize [rank] to version [" + out.getTransportVersion() + "]");
+                throw new IllegalArgumentException("cannot serialize [queries] to version [" + out.getTransportVersion() + "]");
             }
         }
         if (out.getTransportVersion().before(TransportVersion.V_8_0_0)) {

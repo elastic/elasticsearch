@@ -63,6 +63,6 @@ public class SearchQueryWrapperBuilderTests extends AbstractXContentSerializingT
 
     @Override
     protected SearchQueryWrapperBuilder doParseInstance(XContentParser parser) throws IOException {
-        return SearchQueryWrapperBuilder.parseXContent(parser, new SearchUsage());
+        return SearchQueryWrapperBuilder.fromXContent(parser, new SearchUsage());
     }
 }

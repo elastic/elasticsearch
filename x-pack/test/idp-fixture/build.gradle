@@ -13,9 +13,7 @@ tasks.named("preProcessFixture").configure {
 }
 
 tasks.register("copyFiles", Sync) {
-  // TODO move me
-  from project(':x-pack:plugin:core')
-    .file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/override.properties.template')
+  from file("oidc/override.properties.template")
   into "${buildDir}/config"
   doLast {
     file("${buildDir}/config").setReadable(true, false)

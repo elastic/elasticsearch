@@ -60,9 +60,9 @@ public abstract class C2IdOpTestCase extends ESRestTestCase {
 
     // URLs for accessing the C2id OP
     private static final String C2OP_PORT = getEphemeralTcpPortFromProperty("oidc-provider", "8080");
-    protected static final String C2ID_ISSUER = "http://127.0.0.1:" + C2OP_PORT + "/c2id";
-    private static final String PROXY_PORT = getEphemeralTcpPortFromProperty("http-proxy", "8888");
     private static final String C2ID_HOST = "http://127.0.0.1:" + C2OP_PORT;
+    protected static final String C2ID_ISSUER = C2ID_HOST + "/c2id";
+    private static final String PROXY_PORT = getEphemeralTcpPortFromProperty("http-proxy", "8888");
     private static final String C2ID_LOGIN_API = C2ID_HOST + "/c2id-login/api/";
     private static final String C2ID_REGISTRATION_URL = C2ID_HOST + "/c2id/clients";
     protected static final String C2ID_AUTH_ENDPOINT = C2ID_HOST + "/c2id-login";
@@ -77,9 +77,6 @@ public abstract class C2IdOpTestCase extends ESRestTestCase {
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
         .nodes(1)
-        // TODO remove these
-        .setting("logger.org.elasticsearch.xpack.security.authc.oidc", "TRACE")
-        .setting("logger.org.elasticsearch.xpack.security.rest.action.oidc", "TRACE")
         .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.security.enabled", "true")
         .setting("xpack.security.http.ssl.enabled", "true")

@@ -9,6 +9,7 @@ dockerCompose {
 }
 
 tasks.register("copyFiles", Sync) {
+  // TODO move me
   from project(':x-pack:plugin:core')
     .file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/override.properties.template')
   into "${buildDir}/config"
@@ -19,13 +20,6 @@ tasks.register("copyFiles", Sync) {
     file.mkdirs()
     file.setWritable(true, false)
   }
-}
-
-tasks.named("preProcessFixture").configure {
-}
-
-tasks.named('composeUp').configure {
-  dependsOn "preProcessFixture"
 }
 
 tasks.named("postProcessFixture").configure {

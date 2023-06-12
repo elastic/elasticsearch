@@ -21,7 +21,7 @@ Instantly runs a {transform} to process data.
 * Requires the `manage_transform` cluster privilege. This privilege is included
 in the `transform_admin` built-in role.
 
-[schedule-now-transform-desc]]
+[[schedule-now-transform-desc]]
 == {api-description-title}
 
 When you run this API, processing for the next checkpoint is started immediately 

@@ -553,3 +553,26 @@ setup:
               "ner": { }
             }
           }
+
+---
+"Test put model config with Japanese tokenizer":
+  - do:
+      ml.put_trained_model:
+        model_id: j_bert
+        body: >
+          {
+            "description": "model config with Japanese tokenizer",
+            "model_type": "pytorch",
+            "inference_config": {
+              "pass_through": {
+                "tokenization": {
+                  "bert_ja": {
+                    "with_special_tokens": false,
+                    "max_sequence_length": 512,
+                    "truncate": "first",
+                    "span": -1
+                  }
+                }
+              }
+            }
+          }

@@ -334,8 +334,6 @@ calculated on the combined set of `knn` and `query` matches.
 [[semantic-search]]
 ==== Perform semantic search
 
-experimental[]
-
 kNN search enables you to perform semantic search by using a previously deployed
 {ml-docs}/ml-nlp-search-compare.html#ml-nlp-text-embedding[text embedding model].
 Instead of literal matching on search terms, semantic search retrieves results

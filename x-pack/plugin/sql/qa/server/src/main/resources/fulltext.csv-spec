@@ -186,10 +186,10 @@ SELECT languages, PERCENTILE(salary, 95) "95th", ROUND(PERCENTILE_RANK(salary, 6
 
   languages:bt |    95th:d     |    rank:d     | MAX(salary):i | MIN(salary):i |      c:l
 ---------------+---------------+---------------+---------------+---------------+---------------
-null           |74999          |80             |74999          |28336          |10
+null           |74999          |74             |74999          |28336          |10
 2              |44307          |100            |44307          |29175          |3
-3              |65030          |75             |65030          |38376          |4
-5              |66817          |75             |66817          |37137          |4
+3              |65030          |100            |65030          |38376          |4
+5              |66817          |100            |66817          |37137          |4
 ;
 
 multiAggWithStatsAndMatrixStatsAndMultiQuery

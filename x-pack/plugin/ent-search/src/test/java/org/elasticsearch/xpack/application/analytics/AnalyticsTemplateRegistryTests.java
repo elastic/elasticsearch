@@ -375,12 +375,7 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
         Map<String, Integer> existingComponentTemplates,
         DiscoveryNodes nodes
     ) {
-        return createClusterChangedEvent(
-            existingComposableTemplates,
-            existingComponentTemplates,
-            Collections.emptyMap(),
-            nodes
-        );
+        return createClusterChangedEvent(existingComposableTemplates, existingComponentTemplates, Collections.emptyMap(), nodes);
     }
 
     private ClusterChangedEvent createClusterChangedEvent(
@@ -389,12 +384,7 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
         Map<String, Integer> existingIngestPipelines,
         DiscoveryNodes nodes
     ) {
-        ClusterState cs = createClusterState(
-            existingComposableTemplates,
-            existingComponentTemplates,
-            existingIngestPipelines,
-            nodes
-        );
+        ClusterState cs = createClusterState(existingComposableTemplates, existingComponentTemplates, existingIngestPipelines, nodes);
         ClusterChangedEvent realEvent = new ClusterChangedEvent(
             "created-from-test",
             cs,

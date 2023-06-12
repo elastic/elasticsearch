@@ -203,7 +203,8 @@ public class TransportMultiGetActionTests extends ESTestCase {
             clusterService,
             client,
             new ActionFilters(emptySet()),
-            new Resolver()
+            new Resolver(),
+            mock(IndicesService.class)
         ) {
             @Override
             protected void executeShardAction(
@@ -235,7 +236,8 @@ public class TransportMultiGetActionTests extends ESTestCase {
             clusterService,
             client,
             new ActionFilters(emptySet()),
-            new Resolver()
+            new Resolver(),
+            mock(IndicesService.class)
         ) {
             @Override
             protected void executeShardAction(

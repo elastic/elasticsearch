@@ -2,9 +2,6 @@
   "template": {
     "settings": {
       "index": {
-        "lifecycle": {
-          "name": "behavioral_analytics-events-default_policy"
-        },
         "codec": "best_compression",
         "refresh_interval": "1s",
         "number_of_shards": 1,
@@ -16,6 +13,9 @@
           "order": ["asc", "asc"]
         }
       }
+    },
+    "lifecycle": {
+      "data_retention": "180d"
     }
   },
   "_meta": {

@@ -17,17 +17,14 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 import org.elasticsearch.xpack.core.template.IndexTemplateRegistry;
 import org.elasticsearch.xpack.core.template.IngestPipelineConfig;
-import org.elasticsearch.xpack.core.template.LifecyclePolicyConfig;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.application.analytics.AnalyticsConstants.EVENT_DATA_STREAM_INDEX_PATTERN;
 import static org.elasticsearch.xpack.application.analytics.AnalyticsConstants.EVENT_DATA_STREAM_INDEX_PREFIX;
@@ -43,17 +40,9 @@ public class AnalyticsTemplateRegistry extends IndexTemplateRegistry {
     // This number must be incremented when we make changes to built-in templates.
     static final int REGISTRY_VERSION = 2;
 
-    // ILM Policies configuration
-    static final String EVENT_DATA_STREAM_ILM_POLICY_NAME = EVENT_DATA_STREAM_INDEX_PREFIX + "default_policy";
-
-    static final List<LifecyclePolicy> LIFECYCLE_POLICIES = Stream.of(
-        new LifecyclePolicyConfig(EVENT_DATA_STREAM_ILM_POLICY_NAME, ROOT_RESOURCE_PATH + EVENT_DATA_STREAM_ILM_POLICY_NAME + ".json")
-    ).map(config -> config.load(LifecyclePolicyConfig.DEFAULT_X_CONTENT_REGISTRY)).toList();
-
     // Index template components configuration
     static final String EVENT_DATA_STREAM_SETTINGS_COMPONENT_NAME = EVENT_DATA_STREAM_INDEX_PREFIX + "settings";
     static final String EVENT_DATA_STREAM_MAPPINGS_COMPONENT_NAME = EVENT_DATA_STREAM_INDEX_PREFIX + "mappings";
-
     static final String EVENT_DATA_STREAM_INGEST_PIPELINE_NAME = EVENT_DATA_STREAM_INDEX_PREFIX + "final_pipeline";
 
     static final Map<String, ComponentTemplate> COMPONENT_TEMPLATES;
@@ -124,11 +113,6 @@ public class AnalyticsTemplateRegistry extends IndexTemplateRegistry {
     @Override
     protected String getOrigin() {
         return ENT_SEARCH_ORIGIN;
-    }
-
-    @Override
-    protected List<LifecyclePolicy> getPolicyConfigs() {
-        return LIFECYCLE_POLICIES;
     }
 
     @Override

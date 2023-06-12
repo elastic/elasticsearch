@@ -230,6 +230,25 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             if (searchRequest.scroll() != null) {
                 searchRequest.requestCache(false);
             }
+            searchRequest.source()
+                .queries(
+                    List.of(
+                        new SearchQueryWrapperBuilder(new TermQueryBuilder("three", "four")),
+                        new SearchQueryWrapperBuilder(new TermQueryBuilder("five", "six"))
+                    )
+                );
+            ActionRequestValidationException validationErrors = searchRequest.validate();
+            assertNotNull(validationErrors);
+            assertEquals(1, validationErrors.validationErrors().size());
+            assertEquals("[queries] requires [rank]", validationErrors.validationErrors().get(0));
+        }
+        {
+            // cannot have both query and queries
+            SearchRequest searchRequest = createSearchRequest().source(new SearchSourceBuilder());
+            if (searchRequest.scroll() != null) {
+                searchRequest.requestCache(false);
+            }
+            searchRequest.source().rankBuilder(new TestRankBuilder(10));
             searchRequest.source().query(new TermQueryBuilder("one", "two"));
             searchRequest.source()
                 .queries(

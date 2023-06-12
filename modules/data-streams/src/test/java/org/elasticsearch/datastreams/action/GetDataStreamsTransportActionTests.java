@@ -15,7 +15,9 @@ import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
@@ -192,6 +194,55 @@ public class GetDataStreamsTransportActionTests extends ESTestCase {
                 allOf(
                     transformedMatch(d -> d.getDataStream().getName(), equalTo(dataStream2)),
                     transformedMatch(d -> d.getTimeSeries().temporalRanges(), contains(new Tuple<>(sixHoursAgo, twoHoursAhead)))
+                )
+            )
+        );
+    }
+
+    public void testGetTimeSeriesMixedDataStream() {
+        Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
+        String dataStream1 = "ds-1";
+        Instant twoHoursAgo = now.minus(2, ChronoUnit.HOURS);
+        Instant twoHoursAhead = now.plus(2, ChronoUnit.HOURS);
+
+        ClusterState state;
+        {
+            var mBuilder = new Metadata.Builder();
+            DataStreamTestHelper.getClusterStateWithDataStreams(
+                mBuilder,
+                List.of(Tuple.tuple(dataStream1, 2)),
+                List.of(),
+                now.toEpochMilli(),
+                Settings.EMPTY,
+                0,
+                false
+            );
+            DataStreamTestHelper.getClusterStateWithDataStream(mBuilder, dataStream1, List.of(new Tuple<>(twoHoursAgo, twoHoursAhead)));
+            state = ClusterState.builder(new ClusterName("_name")).metadata(mBuilder).build();
+        }
+
+        var req = new GetDataStreamAction.Request(new String[] {});
+        var response = GetDataStreamsTransportAction.innerOperation(
+            state,
+            req,
+            resolver,
+            systemIndices,
+            ClusterSettings.createBuiltInClusterSettings()
+        );
+
+        var name1 = DataStream.getDefaultBackingIndexName("ds-1", 1, now.toEpochMilli());
+        var name2 = DataStream.getDefaultBackingIndexName("ds-1", 2, now.toEpochMilli());
+        var name3 = DataStream.getDefaultBackingIndexName("ds-1", 3, now.toEpochMilli());
+        assertThat(
+            response.getDataStreams(),
+            contains(
+                allOf(
+                    transformedMatch(d -> d.getDataStream().getName(), equalTo(dataStream1)),
+                    transformedMatch(
+                        d -> d.getDataStream().getIndices().stream().map(Index::getName).toList(),
+                        contains(name1, name2, name3)
+                    ),
+                    transformedMatch(d -> d.getTimeSeries().temporalRanges(), contains(new Tuple<>(twoHoursAgo, twoHoursAhead)))
                 )
             )
         );

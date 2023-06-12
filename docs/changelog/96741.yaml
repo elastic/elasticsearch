@@ -1,0 +1,5 @@
+pr: 96741
+summary: Upgrade to new lucene snapshot 9.7.0-snapshot-a8602d6ef88
+area: Search
+type: upgrade
+issues: []

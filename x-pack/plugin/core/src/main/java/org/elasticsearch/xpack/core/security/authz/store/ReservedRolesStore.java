@@ -924,7 +924,8 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         "logs-cloud_security_posture.vulnerabilities_latest-default*"
                     )
                     .privileges("create_index", "read", "index", "delete", IndicesAliasesAction.NAME, UpdateSettingsAction.NAME)
-                    .build() },
+                    .build(),
+                RoleDescriptor.IndicesPrivileges.builder().indices("risk-score.risk-*").privileges("all").build() },
             null,
             new ConfigurableClusterPrivilege[] {
                 new ManageApplicationPrivileges(Set.of("kibana-*")),

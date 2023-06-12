@@ -265,7 +265,14 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
 
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings unused) {
-        return List.of(new SystemIndexDescriptor(ENRICH_INDEX_PATTERN, "Contains data to support enrich ingest processors."));
+        return List.of(
+            SystemIndexDescriptor.builder()
+                .setIndexPattern(ENRICH_INDEX_PATTERN)
+                .setDescription("Contains data to support enrich ingest processors.")
+                .setType(SystemIndexDescriptor.Type.INTERNAL_UNMANAGED)
+                .setAllowedElasticProductOrigins(List.of())
+                .build()
+        );
     }
 
     @Override

@@ -11,9 +11,9 @@ package org.elasticsearch.ingest.geoip;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.PipelineConfiguration;
@@ -22,20 +22,17 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class GeoIpDownloaderTaskExecutorTests extends ESTestCase {
 
-    public void testHasAtLeastOneGeoipProcessorWhenPipelineHasLazyDownloadEnabled() {
+    public void testHasAtLeastOneGeoipProcessorWhenDownloadDatabaseOnPipelineCreationIsFalse() throws IOException {
         ClusterState clusterState = mock(ClusterState.class);
         Metadata metadata = mock(Metadata.class);
         when(clusterState.getMetadata()).thenReturn(metadata);
@@ -48,45 +45,33 @@ public class GeoIpDownloaderTaskExecutorTests extends ESTestCase {
         when(indexMetadata.getSettings()).thenAnswer(invocationMock -> indexSettings[0]);
         when(metadata.indices()).thenReturn(Map.of("index", indexMetadata));
 
-        List<String> pipelinesConfigJson = getPipelinesWithGeoIpProcessors().stream().map(jsonConfig -> {
-            Map<String, Object> configMap = XContentHelper.convertToMap(JsonXContent.jsonXContent, jsonConfig, false);
-            configMap.put("_meta", Map.of("geoip_database_lazy_download", true));
-            ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            try (XContentBuilder builder = new XContentBuilder(XContentType.JSON.xContent(), baos)) {
-                builder.map(configMap).close();
-                return baos.toString(StandardCharsets.UTF_8);
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-        }).collect(Collectors.toList());
+        for (String pipelineConfigJson : getPipelinesWithGeoIpProcessors(false)) {
+            System.out.println(pipelineConfigJson);
+            ingestMetadata[0] = new IngestMetadata(
+                Map.of("_id1", new PipelineConfiguration("_id1", new BytesArray(pipelineConfigJson), XContentType.JSON))
+            );
+            // The pipeline is not used in any index, expected to return false.
+            indexSettings[0] = Settings.EMPTY;
+            assertFalse(GeoIpDownloaderTaskExecutor.hasAtLeastOneGeoipProcessor(clusterState));
 
-        {
-            for (String pipelineConfigJson : pipelinesConfigJson) {
-                ingestMetadata[0] = new IngestMetadata(
-                    Map.of("_id1", new PipelineConfiguration("_id1", new BytesArray(pipelineConfigJson), XContentType.JSON))
-                );
-                // The pipeline is not used in any index, expected to return false.
-                indexSettings[0] = Settings.EMPTY;
-                assertFalse(GeoIpDownloaderTaskExecutor.hasAtLeastOneGeoipProcessor(clusterState));
+            // The pipeline is set as default pipeline in an index, expected to return true.
+            indexSettings[0] = Settings.builder().put(IndexSettings.DEFAULT_PIPELINE.getKey(), "_id1").build();
+            assertTrue(GeoIpDownloaderTaskExecutor.hasAtLeastOneGeoipProcessor(clusterState));
 
-                // The pipeline is set as default pipeline in an index, expected to return true.
-                indexSettings[0] = Settings.builder().put(IndexSettings.DEFAULT_PIPELINE.getKey(), "_id1").build();
-                assertTrue(GeoIpDownloaderTaskExecutor.hasAtLeastOneGeoipProcessor(clusterState));
-
-                // The pipeline is set as final pipeline in an index, expected to return true.
-                indexSettings[0] = Settings.builder().put(IndexSettings.FINAL_PIPELINE.getKey(), "_id1").build();
-                assertTrue(GeoIpDownloaderTaskExecutor.hasAtLeastOneGeoipProcessor(clusterState));
-            }
+            // The pipeline is set as final pipeline in an index, expected to return true.
+            indexSettings[0] = Settings.builder().put(IndexSettings.FINAL_PIPELINE.getKey(), "_id1").build();
+            assertTrue(GeoIpDownloaderTaskExecutor.hasAtLeastOneGeoipProcessor(clusterState));
         }
+
     }
 
-    public void testHasAtLeastOneGeoipProcessor() {
+    public void testHasAtLeastOneGeoipProcessor() throws IOException {
         final IngestMetadata[] ingestMetadata = new IngestMetadata[1];
         ClusterState clusterState = mock(ClusterState.class);
         Metadata metadata = mock(Metadata.class);
         when(metadata.custom(IngestMetadata.TYPE)).thenAnswer(invocationOnmock -> ingestMetadata[0]);
         when(clusterState.getMetadata()).thenReturn(metadata);
-        List<String> expectHitsInputs = getPipelinesWithGeoIpProcessors();
+        List<String> expectHitsInputs = getPipelinesWithGeoIpProcessors(true);
         List<String> expectMissesInputs = getPipelinesWithoutGeoIpProcessors();
         {
             // Test that hasAtLeastOneGeoipProcessor returns true for any pipeline with a geoip processor:
@@ -129,15 +114,10 @@ public class GeoIpDownloaderTaskExecutorTests extends ESTestCase {
      * This method returns an assorted list of pipelines that have geoip processors -- ones that ought to cause hasAtLeastOneGeoipProcessor
      *  to return true.
      */
-    private List<String> getPipelinesWithGeoIpProcessors() {
+    private List<String> getPipelinesWithGeoIpProcessors(boolean downloadDatabaseOnPipelineCreation) throws IOException {
         String simpleGeoIpProcessor = """
             {
-              "processors":[
-                {
-                  "geoip":{
-                    "field":"provider"
-                  }
-                }
+              "processors":[""" + getGeoIpProcessor(downloadDatabaseOnPipelineCreation) + """
               ]
             }
             """;
@@ -148,12 +128,7 @@ public class GeoIpDownloaderTaskExecutorTests extends ESTestCase {
                   "rename":{
                     "field":"provider",
                     "target_field":"cloud.provider",
-                    "on_failure":[
-                      {
-                        "geoip":{
-                          "field":"error.message"
-                        }
-                      }
+                    "on_failure":[""" + getGeoIpProcessor(downloadDatabaseOnPipelineCreation) + """
                     ]
                   }
                 }
@@ -166,12 +141,7 @@ public class GeoIpDownloaderTaskExecutorTests extends ESTestCase {
                 {
                   "foreach":{
                     "field":"values",
-                    "processor":
-                      {
-                        "geoip":{
-                          "field":"someField"
-                        }
-                      }
+                    "processor":""" + getGeoIpProcessor(downloadDatabaseOnPipelineCreation) + """
                   }
                 }
               ]
@@ -187,12 +157,7 @@ public class GeoIpDownloaderTaskExecutorTests extends ESTestCase {
                       {
                         "foreach":{
                           "field":"someField",
-                          "processor":
-                            {
-                              "geoip":{
-                                "field":"someField"
-                              }
-                            }
+                          "processor":""" + getGeoIpProcessor(downloadDatabaseOnPipelineCreation) + """
                         }
                       }
                   }
@@ -215,12 +180,7 @@ public class GeoIpDownloaderTaskExecutorTests extends ESTestCase {
                               "rename":{
                                 "field":"provider",
                                 "target_field":"cloud.provider",
-                                "on_failure":[
-                                  {
-                                    "geoip":{
-                                      "field":"error.message"
-                                    }
-                                  }
+                                "on_failure":[""" + getGeoIpProcessor(downloadDatabaseOnPipelineCreation) + """
                                 ]
                               }
                             }
@@ -242,12 +202,7 @@ public class GeoIpDownloaderTaskExecutorTests extends ESTestCase {
                       {
                         "foreach":{
                           "field":"values",
-                          "processor":
-                            {
-                              "geoip":{
-                                "field":"someField"
-                              }
-                            }
+                          "processor":""" + getGeoIpProcessor(downloadDatabaseOnPipelineCreation) + """
                         }
                       }
                     ]
@@ -307,5 +262,24 @@ public class GeoIpDownloaderTaskExecutorTests extends ESTestCase {
             }
             """;
         return List.of(empty, noProcessors, onFailureWithForeachWithSet);
+    }
+
+    private String getGeoIpProcessor(boolean downloadDatabaseOnPipelineCreation) throws IOException {
+        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+            builder.startObject();
+            {
+                builder.startObject("geoip");
+                {
+                    builder.field("field", randomIdentifier());
+                    if (downloadDatabaseOnPipelineCreation == false || randomBoolean()) {
+                        builder.field("download_database_on_pipeline_creation", downloadDatabaseOnPipelineCreation);
+                    }
+                }
+                builder.endObject();
+            }
+            builder.endObject();
+
+            return Strings.toString(builder);
+        }
     }
 }

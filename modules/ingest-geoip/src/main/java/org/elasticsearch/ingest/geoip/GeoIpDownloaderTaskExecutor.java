@@ -41,7 +41,6 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteTransportException;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -50,6 +49,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.ingest.geoip.GeoIpDownloader.DATABASES_INDEX;
 import static org.elasticsearch.ingest.geoip.GeoIpDownloader.GEOIP_DOWNLOADER;
+import static org.elasticsearch.ingest.geoip.GeoIpProcessor.Factory.downloadDatabaseOnPipelineCreation;
 
 /**
  * Persistent task executor that is responsible for starting {@link GeoIpDownloader} after task is allocated by master node.
@@ -234,19 +234,11 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
     @SuppressWarnings("unchecked")
     static boolean hasAtLeastOneGeoipProcessor(ClusterState clusterState) {
         List<PipelineConfiguration> pipelineDefinitions = IngestService.getPipelines(clusterState);
-        return pipelineDefinitions.stream().anyMatch(pipelineDefinition -> {
-            if (isLazyDownloadPipeline(pipelineDefinition) && (isPipelineUsed(clusterState, pipelineDefinition.getId()) == false)) {
-                return false;
-            }
-            Map<String, Object> pipelineMap = pipelineDefinition.getConfigAsMap();
-            return hasAtLeastOneGeoipProcessor((List<Map<String, Object>>) pipelineMap.get(Pipeline.PROCESSORS_KEY));
+        return pipelineDefinitions.stream().anyMatch(pipelineConfig -> {
+            boolean isPipelineUsed = isPipelineUsed(clusterState, pipelineConfig.getId());
+            List<Map<String, Object>> processors = (List<Map<String, Object>>) pipelineConfig.getConfigAsMap().get(Pipeline.PROCESSORS_KEY);
+            return hasAtLeastOneGeoipProcessor(processors, isPipelineUsed);
         });
-    }
-
-    @SuppressWarnings("unchecked")
-    private static boolean isLazyDownloadPipeline(PipelineConfiguration pipelineDefinition) {
-        Map<String, Object> meta = (Map<String, Object>) pipelineDefinition.getConfigAsMap().getOrDefault("_meta", Collections.emptyMap());
-        return (boolean) meta.getOrDefault("geoip_database_lazy_download", false);
     }
 
     private static boolean isPipelineUsed(ClusterState clusterState, String pipelineId) {
@@ -257,32 +249,40 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
         });
     }
 
-    private static boolean hasAtLeastOneGeoipProcessor(List<Map<String, Object>> processors) {
-        return processors != null && processors.stream().anyMatch(GeoIpDownloaderTaskExecutor::hasAtLeastOneGeoipProcessor);
-    }
-
-    private static boolean hasAtLeastOneGeoipProcessor(Map<String, Object> processor) {
-        return processor != null
-            && (processor.containsKey(GeoIpProcessor.TYPE)
-                || isProcessorWithOnFailureGeoIpProcessor(processor)
-                || isForeachProcessorWithGeoipProcessor(processor));
+    private static boolean hasAtLeastOneGeoipProcessor(List<Map<String, Object>> processors, boolean isPipelineUsed) {
+        return processors != null && processors.stream().anyMatch(p -> hasAtLeastOneGeoipProcessor(p, isPipelineUsed));
     }
 
     @SuppressWarnings("unchecked")
-    private static boolean isProcessorWithOnFailureGeoIpProcessor(Map<String, Object> processor) {
+    private static boolean hasAtLeastOneGeoipProcessor(Map<String, Object> processor, boolean isPipelineUsed) {
+        if (processor == null) {
+            return false;
+        }
+
+        if (processor.containsKey(GeoIpProcessor.TYPE)) {
+            Map<String, Object> processorConfig = (Map<String, Object>) processor.get(GeoIpProcessor.TYPE);
+            return downloadDatabaseOnPipelineCreation(processorConfig) || isPipelineUsed;
+        }
+
+        return isProcessorWithOnFailureGeoIpProcessor(processor, isPipelineUsed)
+            || isForeachProcessorWithGeoipProcessor(processor, isPipelineUsed);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static boolean isProcessorWithOnFailureGeoIpProcessor(Map<String, Object> processor, boolean isPipelineUsed) {
         return processor != null
             && processor.values()
                 .stream()
                 .anyMatch(
                     value -> value instanceof Map
-                        && hasAtLeastOneGeoipProcessor(((Map<String, List<Map<String, Object>>>) value).get("on_failure"))
+                        && hasAtLeastOneGeoipProcessor(((Map<String, List<Map<String, Object>>>) value).get("on_failure"), isPipelineUsed)
                 );
     }
 
     @SuppressWarnings("unchecked")
-    private static boolean isForeachProcessorWithGeoipProcessor(Map<String, Object> processor) {
+    private static boolean isForeachProcessorWithGeoipProcessor(Map<String, Object> processor, boolean isPipelineUsed) {
         return processor.containsKey("foreach")
-            && hasAtLeastOneGeoipProcessor(((Map<String, Map<String, Object>>) processor.get("foreach")).get("processor"));
+            && hasAtLeastOneGeoipProcessor(((Map<String, Map<String, Object>>) processor.get("foreach")).get("processor"), isPipelineUsed);
     }
 
     private void startTask(Runnable onFailure) {

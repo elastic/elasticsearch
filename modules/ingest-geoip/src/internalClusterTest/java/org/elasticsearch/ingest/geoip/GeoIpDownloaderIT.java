@@ -285,7 +285,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         }, 2, TimeUnit.MINUTES);
     }
 
-    public void testGeoIpPipelineDatabasesLazyDownload() throws Exception {
+    public void testDoNotDownloadDatabaseOnPipelineCreation() throws Exception {
         assumeTrue("only test with fixture to have stable results", getEndpoint() != null);
         String pipelineId = randomIdentifier();
 
@@ -495,10 +495,10 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
      * This creates a pipeline named pipelineId with a geoip processor, which ought to cause the geoip downloader to begin (assuming it is
      * enabled).
      * @param pipelineId The name of the new pipeline with a geoip processor
-    *  @param lazyDownload Indicates whether the pipeline creation should trigger databse dowload or not.
+    *  @param downloadDatabaseOnPipelineCreation Indicates whether the pipeline creation should trigger database download or not.
      * @throws IOException
      */
-    private void putGeoIpPipeline(String pipelineId, boolean lazyDownload) throws IOException {
+    private void putGeoIpPipeline(String pipelineId, boolean downloadDatabaseOnPipelineCreation) throws IOException {
         BytesReference bytes;
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             builder.startObject();
@@ -512,6 +512,9 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
                             builder.field("field", "ip");
                             builder.field("target_field", "ip-city");
                             builder.field("database_file", "GeoLite2-City.mmdb");
+                            if (downloadDatabaseOnPipelineCreation) {
+                                builder.field("download_database_on_pipeline_creation", true);
+                            }
                         }
                         builder.endObject();
                     }
@@ -523,6 +526,9 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
                             builder.field("field", "ip");
                             builder.field("target_field", "ip-country");
                             builder.field("database_file", "GeoLite2-Country.mmdb");
+                            if (downloadDatabaseOnPipelineCreation) {
+                                builder.field("download_database_on_pipeline_creation", true);
+                            }
                         }
                         builder.endObject();
                     }
@@ -534,15 +540,15 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
                             builder.field("field", "ip");
                             builder.field("target_field", "ip-asn");
                             builder.field("database_file", "GeoLite2-ASN.mmdb");
+                            if (downloadDatabaseOnPipelineCreation) {
+                                builder.field("download_database_on_pipeline_creation", true);
+                            }
                         }
                         builder.endObject();
                     }
                     builder.endObject();
                 }
                 builder.endArray();
-            }
-            if (lazyDownload) {
-                builder.startObject("_meta").field("geoip_database_lazy_download", true).endObject();
             }
             builder.endObject();
             bytes = BytesReference.bytes(builder);

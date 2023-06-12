@@ -14,7 +14,7 @@ CC BY-SA 4.0 license. It automatically downloads these databases if your nodes c
 
 * `ingest.geoip.downloader.eager.download` is set to true
 * your cluster has at least one pipeline with a `geoip` processor
- 
+
 {es} automatically downloads updates for these databases from the Elastic GeoIP endpoint:
 https://geoip.elastic.co/v1/database. To get download statistics for these
 updates, use the <<geoip-stats-api,GeoIP stats API>>.
@@ -33,13 +33,14 @@ field instead.
 .`geoip` options
 [options="header"]
 |======
-| Name                   | Required  | Default                                                                            | Description
-| `field`                | yes       | -                                                                                  | The field to get the ip address from for the geographical lookup.
-| `target_field`         | no        | geoip                                                                              | The field that will hold the geographical information looked up from the MaxMind database.
-| `database_file`        | no        | GeoLite2-City.mmdb                                                                 | The database filename referring to a database the module ships with (GeoLite2-City.mmdb, GeoLite2-Country.mmdb, or GeoLite2-ASN.mmdb) or a custom database in the `ingest-geoip` config directory.
-| `properties`           | no        | [`continent_name`, `country_iso_code`, `country_name`, `region_iso_code`, `region_name`, `city_name`, `location`] *   | Controls what properties are added to the `target_field` based on the geoip lookup.
-| `ignore_missing`       | no        | `false`                                                                            | If `true` and `field` does not exist, the processor quietly exits without modifying the document
-| `first_only`           | no        | `true`                                                                             | If `true` only first found geoip data will be returned, even if `field` contains array
+| Name                                     | Required  | Default                                                                            | Description
+| `field`                                  | yes       | -                                                                                  | The field to get the ip address from for the geographical lookup.
+| `target_field`                           | no        | geoip                                                                              | The field that will hold the geographical information looked up from the MaxMind database.
+| `database_file`                          | no        | GeoLite2-City.mmdb                                                                 | The database filename referring to a database the module ships with (GeoLite2-City.mmdb, GeoLite2-Country.mmdb, or GeoLite2-ASN.mmdb) or a custom database in the `ingest-geoip` config directory.
+| `properties`                             | no        | [`continent_name`, `country_iso_code`, `country_name`, `region_iso_code`, `region_name`, `city_name`, `location`] *   | Controls what properties are added to the `target_field` based on the geoip lookup.
+| `ignore_missing`                         | no        | `false`                                                                            | If `true` and `field` does not exist, the processor quietly exits without modifying the document
+| `first_only`                             | no        | `true`                                                                             | If `true` only first found geoip data will be returned, even if `field` contains array
+| `download_database_on_pipeline_creation` | no        | `true`                                                                             | If `true`, the missing database is downloaded when the pipeline is created. Else, the download is triggered by when the pipeline is used as `default_pipeline` or `final_pipeline` in an index.
 |======
 
 *Depends on what is available in `database_file`:

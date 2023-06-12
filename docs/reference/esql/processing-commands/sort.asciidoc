@@ -15,8 +15,8 @@ The default sort order is ascending. Set an explicit sort order using `ASC` or
 include::{esql-specs}/docs.csv-spec[tag=sortDesc]
 ----
 
-If two rows have the same sort key, the original order will be preserved. You
-can provide additional sort expressions to act as tie breakers:
+Two rows with the same sort key are considered equal. You can provide additional
+sort expressions to act as tie breakers:
 
 [source,esql]
 ----

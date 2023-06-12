@@ -448,8 +448,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
 
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
 
-        Settings.Builder indexSettings = indexSettingsNoReplicas(between(1, 3))
-            .put(INDEX_SOFT_DELETES_SETTING.getKey(), true);
+        Settings.Builder indexSettings = indexSettingsNoReplicas(between(1, 3)).put(INDEX_SOFT_DELETES_SETTING.getKey(), true);
 
         assertAcked(prepareCreate(indexName, indexSettings));
 
@@ -479,7 +478,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
             repositorySettings.put(MAX_RESTORE_BYTES_PER_SEC.getKey(), ByteSizeValue.ZERO);
         }
 
-        if ( useRateLimits == false ) {
+        if (useRateLimits == false) {
             // Disable rate limiter which is defined in RecoverySettings
             // BlobStoreRepository#maybeRateLimitRestores uses two rate limiters and a single callback listener
             // which is asserted in this test. Both rate limiter should be switched off
@@ -525,7 +524,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
             }
         }
 
-        if ( useRateLimits == false ) {
+        if (useRateLimits == false) {
             // compensate setting change from above
             updateClusterSettings(Settings.builder().putNull(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey()));
         }

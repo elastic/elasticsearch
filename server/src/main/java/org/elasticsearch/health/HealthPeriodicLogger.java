@@ -34,7 +34,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-
 public class HealthPeriodicLogger implements ClusterStateListener, Closeable, SchedulerEngine.Listener {
     public static final String HEALTH_SERVICE_POLL_INTERVAL = "health_service.poll_interval";
     public static final Setting<TimeValue> HEALTH_SERVICE_POLL_INTERVAL_SETTING = Setting.timeSetting(
@@ -65,11 +64,7 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
 
     private static final Logger logger = LogManager.getLogger(HealthPeriodicLogger.class);
 
-    public HealthPeriodicLogger(
-        Settings settings,
-        ClusterService clusterService,
-        NodeClient client,
-        HealthService healthService) {
+    public HealthPeriodicLogger(Settings settings, ClusterService clusterService, NodeClient client, HealthService healthService) {
         this.settings = settings;
         this.clusterService = clusterService;
         this.client = client;
@@ -78,7 +73,6 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
         this.scheduledJob = null;
         this.pollInterval = HEALTH_SERVICE_POLL_INTERVAL_SETTING.get(settings);
     }
-
 
     /**
      * Initializer method to avoid the publication of a self reference in the constructor.
@@ -167,7 +161,6 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
         scheduler.get().add(scheduledJob);
     }
 
-
     @Override
     public void triggered(SchedulerEngine.Event event) {
         if (event.getJobName().equals(HEALTH_SERVICE_JOB_NAME)) {
@@ -179,14 +172,12 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
                         GetHealthAction.Response healthResponse = new GetHealthAction.Response(null, healthIndicatorResults, true);
                         Map<String, Object> jsonFields = new HashMap<>();
                         jsonFields.put("elasticsearch.health.status", healthResponse.getStatus().xContentValue());
-                        healthResponse.getIndicatorResults().forEach(
-                            (result) -> {
-                                jsonFields.put(
-                                    String.format(Locale.ROOT, "elasticsearch.health.%s.status", result.name()),
-                                    result.status().xContentValue()
-                                );
-                            }
-                        );
+                        healthResponse.getIndicatorResults().forEach((result) -> {
+                            jsonFields.put(
+                                String.format(Locale.ROOT, "elasticsearch.health.%s.status", result.name()),
+                                result.status().xContentValue()
+                            );
+                        });
                         ESLogMessage msg = new ESLogMessage().withFields(jsonFields);
                         logger.info(msg);
                     }

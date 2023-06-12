@@ -31,6 +31,7 @@ import java.io.Closeable;
 import java.time.Clock;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 
@@ -181,7 +182,7 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
                         healthResponse.getIndicatorResults().forEach(
                             (result) -> {
                                 jsonFields.put(
-                                    String.format("elasticsearch.health.%s.status", result.name()),
+                                    String.format(Locale.ROOT, "elasticsearch.health.%s.status", result.name()),
                                     result.status().xContentValue()
                                 );
                             }

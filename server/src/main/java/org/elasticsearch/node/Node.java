@@ -1034,8 +1034,8 @@ public class Node implements Closeable {
                 systemIndices
             );
 
-            HealthPeriodicLogger healthLogger = createHealthPeriodicLogger(clusterService, settings, client, healthService);
-            healthLogger.init();
+            HealthPeriodicLogger healthPeriodicLogger = createHealthPeriodicLogger(clusterService, settings, client, healthService);
+            healthPeriodicLogger.init();
 
             HealthMetadataService healthMetadataService = HealthMetadataService.create(clusterService, settings);
             LocalHealthMonitor localHealthMonitor = LocalHealthMonitor.create(settings, clusterService, nodeService, threadPool, client);
@@ -1143,7 +1143,7 @@ public class Node implements Closeable {
                 b.bind(Tracer.class).toInstance(tracer);
                 b.bind(FileSettingsService.class).toInstance(fileSettingsService);
                 b.bind(WriteLoadForecaster.class).toInstance(writeLoadForecaster);
-                b.bind(HealthPeriodicLogger.class).toInstance(healthLogger);
+                b.bind(HealthPeriodicLogger.class).toInstance(healthPeriodicLogger);
             });
 
             if (ReadinessService.enabled(environment)) {

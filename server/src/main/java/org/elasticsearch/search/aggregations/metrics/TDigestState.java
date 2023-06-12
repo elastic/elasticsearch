@@ -10,8 +10,6 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.search.SearchService;
 import org.elasticsearch.tdigest.Centroid;
 import org.elasticsearch.tdigest.TDigest;
 
@@ -28,22 +26,6 @@ import java.util.List;
  */
 public class TDigestState {
 
-    public static final Setting<String> DEFAULT_TYPE = Setting.simpleString(
-        "search.aggregations.tdigest.default_type",
-        Type.HYBRID.toString(),
-        Type::valueOf,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
-
-    public static final Setting<String> TYPE_FOR_HIGH_ACCURACY = Setting.simpleString(
-        "search.aggregations.tdigest.type_for_high_accuracy",
-        Type.AVL_TREE.toString(),
-        Type::valueOf,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
-
     private final double compression;
 
     private final TDigest tdigest;
@@ -56,11 +38,11 @@ public class TDigestState {
         SORTING;
 
         static Type defaultValue() {
-            return SearchService.getSettings().map(value -> Type.valueOf(DEFAULT_TYPE.get(value))).orElse(HYBRID);
+            return AVL_TREE;
         }
 
         static Type valueForHighAccuracy() {
-            return SearchService.getSettings().map(value -> Type.valueOf(TYPE_FOR_HIGH_ACCURACY.get(value))).orElse(AVL_TREE);
+            return AVL_TREE;
         }
     }
 

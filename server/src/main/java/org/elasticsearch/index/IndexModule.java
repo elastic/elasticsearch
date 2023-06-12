@@ -98,6 +98,8 @@ public final class IndexModule {
 
     public static final Setting<Boolean> NODE_STORE_ALLOW_MMAP = Setting.boolSetting("node.store.allow_mmap", true, Property.NodeScope);
 
+    public static final Setting<Boolean> NODE_STORE_USE_FSYNC = Setting.boolSetting("node.store.use_fsync", true, Property.NodeScope);
+
     private static final FsDirectoryFactory DEFAULT_DIRECTORY_FACTORY = new FsDirectoryFactory();
 
     private static final IndexStorePlugin.RecoveryStateFactory DEFAULT_RECOVERY_STATE_FACTORY = RecoveryState::new;

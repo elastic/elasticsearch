@@ -84,6 +84,8 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
 
     private final DiskIoBufferPool diskIoBufferPool;
 
+    private final boolean useFsync;
+
     // package private for testing
     LastModifiedTimeCache lastModifiedTimeCache;
 
@@ -97,6 +99,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         final FileChannel checkpointChannel,
         final Path path,
         final Path checkpointPath,
+        final boolean useFsync,
         final ByteSizeValue bufferSize,
         final LongSupplier globalCheckpointSupplier,
         LongSupplier minTranslogGenerationSupplier,
@@ -118,6 +121,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         this.shardId = shardId;
         this.checkpointChannel = checkpointChannel;
         this.checkpointPath = checkpointPath;
+        this.useFsync = useFsync;
         this.minTranslogGenerationSupplier = minTranslogGenerationSupplier;
         this.lastSyncedCheckpoint = initialCheckpoint;
         this.totalOffset = initialCheckpoint.offset;
@@ -142,6 +146,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         long fileGeneration,
         Path file,
         ChannelFactory channelFactory,
+        boolean useFsync,
         ByteSizeValue bufferSize,
         final long initialMinTranslogGen,
         long initialGlobalCheckpoint,
@@ -162,14 +167,14 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         try {
             checkpointChannel = channelFactory.open(checkpointFile, StandardOpenOption.WRITE);
             final TranslogHeader header = new TranslogHeader(translogUUID, primaryTerm);
-            header.write(channel);
+            header.write(channel, useFsync);
             final Checkpoint checkpoint = Checkpoint.emptyTranslogCheckpoint(
                 header.sizeInBytes(),
                 fileGeneration,
                 initialGlobalCheckpoint,
                 initialMinTranslogGen
             );
-            writeCheckpoint(checkpointChannel, checkpointFile, checkpoint);
+            Checkpoint.write(checkpointChannel, checkpointFile, checkpoint, useFsync);
             final LongSupplier writerGlobalCheckpointSupplier;
             if (Assertions.ENABLED) {
                 writerGlobalCheckpointSupplier = () -> {
@@ -188,6 +193,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                 checkpointChannel,
                 file,
                 checkpointFile,
+                useFsync,
                 bufferSize,
                 writerGlobalCheckpointSupplier,
                 minTranslogGenerationSupplier,
@@ -504,10 +510,10 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                     // we can continue writing to the buffer etc.
                     try {
                         assert lastSyncedCheckpoint.offset != checkpointToSync.offset || toWrite.length() == 0;
-                        if (lastSyncedCheckpoint.offset != checkpointToSync.offset) {
+                        if (useFsync && lastSyncedCheckpoint.offset != checkpointToSync.offset) {
                             channel.force(false);
                         }
-                        writeCheckpoint(checkpointChannel, checkpointPath, checkpointToSync);
+                        Checkpoint.write(checkpointChannel, checkpointPath, checkpointToSync, false);
                     } catch (final Exception ex) {
                         closeWithTragicEvent(ex);
                         throw ex;
@@ -611,11 +617,6 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         // we don't have to have a lock here because we only write ahead to the file, so all writes has been complete
         // for the requested location.
         Channels.readFromFileChannelWithEofException(channel, position, targetBuffer);
-    }
-
-    private static void writeCheckpoint(final FileChannel fileChannel, final Path checkpointFile, final Checkpoint checkpoint)
-        throws IOException {
-        Checkpoint.write(fileChannel, checkpointFile, checkpoint);
     }
 
     /**

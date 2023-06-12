@@ -46,6 +46,7 @@ import org.elasticsearch.gateway.CorruptStateException;
 import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
@@ -316,8 +317,10 @@ public final class NodeEnvironment implements Closeable {
                         + Version.CURRENT
                         + " to prevent a downgrade to a version prior to v8.0.0 which would result in data loss";
                     Files.writeString(legacyNodesPath, content);
-                    IOUtils.fsync(legacyNodesPath, false);
-                    IOUtils.fsync(dataPath, true);
+                    if (IndexModule.NODE_STORE_USE_FSYNC.get(settings)) {
+                        IOUtils.fsync(legacyNodesPath, false);
+                        IOUtils.fsync(dataPath, true);
+                    }
                 }
             }
 

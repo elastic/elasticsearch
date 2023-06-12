@@ -1971,6 +1971,7 @@ public class TranslogTests extends ESTestCase {
             FileChannel::open,
             config.getTranslogPath().resolve(Translog.getCommitCheckpointFileName(read.generation)),
             corrupted,
+            randomBoolean(),
             StandardOpenOption.WRITE,
             StandardOpenOption.CREATE_NEW
         );
@@ -1994,6 +1995,7 @@ public class TranslogTests extends ESTestCase {
             FileChannel::open,
             config.getTranslogPath().resolve(Translog.getCommitCheckpointFileName(read.generation)),
             read,
+            randomBoolean(),
             StandardOpenOption.WRITE,
             StandardOpenOption.TRUNCATE_EXISTING
         );
@@ -3296,6 +3298,7 @@ public class TranslogTests extends ESTestCase {
             FileChannel::open,
             tempDir.resolve("foo.cpk"),
             checkpoint,
+            randomBoolean(),
             StandardOpenOption.WRITE,
             StandardOpenOption.CREATE_NEW
         );
@@ -3312,7 +3315,7 @@ public class TranslogTests extends ESTestCase {
                 failSwitch.failAlways();
                 return channel;
 
-            }, tempDir.resolve("foo.cpk"), checkpoint2, StandardOpenOption.WRITE);
+            }, tempDir.resolve("foo.cpk"), checkpoint2, randomBoolean(), StandardOpenOption.WRITE);
             fail("should have failed earlier");
         } catch (MockDirectoryWrapper.FakeIOException ex) {
             // fine

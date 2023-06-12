@@ -183,23 +183,28 @@ final class Checkpoint {
         }
     }
 
-    public static void write(ChannelFactory factory, Path checkpointFile, Checkpoint checkpoint, OpenOption... options) throws IOException {
+    public static void write(ChannelFactory factory, Path checkpointFile, Checkpoint checkpoint, boolean useFsync, OpenOption... options)
+        throws IOException {
         byte[] bytes = createCheckpointBytes(checkpointFile, checkpoint);
 
         // now go and write to the channel, in one go.
         try (FileChannel channel = factory.open(checkpointFile, options)) {
             Channels.writeToChannel(bytes, channel);
-            // fsync with metadata as we use this method when creating the file
-            channel.force(true);
+            if (useFsync) {
+                // fsync with metadata as we use this method when creating the file
+                channel.force(true);
+            }
         }
     }
 
-    public static void write(FileChannel fileChannel, Path checkpointFile, Checkpoint checkpoint) throws IOException {
+    public static void write(FileChannel fileChannel, Path checkpointFile, Checkpoint checkpoint, boolean useFsync) throws IOException {
         byte[] bytes = createCheckpointBytes(checkpointFile, checkpoint);
         Channels.writeToChannel(bytes, fileChannel, 0);
         // no need to force metadata, file size stays the same and we did the full fsync
         // when we first created the file, so the directory entry doesn't change as well
-        fileChannel.force(false);
+        if (useFsync) {
+            fileChannel.force(false);
+        }
     }
 
     private static byte[] createCheckpointBytes(Path checkpointFile, Checkpoint checkpoint) throws IOException {

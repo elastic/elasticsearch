@@ -23,9 +23,9 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -122,6 +122,9 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     private final LongSupplier globalCheckpointSupplier;
     private final LongSupplier primaryTermSupplier;
     private final String translogUUID;
+
+    private final boolean useFsync;
+
     private final TranslogDeletionPolicy deletionPolicy;
     private final LongConsumer persistedSequenceNumberConsumer;
     private final OperationListener operationListener;
@@ -161,6 +164,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         this.operationListener = config.getOperationListener();
         this.deletionPolicy = deletionPolicy;
         this.translogUUID = translogUUID;
+        this.useFsync = IndexModule.NODE_STORE_USE_FSYNC.get(config.getIndexSettings().getNodeSettings());
         bigArrays = config.getBigArrays();
         diskIoBufferPool = config.getDiskIoBufferPool();
         ReadWriteLock rwl = new ReentrantReadWriteLock();
@@ -309,11 +313,15 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             // we first copy this into the temp-file and then fsync it followed by an atomic move into the target file
             // that way if we hit a disk-full here we are still in an consistent state.
             Files.copy(location.resolve(CHECKPOINT_FILE_NAME), tempFile, StandardCopyOption.REPLACE_EXISTING);
-            IOUtils.fsync(tempFile, false);
+            if (useFsync) {
+                IOUtils.fsync(tempFile, false);
+            }
             Files.move(tempFile, targetPath, StandardCopyOption.ATOMIC_MOVE);
             tempFileRenamed = true;
             // we only fsync the directory the tempFile was already fsynced
-            IOUtils.fsync(targetPath.getParent(), true);
+            if (useFsync) {
+                IOUtils.fsync(targetPath.getParent(), true);
+            }
         } finally {
             if (tempFileRenamed == false) {
                 try {
@@ -547,6 +555,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 fileGeneration,
                 location.resolve(getFilename(fileGeneration)),
                 getChannelFactory(),
+                useFsync,
                 config.getBufferSize(),
                 initialMinTranslogGen,
                 initialGlobalCheckpoint,
@@ -821,7 +830,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             try {
                 for (TranslogReader reader : readers) {
                     final TranslogReader newReader = reader.getPrimaryTerm() < belowTerm
-                        ? reader.closeIntoTrimmedReader(aboveSeqNo, getChannelFactory())
+                        ? reader.closeIntoTrimmedReader(aboveSeqNo, getChannelFactory(), useFsync)
                         : reader;
                     newReaders.add(newReader);
                 }
@@ -1873,52 +1882,27 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         ChannelFactory channelFactory,
         long primaryTerm
     ) throws IOException {
-        return createEmptyTranslog(location, shardId, initialGlobalCheckpoint, primaryTerm, null, channelFactory);
-    }
-
-    /**
-     * Creates a new empty translog within the specified {@code location} that contains the given {@code initialGlobalCheckpoint},
-     * {@code primaryTerm} and {@code translogUUID}.
-     *
-     * This method should be used directly under specific circumstances like for shards that will see no indexing. Specifying a non-unique
-     * translog UUID could cause a lot of issues and that's why in all (but one) cases the method
-     * {@link #createEmptyTranslog(Path, long, ShardId, long)} should be used instead.
-     *
-     * @param location                a {@link Path} to the directory that will contains the translog files (translog + translog checkpoint)
-     * @param shardId                 the {@link ShardId}
-     * @param initialGlobalCheckpoint the global checkpoint to initialize the translog with
-     * @param primaryTerm             the shard's primary term to initialize the translog with
-     * @param translogUUID            the unique identifier to initialize the translog with
-     * @param factory                 a {@link ChannelFactory} used to open translog files
-     * @return the translog's unique identifier
-     * @throws IOException if something went wrong during translog creation
-     */
-    public static String createEmptyTranslog(
-        final Path location,
-        final ShardId shardId,
-        final long initialGlobalCheckpoint,
-        final long primaryTerm,
-        @Nullable final String translogUUID,
-        @Nullable final ChannelFactory factory
-    ) throws IOException {
         IOUtils.rm(location);
         Files.createDirectories(location);
 
         final long generation = 1L;
         final long minTranslogGeneration = 1L;
-        final ChannelFactory channelFactory = factory != null ? factory : FileChannel::open;
-        final String uuid = Strings.hasLength(translogUUID) ? translogUUID : UUIDs.randomBase64UUID();
+        channelFactory = channelFactory != null ? channelFactory : FileChannel::open;
+        final String uuid = Strings.hasLength((String) null) ? null : UUIDs.randomBase64UUID();
         final Path checkpointFile = location.resolve(CHECKPOINT_FILE_NAME);
         final Path translogFile = location.resolve(getFilename(generation));
         final Checkpoint checkpoint = Checkpoint.emptyTranslogCheckpoint(0, generation, initialGlobalCheckpoint, minTranslogGeneration);
 
-        Checkpoint.write(channelFactory, checkpointFile, checkpoint, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW);
+        // TODO: make this conditional on IndexModule#NODE_STORE_USE_FSYNC
+        boolean useFsync = true;
+        Checkpoint.write(channelFactory, checkpointFile, checkpoint, useFsync, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW);
         final TranslogWriter writer = TranslogWriter.create(
             shardId,
             uuid,
             generation,
             translogFile,
             channelFactory,
+            useFsync,
             EMPTY_TRANSLOG_BUFFER_SIZE,
             minTranslogGeneration,
             initialGlobalCheckpoint,
@@ -1938,4 +1922,5 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         writer.close();
         return uuid;
     }
+
 }

@@ -72,6 +72,7 @@ import org.elasticsearch.env.ShardLockObtainFailedException;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.engine.DocIdSeqNoAndSource;
@@ -606,6 +607,11 @@ public final class InternalTestCluster extends TestCluster {
             // Nodes may fail to join a cluster within the default 30s timeout so we must sometimes skip that wait to ensure there's nothing
             // in the startup process which relies on having joined a cluster.
             builder.put(INITIAL_STATE_TIMEOUT_SETTING.getKey(), "0s");
+        }
+
+        if (random.nextBoolean() || random.nextBoolean()) {
+            // Disable fsync in 75% of test runs
+            builder.put(IndexModule.NODE_STORE_USE_FSYNC.getKey(), false);
         }
 
         return builder.build();

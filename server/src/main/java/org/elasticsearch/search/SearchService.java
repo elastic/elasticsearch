@@ -13,6 +13,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
@@ -103,7 +104,6 @@ import org.elasticsearch.search.query.QueryPhase;
 import org.elasticsearch.search.query.QuerySearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.ScrollQuerySearchResult;
-import org.elasticsearch.search.query.SearchQueryWrapper;
 import org.elasticsearch.search.rescore.RescorerBuilder;
 import org.elasticsearch.search.searchafter.SearchAfterBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
@@ -1370,11 +1370,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
 
         if (source.rankBuilder() != null) {
-            List<SearchQueryWrapper> searchQueries = new ArrayList<>();
+            List<Query> queries = new ArrayList<>();
             for (SearchQueryWrapperBuilder searchQueryWrapperBuilder : source.queries()) {
-                searchQueries.add(searchQueryWrapperBuilder.toSearchQuery(context.getSearchExecutionContext()));
+                queries.add(searchQueryWrapperBuilder.toSearchQuery(context.getSearchExecutionContext()));
             }
-            context.rankShardContext(source.rankBuilder().buildRankShardContext(searchQueries, context.from()));
+            context.rankShardContext(source.rankBuilder().buildRankShardContext(queries, context.from()));
         }
     }
 

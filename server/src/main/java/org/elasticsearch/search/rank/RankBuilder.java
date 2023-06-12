@@ -8,12 +8,12 @@
 
 package org.elasticsearch.search.rank;
 
+import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.search.SearchService;
-import org.elasticsearch.search.query.SearchQueryWrapper;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -70,7 +70,7 @@ public abstract class RankBuilder implements VersionedNamedWriteable, ToXContent
     /**
      * Generates a context used to execute required searches on the shard.
      */
-    public abstract RankShardContext buildRankShardContext(List<SearchQueryWrapper> searchQueries, int from);
+    public abstract RankShardContext buildRankShardContext(List<Query> queries, int from);
 
     /**
      * Generates a context used to perform global ranking on the coordinator.

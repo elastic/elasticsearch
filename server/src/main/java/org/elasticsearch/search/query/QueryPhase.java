@@ -103,12 +103,12 @@ public class QueryPhase {
         int nodeQueueSize = querySearchResult.nodeQueueSize();
 
         // run each of the rrf queries
-        for (SearchQueryWrapper searchQueryWrapper : rankShardContext.searchQueries()) {
+        for (Query query : rankShardContext.queries()) {
             // if a search timeout occurs, exit with partial results
             if (searchTimedOut) {
                 break;
             }
-            RankSearchContext rankSearchContext = new RankSearchContext(searchContext, searchQueryWrapper, rankShardContext.windowSize());
+            RankSearchContext rankSearchContext = new RankSearchContext(searchContext, query, rankShardContext.windowSize());
             QueryPhase.addCollectorsAndSearch(rankSearchContext);
             QuerySearchResult rrfQuerySearchResult = rankSearchContext.queryResult();
             rrfRankResults.add(rrfQuerySearchResult.topDocs().topDocs);

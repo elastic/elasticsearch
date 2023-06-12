@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.builder;
 
+import org.apache.lucene.search.Query;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -16,7 +17,6 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.search.query.SearchQueryWrapper;
 import org.elasticsearch.usage.SearchUsage;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ToXContent;
@@ -94,8 +94,8 @@ public class SearchQueryWrapperBuilder implements ToXContent, Writeable, Rewrite
         return queryBuilder;
     }
 
-    public SearchQueryWrapper toSearchQuery(SearchExecutionContext context) throws IOException {
-        return new SearchQueryWrapper(queryBuilder.toQuery(context));
+    public Query toSearchQuery(SearchExecutionContext context) throws IOException {
+        return queryBuilder.toQuery(context);
     }
 
     @Override

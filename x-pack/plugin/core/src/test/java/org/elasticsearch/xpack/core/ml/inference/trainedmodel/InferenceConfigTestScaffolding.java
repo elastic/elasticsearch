@@ -67,6 +67,8 @@ public final class InferenceConfigTestScaffolding {
             return new MPNetTokenizationUpdate(truncate, span);
         } else if (tokenization instanceof RobertaTokenization) {
             return new RobertaTokenizationUpdate(truncate, span);
+        } else if (tokenization instanceof BertJapaneseTokenization) {
+            return new BertJapaneseTokenizationUpdate(truncate, span);
         } else if (tokenization instanceof BertTokenization) {
             return new BertTokenizationUpdate(truncate, span);
         } else if (tokenization instanceof XLMRobertaTokenization) {

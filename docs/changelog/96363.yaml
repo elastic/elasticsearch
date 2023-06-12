@@ -1,0 +1,5 @@
+pr: 96363
+summary: Gracefully shutdown elasticsearch
+area: Infra/Node Lifecycle
+type: feature
+issues: []

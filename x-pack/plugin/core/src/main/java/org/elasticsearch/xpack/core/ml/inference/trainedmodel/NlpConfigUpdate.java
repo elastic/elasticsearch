@@ -35,6 +35,8 @@ public abstract class NlpConfigUpdate implements InferenceConfigUpdate, NamedXCo
         Map<String, BiFunction<Tokenization.Truncate, Integer, TokenizationUpdate>> knownTokenizers = Map.of(
             BertTokenization.NAME.getPreferredName(),
             BertTokenizationUpdate::new,
+            BertJapaneseTokenization.NAME.getPreferredName(),
+            BertJapaneseTokenizationUpdate::new,
             MPNetTokenization.NAME.getPreferredName(),
             MPNetTokenizationUpdate::new,
             RobertaTokenizationUpdate.NAME.getPreferredName(),

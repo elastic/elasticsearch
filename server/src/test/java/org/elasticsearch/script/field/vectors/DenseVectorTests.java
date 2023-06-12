@@ -70,7 +70,7 @@ public class DenseVectorTests extends ESTestCase {
 
         for (Version indexVersion : Arrays.asList(Version.V_7_4_0, Version.CURRENT)) {
             BytesRef value = BinaryDenseVectorScriptDocValuesTests.mockEncodeDenseVector(docVector, ElementType.FLOAT, indexVersion);
-            BinaryDenseVector bdv = new BinaryDenseVector(value, dims, indexVersion);
+            BinaryDenseVector bdv = new BinaryDenseVector(docVector, value, dims, indexVersion);
 
             assertEquals(bdv.dotProduct(arrayQV), bdv.dotProduct(listQV), 0.001f);
             assertEquals(bdv.dotProduct((Object) listQV), bdv.dotProduct((Object) arrayQV), 0.001f);
@@ -115,7 +115,9 @@ public class DenseVectorTests extends ESTestCase {
         assertEquals(knn.cosineSimilarity((Object) listQV), knn.cosineSimilarity((Object) arrayQV), 0.001f);
 
         BytesRef value = BinaryDenseVectorScriptDocValuesTests.mockEncodeDenseVector(floatVector, ElementType.BYTE, Version.CURRENT);
-        ByteBinaryDenseVector bdv = new ByteBinaryDenseVector(value, dims);
+        byte[] byteVectorValue = new byte[dims];
+        System.arraycopy(value.bytes, value.offset, byteVectorValue, 0, dims);
+        ByteBinaryDenseVector bdv = new ByteBinaryDenseVector(byteVectorValue, value, dims);
 
         assertEquals(bdv.dotProduct(arrayQV), bdv.dotProduct(listQV), 0.001f);
         assertEquals(bdv.dotProduct((Object) listQV), bdv.dotProduct((Object) arrayQV), 0.001f);
@@ -162,7 +164,7 @@ public class DenseVectorTests extends ESTestCase {
         e = expectThrows(UnsupportedOperationException.class, () -> knn.cosineSimilarity((Object) queryVector));
         assertEquals(e.getMessage(), "use [double cosineSimilarity(byte[] queryVector, float qvMagnitude)] instead");
 
-        ByteBinaryDenseVector binary = new ByteBinaryDenseVector(new BytesRef(docVector), dims);
+        ByteBinaryDenseVector binary = new ByteBinaryDenseVector(docVector, new BytesRef(docVector), dims);
 
         e = expectThrows(UnsupportedOperationException.class, () -> binary.dotProduct(queryVector));
         assertEquals(e.getMessage(), "use [int dotProduct(byte[] queryVector)] instead");
@@ -219,7 +221,7 @@ public class DenseVectorTests extends ESTestCase {
         e = expectThrows(UnsupportedOperationException.class, () -> knn.cosineSimilarity((Object) queryVector));
         assertEquals(e.getMessage(), "use [double cosineSimilarity(float[] queryVector, boolean normalizeQueryVector)] instead");
 
-        BinaryDenseVector binary = new BinaryDenseVector(new BytesRef(docBuffer.array()), dims, Version.CURRENT);
+        BinaryDenseVector binary = new BinaryDenseVector(docVector, new BytesRef(docBuffer.array()), dims, Version.CURRENT);
 
         e = expectThrows(UnsupportedOperationException.class, () -> binary.dotProduct(queryVector));
         assertEquals(e.getMessage(), "use [double dotProduct(float[] queryVector)] instead");

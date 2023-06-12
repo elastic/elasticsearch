@@ -23,7 +23,8 @@
                               "_all",
                               "http",
                               "ingest",
-                              "thread_pool"
+                              "thread_pool",
+                              "script"
                           ],
                           "description":"Limit the information returned to the specified target."
                       }

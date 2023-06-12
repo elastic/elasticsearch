@@ -69,10 +69,14 @@ abstract class AbstractNlpConfigUpdateTestCase<T extends NlpConfigUpdate> extend
                     update = new BertTokenizationUpdate(truncate, null);
                 }
                 case 1 -> {
+                    tokenizationKind = "bert_ja";
+                    update = new BertJapaneseTokenizationUpdate(truncate, null);
+                }
+                case 2 -> {
                     tokenizationKind = "mpnet";
                     update = new MPNetTokenizationUpdate(truncate, null);
                 }
-                case 2 -> {
+                case 3 -> {
                     tokenizationKind = "roberta";
                     update = new RobertaTokenizationUpdate(truncate, null);
                 }

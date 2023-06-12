@@ -227,8 +227,8 @@
 ---
 "Simulate index template with lifecycle and include defaults":
   - skip:
-      version: " - 8.7.99"
-      reason: "Lifecycle is only available in 8.8+"
+      version: " - 8.8.99"
+      reason: "Lifecycle is only available in 8.9+"
       features: ["default_shards"]
 
   - do:

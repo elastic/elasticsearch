@@ -1,0 +1,5 @@
+pr: 35182
+summary: Feature/replace avl digest with merging digest
+area: Aggregations
+type: feature
+issues: []

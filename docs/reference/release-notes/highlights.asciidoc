@@ -125,13 +125,14 @@ This PR removes the beta label for JWT realm feature to make it GA.
 [[elser-model]]
 === The Elastic Learned Sparse EncodeR (ELSER) model
 
-In 8.8, we introduce the Elastic Learned Sparse EncodeR model to our {ml} model 
-library that you can use out of the box. ELSER improves the relevance of your 
-search results by enabling semantic search. This search method considers the 
-meaning of words rather than solely relying on literal terms. ELSER is a 
-pre-trained, out-of-domain sparse vector model that eliminates the need for 
-fine-tuning on your specific source data. It provides you with relevant search 
-results right from the start.
+In 8.8, we introduce the 
+https://www.elastic.co/blog/may-2023-launch-sparse-encoder-ai-model[Elastic Learned Sparse EncodeR] 
+model to our {ml} model library that you can use out of the box. ELSER improves 
+the relevance of your search results by enabling semantic search. This search 
+method considers the meaning of words rather than solely relying on literal 
+terms. ELSER is a pre-trained, out-of-domain sparse vector model that eliminates 
+the need for fine-tuning on your specific source data. It provides you with 
+relevant search results right from the start.
 
 // end::notable-highlights[]
 

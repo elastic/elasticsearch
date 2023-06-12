@@ -1,3 +1,5 @@
+import org.elasticsearch.gradle.internal.info.BuildParams
+
 apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.test.fixtures'
 
@@ -11,4 +13,6 @@ testFixtures.useFixture ":x-pack:test:idp-fixture", "oidc-provider"
 
 tasks.named('javaRestTest') {
   usesDefaultDistribution()
+  // test suite uses jks which is not supported in fips mode
+  BuildParams.withFipsEnabledOnly(it)
 }

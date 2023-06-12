@@ -60,6 +60,7 @@ public abstract class C2IdOpTestCase extends ESRestTestCase {
 
     // URLs for accessing the C2id OP
     private static final String C2OP_PORT = getEphemeralTcpPortFromProperty("oidc-provider", "8080");
+    protected static final String C2ID_ISSUER = "http://127.0.0.1:" + C2OP_PORT + "/c2id";
     private static final String PROXY_PORT = getEphemeralTcpPortFromProperty("http-proxy", "8888");
     private static final String C2ID_HOST = "http://127.0.0.1:" + C2OP_PORT;
     private static final String C2ID_LOGIN_API = C2ID_HOST + "/c2id-login/api/";
@@ -88,7 +89,7 @@ public abstract class C2IdOpTestCase extends ESRestTestCase {
         .setting("xpack.security.authc.realms.file.file.order", "0")
         .setting("xpack.security.authc.realms.native.native.order", "1")
         .setting("xpack.security.authc.realms.oidc.c2id.order", "2")
-        .setting("xpack.security.authc.realms.oidc.c2id.op.issuer", "http://oidc-provider:8080/c2id")
+        .setting("xpack.security.authc.realms.oidc.c2id.op.issuer", C2ID_ISSUER)
         .setting("xpack.security.authc.realms.oidc.c2id.op.authorization_endpoint", C2ID_HOST + "/c2id-login")
         .setting("xpack.security.authc.realms.oidc.c2id.op.token_endpoint", C2ID_HOST + "/c2id/token")
         .setting("xpack.security.authc.realms.oidc.c2id.op.userinfo_endpoint", C2ID_HOST + "/c2id/userinfo")
@@ -101,7 +102,7 @@ public abstract class C2IdOpTestCase extends ESRestTestCase {
         .setting("xpack.security.authc.realms.oidc.c2id.claims.mail", "email")
         .setting("xpack.security.authc.realms.oidc.c2id.claims.groups", "groups")
         .setting("xpack.security.authc.realms.oidc.c2id-implicit.order", "3")
-        .setting("xpack.security.authc.realms.oidc.c2id-implicit.op.issuer", "http://oidc-provider:8080/c2id")
+        .setting("xpack.security.authc.realms.oidc.c2id-implicit.op.issuer", C2ID_ISSUER)
         .setting("xpack.security.authc.realms.oidc.c2id-implicit.op.authorization_endpoint", C2ID_HOST + "/c2id-login")
         .setting("xpack.security.authc.realms.oidc.c2id-implicit.op.token_endpoint", C2ID_HOST + "/c2id/token")
         .setting("xpack.security.authc.realms.oidc.c2id-implicit.op.userinfo_endpoint", C2ID_HOST + "/c2id/userinfo")
@@ -114,7 +115,7 @@ public abstract class C2IdOpTestCase extends ESRestTestCase {
         .setting("xpack.security.authc.realms.oidc.c2id-implicit.claims.mail", "email")
         .setting("xpack.security.authc.realms.oidc.c2id-implicit.claims.groups", "groups")
         .setting("xpack.security.authc.realms.oidc.c2id-proxy.order", "4")
-        .setting("xpack.security.authc.realms.oidc.c2id-proxy.op.issuer", "http://oidc-provider:8080/c2id")
+        .setting("xpack.security.authc.realms.oidc.c2id-proxy.op.issuer", C2ID_ISSUER)
         .setting("xpack.security.authc.realms.oidc.c2id-proxy.op.authorization_endpoint", C2ID_HOST + "/c2id-login")
         .setting("xpack.security.authc.realms.oidc.c2id-proxy.op.token_endpoint", C2ID_HOST + "/c2id/token")
         .setting("xpack.security.authc.realms.oidc.c2id-proxy.op.userinfo_endpoint", C2ID_HOST + "/c2id/userinfo")
@@ -129,7 +130,7 @@ public abstract class C2IdOpTestCase extends ESRestTestCase {
         .setting("xpack.security.authc.realms.oidc.c2id-proxy.http.proxy.host", "127.0.0.1")
         .setting("xpack.security.authc.realms.oidc.c2id-proxy.http.proxy.port", PROXY_PORT)
         .setting("xpack.security.authc.realms.oidc.c2id-post.order", "5")
-        .setting("xpack.security.authc.realms.oidc.c2id-post.op.issuer", "http://oidc-provider:8080/c2id")
+        .setting("xpack.security.authc.realms.oidc.c2id-post.op.issuer", C2ID_ISSUER)
         .setting("xpack.security.authc.realms.oidc.c2id-post.op.authorization_endpoint", C2ID_HOST + "/c2id-login")
         .setting("xpack.security.authc.realms.oidc.c2id-post.op.token_endpoint", C2ID_HOST + "/c2id/token")
         .setting("xpack.security.authc.realms.oidc.c2id-post.op.userinfo_endpoint", C2ID_HOST + "/c2id/userinfo")
@@ -143,8 +144,7 @@ public abstract class C2IdOpTestCase extends ESRestTestCase {
         .setting("xpack.security.authc.realms.oidc.c2id-post.claims.mail", "email")
         .setting("xpack.security.authc.realms.oidc.c2id-post.claims.groups", "groups")
         .setting("xpack.security.authc.realms.oidc.c2id-jwt.order", "6")
-        .setting("xpack.security.authc.realms.oidc.c2id-jwt.op.issuer", C2ID_HOST + "/c2id")
-        // .setting("xpack.security.authc.realms.oidc.c2id-jwt.op.issuer", "http://oidc-provider:8080/c2id")
+        .setting("xpack.security.authc.realms.oidc.c2id-jwt.op.issuer", C2ID_ISSUER)
         .setting("xpack.security.authc.realms.oidc.c2id-jwt.op.authorization_endpoint", C2ID_HOST + "/c2id-login")
         .setting("xpack.security.authc.realms.oidc.c2id-jwt.op.token_endpoint", C2ID_HOST + "/c2id/token")
         .setting("xpack.security.authc.realms.oidc.c2id-jwt.op.userinfo_endpoint", C2ID_HOST + "/c2id/userinfo")
@@ -159,7 +159,7 @@ public abstract class C2IdOpTestCase extends ESRestTestCase {
         .setting("xpack.security.authc.realms.oidc.c2id-jwt.claims.groups", "groups")
         .setting("xpack.security.authc.realms.jwt.op-jwt.order", "7")
         // TODO double-check this
-        .setting("xpack.security.authc.realms.jwt.op-jwt.allowed_issuer", "http://oidc-provider:8080/c2id")
+        .setting("xpack.security.authc.realms.jwt.op-jwt.allowed_issuer", C2ID_ISSUER)
         // TODO double-check this
         .setting("xpack.security.authc.realms.jwt.op-jwt.allowed_audiences", "elasticsearch-jwt1,elasticsearch-jwt2")
         .setting("xpack.security.authc.realms.jwt.op-jwt.pkc_jwkset_path", "op-jwks.json")

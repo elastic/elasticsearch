@@ -26,6 +26,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.TransportShardRefreshAction;
+import org.elasticsearch.action.admin.indices.refresh.TransportUnpromotableShardRefreshAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -434,7 +435,53 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         });
     }
 
-    public void testRefresh() throws Exception {
+    public void testRefreshNoFastRefresh() throws Exception {
+        testRefresh(false);
+    }
+
+    public void testRefreshFastRefresh() throws Exception {
+        testRefresh(true);
+    }
+
+    public void testFastRefreshOnBulkDoesNotRefreshUnpromotables() {
+        startIndexNodes(numShards);
+        startSearchNodes(numReplicas);
+
+        final AtomicInteger unpromotableRefreshActions = new AtomicInteger(0);
+        for (var transportService : internalCluster().getInstances(TransportService.class)) {
+            MockTransportService mockTransportService = (MockTransportService) transportService;
+            mockTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
+                if (action.startsWith(TransportUnpromotableShardRefreshAction.NAME)) {
+                    unpromotableRefreshActions.incrementAndGet();
+                }
+                connection.sendRequest(requestId, action, request, options);
+            });
+        }
+
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numReplicas)
+                .put(IndexSettings.INDEX_FAST_REFRESH_SETTING.getKey(), true)
+                .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), false)
+                .build()
+        );
+
+        ensureGreen(indexName);
+        int docsToIndex = randomIntBetween(1, 100);
+        var bulkRequest = client().prepareBulk();
+        for (int i = 0; i < docsToIndex; i++) {
+            bulkRequest.add(new IndexRequest(indexName).source("field", randomUnicodeOfCodepointLengthBetween(1, 25)));
+        }
+        bulkRequest.setRefreshPolicy(randomFrom(WAIT_UNTIL, IMMEDIATE));
+        assertNoFailures(bulkRequest.get());
+        assertThat(unpromotableRefreshActions.get(), equalTo(0));
+
+    }
+
+    private void testRefresh(boolean fastRefresh) throws InterruptedException, ExecutionException {
         startIndexNodes(numShards);
         startSearchNodes(numReplicas);
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
@@ -443,6 +490,7 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
             Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numReplicas)
+                .put(IndexSettings.INDEX_FAST_REFRESH_SETTING.getKey(), fastRefresh)
                 .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), false)
                 .build()
         );

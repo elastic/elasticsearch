@@ -39,7 +39,8 @@ public class StatelessIndexSettingProvider implements IndexSettingProvider {
         if (Objects.equals(indexName, "validate-index-name") == false) {
             settings.put(ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.getKey(), Stateless.NAME);
         }
-        if (allSettings.hasValue(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey()) == false) {
+        if (allSettings.hasValue(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey()) == false
+            && IndexSettings.INDEX_FAST_REFRESH_SETTING.get(allSettings) == false) {
             settings.put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(5));
         }
         return settings.build();

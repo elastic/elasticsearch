@@ -18,7 +18,7 @@ import java.util.function.IntFunction;
 public class GetSynonymsSetsAction extends AbstractSynonymsPagedResultAction<GetSynonymsSetsAction.Response> {
 
     public static final GetSynonymsSetsAction INSTANCE = new GetSynonymsSetsAction();
-    public static final String NAME = "cluster:admin/synonyms/list";
+    public static final String NAME = "cluster:admin/synonyms_sets/get";
 
     public GetSynonymsSetsAction() {
         super(NAME, Response::new);

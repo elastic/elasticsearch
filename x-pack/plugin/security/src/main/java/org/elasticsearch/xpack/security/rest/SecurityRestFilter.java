@@ -22,6 +22,7 @@ import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator;
 import org.elasticsearch.xpack.security.authz.restriction.WorkflowService;
+import org.elasticsearch.xpack.security.operator.OperatorPrivileges;
 
 import java.util.List;
 
@@ -37,6 +38,7 @@ public class SecurityRestFilter implements RestHandler {
     private final boolean enabled;
     private final ThreadContext threadContext;
     private final WorkflowService workflowService;
+    private final OperatorPrivileges.OperatorPrivilegesService operatorPrivilegesService;
 
     public SecurityRestFilter(
         boolean enabled,
@@ -44,7 +46,8 @@ public class SecurityRestFilter implements RestHandler {
         SecondaryAuthenticator secondaryAuthenticator,
         AuditTrailService auditTrailService,
         WorkflowService workflowService,
-        RestHandler restHandler
+        RestHandler restHandler,
+        OperatorPrivileges.OperatorPrivilegesService operatorPrivilegesService
     ) {
         this.enabled = enabled;
         this.threadContext = threadContext;
@@ -52,6 +55,10 @@ public class SecurityRestFilter implements RestHandler {
         this.auditTrailService = auditTrailService;
         this.workflowService = workflowService;
         this.restHandler = restHandler;
+        // can be null if security is not enabled
+        this.operatorPrivilegesService = operatorPrivilegesService == null
+            ? OperatorPrivileges.NOOP_OPERATOR_PRIVILEGES_SERVICE
+            : operatorPrivilegesService;
     }
 
     @Override
@@ -94,11 +101,14 @@ public class SecurityRestFilter implements RestHandler {
 
     private void doHandleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
         threadContext.sanitizeHeaders();
-        try {
-            restHandler.handleRequest(request, channel, client);
-        } catch (Exception e) {
-            logger.debug(() -> format("Request handling failed for REST request [%s]", request.uri()), e);
-            throw e;
+        // operator privileges can short circuit to return a non-successful response
+        if (operatorPrivilegesService.checkRest(restHandler, request, channel, threadContext)) {
+            try {
+                restHandler.handleRequest(request, channel, client);
+            } catch (Exception e) {
+                logger.debug(() -> format("Request handling failed for REST request [%s]", request.uri()), e);
+                throw e;
+            }
         }
     }
 
@@ -131,6 +141,11 @@ public class SecurityRestFilter implements RestHandler {
     @Override
     public List<Route> routes() {
         return restHandler.routes();
+    }
+
+    // for testing
+    OperatorPrivileges.OperatorPrivilegesService getOperatorPrivilegesService() {
+        return operatorPrivilegesService;
     }
 
     private RestRequest maybeWrapRestRequest(RestRequest restRequest) {

@@ -20,6 +20,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.routing.PlainShardIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -37,8 +38,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-
-import static org.elasticsearch.index.IndexSettings.INDEX_FAST_REFRESH_SETTING;
 
 /**
  * Performs the get operation.
@@ -97,13 +96,10 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
         if (iterator == null) {
             return null;
         }
-        return new PlainShardIterator(iterator.shardId(), iterator.getShardRoutings().stream().filter((shardRouting -> {
-            if (INDEX_FAST_REFRESH_SETTING.get(state.metadata().index(shardRouting.index()).getSettings())) {
-                return shardRouting.isPromotableToPrimary();
-            } else {
-                return shardRouting.isSearchable();
-            }
-        })).toList());
+        return new PlainShardIterator(
+            iterator.shardId(),
+            iterator.getShardRoutings().stream().filter(shardRouting -> OperationRouting.canSearchShard(shardRouting, state)).toList()
+        );
     }
 
     @Override
@@ -118,7 +114,7 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
         IndexShard indexShard = indexService.getShard(shardId.id());
         if (indexShard.routingEntry().isPromotableToPrimary() == false) {
             assert indexShard.indexSettings().isFastRefresh() == false
-                : "search shard received a TransportGetAction for an index without fast refresh";
+                : "a search shard should not receive a TransportGetAction for an index with fast refresh";
             handleGetOnUnpromotableShard(request, indexShard, listener);
             return;
         }

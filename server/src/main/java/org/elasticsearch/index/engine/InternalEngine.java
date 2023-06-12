@@ -528,16 +528,16 @@ public class InternalEngine extends Engine {
                 if (pendingTranslogRecovery.get() == false) {
                     throw new IllegalStateException("Engine has already been recovered");
                 }
-                recoverFromTranslogInternal(translogRecoveryRunner, recoverUpToSeqNo, l.delegateResponse((ll, e) -> {
-                    try {
-                        pendingTranslogRecovery.set(true); // just play safe and never allow commits on this see #ensureCanFlush
-                        failEngine("failed to recover from translog", e);
-                    } catch (Exception inner) {
-                        e.addSuppressed(inner);
-                    }
-                    ll.onFailure(e);
-                }));
             }
+            recoverFromTranslogInternal(translogRecoveryRunner, recoverUpToSeqNo, l.delegateResponse((ll, e) -> {
+                try {
+                    pendingTranslogRecovery.set(true); // just play safe and never allow commits on this see #ensureCanFlush
+                    failEngine("failed to recover from translog", e);
+                } catch (Exception inner) {
+                    e.addSuppressed(inner);
+                }
+                ll.onFailure(e);
+            }));
         });
     }
 
@@ -553,28 +553,31 @@ public class InternalEngine extends Engine {
         ActionListener<Void> listener
     ) {
         ActionListener.run(listener, l -> {
-            final int opsRecovered;
-            final long localCheckpoint = getProcessedLocalCheckpoint();
-            if (localCheckpoint < recoverUpToSeqNo) {
-                try (Translog.Snapshot snapshot = newTranslogSnapshot(localCheckpoint + 1, recoverUpToSeqNo)) {
-                    opsRecovered = translogRecoveryRunner.run(this, snapshot);
-                } catch (Exception e) {
-                    throw new EngineException(shardId, "failed to recover from translog", e);
+            try (ReleasableLock lock = readLock.acquire()) {
+                ensureOpen();
+                final int opsRecovered;
+                final long localCheckpoint = getProcessedLocalCheckpoint();
+                if (localCheckpoint < recoverUpToSeqNo) {
+                    try (Translog.Snapshot snapshot = newTranslogSnapshot(localCheckpoint + 1, recoverUpToSeqNo)) {
+                        opsRecovered = translogRecoveryRunner.run(this, snapshot);
+                    } catch (Exception e) {
+                        throw new EngineException(shardId, "failed to recover from translog", e);
+                    }
+                } else {
+                    opsRecovered = 0;
                 }
-            } else {
-                opsRecovered = 0;
+                // flush if we recovered something or if we have references to older translogs
+                // note: if opsRecovered == 0 and we have older translogs it means they are corrupted or 0 length.
+                assert pendingTranslogRecovery.get() : "translogRecovery is not pending but should be";
+                pendingTranslogRecovery.set(false); // we are good - now we can commit
+                logger.trace(
+                    () -> format(
+                        "flushing post recovery from translog: ops recovered [%s], current translog generation [%s]",
+                        opsRecovered,
+                        translog.currentFileGeneration()
+                    )
+                );
             }
-            // flush if we recovered something or if we have references to older translogs
-            // note: if opsRecovered == 0 and we have older translogs it means they are corrupted or 0 length.
-            assert pendingTranslogRecovery.get() : "translogRecovery is not pending but should be";
-            pendingTranslogRecovery.set(false); // we are good - now we can commit
-            logger.trace(
-                () -> format(
-                    "flushing post recovery from translog: ops recovered [%s], current translog generation [%s]",
-                    opsRecovered,
-                    translog.currentFileGeneration()
-                )
-            );
 
             // flush might do something async and complete the listener on a different thread, from which we must fork back to a generic
             // thread to continue with recovery, but if it doesn't do anything async then there's no need to fork, hence why we use a

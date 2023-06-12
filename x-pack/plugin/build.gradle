@@ -89,15 +89,6 @@ tasks.named("yamlRestTestV7CompatTest").configure {
     'aggregate-metrics/90_tsdb_mappings/aggregate_double_metric with wrong time series mappings',
     'analytics/histogram/histogram with wrong time series mappings',
     'analytics/histogram/histogram with time series mappings',
-    'analytics/boxplot/Basic Search',
-    'analytics/boxplot/Search With Runtime Field',
-    'analytics/boxplot/Search With Missing',
-    'analytics/moving_percentile/Basic Search TDigest',
-    'ml/evaluate_data_frame/Test outlier_detection auc_roc',
-    'ml/evaluate_data_frame/Test outlier_detection auc_roc given actual_field is int',
-    'ml/evaluate_data_frame/Test outlier_detection auc_roc include curve',
-    'ml/evaluate_data_frame/Test classification auc_roc',
-    'ml/evaluate_data_frame/Test classification auc_roc with default top_classes_field',
   ].join(',')
 }
 

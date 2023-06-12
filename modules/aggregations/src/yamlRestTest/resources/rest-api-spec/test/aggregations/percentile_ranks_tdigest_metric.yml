@@ -70,15 +70,15 @@ filtered:
             percentile_ranks_int:
               percentile_ranks:
                 field: int
-                values: [50]
+                values: [51]
             percentile_ranks_double:
               percentile_ranks:
                 field: double
-                values: [50]
+                values: [51]
 
   - match: { hits.total.value: 3 }
-  - close_to: { aggregations.percentile_ranks_int.values.50\\.0: { value: 16.0, error: 1} }
-  - close_to: { aggregations.percentile_ranks_double.values.50\\.0: { value: 16.0, error: 1} }
+  - close_to: { aggregations.percentile_ranks_int.values.51\\.0: { value: 16.0, error: 1} }
+  - close_to: { aggregations.percentile_ranks_double.values.51\\.0: { value: 16.0, error: 1} }
 
 ---
 missing field with missing param:

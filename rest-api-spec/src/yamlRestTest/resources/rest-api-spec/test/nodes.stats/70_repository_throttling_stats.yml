@@ -52,10 +52,10 @@
   - is_true: nodes.$node_id.repositories
 
   - is_true: nodes.$node_id.repositories.test_repo_uuid_1
-  - gte: { nodes.$node_id.repositories.test_repo_uuid_1.total_read_throttled_nanos: 0 }
-  - gte: { nodes.$node_id.repositories.test_repo_uuid_1.total_write_throttled_nanos: 0 }
+  - gte: { nodes.$node_id.repositories.test_repo_uuid_1.total_read_throttled_time_nanos: 0 }
+  - gte: { nodes.$node_id.repositories.test_repo_uuid_1.total_write_throttled_time_nanos: 0 }
 
   - is_true: nodes.$node_id.repositories.test_repo_uuid_2
-  - gte: { nodes.$node_id.repositories.test_repo_uuid_2.total_read_throttled_nanos: 0 }
-  - gte: { nodes.$node_id.repositories.test_repo_uuid_2.total_write_throttled_nanos: 0 }
+  - gte: { nodes.$node_id.repositories.test_repo_uuid_2.total_read_throttled_time_nanos: 0 }
+  - gte: { nodes.$node_id.repositories.test_repo_uuid_2.total_write_throttled_time_nanos: 0 }
 

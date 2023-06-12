@@ -1690,11 +1690,11 @@ Contains repository throttling statistics for the node.
 .Properties of `<repository_name>`
 [%collapsible%open]
 =======
-`total_read_throttled_nanos`::
+`total_read_throttled_time_nanos`::
 (integer)
 Total number of nanos which node had to wait during recovery.
 
-`total_write_throttled_nanos`::
+`total_write_throttled_time_nanos`::
 (integer)
 Total number of nanos which node had to wait during snapshotting.
 =======

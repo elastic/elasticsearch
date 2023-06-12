@@ -12,6 +12,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -20,6 +21,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 public class RepositoriesStats implements Writeable, ToXContentFragment {
 
@@ -63,8 +65,13 @@ public class RepositoriesStats implements Writeable, ToXContentFragment {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field("total_read_throttled_nanos", totalReadThrottledNanos);
-            builder.field("total_write_throttled_nanos", totalWriteThrottledNanos);
+            if (builder.humanReadable()) {
+                builder.field("total_read_throttled_time", new TimeValue(totalReadThrottledNanos, TimeUnit.NANOSECONDS));
+                builder.field("total_write_throttled_time", new TimeValue(totalWriteThrottledNanos, TimeUnit.NANOSECONDS));
+            } else {
+                builder.field("total_read_throttled_time_nanos", totalReadThrottledNanos);
+                builder.field("total_write_throttled_time_nanos", totalWriteThrottledNanos);
+            }
             builder.endObject();
             return builder;
         }

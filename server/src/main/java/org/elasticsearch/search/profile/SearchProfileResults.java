@@ -199,10 +199,10 @@ public final class SearchProfileResults implements Writeable, ToXContentFragment
 
     /**
      * Parsed representation of a composite id used for shards in a profile.
-     * The composite id format is specified/created via the {@code SearchShardTargetÏ} method.
+     * The composite id format is specified/created via the {@code SearchShardTarget} method.
      * @param nodeId nodeId that the shard is on
-     * @param indexName index profiled
-     * @param shardId integer shard id
+     * @param indexName index being profiled
+     * @param shardId shard id being profiled
      * @param clusterName if a CCS search, the remote clusters will have a name in the id. Local clusters will be null.
      */
     record ShardProfileId(String nodeId, String indexName, int shardId, @Nullable String clusterName) {}

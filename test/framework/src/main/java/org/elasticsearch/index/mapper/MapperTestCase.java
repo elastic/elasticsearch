@@ -798,6 +798,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     protected void assertFetchMany(MapperService mapperService, String field, Object value, String format, int count) throws IOException {
         assertFetch(mapperService, field, value, format);
     }
+
     /**
      * Assert that fetching a value using {@link MappedFieldType#valueFetcher}
      * produces the same value as fetching using doc values.

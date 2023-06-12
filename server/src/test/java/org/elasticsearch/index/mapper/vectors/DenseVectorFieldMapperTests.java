@@ -614,7 +614,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
                     int i = 0;
                     for (var f : fromNative) {
                         assert f instanceof Number;
-                        fetchedFloats[i++] = ((Number)f).floatValue();
+                        fetchedFloats[i++] = ((Number) f).floatValue();
                     }
                     assertThat("fetching " + value, fetchedFloats, equalTo(value));
                 }
@@ -625,9 +625,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
     @Override
     // TODO: add `byte` element_type tests
     protected void randomFetchTestFieldConfig(XContentBuilder b) throws IOException {
-        b.field("type", "dense_vector")
-            .field("dims", randomIntBetween(2, 2048))
-            .field("element_type", "float");
+        b.field("type", "dense_vector").field("dims", randomIntBetween(2, 2048)).field("element_type", "float");
         if (randomBoolean()) {
             b.field("index", true).field("similarity", randomFrom(VectorSimilarity.values()).toString());
         }
@@ -644,9 +642,9 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
                 for (int i = 0; i < floats.length; i++) {
                     float f = randomFloat();
                     floats[i] = f;
-                    magnitude += f*f;
+                    magnitude += f * f;
                 }
-                magnitude = (float)Math.sqrt(magnitude);
+                magnitude = (float) Math.sqrt(magnitude);
                 if (VectorSimilarity.DOT_PRODUCT.equals(vectorFieldType.getSimilarity())) {
                     for (int i = 0; i < floats.length; i++) {
                         floats[i] /= magnitude;

@@ -178,9 +178,9 @@ public class GeoIpDownloaderStatsAction extends ActionType<GeoIpDownloaderStatsA
         ) {
             super(node);
             this.stats = stats;
-            this.databases = databases;
-            this.filesInTemp = filesInTemp;
-            this.configDatabases = configDatabases;
+            this.databases = Set.copyOf(databases);
+            this.filesInTemp = Set.copyOf(filesInTemp);
+            this.configDatabases = Set.copyOf(configDatabases);
         }
 
         public GeoIpDownloaderStats getStats() {

@@ -8,10 +8,13 @@
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
@@ -41,7 +44,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
-public class TreeInferenceModelTests extends ESTestCase {
+public class TreeInferenceModelTests extends AbstractWireSerializingTestCase<TreeInferenceModel> {
 
     private static final int NUMBER_OF_TEST_RUNS = 20;
 
@@ -52,12 +55,36 @@ public class TreeInferenceModelTests extends ESTestCase {
         return model;
     }
 
+    public static TreeInferenceModel randomInstance() {
+        try {
+            return serializeFromTrainedModel(TreeTests.createRandom());
+        } catch (Exception ex) {
+            fail(ex.getMessage());
+            return null;
+        }
+    }
+
     @Override
     protected NamedXContentRegistry xContentRegistry() {
         List<NamedXContentRegistry.Entry> namedXContent = new ArrayList<>();
         namedXContent.addAll(new MlInferenceNamedXContentProvider().getNamedXContentParsers());
         namedXContent.addAll(new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedXContents());
         return new NamedXContentRegistry(namedXContent);
+    }
+
+    @Override
+    protected NamedWriteableRegistry getNamedWriteableRegistry() {
+        List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>();
+        namedWriteables.addAll(new MlInferenceNamedXContentProvider().getNamedWriteables());
+        namedWriteables.addAll(new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedWriteables());
+        return new NamedWriteableRegistry(namedWriteables);
+    }
+
+    public void testWireSerializationFailureOnUnoptimizedModel() throws IOException {
+        Tree tree = TreeTests.createRandom();
+        NamedXContentRegistry registry = new NamedXContentRegistry(new MlInferenceNamedXContentProvider().getNamedXContentParsers());
+        TreeInferenceModel model = deserializeFromTrainedModel(tree, registry, TreeInferenceModel::fromXContent);
+        expectThrows(IllegalStateException.class, () -> copyInstance(model, TransportVersion.CURRENT));
     }
 
     public void testCtorWithNullTargetType() {
@@ -288,4 +315,24 @@ public class TreeInferenceModelTests extends ESTestCase {
         return IntStream.range(0, keys.size()).boxed().collect(Collectors.toMap(keys::get, values::get));
     }
 
+    @Override
+    protected Writeable.Reader<TreeInferenceModel> instanceReader() {
+        return TreeInferenceModel::new;
+    }
+
+    @Override
+    protected TreeInferenceModel createTestInstance() {
+        Tree tree = TreeTests.createRandom();
+        try {
+            return serializeFromTrainedModel(tree);
+        } catch (Exception ex) {
+            fail(ex.getMessage());
+            return null;
+        }
+    }
+
+    @Override
+    protected TreeInferenceModel mutateInstance(TreeInferenceModel instance) throws IOException {
+        return createTestInstance();
+    }
 }

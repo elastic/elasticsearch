@@ -11,6 +11,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.Numbers;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -31,10 +34,12 @@ import org.elasticsearch.xpack.core.ml.inference.utils.Statistics;
 import org.elasticsearch.xpack.core.ml.job.config.Operator;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -60,12 +65,14 @@ import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.TreeNo
 
 public class TreeInferenceModel implements InferenceModel {
 
+    public static final String NAME = "tree_inference_model";
+
     private static final Logger LOGGER = LogManager.getLogger(TreeInferenceModel.class);
     public static final long SHALLOW_SIZE = shallowSizeOfInstance(TreeInferenceModel.class);
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<TreeInferenceModel, Void> PARSER = new ConstructingObjectParser<>(
-        "tree_inference_model",
+        NAME,
         true,
         a -> new TreeInferenceModel(
             (List<String>) a[0],
@@ -118,6 +125,17 @@ public class TreeInferenceModel implements InferenceModel {
         }
         this.leafSize = leafSize;
         this.maxDepth = getDepth(this.nodes, 0, 0);
+    }
+
+    public TreeInferenceModel(StreamInput in) throws IOException {
+        this.nodes = in.readArray(Node::fromStream, Node[]::new);
+        this.featureNames = in.readArray(StreamInput::readString, String[]::new);
+        this.targetType = TargetType.fromStream(in);
+        this.classificationLabels = in.readOptionalList(StreamInput::readString);
+        this.highOrderCategory = in.readDouble();
+        this.maxDepth = in.readVInt();
+        this.leafSize = in.readVInt();
+        this.preparedForInference = true;
     }
 
     @Override
@@ -420,6 +438,48 @@ public class TreeInferenceModel implements InferenceModel {
         return Math.max(depthLeft, depthRight) + 1;
     }
 
+    @Override
+    public String getWriteableName() {
+        return NAME;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        if (preparedForInference == false) {
+            throw new IllegalStateException("can't serialize non-inference model, forgot rewriteFeatureIndices?");
+        }
+        out.writeArray(nodes);
+        out.writeStringArray(featureNames);
+        targetType.writeTo(out);
+        out.writeOptionalStringCollection(classificationLabels);
+        out.writeDouble(highOrderCategory);
+        out.writeVInt(maxDepth);
+        out.writeVInt(leafSize);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        TreeInferenceModel that = (TreeInferenceModel) o;
+        return Double.compare(that.highOrderCategory, highOrderCategory) == 0
+            && maxDepth == that.maxDepth
+            && leafSize == that.leafSize
+            && preparedForInference == that.preparedForInference
+            && Arrays.equals(nodes, that.nodes)
+            && Arrays.equals(featureNames, that.featureNames)
+            && targetType == that.targetType
+            && Objects.equals(classificationLabels, that.classificationLabels);
+    }
+
+    @Override
+    public int hashCode() {
+        int result = Objects.hash(targetType, classificationLabels, highOrderCategory, maxDepth, leafSize, preparedForInference);
+        result = 31 * result + Arrays.hashCode(nodes);
+        result = 31 * result + Arrays.hashCode(featureNames);
+        return result;
+    }
+
     static class NodeBuilder {
 
         private static final ObjectParser<NodeBuilder, Void> PARSER = new ObjectParser<>(
@@ -499,7 +559,20 @@ public class TreeInferenceModel implements InferenceModel {
         }
     }
 
-    public abstract static class Node implements Accountable {
+    public abstract static class Node implements Accountable, Writeable {
+
+        private static Node fromStream(StreamInput in) throws IOException {
+            return in.readBoolean() ? new LeafNode(in) : new InnerNode(in);
+        }
+
+        @Override
+        public final void writeTo(StreamOutput out) throws IOException {
+            out.writeBoolean(isLeaf());
+            doWriteTo(out);
+        }
+
+        abstract void doWriteTo(StreamOutput out) throws IOException;
+
         int compare(double[] features) {
             throw new IllegalArgumentException("cannot call compare against a leaf node.");
         }
@@ -523,6 +596,27 @@ public class TreeInferenceModel implements InferenceModel {
         private final int leftChild;
         private final int rightChild;
         private final long numberSamples;
+
+        private InnerNode(StreamInput input) throws IOException {
+            this.operator = Operator.readFromStream(input);
+            this.threshold = input.readDouble();
+            this.splitFeature = input.readVInt();
+            this.defaultLeft = input.readBoolean();
+            this.leftChild = input.readVInt();
+            this.rightChild = input.readVInt();
+            this.numberSamples = input.readVLong();
+        }
+
+        @Override
+        public void doWriteTo(StreamOutput out) throws IOException {
+            operator.writeTo(out);
+            out.writeDouble(threshold);
+            out.writeVInt(splitFeature);
+            out.writeBoolean(defaultLeft);
+            out.writeVInt(leftChild);
+            out.writeVInt(rightChild);
+            out.writeVLong(numberSamples);
+        }
 
         InnerNode(
             Operator operator,
@@ -584,6 +678,25 @@ public class TreeInferenceModel implements InferenceModel {
                 + numberSamples
                 + '}';
         }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            InnerNode innerNode = (InnerNode) o;
+            return Double.compare(innerNode.threshold, threshold) == 0
+                && splitFeature == innerNode.splitFeature
+                && defaultLeft == innerNode.defaultLeft
+                && leftChild == innerNode.leftChild
+                && rightChild == innerNode.rightChild
+                && numberSamples == innerNode.numberSamples
+                && operator == innerNode.operator;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(operator, threshold, splitFeature, defaultLeft, leftChild, rightChild, numberSamples);
+        }
     }
 
     public static class LeafNode extends Node {
@@ -596,9 +709,20 @@ public class TreeInferenceModel implements InferenceModel {
             this.numberSamples = numberSamples;
         }
 
+        private LeafNode(StreamInput input) throws IOException {
+            this.leafValue = input.readDoubleArray();
+            this.numberSamples = input.readVLong();
+        }
+
         @Override
         public long ramBytesUsed() {
             return SHALLOW_SIZE + sizeOf(leafValue);
+        }
+
+        @Override
+        void doWriteTo(StreamOutput out) throws IOException {
+            out.writeDoubleArray(leafValue);
+            out.writeVLong(numberSamples);
         }
 
         @Override
@@ -613,6 +737,21 @@ public class TreeInferenceModel implements InferenceModel {
         @Override
         public String toString() {
             return "LeafNode{" + "leafValue=" + Arrays.toString(leafValue) + ", numberSamples=" + numberSamples + '}';
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            LeafNode leafNode = (LeafNode) o;
+            return numberSamples == leafNode.numberSamples && Arrays.equals(leafValue, leafNode.leafValue);
+        }
+
+        @Override
+        public int hashCode() {
+            int result = Objects.hash(numberSamples);
+            result = 31 * result + Arrays.hashCode(leafValue);
+            return result;
         }
     }
 }

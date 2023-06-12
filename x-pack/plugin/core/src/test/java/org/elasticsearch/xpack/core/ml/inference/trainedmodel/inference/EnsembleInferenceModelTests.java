@@ -8,10 +8,13 @@
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
@@ -43,7 +46,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
-public class EnsembleInferenceModelTests extends ESTestCase {
+public class EnsembleInferenceModelTests extends AbstractWireSerializingTestCase<EnsembleInferenceModel> {
 
     private static final int NUMBER_OF_TEST_RUNS = 20;
 
@@ -54,12 +57,36 @@ public class EnsembleInferenceModelTests extends ESTestCase {
         return model;
     }
 
+    public static EnsembleInferenceModel randomInstance() {
+        try {
+            return serializeFromTrainedModel(EnsembleTests.createRandom());
+        } catch (Exception ex) {
+            fail(ex.getMessage());
+            return null;
+        }
+    }
+
     @Override
     protected NamedXContentRegistry xContentRegistry() {
         List<NamedXContentRegistry.Entry> namedXContent = new ArrayList<>();
         namedXContent.addAll(new MlInferenceNamedXContentProvider().getNamedXContentParsers());
         namedXContent.addAll(new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedXContents());
         return new NamedXContentRegistry(namedXContent);
+    }
+
+    @Override
+    protected NamedWriteableRegistry getNamedWriteableRegistry() {
+        List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>();
+        namedWriteables.addAll(new MlInferenceNamedXContentProvider().getNamedWriteables());
+        namedWriteables.addAll(new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedWriteables());
+        return new NamedWriteableRegistry(namedWriteables);
+    }
+
+    public void testWireSerializationFailureOnUnoptimizedModel() throws IOException {
+        Ensemble ensemble = EnsembleTests.createRandom();
+        NamedXContentRegistry registry = new NamedXContentRegistry(new MlInferenceNamedXContentProvider().getNamedXContentParsers());
+        EnsembleInferenceModel model = deserializeFromTrainedModel(ensemble, registry, EnsembleInferenceModel::fromXContent);
+        expectThrows(IllegalStateException.class, () -> copyInstance(model, TransportVersion.CURRENT));
     }
 
     public void testSerializationFromEnsemble() throws Exception {
@@ -539,5 +566,25 @@ public class EnsembleInferenceModelTests extends ESTestCase {
 
     private static Map<String, Object> zipObjMap(List<String> keys, List<Double> values) {
         return IntStream.range(0, keys.size()).boxed().collect(Collectors.toMap(keys::get, values::get));
+    }
+
+    @Override
+    protected Writeable.Reader<EnsembleInferenceModel> instanceReader() {
+        return EnsembleInferenceModel::new;
+    }
+
+    @Override
+    protected EnsembleInferenceModel createTestInstance() {
+        try {
+            return serializeFromTrainedModel(EnsembleTests.createRandom());
+        } catch (Exception ex) {
+            fail(ex.getMessage());
+            return null;
+        }
+    }
+
+    @Override
+    protected EnsembleInferenceModel mutateInstance(EnsembleInferenceModel instance) throws IOException {
+        return createTestInstance();
     }
 }

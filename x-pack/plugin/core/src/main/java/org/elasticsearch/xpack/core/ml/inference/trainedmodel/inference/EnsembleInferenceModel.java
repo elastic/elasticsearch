@@ -11,6 +11,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -29,12 +31,14 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.Leniently
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.OutputAggregator;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -53,13 +57,14 @@ import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.En
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.Ensemble.TRAINED_MODELS;
 
 public class EnsembleInferenceModel implements InferenceModel {
+    public static final String NAME = "ensemble_inference_model";
 
     public static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(EnsembleInferenceModel.class);
     private static final Logger LOGGER = LogManager.getLogger(EnsembleInferenceModel.class);
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<EnsembleInferenceModel, Void> PARSER = new ConstructingObjectParser<>(
-        "ensemble_inference_model",
+        NAME,
         true,
         a -> new EnsembleInferenceModel(
             (List<InferenceModel>) a[0],
@@ -112,6 +117,16 @@ public class EnsembleInferenceModel implements InferenceModel {
         this.classificationWeights = classificationWeights == null
             ? null
             : classificationWeights.stream().mapToDouble(Double::doubleValue).toArray();
+    }
+
+    public EnsembleInferenceModel(StreamInput input) throws IOException {
+        this.featureNames = input.readStringArray();
+        this.models = input.readNamedWriteableList(InferenceModel.class);
+        this.outputAggregator = input.readNamedWriteable(OutputAggregator.class);
+        this.targetType = TargetType.fromStream(input);
+        this.classificationLabels = input.readOptionalStringList();
+        this.classificationWeights = input.readBoolean() ? input.readDoubleArray() : null;
+        this.preparedForInference = true;
     }
 
     @Override
@@ -339,5 +354,48 @@ public class EnsembleInferenceModel implements InferenceModel {
             + ", preparedForInference="
             + preparedForInference
             + '}';
+    }
+
+    @Override
+    public String getWriteableName() {
+        return NAME;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        if (preparedForInference == false) {
+            throw new IllegalStateException("can't serialize non-inference model, forgot rewriteFeatureIndices?");
+        }
+        out.writeStringArray(featureNames);
+        out.writeNamedWriteableList(models);
+        out.writeNamedWriteable(outputAggregator);
+        targetType.writeTo(out);
+        out.writeOptionalStringCollection(classificationLabels);
+        out.writeBoolean(classificationWeights != null);
+        if (classificationWeights != null) {
+            out.writeDoubleArray(classificationWeights);
+        }
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        EnsembleInferenceModel that = (EnsembleInferenceModel) o;
+        return preparedForInference == that.preparedForInference
+            && Arrays.equals(featureNames, that.featureNames)
+            && Objects.equals(models, that.models)
+            && Objects.equals(outputAggregator, that.outputAggregator)
+            && targetType == that.targetType
+            && Objects.equals(classificationLabels, that.classificationLabels)
+            && Arrays.equals(classificationWeights, that.classificationWeights);
+    }
+
+    @Override
+    public int hashCode() {
+        int result = Objects.hash(models, outputAggregator, targetType, classificationLabels, preparedForInference);
+        result = 31 * result + Arrays.hashCode(featureNames);
+        result = 31 * result + Arrays.hashCode(classificationWeights);
+        return result;
     }
 }

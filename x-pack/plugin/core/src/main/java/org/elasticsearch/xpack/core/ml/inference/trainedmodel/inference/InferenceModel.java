@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference;
 
 import org.apache.lucene.util.Accountable;
+import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
@@ -16,7 +17,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
 
 import java.util.Map;
 
-public interface InferenceModel extends Accountable {
+public interface InferenceModel extends Accountable, NamedWriteable {
 
     static double[] extractFeatures(String[] featureNames, Map<String, Object> fields) {
         double[] features = new double[featureNames.length];

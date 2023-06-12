@@ -10,11 +10,13 @@ package org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference;
 import com.unboundid.util.Base64;
 
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
@@ -22,6 +24,9 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.inference.InferenceToXContentCompressor;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
+import org.elasticsearch.xpack.core.ml.inference.preprocessing.FrequencyEncodingTests;
+import org.elasticsearch.xpack.core.ml.inference.preprocessing.OneHotEncodingTests;
+import org.elasticsearch.xpack.core.ml.inference.preprocessing.TargetMeanEncodingTests;
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationFeatureImportance;
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
@@ -33,13 +38,45 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinitionTests.ENSEMBLE_MODEL;
 import static org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinitionTests.TREE_MODEL;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 
-public class InferenceDefinitionTests extends ESTestCase {
+public class InferenceDefinitionTests extends AbstractWireSerializingTestCase<InferenceDefinition> {
+
+    @Override
+    protected InferenceDefinition createTestInstance() {
+        int numberOfProcessors = randomIntBetween(1, 10);
+        return new InferenceDefinition(
+            randomFrom(EnsembleInferenceModelTests.randomInstance(), TreeInferenceModelTests.randomInstance()),
+            randomBoolean()
+                ? null
+                : Stream.generate(
+                    () -> randomFrom(
+                        FrequencyEncodingTests.createRandom(),
+                        OneHotEncodingTests.createRandom(),
+                        TargetMeanEncodingTests.createRandom()
+                    )
+                ).limit(numberOfProcessors).collect(Collectors.toList())
+        );
+    }
+
+    @Override
+    protected InferenceDefinition mutateInstance(InferenceDefinition instance) throws IOException {
+        return createTestInstance();
+    }
+
+    @Override
+    protected NamedWriteableRegistry getNamedWriteableRegistry() {
+        List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>();
+        namedWriteables.addAll(new MlInferenceNamedXContentProvider().getNamedWriteables());
+        namedWriteables.addAll(new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedWriteables());
+        return new NamedWriteableRegistry(namedWriteables);
+    }
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
@@ -329,5 +366,10 @@ public class InferenceDefinitionTests extends ESTestCase {
                     }
                 }
             }""", customPreprocessor);
+    }
+
+    @Override
+    protected Writeable.Reader<InferenceDefinition> instanceReader() {
+        return InferenceDefinition::new;
     }
 }

@@ -8,6 +8,9 @@
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference;
 
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.LenientlyParsedPreProcessor;
@@ -17,15 +20,17 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition.PREPROCESSORS;
 import static org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition.TRAINED_MODEL;
 
-public class InferenceDefinition {
+public class InferenceDefinition implements Writeable {
 
     public static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(InferenceDefinition.class);
 
@@ -60,6 +65,11 @@ public class InferenceDefinition {
     public InferenceDefinition(InferenceModel trainedModel, List<PreProcessor> preProcessors) {
         this.trainedModel = ExceptionsHelper.requireNonNull(trainedModel, TRAINED_MODEL);
         this.preProcessors = preProcessors == null ? Collections.emptyList() : Collections.unmodifiableList(preProcessors);
+    }
+
+    public InferenceDefinition(StreamInput input) throws IOException {
+        this.trainedModel = input.readNamedWriteable(InferenceModel.class);
+        this.preProcessors = input.readNamedWriteableList(PreProcessor.class);
     }
 
     public long ramBytesUsed() {
@@ -120,8 +130,29 @@ public class InferenceDefinition {
             + '}';
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        InferenceDefinition that = (InferenceDefinition) o;
+        return Objects.equals(trainedModel, that.trainedModel)
+            && Objects.equals(preProcessors, that.preProcessors)
+            && Objects.equals(decoderMap, that.decoderMap);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(trainedModel, preProcessors, decoderMap);
+    }
+
     public static Builder builder() {
         return new Builder();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeNamedWriteable(trainedModel);
+        out.writeNamedWriteableList(preProcessors);
     }
 
     public static class Builder {

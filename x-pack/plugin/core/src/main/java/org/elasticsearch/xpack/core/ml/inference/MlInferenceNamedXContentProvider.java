@@ -613,6 +613,12 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
             )
         );
 
+        // Inference model
+        namedWriteables.add(new NamedWriteableRegistry.Entry(InferenceModel.class, TreeInferenceModel.NAME, TreeInferenceModel::new));
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(InferenceModel.class, EnsembleInferenceModel.NAME, EnsembleInferenceModel::new)
+        );
+
         // Output Aggregator
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(OutputAggregator.class, WeightedSum.NAME.getPreferredName(), WeightedSum::new)

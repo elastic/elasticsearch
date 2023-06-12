@@ -476,9 +476,6 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
             repositorySettings.put(MAX_RESTORE_BYTES_PER_SEC.getKey(), ByteSizeValue.ofBytes(rateLimitInBytes));
         } else {
             repositorySettings.put(MAX_RESTORE_BYTES_PER_SEC.getKey(), ByteSizeValue.ZERO);
-        }
-
-        if (useRateLimits == false) {
             // Disable rate limiter which is defined in RecoverySettings
             // BlobStoreRepository#maybeRateLimitRestores uses two rate limiters and a single callback listener
             // which is asserted in this test. Both rate limiter should be switched off

@@ -80,7 +80,7 @@ abstract class AbstractNlpConfigUpdateTestCase<T extends NlpConfigUpdate> extend
                     tokenizationKind = "roberta";
                     update = new RobertaTokenizationUpdate(truncate, null);
                 }
-                case 3 -> {
+                case 4 -> {
                     tokenizationKind = "xlm_roberta";
                     update = new XLMRobertaTokenizationUpdate(truncate, null);
                 }

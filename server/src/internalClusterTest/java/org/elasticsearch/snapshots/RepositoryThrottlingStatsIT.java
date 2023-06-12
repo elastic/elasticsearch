@@ -71,8 +71,8 @@ public class RepositoryThrottlingStatsIT extends AbstractSnapshotIntegTestCase {
         RepositoriesStats stats = response.getNodes().get(0).getRepositoriesStats();
 
         assertTrue(stats.getRepositoryThrottlingStats().containsKey("test-repo"));
-        assertTrue(stats.getRepositoryThrottlingStats().get("test-repo").getTotalWriteThrottledNanos() > 0);
-        assertTrue(stats.getRepositoryThrottlingStats().get("test-repo").getTotalReadThrottledNanos() > 0);
+        assertTrue(stats.getRepositoryThrottlingStats().get("test-repo").totalWriteThrottledNanos() > 0);
+        assertTrue(stats.getRepositoryThrottlingStats().get("test-repo").totalReadThrottledNanos() > 0);
 
     }
 }

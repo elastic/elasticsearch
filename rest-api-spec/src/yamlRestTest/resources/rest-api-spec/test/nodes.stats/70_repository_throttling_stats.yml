@@ -14,8 +14,8 @@
       nodes.stats:
         metric: [ repository ]
 
-  - is_true: nodes.$node_id.repository
-  - match: { nodes.$node_id.repository: {} }
+  - is_true: nodes.$node_id.repositories
+  - match: { nodes.$node_id.repositories: {} }
 
 ---
 "Repository throttling stats (some repositories exist)":
@@ -49,13 +49,13 @@
       nodes.stats:
         metric: [ repository ]
 
-  - is_true: nodes.$node_id.repository
+  - is_true: nodes.$node_id.repositories
 
-  - is_true: nodes.$node_id.repository.test_repo_uuid_1
-  - gte: { nodes.$node_id.repository.test_repo_uuid_1.total_read_throttled_nanos: 0 }
-  - gte: { nodes.$node_id.repository.test_repo_uuid_1.total_write_throttled_nanos: 0 }
+  - is_true: nodes.$node_id.repositories.test_repo_uuid_1
+  - gte: { nodes.$node_id.repositories.test_repo_uuid_1.total_read_throttled_nanos: 0 }
+  - gte: { nodes.$node_id.repositories.test_repo_uuid_1.total_write_throttled_nanos: 0 }
 
-  - is_true: nodes.$node_id.repository.test_repo_uuid_2
-  - gte: { nodes.$node_id.repository.test_repo_uuid_2.total_read_throttled_nanos: 0 }
-  - gte: { nodes.$node_id.repository.test_repo_uuid_2.total_write_throttled_nanos: 0 }
+  - is_true: nodes.$node_id.repositories.test_repo_uuid_2
+  - gte: { nodes.$node_id.repositories.test_repo_uuid_2.total_read_throttled_nanos: 0 }
+  - gte: { nodes.$node_id.repositories.test_repo_uuid_2.total_write_throttled_nanos: 0 }
 

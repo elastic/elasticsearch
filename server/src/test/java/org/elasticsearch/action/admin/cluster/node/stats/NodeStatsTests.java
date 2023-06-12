@@ -462,8 +462,8 @@ public class NodeStatsTests extends ESTestCase {
 
                 RepositoriesStats repoThrottlingStats = deserializedNodeStats.getRepositoriesStats();
                 assertTrue(repoThrottlingStats.getRepositoryThrottlingStats().containsKey("test-repository"));
-                assertEquals(100, repoThrottlingStats.getRepositoryThrottlingStats().get("test-repository").getTotalReadThrottledNanos());
-                assertEquals(200, repoThrottlingStats.getRepositoryThrottlingStats().get("test-repository").getTotalWriteThrottledNanos());
+                assertEquals(100, repoThrottlingStats.getRepositoryThrottlingStats().get("test-repository").totalReadThrottledNanos());
+                assertEquals(200, repoThrottlingStats.getRepositoryThrottlingStats().get("test-repository").totalWriteThrottledNanos());
 
             }
         }
@@ -1033,7 +1033,9 @@ public class NodeStatsTests extends ESTestCase {
                 randomLongBetween(0, maxStatValue)
             );
         }
-        RepositoriesStats repositoriesStats = RepositoriesStats.builder().add("test-repository", 100, 200).build();
+        RepositoriesStats repositoriesStats = new RepositoriesStats(
+            Map.of("test-repository", new RepositoriesStats.ThrottlingStats(100, 200))
+        );
 
         return new NodeStats(
             node,

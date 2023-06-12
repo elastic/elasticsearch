@@ -46,7 +46,7 @@ public class RepositoriesStats implements Writeable, ToXContentFragment {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field("repository", repositoryThrottlingStats);
+        builder.field("repositories", repositoryThrottlingStats);
         return builder;
     }
 
@@ -54,44 +54,10 @@ public class RepositoriesStats implements Writeable, ToXContentFragment {
         return Collections.unmodifiableMap(repositoryThrottlingStats);
     }
 
-    public static class Builder {
-        private final Map<String, ThrottlingStats> repoThrottlingStats = new HashMap<>();
-
-        public Builder add(String repoName, long totalReadThrottledNanos, long totalWriteThrottledNanos) {
-            repoThrottlingStats.put(repoName, new ThrottlingStats(totalReadThrottledNanos, totalWriteThrottledNanos));
-            return this;
-        }
-
-        public RepositoriesStats build() {
-            return new RepositoriesStats(repoThrottlingStats);
-        }
-    }
-
-    public static Builder builder() {
-        return new Builder();
-    }
-
-    public static class ThrottlingStats implements ToXContentObject, Writeable {
-
-        private final long totalReadThrottledNanos;
-        private final long totalWriteThrottledNanos;
+    public record ThrottlingStats(long totalReadThrottledNanos, long totalWriteThrottledNanos) implements ToXContentObject, Writeable {
 
         ThrottlingStats(StreamInput in) throws IOException {
-            this.totalReadThrottledNanos = in.readLong();
-            this.totalWriteThrottledNanos = in.readLong();
-        }
-
-        public ThrottlingStats(long totalReadThrottledNanos, long totalWriteThrottledNanos) {
-            this.totalReadThrottledNanos = totalReadThrottledNanos;
-            this.totalWriteThrottledNanos = totalWriteThrottledNanos;
-        }
-
-        public long getTotalReadThrottledNanos() {
-            return totalReadThrottledNanos;
-        }
-
-        public long getTotalWriteThrottledNanos() {
-            return totalWriteThrottledNanos;
+            this(in.readVLong(), in.readVLong());
         }
 
         @Override
@@ -105,8 +71,8 @@ public class RepositoriesStats implements Writeable, ToXContentFragment {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeLong(totalReadThrottledNanos);
-            out.writeLong(totalWriteThrottledNanos);
+            out.writeVLong(totalReadThrottledNanos);
+            out.writeVLong(totalWriteThrottledNanos);
         }
     }
 }

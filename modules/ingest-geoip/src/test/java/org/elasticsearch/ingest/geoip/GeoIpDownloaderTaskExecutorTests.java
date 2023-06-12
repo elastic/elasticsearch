@@ -46,7 +46,6 @@ public class GeoIpDownloaderTaskExecutorTests extends ESTestCase {
         when(metadata.indices()).thenReturn(Map.of("index", indexMetadata));
 
         for (String pipelineConfigJson : getPipelinesWithGeoIpProcessors(false)) {
-            System.out.println(pipelineConfigJson);
             ingestMetadata[0] = new IngestMetadata(
                 Map.of("_id1", new PipelineConfiguration("_id1", new BytesArray(pipelineConfigJson), XContentType.JSON))
             );

@@ -485,10 +485,11 @@ public final class StoreRecovery {
                         writeEmptyRetentionLeasesFile(indexShard);
                         indexShard.recoveryState().getIndex().setFileDetailsComplete();
                     }
-                    indexShard.openEngineAndRecoverFromTranslog(ActionListener.runBefore(releaseListener, () -> {
+                    indexShard.openEngineAndRecoverFromTranslog(releaseListener.map(v -> {
                         indexShard.getEngine().fillSeqNoGaps(indexShard.getPendingPrimaryTerm());
                         indexShard.finalizeRecovery();
                         indexShard.postRecovery("post recovery from shard_store");
+                        return v;
                     }));
                 }
             );

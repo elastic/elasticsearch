@@ -15,43 +15,28 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Map;
 
 public class StatelessAutoscalingMetrics implements ToXContentObject, Writeable {
 
-    private final TierMetrics indexTierMetrics;
-    private final TierMetrics searchTierMetrics;
-    private final TierMetrics mlTierMetrics;
+    private final Map<String, TierMetrics> tiers;
+
+    public StatelessAutoscalingMetrics(Map<String, TierMetrics> tiers) {
+        this.tiers = tiers;
+    }
 
     public StatelessAutoscalingMetrics(final StreamInput input) throws IOException {
-        this.indexTierMetrics = new TierMetrics.IndexTierMetrics(input);
-        this.searchTierMetrics = new TierMetrics.SearchTierMetrics(input);
-        this.mlTierMetrics = new TierMetrics.MlTierMetrics(input);
-    }
-
-    public StatelessAutoscalingMetrics(
-        final TierMetrics indexTierMetrics,
-        final TierMetrics searchTierMetrics,
-        final TierMetrics mlTierMetrics
-    ) {
-        this.indexTierMetrics = indexTierMetrics;
-        this.searchTierMetrics = searchTierMetrics;
-        this.mlTierMetrics = mlTierMetrics;
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        builder.field("index-tier", indexTierMetrics);
-        builder.field("search-tier", searchTierMetrics);
-        builder.field("ml-tier", mlTierMetrics);
-        builder.endObject();
-        return builder;
+        this(input.readMap(StreamInput::readString, TierMetrics::new));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        indexTierMetrics.writeTo(out);
-        searchTierMetrics.writeTo(out);
-        mlTierMetrics.writeTo(out);
+        out.writeMap(tiers, StreamOutput::writeString, StreamOutput::writeWriteable);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.map(tiers);
+        return builder;
     }
 }

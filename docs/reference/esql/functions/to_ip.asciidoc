@@ -6,14 +6,11 @@ The input can be a single- or multi-valued field or an expression.
 
 Example:
 
-[source,esql]
+[source.merge.styled,esql]
 ----
 include::{esql-specs}/ip.csv-spec[tag=to_ip]
 ----
-
-which returns:
-
-[%header,format=dsv,separator=|]
+[%header.monospaced.styled,format=dsv,separator=|]
 |===
 include::{esql-specs}/ip.csv-spec[tag=to_ip-result]
 |===

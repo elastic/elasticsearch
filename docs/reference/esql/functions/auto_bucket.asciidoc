@@ -9,14 +9,11 @@ picks an appropriate bucket size to generate the target number of buckets or
 fewer. For example, this asks for at most 20 buckets over a whole year, which
 picks monthly buckets:
 
-[source,esql]
+[source.merge.styled,esql]
 ----
 include::{esql-specs}/date.csv-spec[tag=auto_bucket_month]
 ----
-
-Returns:
-
-[%header,format=dsv,separator=|]
+[%header.monospaced.styled,format=dsv,separator=|]
 |===
 include::{esql-specs}/date.csv-spec[tag=auto_bucket_month-result]
 |===
@@ -28,14 +25,11 @@ buckets.
 If you ask for more buckets then `AUTO_BUCKET` can pick a smaller range. For example,
 asking for at most 100 buckets in a year will get you week long buckets:
 
-[source,esql]
+[source.merge.styled,esql]
 ----
 include::{esql-specs}/date.csv-spec[tag=auto_bucket_week]
 ----
-
-Returns:
-
-[%header,format=dsv,separator=|]
+[%header.monospaced.styled,format=dsv,separator=|]
 |===
 include::{esql-specs}/date.csv-spec[tag=auto_bucket_week-result]
 |===
@@ -47,14 +41,11 @@ with <<esql-where>> to filter rows.
 
 A more complete example might look like:
 
-[source,esql]
+[source.merge.styled,esql]
 ----
 include::{esql-specs}/date.csv-spec[tag=auto_bucket_in_agg]
 ----
-
-Which returns:
-
-[%header,format=dsv,separator=|]
+[%header.monospaced.styled,format=dsv,separator=|]
 |===
 include::{esql-specs}/date.csv-spec[tag=auto_bucket_in_agg-result]
 |===

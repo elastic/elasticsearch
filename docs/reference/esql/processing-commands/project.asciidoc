@@ -7,14 +7,11 @@ order in which they are returned.
 To limit the columns that are returned, use a comma-separated list of column
 names. The columns are returned in the specified order:
 
-[source,esql]
+[source.merge.styled,esql]
 ----
 include::{esql-specs}/docs.csv-spec[tag=project]
 ----
-
-Which returns:
-
-[%header,format=dsv,separator=|]
+[%header.monospaced.styled,format=dsv,separator=|]
 |===
 include::{esql-specs}/docs.csv-spec[tag=project-result]
 |===

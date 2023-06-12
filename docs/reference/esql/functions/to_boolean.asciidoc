@@ -9,14 +9,11 @@ A string value of *"true"* will be case-insensitive converted to the Boolean
 *true*. For anything else, including the empty string, the function will
 return *false*. For example:
 
-[source,esql]
+[source.merge.styled,esql]
 ----
 include::{esql-specs}/boolean.csv-spec[tag=to_boolean]
 ----
-
-returns:
-
-[%header,format=dsv,separator=|]
+[%header.monospaced.styled,format=dsv,separator=|]
 |===
 include::{esql-specs}/boolean.csv-spec[tag=to_boolean-result]
 |===

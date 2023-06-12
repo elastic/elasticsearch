@@ -2,14 +2,11 @@
 === `TO_VERSION`
 Converts an input string to a version value. For example:
 
-[source,esql]
+[source.merge.styled,esql]
 ----
 include::{esql-specs}/version.csv-spec[tag=to_version]
 ----
-
-which returns:
-
-[%header,format=dsv,separator=|]
+[%header.monospaced.styled,format=dsv,separator=|]
 |===
 include::{esql-specs}/version.csv-spec[tag=to_version-result]
 |===

@@ -3,14 +3,11 @@
 Use `STATS ... BY` to group rows according to a common value and calculate one
 or more aggregated values over the grouped rows.
 
-[source,esql]
+[source.merge.styled,esql]
 ----
 include::{esql-specs}/docs.csv-spec[tag=stats]
 ----
-
-Which returns:
-
-[%header,format=dsv,separator=|]
+[%header.monospaced.styled,format=dsv,separator=|]
 |===
 include::{esql-specs}/docs.csv-spec[tag=stats-result]
 |===
@@ -18,14 +15,11 @@ include::{esql-specs}/docs.csv-spec[tag=stats-result]
 If `BY` is omitted, the output table contains exactly one row with the
 aggregations applied over the entire dataset:
 
-[source,esql]
+[source.merge.styled,esql]
 ----
 include::{esql-specs}/docs.csv-spec[tag=statsWithoutBy]
 ----
-
-Returning:
-
-[%header,format=dsv,separator=|]
+[%header.monospaced.styled,format=dsv,separator=|]
 |===
 include::{esql-specs}/docs.csv-spec[tag=statsWithoutBy-result]
 |===

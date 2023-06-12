@@ -10,14 +10,11 @@ of grok patterns.
 
 For example:
 
-[source,esql]
+[source.merge.styled,esql]
 ----
 include::{esql-specs}/grok.csv-spec[tag=grok]
 ----
-
-Returns:
-
-[%header,format=dsv,separator=|]
+[%header.monospaced.styled,format=dsv,separator=|]
 |===
 include::{esql-specs}/grok.csv-spec[tag=grok-result]
 |===

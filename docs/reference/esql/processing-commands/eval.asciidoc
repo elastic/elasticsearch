@@ -2,14 +2,11 @@
 === `EVAL`
 `EVAL` enables you to append new columns:
 
-[source,esql]
+[source.merge.styled,esql]
 ----
 include::{esql-specs}/docs.csv-spec[tag=eval]
 ----
-
-Returns:
-
-[%header,format=dsv,separator=|]
+[%header.monospaced.styled,format=dsv,separator=|]
 |===
 include::{esql-specs}/docs.csv-spec[tag=eval-result]
 |===
@@ -17,14 +14,11 @@ include::{esql-specs}/docs.csv-spec[tag=eval-result]
 If the specified column already exists, the existing column will be dropped, and
 the new column will be appended to the table:
 
-[source,esql]
+[source.merge.styled,esql]
 ----
 include::{esql-specs}/docs.csv-spec[tag=evalReplace]
 ----
-
-Returns:
-
-[%header,format=dsv,separator=|]
+[%header.monospaced.styled,format=dsv,separator=|]
 |===
 include::{esql-specs}/docs.csv-spec[tag=evalReplace-result]
 |===

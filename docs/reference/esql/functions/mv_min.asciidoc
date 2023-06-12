@@ -2,14 +2,11 @@
 === `MV_MIN`
 Converts a multivalued field into a single valued field containing the minimum value. For example:
 
-[source,esql]
+[source.merge.styled,esql]
 ----
 include::{esql-specs}/math.csv-spec[tag=mv_min]
 ----
-
-Returns:
-
-[%header,format=dsv,separator=|]
+[%header.monospaced.styled,format=dsv,separator=|]
 |===
 include::{esql-specs}/math.csv-spec[tag=mv_min-result]
 |===
@@ -17,14 +14,11 @@ include::{esql-specs}/math.csv-spec[tag=mv_min-result]
 It can be used by any field type, including `keyword` fields. In that case picks the
 first string, comparing their utf-8 representation byte by byte:
 
-[source,esql]
+[source.merge.styled,esql]
 ----
 include::{esql-specs}/string.csv-spec[tag=mv_min]
 ----
-
-Returns:
-
-[%header,format=dsv,separator=|]
+[%header.monospaced.styled,format=dsv,separator=|]
 |===
 include::{esql-specs}/string.csv-spec[tag=mv_min-result]
 |===

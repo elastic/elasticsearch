@@ -2,14 +2,11 @@
 === `MV_MEDIAN`
 Converts a multivalued field into a single valued field containing the median value. For example:
 
-[source,esql]
+[source.merge.styled,esql]
 ----
 include::{esql-specs}/math.csv-spec[tag=mv_median]
 ----
-
-Returns:
-
-[%header,format=dsv,separator=|]
+[%header.monospaced.styled,format=dsv,separator=|]
 |===
 include::{esql-specs}/math.csv-spec[tag=mv_median-result]
 |===
@@ -18,14 +15,11 @@ It can be used by any numeric field type and returns a value of the same type. I
 row has an even number of values for a column the result will be the average of the
 middle two entries. If the field is not floating point then the average rounds *down*:
 
-[source,esql]
+[source.merge.styled,esql]
 ----
 include::{esql-specs}/math.csv-spec[tag=mv_median_round_down]
 ----
-
-Returns:
-
-[%header,format=dsv,separator=|]
+[%header.monospaced.styled,format=dsv,separator=|]
 |===
 include::{esql-specs}/math.csv-spec[tag=mv_median_round_down-result]
 |===

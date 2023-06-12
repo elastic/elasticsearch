@@ -4,14 +4,11 @@
 The `ROW` source command produces a row with one or more columns with values
 that you specify. This can be useful for testing.
 
-[source,esql]
+[source.merge.styled,esql]
 ----
 include::{esql-specs}/row.csv-spec[tag=example]
 ----
-
-Which looks like:
-
-[%header,format=dsv,separator=|]
+[%header.monospaced.styled,format=dsv,separator=|]
 |===
 include::{esql-specs}/row.csv-spec[tag=example-result]
 |===

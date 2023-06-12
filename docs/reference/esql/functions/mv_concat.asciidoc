@@ -3,27 +3,22 @@
 Converts a multivalued string field into a single valued field containing the
 concatenation of all values separated by a delimiter:
 
-[source,esql]
+[source.merge.styled,esql]
 ----
 include::{esql-specs}/string.csv-spec[tag=mv_concat]
 ----
-
-Returns:
-
-[%header,format=dsv,separator=|]
+[%header.monospaced.styled,format=dsv,separator=|]
 |===
 include::{esql-specs}/string.csv-spec[tag=mv_concat-result]
 |===
 
 If you want to concat non-string fields call <<esql-to_string>> on them first:
-[source,esql]
+
+[source.merge.styled,esql]
 ----
 include::{esql-specs}/string.csv-spec[tag=mv_concat-to_string]
 ----
-
-Returns:
-
-[%header,format=dsv,separator=|]
+[%header.monospaced.styled,format=dsv,separator=|]
 |===
 include::{esql-specs}/string.csv-spec[tag=mv_concat-to_string-result]
 |===

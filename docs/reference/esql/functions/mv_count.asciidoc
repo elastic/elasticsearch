@@ -3,14 +3,11 @@
 Converts a multivalued field into a single valued field containing a count of the number
 of values:
 
-[source,esql]
+[source.merge.styled,esql]
 ----
 include::{esql-specs}/string.csv-spec[tag=mv_count]
 ----
-
-Returns:
-
-[%header,format=dsv,separator=|]
+[%header.monospaced.styled,format=dsv,separator=|]
 |===
 include::{esql-specs}/string.csv-spec[tag=mv_count-result]
 |===

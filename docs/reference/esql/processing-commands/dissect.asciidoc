@@ -8,14 +8,11 @@ keys as columns.
 Refer to the <<dissect-processor,dissect processor documentation>> for the
 syntax of dissect patterns.
 
-[source,esql]
+[source.merge.styled,esql]
 ----
 include::{esql-specs}/dissect.csv-spec[tag=dissect]
 ----
-
-Returns:
-
-[%header,format=dsv,separator=|]
+[%header.monospaced.styled,format=dsv,separator=|]
 |===
 include::{esql-specs}/dissect.csv-spec[tag=dissect-result]
 |===

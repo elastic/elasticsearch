@@ -7,14 +7,11 @@ type must be of a boolean, date, string or numeric type.
 
 Example:
 
-[source,esql]
+[source.merge.styled,esql]
 ----
 include::{esql-specs}/ints.csv-spec[tag=to_long-str]
 ----
-
-returns:
-
-[%header,format=dsv,separator=|]
+[%header.monospaced.styled,format=dsv,separator=|]
 |===
 include::{esql-specs}/ints.csv-spec[tag=to_long-str-result]
 |===

@@ -3,14 +3,11 @@
 Converts a multivalued field into a single valued field containing the average
 of all of the values. For example:
 
-[source,esql]
+[source.merge.styled,esql]
 ----
 include::{esql-specs}/math.csv-spec[tag=mv_avg]
 ----
-
-Returns:
-
-[%header,format=dsv,separator=|]
+[%header.monospaced.styled,format=dsv,separator=|]
 |===
 include::{esql-specs}/math.csv-spec[tag=mv_avg-result]
 |===

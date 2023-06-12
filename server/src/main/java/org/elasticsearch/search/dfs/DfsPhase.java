@@ -10,6 +10,7 @@ package org.elasticsearch.search.dfs;
 
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.CollectionStatistics;
+import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
@@ -177,7 +178,7 @@ public class DfsPhase {
             Query knnQuery = searchExecutionContext.toQuery(knnVectorQueryBuilders.get(i)).query();
             int numHits = knnSearch.get(i).k();
             final TopDocs[] topDocs = new TopDocs[1];
-            CollectorManager<TopScoreDocCollector, TopDocs> topDocsCollectorManager = new CollectorManager<>() {
+            CollectorManager<TopScoreDocCollector, Void> topDocsCollectorManager = new CollectorManager<>() {
 
                 final CollectorManager<TopScoreDocCollector, TopDocs> wrapped = TopScoreDocCollector.createSharedManager(
                     numHits,
@@ -191,11 +192,12 @@ public class DfsPhase {
                 }
 
                 @Override
-                public TopDocs reduce(Collection<TopScoreDocCollector> collectors) throws IOException {
-                    return topDocs[0] = wrapped.reduce(collectors);
+                public Void reduce(Collection<TopScoreDocCollector> collectors) throws IOException {
+                    topDocs[0] = wrapped.reduce(collectors);
+                    return null;
                 }
             };
-            CollectorManager<?, ?> cm = topDocsCollectorManager;
+            CollectorManager<? extends Collector, Void> cm = topDocsCollectorManager;
             if (context.getProfilers() != null) {
                 ProfileCollectorManager ipcm = new ProfileCollectorManager(topDocsCollectorManager);
                 QueryProfiler knnProfiler = context.getProfilers().getDfsProfiler().addQueryProfiler(ipcm);

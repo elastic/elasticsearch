@@ -42,7 +42,7 @@ public class ProfileCollectorManagerTests extends ESTestCase {
             }
 
             @Override
-            public Object reduce(Collection<Collector> collectors) {
+            public Void reduce(Collection<Collector> collectors) {
                 return null;
             }
         });
@@ -62,7 +62,7 @@ public class ProfileCollectorManagerTests extends ESTestCase {
             }
 
             @Override
-            public Object reduce(Collection<Collector> collectors) {
+            public Void reduce(Collection<Collector> collectors) {
                 reduceCalled.set(true);
                 return null;
             }
@@ -80,7 +80,7 @@ public class ProfileCollectorManagerTests extends ESTestCase {
             }
 
             @Override
-            public Object reduce(Collection<Collector> collectors) {
+            public Void reduce(Collection<Collector> collectors) {
                 return null;
             }
         });

@@ -24,12 +24,12 @@ import java.util.stream.Collectors;
  */
 public final class ProfileCollectorManager implements CollectorManager<InternalProfileCollector, Void> {
 
-    private final CollectorManager<Collector, ?> collectorManager;
+    private final CollectorManager<Collector, Void> collectorManager;
     private CollectorResult collectorTree;
 
     @SuppressWarnings("unchecked")
-    public ProfileCollectorManager(CollectorManager<? extends Collector, ?> collectorManager) {
-        this.collectorManager = (CollectorManager<Collector, ?>) collectorManager;
+    public ProfileCollectorManager(CollectorManager<? extends Collector, Void> collectorManager) {
+        this.collectorManager = (CollectorManager<Collector, Void>) collectorManager;
     }
 
     @Override

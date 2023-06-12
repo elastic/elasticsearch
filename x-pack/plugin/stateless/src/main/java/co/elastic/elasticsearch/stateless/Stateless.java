@@ -25,6 +25,7 @@ import co.elastic.elasticsearch.stateless.allocation.StatelessShardRoutingRoleSt
 import co.elastic.elasticsearch.stateless.autoscaling.RestGetStatelessAutoscalingMetricsHandler;
 import co.elastic.elasticsearch.stateless.autoscaling.action.GetStatelessAutoscalingMetricsAction;
 import co.elastic.elasticsearch.stateless.autoscaling.action.TransportGetStatelessAutoscalingMetricsAction;
+import co.elastic.elasticsearch.stateless.autoscaling.action.metrics.AutoscalingDiskSizeMetricsService;
 import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessElectionStrategy;
 import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessHeartbeatStore;
 import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessPersistedClusterStateService;
@@ -152,6 +153,7 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
     private final SetOnce<StatelessElectionStrategy> electionStrategy = new SetOnce<>();
     private final SetOnce<StoreHeartbeatService> storeHeartbeatService = new SetOnce<>();
     private final SetOnce<RefreshThrottlingService> refreshThrottlingService = new SetOnce<>();
+    private final SetOnce<AutoscalingDiskSizeMetricsService> autoscalingDiskSizeMetricsService = new SetOnce<>();
     private final boolean sharedCachedSettingExplicitlySet;
     private final boolean hasSearchRole;
     private final boolean hasIndexRole;
@@ -268,7 +270,17 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
             )
         );
         var refreshThrottlingService = setAndGet(this.refreshThrottlingService, new RefreshThrottlingService(settings, clusterService));
-        return List.of(objectStoreService, translogReplicator, sharedBlobCache, refreshThrottlingService);
+        var autoscalingDiskSizeMetricsService = setAndGet(
+            this.autoscalingDiskSizeMetricsService,
+            new AutoscalingDiskSizeMetricsService(clusterService.getClusterSettings(), threadPool)
+        );
+        return List.of(
+            objectStoreService,
+            translogReplicator,
+            sharedBlobCache,
+            refreshThrottlingService,
+            autoscalingDiskSizeMetricsService
+        );
     }
 
     protected StatelessCommitService createStatelessCommitService(

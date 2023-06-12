@@ -9,6 +9,7 @@
 package org.elasticsearch.script.field.vectors;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.core.SuppressForbidden;
 
 import java.nio.ByteBuffer;
@@ -18,30 +19,28 @@ public class ByteBinaryDenseVector implements DenseVector {
 
     public static final int MAGNITUDE_BYTES = 4;
 
-    protected final BytesRef docVector;
-    protected final int dims;
+    private final BytesRef docVector;
+    private final byte[] vectorValue;
+    private final int dims;
 
-    protected float[] floatDocVector;
-    protected boolean magnitudeDecoded;
-    protected float magnitude;
+    private float[] floatDocVector;
+    private boolean magnitudeDecoded;
+    private float magnitude;
 
-    public ByteBinaryDenseVector(BytesRef docVector, int dims) {
+    public ByteBinaryDenseVector(byte[] vectorValue, BytesRef docVector, int dims) {
         this.docVector = docVector;
         this.dims = dims;
+        this.vectorValue = vectorValue;
     }
 
     @Override
     public float[] getVector() {
         if (floatDocVector == null) {
             floatDocVector = new float[dims];
-
-            int i = 0;
-            int j = docVector.offset;
-            while (i < dims) {
-                floatDocVector[i++] = docVector.bytes[j++];
+            for (int i = 0; i < dims; i++) {
+                floatDocVector[i] = vectorValue[i];
             }
         }
-
         return floatDocVector;
     }
 
@@ -56,13 +55,7 @@ public class ByteBinaryDenseVector implements DenseVector {
 
     @Override
     public int dotProduct(byte[] queryVector) {
-        int result = 0;
-        int i = 0;
-        int j = docVector.offset;
-        while (i < dims) {
-            result += docVector.bytes[j++] * queryVector[i++];
-        }
-        return result;
+        return VectorUtil.dotProduct(queryVector, vectorValue);
     }
 
     @Override
@@ -73,10 +66,8 @@ public class ByteBinaryDenseVector implements DenseVector {
     @Override
     public double dotProduct(List<Number> queryVector) {
         int result = 0;
-        int i = 0;
-        int j = docVector.offset;
-        while (i < dims) {
-            result += docVector.bytes[j++] * queryVector.get(i++).intValue();
+        for (int i = 0; i < queryVector.size(); i++) {
+            result += vectorValue[i] * queryVector.get(i).intValue();
         }
         return result;
     }
@@ -89,10 +80,8 @@ public class ByteBinaryDenseVector implements DenseVector {
     @Override
     public int l1Norm(byte[] queryVector) {
         int result = 0;
-        int i = 0;
-        int j = docVector.offset;
-        while (i < dims) {
-            result += abs(docVector.bytes[j++] - queryVector[i++]);
+        for (int i = 0; i < queryVector.length; i++) {
+            result += abs(vectorValue[i] - queryVector[i]);
         }
         return result;
     }
@@ -105,24 +94,15 @@ public class ByteBinaryDenseVector implements DenseVector {
     @Override
     public double l1Norm(List<Number> queryVector) {
         int result = 0;
-        int i = 0;
-        int j = docVector.offset;
-        while (i < dims) {
-            result += abs(docVector.bytes[j++] - queryVector.get(i++).intValue());
+        for (int i = 0; i < queryVector.size(); i++) {
+            result += abs(vectorValue[i] - queryVector.get(i).intValue());
         }
         return result;
     }
 
     @Override
     public double l2Norm(byte[] queryVector) {
-        int result = 0;
-        int i = 0;
-        int j = docVector.offset;
-        while (i < dims) {
-            int diff = docVector.bytes[j++] - queryVector[i++];
-            result += diff * diff;
-        }
-        return Math.sqrt(result);
+        return Math.sqrt(VectorUtil.squareDistance(queryVector, vectorValue));
     }
 
     @Override
@@ -133,10 +113,8 @@ public class ByteBinaryDenseVector implements DenseVector {
     @Override
     public double l2Norm(List<Number> queryVector) {
         int result = 0;
-        int i = 0;
-        int j = docVector.offset;
-        while (i < dims) {
-            int diff = docVector.bytes[j++] - queryVector.get(i++).intValue();
+        for (int i = 0; i < queryVector.size(); i++) {
+            int diff = vectorValue[i] - queryVector.get(i).intValue();
             result += diff * diff;
         }
         return Math.sqrt(result);

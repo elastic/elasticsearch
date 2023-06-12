@@ -14,6 +14,7 @@ import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.config.Configurator;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.StringHelper;
+import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.SubscribableListener;
@@ -29,6 +30,7 @@ import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.jdk.JarHell;
 import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.monitor.jvm.JvmInfo;
@@ -185,7 +187,9 @@ class Elasticsearch {
             ReferenceDocs.class,
             // The following classes use MethodHandles.lookup during initialization, load them now (before SM) to be sure they succeed
             AbstractRefCounted.class,
-            SubscribableListener.class
+            SubscribableListener.class,
+            // We eagerly initialize to work around log4j permissions & JDK-8309727
+            VectorUtil.class
         );
 
         // install SM after natives, shutdown hooks, etc.
@@ -336,10 +340,10 @@ class Elasticsearch {
     }
 
     static void checkLucene() {
-        if (Version.CURRENT.luceneVersion().equals(org.apache.lucene.util.Version.LATEST) == false) {
+        if (IndexVersion.CURRENT.luceneVersion().equals(org.apache.lucene.util.Version.LATEST) == false) {
             throw new AssertionError(
                 "Lucene version mismatch this version of Elasticsearch requires lucene version ["
-                    + Version.CURRENT.luceneVersion()
+                    + IndexVersion.CURRENT.luceneVersion()
                     + "]  but the current lucene version is ["
                     + org.apache.lucene.util.Version.LATEST
                     + "]"

@@ -2676,7 +2676,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         final String requestId = randomRequestId();
         final Authentication remoteAuthentication = randomFrom(
             AuthenticationTestHelper.builder().realm(false),
-            AuthenticationTestHelper.builder().internal(InternalUsers.CROSS_CLUSTER_ACCESS_USER),
+            AuthenticationTestHelper.builder().internal(InternalUsers.SYSTEM_USER),
             AuthenticationTestHelper.builder().serviceAccount(),
             AuthenticationTestHelper.builder().apiKey().metadata(Map.of(AuthenticationField.API_KEY_NAME_KEY, randomAlphaOfLength(42)))
         ).build(false);

@@ -13,10 +13,10 @@ PY_PID=$!
 
 until [ -f /config/c2id/override.properties ]
 do
-  echo "Waiting"
+  echo "Waiting for properties file"
   sleep 1
 done
-echo "File found"
+echo "Properties file available. Starting server"
 
 kill $PY_PID
 

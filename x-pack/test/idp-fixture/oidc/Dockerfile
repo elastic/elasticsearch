@@ -3,11 +3,11 @@ FROM openjdk:11.0.16-jre
 
 # TODO this is obviously horrible
 RUN apt-get update -qqy && apt-get install -qqy python3
+
 COPY --from=c2id /c2id-server /c2id-server
 COPY --from=c2id /etc/c2id /etc/c2id
-ADD ./oidc/setup.sh /
+COPY ./oidc/setup.sh /fixture/
 
+ENV CATALINA_OPTS="-DsystemPropertiesURL=file:///config/c2id/override.properties"
 EXPOSE 8080
-# We will launch the c2id server as part via a docker-compose command; we need to do this so that the c2id config with
-# the injected ephemeral port is available
-CMD sleep infinity
+CMD ["/bin/bash", "/fixture/setup.sh"]

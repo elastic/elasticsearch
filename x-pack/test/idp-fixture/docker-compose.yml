@@ -44,9 +44,6 @@ services:
       dockerfile: ./oidc/Dockerfile
     depends_on:
       - http-proxy
-    environment:
-      - CATALINA_OPTS="-DsystemPropertiesURL=file:///config/c2id/override.properties"
-    command: "bash /setup.sh"
     ports:
       - "8080"
     expose:

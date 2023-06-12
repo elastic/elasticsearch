@@ -132,7 +132,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
                 clusterState,
                 task,
                 new ArraySearchPhaseResults<>(shardIterators.size()),
-                1,
+                20,
                 clusters
             ) {
                 @Override

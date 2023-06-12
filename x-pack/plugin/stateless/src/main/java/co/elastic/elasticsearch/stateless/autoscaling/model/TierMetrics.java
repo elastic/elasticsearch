@@ -15,70 +15,30 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Map;
 
-public abstract class TierMetrics implements ToXContentObject, Writeable {
+public class TierMetrics implements ToXContentObject, Writeable {
 
-    public static class IndexTierMetrics extends TierMetrics {
+    private final Map<String, Object> metrics;
 
-        public IndexTierMetrics(final StreamInput input) throws IOException {
-            super(input);
-        }
-
-        public IndexTierMetrics(MetricsContainer metrics, ConstraintsContainer constraints) {
-            super(metrics, constraints);
-        }
-
-    }
-
-    public static class SearchTierMetrics extends TierMetrics {
-
-        public SearchTierMetrics(final StreamInput input) throws IOException {
-            super(input);
-        }
-
-        public SearchTierMetrics(MetricsContainer metrics, ConstraintsContainer constraints) {
-            super(metrics, constraints);
-        }
-
-    }
-
-    public static class MlTierMetrics extends TierMetrics {
-
-        public MlTierMetrics(final StreamInput input) throws IOException {
-            super(input);
-        }
-
-        public MlTierMetrics(MetricsContainer metrics, ConstraintsContainer constraints) {
-            super(metrics, constraints);
-        }
-
-    }
-
-    private final MetricsContainer metrics;
-    private final ConstraintsContainer constraints;
-
-    public TierMetrics(final MetricsContainer metrics, final ConstraintsContainer constraints) {
+    public TierMetrics(Map<String, Object> metrics) {
         this.metrics = metrics;
-        this.constraints = constraints;
     }
 
     public TierMetrics(StreamInput input) throws IOException {
-        this.metrics = new MetricsContainer(input);
-        this.constraints = new ConstraintsContainer(input);
+        this(input.readMap(StreamInput::readString, StreamInput::readGenericValue));
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeMap(metrics, StreamOutput::writeString, StreamOutput::writeGenericValue);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field("metrics", metrics);
-        builder.field("constraints", constraints);
         builder.endObject();
         return builder;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        metrics.writeTo(out);
-        constraints.writeTo(out);
     }
 }

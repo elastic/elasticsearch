@@ -11,10 +11,6 @@ package co.elastic.elasticsearch.stateless.autoscaling.action;
 import co.elastic.elasticsearch.stateless.autoscaling.action.GetStatelessAutoscalingMetricsAction.Request;
 import co.elastic.elasticsearch.stateless.autoscaling.action.GetStatelessAutoscalingMetricsAction.Response;
 import co.elastic.elasticsearch.stateless.autoscaling.action.metrics.AutoscalingDiskSizeMetricsService;
-import co.elastic.elasticsearch.stateless.autoscaling.model.ConstraintsContainer;
-import co.elastic.elasticsearch.stateless.autoscaling.model.ConstraintsContainer.NodeLevelConstraints;
-import co.elastic.elasticsearch.stateless.autoscaling.model.ConstraintsContainer.TierLevelConstraints;
-import co.elastic.elasticsearch.stateless.autoscaling.model.MetricsContainer;
 import co.elastic.elasticsearch.stateless.autoscaling.model.StatelessAutoscalingMetrics;
 import co.elastic.elasticsearch.stateless.autoscaling.model.TierMetrics;
 
@@ -74,35 +70,20 @@ public class TransportGetStatelessAutoscalingMetricsAction extends TransportMast
         final ClusterState state,
         final ActionListener<Response> listener
     ) {
-
-        final TierMetrics indexTierMetrics = new TierMetrics.IndexTierMetrics(
-            new MetricsContainer(Map.of("load", 100)),
-            new ConstraintsContainer(
-                new TierLevelConstraints(Map.of("min_num_nodes", 2, "min_heap_bytes", 2000)),
-                new NodeLevelConstraints(Map.of("min_heap_bytes", 2000, "min_storage_bytes", 1000))
+        listener.onResponse(
+            new Response(
+                new StatelessAutoscalingMetrics(
+                    Map.of(
+                        "index-tier",
+                        new TierMetrics(
+                            Map.ofEntries(Map.entry("indexing_load", new int[] { 4, 10, 20 }), Map.entry("min_memory_in_bytes", 1000))
+                        ),
+                        "search-tier",
+                        new TierMetrics(Map.ofEntries(Map.entry("interactive_load", 10), Map.entry("non_interactive_load", 0)))
+                    )
+                )
             )
         );
-
-        final TierMetrics searchTierMetrics = new TierMetrics.SearchTierMetrics(
-            new MetricsContainer(Map.of("interactive_load", 10, "non_interactive_load", 0)),
-            new ConstraintsContainer(
-                new TierLevelConstraints(Map.of("min_num_nodes", 2, "min_heap_bytes", 2000000)),
-                new NodeLevelConstraints(Map.of("min_heap_bytes", 2000, "min_storage_bytes", 2000000))
-            )
-        );
-
-        final TierMetrics mlTierMetrics = new TierMetrics.MlTierMetrics(
-            new MetricsContainer(Map.of("current_ml_nodes", 3, "remove_container_size_gb", 0)),
-            new ConstraintsContainer(
-                new TierLevelConstraints(Map.of("min_num_nodes", 2, "min_ml_memory_bytes", 20000000, "min_processors", 6)),
-                new NodeLevelConstraints(Map.of("min_ml_memory_bytes", 20000000, "min_processors", 3))
-            )
-        );
-
-        final StatelessAutoscalingMetrics metrics = new StatelessAutoscalingMetrics(indexTierMetrics, searchTierMetrics, mlTierMetrics);
-
-        listener.onResponse(new Response(metrics));
-
     }
 
     @Override

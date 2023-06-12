@@ -14,6 +14,7 @@ import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.application.EnterpriseSearch;
+import org.elasticsearch.xpack.application.EnterpriseSearchBaseRestHandler;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 
 import java.util.List;
@@ -21,7 +22,7 @@ import java.util.List;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 @ServerlessScope(Scope.PUBLIC)
-public class RestListSearchApplicationAction extends SearchApplicationRestHandler {
+public class RestListSearchApplicationAction extends EnterpriseSearchBaseRestHandler {
     public RestListSearchApplicationAction(XPackLicenseState licenseState) {
         super(licenseState);
     }

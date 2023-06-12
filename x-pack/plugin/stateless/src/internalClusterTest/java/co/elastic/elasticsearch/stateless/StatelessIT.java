@@ -134,9 +134,24 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
                 .put(refreshIntervalSetting, "10s")
                 .build()
         );
-        ensureGreen(indexName, indexNameWithExplicit);
 
-        GetSettingsResponse response = client().admin().indices().prepareGetSettings(indexName, indexNameWithExplicit).get();
+        final String fastRefreshIndex = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(
+            fastRefreshIndex,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(IndexSettings.INDEX_FAST_REFRESH_SETTING.getKey(), true)
+                .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), false)
+                .build()
+        );
+
+        ensureGreen(indexName, indexNameWithExplicit, fastRefreshIndex);
+
+        GetSettingsResponse response = client().admin()
+            .indices()
+            .prepareGetSettings(indexName, indexNameWithExplicit, fastRefreshIndex)
+            .get();
         TimeValue refreshInterval = TimeValue.parseTimeValue(
             response.getSetting(indexName, refreshIntervalSetting),
             refreshIntervalSetting
@@ -148,6 +163,8 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
             refreshIntervalSetting
         );
         assertEquals(TimeValue.timeValueSeconds(10), refreshIntervalWithExplicit);
+
+        assertNull(response.getSetting(fastRefreshIndex, refreshIntervalSetting));
     }
 
     public void testUploadToObjectStore() {

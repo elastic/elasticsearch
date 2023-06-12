@@ -50,7 +50,7 @@ public class IndexEngine extends InternalEngine {
     private final TranslogReplicator translogReplicator;
     private final StatelessCommitService statelessCommitService;
     private final Function<String, BlobContainer> translogBlobContainer;
-    private boolean fastRefresh;
+    private final boolean fastRefresh;
     private final ReleasableLock flushLock = new ReleasableLock(new ReentrantLock());
     private final RefreshThrottler refreshThrottler;
 
@@ -115,25 +115,54 @@ public class IndexEngine extends InternalEngine {
 
     @Override
     public void maybeRefresh(String source, ActionListener<RefreshResult> listener) throws EngineException {
-        // Maybe refresh is called on scheduled periodic refreshes and needs to flush so that the search shards received the data.
-        flush(
-            false,
-            false,
-            listener.delegateFailure(
-                (l, flushResult) -> engineConfig.getThreadPool().executor(ThreadPool.Names.REFRESH).execute(new ActionRunnable<>(listener) {
+        if (fastRefresh) {
+            super.maybeRefresh(source, listener);
+        } else {
+            Thread originalThread = Thread.currentThread();
+            // Maybe refresh is called on scheduled periodic refreshes and needs to flush so that the search shards received the data.
+            flush(false, false, listener.delegateFailure((l, flushResult) -> {
+                ActionRunnable<RefreshResult> refreshRunnable = new ActionRunnable<>(listener) {
 
                     @Override
                     protected void doRun() {
-                        listener.onResponse(refresh(source, SearcherScope.EXTERNAL, false));
+                        IndexEngine.super.maybeRefresh(source, listener);
                     }
-                })
-            )
-        );
+                };
+
+                dispatchRefreshRunnable(originalThread, refreshRunnable);
+            }));
+        }
+
     }
 
     private void doExternalRefresh(RefreshThrottler.Request request) {
-        // TODO: A flush can end up on the SNAPSHOT thread, maybe dispatch back to REFRESH
-        flush(true, true, request.listener().delegateFailure((l, flushResult) -> super.externalRefresh(request.source(), l)));
+        if (fastRefresh) {
+            IndexEngine.super.externalRefresh(request.source(), request.listener());
+        } else {
+            Thread originalThread = Thread.currentThread();
+            flush(true, true, request.listener().delegateFailure((l, flushResult) -> {
+                ActionRunnable<RefreshResult> refreshRunnable = new ActionRunnable<>(l) {
+
+                    @Override
+                    protected void doRun() {
+                        IndexEngine.super.externalRefresh(request.source(), listener);
+                    }
+                };
+                dispatchRefreshRunnable(originalThread, refreshRunnable);
+            }));
+        }
+
+    }
+
+    private void dispatchRefreshRunnable(Thread originalThread, ActionRunnable<RefreshResult> refreshRunnable) {
+        // Sometimes a flush will have been performed meaning we are likely on the object store thread pool now. Dispatch back if the thread
+        // has changed
+        ThreadPool threadPool = engineConfig.getThreadPool();
+        if (Thread.currentThread() != originalThread) {
+            threadPool.executor(ThreadPool.Names.REFRESH).execute(refreshRunnable);
+        } else {
+            threadPool.executor(ThreadPool.Names.SAME).execute(refreshRunnable);
+        }
     }
 
     @Override

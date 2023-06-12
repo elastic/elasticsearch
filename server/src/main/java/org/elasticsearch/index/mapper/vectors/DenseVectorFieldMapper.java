@@ -24,7 +24,6 @@ import org.apache.lucene.search.KnnByteVectorQuery;
 import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -65,13 +64,6 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
  * A {@link FieldMapper} for indexing a dense vector of floats.
  */
 public class DenseVectorFieldMapper extends FieldMapper {
-
-    // Dear reader, this is a weird bug.
-    // If we first load the PanamaVector module from a Painless context, we run into two failures
-    //   1. log4j needs privileged access to get environment variable values to print out the preferred bit size
-    //   2. loopBound proved by the module makes a privileged call `jdk.incubator.vector.VECTOR_ACCESS_OOB_CHECK`
-    //      this is apparently cached as once its loaded, we don't run into issues again
-    private static final float LOADING_VECTOR_MODULE = VectorUtil.dotProduct(new float[257], new float[257]);
 
     public static final String CONTENT_TYPE = "dense_vector";
     public static short MAX_DIMS_COUNT = 2048; // maximum allowed number of dimensions

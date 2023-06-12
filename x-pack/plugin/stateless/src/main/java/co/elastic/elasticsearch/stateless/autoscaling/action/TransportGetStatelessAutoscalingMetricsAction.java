@@ -10,6 +10,7 @@ package co.elastic.elasticsearch.stateless.autoscaling.action;
 
 import co.elastic.elasticsearch.stateless.autoscaling.action.GetStatelessAutoscalingMetricsAction.Request;
 import co.elastic.elasticsearch.stateless.autoscaling.action.GetStatelessAutoscalingMetricsAction.Response;
+import co.elastic.elasticsearch.stateless.autoscaling.action.metrics.AutoscalingDiskSizeMetricsService;
 import co.elastic.elasticsearch.stateless.autoscaling.model.ConstraintsContainer;
 import co.elastic.elasticsearch.stateless.autoscaling.model.ConstraintsContainer.NodeLevelConstraints;
 import co.elastic.elasticsearch.stateless.autoscaling.model.ConstraintsContainer.TierLevelConstraints;
@@ -38,7 +39,10 @@ import java.util.Map;
  * Transport for GetStatelessAutoscalingMetricsAction. Entrance point for calculation of stateless autoscaling metrics
  */
 public class TransportGetStatelessAutoscalingMetricsAction extends TransportMasterNodeAction<Request, Response> {
+
     private static final Logger logger = LogManager.getLogger(TransportGetStatelessAutoscalingMetricsAction.class);
+
+    private final AutoscalingDiskSizeMetricsService autoscalingDiskSizeMetricsService;
 
     @Inject
     public TransportGetStatelessAutoscalingMetricsAction(
@@ -46,7 +50,8 @@ public class TransportGetStatelessAutoscalingMetricsAction extends TransportMast
         final ClusterService clusterService,
         final ThreadPool threadPool,
         final ActionFilters actionFilters,
-        final IndexNameExpressionResolver indexNameExpressionResolver
+        final IndexNameExpressionResolver indexNameExpressionResolver,
+        final AutoscalingDiskSizeMetricsService autoscalingDiskSizeMetricsService
     ) {
         super(
             GetStatelessAutoscalingMetricsAction.NAME,
@@ -59,6 +64,7 @@ public class TransportGetStatelessAutoscalingMetricsAction extends TransportMast
             Response::new,
             ThreadPool.Names.MANAGEMENT
         );
+        this.autoscalingDiskSizeMetricsService = autoscalingDiskSizeMetricsService;
     }
 
     @Override

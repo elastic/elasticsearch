@@ -406,7 +406,7 @@ public final class StoreRecovery {
      * Recovers the state of the shard from the store.
      */
     private void internalRecoverFromStore(IndexShard indexShard, ActionListener<Void> outerListener) {
-        indexShard.preRecovery(outerListener.delegateFailureAndWrap((listener, ignored) -> {
+        indexShard.preRecovery(outerListener.delegateFailureAndWrap((listener, v) -> {
             final RecoveryState recoveryState = indexShard.recoveryState();
             final boolean indexShouldExists = recoveryState.getRecoverySource().getType() != RecoverySource.Type.EMPTY_STORE;
             indexShard.prepareForIndexRecovery();
@@ -485,11 +485,11 @@ public final class StoreRecovery {
                         writeEmptyRetentionLeasesFile(indexShard);
                         indexShard.recoveryState().getIndex().setFileDetailsComplete();
                     }
-                    indexShard.openEngineAndRecoverFromTranslog(releaseListener.map(v -> {
+                    indexShard.openEngineAndRecoverFromTranslog(releaseListener.map(ignored -> {
                         indexShard.getEngine().fillSeqNoGaps(indexShard.getPendingPrimaryTerm());
                         indexShard.finalizeRecovery();
                         indexShard.postRecovery("post recovery from shard_store");
-                        return v;
+                        return null;
                     }));
                 }
             );

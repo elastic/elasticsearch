@@ -38,7 +38,7 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
     public static final String HEALTH_SERVICE_POLL_INTERVAL = "health_service.poll_interval";
     public static final Setting<TimeValue> HEALTH_SERVICE_POLL_INTERVAL_SETTING = Setting.timeSetting(
         HEALTH_SERVICE_POLL_INTERVAL,
-        TimeValue.timeValueSeconds(15),
+        TimeValue.timeValueSeconds(60),
         TimeValue.timeValueSeconds(15),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
@@ -164,7 +164,6 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
         assert scheduler.get() != null : "scheduler should be available";
         scheduledJob = new SchedulerEngine.Job(HEALTH_SERVICE_JOB_NAME, new TimeValueSchedule(pollInterval));
         scheduler.get().add(scheduledJob);
-
     }
 
 

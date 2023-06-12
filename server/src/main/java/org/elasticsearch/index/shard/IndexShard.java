@@ -1920,24 +1920,28 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * opens the engine on top of the existing lucene engine and translog.
      * Operations from the translog will be replayed to bring lucene up to date.
      **/
-    public void openEngineAndRecoverFromTranslog() throws IOException {
-        recoveryState.validateCurrentStage(RecoveryState.Stage.INDEX);
-        maybeCheckIndex();
-        recoveryState.setLocalTranslogStage();
-        final RecoveryState.Translog translogRecoveryStats = recoveryState.getTranslog();
-        final Engine.TranslogRecoveryRunner translogRecoveryRunner = (engine, snapshot) -> {
-            translogRecoveryStats.totalOperations(snapshot.totalOperations());
-            translogRecoveryStats.totalOperationsOnStart(snapshot.totalOperations());
-            return runTranslogRecovery(
-                engine,
-                snapshot,
-                Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY,
-                translogRecoveryStats::incrementRecoveredOperations
-            );
-        };
-        loadGlobalCheckpointToReplicationTracker();
-        innerOpenEngineAndTranslog(replicationTracker);
-        getEngine().recoverFromTranslog(translogRecoveryRunner, Long.MAX_VALUE);
+    public void openEngineAndRecoverFromTranslog(ActionListener<Void> listener) {
+        try {
+            recoveryState.validateCurrentStage(RecoveryState.Stage.INDEX);
+            maybeCheckIndex();
+            recoveryState.setLocalTranslogStage();
+            final RecoveryState.Translog translogRecoveryStats = recoveryState.getTranslog();
+            final Engine.TranslogRecoveryRunner translogRecoveryRunner = (engine, snapshot) -> {
+                translogRecoveryStats.totalOperations(snapshot.totalOperations());
+                translogRecoveryStats.totalOperationsOnStart(snapshot.totalOperations());
+                return runTranslogRecovery(
+                    engine,
+                    snapshot,
+                    Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY,
+                    translogRecoveryStats::incrementRecoveredOperations
+                );
+            };
+            loadGlobalCheckpointToReplicationTracker();
+            innerOpenEngineAndTranslog(replicationTracker);
+            getEngine().recoverFromTranslog(translogRecoveryRunner, Long.MAX_VALUE, listener);
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
     }
 
     /**

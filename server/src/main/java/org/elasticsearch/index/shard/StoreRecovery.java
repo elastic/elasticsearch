@@ -21,7 +21,6 @@ import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -32,7 +31,6 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.Engine;
@@ -408,84 +406,93 @@ public final class StoreRecovery {
      * Recovers the state of the shard from the store.
      */
     private void internalRecoverFromStore(IndexShard indexShard, ActionListener<Void> outerListener) {
-        indexShard.preRecovery(outerListener.delegateFailure((listener, ignored) -> ActionRunnable.run(listener, () -> {
+        indexShard.preRecovery(outerListener.delegateFailureAndWrap((listener, ignored) -> {
             final RecoveryState recoveryState = indexShard.recoveryState();
             final boolean indexShouldExists = recoveryState.getRecoverySource().getType() != RecoverySource.Type.EMPTY_STORE;
             indexShard.prepareForIndexRecovery();
-            SegmentInfos si = null;
             final Store store = indexShard.store();
             store.incRef();
-            try {
-                try {
-                    store.failIfCorrupted();
+            ActionListener.run(
+                ActionListener.runBefore(
+                    listener.delegateResponse(
+                        (l, e) -> l.onFailure(
+                            e instanceof EngineException || e instanceof IOException
+                                ? new IndexShardRecoveryException(shardId, "failed to recover from gateway", e)
+                                : e
+                        )
+                    ),
+                    store::decRef
+                ),
+                releaseListener -> {
+                    SegmentInfos si = null;
                     try {
-                        si = store.readLastCommittedSegmentsInfo();
-                    } catch (Exception e) {
-                        String files = "_unknown_";
+                        store.failIfCorrupted();
                         try {
-                            files = Arrays.toString(store.directory().listAll());
-                        } catch (Exception inner) {
-                            files += " (failure=" + ExceptionsHelper.stackTrace(inner) + ")";
+                            si = store.readLastCommittedSegmentsInfo();
+                        } catch (Exception e) {
+                            String files = "_unknown_";
+                            try {
+                                files = Arrays.toString(store.directory().listAll());
+                            } catch (Exception inner) {
+                                files += " (failure=" + ExceptionsHelper.stackTrace(inner) + ")";
+                            }
+                            if (indexShouldExists) {
+                                throw new IndexShardRecoveryException(
+                                    shardId,
+                                    "shard allocated for local recovery (post api), should exist, but doesn't, current files: " + files,
+                                    e
+                                );
+                            }
                         }
-                        if (indexShouldExists) {
-                            throw new IndexShardRecoveryException(
-                                shardId,
-                                "shard allocated for local recovery (post api), should exist, but doesn't, current files: " + files,
-                                e
-                            );
+                        if (si != null && indexShouldExists == false) {
+                            // it exists on the directory, but shouldn't exist on the FS, its a leftover (possibly dangling)
+                            // its a "new index create" API, we have to do something, so better to clean it than use same data
+                            logger.trace("cleaning existing shard, shouldn't exists");
+                            Lucene.cleanLuceneIndex(store.directory());
+                            si = null;
                         }
+                    } catch (Exception e) {
+                        throw new IndexShardRecoveryException(shardId, "failed to fetch index version after copying it over", e);
                     }
-                    if (si != null && indexShouldExists == false) {
-                        // it exists on the directory, but shouldn't exist on the FS, its a leftover (possibly dangling)
-                        // its a "new index create" API, we have to do something, so better to clean it than use same data
-                        logger.trace("cleaning existing shard, shouldn't exists");
-                        Lucene.cleanLuceneIndex(store.directory());
-                        si = null;
-                    }
-                } catch (Exception e) {
-                    throw new IndexShardRecoveryException(shardId, "failed to fetch index version after copying it over", e);
-                }
-                if (recoveryState.getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS) {
-                    assert indexShouldExists;
-                    bootstrap(indexShard, store);
-                    writeEmptyRetentionLeasesFile(indexShard);
-                } else if (indexShouldExists) {
-                    if (recoveryState.getRecoverySource().shouldBootstrapNewHistoryUUID()) {
-                        store.bootstrapNewHistory();
+                    if (recoveryState.getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS) {
+                        assert indexShouldExists;
+                        bootstrap(indexShard, store);
                         writeEmptyRetentionLeasesFile(indexShard);
-                    }
-                    // since we recover from local, just fill the files and size
-                    final RecoveryState.Index index = recoveryState.getIndex();
-                    try {
-                        if (si != null) {
-                            addRecoveredFileDetails(si, store, index);
+                    } else if (indexShouldExists) {
+                        if (recoveryState.getRecoverySource().shouldBootstrapNewHistoryUUID()) {
+                            store.bootstrapNewHistory();
+                            writeEmptyRetentionLeasesFile(indexShard);
                         }
-                    } catch (IOException e) {
-                        logger.debug("failed to list file details", e);
+                        // since we recover from local, just fill the files and size
+                        final RecoveryState.Index index = recoveryState.getIndex();
+                        try {
+                            if (si != null) {
+                                addRecoveredFileDetails(si, store, index);
+                            }
+                        } catch (IOException e) {
+                            logger.debug("failed to list file details", e);
+                        }
+                        index.setFileDetailsComplete();
+                    } else {
+                        store.createEmpty();
+                        final String translogUUID = Translog.createEmptyTranslog(
+                            indexShard.shardPath().resolveTranslog(),
+                            SequenceNumbers.NO_OPS_PERFORMED,
+                            shardId,
+                            indexShard.getPendingPrimaryTerm()
+                        );
+                        store.associateIndexWithNewTranslog(translogUUID);
+                        writeEmptyRetentionLeasesFile(indexShard);
+                        indexShard.recoveryState().getIndex().setFileDetailsComplete();
                     }
-                    index.setFileDetailsComplete();
-                } else {
-                    store.createEmpty();
-                    final String translogUUID = Translog.createEmptyTranslog(
-                        indexShard.shardPath().resolveTranslog(),
-                        SequenceNumbers.NO_OPS_PERFORMED,
-                        shardId,
-                        indexShard.getPendingPrimaryTerm()
-                    );
-                    store.associateIndexWithNewTranslog(translogUUID);
-                    writeEmptyRetentionLeasesFile(indexShard);
-                    indexShard.recoveryState().getIndex().setFileDetailsComplete();
+                    indexShard.openEngineAndRecoverFromTranslog(ActionListener.runBefore(releaseListener, () -> {
+                        indexShard.getEngine().fillSeqNoGaps(indexShard.getPendingPrimaryTerm());
+                        indexShard.finalizeRecovery();
+                        indexShard.postRecovery("post recovery from shard_store");
+                    }));
                 }
-                indexShard.openEngineAndRecoverFromTranslog();
-                indexShard.getEngine().fillSeqNoGaps(indexShard.getPendingPrimaryTerm());
-                indexShard.finalizeRecovery();
-                indexShard.postRecovery("post recovery from shard_store");
-            } catch (EngineException | IOException e) {
-                throw new IndexShardRecoveryException(shardId, "failed to recover from gateway", e);
-            } finally {
-                store.decRef();
-            }
-        }).run()));
+            );
+        }));
     }
 
     private static void writeEmptyRetentionLeasesFile(IndexShard indexShard) throws IOException {
@@ -512,7 +519,7 @@ public final class StoreRecovery {
         ActionListener<Boolean> outerListener
     ) {
         logger.debug("restoring from {} ...", indexShard.recoveryState().getRecoverySource());
-        indexShard.preRecovery(outerListener.delegateFailure((listener, ignored) -> {
+        indexShard.preRecovery(outerListener.delegateFailure((listener, v) -> {
 
             final RecoveryState.Translog translogState = indexShard.recoveryState().getTranslog();
             if (restoreSource == null) {
@@ -522,57 +529,80 @@ public final class StoreRecovery {
             if (logger.isTraceEnabled()) {
                 logger.trace("[{}] restoring shard [{}]", restoreSource.snapshot(), shardId);
             }
-            final ActionListener<Void> restoreListener = ActionListener.wrap(v -> {
-                indexShard.getIndexEventListener().afterFilesRestoredFromRepository(indexShard);
-                final Store store = indexShard.store();
-                bootstrap(indexShard, store);
-                assert indexShard.shardRouting.primary() : "only primary shards can recover from store";
-                writeEmptyRetentionLeasesFile(indexShard);
-                indexShard.openEngineAndRecoverFromTranslog();
-                indexShard.getEngine().fillSeqNoGaps(indexShard.getPendingPrimaryTerm());
-                indexShard.finalizeRecovery();
-                indexShard.postRecovery("restore done");
-                listener.onResponse(true);
-            }, e -> listener.onFailure(new IndexShardRestoreFailedException(shardId, "restore failed", e)));
-            try {
+
+            ActionListener.run(new ActionListener<Void>() {
+                @Override
+                public void onResponse(Void ignored) {
+                    listener.onResponse(true);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    listener.onFailure(new IndexShardRestoreFailedException(shardId, "restore failed", e));
+                }
+
+                @Override
+                public String toString() {
+                    return "[" + listener + "]";
+                }
+            }, resultWrappingListener -> {
                 translogState.totalOperations(0);
                 translogState.totalOperationsOnStart(0);
                 indexShard.prepareForIndexRecovery();
+
                 final ShardId snapshotShardId;
-                final IndexId indexId = restoreSource.index();
-                if (shardId.getIndexName().equals(indexId.getName())) {
+                final IndexId indexIdIfKnown = restoreSource.index();
+                if (shardId.getIndexName().equals(indexIdIfKnown.getName())) {
                     snapshotShardId = shardId;
                 } else {
-                    snapshotShardId = new ShardId(indexId.getName(), IndexMetadata.INDEX_UUID_NA_VALUE, shardId.id());
+                    snapshotShardId = new ShardId(indexIdIfKnown.getName(), IndexMetadata.INDEX_UUID_NA_VALUE, shardId.id());
                 }
-                final ListenableFuture<IndexId> indexIdListener = new ListenableFuture<>();
+
+                final SubscribableListener<IndexId> resolveIndexIdStep = new SubscribableListener<>();
                 // If the index UUID was not found in the recovery source we will have to load RepositoryData and resolve it by index name
-                if (indexId.getId().equals(IndexMetadata.INDEX_UUID_NA_VALUE)) {
+                if (indexIdIfKnown.getId().equals(IndexMetadata.INDEX_UUID_NA_VALUE)) {
                     // BwC path, running against an old version master that did not add the IndexId to the recovery source
                     repository.getRepositoryData(
                         new ThreadedActionListener<>(
                             indexShard.getThreadPool().generic(),
-                            indexIdListener.map(repositoryData -> repositoryData.resolveIndexId(indexId.getName()))
+                            resolveIndexIdStep.map(repositoryData -> repositoryData.resolveIndexId(indexIdIfKnown.getName()))
                         )
                     );
                 } else {
-                    indexIdListener.onResponse(indexId);
+                    resolveIndexIdStep.onResponse(indexIdIfKnown);
                 }
                 assert indexShard.getEngineOrNull() == null;
-                indexIdListener.addListener(restoreListener.delegateFailureAndWrap((l, idx) -> {
+
+                final SubscribableListener<Void> restoreShardStep = new SubscribableListener<>();
+                resolveIndexIdStep.addListener(restoreShardStep.delegateFailureAndWrap((l, indexId) -> {
                     assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC, ThreadPool.Names.SNAPSHOT);
                     repository.restoreShard(
                         indexShard.store(),
                         restoreSource.snapshot().getSnapshotId(),
-                        idx,
+                        indexId,
                         snapshotShardId,
                         indexShard.recoveryState(),
                         l
                     );
                 }));
-            } catch (Exception e) {
-                restoreListener.onFailure(e);
-            }
+
+                final SubscribableListener<Void> translogRecoveryStep = new SubscribableListener<>();
+                restoreShardStep.addListener(translogRecoveryStep.delegateFailureAndWrap((l, ignored) -> {
+                    indexShard.getIndexEventListener().afterFilesRestoredFromRepository(indexShard);
+                    final Store store = indexShard.store();
+                    bootstrap(indexShard, store);
+                    assert indexShard.shardRouting.primary() : "only primary shards can recover from store";
+                    writeEmptyRetentionLeasesFile(indexShard);
+                    indexShard.openEngineAndRecoverFromTranslog(l);
+                }));
+
+                translogRecoveryStep.addListener(listener.map(ignored -> {
+                    indexShard.getEngine().fillSeqNoGaps(indexShard.getPendingPrimaryTerm());
+                    indexShard.finalizeRecovery();
+                    indexShard.postRecovery("restore done");
+                    return null;
+                }));
+            });
         }));
     }
 

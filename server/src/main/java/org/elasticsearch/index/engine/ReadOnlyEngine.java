@@ -518,16 +518,22 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public Engine recoverFromTranslog(final TranslogRecoveryRunner translogRecoveryRunner, final long recoverUpToSeqNo) {
-        try (ReleasableLock lock = readLock.acquire()) {
-            ensureOpen();
-            try {
-                translogRecoveryRunner.run(this, Translog.Snapshot.EMPTY);
-            } catch (final Exception e) {
-                throw new EngineException(shardId, "failed to recover from empty translog snapshot", e);
+    public void recoverFromTranslog(
+        final TranslogRecoveryRunner translogRecoveryRunner,
+        final long recoverUpToSeqNo,
+        ActionListener<Void> listener
+    ) {
+        ActionListener.run(listener, l -> {
+            try (ReleasableLock lock = readLock.acquire()) {
+                ensureOpen();
+                try {
+                    translogRecoveryRunner.run(this, Translog.Snapshot.EMPTY);
+                } catch (final Exception e) {
+                    throw new EngineException(shardId, "failed to recover from empty translog snapshot", e);
+                }
             }
-        }
-        return this;
+            l.onResponse(null);
+        });
     }
 
     @Override

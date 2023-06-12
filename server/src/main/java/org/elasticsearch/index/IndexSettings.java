@@ -256,10 +256,11 @@ public final class IndexSettings {
         new TimeValue(-1, TimeUnit.MILLISECONDS),
         Property.NodeScope
     );
+    public static TimeValue STATELESS_MIN_NON_FAST_REFRESH_INTERVAL = TimeValue.timeValueSeconds(5);
     public static final Setting<TimeValue> INDEX_REFRESH_INTERVAL_SETTING = Setting.timeSetting(
         "index.refresh_interval",
-        NODE_DEFAULT_REFRESH_INTERVAL_SETTING,
-        new TimeValue(-1, TimeUnit.MILLISECONDS),
+        NODE_DEFAULT_REFRESH_INTERVAL_SETTING, // default value may be overridden in stateless with STATELESS_MIN_NON_FAST_REFRESH_INTERVAL
+        TimeValue.MINUS_ONE,
         Property.Dynamic,
         Property.IndexScope
     );
@@ -787,11 +788,11 @@ public final class IndexSettings {
         this.durability = scopedSettings.get(INDEX_TRANSLOG_DURABILITY_SETTING);
         defaultFields = scopedSettings.get(DEFAULT_FIELD_SETTING);
         syncInterval = INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.get(settings);
-        refreshInterval = scopedSettings.get(INDEX_REFRESH_INTERVAL_SETTING);
         fastRefresh = scopedSettings.get(INDEX_FAST_REFRESH_SETTING);
         if (fastRefresh && DiscoveryNode.isStateless(nodeSettings) == false) {
             throw new IllegalArgumentException(INDEX_FAST_REFRESH_SETTING.getKey() + " is allowed only in stateless");
         }
+        setRefreshInterval(scopedSettings.get(INDEX_REFRESH_INTERVAL_SETTING));
         flushThresholdSize = scopedSettings.get(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING);
         flushThresholdAge = scopedSettings.get(INDEX_TRANSLOG_FLUSH_THRESHOLD_AGE_SETTING);
         generationThresholdSize = scopedSettings.get(INDEX_TRANSLOG_GENERATION_THRESHOLD_SIZE_SETTING);
@@ -932,7 +933,28 @@ public final class IndexSettings {
     }
 
     private void setRefreshInterval(TimeValue timeValue) {
-        this.refreshInterval = timeValue;
+        if (DiscoveryNode.isStateless(nodeSettings) && fastRefresh == false) {
+            // Imposing a default and minimum value for stateless non fast refresh indices
+            boolean newValueExplicitlySet = indexMetadata.getSettings().hasValue(INDEX_REFRESH_INTERVAL_SETTING.getKey());
+            if (newValueExplicitlySet) {
+                if (timeValue.compareTo(TimeValue.ZERO) >= 0 && timeValue.compareTo(STATELESS_MIN_NON_FAST_REFRESH_INTERVAL) < 0) {
+                    throw new IllegalArgumentException(
+                        "stateless non fast refresh index cannot have ["
+                            + IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey()
+                            + "="
+                            + timeValue
+                            + "] as it is less than "
+                            + STATELESS_MIN_NON_FAST_REFRESH_INTERVAL
+                    );
+                } else {
+                    this.refreshInterval = timeValue;
+                }
+            } else {
+                this.refreshInterval = STATELESS_MIN_NON_FAST_REFRESH_INTERVAL;
+            }
+        } else {
+            this.refreshInterval = timeValue;
+        }
     }
 
     /**

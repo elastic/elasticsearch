@@ -145,10 +145,10 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
             new RestPutSearchApplicationAction(getLicenseState()),
             new RestDeleteSearchApplicationAction(getLicenseState()),
             new RestQuerySearchApplicationAction(getLicenseState()),
-            new RestPutAnalyticsCollectionAction(),
-            new RestGetAnalyticsCollectionAction(),
-            new RestDeleteAnalyticsCollectionAction(),
-            new RestPostAnalyticsEventAction(),
+            new RestPutAnalyticsCollectionAction(getLicenseState()),
+            new RestGetAnalyticsCollectionAction(getLicenseState()),
+            new RestDeleteAnalyticsCollectionAction(getLicenseState()),
+            new RestPostAnalyticsEventAction(getLicenseState()),
             new RestRenderSearchApplicationQueryAction(getLicenseState())
         );
     }

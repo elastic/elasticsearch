@@ -10,6 +10,7 @@ package org.elasticsearch.index.translog;
 
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.DiskIoBufferPool;
@@ -22,6 +23,7 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.IndexSettings;
@@ -1864,6 +1866,16 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         return createEmptyTranslog(location, initialGlobalCheckpoint, shardId, channelFactory, primaryTerm);
     }
 
+    static String createEmptyTranslog(
+        Path location,
+        long initialGlobalCheckpoint,
+        ShardId shardId,
+        ChannelFactory channelFactory,
+        long primaryTerm
+    ) throws IOException {
+        return createEmptyTranslog(location, shardId, initialGlobalCheckpoint, primaryTerm, null, channelFactory);
+    }
+
     /**
      * Creates a new empty translog within the specified {@code location} that contains the given {@code initialGlobalCheckpoint},
      * {@code primaryTerm} and {@code translogUUID}.
@@ -1876,23 +1888,26 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      * @param shardId                 the {@link ShardId}
      * @param initialGlobalCheckpoint the global checkpoint to initialize the translog with
      * @param primaryTerm             the shard's primary term to initialize the translog with
-     * @param channelFactory          a {@link ChannelFactory} used to open translog files
+     * @param translogUUID            the unique identifier to initialize the translog with
+     * @param factory                 a {@link ChannelFactory} used to open translog files
      * @return the translog's unique identifier
      * @throws IOException if something went wrong during translog creation
      */
-    static String createEmptyTranslog(
-        Path location,
-        long initialGlobalCheckpoint,
-        ShardId shardId,
-        ChannelFactory channelFactory,
-        long primaryTerm
+    public static String createEmptyTranslog(
+        final Path location,
+        final ShardId shardId,
+        final long initialGlobalCheckpoint,
+        final long primaryTerm,
+        @Nullable final String translogUUID,
+        @Nullable final ChannelFactory factory
     ) throws IOException {
         IOUtils.rm(location);
         Files.createDirectories(location);
 
         final long generation = 1L;
         final long minTranslogGeneration = 1L;
-        final String uuid = UUIDs.randomBase64UUID();
+        final ChannelFactory channelFactory = factory != null ? factory : FileChannel::open;
+        final String uuid = Strings.hasLength(translogUUID) ? translogUUID : UUIDs.randomBase64UUID();
         final Path checkpointFile = location.resolve(CHECKPOINT_FILE_NAME);
         final Path translogFile = location.resolve(getFilename(generation));
         final Checkpoint checkpoint = Checkpoint.emptyTranslogCheckpoint(0, generation, initialGlobalCheckpoint, minTranslogGeneration);
@@ -1923,5 +1938,4 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         writer.close();
         return uuid;
     }
-
 }

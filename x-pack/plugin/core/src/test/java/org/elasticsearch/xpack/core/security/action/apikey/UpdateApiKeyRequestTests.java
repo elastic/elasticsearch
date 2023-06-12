@@ -72,6 +72,10 @@ public class UpdateApiKeyRequestTests extends ESTestCase {
     }
 
     public void testRoleDescriptorValidation() {
+        final List<String> unknownWorkflows = randomList(1, 2, () -> randomAlphaOfLengthBetween(4, 10));
+        final List<String> workflows = new ArrayList<>(unknownWorkflows.size() + 1);
+        workflows.addAll(unknownWorkflows);
+        workflows.add(WorkflowResolver.SEARCH_APPLICATION_QUERY_WORKFLOW.name());
         final var request1 = new UpdateApiKeyRequest(
             randomAlphaOfLength(10),
             List.of(
@@ -91,9 +95,7 @@ public class UpdateApiKeyRequestTests extends ESTestCase {
                     Map.of("_key", "value"),
                     null,
                     null,
-                    new RoleDescriptor.Restriction(
-                        new String[] { "_invalid_workflow_name_", WorkflowResolver.SEARCH_APPLICATION_QUERY_WORKFLOW.name() }
-                    )
+                    new RoleDescriptor.Restriction(workflows.toArray(String[]::new))
                 )
             ),
             null
@@ -105,6 +107,8 @@ public class UpdateApiKeyRequestTests extends ESTestCase {
         assertThat(ve1.validationErrors().get(2), containsStringIgnoringCase("application name"));
         assertThat(ve1.validationErrors().get(3), containsStringIgnoringCase("Application privilege names"));
         assertThat(ve1.validationErrors().get(4), containsStringIgnoringCase("role descriptor metadata keys may not start with "));
-        assertThat(ve1.validationErrors().get(5), containsStringIgnoringCase("unknown workflow [_invalid_workflow_name_]"));
+        for (int i = 0; i < unknownWorkflows.size(); i++) {
+            assertThat(ve1.validationErrors().get(5 + i), containsStringIgnoringCase("unknown workflow [" + unknownWorkflows.get(i) + "]"));
+        }
     }
 }

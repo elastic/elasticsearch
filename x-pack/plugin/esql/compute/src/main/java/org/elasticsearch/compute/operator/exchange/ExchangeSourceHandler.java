@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.util.concurrent.Executor;
@@ -26,13 +27,14 @@ import java.util.concurrent.atomic.AtomicReference;
  * @see #createExchangeSource()
  * @see #addRemoteSink(RemoteSink, int)
  */
-public final class ExchangeSourceHandler {
+public final class ExchangeSourceHandler extends AbstractRefCounted {
     private final ExchangeBuffer buffer;
     private final Executor fetchExecutor;
 
     private final PendingInstances outstandingSinks = new PendingInstances();
     private final PendingInstances outstandingSources = new PendingInstances();
     private final AtomicReference<Exception> failure = new AtomicReference<>();
+    private final ListenableActionFuture<Void> completionFuture = new ListenableActionFuture<>();
 
     public ExchangeSourceHandler(int maxBufferSize, Executor fetchExecutor) {
         this.buffer = new ExchangeBuffer(maxBufferSize);
@@ -235,21 +237,35 @@ public final class ExchangeSourceHandler {
         }
     }
 
-    private static final class PendingInstances {
-        private volatile boolean finished;
+    @Override
+    protected void closeInternal() {
+        Exception error = failure.get();
+        if (error != null) {
+            completionFuture.onFailure(error);
+        } else {
+            completionFuture.onResponse(null);
+        }
+    }
+
+    /**
+     * Add a listener, which will be notified when this exchange source handler is completed. An exchange source
+     * handler is consider completed when all exchange sources and sinks are completed and de-attached.
+     */
+    public void addCompletionListener(ActionListener<Void> listener) {
+        completionFuture.addListener(listener);
+    }
+
+    private final class PendingInstances {
         private final AtomicInteger instances = new AtomicInteger();
 
         void trackNewInstance() {
+            incRef();
             instances.incrementAndGet();
         }
 
         boolean finishInstance() {
-            if (instances.decrementAndGet() == 0) {
-                finished = true;
-                return true;
-            } else {
-                return false;
-            }
+            decRef();
+            return instances.decrementAndGet() == 0;
         }
     }
 

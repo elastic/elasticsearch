@@ -26,6 +26,7 @@ import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverTaskRunner;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
+import org.elasticsearch.compute.operator.exchange.RemoteSink;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -109,7 +110,7 @@ public class ComputeService {
         CancellableTask rootTask,
         PhysicalPlan physicalPlan,
         EsqlConfiguration configuration,
-        ActionListener<List<Page>> outListener
+        ActionListener<List<Page>> listener
     ) {
         Tuple<PhysicalPlan, PhysicalPlan> coordinatorAndDataNodePlan = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(physicalPlan);
         PhysicalPlan coordinatorPlan = coordinatorAndDataNodePlan.v1();
@@ -124,33 +125,37 @@ public class ComputeService {
         var computeContext = new ComputeContext(sessionId, List.of(), configuration);
 
         if (indexNames.length == 0) {
-            runCompute(rootTask, computeContext, coordinatorPlan, outListener.map(unused -> collectedPages));
+            runCompute(rootTask, computeContext, coordinatorPlan, listener.map(unused -> collectedPages));
             return;
         }
 
         ClusterState clusterState = clusterService.state();
         Map<String, List<ShardId>> targetNodes = computeTargetNodes(clusterState, indexNames);
 
+        final AtomicBoolean cancelled = new AtomicBoolean();
         final ExchangeSourceHandler sourceHandler = exchangeService.createSourceHandler(
             sessionId,
             queryPragmas.exchangeBufferSize(),
             ESQL_THREAD_POOL_NAME
         );
-        final ActionListener<Void> listener = ActionListener.releaseAfter(
-            outListener.map(unused -> collectedPages),
-            () -> exchangeService.completeSourceHandler(sessionId)
-        );
-
-        final AtomicBoolean cancelled = new AtomicBoolean();
-        try (RefCountingListener refs = new RefCountingListener(listener)) {
+        try (
+            Releasable ignored = sourceHandler::decRef;
+            RefCountingListener refs = new RefCountingListener(listener.map(unused -> collectedPages))
+        ) {
+            // wait until the source handler is completed
+            sourceHandler.addCompletionListener(refs.acquire());
             // run compute on the coordinator
             runCompute(rootTask, computeContext, coordinatorPlan, cancelOnFailure(rootTask, cancelled, refs.acquire()));
             // link with exchange sinks
-            for (String targetNode : targetNodes.keySet()) {
-                var remoteSink = exchangeService.newRemoteSink(rootTask, sessionId, transportService, clusterState.nodes().get(targetNode));
-                sourceHandler.addRemoteSink(remoteSink, queryPragmas.concurrentExchangeClients());
+            if (targetNodes.isEmpty()) {
+                sourceHandler.addRemoteSink(RemoteSink.EMPTY, 1);
+            } else {
+                for (String targetNode : targetNodes.keySet()) {
+                    DiscoveryNode remoteNode = clusterState.nodes().get(targetNode);
+                    var remoteSink = exchangeService.newRemoteSink(rootTask, sessionId, transportService, remoteNode);
+                    sourceHandler.addRemoteSink(remoteSink, queryPragmas.concurrentExchangeClients());
+                }
             }
-
             // dispatch compute requests to data nodes
             for (Map.Entry<String, List<ShardId>> e : targetNodes.entrySet()) {
                 DiscoveryNode targetNode = clusterState.nodes().get(e.getKey());

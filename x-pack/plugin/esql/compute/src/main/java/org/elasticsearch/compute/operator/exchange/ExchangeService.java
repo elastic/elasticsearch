@@ -119,6 +119,7 @@ public final class ExchangeService extends AbstractLifecycleComponent {
         if (sources.putIfAbsent(exchangeId, sourceHandler) != null) {
             throw new IllegalStateException("source exchanger for id [" + exchangeId + "] already exists");
         }
+        sourceHandler.addCompletionListener(ActionListener.releasing(() -> sources.remove(exchangeId)));
         return sourceHandler;
     }
 
@@ -144,14 +145,6 @@ public final class ExchangeService extends AbstractLifecycleComponent {
         if (sinkHandler != null) {
             sinkHandler.finish();
         }
-    }
-
-    /**
-     * Mark an exchange sink source for the given id as completed and remove it from the list.
-     */
-    public void completeSourceHandler(String exchangeId) {
-        // TODO: Should abort outstanding exchange requests
-        sources.remove(exchangeId);
     }
 
     private class ExchangeTransportAction implements TransportRequestHandler<ExchangeRequest> {

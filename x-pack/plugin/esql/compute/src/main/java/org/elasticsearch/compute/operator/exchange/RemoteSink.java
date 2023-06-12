@@ -11,4 +11,9 @@ import org.elasticsearch.action.ActionListener;
 
 public interface RemoteSink {
     void fetchPageAsync(boolean allSourcesFinished, ActionListener<ExchangeResponse> listener);
+
+    /**
+     * An empty remote sink, always responding as if it has completed.
+     */
+    RemoteSink EMPTY = (allSourcesFinished, listener) -> listener.onResponse(new ExchangeResponse(null, true));
 }

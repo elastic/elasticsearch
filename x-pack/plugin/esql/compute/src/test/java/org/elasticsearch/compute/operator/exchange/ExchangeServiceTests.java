@@ -83,8 +83,11 @@ public class ExchangeServiceTests extends ESTestCase {
         ExchangeSink sink1 = sinkExchanger.createExchangeSink();
         ExchangeSink sink2 = sinkExchanger.createExchangeSink();
         ExchangeSourceHandler sourceExchanger = new ExchangeSourceHandler(3, threadPool.executor("esql_test_executor"));
+        assertThat(sourceExchanger.refCount(), equalTo(1));
         ExchangeSource source = sourceExchanger.createExchangeSource();
+        assertThat(sourceExchanger.refCount(), equalTo(2));
         sourceExchanger.addRemoteSink(sinkExchanger::fetchPageAsync, 1);
+        assertThat(sourceExchanger.refCount(), equalTo(3));
         ListenableActionFuture<Void> waitForReading = source.waitForReading();
         assertFalse(waitForReading.isDone());
         assertNull(source.pollPage());
@@ -122,6 +125,13 @@ public class ExchangeServiceTests extends ESTestCase {
         sink2.finish();
         assertTrue(sink2.isFinished());
         assertTrue(source.isFinished());
+        assertBusy(() -> assertThat(sourceExchanger.refCount(), equalTo(2)));
+        source.finish();
+        assertThat(sourceExchanger.refCount(), equalTo(1));
+        CountDownLatch latch = new CountDownLatch(1);
+        sourceExchanger.addCompletionListener(ActionListener.releasing(latch::countDown));
+        sourceExchanger.decRef();
+        assertTrue(latch.await(1, TimeUnit.SECONDS));
         ESTestCase.terminate(threadPool);
     }
 

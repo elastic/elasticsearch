@@ -312,13 +312,13 @@ public class CsvTests extends ESTestCase {
         List<Page> collectedPages = Collections.synchronizedList(new ArrayList<>());
         Map<String, List<String>> responseHeaders;
 
+        ExchangeSourceHandler sourceHandler = exchangeService.createSourceHandler(
+            sessionId,
+            randomIntBetween(1, 64),
+            ESQL_THREAD_POOL_NAME
+        );
         // replace fragment inside the coordinator plan
         try {
-            ExchangeSourceHandler sourceHandler = exchangeService.createSourceHandler(
-                sessionId,
-                randomIntBetween(1, 64),
-                ESQL_THREAD_POOL_NAME
-            );
             LocalExecutionPlan coordinatorNodeExecutionPlan = executionPlanner.plan(new OutputExec(coordinatorPlan, collectedPages::add));
             drivers.addAll(coordinatorNodeExecutionPlan.createDrivers(sessionId));
             if (dataNodePlan != null) {
@@ -333,7 +333,7 @@ public class CsvTests extends ESTestCase {
             Releasables.close(
                 () -> Releasables.close(drivers),
                 () -> exchangeService.completeSinkHandler(sessionId),
-                () -> exchangeService.completeSourceHandler(sessionId)
+                sourceHandler::decRef
             );
         }
         return new ActualResults(columnNames, columnTypes, dataTypes, collectedPages, responseHeaders);

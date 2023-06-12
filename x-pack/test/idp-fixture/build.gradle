@@ -8,6 +8,10 @@ dockerCompose {
   composeAdditionalArgs = ['--compatibility']
 }
 
+tasks.named("preProcessFixture").configure {
+  file("${testFixturesDir}/shared/oidc").mkdirs()
+}
+
 tasks.register("copyFiles", Sync) {
   // TODO move me
   from project(':x-pack:plugin:core')
@@ -21,6 +25,7 @@ tasks.register("copyFiles", Sync) {
 
 tasks.named("postProcessFixture").configure {
   dependsOn "copyFiles"
+  inputs.dir("${testFixturesDir}/shared/oidc")
   File confTemplate = file("${buildDir}/config/override.properties.template")
   File confFile = file("${testFixturesDir}/shared/oidc/override.properties")
   outputs.file(confFile)

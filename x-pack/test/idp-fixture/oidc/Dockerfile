@@ -2,8 +2,7 @@ FROM c2id/c2id-server-demo:12.18 AS c2id
 FROM openjdk:11.0.16-jre
 
 # TODO this is obviously horrible
-RUN apt-get update
-RUN apt-get install -y python3
+RUN apt-get update -qqy && apt-get install -qqy python3
 COPY --from=c2id /c2id-server /c2id-server
 COPY --from=c2id /etc/c2id /etc/c2id
 ADD ./oidc/setup.sh /

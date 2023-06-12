@@ -40,7 +40,7 @@ field instead.
 | `properties`                             | no        | [`continent_name`, `country_iso_code`, `country_name`, `region_iso_code`, `region_name`, `city_name`, `location`] *   | Controls what properties are added to the `target_field` based on the geoip lookup.
 | `ignore_missing`                         | no        | `false`                                                                            | If `true` and `field` does not exist, the processor quietly exits without modifying the document
 | `first_only`                             | no        | `true`                                                                             | If `true` only first found geoip data will be returned, even if `field` contains array
-| `download_database_on_pipeline_creation` | no        | `true`                                                                             | If `true`, the missing database is downloaded when the pipeline is created. Else, the download is triggered by when the pipeline is used as `default_pipeline` or `final_pipeline` in an index.
+| `download_database_on_pipeline_creation` | no        | `true`                                                                             | If `true` (and if `ingest.geoip.downloader.eager.download` is `false`), the missing database is downloaded when the pipeline is created. Else, the download is triggered by when the pipeline is used as the `default_pipeline` or `final_pipeline` in an index.
 |======
 
 *Depends on what is available in `database_file`:

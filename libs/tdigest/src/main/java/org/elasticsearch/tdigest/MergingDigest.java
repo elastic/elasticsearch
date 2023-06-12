@@ -423,131 +423,57 @@ public class MergingDigest extends AbstractTDigest {
         if (lastUsedCell == 0) {
             // no data to examine
             return Double.NaN;
-        } else if (lastUsedCell == 1) {
-            // exactly one centroid, should have max==min
-            double width = max - min;
-            if (x < min) {
-                return 0;
-            } else if (x > max) {
-                return 1;
-            } else if (x - min <= width) {
-                // min and max are too close together to do any viable interpolation
-                return 0.5;
-            } else {
-                // interpolate if somehow we have weight > 0 and max != min
-                return (x - min) / (max - min);
-            }
+        }
+        if (lastUsedCell == 1) {
+            if (x < min) return 0;
+            if (x > max) return 1;
+            return 0.5;
         } else {
-            int n = lastUsedCell;
             if (x < min) {
                 return 0;
+            }
+            if (Double.compare(x, min) == 0) {
+                // we have one or more centroids == x, treat them as one
+                // dw will accumulate the weight of all of the centroids at x
+                double dw = 0;
+                for (int i = 0; i < lastUsedCell && Double.compare(mean[i], x) == 0; i++) {
+                    dw += weight[i];
+                }
+                return dw / 2.0 / size();
             }
 
             if (x > max) {
                 return 1;
             }
-
-            // check for the left tail
-            if (x < mean[0]) {
-                // note that this is different than mean[0] > min
-                // ... this guarantees we divide by non-zero number and interpolation works
-                if (mean[0] - min > 0) {
-                    // must be a sample exactly at min
-                    if (x == min) {
-                        return 0.5 / totalWeight;
-                    } else {
-                        return (1 + (x - min) / (mean[0] - min) * (weight[0] / 2 - 1)) / totalWeight;
-                    }
-                } else {
-                    // this should be redundant with the check x < min
-                    return 0;
+            if (x == max) {
+                double dw = 0;
+                for (int i = lastUsedCell - 1; i >= 0 && Double.compare(mean[i], x) == 0; i--) {
+                    dw += weight[i];
                 }
-            }
-            assert x >= mean[0];
-
-            // and the right tail
-            if (x > mean[n - 1]) {
-                if (max - mean[n - 1] > 0) {
-                    if (x == max) {
-                        return 1 - 0.5 / totalWeight;
-                    } else {
-                        // there has to be a single sample exactly at max
-                        double dq = (1 + (max - x) / (max - mean[n - 1]) * (weight[n - 1] / 2 - 1)) / totalWeight;
-                        return 1 - dq;
-                    }
-                } else {
-                    return 1;
-                }
+                return (size() - dw / 2.0) / size();
             }
 
-            // we know that there are at least two centroids and mean[0] < x < mean[n-1]
-            // that means that there are either one or more consecutive centroids all at exactly x
-            // or there are consecutive centroids, c0 < x < c1
+            // initially, we set left width equal to right width
+            double left = (mean[1] - mean[0]) / 2;
             double weightSoFar = 0;
-            for (int it = 0; it < n - 1; it++) {
-                // weightSoFar does not include weight[it] yet
-                if (mean[it] == x) {
-                    // we have one or more centroids == x, treat them as one
-                    // dw will accumulate the weight of all of the centroids at x
-                    double dw = 0;
-                    while (it < n && mean[it] == x) {
-                        dw += weight[it];
-                        it++;
-                    }
-                    return (weightSoFar + dw / 2) / totalWeight;
-                } else if (mean[it] <= x && x < mean[it + 1]) {
-                    // landed between centroids ... check for floating point madness
-                    if (mean[it + 1] - mean[it] > 0) {
-                        // note how we handle singleton centroids here
-                        // the point is that for singleton centroids, we know that their entire
-                        // weight is exactly at the centroid and thus shouldn't be involved in
-                        // interpolation
-                        double leftExcludedW = 0;
-                        double rightExcludedW = 0;
-                        if (weight[it] == 1) {
-                            if (weight[it + 1] == 1) {
-                                // two singletons means no interpolation
-                                // left singleton is in, right is out
-                                return (weightSoFar + 1) / totalWeight;
-                            } else {
-                                leftExcludedW = 0.5;
-                            }
-                        } else if (weight[it + 1] == 1) {
-                            rightExcludedW = 0.5;
-                        }
-                        double dw = (weight[it] + weight[it + 1]) / 2;
 
-                        // can't have double singleton (handled that earlier)
-                        assert dw > 1;
-                        assert (leftExcludedW + rightExcludedW) <= 0.5;
-
-                        // adjust endpoints for any singleton
-                        double left = mean[it];
-                        double right = mean[it + 1];
-
-                        double dwNoSingleton = dw - leftExcludedW - rightExcludedW;
-
-                        // adjustments have only limited effect on endpoints
-                        assert dwNoSingleton > dw / 2;
-                        assert right - left > 0;
-                        double base = weightSoFar + weight[it] / 2 + leftExcludedW;
-                        return (base + dwNoSingleton * (x - left) / (right - left)) / totalWeight;
-                    } else {
-                        // this is simply caution against floating point madness
-                        // it is conceivable that the centroids will be different
-                        // but too near to allow safe interpolation
-                        double dw = (weight[it] + weight[it + 1]) / 2;
-                        return (weightSoFar + dw) / totalWeight;
-                    }
-                } else {
-                    weightSoFar += weight[it];
+            for (int i = 0; i < lastUsedCell - 1; i++) {
+                double right = (mean[i + 1] - mean[i]) / 2;
+                if (x < mean[i] + right) {
+                    double value = (weightSoFar + weight[i] * interpolate(x, mean[i] - left, mean[i] + right)) / size();
+                    return Math.max(value, 0.0);
                 }
+                weightSoFar += weight[i];
+                left = right;
             }
-            if (x == mean[n - 1]) {
-                return 1 - 0.5 / totalWeight;
-            } else {
-                throw new IllegalStateException("Can't happen ... loop fell through");
+
+            // for the last element, assume right width is same as left
+            int lastOffset = lastUsedCell - 1;
+            double right = (mean[lastOffset] - mean[lastOffset - 1]) / 2;
+            if (x < mean[lastOffset] + right) {
+                return (weightSoFar + weight[lastOffset] * interpolate(x, mean[lastOffset] - right, mean[lastOffset] + right)) / size();
             }
+            return 1;
         }
     }
 

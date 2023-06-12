@@ -202,147 +202,73 @@ public class AVLTreeDigest extends AbstractTDigest {
         AVLGroupTree values = summary;
         if (values.size() == 0) {
             return Double.NaN;
-        } else if (values.size() == 1) {
+        }
+        if (values.size() == 1) {
             if (x < values.mean(values.first())) return 0;
-            else if (x > values.mean(values.first())) return 1;
-            else return 0.5;
+            if (x > values.mean(values.first())) return 1;
+            return 0.5;
         } else {
             if (x < min) {
                 return 0;
-            } else if (x == min) {
+            }
+            if (Double.compare(x, min) == 0) {
                 // we have one or more centroids == x, treat them as one
                 // dw will accumulate the weight of all of the centroids at x
                 double dw = 0;
                 for (Centroid value : values) {
-                    if (value.mean() != x) {
+                    if (Double.compare(value.mean(), x) != 0) {
                         break;
                     }
                     dw += value.count();
                 }
                 return dw / 2.0 / size();
             }
-            assert x > min;
 
             if (x > max) {
                 return 1;
-            } else if (x == max) {
+            }
+            if (Double.compare(x, max) == 0) {
                 int ix = values.last();
                 double dw = 0;
-                while (ix != NIL && values.mean(ix) == x) {
+                while (ix != NIL && Double.compare(values.mean(ix), x) == 0) {
                     dw += values.count(ix);
                     ix = values.prev(ix);
                 }
                 long n = size();
                 return (n - dw / 2.0) / n;
             }
-            assert x < max;
-
-            int first = values.first();
-            double firstMean = values.mean(first);
-            if (x > min && x < firstMean) {
-                return interpolateTail(values, x, first, firstMean, min);
-            }
-
-            int last = values.last();
-            double lastMean = values.mean(last);
-            if (x < max && x > lastMean) {
-                return 1 - interpolateTail(values, x, last, lastMean, max);
-            }
-            assert values.size() >= 2;
-            assert x >= firstMean;
-            assert x <= lastMean;
 
             // we scan a across the centroids
             Iterator<Centroid> it = values.iterator();
             Centroid a = it.next();
-            double aMean = a.mean();
-            double aWeight = a.count();
-
-            if (x == aMean) {
-                return aWeight / 2.0 / size();
-            }
-            assert x > aMean;
 
             // b is the look-ahead to the next centroid
             Centroid b = it.next();
-            double bMean = b.mean();
-            double bWeight = b.count();
 
-            assert bMean >= aMean;
+            // initially, we set left width equal to right width
+            double left = (b.mean() - a.mean()) / 2;
+            double right = left;
 
-            double weightSoFar = 0;
-
-            // scan to last element
-            while (bWeight > 0) {
-                if (x == bMean) {
-                    weightSoFar += aWeight;
-                    while (it.hasNext()) {
-                        b = it.next();
-                        if (x == b.mean()) {
-                            bWeight += b.count();
-                        } else {
-                            break;
-                        }
-                    }
-                    return (weightSoFar + bWeight / 2.0) / size();
+            // scan to next to last element
+            double r = 0;
+            while (it.hasNext()) {
+                if (x < a.mean() + right) {
+                    double value = (r + a.count() * interpolate(x, a.mean() - left, a.mean() + right)) / count;
+                    return Math.max(value, 0.0);
                 }
 
-                if (x < bMean) {
-                    // we are strictly between a and b
-                    if (aWeight == 1) {
-                        // but a might be a singleton
-                        if (bWeight == 1) {
-                            // we have passed all of a, but none of b, no interpolation
-                            return (weightSoFar + 1.0) / size();
-                        } else {
-                            // only get to interpolate b's weight because a is a singleton and to our left
-                            double partialWeight = (x - aMean) / (bMean - aMean) * bWeight / 2.0;
-                            return (weightSoFar + 1.0 + partialWeight) / size();
-                        }
-                    } else if (bWeight == 1) {
-                        // only get to interpolate a's weight because b is a singleton
-                        double partialWeight = (x - aMean) / (bMean - aMean) * aWeight / 2.0;
-                        // half of a is to left of aMean, and half is interpolated
-                        return (weightSoFar + aWeight / 2.0 + partialWeight) / size();
-                    } else {
-                        // neither is singleton
-                        double partialWeight = (x - aMean) / (bMean - aMean) * (aWeight + bWeight) / 2.0;
-                        return (weightSoFar + aWeight / 2.0 + partialWeight) / size();
-                    }
-                }
-                weightSoFar += aWeight;
-
-                if (it.hasNext()) {
-                    aMean = bMean;
-                    aWeight = bWeight;
-
-                    b = it.next();
-                    bMean = b.mean();
-                    bWeight = b.count();
-
-                    assert bMean >= aMean;
-                } else {
-                    bWeight = 0;
-                }
+                r += a.count();
+                a = b;
+                left = right;
+                b = it.next();
+                right = (b.mean() - a.mean()) / 2;
             }
-            // shouldn't be possible because x <= lastMean
-            throw new IllegalStateException("Ran out of centroids");
-        }
-    }
 
-    private double interpolateTail(AVLGroupTree values, double x, int node, double mean, double extremeValue) {
-        int count = values.count(node);
-        assert count > 1;
-        if (count == 2) {
-            // other sample must be on the other side of the mean
-            return 1.0 / size();
-        } else {
-            // how much weight is available for interpolation?
-            double weight = count / 2.0 - 1;
-            // how much is between min and here?
-            double partialWeight = (extremeValue - x) / (extremeValue - mean) * weight;
-            // account for sample at min along with interpolated weight
-            return (partialWeight + 1.0) / size();
+            // for the last element, assume right width is same as left
+            if (x < a.mean() + right) {
+                return (r + a.count() * interpolate(x, a.mean() - right, a.mean() + right)) / count;
+            }
+            return 1;
         }
     }
 

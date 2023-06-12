@@ -21,40 +21,47 @@
 
 package org.elasticsearch.tdigest;
 
-import java.util.Collection;
 import java.util.List;
 import java.util.function.Function;
 
 /**
- * Reference implementations for cdf and quantile if we have all data.
+ * Reference implementations for cdf and quantile if we have all data sorted.
  */
 public class Dist {
+
+    private static double cdf(final double x, final int length, Function<Integer, Double> elementGetter) {
+        if (Double.compare(x, elementGetter.apply(0)) < 0) {
+            return 0;
+        }
+
+        double n1 = 0.5;
+        int n2 = 0;
+        for (int i = 1; i < length; i++) {
+            double value = elementGetter.apply(i);
+            int compareResult = Double.compare(value, x);
+            if (compareResult > 0) {
+                if (Double.compare(n2, 0) > 0) {
+                    return (n1 + 0.5 * n2) / length;
+                }
+                double previousValue = elementGetter.apply(i - 1);
+                double factor = (x - previousValue) / (value - previousValue);
+                return (n1 + factor) / length;
+            }
+            if (compareResult < 0) {
+                n1++;
+            } else {
+                n2++;
+            }
+        }
+        return (length - 0.5 * n2) / length;
+    }
+
     public static double cdf(final double x, double[] data) {
-        return cdf(x, data, 0.5);
+        return cdf(x, data.length, (i) -> data[i]);
     }
 
-    public static double cdf(final double x, double[] data, double w) {
-        int n1 = 0;
-        int n2 = 0;
-        for (Double v : data) {
-            n1 += (v < x) ? 1 : 0;
-            n2 += (v == x) ? 1 : 0;
-        }
-        return (n1 + w * n2) / data.length;
-    }
-
-    public static double cdf(final double x, Collection<Double> data) {
-        return cdf(x, data, 0.5);
-    }
-
-    public static double cdf(final double x, Collection<Double> data, double w) {
-        int n1 = 0;
-        int n2 = 0;
-        for (Double v : data) {
-            n1 += (v < x) ? 1 : 0;
-            n2 += (v == x) ? 1 : 0;
-        }
-        return (n1 + w * n2) / data.size();
+    public static double cdf(final double x, List<Double> data) {
+        return cdf(x, data.size(), data::get);
     }
 
     private static double quantile(final double q, final int length, Function<Integer, Double> elementGetter) {

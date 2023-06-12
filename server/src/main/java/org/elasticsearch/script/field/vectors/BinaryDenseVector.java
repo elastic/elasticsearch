@@ -9,21 +9,23 @@
 package org.elasticsearch.script.field.vectors;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.Version;
 import org.elasticsearch.index.mapper.vectors.VectorEncoderDecoder;
 
-import java.nio.ByteBuffer;
 import java.util.List;
 
 public class BinaryDenseVector implements DenseVector {
 
-    protected final BytesRef docVector;
-    protected final int dims;
-    protected final Version indexVersion;
+    private final BytesRef docVector;
 
-    protected float[] decodedDocVector;
+    private final int dims;
+    private final Version indexVersion;
 
-    public BinaryDenseVector(BytesRef docVector, int dims, Version indexVersion) {
+    private final float[] decodedDocVector;
+
+    public BinaryDenseVector(float[] decodedDocVector, BytesRef docVector, int dims, Version indexVersion) {
+        this.decodedDocVector = decodedDocVector;
         this.docVector = docVector;
         this.indexVersion = indexVersion;
         this.dims = dims;
@@ -31,16 +33,12 @@ public class BinaryDenseVector implements DenseVector {
 
     @Override
     public float[] getVector() {
-        if (decodedDocVector == null) {
-            decodedDocVector = new float[dims];
-            VectorEncoderDecoder.decodeDenseVector(docVector, decodedDocVector);
-        }
         return decodedDocVector;
     }
 
     @Override
     public float getMagnitude() {
-        return VectorEncoderDecoder.getMagnitude(indexVersion, docVector);
+        return VectorEncoderDecoder.getMagnitude(indexVersion, docVector, decodedDocVector);
     }
 
     @Override
@@ -50,22 +48,14 @@ public class BinaryDenseVector implements DenseVector {
 
     @Override
     public double dotProduct(float[] queryVector) {
-        ByteBuffer byteBuffer = wrap(docVector);
-
-        double dotProduct = 0;
-        for (float v : queryVector) {
-            dotProduct += byteBuffer.getFloat() * v;
-        }
-        return dotProduct;
+        return VectorUtil.dotProduct(decodedDocVector, queryVector);
     }
 
     @Override
     public double dotProduct(List<Number> queryVector) {
-        ByteBuffer byteBuffer = wrap(docVector);
-
         double dotProduct = 0;
         for (int i = 0; i < queryVector.size(); i++) {
-            dotProduct += byteBuffer.getFloat() * queryVector.get(i).floatValue();
+            dotProduct += decodedDocVector[i] * queryVector.get(i).floatValue();
         }
         return dotProduct;
     }
@@ -77,22 +67,18 @@ public class BinaryDenseVector implements DenseVector {
 
     @Override
     public double l1Norm(float[] queryVector) {
-        ByteBuffer byteBuffer = wrap(docVector);
-
         double l1norm = 0;
-        for (float v : queryVector) {
-            l1norm += Math.abs(v - byteBuffer.getFloat());
+        for (int i = 0; i < queryVector.length; i++) {
+            l1norm += Math.abs(queryVector[i] - decodedDocVector[i]);
         }
         return l1norm;
     }
 
     @Override
     public double l1Norm(List<Number> queryVector) {
-        ByteBuffer byteBuffer = wrap(docVector);
-
         double l1norm = 0;
         for (int i = 0; i < queryVector.size(); i++) {
-            l1norm += Math.abs(queryVector.get(i).floatValue() - byteBuffer.getFloat());
+            l1norm += Math.abs(queryVector.get(i).floatValue() - decodedDocVector[i]);
         }
         return l1norm;
     }
@@ -104,21 +90,14 @@ public class BinaryDenseVector implements DenseVector {
 
     @Override
     public double l2Norm(float[] queryVector) {
-        ByteBuffer byteBuffer = wrap(docVector);
-        double l2norm = 0;
-        for (float queryValue : queryVector) {
-            double diff = byteBuffer.getFloat() - queryValue;
-            l2norm += diff * diff;
-        }
-        return Math.sqrt(l2norm);
+        return Math.sqrt(VectorUtil.squareDistance(queryVector, decodedDocVector));
     }
 
     @Override
     public double l2Norm(List<Number> queryVector) {
-        ByteBuffer byteBuffer = wrap(docVector);
         double l2norm = 0;
-        for (Number number : queryVector) {
-            double diff = byteBuffer.getFloat() - number.floatValue();
+        for (int i = 0; i < queryVector.size(); i++) {
+            double diff = decodedDocVector[i] - queryVector.get(i).floatValue();
             l2norm += diff * diff;
         }
         return Math.sqrt(l2norm);
@@ -155,9 +134,5 @@ public class BinaryDenseVector implements DenseVector {
     @Override
     public int getDims() {
         return dims;
-    }
-
-    private static ByteBuffer wrap(BytesRef dv) {
-        return ByteBuffer.wrap(dv.bytes, dv.offset, dv.length);
     }
 }

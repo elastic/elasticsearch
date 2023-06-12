@@ -1,0 +1,6 @@
+pr: 96171
+summary: "Adding ECS dynamic mappings component and applying it to logs data streams by default"
+area: Data streams
+type: enhancement
+issues:
+ - 95538

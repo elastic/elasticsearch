@@ -37,7 +37,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 public class SubSearchSourceBuilder implements ToXContent, Writeable, Rewriteable<SubSearchSourceBuilder> {
 
     private static final ConstructingObjectParser<SubSearchSourceBuilder, SearchUsage> PARSER = new ConstructingObjectParser<>(
-        "search_query_wrapper",
+        "sub_search_source_builder",
         args -> new SubSearchSourceBuilder((QueryBuilder) args[0])
     );
 

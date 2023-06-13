@@ -939,7 +939,7 @@ public final class IndexSettings {
             if (newValueExplicitlySet) {
                 if (timeValue.compareTo(TimeValue.ZERO) >= 0 && timeValue.compareTo(STATELESS_MIN_NON_FAST_REFRESH_INTERVAL) < 0) {
                     throw new IllegalArgumentException(
-                        "stateless non fast refresh index cannot have ["
+                        "index cannot have ["
                             + IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey()
                             + "="
                             + timeValue

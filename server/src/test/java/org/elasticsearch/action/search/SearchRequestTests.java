@@ -151,6 +151,10 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             // Versions before 8.8 don't support rank
             searchRequest.source().rankBuilder(null);
         }
+        if (version.before(TransportVersion.V_8_500_999) && searchRequest.source() != null) {
+            // Versions before 8_500_999 don't support queries
+            searchRequest.source().queries(new ArrayList<>());
+        }
         SearchRequest deserializedRequest = copyWriteable(searchRequest, namedWriteableRegistry, SearchRequest::new, version);
         assertEquals(searchRequest.isCcsMinimizeRoundtrips(), deserializedRequest.isCcsMinimizeRoundtrips());
         assertEquals(searchRequest.getLocalClusterAlias(), deserializedRequest.getLocalClusterAlias());
@@ -225,7 +229,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             assertEquals("[size] cannot be [0] in a scroll context", validationErrors.validationErrors().get(0));
         }
         {
-            // cannot have both query and queries
+            // cannot have queries without rank
             SearchRequest searchRequest = createSearchRequest().source(new SearchSourceBuilder());
             if (searchRequest.scroll() != null) {
                 searchRequest.requestCache(false);
@@ -246,6 +250,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             // cannot have both query and queries
             SearchRequest searchRequest = createSearchRequest().source(new SearchSourceBuilder());
             if (searchRequest.scroll() != null) {
+                searchRequest.scroll((Scroll) null);
                 searchRequest.requestCache(false);
             }
             searchRequest.source().rankBuilder(new TestRankBuilder(10));
@@ -259,7 +264,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
                 );
             ActionRequestValidationException validationErrors = searchRequest.validate();
             assertNotNull(validationErrors);
-            assertEquals(1, validationErrors.validationErrors().size());
+            assertEquals(validationErrors.validationErrors().toString(), 1, validationErrors.validationErrors().size());
             assertEquals("cannot have both [query] and [queries]", validationErrors.validationErrors().get(0));
         }
         {

@@ -8,10 +8,18 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
+import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Set;
@@ -21,7 +29,7 @@ public class TDigestStateTests extends ESTestCase {
     public void testMoreThan4BValues() {
         // Regression test for #19528
         // See https://github.com/tdunning/t-digest/pull/70/files#diff-4487072cee29b939694825647928f742R439
-        TDigestState digest = new TDigestState(100);
+        TDigestState digest = TDigestState.create(100);
         for (int i = 0; i < 1000; ++i) {
             digest.add(randomDouble());
         }
@@ -30,7 +38,7 @@ public class TDigestStateTests extends ESTestCase {
             digest.add(randomDouble(), count);
         }
         assertEquals(1000 + 10L * (1 << 29), digest.size());
-        assertTrue(digest.size() > 2 * Integer.MAX_VALUE);
+        assertTrue(digest.size() > 2L * Integer.MAX_VALUE);
         final double[] quantiles = new double[] { 0, 0.1, 0.5, 0.9, 1, randomDouble() };
         Arrays.sort(quantiles);
         double prev = Double.NEGATIVE_INFINITY;
@@ -44,18 +52,15 @@ public class TDigestStateTests extends ESTestCase {
         }
     }
 
-    public void testTestEqualsHashCode() {
+    public void testEqualsHashCode() {
         final TDigestState empty1 = new EmptyTDigestState();
         final TDigestState empty2 = new EmptyTDigestState();
-        final TDigestState empty = new TDigestState(1.0D);
-        final TDigestState a = new TDigestState(200);
-        final TDigestState b = new TDigestState(100);
-        final TDigestState c = new TDigestState(100);
+        final TDigestState a = TDigestState.create(200);
+        final TDigestState b = TDigestState.create(100);
+        final TDigestState c = TDigestState.create(100);
 
         assertEquals(empty1, empty2);
         assertEquals(empty1.hashCode(), empty2.hashCode());
-        assertEquals(empty1, empty);
-        assertEquals(empty1.hashCode(), empty.hashCode());
 
         assertNotEquals(a, b);
         assertNotEquals(a.hashCode(), b.hashCode());
@@ -89,14 +94,14 @@ public class TDigestStateTests extends ESTestCase {
         assertNotEquals(b.hashCode(), c.hashCode());
     }
 
-    public void testTDigestStateHash() {
+    public void testHash() {
         final HashMap<String, TDigestState> map = new HashMap<>();
         final Set<TDigestState> set = new HashSet<>();
         final TDigestState empty1 = new EmptyTDigestState();
         final TDigestState empty2 = new EmptyTDigestState();
-        final TDigestState a = new TDigestState(200);
-        final TDigestState b = new TDigestState(100);
-        final TDigestState c = new TDigestState(100);
+        final TDigestState a = TDigestState.create(200);
+        final TDigestState b = TDigestState.create(100);
+        final TDigestState c = TDigestState.create(100);
 
         a.add(randomDouble());
         b.add(randomDouble());
@@ -129,5 +134,70 @@ public class TDigestStateTests extends ESTestCase {
         assertTrue(set.stream().anyMatch(digest -> digest.equals(c)));
         assertTrue(set.stream().anyMatch(digest -> digest.equals(empty1)));
         assertTrue(set.stream().anyMatch(digest -> digest.equals(empty2)));
+    }
+
+    public void testFactoryMethods() {
+        TDigestState fast = TDigestState.create(100);
+        TDigestState anotherFast = TDigestState.create(100, false);
+        TDigestState accurate = TDigestState.create(100, true);
+        TDigestState anotherAccurate = TDigestState.createUsingParamsFrom(accurate);
+
+        for (int i = 0; i < 100; i++) {
+            fast.add(i);
+            anotherFast.add(i);
+            accurate.add(i);
+            anotherAccurate.add(i);
+        }
+
+        for (double p : new double[] { 0.1, 1, 10, 25, 50, 75, 90, 99, 99.9 }) {
+            double q = p / 100;
+            assertEquals(fast.quantile(q), accurate.quantile(q), 1e-5);
+            assertEquals(fast.quantile(q), anotherFast.quantile(q), 1e-5);
+            assertEquals(accurate.quantile(q), anotherAccurate.quantile(q), 1e-5);
+        }
+
+        assertEquals(fast, anotherFast);
+        assertEquals(accurate, anotherAccurate);
+        // assertNotEquals(fast, accurate);
+        // assertNotEquals(anotherFast, anotherAccurate);
+    }
+
+    private TDigestState writeToAndReadFrom(TDigestState state, TransportVersion version) throws IOException {
+        BytesRef serializedAggs = serialize(state, version);
+        try (
+            StreamInput in = new NamedWriteableAwareStreamInput(
+                StreamInput.wrap(serializedAggs.bytes),
+                new NamedWriteableRegistry(Collections.emptyList())
+            )
+        ) {
+            in.setTransportVersion(version);
+            return TDigestState.read(in);
+
+        }
+    }
+
+    private BytesRef serialize(TDigestState state, TransportVersion version) throws IOException {
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setTransportVersion(version);
+            TDigestState.write(state, out);
+            return out.bytes().toBytesRef();
+        }
+    }
+
+    public void testSerialization() throws IOException {
+        // Past default was the accuracy-optimized version.
+        TDigestState backwardsCompatible = TDigestState.create(100, true);
+        TDigestState state = TDigestState.create(100);
+        for (int i = 0; i < 1000; i++) {
+            state.add(i);
+            backwardsCompatible.add(i);
+        }
+
+        TDigestState serialized = writeToAndReadFrom(state, TransportVersion.V_8_9_0);
+        assertEquals(serialized, state);
+
+        TDigestState serializedBackwardsCompatible = writeToAndReadFrom(state, TransportVersion.V_8_8_0);
+        // assertNotEquals(serializedBackwardsCompatible, state);
+        assertEquals(serializedBackwardsCompatible, backwardsCompatible);
     }
 }

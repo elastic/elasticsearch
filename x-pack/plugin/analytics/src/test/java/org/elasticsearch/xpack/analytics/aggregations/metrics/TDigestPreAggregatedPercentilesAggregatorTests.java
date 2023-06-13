@@ -43,7 +43,14 @@ public class TDigestPreAggregatedPercentilesAggregatorTests extends AggregatorTe
 
     @Override
     protected AggregationBuilder createAggBuilderForTypeTest(MappedFieldType fieldType, String fieldName) {
-        return new PercentilesAggregationBuilder("tdigest_percentiles").field(fieldName).percentilesConfig(new PercentilesConfig.TDigest());
+        var tdigestConfig = new PercentilesConfig.TDigest();
+        if (randomBoolean()) {
+            tdigestConfig.setCompression(randomDoubleBetween(50, 200, true));
+        }
+        if (randomBoolean()) {
+            tdigestConfig.setOptimizeForAccuracy(randomBoolean());
+        }
+        return new PercentilesAggregationBuilder("tdigest_percentiles").field(fieldName).percentilesConfig(tdigestConfig);
     }
 
     @Override
@@ -80,10 +87,10 @@ public class TDigestPreAggregatedPercentilesAggregatorTests extends AggregatorTe
         }, hdr -> {
             // assertEquals(4L, hdr.state.getTotalCount());
             double approximation = 0.05d;
-            assertEquals(15.0d, hdr.percentile(25), approximation);
+            assertEquals(17.5d, hdr.percentile(25), approximation);
             assertEquals(30.0d, hdr.percentile(50), approximation);
-            assertEquals(50.0d, hdr.percentile(75), approximation);
-            assertEquals(60.0d, hdr.percentile(99), approximation);
+            assertEquals(45.0d, hdr.percentile(75), approximation);
+            assertEquals(59.4d, hdr.percentile(99), approximation);
             assertTrue(AggregationInspectionHelper.hasValue(hdr));
         });
     }
@@ -97,9 +104,9 @@ public class TDigestPreAggregatedPercentilesAggregatorTests extends AggregatorTe
         }, hdr -> {
             // assertEquals(16L, hdr.state.getTotalCount());
             double approximation = 0.05d;
-            assertEquals(15.0d, hdr.percentile(25), approximation);
+            assertEquals(17.5d, hdr.percentile(25), approximation);
             assertEquals(30.0d, hdr.percentile(50), approximation);
-            assertEquals(50.0d, hdr.percentile(75), approximation);
+            assertEquals(45.0d, hdr.percentile(75), approximation);
             assertEquals(60.0d, hdr.percentile(99), approximation);
             assertTrue(AggregationInspectionHelper.hasValue(hdr));
         });

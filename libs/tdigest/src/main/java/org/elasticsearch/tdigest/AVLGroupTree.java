@@ -142,6 +142,10 @@ final class AVLGroupTree extends AbstractCollection<Centroid> {
         tree.update(node);
     }
 
+    public void remove(int node) {
+        tree.remove(node);
+    }
+
     /**
      * Return the last node whose centroid is less than <code>centroid</code>.
      */

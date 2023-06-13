@@ -27,11 +27,12 @@ public class HistoBackedTDigestPercentileRanksAggregator extends AbstractHistoBa
         Aggregator parent,
         double[] percents,
         double compression,
+        boolean optimizeForAccuracy,
         boolean keyed,
         DocValueFormat formatter,
         Map<String, Object> metadata
     ) throws IOException {
-        super(name, config, context, parent, percents, compression, keyed, formatter, metadata);
+        super(name, config, context, parent, percents, compression, optimizeForAccuracy, keyed, formatter, metadata);
     }
 
     @Override
@@ -46,7 +47,7 @@ public class HistoBackedTDigestPercentileRanksAggregator extends AbstractHistoBa
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return InternalTDigestPercentileRanks.empty(name, keys, compression, keyed, formatter, metadata());
+        return InternalTDigestPercentileRanks.empty(name, keys, compression, optimizeForAccuracy, keyed, formatter, metadata());
     }
 
     @Override

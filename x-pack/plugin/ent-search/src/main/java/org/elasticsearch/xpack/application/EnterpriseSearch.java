@@ -51,6 +51,7 @@ import org.elasticsearch.xpack.application.analytics.action.TransportGetAnalytic
 import org.elasticsearch.xpack.application.analytics.action.TransportPostAnalyticsEventAction;
 import org.elasticsearch.xpack.application.analytics.action.TransportPutAnalyticsCollectionAction;
 import org.elasticsearch.xpack.application.analytics.ingest.AnalyticsEventIngestConfig;
+import org.elasticsearch.xpack.application.rules.QueryRulesIndexService;
 import org.elasticsearch.xpack.application.search.SearchApplicationIndexService;
 import org.elasticsearch.xpack.application.search.action.DeleteSearchApplicationAction;
 import org.elasticsearch.xpack.application.search.action.GetSearchApplicationAction;
@@ -82,6 +83,7 @@ import java.util.List;
 import java.util.function.Supplier;
 
 public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemIndexPlugin {
+
     public static final String APPLICATION_API_ENDPOINT = "_application";
 
     public static final String SEARCH_APPLICATION_API_ENDPOINT = APPLICATION_API_ENDPOINT + "/search_application";
@@ -94,8 +96,11 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
 
     private final boolean enabled;
 
+    private final boolean queryRulesEnabled;
+
     public EnterpriseSearch(Settings settings) {
         this.enabled = XPackSettings.ENTERPRISE_SEARCH_ENABLED.get(settings);
+        this.queryRulesEnabled = XPackSettings.ENTERPRISE_SEARCH_QUERY_RULES_ENABLED.get(settings);
     }
 
     protected XPackLicenseState getLicenseState() {
@@ -182,12 +187,19 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
         );
         analyticsTemplateRegistry.initialize();
 
-        return Arrays.asList(analyticsTemplateRegistry);
+        return List.of(analyticsTemplateRegistry);
     }
 
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-        return Arrays.asList(SearchApplicationIndexService.getSystemIndexDescriptor());
+        if (queryRulesEnabled) {
+            return Arrays.asList(
+                SearchApplicationIndexService.getSystemIndexDescriptor(),
+                QueryRulesIndexService.getSystemIndexDescriptor()
+            );
+        } else {
+            return Collections.singletonList(SearchApplicationIndexService.getSystemIndexDescriptor());
+        }
     }
 
     @Override

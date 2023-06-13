@@ -416,9 +416,10 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
 
         @Override
         public boolean test(Long now, IndexMetadata indexMetadata) {
+            var failedStepRetryCount = indexMetadata.getLifecycleExecutionState().failedStepRetryCount();
             return step.equals(indexMetadata.getLifecycleExecutionState().step())
                 && (maxTimeOn.compareTo(RuleConfig.getElapsedTime(now, indexMetadata.getLifecycleExecutionState().stepTime())) < 0
-                    || indexMetadata.getLifecycleExecutionState().failedStepRetryCount() > maxRetries);
+                    || (failedStepRetryCount != null && failedStepRetryCount > maxRetries));
         }
     }
 }

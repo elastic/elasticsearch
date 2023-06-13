@@ -57,7 +57,6 @@ import java.util.Map;
 import java.util.Set;
 
 import static java.util.Collections.emptyList;
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.cluster.metadata.AliasMetadata.newAliasMetadataBuilder;
 import static org.elasticsearch.cluster.routing.RandomShardRoutingMutator.randomChange;
@@ -212,7 +211,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
     }
 
     private DiscoveryNode randomNode(String nodeId) {
-        return DiscoveryNodeUtils.create(nodeId, buildNewFakeTransportAddress(), emptyMap(), emptySet(), randomVersion(random()));
+        return DiscoveryNodeUtils.builder(nodeId).roles(emptySet()).version(randomVersion(random())).build();
     }
 
     /**

@@ -217,15 +217,7 @@ public class DependenciesInfoTask extends ConventionTask {
     }
 
     private IllegalStateException missingInfo(String group, String name, String infoFileSuffix, String reason) {
-        return new IllegalStateException(
-            "Unable to find "
-                + infoFileSuffix
-                + " file for dependency "
-                + group
-                + ":"
-                + name
-                + " "
-                + reason);
+        return new IllegalStateException("Unable to find " + infoFileSuffix + " file for dependency " + group + ":" + name + " " + reason);
     }
 
     protected File getDependencyInfoFile(final String group, final String name, final String infoFileSuffix) {

@@ -38,7 +38,7 @@ public class TDigestState {
         SORTING;
 
         static Type defaultValue() {
-            return AVL_TREE;
+            return HYBRID;
         }
 
         static Type valueForHighAccuracy() {
@@ -237,9 +237,5 @@ public class TDigestState {
 
     public final double getMax() {
         return tdigest.getMax();
-    }
-
-    public final long byteSize() {
-        return tdigest.byteSize();
     }
 }

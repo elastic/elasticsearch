@@ -327,7 +327,7 @@
   - close_to: { aggregations.date_histogram.buckets.0.10.value: { value: 25.83, error: 0.01 } }
   - close_to: { aggregations.date_histogram.buckets.0.8.value: { value: 25.83, error: 0.01 } }
   # Rate aggregation on counters uses the actual bucket time interval instead of the parent date histogram calendar interval
-  - close_to: { aggregations.date_histogram.buckets.0.9.value: { value: 0.06, error: 0.01 } }
+  - close_to: { aggregations.date_histogram.buckets.0.9.value: { value: 61.11, error: 0.01 } }
 
 ---
 "rate aggregation on counter field with unit":
@@ -433,12 +433,12 @@
 
   - match: { hits.total.value: 10 }
   - length: { aggregations.ts.buckets: 1 }
-  - close_to: { aggregations.ts.buckets.0.rate-without-unit.value: { value: 0.0243, error: 0.0001 }}
-  - close_to: { aggregations.ts.buckets.0.rate-second.value: { value: 0.0243, error: 0.0001 }}
-  - close_to: { aggregations.ts.buckets.0.rate-minute.value: { value: 1.4592, error: 0.0001 }}
-  - close_to: { aggregations.ts.buckets.0.rate-hour.value: { value: 87.5555, error: 0.0001 }}
-  - close_to: { aggregations.ts.buckets.0.rate-day.value: { value: 2101.3333, error: 0.0001 }}
-  - close_to: { aggregations.ts.buckets.0.rate-week.value: { value: 14709.3333, error: 0.0001 }}
-  - close_to: { aggregations.ts.buckets.0.rate-month.value: { value: 63958.02, error: 0.0001 }}
-  - close_to: { aggregations.ts.buckets.0.rate-quarter.value: { value: 191874.06, error: 0.0001 }}
-  - close_to: { aggregations.ts.buckets.0.rate-year.value: { value: 767496.24, error: 0.0001 }}
+  - close_to: { aggregations.ts.buckets.0.rate-without-unit.value: { value: 24.32, error: 0.01 }}
+  - close_to: { aggregations.ts.buckets.0.rate-second.value: { value: 24.32, error: 0.01 }}
+  - close_to: { aggregations.ts.buckets.0.rate-minute.value: { value: 1459.25, error: 0.01 }}
+  - close_to: { aggregations.ts.buckets.0.rate-hour.value: { value: 87555.55, error: 0.01 }}
+  - close_to: { aggregations.ts.buckets.0.rate-day.value: { value: 2101333.33, error: 0.01 }}
+  - close_to: { aggregations.ts.buckets.0.rate-week.value: { value: 14709333.33, error: 0.01 }}
+  - close_to: { aggregations.ts.buckets.0.rate-month.value: { value: 63958020.00, error: 0.01 }}
+  - close_to: { aggregations.ts.buckets.0.rate-quarter.value: { value: 191874060.00, error: 0.01 }}
+  - close_to: { aggregations.ts.buckets.0.rate-year.value: { value: 767496240.00, error: 0.01 }}

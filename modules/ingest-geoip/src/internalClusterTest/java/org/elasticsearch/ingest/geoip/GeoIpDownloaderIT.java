@@ -297,7 +297,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
 
         // Creating a pipeline containing a geo processor with lazy download enable.
         // Download should not be triggered and task state should stay null.
-        putGeoIpPipeline(pipelineId, true);
+        putGeoIpPipeline(pipelineId, false);
         assertNull(getTask().getState());
 
         // Create an index that use the newly created geo pipeline as default pipeline or final pipeline.

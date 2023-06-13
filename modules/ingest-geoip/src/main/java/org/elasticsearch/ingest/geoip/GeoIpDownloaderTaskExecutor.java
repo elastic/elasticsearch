@@ -46,6 +46,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.ingest.geoip.GeoIpDownloader.DATABASES_INDEX;
 import static org.elasticsearch.ingest.geoip.GeoIpDownloader.GEOIP_DOWNLOADER;
@@ -231,58 +232,81 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
         }
     }
 
-    @SuppressWarnings("unchecked")
     static boolean hasAtLeastOneGeoipProcessor(ClusterState clusterState) {
-        List<PipelineConfiguration> pipelineDefinitions = IngestService.getPipelines(clusterState);
-        return pipelineDefinitions.stream().anyMatch(pipelineConfig -> {
-            boolean isPipelineUsed = isPipelineUsed(clusterState, pipelineConfig.getId());
-            List<Map<String, Object>> processors = (List<Map<String, Object>>) pipelineConfig.getConfigAsMap().get(Pipeline.PROCESSORS_KEY);
-            return hasAtLeastOneGeoipProcessor(processors, isPipelineUsed);
-        });
-    }
+        if (pipelineConfigurationsWithGeoIpProcessor(clusterState, true).isEmpty() == false) {
+            return true;
+        }
 
-    private static boolean isPipelineUsed(ClusterState clusterState, String pipelineId) {
+        List<String> checkReferencedPipelines = pipelineConfigurationsWithGeoIpProcessor(clusterState, false).stream()
+            .map(PipelineConfiguration::getId)
+            .collect(Collectors.toList());
+
+        if (checkReferencedPipelines.isEmpty()) {
+            return false;
+        }
+
         return clusterState.getMetadata().indices().values().stream().anyMatch(indexMetadata -> {
             String defaultPipeline = IndexSettings.DEFAULT_PIPELINE.get(indexMetadata.getSettings());
             String finalPipeline = IndexSettings.FINAL_PIPELINE.get(indexMetadata.getSettings());
-            return defaultPipeline.equals(pipelineId) || finalPipeline.equals(pipelineId);
+            return checkReferencedPipelines.contains(defaultPipeline) || checkReferencedPipelines.contains(finalPipeline);
         });
     }
 
-    private static boolean hasAtLeastOneGeoipProcessor(List<Map<String, Object>> processors, boolean isPipelineUsed) {
-        return processors != null && processors.stream().anyMatch(p -> hasAtLeastOneGeoipProcessor(p, isPipelineUsed));
+    @SuppressWarnings("unchecked")
+    private static List<PipelineConfiguration> pipelineConfigurationsWithGeoIpProcessor(
+        ClusterState state,
+        boolean downloadDatabaseOnPipelineCreation
+    ) {
+        List<PipelineConfiguration> pipelineDefinitions = IngestService.getPipelines(state);
+        return pipelineDefinitions.stream().filter(pipelineConfig -> {
+            List<Map<String, Object>> processors = (List<Map<String, Object>>) pipelineConfig.getConfigAsMap().get(Pipeline.PROCESSORS_KEY);
+            return hasAtLeastOneGeoipProcessor(processors, downloadDatabaseOnPipelineCreation);
+        }).collect(Collectors.toList());
+    }
+
+    private static boolean hasAtLeastOneGeoipProcessor(List<Map<String, Object>> processors, boolean downloadDatabaseOnPipelineCreation) {
+        return processors != null && processors.stream().anyMatch(p -> hasAtLeastOneGeoipProcessor(p, downloadDatabaseOnPipelineCreation));
     }
 
     @SuppressWarnings("unchecked")
-    private static boolean hasAtLeastOneGeoipProcessor(Map<String, Object> processor, boolean isPipelineUsed) {
+    private static boolean hasAtLeastOneGeoipProcessor(Map<String, Object> processor, boolean downloadDatabaseOnPipelineCreation) {
         if (processor == null) {
             return false;
         }
 
         if (processor.containsKey(GeoIpProcessor.TYPE)) {
             Map<String, Object> processorConfig = (Map<String, Object>) processor.get(GeoIpProcessor.TYPE);
-            return downloadDatabaseOnPipelineCreation(processorConfig) || isPipelineUsed;
+            return downloadDatabaseOnPipelineCreation(processorConfig) == downloadDatabaseOnPipelineCreation;
         }
 
-        return isProcessorWithOnFailureGeoIpProcessor(processor, isPipelineUsed)
-            || isForeachProcessorWithGeoipProcessor(processor, isPipelineUsed);
+        return isProcessorWithOnFailureGeoIpProcessor(processor, downloadDatabaseOnPipelineCreation)
+            || isForeachProcessorWithGeoipProcessor(processor, downloadDatabaseOnPipelineCreation);
     }
 
     @SuppressWarnings("unchecked")
-    private static boolean isProcessorWithOnFailureGeoIpProcessor(Map<String, Object> processor, boolean isPipelineUsed) {
+    private static boolean isProcessorWithOnFailureGeoIpProcessor(
+        Map<String, Object> processor,
+        boolean downloadDatabaseOnPipelineCreation
+    ) {
         return processor != null
             && processor.values()
                 .stream()
                 .anyMatch(
                     value -> value instanceof Map
-                        && hasAtLeastOneGeoipProcessor(((Map<String, List<Map<String, Object>>>) value).get("on_failure"), isPipelineUsed)
+                        && hasAtLeastOneGeoipProcessor(
+                            ((Map<String, List<Map<String, Object>>>) value).get("on_failure"),
+                            downloadDatabaseOnPipelineCreation
+                        )
                 );
     }
 
     @SuppressWarnings("unchecked")
-    private static boolean isForeachProcessorWithGeoipProcessor(Map<String, Object> processor, boolean isPipelineUsed) {
+    private static boolean isForeachProcessorWithGeoipProcessor(Map<String, Object> processor, boolean downloadDatabaseOnPipelineCreation) {
         return processor.containsKey("foreach")
-            && hasAtLeastOneGeoipProcessor(((Map<String, Map<String, Object>>) processor.get("foreach")).get("processor"), isPipelineUsed);
+            && hasAtLeastOneGeoipProcessor(
+                ((Map<String, Map<String, Object>>) processor.get("foreach")).get("processor"),
+                downloadDatabaseOnPipelineCreation
+            );
     }
 
     private void startTask(Runnable onFailure) {

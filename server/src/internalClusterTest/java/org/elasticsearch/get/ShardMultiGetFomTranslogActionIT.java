@@ -100,14 +100,11 @@ public class ShardMultiGetFomTranslogActionIT extends ESIntegTestCase {
         assertTrue(getFailures(multiGetShardResponse).stream().allMatch(Objects::isNull));
         getResponses = getResponses(multiGetShardResponse);
         assertThat(getResponses.size(), equalTo(2));
-        var getResponseForDeletedId = getResponses.stream().filter(r -> r.getId().equals(idToDelete)).toList().get(0);
-        var getResponseForExistingId = getResponses.stream().filter(r -> r.getId().equals(idToDelete) == false).toList().get(0);
-        assertNotNull("get followed by a delete should still return a result", getResponseForDeletedId);
-        assertThat(getResponseForDeletedId.getId(), equalTo(idToDelete));
-        assertThat(getResponseForDeletedId.isExists(), equalTo(false));
-        assertNotNull(getResponseForExistingId);
-        assertTrue(idsToIndex.contains(getResponseForExistingId.getId()));
-        assertThat(getResponseForExistingId.isExists(), equalTo(true));
+        assertTrue(getResponses.stream().allMatch(Objects::nonNull));
+        for (var getResponse : getResponses) {
+            var shouldExist = getResponse.getId().equals(idToDelete) ? false : true;
+            assertThat(getResponse.isExists(), equalTo(shouldExist));
+        }
         assertThat(response.segmentGeneration(), equalTo(-1L));
 
         indexResponse = client().prepareIndex("test").setSource("field1", "value2").get();

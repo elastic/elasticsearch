@@ -38,6 +38,8 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivileg
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeTests;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
+import org.elasticsearch.xpack.core.security.authz.restriction.Workflow;
+import org.elasticsearch.xpack.core.security.authz.restriction.WorkflowResolver;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.junit.Before;
 
@@ -49,6 +51,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -764,6 +767,43 @@ public class LimitedRoleTests extends ESTestCase {
                         .map()
                 )
             );
+        }
+    }
+
+    public void testCheckWorkflowRestriction() {
+        // Test when role is restricted to the same workflow as originating workflow
+        {
+            Workflow workflow = WorkflowResolver.SEARCH_APPLICATION_QUERY_WORKFLOW;
+            Role baseRole = Role.builder(EMPTY_RESTRICTED_INDICES, "role-a")
+                .add(IndexPrivilege.READ, "index-a")
+                .workflows(Set.of(workflow.name()))
+                .build();
+            Role limitedBy = Role.builder(EMPTY_RESTRICTED_INDICES, "role-b").add(IndexPrivilege.READ, "index-a").build();
+            Role role = baseRole.limitedBy(limitedBy);
+            assertThat(role.checkWorkflowRestriction(workflow), equalTo(true));
+            assertThat(role.hasWorkflowsRestriction(), equalTo(true));
+            assertThat(role.workflowsRestriction().workflows(), contains(workflow));
+        }
+        // Test restriction when role is not restricted regardless of originating workflow
+        {
+            Workflow originatingWorkflow = randomBoolean() ? null : WorkflowResolver.SEARCH_APPLICATION_QUERY_WORKFLOW;
+            Role baseRole = Role.builder(EMPTY_RESTRICTED_INDICES, "role-a").add(IndexPrivilege.READ, "index-a").build();
+            Role limitedBy = Role.builder(EMPTY_RESTRICTED_INDICES, "role-b").add(IndexPrivilege.READ, "index-a").build();
+            Role role = baseRole.limitedBy(limitedBy);
+            assertThat(role.checkWorkflowRestriction(originatingWorkflow), equalTo(true));
+            assertThat(role.hasWorkflowsRestriction(), equalTo(false));
+        }
+        // Test when role is restricted but originating workflow is not allowed
+        {
+            Role baseRole = Role.builder(EMPTY_RESTRICTED_INDICES, "role-a")
+                .add(IndexPrivilege.READ, "index-a")
+                .workflows(Set.of(WorkflowResolver.SEARCH_APPLICATION_QUERY_WORKFLOW.name()))
+                .build();
+            Role limitedBy = Role.builder(EMPTY_RESTRICTED_INDICES, "role-b").add(IndexPrivilege.READ, "index-a").build();
+            Role role = baseRole.limitedBy(limitedBy);
+            assertThat(role.checkWorkflowRestriction(null), equalTo(false));
+            assertThat(role.hasWorkflowsRestriction(), equalTo(true));
+            assertThat(role.workflowsRestriction().workflows(), contains(WorkflowResolver.SEARCH_APPLICATION_QUERY_WORKFLOW));
         }
     }
 

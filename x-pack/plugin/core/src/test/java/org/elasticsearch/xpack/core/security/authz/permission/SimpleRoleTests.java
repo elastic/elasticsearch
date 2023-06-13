@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivileg
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeTests;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
+import org.elasticsearch.xpack.core.security.authz.restriction.WorkflowResolver;
 
 import java.util.Arrays;
 import java.util.List;
@@ -25,6 +26,7 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.RESTRICTED_INDICES;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -242,5 +244,28 @@ public class SimpleRoleTests extends ESTestCase {
         );
 
         assertThat(role.getRoleDescriptorsIntersectionForRemoteCluster(randomAlphaOfLength(8)), equalTo(RoleDescriptorsIntersection.EMPTY));
+    }
+
+    public void testBuildFromRoleDescriptorWithWorkflowsRestriction() {
+        final SimpleRole role = Role.buildFromRoleDescriptor(
+            new RoleDescriptor(
+                "r1",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                new RoleDescriptor.Restriction(new String[] { WorkflowResolver.SEARCH_APPLICATION_QUERY_WORKFLOW.name() })
+            ),
+            new FieldPermissionsCache(Settings.EMPTY),
+            RESTRICTED_INDICES,
+            List.of()
+        );
+
+        assertThat(role.hasWorkflowsRestriction(), equalTo(true));
+        assertThat(role.workflowsRestriction().workflows(), containsInAnyOrder(WorkflowResolver.SEARCH_APPLICATION_QUERY_WORKFLOW));
     }
 }

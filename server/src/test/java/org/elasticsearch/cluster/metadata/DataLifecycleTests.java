@@ -25,6 +25,8 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
@@ -33,8 +35,11 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class DataLifecycleTests extends AbstractXContentSerializingTestCase<DataLifecycle> {
 
-    public static final DataLifecycle EXPLICIT_INFINITE_RETENTION = new DataLifecycle(DataLifecycle.Retention.NULL);
-    public static final DataLifecycle IMPLICIT_INFINITE_RETENTION = new DataLifecycle((TimeValue) null);
+    public static final DataLifecycle EXPLICIT_INFINITE_RETENTION = new DataLifecycle(
+        DataLifecycle.Retention.NULL,
+        DataLifecycle.Downsampling.NULL
+    );
+    public static final DataLifecycle IMPLICIT_INFINITE_RETENTION = new DataLifecycle(null, (DataLifecycle.Downsampling) null);
 
     @Override
     protected Writeable.Reader<DataLifecycle> instanceReader() {
@@ -43,26 +48,45 @@ public class DataLifecycleTests extends AbstractXContentSerializingTestCase<Data
 
     @Override
     protected DataLifecycle createTestInstance() {
+        List<DataLifecycle.Downsample> downsamples = new ArrayList<>();
+        downsamples.add(new DataLifecycle.Downsample(TimeValue.timeValueDays(1), TimeValue.timeValueHours(2)));
+        downsamples.add(new DataLifecycle.Downsample(TimeValue.timeValueDays(15), TimeValue.timeValueDays(1)));
+        DataLifecycle.Downsampling downsampling = new DataLifecycle.Downsampling(downsamples);
         return switch (randomInt(2)) {
             case 0 -> IMPLICIT_INFINITE_RETENTION;
             case 1 -> EXPLICIT_INFINITE_RETENTION;
-            default -> new DataLifecycle(randomMillisUpToYear9999());
+            default -> new DataLifecycle(new DataLifecycle.Retention(TimeValue.timeValueMillis(randomMillisUpToYear9999())), downsampling);
         };
     }
 
     @Override
     protected DataLifecycle mutateInstance(DataLifecycle instance) throws IOException {
         if (IMPLICIT_INFINITE_RETENTION.equals(instance)) {
-            return randomBoolean() ? EXPLICIT_INFINITE_RETENTION : new DataLifecycle(randomMillisUpToYear9999());
+            return randomBoolean()
+                ? EXPLICIT_INFINITE_RETENTION
+                : new DataLifecycle(
+                    new DataLifecycle.Retention(TimeValue.timeValueMillis(randomMillisUpToYear9999())),
+                    instance.getDownsampling()
+                );
         }
         if (EXPLICIT_INFINITE_RETENTION.equals(instance)) {
-            return randomBoolean() ? IMPLICIT_INFINITE_RETENTION : new DataLifecycle(randomMillisUpToYear9999());
+            return randomBoolean()
+                ? IMPLICIT_INFINITE_RETENTION
+                : new DataLifecycle(
+                    new DataLifecycle.Retention(TimeValue.timeValueMillis(randomMillisUpToYear9999())),
+                    instance.getDownsampling()
+                );
         }
         return switch (randomInt(2)) {
             case 0 -> IMPLICIT_INFINITE_RETENTION;
             case 1 -> EXPLICIT_INFINITE_RETENTION;
             default -> new DataLifecycle(
-                randomValueOtherThan(instance.getEffectiveDataRetention().millis(), ESTestCase::randomMillisUpToYear9999)
+                new DataLifecycle.Retention(
+                    TimeValue.timeValueMillis(
+                        randomValueOtherThan(instance.getEffectiveDataRetention().millis(), ESTestCase::randomMillisUpToYear9999)
+                    )
+                ),
+                instance.getDownsampling()
             );
         };
     }

@@ -68,10 +68,9 @@ public class RepositoriesStats implements Writeable, ToXContentFragment {
             if (builder.humanReadable()) {
                 builder.field("total_read_throttled_time", new TimeValue(totalReadThrottledNanos, TimeUnit.NANOSECONDS));
                 builder.field("total_write_throttled_time", new TimeValue(totalWriteThrottledNanos, TimeUnit.NANOSECONDS));
-            } else {
-                builder.field("total_read_throttled_time_nanos", totalReadThrottledNanos);
-                builder.field("total_write_throttled_time_nanos", totalWriteThrottledNanos);
             }
+            builder.field("total_read_throttled_time_nanos", totalReadThrottledNanos);
+            builder.field("total_write_throttled_time_nanos", totalWriteThrottledNanos);
             builder.endObject();
             return builder;
         }

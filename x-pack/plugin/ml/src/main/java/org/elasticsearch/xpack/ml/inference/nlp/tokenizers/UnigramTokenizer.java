@@ -50,7 +50,7 @@ public final class UnigramTokenizer extends Tokenizer {
     private final CharTermAttribute termAtt = addAttribute(CharTermAttribute.class);
     private final OffsetAttribute offsetAtt = addAttribute(OffsetAttribute.class);
 
-    static UnigramTokenizer build(List<String> neverSplit, List<String> dictionary, List<Double> scores, String unknownToken) {
+    static UnigramTokenizer build(List<String> neverSplit, List<String> dictionary, double[] scores, String unknownToken) {
         if (dictionary.isEmpty()) {
             throw new IllegalArgumentException("vocab empty");
         }
@@ -59,9 +59,9 @@ public final class UnigramTokenizer extends Tokenizer {
         }
         CharArraySet neverSplitSet = new CharArraySet(neverSplit, false);
         CharTrie neverSplitTree = CharTrie.build(neverSplit);
-        if (dictionary.size() != scores.size()) {
+        if (dictionary.size() != scores.length) {
             throw new IllegalArgumentException(
-                format("provided vocabulary [%s] and scores [%s] must have the same size", dictionary.size(), scores.size())
+                format("provided vocabulary [%s] and scores [%s] must have the same size", dictionary.size(), scores.length)
             );
         }
         int vocabSize = dictionary.size();
@@ -69,17 +69,15 @@ public final class UnigramTokenizer extends Tokenizer {
         Map<BytesRef, Integer> tokenToId = Maps.newHashMapWithExpectedSize(vocabSize);
         int vocabIndex = 0;
         double minScore = Double.POSITIVE_INFINITY;
-        double[] vocabScores = new double[vocabSize];
         for (String word : dictionary) {
-            minScore = Double.min(minScore, scores.get(vocabIndex));
+            minScore = Double.min(minScore, scores[vocabIndex]);
             BytesRef vocab = new BytesRef(word);
-            vocabScores[vocabIndex] = scores.get(vocabIndex);
             tokenToId.put(vocab, vocabIndex++);
             vocabTrie.insert(vocab);
         }
         return new UnigramTokenizer(
             minScore,
-            vocabScores,
+            scores,
             neverSplitTree,
             neverSplitSet,
             tokenToId,
@@ -128,6 +126,10 @@ public final class UnigramTokenizer extends Tokenizer {
         this.unknownTokenId = unknownTokenId;
         this.vocabScores = vocabScores;
         this.whitespaceTokenizer = new SimpleWhitespaceTokenizer();
+    }
+
+    List<DelimitedToken.Encoded> getTokenizedValues() {
+        return tokenizedValues;
     }
 
     @Override

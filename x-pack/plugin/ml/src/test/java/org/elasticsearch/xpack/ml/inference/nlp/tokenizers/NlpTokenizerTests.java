@@ -13,8 +13,10 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertTokenization;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.MPNetTokenization;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RobertaTokenization;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.Tokenization;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.XLMRobertaTokenization;
 import org.elasticsearch.xpack.ml.inference.nlp.Vocabulary;
 
+import java.io.IOException;
 import java.util.List;
 
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
@@ -43,13 +45,13 @@ public class NlpTokenizerTests extends ESTestCase {
         RobertaTokenizer.MASK_TOKEN
     );
 
-    void validateBuilder(List<String> vocab, Tokenization tokenization, Class<?> expectedClass) {
-        Vocabulary vocabulary = new Vocabulary(vocab, "model-name", null);
+    void validateBuilder(List<String> vocab, Tokenization tokenization, Class<?> expectedClass) throws IOException {
+        Vocabulary vocabulary = new Vocabulary(vocab, "model-name", null, null);
         NlpTokenizer tokenizer = NlpTokenizer.build(vocabulary, tokenization);
         assertThat(tokenizer, instanceOf(expectedClass));
     }
 
-    public void testBuildTokenizer() {
+    public void testBuildTokenizer() throws IOException {
         Tokenization bert = new BertTokenization(null, false, null, Tokenization.Truncate.NONE, -1);
         validateBuilder(BERT_REQUIRED_VOCAB, bert, BertTokenizer.class);
 
@@ -61,5 +63,8 @@ public class NlpTokenizerTests extends ESTestCase {
 
         Tokenization roberta = new RobertaTokenization(null, false, null, Tokenization.Truncate.NONE, -1);
         validateBuilder(ROBERTA_REQUIRED_VOCAB, roberta, RobertaTokenizer.class);
+
+        Tokenization xlmRoberta = new XLMRobertaTokenization(null, null, Tokenization.Truncate.NONE, -1);
+        validateBuilder(ROBERTA_REQUIRED_VOCAB, xlmRoberta, XLMRobertaTokenizer.class);
     }
 }

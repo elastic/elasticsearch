@@ -780,7 +780,8 @@ public class IngestDocumentTests extends ESTestCase {
             assertThat(
                 e.getMessage(),
                 equalTo(
-                    "cannot create child of [0:'list'] with value [[{field=value}, null]] of type [java.util.ArrayList] as part of path [list.test.field]"
+                    "cannot create child of [0:'list'] with value [[{field=value}, null]] of type [java.util.ArrayList] as part of path " +
+                    "[list.test.field]"
                 )
             );
         }

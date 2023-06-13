@@ -14,6 +14,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.application.analytics.event.AnalyticsEvent;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -57,7 +58,7 @@ public class PaginationAnalyticsEventFieldTests extends AnalyticsEventFieldParse
 
     @Override
     protected Map<String, Integer> createTestInstance() {
-        return randomEventSearchPaginationField();
+        return new HashMap<>(randomEventSearchPaginationField());
     }
 
     @Override

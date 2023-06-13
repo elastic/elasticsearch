@@ -36,7 +36,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.SystemIndexManager.UpgradeStatus;
+import org.elasticsearch.indices.SystemIndexMappingUpdateService.UpgradeStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -57,7 +57,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class SystemIndexManagerTests extends ESTestCase {
+public class SystemIndexMappingUpdateServiceTests extends ESTestCase {
 
     private static final ClusterName CLUSTER_NAME = new ClusterName("security-index-manager-tests");
     private static final ClusterState EMPTY_CLUSTER_STATE = new ClusterState.Builder(CLUSTER_NAME).build();
@@ -93,7 +93,7 @@ public class SystemIndexManagerTests extends ESTestCase {
      * Check that the manager skips over descriptors whose indices cannot be managed.
      */
     public void testManagerSkipsDescriptorsThatAreNotManaged() {
-        SystemIndexDescriptor d1 = new SystemIndexDescriptor(".foo-1*", "");
+        SystemIndexDescriptor d1 = SystemIndexDescriptorUtils.createUnmanaged(".foo-1*", "");
         SystemIndexDescriptor d2 = SystemIndexDescriptor.builder()
             .setIndexPattern(".bar-*")
             .setPrimaryIndex(".bar-1")
@@ -110,7 +110,7 @@ public class SystemIndexManagerTests extends ESTestCase {
                 new SystemIndices.Feature("index 2", "index 2 feature", List.of(d2))
             )
         );
-        SystemIndexManager manager = new SystemIndexManager(systemIndices, client);
+        SystemIndexMappingUpdateService manager = new SystemIndexMappingUpdateService(systemIndices, client);
 
         final List<SystemIndexDescriptor> eligibleDescriptors = manager.getEligibleDescriptors(
             Metadata.builder()
@@ -154,7 +154,7 @@ public class SystemIndexManagerTests extends ESTestCase {
             )
         );
         ;
-        SystemIndexManager manager = new SystemIndexManager(systemIndices, client);
+        SystemIndexMappingUpdateService manager = new SystemIndexMappingUpdateService(systemIndices, client);
 
         final List<SystemIndexDescriptor> eligibleDescriptors = manager.getEligibleDescriptors(
             Metadata.builder().put(getIndexMetadata(d2, d2.getMappings(), 6, IndexMetadata.State.OPEN)).build()
@@ -169,7 +169,10 @@ public class SystemIndexManagerTests extends ESTestCase {
      */
     public void testManagerSkipsClosedIndices() {
         final ClusterState.Builder clusterStateBuilder = createClusterState(IndexMetadata.State.CLOSE);
-        assertThat(SystemIndexManager.getUpgradeStatus(clusterStateBuilder.build(), DESCRIPTOR), equalTo(UpgradeStatus.CLOSED));
+        assertThat(
+            SystemIndexMappingUpdateService.getUpgradeStatus(clusterStateBuilder.build(), DESCRIPTOR),
+            equalTo(UpgradeStatus.CLOSED)
+        );
     }
 
     /**
@@ -177,7 +180,7 @@ public class SystemIndexManagerTests extends ESTestCase {
      */
     public void testManagerSkipsIndicesWithRedStatus() {
         assertThat(
-            SystemIndexManager.getUpgradeStatus(markShardsUnavailable(createClusterState()), DESCRIPTOR),
+            SystemIndexMappingUpdateService.getUpgradeStatus(markShardsUnavailable(createClusterState()), DESCRIPTOR),
             equalTo(UpgradeStatus.UNHEALTHY)
         );
     }
@@ -188,7 +191,7 @@ public class SystemIndexManagerTests extends ESTestCase {
      */
     public void testManagerSkipsIndicesWithOutdatedFormat() {
         assertThat(
-            SystemIndexManager.getUpgradeStatus(markShardsAvailable(createClusterState(5)), DESCRIPTOR),
+            SystemIndexMappingUpdateService.getUpgradeStatus(markShardsAvailable(createClusterState(5)), DESCRIPTOR),
             equalTo(UpgradeStatus.NEEDS_UPGRADE)
         );
     }
@@ -198,7 +201,7 @@ public class SystemIndexManagerTests extends ESTestCase {
      */
     public void testManagerSkipsIndicesWithUpToDateMappings() {
         assertThat(
-            SystemIndexManager.getUpgradeStatus(markShardsAvailable(createClusterState()), DESCRIPTOR),
+            SystemIndexMappingUpdateService.getUpgradeStatus(markShardsAvailable(createClusterState()), DESCRIPTOR),
             equalTo(UpgradeStatus.UP_TO_DATE)
         );
     }
@@ -208,7 +211,7 @@ public class SystemIndexManagerTests extends ESTestCase {
      */
     public void testManagerProcessesIndicesWithOutdatedMappings() {
         assertThat(
-            SystemIndexManager.getUpgradeStatus(
+            SystemIndexMappingUpdateService.getUpgradeStatus(
                 markShardsAvailable(createClusterState(Strings.toString(getMappings("1.0.0")))),
                 DESCRIPTOR
             ),
@@ -221,7 +224,7 @@ public class SystemIndexManagerTests extends ESTestCase {
      */
     public void testManagerProcessesIndicesWithNullMetadata() {
         assertThat(
-            SystemIndexManager.getUpgradeStatus(
+            SystemIndexMappingUpdateService.getUpgradeStatus(
                 markShardsAvailable(createClusterState(Strings.toString(getMappings(builder -> {})))),
                 DESCRIPTOR
             ),
@@ -234,7 +237,7 @@ public class SystemIndexManagerTests extends ESTestCase {
      */
     public void testManagerProcessesIndicesWithNullVersionMetadata() {
         assertThat(
-            SystemIndexManager.getUpgradeStatus(
+            SystemIndexMappingUpdateService.getUpgradeStatus(
                 markShardsAvailable(createClusterState(Strings.toString(getMappings((String) null)))),
                 DESCRIPTOR
             ),
@@ -247,7 +250,7 @@ public class SystemIndexManagerTests extends ESTestCase {
      */
     public void testManagerSubmitsPutRequest() {
         SystemIndices systemIndices = new SystemIndices(List.of(FEATURE));
-        SystemIndexManager manager = new SystemIndexManager(systemIndices, client);
+        SystemIndexMappingUpdateService manager = new SystemIndexMappingUpdateService(systemIndices, client);
 
         manager.clusterChanged(event(markShardsAvailable(createClusterState(Strings.toString(getMappings("1.0.0"))))));
 
@@ -259,13 +262,16 @@ public class SystemIndexManagerTests extends ESTestCase {
      */
     public void testCanHandleIntegerMetaVersion() {
         assertThat(
-            SystemIndexManager.getUpgradeStatus(markShardsAvailable(createClusterState(Strings.toString(getMappings(3)))), DESCRIPTOR),
+            SystemIndexMappingUpdateService.getUpgradeStatus(
+                markShardsAvailable(createClusterState(Strings.toString(getMappings(3)))),
+                DESCRIPTOR
+            ),
             equalTo(UpgradeStatus.NEEDS_MAPPINGS_UPDATE)
         );
     }
 
     private static ClusterState.Builder createClusterState() {
-        return createClusterState(SystemIndexManagerTests.DESCRIPTOR.getMappings());
+        return createClusterState(SystemIndexMappingUpdateServiceTests.DESCRIPTOR.getMappings());
     }
 
     private static ClusterState.Builder createClusterState(String mappings) {
@@ -273,7 +279,7 @@ public class SystemIndexManagerTests extends ESTestCase {
     }
 
     private static ClusterState.Builder createClusterState(IndexMetadata.State state) {
-        return createClusterState(SystemIndexManagerTests.DESCRIPTOR.getMappings(), 6, state);
+        return createClusterState(SystemIndexMappingUpdateServiceTests.DESCRIPTOR.getMappings(), 6, state);
     }
 
     private static ClusterState.Builder createClusterState(String mappings, IndexMetadata.State state) {
@@ -281,11 +287,11 @@ public class SystemIndexManagerTests extends ESTestCase {
     }
 
     private static ClusterState.Builder createClusterState(int format) {
-        return createClusterState(SystemIndexManagerTests.DESCRIPTOR.getMappings(), format, IndexMetadata.State.OPEN);
+        return createClusterState(SystemIndexMappingUpdateServiceTests.DESCRIPTOR.getMappings(), format, IndexMetadata.State.OPEN);
     }
 
     private static ClusterState.Builder createClusterState(String mappings, int format, IndexMetadata.State state) {
-        IndexMetadata.Builder indexMeta = getIndexMetadata(SystemIndexManagerTests.DESCRIPTOR, mappings, format, state);
+        IndexMetadata.Builder indexMeta = getIndexMetadata(SystemIndexMappingUpdateServiceTests.DESCRIPTOR, mappings, format, state);
 
         Metadata.Builder metadataBuilder = new Metadata.Builder();
         metadataBuilder.put(indexMeta);

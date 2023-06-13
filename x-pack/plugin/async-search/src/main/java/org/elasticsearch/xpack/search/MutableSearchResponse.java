@@ -241,6 +241,11 @@ class MutableSearchResponse {
      * @return response representing the status of async search
      */
     synchronized AsyncStatusResponse toStatusResponse(String asyncExecutionId, long startTime, long expirationTime) {
+        SearchResponse.Clusters clustersInStatus = null;
+        if (clusters != null && clusters.getTotal() > 0) {
+            // include clusters in the status if present and not Clusters.EMPTY (the case for local searches only)
+            clustersInStatus = clusters;
+        }
         if (finalResponse != null) {
             return new AsyncStatusResponse(
                 asyncExecutionId,
@@ -252,7 +257,8 @@ class MutableSearchResponse {
                 finalResponse.getSuccessfulShards(),
                 finalResponse.getSkippedShards(),
                 finalResponse.getShardFailures() != null ? finalResponse.getShardFailures().length : 0,
-                finalResponse.status()
+                finalResponse.status(),
+                clustersInStatus
             );
         }
         if (failure != null) {
@@ -266,7 +272,8 @@ class MutableSearchResponse {
                 successfulShards,
                 skippedShards,
                 queryFailures == null ? 0 : queryFailures.nonNullLength(),
-                ExceptionsHelper.status(ExceptionsHelper.unwrapCause(failure))
+                ExceptionsHelper.status(ExceptionsHelper.unwrapCause(failure)),
+                clustersInStatus
             );
         }
         return new AsyncStatusResponse(
@@ -279,7 +286,8 @@ class MutableSearchResponse {
             successfulShards,
             skippedShards,
             queryFailures == null ? 0 : queryFailures.nonNullLength(),
-            null  // for a still running search, completion status is null
+            null,  // for a still running search, completion status is null
+            clustersInStatus
         );
     }
 

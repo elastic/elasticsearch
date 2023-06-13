@@ -26,6 +26,7 @@ import java.util.Objects;
 public class InternalResetTrackingRate extends InternalNumericMetricsAggregation.SingleValue implements Rate {
 
     public static final String NAME = "rate_with_resets";
+    private static final int MILLIS_IN_SECOND = 1_000;
 
     private final double startValue;
     private final double endValue;
@@ -127,8 +128,8 @@ public class InternalResetTrackingRate extends InternalNumericMetricsAggregation
 
     @Override
     public double value() {
-        long rateUnitScalingFactor = rateUnit.getField().getBaseUnit().getDuration().toSeconds();
-        return (endValue - startValue + resetCompensation) / (endTime - startTime) * rateUnitScalingFactor;
+        long rateUnitSeconds = rateUnit.getField().getBaseUnit().getDuration().toSeconds();
+        return (endValue - startValue + resetCompensation) / (endTime - startTime) * MILLIS_IN_SECOND * rateUnitSeconds;
     }
 
     @Override

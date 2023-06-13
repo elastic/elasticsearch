@@ -29,6 +29,18 @@ import static org.mockito.Mockito.mock;
 
 public class InternalResetTrackingRateTests extends InternalAggregationTestCase<InternalResetTrackingRate> {
 
+    private static final int MILLIS_IN_SECOND = 1_000;
+    private static final int SECONDS_IN_MINUTE = 60;
+    private static final int MILLIS_IN_MINUTE = MILLIS_IN_SECOND * SECONDS_IN_MINUTE;
+    private static final int MINUTES_IN_HOUR = 60;
+    private static final int MILLIS_IN_HOUR = MILLIS_IN_SECOND * SECONDS_IN_MINUTE * MINUTES_IN_HOUR;
+    private static final int HOURS_IN_DAY = 24;
+    private static final int MILLIS_IN_DAY = MILLIS_IN_SECOND * SECONDS_IN_MINUTE * MINUTES_IN_HOUR * HOURS_IN_DAY;
+    private static final int DAYS_IN_WEEK = 7;
+    private static final int MILLIS_IN_WEEK = MILLIS_IN_SECOND * SECONDS_IN_MINUTE * MINUTES_IN_HOUR * HOURS_IN_DAY * DAYS_IN_WEEK;
+    private static final int MONTHS_IN_QUARTER = 3;
+    private static final int MONTHS_IN_YEAR = 12;
+
     @Override
     protected SearchPlugin registerPlugin() {
         return new AnalyticsPlugin();
@@ -51,43 +63,43 @@ public class InternalResetTrackingRateTests extends InternalAggregationTestCase<
     }
 
     public void testReductionSecond() {
-        testReduction(Rounding.DateTimeUnit.SECOND_OF_MINUTE, 0.01);
+        testReduction(Rounding.DateTimeUnit.SECOND_OF_MINUTE, 0.01 * MILLIS_IN_SECOND);
     }
 
     public void testReductionMinute() {
-        testReduction(Rounding.DateTimeUnit.MINUTES_OF_HOUR, 0.01 * 60);
+        testReduction(Rounding.DateTimeUnit.MINUTES_OF_HOUR, 0.01 * MILLIS_IN_MINUTE);
     }
 
     public void testReductionHour() {
-        testReduction(Rounding.DateTimeUnit.HOUR_OF_DAY, 0.01 * 60 * 60);
+        testReduction(Rounding.DateTimeUnit.HOUR_OF_DAY, 0.01 * MILLIS_IN_HOUR);
     }
 
     public void testReductionDay() {
-        testReduction(Rounding.DateTimeUnit.DAY_OF_MONTH, 0.01 * 60 * 60 * 24);
+        testReduction(Rounding.DateTimeUnit.DAY_OF_MONTH, 0.01 * MILLIS_IN_DAY);
     }
 
     public void testReductionWeek() {
-        testReduction(Rounding.DateTimeUnit.WEEK_OF_WEEKYEAR, 0.01 * 60 * 60 * 24 * 7);
+        testReduction(Rounding.DateTimeUnit.WEEK_OF_WEEKYEAR, 0.01 * MILLIS_IN_WEEK);
     }
 
     public void testReductionMonth() {
-        testReduction(Rounding.DateTimeUnit.MONTH_OF_YEAR, 26297.46);
+        testReduction(Rounding.DateTimeUnit.MONTH_OF_YEAR, 26297.46 * MILLIS_IN_SECOND);
     }
 
     public void testReductionQuarter() {
-        testReduction(Rounding.DateTimeUnit.QUARTER_OF_YEAR, 26297.46 * 3);
+        testReduction(Rounding.DateTimeUnit.QUARTER_OF_YEAR, 26297.46 * MILLIS_IN_SECOND * MONTHS_IN_QUARTER);
     }
 
     public void testReductionYear() {
-        testReduction(Rounding.DateTimeUnit.YEAR_OF_CENTURY, 26297.46 * 12);
+        testReduction(Rounding.DateTimeUnit.YEAR_OF_CENTURY, 26297.46 * MILLIS_IN_SECOND * MONTHS_IN_YEAR);
     }
 
     @Override
     protected void assertReduced(InternalResetTrackingRate reduced, List<InternalResetTrackingRate> inputs) {
         for (InternalResetTrackingRate input : inputs) {
-            assertEquals(0.01f, input.getValue(), 0.001);
+            assertEquals(0.01f * MILLIS_IN_SECOND, input.getValue(), 0.01);
         }
-        assertEquals(0.01f, reduced.getValue(), 0.001);
+        assertEquals(0.01f * MILLIS_IN_SECOND, reduced.getValue(), 0.01);
     }
 
     // Buckets must always be in-order so that we can detect resets between consecutive buckets

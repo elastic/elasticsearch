@@ -102,6 +102,8 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
         );
         final RolesRetrievalResult rolesRetrievalResult = new RolesRetrievalResult();
         rolesRetrievalResult.addDescriptors(Set.copyOf(roleDescriptors));
+        assert rolesRetrievalResult.getRoleDescriptors().stream().filter(RoleDescriptor::hasRestriction).count() <= 1
+            : "there shouldn't be more than one API key's role descriptor with restriction";
         listener.onResponse(rolesRetrievalResult);
     }
 

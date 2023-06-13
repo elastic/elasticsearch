@@ -34,11 +34,11 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
  * as part of a series of multiple queries for features like ranking.
  * It's expected to typically be used as part of a {@link java.util.List}.
  */
-public class SearchQueryWrapperBuilder implements ToXContent, Writeable, Rewriteable<SearchQueryWrapperBuilder> {
+public class SubSearchSourceBuilder implements ToXContent, Writeable, Rewriteable<SubSearchSourceBuilder> {
 
-    private static final ConstructingObjectParser<SearchQueryWrapperBuilder, SearchUsage> PARSER = new ConstructingObjectParser<>(
+    private static final ConstructingObjectParser<SubSearchSourceBuilder, SearchUsage> PARSER = new ConstructingObjectParser<>(
         "search_query_wrapper",
-        args -> new SearchQueryWrapperBuilder((QueryBuilder) args[0])
+        args -> new SubSearchSourceBuilder((QueryBuilder) args[0])
     );
 
     static {
@@ -49,7 +49,7 @@ public class SearchQueryWrapperBuilder implements ToXContent, Writeable, Rewrite
         );
     }
 
-    public static SearchQueryWrapperBuilder fromXContent(XContentParser parser, SearchUsage searchUsage) throws IOException {
+    public static SubSearchSourceBuilder fromXContent(XContentParser parser, SearchUsage searchUsage) throws IOException {
         return PARSER.parse(parser, searchUsage);
     }
 
@@ -70,12 +70,12 @@ public class SearchQueryWrapperBuilder implements ToXContent, Writeable, Rewrite
 
     private final QueryBuilder queryBuilder;
 
-    public SearchQueryWrapperBuilder(QueryBuilder queryBuilder) {
+    public SubSearchSourceBuilder(QueryBuilder queryBuilder) {
         Objects.requireNonNull(queryBuilder);
         this.queryBuilder = queryBuilder;
     }
 
-    public SearchQueryWrapperBuilder(StreamInput in) throws IOException {
+    public SubSearchSourceBuilder(StreamInput in) throws IOException {
         this.queryBuilder = in.readNamedWriteable(QueryBuilder.class);
     }
 
@@ -85,9 +85,9 @@ public class SearchQueryWrapperBuilder implements ToXContent, Writeable, Rewrite
     }
 
     @Override
-    public SearchQueryWrapperBuilder rewrite(QueryRewriteContext ctx) throws IOException {
+    public SubSearchSourceBuilder rewrite(QueryRewriteContext ctx) throws IOException {
         QueryBuilder rewrittenQueryBuilder = queryBuilder.rewrite(ctx);
-        return rewrittenQueryBuilder == queryBuilder ? this : new SearchQueryWrapperBuilder(rewrittenQueryBuilder);
+        return rewrittenQueryBuilder == queryBuilder ? this : new SubSearchSourceBuilder(rewrittenQueryBuilder);
     }
 
     public QueryBuilder getQueryBuilder() {
@@ -102,7 +102,7 @@ public class SearchQueryWrapperBuilder implements ToXContent, Writeable, Rewrite
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        SearchQueryWrapperBuilder that = (SearchQueryWrapperBuilder) o;
+        SubSearchSourceBuilder that = (SubSearchSourceBuilder) o;
         return Objects.equals(queryBuilder, that.queryBuilder);
     }
 

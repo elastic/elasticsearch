@@ -132,7 +132,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
     private QueryBuilder queryBuilder;
 
-    private List<SearchQueryWrapperBuilder> searchQueryWrapperBuilders = new ArrayList<>();
+    private List<SubSearchSourceBuilder> subSearchSourceBuilders = new ArrayList<>();
 
     private QueryBuilder postQueryBuilder;
 
@@ -219,7 +219,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         postQueryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
         queryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
         if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_004)) {
-            searchQueryWrapperBuilders = in.readList(SearchQueryWrapperBuilder::new);
+            subSearchSourceBuilders = in.readList(SubSearchSourceBuilder::new);
         }
         if (in.readBoolean()) {
             rescoreBuilders = in.readNamedWriteableList(RescorerBuilder.class);
@@ -289,8 +289,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         out.writeOptionalNamedWriteable(postQueryBuilder);
         out.writeOptionalNamedWriteable(queryBuilder);
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_004)) {
-            out.writeList(searchQueryWrapperBuilders);
-        } else if (searchQueryWrapperBuilders.isEmpty() == false) {
+            out.writeList(subSearchSourceBuilders);
+        } else if (subSearchSourceBuilders.isEmpty() == false) {
             throw new IllegalArgumentException("cannot serialize [queries] to version [" + out.getTransportVersion() + "]");
         }
         boolean hasRescoreBuilders = rescoreBuilders != null;
@@ -383,16 +383,16 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     /**
      * Sets the queries for this request.
      */
-    public SearchSourceBuilder queries(List<SearchQueryWrapperBuilder> searchQueryWrapperBuilders) {
-        this.searchQueryWrapperBuilders = searchQueryWrapperBuilders;
+    public SearchSourceBuilder queries(List<SubSearchSourceBuilder> subSearchSourceBuilders) {
+        this.subSearchSourceBuilders = subSearchSourceBuilders;
         return this;
     }
 
     /**
      * Gets the queries for this request.
      */
-    public List<SearchQueryWrapperBuilder> queries() {
-        return searchQueryWrapperBuilders;
+    public List<SubSearchSourceBuilder> queries() {
+        return subSearchSourceBuilders;
     }
 
     /**
@@ -1095,7 +1095,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         assert (this.equals(
             shallowCopy(
                 queryBuilder,
-                this.searchQueryWrapperBuilders,
+                this.subSearchSourceBuilders,
                 postQueryBuilder,
                 knnSearch,
                 aggregations,
@@ -1109,7 +1109,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         if (this.queryBuilder != null) {
             queryBuilder = this.queryBuilder.rewrite(context);
         }
-        List<SearchQueryWrapperBuilder> searchQueryWrapperBuilders = Rewriteable.rewrite(this.searchQueryWrapperBuilders, context);
+        List<SubSearchSourceBuilder> subSearchSourceBuilders = Rewriteable.rewrite(this.subSearchSourceBuilders, context);
         QueryBuilder postQueryBuilder = null;
         if (this.postQueryBuilder != null) {
             postQueryBuilder = this.postQueryBuilder.rewrite(context);
@@ -1128,7 +1128,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         }
 
         boolean rewritten = queryBuilder != this.queryBuilder
-            || searchQueryWrapperBuilders != this.searchQueryWrapperBuilders
+            || subSearchSourceBuilders != this.subSearchSourceBuilders
             || postQueryBuilder != this.postQueryBuilder
             || knnSearch != this.knnSearch
             || aggregations != this.aggregations
@@ -1138,7 +1138,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         if (rewritten) {
             return shallowCopy(
                 queryBuilder,
-                searchQueryWrapperBuilders,
+                subSearchSourceBuilders,
                 postQueryBuilder,
                 knnSearch,
                 aggregations,
@@ -1157,7 +1157,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     public SearchSourceBuilder shallowCopy() {
         return shallowCopy(
             queryBuilder,
-            searchQueryWrapperBuilders,
+            subSearchSourceBuilders,
             postQueryBuilder,
             knnSearch,
             aggregations,
@@ -1175,7 +1175,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     @SuppressWarnings("rawtypes")
     private SearchSourceBuilder shallowCopy(
         QueryBuilder queryBuilder,
-        List<SearchQueryWrapperBuilder> searchQueryWrapperBuilders,
+        List<SubSearchSourceBuilder> subSearchSourceBuilders,
         QueryBuilder postQueryBuilder,
         List<KnnSearchBuilder> knnSearch,
         AggregatorFactories.Builder aggregations,
@@ -1201,7 +1201,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         rewrittenBuilder.rankBuilder = rankBuilder;
         rewrittenBuilder.profile = profile;
         rewrittenBuilder.queryBuilder = queryBuilder;
-        rewrittenBuilder.searchQueryWrapperBuilders = searchQueryWrapperBuilders;
+        rewrittenBuilder.subSearchSourceBuilders = subSearchSourceBuilders;
         rewrittenBuilder.rescoreBuilders = rescoreBuilders;
         rewrittenBuilder.scriptFields = scriptFields;
         rewrittenBuilder.searchAfterBuilder = searchAfterBuilder;
@@ -1537,10 +1537,10 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                     }
                     searchUsage.trackSectionUsage(KNN_FIELD.getPreferredName());
                 } else if (QUERIES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    searchQueryWrapperBuilders = new ArrayList<>();
+                    subSearchSourceBuilders = new ArrayList<>();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         if (token == XContentParser.Token.START_OBJECT) {
-                            searchQueryWrapperBuilders.add(SearchQueryWrapperBuilder.fromXContent(parser, searchUsage));
+                            subSearchSourceBuilders.add(SubSearchSourceBuilder.fromXContent(parser, searchUsage));
                         } else {
                             throw new XContentParseException(
                                 parser.getTokenLocation(),

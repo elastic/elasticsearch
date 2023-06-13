@@ -11,7 +11,7 @@ import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.builder.SearchQueryWrapperBuilder;
+import org.elasticsearch.search.builder.SubSearchSourceBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.dfs.DfsKnnResults;
@@ -141,27 +141,27 @@ final class DfsQueryPhase extends SearchPhase {
         boolean usesRank = source.rankBuilder() != null;
 
         BoolQueryBuilder boolQueryBuilder;
-        List<SearchQueryWrapperBuilder> searchQueryWrapperBuilders;
+        List<SubSearchSourceBuilder> subSearchSourceBuilders;
 
         if (source.queries().isEmpty() == false) {
             boolQueryBuilder = (BoolQueryBuilder) source.query();
-            searchQueryWrapperBuilders = new ArrayList<>(source.queries());
+            subSearchSourceBuilders = new ArrayList<>(source.queries());
         } else {
             boolQueryBuilder = new BoolQueryBuilder();
-            searchQueryWrapperBuilders = new ArrayList<>();
+            subSearchSourceBuilders = new ArrayList<>();
 
             if (source.query() != null) {
                 boolQueryBuilder.should(source.query());
 
                 if (usesRank) {
-                    searchQueryWrapperBuilders.add(new SearchQueryWrapperBuilder(source.query()));
+                    subSearchSourceBuilders.add(new SubSearchSourceBuilder(source.query()));
                 }
             }
         }
 
         source = source.shallowCopy();
         source.query(boolQueryBuilder);
-        source.queries(searchQueryWrapperBuilders);
+        source.queries(subSearchSourceBuilders);
         request.source(source);
 
         for (DfsKnnResults dfsKnnResults : knnResults) {
@@ -175,7 +175,7 @@ final class DfsQueryPhase extends SearchPhase {
             KnnScoreDocQueryBuilder knnQuery = new KnnScoreDocQueryBuilder(scoreDocs.toArray(new ScoreDoc[0]));
 
             if (usesRank) {
-                searchQueryWrapperBuilders.add(new SearchQueryWrapperBuilder(knnQuery));
+                subSearchSourceBuilders.add(new SubSearchSourceBuilder(knnQuery));
             }
 
             boolQueryBuilder.should(knnQuery);

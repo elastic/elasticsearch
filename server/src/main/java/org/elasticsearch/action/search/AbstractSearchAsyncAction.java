@@ -33,7 +33,7 @@ import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
-import org.elasticsearch.search.builder.SearchQueryWrapperBuilder;
+import org.elasticsearch.search.builder.SubSearchSourceBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.InternalSearchResponse;
@@ -886,8 +886,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             assert request.source().queries().size() >= 2 || request.source().knnSearch().isEmpty() == false;
 
             BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
-            for (SearchQueryWrapperBuilder searchQueryWrapperBuilder : request.source().queries()) {
-                boolQueryBuilder.should(searchQueryWrapperBuilder.getQueryBuilder());
+            for (SubSearchSourceBuilder subSearchSourceBuilder : request.source().queries()) {
+                boolQueryBuilder.should(subSearchSourceBuilder.getQueryBuilder());
             }
 
             SearchSourceBuilder searchSourceBuilder = request.source().shallowCopy();

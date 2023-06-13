@@ -20,7 +20,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
-import org.elasticsearch.search.builder.SearchQueryWrapperBuilder;
+import org.elasticsearch.search.builder.SubSearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -156,8 +156,8 @@ public class RRFRankShardCanMatchIT extends ESIntegTestCase {
             .setTrackTotalHits(false)
             .setQueries(
                 List.of(
-                    new SearchQueryWrapperBuilder(new SkipShardPlugin.SkipShardQueryBuilder(shardA, shardB, "value", "9")),
-                    new SearchQueryWrapperBuilder(new SkipShardPlugin.SkipShardQueryBuilder(shardA, shardB, "value", "19"))
+                    new SubSearchSourceBuilder(new SkipShardPlugin.SkipShardQueryBuilder(shardA, shardB, "value", "9")),
+                    new SubSearchSourceBuilder(new SkipShardPlugin.SkipShardQueryBuilder(shardA, shardB, "value", "19"))
                 )
             )
             .setSize(5)
@@ -176,8 +176,8 @@ public class RRFRankShardCanMatchIT extends ESIntegTestCase {
             .setTrackTotalHits(false)
             .setQueries(
                 List.of(
-                    new SearchQueryWrapperBuilder(new SkipShardPlugin.SkipShardQueryBuilder(shardA, shardB, "value", "30")),
-                    new SearchQueryWrapperBuilder(new SkipShardPlugin.SkipShardQueryBuilder(shardA, shardB, "value", "19"))
+                    new SubSearchSourceBuilder(new SkipShardPlugin.SkipShardQueryBuilder(shardA, shardB, "value", "30")),
+                    new SubSearchSourceBuilder(new SkipShardPlugin.SkipShardQueryBuilder(shardA, shardB, "value", "19"))
                 )
             )
             .setSize(5)
@@ -196,8 +196,8 @@ public class RRFRankShardCanMatchIT extends ESIntegTestCase {
             .setTrackTotalHits(false)
             .setQueries(
                 List.of(
-                    new SearchQueryWrapperBuilder(new SkipShardPlugin.SkipShardQueryBuilder(shardA, shardB, "value", "30")),
-                    new SearchQueryWrapperBuilder(new SkipShardPlugin.SkipShardQueryBuilder(shardA, shardB, "value", "40"))
+                    new SubSearchSourceBuilder(new SkipShardPlugin.SkipShardQueryBuilder(shardA, shardB, "value", "30")),
+                    new SubSearchSourceBuilder(new SkipShardPlugin.SkipShardQueryBuilder(shardA, shardB, "value", "40"))
                 )
             )
             .setSize(5)
@@ -216,8 +216,8 @@ public class RRFRankShardCanMatchIT extends ESIntegTestCase {
             .setTrackTotalHits(false)
             .setQueries(
                 List.of(
-                    new SearchQueryWrapperBuilder(new SkipShardPlugin.SkipShardQueryBuilder(shardA, shardB, "value", "15")),
-                    new SearchQueryWrapperBuilder(new SkipShardPlugin.SkipShardQueryBuilder(shardA, shardB, "value", "16"))
+                    new SubSearchSourceBuilder(new SkipShardPlugin.SkipShardQueryBuilder(shardA, shardB, "value", "15")),
+                    new SubSearchSourceBuilder(new SkipShardPlugin.SkipShardQueryBuilder(shardA, shardB, "value", "16"))
                 )
             )
             .setSize(5)
@@ -236,8 +236,8 @@ public class RRFRankShardCanMatchIT extends ESIntegTestCase {
             .setTrackTotalHits(false)
             .setQueries(
                 List.of(
-                    new SearchQueryWrapperBuilder(new SkipShardPlugin.SkipShardQueryBuilder(shardA, shardB, "value", "8")),
-                    new SearchQueryWrapperBuilder(new SkipShardPlugin.SkipShardQueryBuilder(shardA, shardB, "value", "8"))
+                    new SubSearchSourceBuilder(new SkipShardPlugin.SkipShardQueryBuilder(shardA, shardB, "value", "8")),
+                    new SubSearchSourceBuilder(new SkipShardPlugin.SkipShardQueryBuilder(shardA, shardB, "value", "8"))
                 )
             )
             .setSize(5)

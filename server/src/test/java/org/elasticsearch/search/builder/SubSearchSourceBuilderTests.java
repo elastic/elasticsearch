@@ -21,7 +21,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.List;
 
-public class SearchQueryWrapperBuilderTests extends AbstractXContentSerializingTestCase<SearchQueryWrapperBuilder> {
+public class SubSearchSourceBuilderTests extends AbstractXContentSerializingTestCase<SubSearchSourceBuilder> {
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
@@ -40,29 +40,29 @@ public class SearchQueryWrapperBuilderTests extends AbstractXContentSerializingT
     }
 
     @Override
-    protected SearchQueryWrapperBuilder createTestInstance() {
-        return new SearchQueryWrapperBuilder(
+    protected SubSearchSourceBuilder createTestInstance() {
+        return new SubSearchSourceBuilder(
             new TermQueryBuilder(randomAlphaOfLength(randomIntBetween(1, 30)), randomAlphaOfLength(randomIntBetween(1, 30)))
         );
     }
 
     @Override
-    protected SearchQueryWrapperBuilder mutateInstance(SearchQueryWrapperBuilder instance) throws IOException {
+    protected SubSearchSourceBuilder mutateInstance(SubSearchSourceBuilder instance) throws IOException {
         TermQueryBuilder tqb = (TermQueryBuilder) instance.getQueryBuilder();
         if (randomBoolean()) {
-            return new SearchQueryWrapperBuilder(new TermQueryBuilder(tqb.fieldName() + "z", tqb.value()));
+            return new SubSearchSourceBuilder(new TermQueryBuilder(tqb.fieldName() + "z", tqb.value()));
         } else {
-            return new SearchQueryWrapperBuilder(new TermQueryBuilder(tqb.fieldName(), tqb.value() + "z"));
+            return new SubSearchSourceBuilder(new TermQueryBuilder(tqb.fieldName(), tqb.value() + "z"));
         }
     }
 
     @Override
-    protected Writeable.Reader<SearchQueryWrapperBuilder> instanceReader() {
-        return SearchQueryWrapperBuilder::new;
+    protected Writeable.Reader<SubSearchSourceBuilder> instanceReader() {
+        return SubSearchSourceBuilder::new;
     }
 
     @Override
-    protected SearchQueryWrapperBuilder doParseInstance(XContentParser parser) throws IOException {
-        return SearchQueryWrapperBuilder.fromXContent(parser, new SearchUsage());
+    protected SubSearchSourceBuilder doParseInstance(XContentParser parser) throws IOException {
+        return SubSearchSourceBuilder.fromXContent(parser, new SearchUsage());
     }
 }

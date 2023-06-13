@@ -22,7 +22,7 @@ import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.search.builder.SearchQueryWrapperBuilder;
+import org.elasticsearch.search.builder.SubSearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -142,8 +142,8 @@ public class RRFRankCoordinatorCanMatchIT extends ESIntegTestCase {
             .setTrackTotalHits(false)
             .setQueries(
                 List.of(
-                    new SearchQueryWrapperBuilder(QueryBuilders.rangeQuery("@timestamp").gt(495).lte(499)),
-                    new SearchQueryWrapperBuilder(QueryBuilders.rangeQuery("@timestamp").gte(500).lt(505))
+                    new SubSearchSourceBuilder(QueryBuilders.rangeQuery("@timestamp").gt(495).lte(499)),
+                    new SubSearchSourceBuilder(QueryBuilders.rangeQuery("@timestamp").gte(500).lt(505))
                 )
             )
             .setSize(5)
@@ -162,8 +162,8 @@ public class RRFRankCoordinatorCanMatchIT extends ESIntegTestCase {
             .setTrackTotalHits(false)
             .setQueries(
                 List.of(
-                    new SearchQueryWrapperBuilder(QueryBuilders.rangeQuery("@timestamp").gt(495).lte(505)),
-                    new SearchQueryWrapperBuilder(QueryBuilders.rangeQuery("@timestamp").gte(497).lt(507))
+                    new SubSearchSourceBuilder(QueryBuilders.rangeQuery("@timestamp").gt(495).lte(505)),
+                    new SubSearchSourceBuilder(QueryBuilders.rangeQuery("@timestamp").gte(497).lt(507))
                 )
             )
             .setSize(5)
@@ -182,8 +182,8 @@ public class RRFRankCoordinatorCanMatchIT extends ESIntegTestCase {
             .setTrackTotalHits(false)
             .setQueries(
                 List.of(
-                    new SearchQueryWrapperBuilder(QueryBuilders.rangeQuery("@timestamp").gt(501).lte(505)),
-                    new SearchQueryWrapperBuilder(QueryBuilders.rangeQuery("@timestamp").gte(10000).lt(10005))
+                    new SubSearchSourceBuilder(QueryBuilders.rangeQuery("@timestamp").gt(501).lte(505)),
+                    new SubSearchSourceBuilder(QueryBuilders.rangeQuery("@timestamp").gte(10000).lt(10005))
                 )
             )
             .setSize(5)
@@ -202,8 +202,8 @@ public class RRFRankCoordinatorCanMatchIT extends ESIntegTestCase {
             .setTrackTotalHits(false)
             .setQueries(
                 List.of(
-                    new SearchQueryWrapperBuilder(QueryBuilders.rangeQuery("@timestamp").gt(4000).lte(5000)),
-                    new SearchQueryWrapperBuilder(QueryBuilders.rangeQuery("@timestamp").gte(10000).lt(10005))
+                    new SubSearchSourceBuilder(QueryBuilders.rangeQuery("@timestamp").gt(4000).lte(5000)),
+                    new SubSearchSourceBuilder(QueryBuilders.rangeQuery("@timestamp").gte(10000).lt(10005))
                 )
             )
             .setSize(5)
@@ -222,8 +222,8 @@ public class RRFRankCoordinatorCanMatchIT extends ESIntegTestCase {
             .setTrackTotalHits(false)
             .setQueries(
                 List.of(
-                    new SearchQueryWrapperBuilder(QueryBuilders.rangeQuery("@timestamp").gt(600).lte(605)),
-                    new SearchQueryWrapperBuilder(QueryBuilders.rangeQuery("@timestamp").gte(700).lt(705))
+                    new SubSearchSourceBuilder(QueryBuilders.rangeQuery("@timestamp").gt(600).lte(605)),
+                    new SubSearchSourceBuilder(QueryBuilders.rangeQuery("@timestamp").gte(700).lt(705))
                 )
             )
             .setSize(5)
@@ -242,8 +242,8 @@ public class RRFRankCoordinatorCanMatchIT extends ESIntegTestCase {
             .setTrackTotalHits(false)
             .setQueries(
                 List.of(
-                    new SearchQueryWrapperBuilder(QueryBuilders.rangeQuery("@timestamp").gt(600).lte(605)),
-                    new SearchQueryWrapperBuilder(QueryBuilders.rangeQuery("@timestamp").gte(600).lt(605))
+                    new SubSearchSourceBuilder(QueryBuilders.rangeQuery("@timestamp").gt(600).lte(605)),
+                    new SubSearchSourceBuilder(QueryBuilders.rangeQuery("@timestamp").gte(600).lt(605))
                 )
             )
             .setSize(5)

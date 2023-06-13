@@ -19,7 +19,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
-import org.elasticsearch.search.builder.SearchQueryWrapperBuilder;
+import org.elasticsearch.search.builder.SubSearchSourceBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
@@ -248,10 +248,10 @@ public class RandomSearchRequestGenerator {
         } else if (randomBoolean()) {
             builder.queries(
                 List.of(
-                    new SearchQueryWrapperBuilder(
+                    new SubSearchSourceBuilder(
                         QueryBuilders.termQuery(randomAlphaOfLengthBetween(5, 20), randomAlphaOfLengthBetween(5, 20))
                     ),
-                    new SearchQueryWrapperBuilder(
+                    new SubSearchSourceBuilder(
                         QueryBuilders.termQuery(randomAlphaOfLengthBetween(5, 20), randomAlphaOfLengthBetween(5, 20))
                     )
                 )

@@ -76,7 +76,7 @@ import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.AggregationContext.ProductionAggregationContext;
-import org.elasticsearch.search.builder.SearchQueryWrapperBuilder;
+import org.elasticsearch.search.builder.SubSearchSourceBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseContext;
 import org.elasticsearch.search.dfs.DfsPhase;
@@ -1371,8 +1371,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
         if (source.rankBuilder() != null) {
             List<Query> queries = new ArrayList<>();
-            for (SearchQueryWrapperBuilder searchQueryWrapperBuilder : source.queries()) {
-                queries.add(searchQueryWrapperBuilder.toSearchQuery(context.getSearchExecutionContext()));
+            for (SubSearchSourceBuilder subSearchSourceBuilder : source.queries()) {
+                queries.add(subSearchSourceBuilder.toSearchQuery(context.getSearchExecutionContext()));
             }
             context.rankShardContext(source.rankBuilder().buildRankShardContext(queries, context.from()));
         }

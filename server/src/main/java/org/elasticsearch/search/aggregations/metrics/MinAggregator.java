@@ -12,6 +12,7 @@ import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.Bits;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
@@ -123,7 +124,7 @@ public class MinAggregator extends NumericMetricsAggregator.SingleValue {
     }
 
     @Override
-    public void merge(Map<Long, List<AggregationAndBucket>> toMerge) {
+    public void merge(Map<Long, List<AggregationAndBucket>> toMerge, BigArrays bigArrays) {
         for (Map.Entry<Long, List<AggregationAndBucket>> mergeRow : toMerge.entrySet()) {
             mergeBucket(mergeRow.getValue(), mergeRow.getKey());
         }

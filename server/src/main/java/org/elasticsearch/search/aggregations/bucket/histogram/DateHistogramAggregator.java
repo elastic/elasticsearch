@@ -15,6 +15,7 @@ import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.Rounding.DateTimeUnit;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
@@ -311,7 +312,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
     }
 
     @Override
-    public void merge(Map<Long, List<AggregationAndBucket>> toMerge) {
+    public void merge(Map<Long, List<AggregationAndBucket>> toMerge, BigArrays bigArrays) {
         // It is an article of faith that all the aggregations have the same list of subAggregators in the same order
         List<Map<Long, List<AggregationAndBucket>>> nextLayer = new ArrayList<>(subAggregators.length);
         for (int i = 0; i < subAggregators.length; i++) {
@@ -326,7 +327,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         }
         // Trigger the next layer merge.
         for (int i = 0; i < subAggregators.length; i++) {
-            subAggregators[i].merge(nextLayer.get(i));
+            subAggregators[i].merge(nextLayer.get(i), bigArrays);
         }
     }
 

@@ -114,7 +114,7 @@ class AvgAggregator extends NumericMetricsAggregator.SingleValue {
     }
 
     @Override
-    public void merge(Map<Long, List<AggregationAndBucket>> toMerge) {
+    public void merge(Map<Long, List<AggregationAndBucket>> toMerge, BigArrays bigArrays) {
         for (Map.Entry<Long, List<AggregationAndBucket>> mergeRow : toMerge.entrySet()) {
             mergeBucket(mergeRow.getValue(), mergeRow.getKey());
         }

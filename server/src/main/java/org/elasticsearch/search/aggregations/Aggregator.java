@@ -12,6 +12,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 import org.elasticsearch.search.sort.SortOrder;
@@ -187,22 +188,24 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
     /**
      * Preform a dense merge (i.e. {@link org.elasticsearch.common.util.BigArray} to {@link org.elasticsearch.common.util.BigArray})
      * merge of the given aggregators. This may be done in place, or may involve allocating a new BigArray.
-     *
+     * <p>
      * We use the term {@code merge leader} to refer to the instance driving the merge, typically the instance that
      * had its merge method called.  In the case of an in place merge, this aggregator will have its doc counts updated
      * (and possibly have new buckets added, if there were keys it didn't collect).  This matters less for a copy merge,
      * but is still relevant in that the merge leader is the aggregation which will persist after the merge.  All
      * non-leader aggregations can be closed after merging.
-     *
+     * <p>
      * NB: It is expected that the merge leader is included in the list of aggregators to merge
-     *
+     * <p>
      * The input map keys should be the owning bucket ordinals for the result aggregation.  For each such key,
      * there should be a list of aggregator references paired with the owning bucket ord corresponding to that
      * key in the given aggregation.  It is expected that an aggregator will be referenced from many such lists,
      * but within each such list the aggregators must be distinct.
+     *
      * @param toMerge
+     * @param bigArrays
      */
-    public void merge(Map<Long, List<AggregationAndBucket>> toMerge) {
+    public void merge(Map<Long, List<AggregationAndBucket>> toMerge, BigArrays bigArrays) {
         // NOCOMMIT: this should be abstract
         throw new UnsupportedOperationException();
     }

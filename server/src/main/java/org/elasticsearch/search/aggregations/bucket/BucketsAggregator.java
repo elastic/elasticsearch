@@ -40,7 +40,8 @@ import java.util.function.ToLongFunction;
 
 public abstract class BucketsAggregator extends AggregatorBase {
     private final CircuitBreaker breaker;
-    private LongArray docCounts;
+    // NOCOMMIT - This needs an actual API, can't just make it public
+    public LongArray docCounts;
     protected final DocCountProvider docCountProvider;
     private int callCount;
 

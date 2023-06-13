@@ -12,6 +12,7 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.NumericUtils;
 import org.apache.lucene.util.PriorityQueue;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -41,6 +42,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -125,8 +127,13 @@ public class NumericTermsAggregator extends TermsAggregator {
     }
 
     @Override
-    public void merge(Map<Long, List<AggregationAndBucket>> toMerge) {
-        ResultStrategy.merge(toMerge);
+    public void merge(Map<Long, List<AggregationAndBucket>> toMerge, BigArrays bigArrays) {
+        resultStrategy.merge(toMerge, bigArrays);
+    }
+
+    public long getDocCount(long owningBucketOrd, long key) {
+        long ordinal = bucketOrds.find(owningBucketOrd, key);
+        return docCounts.get(ordinal);
     }
 
     @Override
@@ -190,14 +197,45 @@ public class NumericTermsAggregator extends TermsAggregator {
             return result;
         }
 
-        public void merge(Map<Long, List<AggregationAndBucket>> toMerge) {
+        /**
+         *
+         * @param toMerge - the aggregations to merge.  The top level list is each sub-aggregation. The Map keys are the
+         *                owning bucket ordinals of the final merged data structure, for a given key.  The lists withing the map are pairs
+         *                of aggregators with the ordinal for that key in that tree.
+         * @param bigArrays - Used to allocate new memory for holding the merge result
+         */
+        // TODO: Should this tame a ReduceContext instead of just a BigArrays reference?
+        public void merge(Map<Long, List<AggregationAndBucket>> toMerge, BigArrays bigArrays) {
             // It is an article of faith that all the aggregations have the same list of subAggregators in the same order
             List<Map<Long, List<AggregationAndBucket>>> nextLayer = new ArrayList<>(subAggregators.length);
             for (int i = 0; i < subAggregators.length; i++) {
                 nextLayer.add(new HashMap<>());
             }
+            LongKeyedBucketOrds mergedOrdinals = new LongKeyedBucketOrds.FromMany(bigArrays);
+
+            // We know the upper limit of the size of this array is the number of owning buckets times the shard size, but in
+            // practice it may be much lower, so probably better to let it grow naturally
+            LongArray mergedDocCounts = bigArrays.newLongArray(1);
+
+            // The upper limit for the size of this array is just the number of owning buckets (aka toMerge.size())
+            LongArray mergedOtherBucketCounts = bigArrays.newLongArray(1);
+
             for (Map.Entry<Long, List<AggregationAndBucket>> mergeRow : toMerge.entrySet()) {
-                List<Map<Long, List<AggregationAndBucket>>> nextLayerBuckets = mergeBucket(mergeRow.getValue(), mergeRow.getKey());
+                List<Map<Long, List<AggregationAndBucket>>> nextLayerBuckets = mergeBucket(mergeRow.getValue(), mergeRow.getKey(),
+                    (Long key, Long count) -> {
+                        long ord = mergedOrdinals.add(mergeRow.getKey(), key);
+                        long rawOrd = ord; // This is what we'll return, so the caller can know if it's a new bucket or not
+                        if (ord < 0) { // already seen
+                            ord = -1 - ord;
+                            // we don't need to update the doc count because we already have it
+                        } else {
+                            grow(ord + 1);
+                            mergedDocCounts.fill(ord - 1, ord, 0);
+                        }
+                        mergedDocCounts.set(ord, count);
+                        return rawOrd;
+                    }
+                );
                 assert nextLayer.size() == nextLayerBuckets.size();
                 for (int i = 0; i < subAggregators.length; i++) {
                     nextLayer.get(i).putAll(nextLayerBuckets.get(i));
@@ -205,9 +243,102 @@ public class NumericTermsAggregator extends TermsAggregator {
             }
             // Trigger the next layer merge.
             for (int i = 0; i < subAggregators.length; i++) {
-                subAggregators[i].merge(nextLayer.get(i));
+                subAggregators[i].merge(nextLayer.get(i), bigArrays);
+            }
+        }
+
+        record KeyAndCount(long key, long docCount) { }
+
+        public List<Map<Long, List<AggregationAndBucket>>> mergeBucket(List<AggregationAndBucket> others, long thisBucket,
+        BiFunction<Long, Long, Long> addBucketCount) {
+            final PriorityQueue<IteratorAndAggregator> pq = new PriorityQueue<>(others.size()) {
+                @Override
+                public boolean lessThan(IteratorAndAggregator a, IteratorAndAggregator b) {
+                    return a.current() < b.current();
+                }
+            };
+
+            // It is an article of faith that all the aggregations have the same list of subAggregators in the same order
+            List<Map<Long, List<AggregationAndBucket>>> nextLayer = new ArrayList<>(subAggregators.length);
+            for (int i = 0; i < subAggregators.length; i++) {
+                nextLayer.add(new HashMap<>());
             }
 
+            // Contract says that this instance should be included in the others list
+            for (AggregationAndBucket other : others) {
+                pq.add(
+                    new IteratorAndAggregator(
+                        ((NumericTermsAggregator) other.aggregator()).bucketOrds.keyOrderedIterator(other.bucketOrdinal()),
+                        other.aggregator()
+                    )
+                );
+            }
+
+            // TODO NOCOMMIT - For the prototype, I'm hard coding doc count descending sort here.  In practice, this needs to deal with the
+            // user specified sort, which may require looking into the subaggregations
+            PriorityQueue<KeyAndCount> ordered = new PriorityQueue<KeyAndCount>(bucketCountThresholds.getShardSize()) {
+                @Override
+                protected boolean lessThan(KeyAndCount a, KeyAndCount b) {
+                    return a.docCount < b.docCount;
+                }
+            };
+
+            // Is it possible for the queue to be empty? Maybe this should check for >1, since we always add ourselves?
+            long otherBucketDocCount = 0;
+            if (pq.size() > 0) {
+                // Buckets matching the current key
+                List<AggregationAndBucket> currentBuckets = new ArrayList<>();
+                long key = pq.top().current();
+                do {
+                    final IteratorAndAggregator top = pq.top();
+
+                    if (top.current() != key) {
+                        // the key changes, reduce what we already buffered and reset the buffer for current buckets
+
+                        long docCount = 0;
+                        for (AggregationAndBucket bucket : currentBuckets) {
+                            // TODO NOCOMMIT: Casting here is terrible
+                            docCount += ((NumericTermsAggregator) bucket.aggregator()).getDocCount(bucket.bucketOrdinal(), key);
+                        }
+                        ordered.insertWithOverflow(new KeyAndCount(key, docCount));
+                        otherBucketDocCount += docCount;
+
+                        // Reset the collection
+                        currentBuckets.clear();
+                        key = top.current();
+                    }
+
+                    currentBuckets.add(new AggregationAndBucket(top.current(), top.getAggregator()));
+
+                    if (top.hasNext()) {
+                        top.next();
+                        assert top.current() > key : "shards must return data sorted by key";
+                        pq.updateTop();
+                    } else {
+                        pq.pop();
+                    }
+                } while (pq.size() > 0);
+
+                // Collect outputs
+                for (KeyAndCount keep : ordered) {
+                    long mergedBucketOrd = addBucketCount.apply(keep.key, keep.docCount);
+                    // We should always be creating a new bucket here
+                    assert mergedBucketOrd > 0;
+                    // set up the next layer of reduction
+                    for (int i = 0; i < subAggregators().length; i++) {
+                        List<AggregationAndBucket> aggsAndOrds = new ArrayList<>();
+                        for (AggregationAndBucket agg : others) {
+                            // TODO: We shouldn't need to cast here
+                            long ord = ((NumericTermsAggregator) agg.aggregator()).bucketOrds.find(agg.bucketOrdinal(), keep.key);
+                            if (ord >= 0) {
+                                aggsAndOrds.add(new AggregationAndBucket(ord, agg.aggregator()));
+                            }
+                        }
+                        nextLayer.get(i).put(mergedBucketOrd, aggsAndOrds);
+                    }
+                }
+            }
+            return nextLayer;
         }
 
         /**

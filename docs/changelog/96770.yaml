@@ -1,0 +1,6 @@
+pr: 96770
+summary: Add node setting to disable fsync for all operations on a node
+area: Distributed
+type: enhancement
+issues:
+ - 96302

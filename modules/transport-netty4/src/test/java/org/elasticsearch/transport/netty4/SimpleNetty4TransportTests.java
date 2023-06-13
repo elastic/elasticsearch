@@ -200,20 +200,16 @@ public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase 
             socket.bind(getLocalEphemeral(), 1);
             socket.setReuseAddress(true);
 
-            DiscoveryNode first = DiscoveryNodeUtils.create(
-                "TEST",
-                new TransportAddress(socket.getInetAddress(), socket.getLocalPort()),
-                emptyMap(),
-                emptySet(),
-                version0
-            );
-            DiscoveryNode second = DiscoveryNodeUtils.create(
-                "TEST",
-                new TransportAddress(socket.getInetAddress(), socket.getLocalPort()),
-                emptyMap(),
-                emptySet(),
-                version0
-            );
+            DiscoveryNode first = DiscoveryNodeUtils.builder("TEST")
+                .address(new TransportAddress(socket.getInetAddress(), socket.getLocalPort()))
+                .roles(emptySet())
+                .version(version0)
+                .build();
+            DiscoveryNode second = DiscoveryNodeUtils.builder("TEST")
+                .address(new TransportAddress(socket.getInetAddress(), socket.getLocalPort()))
+                .roles(emptySet())
+                .version(version0)
+                .build();
             ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
             builder.addConnections(
                 1,

@@ -1,0 +1,158 @@
+setup:
+  - skip:
+      version: " - 8.8.99"
+      reason: Introduced in 8.9.0
+  - do:
+      synonyms.put:
+        synonyms_set: test-synonyms-3
+        body:
+          synonyms_set:
+            - synonyms: "hello, hi"
+            - synonyms: "goodbye, bye"
+  - do:
+      synonyms.put:
+        synonyms_set: test-synonyms-1
+        body:
+          synonyms_set:
+            - synonyms: "test, check"
+            - synonyms: "good, great"
+            - synonyms: "bad, evil"
+  - do:
+      synonyms.put:
+        synonyms_set: test-synonyms-2
+        body:
+          synonyms_set:
+            - synonyms: "pc, computer"
+
+---
+"List synonyms set":
+  - do:
+      synonyms_sets.get: { }
+
+  - match:
+      count: 3
+
+  - match:
+      results:
+        - synonyms_set: "test-synonyms-1"
+          count: 3
+        - synonyms_set: "test-synonyms-2"
+          count: 1
+        - synonyms_set: "test-synonyms-3"
+          count: 2
+
+---
+"Pagination - size":
+  - do:
+      synonyms_sets.get:
+        size: 2
+
+  - match:
+      count: 3
+  - match:
+      results:
+        - synonyms_set: "test-synonyms-1"
+          count: 3
+        - synonyms_set: "test-synonyms-2"
+          count: 1
+
+---
+"Pagination - from":
+  - do:
+      synonyms_sets.get:
+        from: 1
+
+  - match:
+      count: 3
+  - match:
+      results:
+        - synonyms_set: "test-synonyms-2"
+          count: 1
+        - synonyms_set: "test-synonyms-3"
+          count: 2
+
+---
+"No synonym sets":
+
+  - do:
+      synonyms.delete:
+        synonyms_set: test-synonyms-1
+
+  - do:
+      synonyms.delete:
+        synonyms_set: test-synonyms-2
+
+  - do:
+      synonyms.delete:
+        synonyms_set: test-synonyms-3
+
+  - do:
+      synonyms_sets.get: { }
+
+  - match:
+      count: 0
+  - match:
+      results: []
+
+---
+"More than 10 synonym sets":
+
+  - do:
+      synonyms.put:
+        synonyms_set: test-synonyms-4
+        body:
+          synonyms_set:
+            - synonyms: "test, check"
+  - do:
+      synonyms.put:
+        synonyms_set: test-synonyms-5
+        body:
+          synonyms_set:
+            - synonyms: "test, check"
+  - do:
+      synonyms.put:
+        synonyms_set: test-synonyms-6
+        body:
+          synonyms_set:
+            - synonyms: "test, check"
+  - do:
+      synonyms.put:
+        synonyms_set: test-synonyms-7
+        body:
+          synonyms_set:
+            - synonyms: "test, check"
+  - do:
+      synonyms.put:
+        synonyms_set: test-synonyms-8
+        body:
+          synonyms_set:
+            - synonyms: "test, check"
+  - do:
+      synonyms.put:
+        synonyms_set: test-synonyms-9
+        body:
+          synonyms_set:
+            - synonyms: "test, check"
+  - do:
+      synonyms.put:
+        synonyms_set: test-synonyms-10
+        body:
+          synonyms_set:
+            - synonyms: "test, check"
+  - do:
+      synonyms.put:
+        synonyms_set: test-synonyms-11
+        body:
+          synonyms_set:
+            - synonyms: "test, check"
+  - do:
+      synonyms.put:
+        synonyms_set: test-synonyms-12
+        body:
+          synonyms_set:
+            - synonyms: "test, check"
+  - do:
+      synonyms_sets.get: { }
+
+  - match:
+      count: 12

@@ -40,7 +40,7 @@ public class FlushJobAction extends ActionType<FlushJobAction.Response> {
         public static final ParseField END = new ParseField("end");
         public static final ParseField ADVANCE_TIME = new ParseField("advance_time");
         public static final ParseField SKIP_TIME = new ParseField("skip_time");
-        public static final ParseField SHOULD_REFRESH = new ParseField("should_refresh");
+        public static final ParseField REFRESH_REQUIRED = new ParseField("refresh_required");
 
         private static final ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
 
@@ -51,7 +51,7 @@ public class FlushJobAction extends ActionType<FlushJobAction.Response> {
             PARSER.declareString(Request::setEnd, END);
             PARSER.declareString(Request::setAdvanceTime, ADVANCE_TIME);
             PARSER.declareString(Request::setSkipTime, SKIP_TIME);
-            PARSER.declareBoolean(Request::setShouldRefresh, SHOULD_REFRESH);
+            PARSER.declareBoolean(Request::setRefreshRequired, REFRESH_REQUIRED);
         }
 
         public static Request parseRequest(String jobId, XContentParser parser) {
@@ -64,7 +64,7 @@ public class FlushJobAction extends ActionType<FlushJobAction.Response> {
 
         private boolean calcInterim = false;
         private boolean waitForNormalization = true;
-        private boolean shouldRefresh = true;
+        private boolean refreshRequired = true;
         private String start;
         private String end;
         private String advanceTime;
@@ -80,7 +80,7 @@ public class FlushJobAction extends ActionType<FlushJobAction.Response> {
             advanceTime = in.readOptionalString();
             skipTime = in.readOptionalString();
             waitForNormalization = in.readBoolean();
-            shouldRefresh = in.readBoolean();
+            refreshRequired = in.readBoolean();
         }
 
         @Override
@@ -92,7 +92,7 @@ public class FlushJobAction extends ActionType<FlushJobAction.Response> {
             out.writeOptionalString(advanceTime);
             out.writeOptionalString(skipTime);
             out.writeBoolean(waitForNormalization);
-            out.writeBoolean(shouldRefresh);
+            out.writeBoolean(refreshRequired);
         }
 
         public Request(String jobId) {
@@ -143,8 +143,8 @@ public class FlushJobAction extends ActionType<FlushJobAction.Response> {
             return waitForNormalization;
         }
 
-        public boolean isShouldRefresh() {
-            return shouldRefresh;
+        public boolean isRefreshRequired() {
+            return refreshRequired;
         }
 
         /**
@@ -162,13 +162,13 @@ public class FlushJobAction extends ActionType<FlushJobAction.Response> {
          *
          * Particularly for short bucket spans these refreshes could be a significant cost.
          **/
-        public void setShouldRefresh(boolean shouldRefresh) {
-            this.shouldRefresh = shouldRefresh;
+        public void setRefreshRequired(boolean refreshRequired) {
+            this.refreshRequired = refreshRequired;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(jobId, calcInterim, start, end, advanceTime, skipTime, waitForNormalization, shouldRefresh);
+            return Objects.hash(jobId, calcInterim, start, end, advanceTime, skipTime, waitForNormalization, refreshRequired);
         }
 
         @Override
@@ -183,7 +183,7 @@ public class FlushJobAction extends ActionType<FlushJobAction.Response> {
             return Objects.equals(jobId, other.jobId)
                 && calcInterim == other.calcInterim
                 && waitForNormalization == other.waitForNormalization
-                && shouldRefresh == other.shouldRefresh
+                && refreshRequired == other.refreshRequired
                 && Objects.equals(start, other.start)
                 && Objects.equals(end, other.end)
                 && Objects.equals(advanceTime, other.advanceTime)
@@ -207,7 +207,7 @@ public class FlushJobAction extends ActionType<FlushJobAction.Response> {
             if (skipTime != null) {
                 builder.field(SKIP_TIME.getPreferredName(), skipTime);
             }
-            builder.field(SHOULD_REFRESH.getPreferredName(), shouldRefresh);
+            builder.field(REFRESH_REQUIRED.getPreferredName(), refreshRequired);
             builder.endObject();
             return builder;
         }

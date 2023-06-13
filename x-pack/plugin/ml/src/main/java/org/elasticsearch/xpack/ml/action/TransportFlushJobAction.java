@@ -51,7 +51,7 @@ public class TransportFlushJobAction extends TransportJobTaskAction<FlushJobActi
         FlushJobParams.Builder paramsBuilder = FlushJobParams.builder();
         paramsBuilder.calcInterim(request.getCalcInterim());
         paramsBuilder.waitForNormalization(request.isWaitForNormalization());
-        paramsBuilder.shouldRefresh(request.isShouldRefresh());
+        paramsBuilder.refreshRequired(request.isRefreshRequired());
         if (request.getAdvanceTime() != null) {
             paramsBuilder.advanceTime(request.getAdvanceTime());
         }

@@ -44,7 +44,7 @@ public class FlushJobParams {
     /**
      * Should the flush request trigger a refresh or not.
      */
-    private final boolean shouldRefresh;
+    private final boolean refreshRequired;
 
     private FlushJobParams(
         boolean calcInterim,
@@ -52,14 +52,14 @@ public class FlushJobParams {
         Long advanceTimeSeconds,
         Long skipTimeSeconds,
         boolean waitForNormalization,
-        boolean shouldRefresh
+        boolean refreshRequired
     ) {
         this.calcInterim = calcInterim;
         this.timeRange = Objects.requireNonNull(timeRange);
         this.advanceTimeSeconds = advanceTimeSeconds;
         this.skipTimeSeconds = skipTimeSeconds;
         this.waitForNormalization = waitForNormalization;
-        this.shouldRefresh = shouldRefresh;
+        this.refreshRequired = refreshRequired;
     }
 
     public boolean shouldCalculateInterim() {
@@ -100,8 +100,8 @@ public class FlushJobParams {
         return waitForNormalization;
     }
 
-    public Boolean shouldRefresh() {
-        return shouldRefresh;
+    public Boolean refreshRequired() {
+        return refreshRequired;
     }
 
     public static Builder builder() {
@@ -130,7 +130,7 @@ public class FlushJobParams {
         private String advanceTime;
         private String skipTime;
         private boolean waitForNormalization = true;
-        private boolean shouldRefresh = true;
+        private boolean refreshRequired = true;
 
         public Builder calcInterim(boolean value) {
             calcInterim = value;
@@ -157,8 +157,8 @@ public class FlushJobParams {
             return this;
         }
 
-        public Builder shouldRefresh(boolean shouldRefresh) {
-            this.shouldRefresh = shouldRefresh;
+        public Builder refreshRequired(boolean refreshRequired) {
+            this.refreshRequired = refreshRequired;
             return this;
         }
 
@@ -171,7 +171,7 @@ public class FlushJobParams {
                     "advance_time [" + advanceTime + "] must be later than skip_time [" + skipTime + "]"
                 );
             }
-            return new FlushJobParams(calcInterim, timeRange, advanceTimeSeconds, skipTimeSeconds, waitForNormalization, shouldRefresh);
+            return new FlushJobParams(calcInterim, timeRange, advanceTimeSeconds, skipTimeSeconds, waitForNormalization, refreshRequired);
         }
 
         private void checkValidFlushArgumentsCombination() {

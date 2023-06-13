@@ -252,7 +252,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         AutodetectResult result = mock(AutodetectResult.class);
         FlushAcknowledgement flushAcknowledgement = mock(FlushAcknowledgement.class);
         when(flushAcknowledgement.getId()).thenReturn(JOB_ID);
-        when(flushAcknowledgement.getShouldRefresh()).thenReturn(true);
+        when(flushAcknowledgement.getRefreshRequired()).thenReturn(true);
         when(result.getFlushAcknowledgement()).thenReturn(flushAcknowledgement);
 
         processorUnderTest.setDeleteInterimRequired(false);
@@ -291,7 +291,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         AutodetectResult result = mock(AutodetectResult.class);
         FlushAcknowledgement flushAcknowledgement = mock(FlushAcknowledgement.class);
         when(flushAcknowledgement.getId()).thenReturn(Integer.valueOf(randomInt(100)).toString());
-        when(flushAcknowledgement.getShouldRefresh()).thenReturn(true);
+        when(flushAcknowledgement.getRefreshRequired()).thenReturn(true);
         when(result.getFlushAcknowledgement()).thenReturn(flushAcknowledgement);
         CategoryDefinition categoryDefinition = mock(CategoryDefinition.class);
         when(categoryDefinition.getCategoryId()).thenReturn(1L);

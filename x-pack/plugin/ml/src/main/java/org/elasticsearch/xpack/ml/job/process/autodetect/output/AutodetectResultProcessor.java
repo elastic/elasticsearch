@@ -394,7 +394,7 @@ public class AutodetectResultProcessor {
             try {
                 bulkResultsPersister.executeRequest();
                 bulkAnnotationsPersister.executeRequest();
-                if (flushAcknowledgement.getShouldRefresh()) {
+                if (flushAcknowledgement.getRefreshRequired()) {
                     persister.commitWrites(
                         jobId,
                         EnumSet.of(JobResultsPersister.CommitType.RESULTS, JobResultsPersister.CommitType.ANNOTATIONS)

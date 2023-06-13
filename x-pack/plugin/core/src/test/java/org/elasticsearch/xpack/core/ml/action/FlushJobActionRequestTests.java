@@ -20,7 +20,7 @@ public class FlushJobActionRequestTests extends AbstractBWCWireSerializationTest
             request.setWaitForNormalization(randomBoolean());
         }
         if (randomBoolean()) {
-            request.setShouldRefresh(randomBoolean());
+            request.setRefreshRequired(randomBoolean());
         }
         if (randomBoolean()) {
             request.setCalcInterim(randomBoolean());

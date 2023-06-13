@@ -113,7 +113,7 @@ public class AutodetectControlMsgWriterTests extends ESTestCase {
 
         writer.writeFlushControlMessage(flushJobParams);
 
-        // Even a plain flush message contains the "shouldRefresh" flag, which
+        // Even a plain flush message contains the "refreshRequired" flag, which
         // is set to "true" by default
         InOrder inOrder = inOrder(lengthEncodedWriter);
         inOrder.verify(lengthEncodedWriter).writeNumFields(4);
@@ -124,11 +124,11 @@ public class AutodetectControlMsgWriterTests extends ESTestCase {
 
     public void testWriteFlushControlMessage_GivenShouldRefreshFalse() throws IOException {
         AutodetectControlMsgWriter writer = new AutodetectControlMsgWriter(lengthEncodedWriter, 4);
-        FlushJobParams flushJobParams = FlushJobParams.builder().shouldRefresh(false).build();
+        FlushJobParams flushJobParams = FlushJobParams.builder().refreshRequired(false).build();
 
         writer.writeFlushControlMessage(flushJobParams);
 
-        // Even a plain flush message contains the "shouldRefresh" flag, which
+        // Even a plain flush message contains the "refreshRequired" flag, which
         // is set to "true" by default
         InOrder inOrder = inOrder(lengthEncodedWriter);
         inOrder.verify(lengthEncodedWriter).writeNumFields(4);

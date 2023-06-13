@@ -294,31 +294,30 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
 
         // Enabling the downloader.
         updateClusterSettings(Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), true));
+        assertBusy(() -> assertNotNull(getTask()));
 
         // Creating a pipeline containing a geo processor with lazy download enable.
         // Download should not be triggered and task state should stay null.
         putGeoIpPipeline(pipelineId, false);
         assertNull(getTask().getState());
 
-        // Create an index that use the newly created geo pipeline as default pipeline or final pipeline.
+        // Creating an index which does not reference the pipeline should not trigger the database download.
+        String indexIdentifier = randomIdentifier();
+        assertAcked(client().admin().indices().prepareCreate(indexIdentifier).get());
+        assertNull(getTask().getState());
+
+        // Set the pipeline as default_pipeline or final_pipeline for the index.
         // This should trigger the database download.
         Setting<String> pipelineSetting = randomFrom(IndexSettings.FINAL_PIPELINE, IndexSettings.DEFAULT_PIPELINE);
-        String indexIdentifier = randomIdentifier();
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate(indexIdentifier)
-                .setSettings(Settings.builder().put(pipelineSetting.getKey(), pipelineId))
-                .get()
-        );
-
+        Settings indexSettings = Settings.builder().put(pipelineSetting.getKey(), pipelineId).build();
+        assertAcked(client().admin().indices().prepareUpdateSettings(indexIdentifier).setSettings(indexSettings).get());
         assertBusy(() -> {
             GeoIpTaskState state = getGeoIpTaskState();
             assertEquals(Set.of("GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb"), state.getDatabases().keySet());
         }, 2, TimeUnit.MINUTES);
 
         // Remove the created index.
-        assertAcked(client().admin().indices().prepareDelete(indexIdentifier).get());
+//        assertAcked(client().admin().indices().prepareDelete(indexIdentifier).get());
     }
 
     @TestLogging(value = "org.elasticsearch.ingest.geoip:TRACE", reason = "https://github.com/elastic/elasticsearch/issues/69972")
@@ -512,8 +511,8 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
                             builder.field("field", "ip");
                             builder.field("target_field", "ip-city");
                             builder.field("database_file", "GeoLite2-City.mmdb");
-                            if (downloadDatabaseOnPipelineCreation) {
-                                builder.field("download_database_on_pipeline_creation", true);
+                            if (downloadDatabaseOnPipelineCreation == false || randomBoolean()) {
+                                builder.field("download_database_on_pipeline_creation", downloadDatabaseOnPipelineCreation);
                             }
                         }
                         builder.endObject();
@@ -526,8 +525,8 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
                             builder.field("field", "ip");
                             builder.field("target_field", "ip-country");
                             builder.field("database_file", "GeoLite2-Country.mmdb");
-                            if (downloadDatabaseOnPipelineCreation) {
-                                builder.field("download_database_on_pipeline_creation", true);
+                            if (downloadDatabaseOnPipelineCreation == false || randomBoolean()) {
+                                builder.field("download_database_on_pipeline_creation", downloadDatabaseOnPipelineCreation);
                             }
                         }
                         builder.endObject();

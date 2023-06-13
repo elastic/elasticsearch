@@ -296,7 +296,7 @@ public abstract class TDigestTests extends ESTestCase {
 
         assertEquals(3000.0, d.quantile(0.90), 1e-5);
         assertEquals(4500.0, d.quantile(0.95), 2000);
-        assertEquals(8500.0, d.quantile(0.98), 500);
+        assertEquals(8500.0, d.quantile(0.97), 500);
         assertEquals(9000.0, d.quantile(0.98), 1e-5);
         assertEquals(9000.0, d.quantile(1.00), 1e-5);
     }

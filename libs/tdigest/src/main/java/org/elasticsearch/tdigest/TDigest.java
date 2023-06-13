@@ -77,7 +77,7 @@ public abstract class TDigest {
     }
 
     /**
-     * Creates a {@link HybridDigest}.  HybridDigest using a SortingDigest for small sample populations, then switches to a MergingDigest,
+     * Creates a {@link HybridDigest}.  HybridDigest uses a SortingDigest for small sample populations, then switches to a MergingDigest,
      * thus combining the best of both implementations:  fastest overall, small footprint and perfect accuracy for small populations,
      * constant memory footprint and acceptable accuracy for larger ones.
      *

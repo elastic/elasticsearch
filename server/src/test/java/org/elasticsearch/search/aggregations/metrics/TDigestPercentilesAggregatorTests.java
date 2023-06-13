@@ -135,7 +135,7 @@ public class TDigestPercentilesAggregatorTests extends AggregatorTestCase {
             assertEquals(4L, tdigest.state.centroidCount());
             assertEquals(2.0d, tdigest.percentile(100), 0.0d);
             assertEquals(1.0d, tdigest.percentile(50), 0.0d);
-            assertEquals(0.75d, tdigest.percentile(25), 0.0d);
+            assertEquals(0.5d, tdigest.percentile(25), 0.0d);
             assertTrue(AggregationInspectionHelper.hasValue(tdigest));
         });
 

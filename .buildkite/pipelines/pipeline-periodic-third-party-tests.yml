@@ -21,7 +21,7 @@ steps:
 
       export azure_storage_key=$$(echo $$data | jq -r .data.account_key)
 
-      unset VAULT_TOKEN data
+      unset data
 
       set -x
 
@@ -43,7 +43,7 @@ steps:
 
       export azure_storage_sas_token=$$(echo $$data | jq -r .data.account_sas_token)
 
-      unset VAULT_TOKEN data
+      unset data
 
       set -x
 
@@ -64,7 +64,7 @@ steps:
 
       vault read -field=private_key_data gcp-elastic-ci-prod/key/elasticsearch-ci-thirdparty-gcs | base64 --decode > $$google_storage_service_account
 
-      unset VAULT_TOKEN
+      #unset VAULT_TOKEN
 
       set -x
 
@@ -87,7 +87,7 @@ steps:
 
       export amazon_s3_secret_key=$$(echo $$data | jq -r .data.secret_key)
 
-      unset VAULT_TOKEN data
+      unset data
 
       set -x
 

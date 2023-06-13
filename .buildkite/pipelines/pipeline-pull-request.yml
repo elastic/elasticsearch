@@ -67,7 +67,7 @@ steps:
 
       echo $$DOCKER_REGISTRY_PASSWORD | docker login -u $$DOCKER_REGISTRY_USERNAME --password-stdin docker.elastic.co
 
-      unset VAULT_TOKEN DOCKER_REGISTRY_USERNAME DOCKER_REGISTRY_PASSWORD
+      unset DOCKER_REGISTRY_USERNAME DOCKER_REGISTRY_PASSWORD
 
       set -x
 
@@ -87,7 +87,7 @@ steps:
 
       vault read -field=credentials.gcs.json secret/ci/elastic-elasticsearch/migrated/eql_test_credentials > $${eql_test_credentials_file}
 
-      unset VAULT_TOKEN
+      #unset VAULT_TOKEN
 
       set -x
 

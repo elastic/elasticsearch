@@ -73,7 +73,7 @@ steps:
           exportCompressedDockerImages \
           :distribution:generateDependenciesReport
 
-      unset VAULT_TOKEN
+      #unset VAULT_TOKEN
 
       set -x
 

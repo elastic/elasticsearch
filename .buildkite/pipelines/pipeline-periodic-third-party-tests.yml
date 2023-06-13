@@ -4,7 +4,6 @@ agents:
   imageProject: elastic-images-qa
   buildDirectory: /dev/shm/bk
   machineType: custom-32-98304
-  useVault: false
 steps:
   - label: third-party-tests-azure
     command: >-
@@ -12,11 +11,11 @@ steps:
 
       set +x
 
-      VAULT_TOKEN=$$(vault write -field=token auth/approle/login role_id=$$VAULT_ROLE_ID secret_id=$$VAULT_SECRET_ID)
+      #VAULT_TOKEN=$$(vault write -field=token auth/approle/login role_id=$$VAULT_ROLE_ID secret_id=$$VAULT_SECRET_ID)
 
       export VAULT_TOKEN
 
-      export data=$$(vault read -format=json secret/elasticsearch-ci/azure_thirdparty_test_creds)
+      export data=$$(vault read -format=json secret/ci/elastic-elasticsearch/migrated/azure_thirdparty_test_creds)
 
       export azure_storage_account=$$(echo $$data | jq -r .data.account_id)
 
@@ -34,11 +33,11 @@ steps:
 
       set +x
 
-      VAULT_TOKEN=$$(vault write -field=token auth/approle/login role_id=$$VAULT_ROLE_ID secret_id=$$VAULT_SECRET_ID)
+      #VAULT_TOKEN=$$(vault write -field=token auth/approle/login role_id=$$VAULT_ROLE_ID secret_id=$$VAULT_SECRET_ID)
 
       export VAULT_TOKEN
 
-      export data=$$(vault read -format=json secret/elasticsearch-ci/azure_thirdparty_sas_test_creds)
+      export data=$$(vault read -format=json secret/ci/elastic-elasticsearch/migrated/azure_thirdparty_sas_test_creds)
 
       export azure_storage_account=$$(echo $$data | jq -r .data.account_id)
 
@@ -59,7 +58,7 @@ steps:
 
       set +x
 
-      VAULT_TOKEN=$$(vault write -field=token auth/approle/login role_id=$$VAULT_ROLE_ID secret_id=$$VAULT_SECRET_ID)
+      #VAULT_TOKEN=$$(vault write -field=token auth/approle/login role_id=$$VAULT_ROLE_ID secret_id=$$VAULT_SECRET_ID)
 
       export VAULT_TOKEN
 
@@ -78,7 +77,7 @@ steps:
 
       set +x
 
-      VAULT_TOKEN=$$(vault write -field=token auth/approle/login role_id=$$VAULT_ROLE_ID secret_id=$$VAULT_SECRET_ID)
+      #VAULT_TOKEN=$$(vault write -field=token auth/approle/login role_id=$$VAULT_ROLE_ID secret_id=$$VAULT_SECRET_ID)
 
       export VAULT_TOKEN
 

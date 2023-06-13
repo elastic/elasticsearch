@@ -4,7 +4,6 @@ agents:
   imageProject: elastic-images-qa
   buildDirectory: /dev/shm/bk
   machineType: custom-32-98304
-  useVault: false
 steps:
   - group: bwc
     steps:
@@ -458,6 +457,11 @@ steps:
           v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 8.8.1
+      - label: bwc / 8.8.2
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dbwc.checkout.align=true
+          v$$BWC_VERSION#bwcTest
+        env:
+          BWC_VERSION: 8.8.2
       - label: bwc / 8.9.0
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dbwc.checkout.align=true
           v$$BWC_VERSION#bwcTest

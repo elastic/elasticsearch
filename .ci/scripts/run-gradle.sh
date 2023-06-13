@@ -2,11 +2,8 @@
 # drop page cache and kernel slab objects on linux
 [[ -x /usr/local/sbin/drop-caches ]] && sudo /usr/local/sbin/drop-caches
 
-# Not usable on Buildkite yet because of vault
-if [[ "${BUILDKITE:-}" != "true" ]]; then
-  rm -Rfv ~/.gradle/init.d
-  mkdir -p ~/.gradle/init.d && cp -v $WORKSPACE/.ci/init.gradle ~/.gradle/init.d
-fi
+rm -Rfv ~/.gradle/init.d
+mkdir -p ~/.gradle/init.d && cp -v $WORKSPACE/.ci/init.gradle ~/.gradle/init.d
 
 if [ "$(uname -m)" = "arm64" ] || [ "$(uname -m)" = "aarch64" ]; then
    MAX_WORKERS=16

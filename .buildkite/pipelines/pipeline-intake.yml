@@ -4,7 +4,6 @@ agents:
   imageProject: elastic-images-qa
   buildDirectory: /dev/shm/bk
   machineType: custom-32-98304
-  useVault: false
 steps:
   - label: sanity-check
     command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dbwc.checkout.align=true
@@ -33,7 +32,7 @@ steps:
           setup:
             BWC_VERSION:
               - 7.17.11
-              - 8.8.1
+              - 8.8.2
               - 8.9.0
         env:
           BWC_VERSION: "{{matrix.BWC_VERSION}}"
@@ -61,7 +60,7 @@ steps:
 
       set +x
 
-      VAULT_TOKEN=$$(vault write -field=token auth/approle/login role_id=$$VAULT_ROLE_ID secret_id=$$VAULT_SECRET_ID)
+      #VAULT_TOKEN=$$(vault write -field=token auth/approle/login role_id=$$VAULT_ROLE_ID secret_id=$$VAULT_SECRET_ID)
 
       export VAULT_TOKEN
 
@@ -125,4 +124,3 @@ steps:
       imageProject: elastic-images-qa
       buildDirectory: /dev/shm/bk
       machineType: n1-standard-1
-      useVault: false

@@ -4,7 +4,6 @@ agents:
   imageProject: elastic-images-qa
   buildDirectory: /dev/shm/bk
   machineType: custom-32-98304
-  useVault: false
 steps:
   - group: platform-support-unix
     steps:
@@ -16,7 +15,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
-          useVault: false
         matrix:
           setup:
             image:
@@ -48,7 +46,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
-          useVault: false
         matrix:
           setup:
             image: []

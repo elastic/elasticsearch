@@ -4,7 +4,6 @@ agents:
   imageProject: elastic-images-qa
   buildDirectory: /dev/shm/bk
   machineType: custom-32-98304
-  useVault: false
 steps:
   - label: build-benchmark-part1
     command: >-
@@ -39,7 +38,7 @@ steps:
           setup:
             BWC_VERSION:
               - 7.17.11
-              - 8.8.1
+              - 8.8.2
               - 8.9.0
         env:
           BWC_VERSION: "{{matrix.BWC_VERSION}}"
@@ -52,13 +51,13 @@ steps:
 
       set +x
 
-      VAULT_TOKEN=$$(vault write -field=token auth/approle/login role_id=$$VAULT_ROLE_ID secret_id=$$VAULT_SECRET_ID)
+      #VAULT_TOKEN=$$(vault write -field=token auth/approle/login role_id=$$VAULT_ROLE_ID secret_id=$$VAULT_SECRET_ID)
 
       export VAULT_TOKEN
 
-      export DOCKER_REGISTRY_USERNAME="$$(vault read -field=username secret/elasticsearch-ci/prod_docker_registry_credentials)"
+      export DOCKER_REGISTRY_USERNAME="$$(vault read -field=username secret/ci/elastic-elasticsearch/migrated/prod_docker_registry_credentials)"
 
-      export DOCKER_REGISTRY_PASSWORD="$$(vault read -field=password secret/elasticsearch-ci/prod_docker_registry_credentials)"
+      export DOCKER_REGISTRY_PASSWORD="$$(vault read -field=password secret/ci/elastic-elasticsearch/migrated/prod_docker_registry_credentials)"
 
       export ES_VERSION=$$(grep 'elasticsearch' build-tools-internal/version.properties | awk '{print $$3}')
 
@@ -80,13 +79,13 @@ steps:
     command: >-
       set +x
 
-      VAULT_TOKEN=$$(vault write -field=token auth/approle/login role_id=$$VAULT_ROLE_ID secret_id=$$VAULT_SECRET_ID)
+      #VAULT_TOKEN=$$(vault write -field=token auth/approle/login role_id=$$VAULT_ROLE_ID secret_id=$$VAULT_SECRET_ID)
 
       export VAULT_TOKEN
 
       export eql_test_credentials_file="$$(pwd)/x-pack/plugin/eql/qa/correctness/credentials.gcs.json"
 
-      vault read -field=credentials.gcs.json secret/elasticsearch-ci/eql_test_credentials > $${eql_test_credentials_file}
+      vault read -field=credentials.gcs.json secret/ci/elastic-elasticsearch/migrated/eql_test_credentials > $${eql_test_credentials_file}
 
       unset VAULT_TOKEN
 
@@ -551,6 +550,11 @@ steps:
           v$$BWC_VERSION#bwcTest
         env:
           BWC_VERSION: 8.8.1
+      - label: full-bwc / 8.8.2
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
+          v$$BWC_VERSION#bwcTest
+        env:
+          BWC_VERSION: 8.8.2
       - label: full-bwc / 8.9.0
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
@@ -568,7 +572,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:
@@ -592,7 +595,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:
@@ -630,7 +632,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:
@@ -648,7 +649,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:
@@ -666,7 +666,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:
@@ -684,7 +683,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:
@@ -702,7 +700,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:
@@ -720,7 +717,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:
@@ -738,7 +734,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:
@@ -756,7 +751,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:
@@ -774,7 +768,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:
@@ -792,7 +785,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:
@@ -810,7 +802,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:
@@ -828,7 +819,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:
@@ -846,7 +836,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:
@@ -864,7 +853,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:
@@ -882,7 +870,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:
@@ -900,7 +887,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:
@@ -918,7 +904,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:
@@ -936,7 +921,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:
@@ -954,7 +938,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:
@@ -972,7 +955,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:
@@ -990,7 +972,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:
@@ -1008,7 +989,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:
@@ -1026,7 +1006,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:
@@ -1044,7 +1023,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:
@@ -1062,7 +1040,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:
@@ -1080,7 +1057,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:
@@ -1098,7 +1074,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:
@@ -1116,7 +1091,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:
@@ -1134,7 +1108,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:
@@ -1152,7 +1125,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:
@@ -1170,7 +1142,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:
@@ -1188,7 +1159,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:
@@ -1206,7 +1176,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:
@@ -1224,7 +1193,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:
@@ -1242,7 +1210,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:
@@ -1260,7 +1227,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:
@@ -1278,7 +1244,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:
@@ -1296,7 +1261,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:
@@ -1314,7 +1278,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:
@@ -1332,7 +1295,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:
@@ -1350,7 +1312,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:
@@ -1368,7 +1329,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:
@@ -1386,7 +1346,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:
@@ -1404,7 +1363,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:
@@ -1422,7 +1380,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:
@@ -1440,7 +1397,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:
@@ -1458,7 +1414,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:
@@ -1476,7 +1431,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:
@@ -1494,7 +1448,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:
@@ -1512,7 +1465,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:
@@ -1530,7 +1482,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:
@@ -1548,7 +1499,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:
@@ -1566,7 +1516,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:
@@ -1584,7 +1533,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:
@@ -1602,7 +1550,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:
@@ -1620,7 +1567,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:
@@ -1638,7 +1584,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:
@@ -1656,7 +1601,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:
@@ -1674,7 +1618,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:
@@ -1692,7 +1635,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:
@@ -1710,7 +1652,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:
@@ -1728,7 +1669,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:
@@ -1746,7 +1686,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:
@@ -1764,7 +1703,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:
@@ -1782,7 +1720,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:
@@ -1800,7 +1737,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:
@@ -1818,7 +1754,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:
@@ -1836,7 +1771,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:
@@ -1854,7 +1788,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:
@@ -1872,7 +1805,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:
@@ -1890,7 +1822,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:
@@ -1908,7 +1839,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:
@@ -1926,7 +1856,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:
@@ -1944,7 +1873,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:
@@ -1962,7 +1890,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:
@@ -1980,7 +1907,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:
@@ -1998,7 +1924,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:
@@ -2016,7 +1941,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:
@@ -2034,7 +1958,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:
@@ -2052,7 +1975,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:
@@ -2070,7 +1992,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:
@@ -2088,7 +2009,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:
@@ -2106,7 +2026,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:
@@ -2124,7 +2043,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:
@@ -2142,7 +2060,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:
@@ -2160,7 +2077,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:
@@ -2178,7 +2094,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:
@@ -2196,7 +2111,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:
@@ -2214,7 +2128,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:
@@ -2232,7 +2145,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:
@@ -2240,6 +2152,23 @@ steps:
               - family/brian-elasticsearch-ubuntu-2004
         env:
           BWC_VERSION: 8.8.1
+      - label: packaging-upgrade-tests / 8.8.2
+        command: ./.ci/scripts/packaging-test.sh --build-cache
+          -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
+          destructiveDistroUpgradeTest.v$$BWC_VERSION
+        agents:
+          provider: gcp
+          image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
+          buildDirectory: /dev/shm/bk
+          machineType: custom-16-32768
+        matrix:
+          setup:
+            image:
+              - family/brian-elasticsearch-rocky-8
+              - family/brian-elasticsearch-ubuntu-2004
+        env:
+          BWC_VERSION: 8.8.2
       - label: packaging-upgrade-tests / 8.9.0
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
@@ -2250,7 +2179,6 @@ steps:
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
-          useVault: false
         matrix:
           setup:
             image:

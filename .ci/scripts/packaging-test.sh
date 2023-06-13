@@ -25,11 +25,8 @@ set -e
 . .ci/java-versions.properties
 BUILD_JAVA_HOME=$HOME/.java/$ES_BUILD_JAVA
 
-# Not usable on Buildkite yet because of vault
-if [[ "${BUILDKITE:-}" != "true" ]]; then
-  rm -Rfv $HOME/.gradle/init.d/ && mkdir -p $HOME/.gradle/init.d
-  cp -v .ci/init.gradle $HOME/.gradle/init.d
-fi
+rm -Rfv $HOME/.gradle/init.d/ && mkdir -p $HOME/.gradle/init.d
+cp -v .ci/init.gradle $HOME/.gradle/init.d
 
 unset JAVA_HOME
 
@@ -75,11 +72,10 @@ git config --global --add safe.directory $WORKSPACE
 # sudo sets it's own PATH thus we use env to override that and call sudo annother time so we keep the secure root PATH
 # run with --continue to run both bats and java tests even if one fails
 # be explicit about Gradle home dir so we use the same even with sudo
-# TODO add --scan back
 sudo -E env \
   PATH=$BUILD_JAVA_HOME/bin:`sudo bash -c 'echo -n $PATH'` \
   --unset=ES_JAVA_HOME \
   --unset=JAVA_HOME \
   SYSTEM_JAVA_HOME=`readlink -f -n $BUILD_JAVA_HOME` \
-  ./gradlew -g $HOME/.gradle --parallel --continue $@
+  ./gradlew -g $HOME/.gradle --scan --parallel --continue $@
 

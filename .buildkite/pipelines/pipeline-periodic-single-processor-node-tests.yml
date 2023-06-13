@@ -4,7 +4,6 @@ agents:
   imageProject: elastic-images-qa
   buildDirectory: /dev/shm/bk
   machineType: custom-32-98304
-  useVault: false
 steps:
   - label: single-processor-node-tests
     command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dbwc.checkout.align=true

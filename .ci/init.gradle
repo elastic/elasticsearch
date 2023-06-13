@@ -21,6 +21,8 @@ if (System.getenv('VAULT_ROLE_ID') == null && System.getenv('VAULT_SECRET_ID') =
     "or the VAULT_TOKEN environment variable to use this init script.")
 }
 
+final String vaultPathPrefix = System.getEnv('VAULT_ADDR') ==~ /secrets\.elastic\.co/ ? "secret/elasticsearch-ci" : "secret/ci/elastic-elasticsearch/migrated"
+
 final String vaultToken = System.getenv('VAULT_TOKEN') ?: new Vault(
   new VaultConfig()
     .address(System.env.VAULT_ADDR)
@@ -44,7 +46,7 @@ final Vault vault = new Vault(
 
 if (USE_ARTIFACTORY) {
   final Map<String, String> artifactoryCredentials = vault.logical()
-    .read("secret/elasticsearch-ci/artifactory.elstc.co")
+    .read("${vaultPathPrefix}/artifactory.elstc.co")
     .getData()
   logger.info("Using elastic artifactory repos")
   Closure configCache = {
@@ -92,7 +94,7 @@ final boolean buildCachePush = Boolean.valueOf(System.getProperty('org.elasticse
 
 if (buildCacheUrl) {
   final Map<String, String> buildCacheCredentials = vault.logical()
-    .read("secret/elasticsearch-ci/gradle-build-cache")
+    .read("${vaultPathPrefix}/gradle-build-cache")
     .getData()
   gradle.settingsEvaluated { settings ->
     settings.buildCache {

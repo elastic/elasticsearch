@@ -37,6 +37,7 @@ public class MedianAbsoluteDeviationAggregationBuilder extends SingleMetricAggre
         new ValuesSourceRegistry.RegistryKey<>(NAME, MedianAbsoluteDeviationAggregatorSupplier.class);
 
     private static final ParseField COMPRESSION_FIELD = new ParseField("compression");
+    private static final ParseField OPTIMIZE_FOR_ACCURACY = new ParseField("optimize_for_accuracy");
 
     public static final ObjectParser<MedianAbsoluteDeviationAggregationBuilder, String> PARSER = ObjectParser.fromBuilder(
         NAME,
@@ -45,6 +46,7 @@ public class MedianAbsoluteDeviationAggregationBuilder extends SingleMetricAggre
     static {
         ValuesSourceAggregationBuilder.declareFields(PARSER, true, true, false);
         PARSER.declareDouble(MedianAbsoluteDeviationAggregationBuilder::compression, COMPRESSION_FIELD);
+        PARSER.declareBoolean(MedianAbsoluteDeviationAggregationBuilder::optimizeForAccuracy, OPTIMIZE_FOR_ACCURACY);
     }
 
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
@@ -52,6 +54,7 @@ public class MedianAbsoluteDeviationAggregationBuilder extends SingleMetricAggre
     }
 
     private double compression = 1000d;
+    private boolean optimizeForAccuracy;
 
     public MedianAbsoluteDeviationAggregationBuilder(String name) {
         super(name);
@@ -60,6 +63,7 @@ public class MedianAbsoluteDeviationAggregationBuilder extends SingleMetricAggre
     public MedianAbsoluteDeviationAggregationBuilder(StreamInput in) throws IOException {
         super(in);
         compression = in.readDouble();
+        optimizeForAccuracy = in.getTransportVersion().onOrAfter(TransportVersion.V_8_9_0) == false || in.readBoolean();
     }
 
     protected MedianAbsoluteDeviationAggregationBuilder(
@@ -69,6 +73,7 @@ public class MedianAbsoluteDeviationAggregationBuilder extends SingleMetricAggre
     ) {
         super(clone, factoriesBuilder, metadata);
         this.compression = clone.compression;
+        this.optimizeForAccuracy = clone.optimizeForAccuracy;
     }
 
     /**
@@ -91,6 +96,14 @@ public class MedianAbsoluteDeviationAggregationBuilder extends SingleMetricAggre
         return this;
     }
 
+    /**
+     * Use a version of t-digest that's optimized for accuracy, not performance.
+     */
+    public MedianAbsoluteDeviationAggregationBuilder optimizeForAccuracy(boolean optimizeForAccuracy) {
+        this.optimizeForAccuracy = optimizeForAccuracy;
+        return this;
+    }
+
     @Override
     protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
         return new MedianAbsoluteDeviationAggregationBuilder(this, factoriesBuilder, metadata);
@@ -109,6 +122,9 @@ public class MedianAbsoluteDeviationAggregationBuilder extends SingleMetricAggre
     @Override
     protected void innerWriteTo(StreamOutput out) throws IOException {
         out.writeDouble(compression);
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_9_0)) {
+            out.writeBoolean(optimizeForAccuracy);
+        }
     }
 
     @Override
@@ -130,6 +146,7 @@ public class MedianAbsoluteDeviationAggregationBuilder extends SingleMetricAggre
             subFactoriesBuilder,
             metadata,
             compression,
+            optimizeForAccuracy,
             aggregatorSupplier
         );
     }
@@ -137,12 +154,13 @@ public class MedianAbsoluteDeviationAggregationBuilder extends SingleMetricAggre
     @Override
     protected XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.field(COMPRESSION_FIELD.getPreferredName(), compression);
+        builder.field(OPTIMIZE_FOR_ACCURACY.getPreferredName(), optimizeForAccuracy);
         return builder;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), compression);
+        return Objects.hash(super.hashCode(), compression, optimizeForAccuracy);
     }
 
     @Override
@@ -151,7 +169,7 @@ public class MedianAbsoluteDeviationAggregationBuilder extends SingleMetricAggre
         if (obj == null || getClass() != obj.getClass()) return false;
         if (super.equals(obj) == false) return false;
         MedianAbsoluteDeviationAggregationBuilder other = (MedianAbsoluteDeviationAggregationBuilder) obj;
-        return Objects.equals(compression, other.compression);
+        return Objects.equals(compression, other.compression) && optimizeForAccuracy == other.optimizeForAccuracy;
     }
 
     @Override

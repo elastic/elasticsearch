@@ -37,7 +37,14 @@ public class TDigestPercentilesAggregatorTests extends AggregatorTestCase {
 
     @Override
     protected AggregationBuilder createAggBuilderForTypeTest(MappedFieldType fieldType, String fieldName) {
-        return new PercentilesAggregationBuilder("tdist_percentiles").field(fieldName).percentilesConfig(new PercentilesConfig.TDigest());
+        var tdigestConfig = new PercentilesConfig.TDigest();
+        if (randomBoolean()) {
+            tdigestConfig.setCompression(randomDoubleBetween(50, 200, true));
+        }
+        if (randomBoolean()) {
+            tdigestConfig.setOptimizeForAccuracy(randomBoolean());
+        }
+        return new PercentilesAggregationBuilder("tdist_percentiles").field(fieldName).percentilesConfig(tdigestConfig);
     }
 
     @Override

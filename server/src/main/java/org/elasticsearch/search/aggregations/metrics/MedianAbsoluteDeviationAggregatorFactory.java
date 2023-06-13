@@ -25,6 +25,7 @@ public class MedianAbsoluteDeviationAggregatorFactory extends ValuesSourceAggreg
 
     private final MedianAbsoluteDeviationAggregatorSupplier aggregatorSupplier;
     private final double compression;
+    private final boolean optimizeForAccuracy;
 
     MedianAbsoluteDeviationAggregatorFactory(
         String name,
@@ -34,11 +35,13 @@ public class MedianAbsoluteDeviationAggregatorFactory extends ValuesSourceAggreg
         AggregatorFactories.Builder subFactoriesBuilder,
         Map<String, Object> metadata,
         double compression,
+        boolean optimizeForAccuracy,
         MedianAbsoluteDeviationAggregatorSupplier aggregatorSupplier
     ) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metadata);
         this.aggregatorSupplier = aggregatorSupplier;
         this.compression = compression;
+        this.optimizeForAccuracy = optimizeForAccuracy;
     }
 
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {
@@ -52,13 +55,19 @@ public class MedianAbsoluteDeviationAggregatorFactory extends ValuesSourceAggreg
 
     @Override
     protected Aggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException {
-        final InternalMedianAbsoluteDeviation empty = InternalMedianAbsoluteDeviation.empty(name, metadata, config.format(), compression);
+        final InternalMedianAbsoluteDeviation empty = InternalMedianAbsoluteDeviation.empty(
+            name,
+            metadata,
+            config.format(),
+            compression,
+            optimizeForAccuracy
+        );
         return new NonCollectingSingleMetricAggregator(name, context, parent, empty, metadata);
     }
 
     @Override
     protected Aggregator doCreateInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
         throws IOException {
-        return aggregatorSupplier.build(name, config, config.format(), context, parent, metadata, compression);
+        return aggregatorSupplier.build(name, config, config.format(), context, parent, metadata, compression, optimizeForAccuracy);
     }
 }

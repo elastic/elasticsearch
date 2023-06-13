@@ -66,30 +66,30 @@ public class WorkflowService {
             if (false == role.checkWorkflowRestriction(workflow)) {
                 logger.trace(
                     () -> format(
-                        "accessed workflow [%s] but role is restricted only to %s workflow(s)",
-                        workflow == null ? "<none>" : workflow.name(),
+                        "accessed workflow [%s] but role is restricted to %s workflow(s)",
+                        workflow == null ? "<undefined>" : workflow.name(),
                         getWorkflowNames(role)
                     )
                 );
-                throw accessRestrictedByWorkflows(role, workflow);
+                throw accessRestrictedByWorkflows(role);
             }
             if (authentication.isRunAs()) {
                 final Role authenticatedRole = rbacAuthzInfo.getAuthenticatedUserAuthorizationInfo().getRole();
                 if (false == authenticatedRole.checkWorkflowRestriction(workflow)) {
                     logger.trace(
                         () -> format(
-                            "accessed workflow [%s] but run-as role is restricted only to %s workflow(s)",
-                            workflow == null ? "<none>" : workflow.name(),
+                            "accessed workflow [%s] but run-as role is restricted to %s workflow(s)",
+                            workflow == null ? "<undefined>" : workflow.name(),
                             getWorkflowNames(role)
                         )
                     );
-                    throw accessRestrictedByWorkflows(authenticatedRole, workflow);
+                    throw accessRestrictedByWorkflows(authenticatedRole);
                 }
             }
         }
     }
 
-    private static ElasticsearchSecurityException accessRestrictedByWorkflows(Role role, Workflow workflow) {
+    private static ElasticsearchSecurityException accessRestrictedByWorkflows(Role role) {
         String message = "Access is restricted only to " + getWorkflowNames(role) + " workflow(s).";
         return authorizationError(message);
     }

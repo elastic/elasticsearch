@@ -294,8 +294,10 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         out.writeOptionalNamedWriteable(postQueryBuilder);
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_999)) {
             out.writeList(subSearchSourceBuilders);
+        } else if (out.getTransportVersion().before(TransportVersion.V_8_8_0) && subSearchSourceBuilders.size() >= 2) {
+            throw new IllegalArgumentException("cannot serialize multiple queries to version [" + out.getTransportVersion() + "]");
         } else {
-            out.writeOptionalWriteable(query());
+            out.writeOptionalNamedWriteable(query());
         }
         boolean hasRescoreBuilders = rescoreBuilders != null;
         out.writeBoolean(hasRescoreBuilders);

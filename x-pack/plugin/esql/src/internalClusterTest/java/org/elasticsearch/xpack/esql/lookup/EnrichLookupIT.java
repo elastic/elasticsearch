@@ -180,7 +180,11 @@ public class EnrichLookupIT extends AbstractEsqlIntegTestCase {
                 BytesRefBlock.Builder builder = BytesRefBlock.newBlockBuilder(size);
                 builder.copyFrom(input, position, position + size);
                 position += size;
-                return new Page(builder.build());
+                Block block = builder.build();
+                if (block.areAllValuesNull() && randomBoolean()) {
+                    block = Block.constantNullBlock(block.getPositionCount());
+                }
+                return new Page(block);
             }
 
             @Override

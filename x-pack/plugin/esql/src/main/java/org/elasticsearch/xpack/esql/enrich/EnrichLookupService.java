@@ -24,6 +24,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.ValueSources;
 import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
@@ -155,12 +156,21 @@ public class EnrichLookupService {
         List<Attribute> extractFields,
         ActionListener<Page> listener
     ) {
-        ShardSearchRequest shardSearchRequest = new ShardSearchRequest(shardId, 0, AliasFilter.EMPTY);
+        Block inputBlock = inputPage.getBlock(0);
+        if (inputBlock.areAllValuesNull()) {
+            listener.onResponse(createNullResponse(inputPage.getPositionCount(), extractFields));
+            return;
+        }
         try {
+            ShardSearchRequest shardSearchRequest = new ShardSearchRequest(shardId, 0, AliasFilter.EMPTY);
             SearchContext searchContext = searchService.createSearchContext(shardSearchRequest, SearchService.NO_TIMEOUT);
             listener = ActionListener.runBefore(listener, searchContext::close);
             final SourceOperator queryOperator = switch (matchType) {
-                case "match" -> new MatchQuerySourceOperator(matchField, searchContext.searcher().getIndexReader(), inputPage.getBlock(0));
+                case "match" -> new MatchQuerySourceOperator(
+                    matchField,
+                    searchContext.searcher().getIndexReader(),
+                    (BytesRefBlock) inputBlock
+                );
                 // TODO: support other match_type
                 default -> throw new UnsupportedOperationException("unsupported match type " + matchType);
             };

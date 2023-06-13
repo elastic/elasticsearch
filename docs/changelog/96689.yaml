@@ -1,0 +1,5 @@
+pr: 96689
+summary: Introduce `ProfileCollectorManager`
+area: Search
+type: enhancement
+issues: []

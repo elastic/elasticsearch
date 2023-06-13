@@ -45,7 +45,6 @@ public class InternalMedianAbsoluteDeviation extends InternalNumericMetricsAggre
     InternalMedianAbsoluteDeviation(String name, Map<String, Object> metadata, DocValueFormat format, TDigestState valuesSketch) {
         super(name, Objects.requireNonNull(format), metadata);
         this.valuesSketch = Objects.requireNonNull(valuesSketch);
-
         this.medianAbsoluteDeviation = computeMedianAbsoluteDeviation(this.valuesSketch);
     }
 

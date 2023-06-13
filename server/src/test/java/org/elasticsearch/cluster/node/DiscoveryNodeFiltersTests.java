@@ -89,21 +89,21 @@ public class DiscoveryNodeFiltersTests extends ESTestCase {
         Map<String, String> attributes = new HashMap<>();
         attributes.put("tag", "A");
         attributes.put("group", "B");
-        DiscoveryNode node = DiscoveryNodeUtils.create("name1", "id1", buildNewFakeTransportAddress(), attributes, emptySet());
+        DiscoveryNode node = DiscoveryNodeUtils.builder("id1").name("name1").attributes(attributes).roles(emptySet()).build();
         assertThat(filters.match(node), equalTo(true));
 
         attributes = new HashMap<>();
         attributes.put("tag", "A");
         attributes.put("group", "B");
         attributes.put("name", "X");
-        node = DiscoveryNodeUtils.create("name2", "id2", buildNewFakeTransportAddress(), attributes, emptySet());
+        node = DiscoveryNodeUtils.builder("id2").name("name2").attributes(attributes).roles(emptySet()).build();
         assertThat(filters.match(node), equalTo(true));
 
         attributes = new HashMap<>();
         attributes.put("tag", "A");
         attributes.put("group", "F");
         attributes.put("name", "X");
-        node = DiscoveryNodeUtils.create("name3", "id3", buildNewFakeTransportAddress(), attributes, emptySet());
+        node = DiscoveryNodeUtils.builder("id3").name("name3").attributes(attributes).roles(emptySet()).build();
         assertThat(filters.match(node), equalTo(false));
 
         node = DiscoveryNodeUtils.builder("id4").name("name4").roles(emptySet()).build();

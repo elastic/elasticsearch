@@ -8,12 +8,13 @@
 package org.elasticsearch.xpack.application.search.action;
 
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.application.EnterpriseSearch;
+import org.elasticsearch.xpack.application.EnterpriseSearchBaseRestHandler;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 
 import java.util.List;
@@ -21,7 +22,10 @@ import java.util.List;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 @ServerlessScope(Scope.PUBLIC)
-public class RestListSearchApplicationAction extends BaseRestHandler {
+public class RestListSearchApplicationAction extends EnterpriseSearchBaseRestHandler {
+    public RestListSearchApplicationAction(XPackLicenseState licenseState) {
+        super(licenseState);
+    }
 
     @Override
     public String getName() {
@@ -34,7 +38,7 @@ public class RestListSearchApplicationAction extends BaseRestHandler {
     }
 
     @Override
-    protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
+    protected RestChannelConsumer innerPrepareRequest(RestRequest restRequest, NodeClient client) {
 
         int from = restRequest.paramAsInt("from", PageParams.DEFAULT_FROM);
         int size = restRequest.paramAsInt("size", PageParams.DEFAULT_SIZE);

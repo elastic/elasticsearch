@@ -193,10 +193,6 @@ public class InternalUsersTests extends ESTestCase {
         checkIndexAccess(role, randomFrom(sampleAllowedActions), randomAlphaOfLengthBetween(3, 12), false);
     }
 
-    public void testCrossClusterAccessUser() {
-        assertThat(InternalUsers.getUser("_cross_cluster_access"), is(InternalUsers.CROSS_CLUSTER_ACCESS_USER));
-    }
-
     public void testStorageUser() {
         assertThat(InternalUsers.getUser("_storage"), is(InternalUsers.STORAGE_USER));
 

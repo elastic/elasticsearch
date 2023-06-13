@@ -51,6 +51,7 @@ import org.elasticsearch.xcontent.XContentParser.Token;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.time.ZoneId;
 import java.util.Locale;
 import java.util.Map;
@@ -64,6 +65,8 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
  * A {@link FieldMapper} for indexing a dense vector of floats.
  */
 public class DenseVectorFieldMapper extends FieldMapper {
+    public static final Version MAGNITUDE_STORED_INDEX_VERSION = Version.V_7_5_0;
+    public static final Version LITTLE_ENDIAN_FLOAT_STORED_INDEX_VERSION = Version.V_8_9_0;
 
     public static final String CONTENT_TYPE = "dense_vector";
     public static short MAX_DIMS_COUNT = 2048; // maximum allowed number of dimensions
@@ -353,6 +356,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 fieldMapper.checkDimensionMatches(index, context);
                 return dotProduct;
             }
+
+            @Override
+            ByteBuffer createByteBuffer(Version indexVersion, int numBytes) {
+                return ByteBuffer.wrap(new byte[numBytes]);
+            }
         },
 
         FLOAT(4) {
@@ -460,6 +468,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 checkVectorBounds(vector);
                 return dotProduct;
             }
+
+            @Override
+            ByteBuffer createByteBuffer(Version indexVersion, int numBytes) {
+                return indexVersion.onOrAfter(LITTLE_ENDIAN_FLOAT_STORED_INDEX_VERSION)
+                    ? ByteBuffer.wrap(new byte[numBytes]).order(ByteOrder.LITTLE_ENDIAN)
+                    : ByteBuffer.wrap(new byte[numBytes]);
+            }
         };
 
         final int elementBytes;
@@ -482,6 +497,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         abstract double parseKnnVectorToByteBuffer(DocumentParserContext context, DenseVectorFieldMapper fieldMapper, ByteBuffer byteBuffer)
             throws IOException;
+
+        abstract ByteBuffer createByteBuffer(Version indexVersion, int numBytes);
 
         public abstract void checkVectorBounds(float[] vector);
 
@@ -825,6 +842,18 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
             return knnQuery;
         }
+
+        VectorSimilarity getSimilarity() {
+            return similarity;
+        }
+
+        int getVectorDimensions() {
+            return dims;
+        }
+
+        ElementType getElementType() {
+            return elementType;
+        }
     }
 
     private final ElementType elementType;
@@ -889,19 +918,19 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
     private Field parseBinaryDocValuesVector(DocumentParserContext context) throws IOException {
         // encode array of floats as array of integers and store into buf
-        // this code is here and not int the VectorEncoderDecoder so not to create extra arrays
-        byte[] bytes = indexCreatedVersion.onOrAfter(Version.V_7_5_0)
-            ? new byte[dims * elementType.elementBytes + MAGNITUDE_BYTES]
-            : new byte[dims * elementType.elementBytes];
+        // this code is here and not in the VectorEncoderDecoder so not to create extra arrays
+        int numBytes = indexCreatedVersion.onOrAfter(MAGNITUDE_STORED_INDEX_VERSION)
+            ? dims * elementType.elementBytes + MAGNITUDE_BYTES
+            : dims * elementType.elementBytes;
 
-        ByteBuffer byteBuffer = ByteBuffer.wrap(bytes);
+        ByteBuffer byteBuffer = elementType.createByteBuffer(indexCreatedVersion, numBytes);
         double dotProduct = elementType.parseKnnVectorToByteBuffer(context, this, byteBuffer);
-        if (indexCreatedVersion.onOrAfter(Version.V_7_5_0)) {
+        if (indexCreatedVersion.onOrAfter(MAGNITUDE_STORED_INDEX_VERSION)) {
             // encode vector magnitude at the end
             float vectorMagnitude = (float) Math.sqrt(dotProduct);
             byteBuffer.putFloat(vectorMagnitude);
         }
-        return new BinaryDocValuesField(fieldType().name(), new BytesRef(bytes));
+        return new BinaryDocValuesField(fieldType().name(), new BytesRef(byteBuffer.array()));
     }
 
     private void checkDimensionExceeded(int index, DocumentParserContext context) {
@@ -1000,7 +1029,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         if (indexed) {
             return new IndexedSyntheticFieldLoader();
         }
-        return new DocValuesSyntheticFieldLoader();
+        return new DocValuesSyntheticFieldLoader(indexCreatedVersion);
     }
 
     private class IndexedSyntheticFieldLoader implements SourceLoader.SyntheticFieldLoader {
@@ -1060,6 +1089,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
     private class DocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFieldLoader {
         private BinaryDocValues values;
         private boolean hasValue;
+        private final Version indexCreatedVersion;
+
+        private DocValuesSyntheticFieldLoader(Version indexCreatedVersion) {
+            this.indexCreatedVersion = indexCreatedVersion;
+        }
 
         @Override
         public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
@@ -1091,6 +1125,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
             b.startArray(simpleName());
             BytesRef ref = values.binaryValue();
             ByteBuffer byteBuffer = ByteBuffer.wrap(ref.bytes, ref.offset, ref.length);
+            if (indexCreatedVersion.onOrAfter(LITTLE_ENDIAN_FLOAT_STORED_INDEX_VERSION)) {
+                byteBuffer.order(ByteOrder.LITTLE_ENDIAN);
+            }
             for (int dim = 0; dim < dims; dim++) {
                 elementType.readAndWriteValue(byteBuffer, b);
             }

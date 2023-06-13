@@ -70,6 +70,7 @@ public class Constants {
         "cluster:admin/synonyms/delete",
         "cluster:admin/synonyms/get",
         "cluster:admin/synonyms/put",
+        "cluster:admin/synonyms_sets/get",
         "cluster:admin/settings/update",
         "cluster:admin/slm/delete",
         "cluster:admin/slm/execute",

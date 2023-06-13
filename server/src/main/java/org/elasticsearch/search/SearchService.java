@@ -49,7 +49,6 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.CoordinatorRewriteContextProvider;
 import org.elasticsearch.index.query.InnerHitContextBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -1171,18 +1170,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         context.from(source.from());
         context.size(source.size());
         Map<String, InnerHitContextBuilder> innerHitBuilders = new HashMap<>();
-        QueryBuilder query;
-        if (source.queries().isEmpty()) {
-            query = source.query();
-        } else if (source.queries().size() == 1) {
-            query = source.queries().get(0).getQueryBuilder();
-        } else {
-            BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
-            for (SubSearchSourceBuilder subSearchSourceBuilder : source.queries()) {
-                boolQueryBuilder.should(subSearchSourceBuilder.getQueryBuilder());
-            }
-            query = boolQueryBuilder;
-        }
+        QueryBuilder query = source.query();
         if (query != null) {
             InnerHitContextBuilder.extractInnerHits(query, innerHitBuilders);
             context.parsedQuery(searchExecutionContext.toQuery(query));
@@ -1640,15 +1628,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Rewriteable.rewrite(request.getRewriteable(), context, false);
         boolean canMatch = request.getAliasFilter().getQueryBuilder() instanceof MatchNoneQueryBuilder == false;
         if (canRewriteToMatchNone(request.source())) {
-            if (request.source().query() != null) {
-                QueryBuilder queryBuilder = request.source().query();
-                canMatch &= queryBuilder instanceof MatchNoneQueryBuilder == false;
-            } else {
-                canMatch &= request.source()
-                    .queries()
-                    .stream()
-                    .anyMatch(sqwb -> sqwb.getQueryBuilder() instanceof MatchNoneQueryBuilder == false);
-            }
+            canMatch &= request.source()
+                .queries()
+                .stream()
+                .anyMatch(sqwb -> sqwb.getQueryBuilder() instanceof MatchNoneQueryBuilder == false);
         }
         return canMatch;
     }
@@ -1662,12 +1645,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         if (source == null || source.suggest() != null) {
             return false;
         }
-        if (source.query() == null) {
-            if (source.queries().isEmpty()
-                || source.queries().stream().anyMatch(sqwb -> sqwb.getQueryBuilder() instanceof MatchAllQueryBuilder)) {
-                return false;
-            }
-        } else if (source.query() instanceof MatchAllQueryBuilder) {
+        if (source.queries().isEmpty()
+            || source.queries().stream().anyMatch(sqwb -> sqwb.getQueryBuilder() instanceof MatchAllQueryBuilder)) {
             return false;
         }
         AggregatorFactories.Builder aggregations = source.aggregations();

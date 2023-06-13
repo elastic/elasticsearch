@@ -353,18 +353,15 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         }
         out.writeOptionalWriteable(scroll);
         out.writeOptionalWriteable(source);
-        if (out.getTransportVersion().before(TransportVersion.V_8_500_999)) {
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
-                List<QueryBuilder> rankQueryBuilders = new ArrayList<>();
-                if (source != null) {
-                    for (SubSearchSourceBuilder subSearchSourceBuilder : source.queries()) {
-                        rankQueryBuilders.add(subSearchSourceBuilder.getQueryBuilder());
-                    }
+        if (out.getTransportVersion().before(TransportVersion.V_8_500_999)
+            && out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+            List<QueryBuilder> rankQueryBuilders = new ArrayList<>();
+            if (source != null) {
+                for (SubSearchSourceBuilder subSearchSourceBuilder : source.queries()) {
+                    rankQueryBuilders.add(subSearchSourceBuilder.getQueryBuilder());
                 }
-                out.writeNamedWriteableList(rankQueryBuilders);
-            } else if (source != null && source.queries().isEmpty() == false) {
-                throw new IllegalArgumentException("cannot serialize [queries] to version [" + out.getTransportVersion() + "]");
             }
+            out.writeNamedWriteableList(rankQueryBuilders);
         }
         if (out.getTransportVersion().before(TransportVersion.V_8_0_0)) {
             // types not supported so send an empty array to previous versions

@@ -229,7 +229,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             assertEquals("[size] cannot be [0] in a scroll context", validationErrors.validationErrors().get(0));
         }
         {
-            // cannot have queries without rank
+            // cannot have multiple queries without rank
             SearchRequest searchRequest = createSearchRequest().source(new SearchSourceBuilder());
             if (searchRequest.scroll() != null) {
                 searchRequest.requestCache(false);
@@ -245,27 +245,6 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             assertNotNull(validationErrors);
             assertEquals(1, validationErrors.validationErrors().size());
             assertEquals("[queries] requires [rank]", validationErrors.validationErrors().get(0));
-        }
-        {
-            // cannot have both query and queries
-            SearchRequest searchRequest = createSearchRequest().source(new SearchSourceBuilder());
-            if (searchRequest.scroll() != null) {
-                searchRequest.scroll((Scroll) null);
-                searchRequest.requestCache(false);
-            }
-            searchRequest.source().rankBuilder(new TestRankBuilder(10));
-            searchRequest.source().query(new TermQueryBuilder("one", "two"));
-            searchRequest.source()
-                .queries(
-                    List.of(
-                        new SubSearchSourceBuilder(new TermQueryBuilder("three", "four")),
-                        new SubSearchSourceBuilder(new TermQueryBuilder("five", "six"))
-                    )
-                );
-            ActionRequestValidationException validationErrors = searchRequest.validate();
-            assertNotNull(validationErrors);
-            assertEquals(validationErrors.validationErrors().toString(), 1, validationErrors.validationErrors().size());
-            assertEquals("cannot have both [query] and [queries]", validationErrors.validationErrors().get(0));
         }
         {
             // Rescore is not allowed on scroll requests

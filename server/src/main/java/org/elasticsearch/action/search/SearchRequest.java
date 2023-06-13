@@ -359,13 +359,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             }
         }
         if (source != null) {
-            if (source.queries().isEmpty() == false) {
-                if (source.rankBuilder() == null) {
-                    validationException = addValidationError("[queries] requires [rank]", validationException);
-                }
-                if (source.query() != null) {
-                    validationException = addValidationError("cannot have both [query] and [queries]", validationException);
-                }
+            if (source.queries().size() >= 2 && source.rankBuilder() == null) {
+                validationException = addValidationError("[queries] requires [rank]", validationException);
             }
             if (source.aggregations() != null) {
                 validationException = source.aggregations().validate(validationException);

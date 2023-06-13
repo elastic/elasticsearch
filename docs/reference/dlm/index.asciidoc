@@ -1,31 +1,31 @@
 [role="xpack"]
-[[data-lifecycle-management]]
-== {dlm-init}: Manage your data lifecycle
+[[data-stream-lifecycle]]
+== Data stream lifecycle
 
 preview::[]
 
-The goal of {dlm} ({dlm-init}) is to enable you to easily automate the management of your data streams
-according to your retention requirements. For example, you could use {dlm-init} to:
+Data stream lifecycle is the built-in mechanism of data streams to manage their own lifecycle. It enables you to easily
+automate the management of your data streams according to your retention requirements. For example, you could configure
+the lifecycle to:
 
-* Ensure that data indexed in a data stream will be kept at least for the retention time you defined.
+* Ensure that data indexed in the data stream will be kept at least for the retention time you defined.
 * Ensure that data older than the retention period will be deleted automatically by {es} at a later time.
 
 To achieve that, it supports:
 
-* <<index-rollover,Rollover>>: which chunks your incoming data in smaller pieces to facilitate better performance
+* <<index-rollover,Rollover>>, which chunks your incoming data in smaller pieces to facilitate better performance
 and backwards incompatible mapping changes.
-* Configurable retention: allows you to configure the time period for which your data is guaranteed to be stored.
+* Configurable retention, which allows you to configure the time period for which your data is guaranteed to be stored.
 {es} is allowed at a later time to delete data older than this time period.
 
 [discrete]
 [[dlm-how-it-works]]
-=== How does {dlm-init} work?
+=== How does it work?
 
-{dlm-init} runs in intervals configured by <<indices-dlm-poll-interval,`indices.dlm.poll_interval`>>. At every run,
-{dlm-init} goes over each data stream and performs the following steps:
+In intervals configured by <<indices-dlm-poll-interval,`indices.dlm.poll_interval`>> {es} goes over each data stream and
+performs the following steps:
 
-. Checks if the data stream is managed by {dlm-init}, meaning it has a data lifecycle configured. If the data stream is
-managed by {dlm-init}, then
+. Checks if the data stream has a data lifecycle configured. If it does, then
 . it will rollover the write backing index of the data stream, given it fulfills the conditions defined by
 <<cluster-dlm-default-rollover,`cluster.dlm.default.rollover`>>,
 . it will apply retention to the remaining backing indices. This means that it will delete the backing indices whose
@@ -35,15 +35,15 @@ indices and it is either the time since the backing index got rolled over or the
 of the creation time because this ensures that all data in the backing index have passed the retention period. As a result,
 the retention period is not the exact time data gets deleted, but the minimum time data will be stored.
 
-NOTE: The steps `2` and `3` apply only to backing indices managed by {dlm-init}, meaning that these indices either do
+NOTE: The steps `2` and `3` apply only to backing indices that are not already managed by {ilm-init}, meaning that these indices either do
 not have an {ilm-init} policy defined, or if they do, they have <<index-dlm-prefer-ilm, `index.lifecycle.prefer_ilm`>>
 set to `false`.
 
 [discrete]
 [[dlm-configuration]]
-=== Configuring {dlm-init}
+=== Configuring data stream lifecycle
 
-{dlm-init} is configured per data stream. This means that the process to configure a lifecycle on a new data stream and
+Since the lifecycle is configured on the data stream level, the process to configure a lifecycle on a new data stream and
 on an existing one differ.
 
 In the following sections, we will go through the following tutorials:
@@ -51,7 +51,7 @@ In the following sections, we will go through the following tutorials:
 * To create a new data stream with a lifecycle, you need to add the data lifecycle as part of the index template
 that matches the name of your data stream (see <<tutorial-manage-new-data-stream>>). When a write operation
 with the name of your data stream reaches {es} then the data stream will be created with the respective data lifecycle.
-* To update the lifecycle of an existing data stream you need to use the <<data-lifecycle-management-api, {dlm-init} APIs>>
+* To update the lifecycle of an existing data stream you need to use the <<data-stream-lifecycle-api, data stream lifecycle APIs>>
 to edit the lifecycle on the data stream itself (see <<tutorial-manage-existing-data-stream>>).
 
 NOTE: Updating the data lifecycle of an existing data stream is different from updating the settings or the mapping,

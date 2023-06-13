@@ -8,7 +8,7 @@
 
 preview::[]
 
-These are the settings available for configuring <<data-lifecycle-management, {dlm}>> ({dlm-init}).
+These are the settings available for configuring <<data-stream-lifecycle, {dlm}>> ({dlm-init}).
 
 ==== Cluster level settings
 

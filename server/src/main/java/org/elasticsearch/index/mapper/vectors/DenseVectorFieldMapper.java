@@ -825,6 +825,18 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
             return knnQuery;
         }
+
+        VectorSimilarity getSimilarity() {
+            return similarity;
+        }
+
+        int getVectorDimensions() {
+            return dims;
+        }
+
+        ElementType getElementType() {
+            return elementType;
+        }
     }
 
     private final ElementType elementType;

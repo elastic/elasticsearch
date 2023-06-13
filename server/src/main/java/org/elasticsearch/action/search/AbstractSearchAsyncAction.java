@@ -27,11 +27,13 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
+import org.elasticsearch.search.builder.SearchQueryWrapperBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.InternalSearchResponse;
@@ -876,5 +878,23 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             }
             return toExecute;
         }
+    }
+
+    protected static ShardSearchRequest rewriteShardSearchRequestQueries(ShardSearchRequest request) {
+        if (request.source() != null && request.source().queries().isEmpty() == false) {
+            assert request.source().query() == null && request.source().rankBuilder() != null;
+            assert request.source().queries().size() >= 2 || request.source().knnSearch().isEmpty() == false;
+
+            BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
+            for (SearchQueryWrapperBuilder searchQueryWrapperBuilder : request.source().queries()) {
+                boolQueryBuilder.should(searchQueryWrapperBuilder.getQueryBuilder());
+            }
+
+            SearchSourceBuilder searchSourceBuilder = request.source().shallowCopy();
+            searchSourceBuilder.query(boolQueryBuilder);
+            request.source(searchSourceBuilder);
+        }
+
+        return request;
     }
 }

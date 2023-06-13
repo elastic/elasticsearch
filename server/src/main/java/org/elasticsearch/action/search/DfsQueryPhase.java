@@ -134,22 +134,16 @@ final class DfsQueryPhase extends SearchPhase {
     // package private for testing
     ShardSearchRequest rewriteShardSearchRequest(ShardSearchRequest request) {
         SearchSourceBuilder source = request.source();
-        if (source == null) {
+        if (source == null || source.knnSearch().isEmpty()) {
             return request;
         }
+
         boolean usesRank = source.rankBuilder() != null;
-        boolean hasQueries = source.queries().isEmpty() == false;
-        if (source.knnSearch().isEmpty()) {
-            if (hasQueries && usesRank == false) {
-                source.queries(List.of());
-            }
-            return request;
-        }
 
         BoolQueryBuilder boolQueryBuilder;
         List<SearchQueryWrapperBuilder> searchQueryWrapperBuilders;
 
-        if (hasQueries) {
+        if (source.queries().isEmpty() == false) {
             boolQueryBuilder = (BoolQueryBuilder) source.query();
             searchQueryWrapperBuilders = new ArrayList<>(source.queries());
         } else {

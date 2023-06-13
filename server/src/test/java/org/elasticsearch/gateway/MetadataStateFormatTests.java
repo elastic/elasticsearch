@@ -344,7 +344,7 @@ public class MetadataStateFormatTests extends ESTestCase {
                 randomBoolean()
             );
             possibleStates.add(newState);
-            WriteStateException ex = expectThrows(WriteStateException.class, () -> format.writeAndCleanup(newState, randomBoolean(), path));
+            WriteStateException ex = expectThrows(WriteStateException.class, () -> format.writeAndCleanup(newState, true, path));
             assertTrue(ex.isDirty());
 
             format.noFailures();

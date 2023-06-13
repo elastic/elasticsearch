@@ -601,6 +601,11 @@ public class MergingDigest extends AbstractTDigest {
     }
 
     @Override
+    public int byteSize() {
+        return 48 + 8 * (mean.length + weight.length + tempMean.length + tempWeight.length) + 4 * order.length;
+    }
+
+    @Override
     public String toString() {
         return "MergingDigest"
             + "-"

@@ -353,4 +353,13 @@ public class AVLTreeDigest extends AbstractTDigest {
     public double compression() {
         return compression;
     }
+
+    /**
+     * Returns an upper bound on the number bytes that will be required to represent this histogram.
+     */
+    @Override
+    public int byteSize() {
+        compress();
+        return 64 + summary.size() * 13;
+    }
 }

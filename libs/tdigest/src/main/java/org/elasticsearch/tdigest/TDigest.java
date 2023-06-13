@@ -140,6 +140,13 @@ public abstract class TDigest {
      */
     public abstract double compression();
 
+    /**
+     * Returns the number of bytes required to encode this TDigest using #asBytes().
+     *
+     * @return The number of bytes required.
+     */
+    public abstract int byteSize();
+
     public void setScaleFunction(ScaleFunction scaleFunction) {
         if (scaleFunction.toString().endsWith("NO_NORM")) {
             throw new IllegalArgumentException(String.format(Locale.ROOT, "Can't use %s as scale with %s", scaleFunction, this.getClass()));

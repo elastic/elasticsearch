@@ -2087,7 +2087,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 } else {
                     nodeEnvironment = null;
                     BytesStreamOutput outStream = new BytesStreamOutput();
-                    outStream.setTransportVersion(TransportVersion.CURRENT);
+                    outStream.setTransportVersion(TransportVersion.current());
 
                     final long persistedCurrentTerm;
 

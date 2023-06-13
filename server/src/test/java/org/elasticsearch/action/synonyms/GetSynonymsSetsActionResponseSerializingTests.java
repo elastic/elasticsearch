@@ -14,22 +14,22 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
 
-import static org.elasticsearch.action.synonyms.SynonymsTestUtils.randomSynonymsSet;
+import static org.elasticsearch.action.synonyms.SynonymsTestUtils.randomSynonymsSetSummary;
 
-public class GetSynonymsActionResponseSerializingTests extends AbstractWireSerializingTestCase<GetSynonymsAction.Response> {
+public class GetSynonymsSetsActionResponseSerializingTests extends AbstractWireSerializingTestCase<GetSynonymsSetsAction.Response> {
 
     @Override
-    protected Writeable.Reader<GetSynonymsAction.Response> instanceReader() {
-        return GetSynonymsAction.Response::new;
+    protected Writeable.Reader<GetSynonymsSetsAction.Response> instanceReader() {
+        return GetSynonymsSetsAction.Response::new;
     }
 
     @Override
-    protected GetSynonymsAction.Response createTestInstance() {
-        return new GetSynonymsAction.Response(new PagedResult<>(randomLongBetween(0, Long.MAX_VALUE), randomSynonymsSet()));
+    protected GetSynonymsSetsAction.Response createTestInstance() {
+        return new GetSynonymsSetsAction.Response(new PagedResult<>(randomLongBetween(0, Long.MAX_VALUE), randomSynonymsSetSummary()));
     }
 
     @Override
-    protected GetSynonymsAction.Response mutateInstance(GetSynonymsAction.Response instance) throws IOException {
+    protected GetSynonymsSetsAction.Response mutateInstance(GetSynonymsSetsAction.Response instance) throws IOException {
         return randomValueOtherThan(instance, this::createTestInstance);
     }
 }

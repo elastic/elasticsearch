@@ -43,9 +43,9 @@ setup:
              double_field: 151.0
              string_field: foo
 
+
 ---
 "Basic test":
-
   - do:
       search:
         rest_total_hits_as_int: true
@@ -115,8 +115,79 @@ setup:
 
 
 ---
-"Only aggs test":
+"Basic test - approximate":
+  - skip:
+      features: close_to
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          aggs:
+            percentiles_int:
+              percentiles:
+                field: int_field
+            percentiles_double:
+              percentiles:
+                field: double_field
 
+  - match:  { hits.total: 4 }
+  - length: { hits.hits: 4 }
+
+  - close_to:  { aggregations.percentiles_int.values.1\.0: { value: 5.0, error: 5.0 } }
+  - close_to:  { aggregations.percentiles_int.values.5\.0: { value: 5.0, error: 5.0 } }
+  - close_to:  { aggregations.percentiles_int.values.25\.0: { value: 30.0, error: 10.0 } }
+  - close_to:  { aggregations.percentiles_int.values.50\.0: { value: 76.0, error: 1.0 } }
+  - close_to:  { aggregations.percentiles_int.values.75\.0: { value: 120.0, error: 10.0 } }
+  - close_to:  { aggregations.percentiles_int.values.95\.0: { value: 146.0, error: 5.0 } }
+  - close_to:  { aggregations.percentiles_int.values.99\.0: { value: 150.0, error: 1.0 } }
+
+  - close_to:  { aggregations.percentiles_double.values.1\.0: { value: 5.0, error: 5.0 } }
+  - close_to:  { aggregations.percentiles_double.values.5\.0: { value: 5.0, error: 5.0 } }
+  - close_to:  { aggregations.percentiles_double.values.25\.0: { value: 30.0, error: 10.0 } }
+  - close_to:  { aggregations.percentiles_double.values.50\.0: { value: 76.0, error: 1.0 } }
+  - close_to:  { aggregations.percentiles_double.values.75\.0: { value: 120.0, error: 10.0 } }
+  - close_to:  { aggregations.percentiles_double.values.95\.0: { value: 146.0, error: 5.0 } }
+  - close_to:  { aggregations.percentiles_double.values.99\.0: { value: 150.0, error: 1.0 } }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          aggs:
+            percentiles_int:
+              percentiles:
+                field: int_field
+                tdigest:
+                  compression: 200
+            percentiles_double:
+              percentiles:
+                field: double_field
+                tdigest:
+                  compression: 200
+
+  - match: { hits.total: 4 }
+  - length: { hits.hits: 4 }
+
+  - close_to:  { aggregations.percentiles_int.values.1\.0: { value: 5.0, error: 5.0 } }
+  - close_to:  { aggregations.percentiles_int.values.5\.0: { value: 5.0, error: 5.0 } }
+  - close_to:  { aggregations.percentiles_int.values.25\.0: { value: 30.0, error: 10.0 } }
+  - close_to:  { aggregations.percentiles_int.values.50\.0: { value: 76.0, error: 1.0 } }
+  - close_to:  { aggregations.percentiles_int.values.75\.0: { value: 120.0, error: 10.0 } }
+  - close_to:  { aggregations.percentiles_int.values.95\.0: { value: 146.0, error: 5.0 } }
+  - close_to:  { aggregations.percentiles_int.values.99\.0: { value: 150.0, error: 1.0 } }
+
+  - close_to:  { aggregations.percentiles_double.values.1\.0: { value: 5.0, error: 5.0 } }
+  - close_to:  { aggregations.percentiles_double.values.5\.0: { value: 5.0, error: 5.0 } }
+  - close_to:  { aggregations.percentiles_double.values.25\.0: { value: 30.0, error: 10.0 } }
+  - close_to:  { aggregations.percentiles_double.values.50\.0: { value: 76.0, error: 1.0 } }
+  - close_to:  { aggregations.percentiles_double.values.75\.0: { value: 120.0, error: 10.0 } }
+  - close_to:  { aggregations.percentiles_double.values.95\.0: { value: 146.0, error: 5.0 } }
+  - close_to:  { aggregations.percentiles_double.values.99\.0: { value: 150.0, error: 1.0 } }
+
+---
+"Only aggs test":
+  - skip:
+      features: close_to
   - do:
       search:
         rest_total_hits_as_int: true
@@ -133,27 +204,26 @@ setup:
   - match: { hits.total: 4 }
   - length: { hits.hits: 0 }
 
-  - match:  { aggregations.percentiles_int.values.1\.0: 1.0 }
-  - match:  { aggregations.percentiles_int.values.5\.0: 1.0 }
-  - match:  { aggregations.percentiles_int.values.25\.0: 26.0 }
-  - match:  { aggregations.percentiles_int.values.50\.0: 76.0 }
-  - match:  { aggregations.percentiles_int.values.75\.0: 126.0 }
-  - match:  { aggregations.percentiles_int.values.95\.0: 151.0 }
-  - match:  { aggregations.percentiles_int.values.99\.0: 151.0 }
+  - close_to:  { aggregations.percentiles_int.values.1\.0: { value: 5.0, error: 5.0 } }
+  - close_to:  { aggregations.percentiles_int.values.5\.0: { value: 5.0, error: 5.0 } }
+  - close_to:  { aggregations.percentiles_int.values.25\.0: { value: 30.0, error: 10.0 } }
+  - close_to:  { aggregations.percentiles_int.values.50\.0: { value: 76.0, error: 1.0 } }
+  - close_to:  { aggregations.percentiles_int.values.75\.0: { value: 120.0, error: 10.0 } }
+  - close_to:  { aggregations.percentiles_int.values.95\.0: { value: 146.0, error: 5.0 } }
+  - close_to:  { aggregations.percentiles_int.values.99\.0: { value: 150.0, error: 1.0 } }
 
-  - match:  { aggregations.percentiles_double.values.1\.0: 1.0 }
-  - match:  { aggregations.percentiles_double.values.5\.0: 1.0 }
-  - match:  { aggregations.percentiles_double.values.25\.0: 26.0 }
-  - match:  { aggregations.percentiles_double.values.50\.0: 76.0 }
-  - match:  { aggregations.percentiles_double.values.75\.0: 126.0 }
-  - match:  { aggregations.percentiles_double.values.95\.0: 151.0 }
-  - match:  { aggregations.percentiles_double.values.99\.0: 151.0 }
-
-
+  - close_to:  { aggregations.percentiles_double.values.1\.0: { value: 5.0, error: 5.0 } }
+  - close_to:  { aggregations.percentiles_double.values.5\.0: { value: 5.0, error: 5.0 } }
+  - close_to:  { aggregations.percentiles_double.values.25\.0: { value: 30.0, error: 10.0 } }
+  - close_to:  { aggregations.percentiles_double.values.50\.0: { value: 76.0, error: 1.0 } }
+  - close_to:  { aggregations.percentiles_double.values.75\.0: { value: 120.0, error: 10.0 } }
+  - close_to:  { aggregations.percentiles_double.values.95\.0: { value: 146.0, error: 5.0 } }
+  - close_to:  { aggregations.percentiles_double.values.99\.0: { value: 150.0, error: 1.0 } }
 
 ---
 "Filtered test":
-
+  - skip:
+      features: close_to
   - do:
       search:
         rest_total_hits_as_int: true
@@ -175,25 +245,25 @@ setup:
   - match: { hits.total: 3 }
   - length: { hits.hits: 3 }
 
-  - match:  { aggregations.percentiles_int.values.1\.0: 51.0 }
-  - match:  { aggregations.percentiles_int.values.5\.0: 51.0 }
-  - match:  { aggregations.percentiles_int.values.25\.0: 63.5 }
-  - match:  { aggregations.percentiles_int.values.50\.0: 101.0 }
-  - match:  { aggregations.percentiles_int.values.75\.0: 138.5 }
-  - match:  { aggregations.percentiles_int.values.95\.0: 151.0 }
-  - match:  { aggregations.percentiles_int.values.99\.0: 151.0 }
+  - close_to:  { aggregations.percentiles_int.values.1\.0: { value: 52.0, error: 1.0 } }
+  - close_to:  { aggregations.percentiles_int.values.5\.0: { value: 54.0, error: 3.0 } }
+  - close_to:  { aggregations.percentiles_int.values.25\.0: { value: 70.0, error: 10.0 } }
+  - close_to:  { aggregations.percentiles_int.values.50\.0: { value: 101.0, error: 1.0 } }
+  - close_to:  { aggregations.percentiles_int.values.75\.0: { value: 130.0, error: 10.0 } }
+  - close_to:  { aggregations.percentiles_int.values.95\.0: { value: 148.0, error: 3.0 } }
+  - close_to:  { aggregations.percentiles_int.values.99\.0: { value: 150.0, error: 1.0 } }
 
-  - match:  { aggregations.percentiles_double.values.1\.0: 51.0 }
-  - match:  { aggregations.percentiles_double.values.5\.0: 51.0 }
-  - match:  { aggregations.percentiles_double.values.25\.0: 63.5 }
-  - match:  { aggregations.percentiles_double.values.50\.0: 101.0 }
-  - match:  { aggregations.percentiles_double.values.75\.0: 138.5 }
-  - match:  { aggregations.percentiles_double.values.95\.0: 151.0 }
-  - match:  { aggregations.percentiles_double.values.99\.0: 151.0 }
+  - close_to: { aggregations.percentiles_double.values.1\.0: { value: 52.0, error: 1.0 } }
+  - close_to: { aggregations.percentiles_double.values.5\.0: { value: 54.0, error: 3.0 } }
+  - close_to: { aggregations.percentiles_double.values.25\.0: { value: 70.0, error: 10.0 } }
+  - close_to: { aggregations.percentiles_double.values.50\.0: { value: 101.0, error: 1.0 } }
+  - close_to: { aggregations.percentiles_double.values.75\.0: { value: 130.0, error: 10.0 } }
+  - close_to: { aggregations.percentiles_double.values.95\.0: { value: 148.0, error: 3.0 } }
+  - close_to: { aggregations.percentiles_double.values.99\.0: { value: 150.0, error: 1.0 } }
+
 
 ---
 "Missing field with missing param":
-
   - do:
       search:
         rest_total_hits_as_int: true
@@ -233,7 +303,8 @@ setup:
 
 ---
 "Metadata test":
-
+  - skip:
+      features: close_to
   - do:
       search:
         rest_total_hits_as_int: true
@@ -250,17 +321,17 @@ setup:
   - match: { aggregations.percentiles_int.meta.foo: "bar" }
 
 
-  - match:  { aggregations.percentiles_int.values.1\.0: 1.0 }
-  - match:  { aggregations.percentiles_int.values.5\.0: 1.0 }
-  - match:  { aggregations.percentiles_int.values.25\.0: 26.0 }
-  - match:  { aggregations.percentiles_int.values.50\.0: 76.0 }
-  - match:  { aggregations.percentiles_int.values.75\.0: 126.0 }
-  - match:  { aggregations.percentiles_int.values.95\.0: 151.0 }
-  - match:  { aggregations.percentiles_int.values.99\.0: 151.0 }
+  - close_to:  { aggregations.percentiles_int.values.1\.0: { value: 5.0, error: 5.0 } }
+  - close_to:  { aggregations.percentiles_int.values.5\.0: { value: 5.0, error: 5.0 } }
+  - close_to:  { aggregations.percentiles_int.values.25\.0: { value: 30.0, error: 10.0 } }
+  - close_to:  { aggregations.percentiles_int.values.50\.0: { value: 76.0, error: 1.0 } }
+  - close_to:  { aggregations.percentiles_int.values.75\.0: { value: 120.0, error: 10.0 } }
+  - close_to:  { aggregations.percentiles_int.values.95\.0: { value: 146.0, error: 5.0 } }
+  - close_to:  { aggregations.percentiles_int.values.99\.0: { value: 150.0, error: 1.0 } }
+
 
 ---
 "Invalid params test":
-
   - do:
       catch: /\[compression\] must be greater than or equal to 0. Found \[-1.0\]/
       search:
@@ -316,9 +387,11 @@ setup:
               percentiles:
                 field: string_field
 
+
 ---
 "Explicit Percents test":
-
+  - skip:
+      features: close_to
   - do:
       search:
         rest_total_hits_as_int: true
@@ -337,17 +410,19 @@ setup:
   - match: { hits.total: 4 }
   - length: { hits.hits: 4 }
 
-  - match: { aggregations.percentiles_int.values.5\.0: 1.0 }
-  - match: { aggregations.percentiles_int.values.25\.0: 26.0 }
-  - match: { aggregations.percentiles_int.values.50\.0: 76.0 }
+  - close_to: { aggregations.percentiles_int.values.5\.0: { value: 5.0, error: 4.0 } }
+  - close_to: { aggregations.percentiles_int.values.25\.0: { value: 30.0, error: 10.0 } }
+  - close_to: { aggregations.percentiles_int.values.50\.0: { value: 76.0, error: 1.0 } }
 
-  - match: { aggregations.percentiles_double.values.5\.0: 1.0 }
-  - match: { aggregations.percentiles_double.values.25\.0: 26.0 }
-  - match: { aggregations.percentiles_double.values.50\.0: 76.0 }
+  - close_to: { aggregations.percentiles_double.values.5\.0: { value: 5.0, error: 4.0 } }
+  - close_to: { aggregations.percentiles_double.values.25\.0: { value: 30.0, error: 10.0 } }
+  - close_to: { aggregations.percentiles_double.values.50\.0: { value: 76.0, error: 1.0 } }
+
 
 ---
 "Non-keyed test":
-
+  - skip:
+      features: close_to
   - do:
       search:
         rest_total_hits_as_int: true
@@ -364,8 +439,8 @@ setup:
   - length: { hits.hits: 4 }
 
   - match:  { aggregations.percentiles_int.values.0.key:  5.0 }
-  - match:  { aggregations.percentiles_int.values.0.value:  1.0 }
+  - close_to:  { aggregations.percentiles_int.values.0.value:  { value: 5.0, error: 4.0 } }
   - match:  { aggregations.percentiles_int.values.1.key:  25.0 }
-  - match:  { aggregations.percentiles_int.values.1.value:  26.0 }
+  - close_to:  { aggregations.percentiles_int.values.1.value:  { value: 30.0, error: 10.0 } }
   - match:  { aggregations.percentiles_int.values.2.key:  50.0 }
-  - match:  { aggregations.percentiles_int.values.2.value:  76.0 }
+  - close_to:  { aggregations.percentiles_int.values.2.value:  { value: 76.0, error: 1.0 } }

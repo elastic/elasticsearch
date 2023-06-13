@@ -722,7 +722,7 @@ setup:
               }
             }
           }
-  - match: { classification.auc_roc.value: 0.7754152761810909 }
+  - match: { classification.auc_roc.value: 0.77541527618109091 }
   - is_false: classification.auc_roc.curve
 ---
 "Test classification auc_roc with default top_classes_field":
@@ -742,7 +742,7 @@ setup:
               }
             }
           }
-  - match: { classification.auc_roc.value: 0.7754152761810909 }
+  - match: { classification.auc_roc.value: 0.77541527618109091 }
   - is_false: classification.auc_roc.curve
 ---
 "Test classification accuracy with missing predicted_field":

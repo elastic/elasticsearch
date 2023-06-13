@@ -52,6 +52,9 @@ import org.elasticsearch.xpack.application.analytics.action.TransportPostAnalyti
 import org.elasticsearch.xpack.application.analytics.action.TransportPutAnalyticsCollectionAction;
 import org.elasticsearch.xpack.application.analytics.ingest.AnalyticsEventIngestConfig;
 import org.elasticsearch.xpack.application.rules.QueryRulesIndexService;
+import org.elasticsearch.xpack.application.rules.action.PutQueryRulesetAction;
+import org.elasticsearch.xpack.application.rules.action.RestPutQueryRulesetAction;
+import org.elasticsearch.xpack.application.rules.action.TransportPutQueryRulesetAction;
 import org.elasticsearch.xpack.application.search.SearchApplicationIndexService;
 import org.elasticsearch.xpack.application.search.action.DeleteSearchApplicationAction;
 import org.elasticsearch.xpack.application.search.action.GetSearchApplicationAction;
@@ -90,6 +93,8 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
 
     public static final String BEHAVIORAL_ANALYTICS_API_ENDPOINT = APPLICATION_API_ENDPOINT + "/analytics";
 
+    public static final String QUERY_RULES_API_ENDPOINT = "_query_rules";
+
     private static final Logger logger = LogManager.getLogger(EnterpriseSearch.class);
 
     public static final String FEATURE_NAME = "ent_search";
@@ -125,6 +130,7 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
             new ActionHandler<>(PutSearchApplicationAction.INSTANCE, TransportPutSearchApplicationAction.class),
             new ActionHandler<>(QuerySearchApplicationAction.INSTANCE, TransportQuerySearchApplicationAction.class),
             new ActionHandler<>(RenderSearchApplicationQueryAction.INSTANCE, TransportRenderSearchApplicationQueryAction.class),
+            new ActionHandler<>(PutQueryRulesetAction.INSTANCE, TransportPutQueryRulesetAction.class),
             usageAction,
             infoAction
         );
@@ -154,7 +160,8 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
             new RestGetAnalyticsCollectionAction(getLicenseState()),
             new RestDeleteAnalyticsCollectionAction(getLicenseState()),
             new RestPostAnalyticsEventAction(getLicenseState()),
-            new RestRenderSearchApplicationQueryAction(getLicenseState())
+            new RestRenderSearchApplicationQueryAction(getLicenseState()),
+            new RestPutQueryRulesetAction(getLicenseState())
         );
     }
 

@@ -110,7 +110,7 @@ public class XPackSettings {
     /** Setting for enabling or disabling query rules. Defaults to false. */
     public static final Setting<Boolean> ENTERPRISE_SEARCH_QUERY_RULES_ENABLED = Setting.boolSetting(
         "xpack.ent_search.query_rules.enabled",
-        false,
+        true,
         Setting.Property.NodeScope
     );
 

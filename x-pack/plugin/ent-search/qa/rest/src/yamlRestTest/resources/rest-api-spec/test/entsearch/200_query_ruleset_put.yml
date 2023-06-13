@@ -1,0 +1,32 @@
+
+
+---
+"Create Query Ruleset":
+  - do:
+      query_ruleset.put:
+        ruleset_id: test-ruleset
+        body:
+          ruleset_id: test-ruleset
+          rules:
+            - rule_id: query-rule-id1
+              type: pinned
+              criteria:
+                - type: exact
+                  metadata: query_string
+                  value: elastic
+              actions:
+                ids:
+                  - 'id1'
+                  - 'id2'
+            - rule_id: query-rule-id2
+              type: pinned
+              criteria:
+                - type: exact
+                  metadata: query_string
+                  value: kibana
+              actions:
+                ids:
+                  - 'id3'
+                  - 'id4'
+
+  - match: { result: "created" }

@@ -219,20 +219,20 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
 
     public void testChannelVersion() throws Exception {
         ShardSearchRequest request = createShardSearchRequest();
-        TransportVersion channelVersion = TransportVersion.CURRENT;
+        TransportVersion channelVersion = TransportVersion.current();
         assertThat(request.getChannelVersion(), equalTo(channelVersion));
         int iterations = between(0, 5);
         // New version
         for (int i = 0; i < iterations; i++) {
             TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
             if (request.isForceSyntheticSource()) {
-                version = TransportVersionUtils.randomVersionBetween(random(), TransportVersion.V_8_4_0, TransportVersion.CURRENT);
+                version = TransportVersionUtils.randomVersionBetween(random(), TransportVersion.V_8_4_0, TransportVersion.current());
             }
             if (Optional.ofNullable(request.source()).map(SearchSourceBuilder::knnSearch).map(List::size).orElse(0) > 1) {
-                version = TransportVersionUtils.randomVersionBetween(random(), TransportVersion.V_8_7_0, TransportVersion.CURRENT);
+                version = TransportVersionUtils.randomVersionBetween(random(), TransportVersion.V_8_7_0, TransportVersion.current());
             }
             if (request.source() != null && request.source().rankBuilder() != null) {
-                version = TransportVersionUtils.randomVersionBetween(random(), TransportVersion.V_8_8_0, TransportVersion.CURRENT);
+                version = TransportVersionUtils.randomVersionBetween(random(), TransportVersion.V_8_8_0, TransportVersion.current());
             }
             request = copyWriteable(request, namedWriteableRegistry, ShardSearchRequest::new, version);
             channelVersion = TransportVersion.min(channelVersion, version);

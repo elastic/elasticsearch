@@ -14,10 +14,12 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertTokenization;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.MPNetTokenization;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RobertaTokenization;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.Tokenization;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.XLMRobertaTokenization;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.inference.nlp.NlpTask;
 import org.elasticsearch.xpack.ml.inference.nlp.Vocabulary;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -385,7 +387,7 @@ public abstract class NlpTokenizer implements Releasable {
 
     public abstract InnerTokenization innerTokenize(String seq);
 
-    public static NlpTokenizer build(Vocabulary vocabulary, Tokenization params) {
+    public static NlpTokenizer build(Vocabulary vocabulary, Tokenization params) throws IOException {
         ExceptionsHelper.requireNonNull(params, TOKENIZATION);
         ExceptionsHelper.requireNonNull(vocabulary, VOCABULARY);
         if (params instanceof BertTokenization) {
@@ -399,6 +401,9 @@ public abstract class NlpTokenizer implements Releasable {
         }
         if (params instanceof RobertaTokenization robertaTokenization) {
             return RobertaTokenizer.builder(vocabulary.get(), vocabulary.merges(), robertaTokenization).build();
+        }
+        if (params instanceof XLMRobertaTokenization xlmRobertaTokenization) {
+            return XLMRobertaTokenizer.builder(vocabulary.get(), vocabulary.scores(), xlmRobertaTokenization).build();
         }
         throw new IllegalArgumentException("unknown tokenization type [" + params.getName() + "]");
     }

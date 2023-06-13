@@ -69,6 +69,26 @@ public class MedianTests extends ESTestCase {
         assertEquals(0.5, digest.cdf(37.5), 0);
     }
 
+    public void testSortingDigest() {
+        double[] data = new double[] { 7, 15, 36, 39, 40, 41 };
+        TDigest digest = new SortingDigest();
+        for (double value : data) {
+            digest.add(value);
+        }
+
+        assertEquals(37.5, digest.quantile(0.5), 0);
+    }
+
+    public void testHybridDigest() {
+        double[] data = new double[] { 7, 15, 36, 39, 40, 41 };
+        TDigest digest = new HybridDigest(100);
+        for (double value : data) {
+            digest.add(value);
+        }
+
+        assertEquals(37.5, digest.quantile(0.5), 0);
+    }
+
     public void testReferenceWikipedia() {
         double[] data = new double[] { 7, 15, 36, 39, 40, 41 };
         assertEquals(37.5, Dist.quantile(0.5, data), 0);

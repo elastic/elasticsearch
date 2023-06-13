@@ -98,6 +98,9 @@ public final class IndexModule {
 
     public static final Setting<Boolean> NODE_STORE_ALLOW_MMAP = Setting.boolSetting("node.store.allow_mmap", true, Property.NodeScope);
 
+    /**
+     * Setting to enable or disable all fsync operations on a node.
+     */
     public static final Setting<Boolean> NODE_STORE_USE_FSYNC = Setting.boolSetting("node.store.use_fsync", true, Property.NodeScope);
 
     private static final FsDirectoryFactory DEFAULT_DIRECTORY_FACTORY = new FsDirectoryFactory();

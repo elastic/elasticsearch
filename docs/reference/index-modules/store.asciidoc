@@ -146,3 +146,18 @@ Note that this setting can be dangerous on indices that are larger than the size
 of the main memory of the host, as it would cause the filesystem cache to be
 trashed upon reopens after large merges, which would make indexing and searching
 _slower_.
+
+[[disable-fsync-operations]]
+=== Disabling fsync operations
+
+NOTE: This is an expert setting, using this setting in environments that rely on
+disk persistence can lead to data corruption.
+
+By default, Elasticsearch persists writes to disk using the fsync operation.
+In environments that do not rely on the persistence of disk writes, the use of the
+fsync operation can be disabled by setting `node.store.use_fsync` to `false`.
+Disabling the fsync operation can improve the latency and throughput of indexing
+in some cases. This setting should only be used if the environment does not rely on
+the persistence of disk writes during events like power outages. An example would be
+a cluster running nodes in Docker containers that do not use persisted volumes and
+that are not reused across system restarts.

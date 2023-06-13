@@ -327,7 +327,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             );
             ActionRequestValidationException validationErrors = searchRequest.validate();
             assertNotNull(validationErrors);
-            assertEquals(1, validationErrors.validationErrors().size());
+            assertEquals(validationErrors.validationErrors().toString(), 1, validationErrors.validationErrors().size());
             assertEquals(
                 "[rank] requires a minimum of [2] result sets using a combination of queries and/or knn searches",
                 validationErrors.validationErrors().get(0)

@@ -44,7 +44,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -474,11 +473,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
     private static float[] decodeDenseVector(Version indexVersion, BytesRef encodedVector) {
         int dimCount = VectorEncoderDecoder.denseVectorLength(indexVersion, encodedVector);
         float[] vector = new float[dimCount];
-
-        ByteBuffer byteBuffer = ByteBuffer.wrap(encodedVector.bytes, encodedVector.offset, encodedVector.length);
-        for (int dim = 0; dim < dimCount; dim++) {
-            vector[dim] = byteBuffer.getFloat();
-        }
+        VectorEncoderDecoder.decodeDenseVector(indexVersion, encodedVector, vector);
         return vector;
     }
 

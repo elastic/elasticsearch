@@ -8,19 +8,13 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import com.tdunning.math.stats.Centroid;
-import com.tdunning.math.stats.TDigest;
+import org.elasticsearch.tdigest.TDigest;
 
 import java.util.List;
 
 public final class EmptyTDigestState extends TDigestState {
     public EmptyTDigestState() {
         super(1.0D);
-    }
-
-    @Override
-    public TDigest recordAllData() {
-        throw new UnsupportedOperationException("Immutable Empty TDigest");
     }
 
     @Override
@@ -34,32 +28,10 @@ public final class EmptyTDigestState extends TDigestState {
     }
 
     @Override
-    public void add(double x, int w, List<Double> data) {
-        throw new UnsupportedOperationException("Immutable Empty TDigest");
-    }
-
-    @Override
-    public void compress() {
-        throw new UnsupportedOperationException("Immutable Empty TDigest");
-    }
-
-    @Override
-    public void add(double x) {
-        throw new UnsupportedOperationException("Immutable Empty TDigest");
-    }
+    public void compress() {}
 
     @Override
     public void add(TDigest other) {
         throw new UnsupportedOperationException("Immutable Empty TDigest");
-    }
-
-    @Override
-    protected Centroid createCentroid(double mean, int id) {
-        throw new UnsupportedOperationException("Immutable Empty TDigest");
-    }
-
-    @Override
-    public boolean isRecording() {
-        return false;
     }
 }

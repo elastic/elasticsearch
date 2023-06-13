@@ -540,8 +540,8 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
                             builder.field("field", "ip");
                             builder.field("target_field", "ip-asn");
                             builder.field("database_file", "GeoLite2-ASN.mmdb");
-                            if (downloadDatabaseOnPipelineCreation) {
-                                builder.field("download_database_on_pipeline_creation", true);
+                            if (downloadDatabaseOnPipelineCreation == false || randomBoolean()) {
+                                builder.field("download_database_on_pipeline_creation", downloadDatabaseOnPipelineCreation);
                             }
                         }
                         builder.endObject();

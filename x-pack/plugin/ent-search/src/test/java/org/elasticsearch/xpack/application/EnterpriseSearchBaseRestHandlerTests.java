@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.application.search.action;
+package org.elasticsearch.xpack.application;
 
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.license.MockLicenseState;
@@ -24,7 +24,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-public class SearchApplicationRestHandlerTests extends ESTestCase {
+public class EnterpriseSearchBaseRestHandlerTests extends ESTestCase {
     public void testLicenseEnforcement() throws Exception {
         MockLicenseState licenseState = MockLicenseState.createMock();
         final boolean licensedFeature = randomBoolean();
@@ -33,7 +33,7 @@ public class SearchApplicationRestHandlerTests extends ESTestCase {
         when(licenseState.isActive()).thenReturn(licensedFeature);
 
         final AtomicBoolean consumerCalled = new AtomicBoolean(false);
-        SearchApplicationRestHandler handler = new SearchApplicationRestHandler(licenseState) {
+        EnterpriseSearchBaseRestHandler handler = new EnterpriseSearchBaseRestHandler(licenseState) {
 
             @Override
             protected RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {

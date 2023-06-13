@@ -255,9 +255,9 @@ GROUP BY gender ORDER BY gender;
 
    percentile    | percentile_rank  |    gender
 -----------------+------------------+---------------
-85906.32         |30.00000000000000 |null
-93503.28         |37.03569653103581 |F
-86754.72         |45.614035087719294|M
+86857.79999999999|32.69659025378865 |null
+94042.92000000001|37.03569653103581 |F
+87348.36         |44.337514210592246|M
 ;
 
 extendedStatsAggregateFunctionsWithScalars
@@ -348,12 +348,12 @@ SELECT languages, PERCENTILE(salary_ul, 95) AS "95th" FROM test_emp_copy GROUP B
 
    languages:bt|      95th:d
 ---------------+-----------------
-null           |74482.4
-1              |71122.8
-2              |70271.4
-3              |71926.0 
-4              |69352.15
-5              |56371.0
+null           |74999.0
+1              |72790.5
+2              |71924.70000000001
+3              |73638.25
+4              |72115.59999999999
+5              |61071.7
 ;
 
 mathPowerNegative
@@ -567,8 +567,8 @@ ORDER BY status;
 
      percentile:d    | percentile_rank:d |    status:s
 ---------------------+-------------------+---------------
-1.8618876151530934E19|0.0                |Error
-1.7923220123812004E19|26.644793296251386 |OK
+1.8836190713044468E19|0.0                |Error
+1.7957483822449326E19|26.644793296251386 |OK
 ;
 
 extendedStatsAggregateFunctionsWithScalarsLargeInput
@@ -639,8 +639,8 @@ SELECT status, PERCENTILE(bytes_in, 95) AS "95th" FROM logs_unsigned_long GROUP 
 
     status:s   |        95th:d
 ---------------+---------------------
-Error          |1.666616785254379E19
-OK             |1.8196840183187124E19
+Error          |1.8345360876889252E19
+OK             |1.8295214210102768E19
 ;
 
 mathPowerNegativeLargeInput

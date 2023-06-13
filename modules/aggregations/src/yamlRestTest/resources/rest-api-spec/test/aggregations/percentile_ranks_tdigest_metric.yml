@@ -28,37 +28,11 @@ setup:
           - '{"index": {}}'
           - '{"int": 151, "double": 151.0, "keyword": "foo"}'
 
-
 ---
 basic:
   - skip:
-      version: " - 8.8.99"
-      reason: t-digest forked in 8.9.0
-  - do:
-      search:
-        body:
-          size: 0
-          aggs:
-            percentile_ranks_int:
-              percentile_ranks:
-                field: int
-                values: [50, 99]
-            percentile_ranks_double:
-              percentile_ranks:
-                field: double
-                values: [50, 99]
-
-  - match: { hits.total.value: 4 }
-  - match: { aggregations.percentile_ranks_int.values.50\\.0: 25.0 }
-  - match: { aggregations.percentile_ranks_int.values.99\\.0: 50.0 }
-  - match: { aggregations.percentile_ranks_double.values.50\\.0: 25.0 }
-  - match: { aggregations.percentile_ranks_double.values.99\\.0: 50.0 }
-
-
----
-basic - approximate:
-  - skip:
       features: close_to
+
   - do:
       search:
         body:
@@ -74,16 +48,16 @@ basic - approximate:
                 values: [50, 99]
 
   - match: { hits.total.value: 4 }
-  - close_to: { aggregations.percentile_ranks_int.values.50\\.0: { value: 30.0, error: 10.0 } }
-  - close_to: { aggregations.percentile_ranks_int.values.99\\.0: { value: 55.0, error: 10.0 } }
-  - close_to: { aggregations.percentile_ranks_double.values.50\\.0: { value: 30.0, error: 10.0 } }
-  - close_to: { aggregations.percentile_ranks_double.values.99\\.0: { value: 55.0, error: 10.0 } }
-
+  - close_to: { aggregations.percentile_ranks_int.values.50\\.0: { value: 37.0, error: 1} }
+  - close_to: { aggregations.percentile_ranks_int.values.99\\.0: { value: 61.5, error: 1} }
+  - close_to: { aggregations.percentile_ranks_double.values.50\\.0: { value: 37.0, error: 1} }
+  - close_to: { aggregations.percentile_ranks_double.values.99\\.0: { value: 61.5, error: 1} }
 
 ---
 filtered:
   - skip:
       features: close_to
+
   - do:
       search:
         body:
@@ -106,11 +80,11 @@ filtered:
   - close_to: { aggregations.percentile_ranks_int.values.51\\.0: { value: 16.0, error: 1} }
   - close_to: { aggregations.percentile_ranks_double.values.51\\.0: { value: 16.0, error: 1} }
 
-
 ---
 missing field with missing param:
   - skip:
       features: close_to
+
   - do:
       search:
         body:

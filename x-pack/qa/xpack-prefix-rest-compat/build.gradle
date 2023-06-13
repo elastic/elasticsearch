@@ -188,9 +188,6 @@ tasks.named("yamlRestTestV7CompatTransform").configure{ task ->
 
 tasks.named("yamlRestTestV7CompatTest").configure {
   systemProperty 'tests.rest.blacklist', [
-    'ml/evaluate_data_frame/Test outlier_detection auc_roc',
-    'ml/evaluate_data_frame/Test outlier_detection auc_roc given actual_field is int',
-    'ml/evaluate_data_frame/Test outlier_detection auc_roc include curve',
     'ml/evaluate_data_frame/Test classification auc_roc',
     'ml/evaluate_data_frame/Test classification auc_roc with default top_classes_field',
   ].join(',')

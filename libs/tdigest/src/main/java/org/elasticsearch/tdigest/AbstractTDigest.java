@@ -49,6 +49,17 @@ public abstract class AbstractTDigest extends TDigest {
         return Math.max(x1, Math.min(x, x2));
     }
 
+    /**
+     * Interpolate from a given value given a low and a high reference values
+     * @param x value to interpolate from
+     * @param x0 low reference value
+     * @param x1 high reference value
+     * @return interpolated value
+     */
+    static double interpolate(double x, double x0, double x1) {
+        return (x - x0) / (x1 - x0);
+    }
+
     @Override
     public void add(TDigest other) {
         for (Centroid centroid : other.centroids()) {

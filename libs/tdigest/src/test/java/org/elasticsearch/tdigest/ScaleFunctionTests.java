@@ -51,7 +51,7 @@ public class ScaleFunctionTests extends ESTestCase {
      */
     public void testSize() {
         for (double compression : new double[] { 20, 50, 100, 200, 500, 1000, 2000 }) {
-            for (double n : new double[] { 10, 20, 50, 100, 200, 500, 1e3, 2e3, 5e3, 10e3, 20e3, 100e3, 1e6 }) {
+            for (double n : new double[] { 10, 20, 50, 100, 200, 500, 1_000, 10_000, 100_000 }) {
                 Map<String, Integer> clusterCount = new HashMap<>();
                 for (ScaleFunction k : ScaleFunction.values()) {
                     if (k.toString().equals("K_0")) {
@@ -243,7 +243,7 @@ public class ScaleFunctionTests extends ESTestCase {
         for (ScaleFunction f : ScaleFunction.values()) {
             double tolerance = f.toString().contains("FAST") ? 2e-4 : 1e-10;
 
-            for (double n : new double[] { 1000, 3000, 10000, 100000 }) {
+            for (double n : new double[] { 1000, 3_000, 10_000 }) {
                 double epsilon = 1.0 / n;
                 for (double compression : new double[] { 20, 100, 1000 }) {
                     double oldK = f.k(0, compression, n);

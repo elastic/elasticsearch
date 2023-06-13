@@ -33,6 +33,7 @@ public class MedianTests extends ESTestCase {
         }
 
         assertEquals(37.5, digest.quantile(0.5), 0);
+        assertEquals(0.5, digest.cdf(37.5), 0);
     }
 
     public void testMergingDigest() {
@@ -43,6 +44,7 @@ public class MedianTests extends ESTestCase {
         }
 
         assertEquals(37.5, digest.quantile(0.5), 0);
+        assertEquals(0.5, digest.cdf(37.5), 0);
     }
 
     public void testSortingDigest() {
@@ -53,6 +55,7 @@ public class MedianTests extends ESTestCase {
         }
 
         assertEquals(37.5, digest.quantile(0.5), 0);
+        assertEquals(0.5, digest.cdf(37.5), 0);
     }
 
     public void testHybridDigest() {
@@ -63,10 +66,12 @@ public class MedianTests extends ESTestCase {
         }
 
         assertEquals(37.5, digest.quantile(0.5), 0);
+        assertEquals(0.5, digest.cdf(37.5), 0);
     }
 
     public void testReferenceWikipedia() {
         double[] data = new double[] { 7, 15, 36, 39, 40, 41 };
         assertEquals(37.5, Dist.quantile(0.5, data), 0);
+        assertEquals(0.5, Dist.cdf(37.5, data), 0);
     }
 }

@@ -207,7 +207,7 @@ setup:
               }
             }
           }
-  - match: { outlier_detection.auc_roc.value: 0.99995 }
+  - match: { outlier_detection.auc_roc.value: 0.9919403846153846 }
   - is_false: outlier_detection.auc_roc.curve
 
 ---
@@ -227,7 +227,7 @@ setup:
               }
             }
           }
-  - match: { outlier_detection.auc_roc.value: 0.99995 }
+  - match: { outlier_detection.auc_roc.value: 0.9919403846153846 }
   - is_false: outlier_detection.auc_roc.curve
 
 ---
@@ -247,7 +247,7 @@ setup:
               }
             }
           }
-  - match: { outlier_detection.auc_roc.value: 0.99995 }
+  - match: { outlier_detection.auc_roc.value: 0.9919403846153846 }
   - is_true: outlier_detection.auc_roc.curve
 
 ---
@@ -703,7 +703,6 @@ setup:
               }
             }
           }
-
 ---
 "Test classification auc_roc":
   - do:
@@ -723,9 +722,8 @@ setup:
               }
             }
           }
-  - match: { classification.auc_roc.value: 0.8612749970197677 }
+  - match: { classification.auc_roc.value: 0.77541527618109091 }
   - is_false: classification.auc_roc.curve
-
 ---
 "Test classification auc_roc with default top_classes_field":
   - do:
@@ -744,9 +742,8 @@ setup:
               }
             }
           }
-  - match: { classification.auc_roc.value: 0.8612749970197677 }
+  - match: { classification.auc_roc.value: 0.77541527618109091 }
   - is_false: classification.auc_roc.curve
-
 ---
 "Test classification accuracy with missing predicted_field":
   - do:

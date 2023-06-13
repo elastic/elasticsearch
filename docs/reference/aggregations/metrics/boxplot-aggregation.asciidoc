@@ -55,9 +55,9 @@ The response will look like this:
     "load_time_boxplot": {
       "min": 0.0,
       "max": 990.0,
-      "q1": 167.5,
+      "q1": 165.0,
       "q2": 445.0,
-      "q3": 722.5,
+      "q3": 725.0,
       "lower": 0.0,
       "upper": 990.0
     }

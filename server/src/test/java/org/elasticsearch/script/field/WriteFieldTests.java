@@ -79,6 +79,19 @@ public class WriteFieldTests extends ESTestCase {
         assertEquals(1, new WriteField("a.b.c", () -> root).get(null));
     }
 
+    public void testResolvePrecedence() {
+        Map<String, Object> root = new HashMap<>(
+            Map.of("a", new HashMap<>(Map.of("b", Map.of("c", 1), "b.c", 2)), "a.b.c", 3, "a.b", Map.of("c", 4))
+        );
+        assertEquals(1, new WriteField("a.b.c", () -> root).get(null));
+        ((Map<?, ?>) root.get("a")).remove("b");
+        assertEquals(2, new WriteField("a.b.c", () -> root).get(null));
+        root.remove("a");
+        assertEquals(3, new WriteField("a.b.c", () -> root).get(null));
+        root.remove("a.b.c");
+        assertEquals(4, new WriteField("a.b.c", () -> root).get(null));
+    }
+
     public void testExists() {
         Map<String, Object> a = new HashMap<>();
         a.put("b.c", null);

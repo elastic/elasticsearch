@@ -816,6 +816,7 @@ public class WriteField implements Field<Object> {
      *  I)   ['a']['b']['c'] if 'a' is a Map at the root and 'b' is a Map in 'a', 'c' need not exist in 'b'.
      *  II)  ['a']['b.c'] if 'a' is a Map at the root and 'b' does not exist in 'a's Map but 'b.c' does.
      *  III) ['a.b.c'] if 'a' doesn't exist at the root but 'a.b.c' does.
+     *  IV)  ['a.b']['c'] if 'a' doesn't exist at the root but 'a.b' exists as a Map, 'c' need not exist in 'a.b'.
      *
      * {@link #container} and {@link #leaf} and non-null if resolved.
      */

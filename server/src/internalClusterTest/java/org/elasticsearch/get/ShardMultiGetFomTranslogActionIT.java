@@ -34,7 +34,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
 public class ShardMultiGetFomTranslogActionIT extends ESIntegTestCase {
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/96749")
     public void testShardMultiGetFromTranslog() throws Exception {
         assertAcked(
             prepareCreate("test").setSettings(
@@ -93,19 +92,22 @@ public class ShardMultiGetFomTranslogActionIT extends ESIntegTestCase {
         }
         assertThat(response.segmentGeneration(), equalTo(-1L));
         // Get followed by a Delete should still return a result
-        client().prepareDelete("test", "1").get();
-        response = getFromTranslog(indexOrAlias(), List.of("1", "2"));
+        var idToDelete = randomFrom(idsToIndex);
+        client().prepareDelete("test", idToDelete).get();
+        response = getFromTranslog(indexOrAlias(), idsToIndex);
         multiGetShardResponse = response.multiGetShardResponse();
         assertThat(getLocations(multiGetShardResponse).size(), equalTo(2));
         assertTrue(getFailures(multiGetShardResponse).stream().allMatch(Objects::isNull));
         getResponses = getResponses(multiGetShardResponse);
         assertThat(getResponses.size(), equalTo(2));
-        assertNotNull("get followed by a delete should still return a result", getResponses.get(0));
-        assertThat(getResponses.get(0).getId(), equalTo("1"));
-        assertThat(getResponses.get(0).isExists(), equalTo(false));
-        assertNotNull(getResponses.get(1));
-        assertThat(getResponses.get(1).getId(), equalTo("2"));
-        assertThat(getResponses.get(1).isExists(), equalTo(true));
+        var getResponseForDeletedId = getResponses.stream().filter(r -> r.getId().equals(idToDelete)).toList().get(0);
+        var getResponseForExistingId = getResponses.stream().filter(r -> r.getId().equals(idToDelete) == false).toList().get(0);
+        assertNotNull("get followed by a delete should still return a result", getResponseForDeletedId);
+        assertThat(getResponseForDeletedId.getId(), equalTo(idToDelete));
+        assertThat(getResponseForDeletedId.isExists(), equalTo(false));
+        assertNotNull(getResponseForExistingId);
+        assertTrue(idsToIndex.contains(getResponseForExistingId.getId()));
+        assertThat(getResponseForExistingId.isExists(), equalTo(true));
         assertThat(response.segmentGeneration(), equalTo(-1L));
 
         indexResponse = client().prepareIndex("test").setSource("field1", "value2").get();

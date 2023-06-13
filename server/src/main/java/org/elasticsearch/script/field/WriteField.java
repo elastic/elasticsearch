@@ -277,6 +277,7 @@ public class WriteField implements Field<Object> {
         return append(value, true);
     }
 
+    @SuppressWarnings("unchecked")
     public WriteField append(Object value, boolean allowDuplicates) {
         setLeaf();
 

@@ -20,10 +20,13 @@ so you can move it to less expensive, less performant hardware.
 For your oldest data, what matters is that you have access to the data. 
 It's ok if queries take longer to complete.
 
-To help you manage your data, {es} offers you <<index-lifecycle-management, {ilm}>> ({ilm-init}) and
-<<data-lifecycle-management, {dlm}>> ({dlm-init}).
+To help you manage your data, {es} offers you:
 
-preview::["DLM is in technical preview and may be changed or removed in a future release. Elastic will apply best effort to fix any issues, but DLM is not subject to the support SLA of official GA features."]
+* <<index-lifecycle-management, {ilm-cap}>> ({ilm-init}) to manage both indices and data streams and it is fully customisable, and
+* <<data-stream-lifecycle, Data stream lifecycle>> which is the built-in lifecycle of data streams and addresses the most
+common lifecycle management needs.
+
+preview::["The built-in data stream lifecycle is in technical preview and may be changed or removed in a future release. Elastic will apply best effort to fix any issues, but this feature is not subject to the support SLA of official GA features."]
 
 {ilm-init} can be used to manage both indices and data streams and it allows you to:
 
@@ -36,15 +39,14 @@ with <<index-lifecycle-management, {ilm-init}>>.
 for your older indices while reducing operating costs and maintaining search performance.  
 * Perform <<async-search-intro, asynchronous searches>> of data stored on less-performant hardware.
 
-{dlm-init} can be used to manage data streams only, it is less feature rich but is focused on simplicity, so it allows
-you to easily:
+Data stream lifecycle is less feature rich but is focused on simplicity, so it allows you to easily:
 
 * Define the retention period of your data. The retention period is the minimum time your data will be stored in {es}.
 Data older than this period can be deleted by {es} at a later time.
+
+Furthermore, it performs background operations that improve the performance of your data stream.
 --
 
 include::ilm/index.asciidoc[]
 
 include::datatiers.asciidoc[]
-
-include::dlm/index.asciidoc[]

@@ -28,7 +28,7 @@ public class ApiKeyWorkflowsRestrictionRestIT extends SecurityOnTrialLicenseRest
 
     private static final String MANAGE_API_KEY_USER = "manage_api_key_user";
     private static final SecureString PASSWORD = new SecureString("super-secret-password".toCharArray());
-    public static final String MANAGE_API_KEY_ROLE = "manage_api_key_role";
+    private static final String MANAGE_API_KEY_ROLE = "manage_api_key_role";
 
     @Before
     public void setup() throws IOException {

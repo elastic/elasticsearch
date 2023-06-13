@@ -9,7 +9,7 @@
         "refresh_interval": "10s",
         "sort": {
           "field": [
-            "service.name",
+            "profiling.project.id",
             "@timestamp",
             "orchestrator.resource.name",
             "container.name",
@@ -29,7 +29,7 @@
           "type": "keyword",
           "index": true
         },
-        "service.name": {
+        "profiling.project.id": {
           "type": "keyword"
         },
         "@timestamp": {

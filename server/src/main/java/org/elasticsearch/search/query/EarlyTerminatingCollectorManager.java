@@ -18,8 +18,6 @@ import java.util.Collection;
 /**
  * Collector manager that allows to early terminate any collection. Relies on {@link EarlyTerminatingCollector}s that safely
  * share the number of collected hits through the wrapped {@link Collector}s.
- *
- * @param <C> The type of collector for which the collection has to be early terminated.
  */
 class EarlyTerminatingCollectorManager implements CollectorManager<EarlyTerminatingCollector, Void> {
     private final CollectorManager<? extends Collector, Void> innerCollectorManager;

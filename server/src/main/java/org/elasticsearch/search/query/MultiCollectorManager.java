@@ -17,9 +17,8 @@ import java.util.Collection;
 public class MultiCollectorManager implements CollectorManager<Collector, Void> {
     private final org.apache.lucene.search.MultiCollectorManager multiCollectorManager;
 
-    @SafeVarargs
-    public MultiCollectorManager(final CollectorManager<? extends Collector, ?>... collectorManagers) {
-        this.multiCollectorManager = new org.apache.lucene.search.MultiCollectorManager(collectorManagers);
+    public MultiCollectorManager(final CollectorManager<? extends Collector, ?> collectorManager1, final CollectorManager<? extends Collector, ?> collectorManager2) {
+        this.multiCollectorManager = new org.apache.lucene.search.MultiCollectorManager(collectorManager1, collectorManager2);
     }
 
     @Override

@@ -277,7 +277,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         numberOfShards = in.readVInt();
         scroll = in.readOptionalWriteable(Scroll::new);
         source = in.readOptionalWriteable(SearchSourceBuilder::new);
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0) && in.getTransportVersion().before(TransportVersion.V_8_500_004)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0) && in.getTransportVersion().before(TransportVersion.V_8_500_999)) {
             List<QueryBuilder> rankQueryBuilders = in.readNamedWriteableList(QueryBuilder.class);
             for (QueryBuilder queryBuilder : rankQueryBuilders) {
                 source.queries().add(new SubSearchSourceBuilder(queryBuilder));
@@ -353,7 +353,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         }
         out.writeOptionalWriteable(scroll);
         out.writeOptionalWriteable(source);
-        if (out.getTransportVersion().before(TransportVersion.V_8_500_004)) {
+        if (out.getTransportVersion().before(TransportVersion.V_8_500_999)) {
             if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
                 List<QueryBuilder> rankQueryBuilders = new ArrayList<>();
                 if (source != null) {

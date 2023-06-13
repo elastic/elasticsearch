@@ -7,14 +7,28 @@
 
 package org.elasticsearch.xpack.core.rollup.action;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.List;
 
 public class RollupShardStatusSerializingTests extends AbstractXContentSerializingTestCase<RollupShardStatus> {
+
+    @Override
+    protected NamedWriteableRegistry getNamedWriteableRegistry() {
+        return new NamedWriteableRegistry(
+            List.of(
+                new NamedWriteableRegistry.Entry(RollupBeforeBulkInfo.class, RollupBeforeBulkInfo.NAME, RollupBeforeBulkInfo::new),
+                new NamedWriteableRegistry.Entry(RollupAfterBulkInfo.class, RollupAfterBulkInfo.NAME, RollupAfterBulkInfo::new)
+            )
+        );
+    }
+
     @Override
     protected RollupShardStatus doParseInstance(XContentParser parser) throws IOException {
         return RollupShardStatus.fromXContent(parser);
@@ -33,9 +47,40 @@ public class RollupShardStatusSerializingTests extends AbstractXContentSerializi
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
-            randomNonNegativeLong()
+            randomNonNegativeLong(),
+            randomLongBetween(1_000_000, 2_000_000),
+            randomLongBetween(500_000, 800_000),
+            System.currentTimeMillis(),
+            System.currentTimeMillis(),
+            System.currentTimeMillis(),
+            createTestBeforeBulkInfoInstance(),
+            createTestAfterBulkInfoInstance()
         );
         return rollupShardStatus;
+    }
+
+    private RollupBeforeBulkInfo createTestBeforeBulkInfoInstance() {
+        return new RollupBeforeBulkInfo(
+            System.currentTimeMillis(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomIntBetween(1, 10)
+        );
+    }
+
+    private RollupAfterBulkInfo createTestAfterBulkInfoInstance() {
+        int randomRestStatusCode = randomBoolean() ? RestStatus.OK.getStatus()
+            : randomBoolean() ? RestStatus.INTERNAL_SERVER_ERROR.getStatus()
+            : RestStatus.BAD_REQUEST.getStatus();
+        return new RollupAfterBulkInfo(
+            System.currentTimeMillis(),
+            randomLongBetween(1_000, 5_000),
+            randomNonNegativeLong(),
+            randomLongBetween(1_000, 5_000),
+            randomLongBetween(1_000, 5_000),
+            randomBoolean(),
+            randomRestStatusCode
+        );
     }
 
     @Override

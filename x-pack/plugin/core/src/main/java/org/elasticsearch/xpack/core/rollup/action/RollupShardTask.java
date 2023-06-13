@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.core.rollup.RollupField;
 
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class RollupShardTask extends CancellableTask {
     private final String rollupIndex;
@@ -27,6 +28,11 @@ public class RollupShardTask extends CancellableTask {
     private final AtomicLong numSent = new AtomicLong(0);
     private final AtomicLong numIndexed = new AtomicLong(0);
     private final AtomicLong numFailed = new AtomicLong(0);
+    private final AtomicLong lastSourceTimestamp = new AtomicLong(0);
+    private final AtomicLong lastTargetTimestamp = new AtomicLong(0);
+    private final AtomicLong lastIndexingTimestamp = new AtomicLong(0);
+    private final AtomicReference<RollupBeforeBulkInfo> lastBeforeBulkInfo = new AtomicReference<>(null);
+    private final AtomicReference<RollupAfterBulkInfo> lastAfterBulkInfo = new AtomicReference<>(null);
 
     public RollupShardTask(
         long id,
@@ -67,7 +73,21 @@ public class RollupShardTask extends CancellableTask {
 
     @Override
     public Status getStatus() {
-        return new RollupShardStatus(shardId, rollupStartTime, numReceived.get(), numSent.get(), numIndexed.get(), numFailed.get());
+        return new RollupShardStatus(
+            shardId,
+            rollupStartTime,
+            numReceived.get(),
+            numSent.get(),
+            numIndexed.get(),
+            numFailed.get(),
+            totalDocCount,
+            totalShardDocCount,
+            lastSourceTimestamp.get(),
+            lastTargetTimestamp.get(),
+            lastIndexingTimestamp.get(),
+            lastBeforeBulkInfo.get(),
+            lastAfterBulkInfo.get()
+        );
     }
 
     public long getNumReceived() {
@@ -86,6 +106,22 @@ public class RollupShardTask extends CancellableTask {
         return numFailed.get();
     }
 
+    public long getLastSourceTimestamp() {
+        return lastSourceTimestamp.get();
+    }
+
+    public long getLastTargetTimestamp() {
+        return lastTargetTimestamp.get();
+    }
+
+    public RollupBeforeBulkInfo getLastBeforeBulkInfo() {
+        return lastBeforeBulkInfo.get();
+    }
+
+    public RollupAfterBulkInfo getLastAfterBulkInfo() {
+        return lastAfterBulkInfo.get();
+    }
+
     public void addNumReceived(long count) {
         numReceived.addAndGet(count);
     }
@@ -100,5 +136,25 @@ public class RollupShardTask extends CancellableTask {
 
     public void addNumFailed(long count) {
         numFailed.addAndGet(count);
+    }
+
+    public void setLastSourceTimestamp(long timestamp) {
+        lastSourceTimestamp.set(timestamp);
+    }
+
+    public void setLastTargetTimestamp(long timestamp) {
+        lastTargetTimestamp.set(timestamp);
+    }
+
+    public void setLastIndexingTimestamp(long timestamp) {
+        lastIndexingTimestamp.set(timestamp);
+    }
+
+    public void setBeforeBulkInfo(final RollupBeforeBulkInfo beforeBulkInfo) {
+        lastBeforeBulkInfo.set(beforeBulkInfo);
+    }
+
+    public void setAfterBulkInfo(final RollupAfterBulkInfo afterBulkInfo) {
+        lastAfterBulkInfo.set(afterBulkInfo);
     }
 }

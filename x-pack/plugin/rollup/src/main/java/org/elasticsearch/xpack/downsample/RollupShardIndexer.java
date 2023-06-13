@@ -17,6 +17,7 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkProcessor2;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Rounding;
@@ -47,6 +48,8 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.downsample.DownsampleConfig;
 import org.elasticsearch.xpack.core.downsample.DownsampleIndexerAction;
+import org.elasticsearch.xpack.core.rollup.action.RollupAfterBulkInfo;
+import org.elasticsearch.xpack.core.rollup.action.RollupBeforeBulkInfo;
 import org.elasticsearch.xpack.core.rollup.action.RollupShardTask;
 
 import java.io.Closeable;
@@ -192,14 +195,37 @@ class RollupShardIndexer {
 
     private BulkProcessor2 createBulkProcessor() {
         final BulkProcessor2.Listener listener = new BulkProcessor2.Listener() {
+            private long bulkStartTime;
+
             @Override
             public void beforeBulk(long executionId, BulkRequest request) {
                 task.addNumSent(request.numberOfActions());
+                task.setBeforeBulkInfo(
+                    new RollupBeforeBulkInfo(
+                        System.currentTimeMillis(),
+                        executionId,
+                        request.estimatedSizeInBytes(),
+                        request.numberOfActions()
+                    )
+                );
+                bulkStartTime = System.currentTimeMillis();
             }
 
             @Override
             public void afterBulk(long executionId, BulkRequest request, BulkResponse response) {
+                long bulkDurationInMillis = bulkStartTime - System.currentTimeMillis();
                 task.addNumIndexed(request.numberOfActions());
+                task.setAfterBulkInfo(
+                    new RollupAfterBulkInfo(
+                        System.currentTimeMillis(),
+                        executionId,
+                        bulkDurationInMillis,
+                        response.getIngestTookInMillis(),
+                        response.getTook().getMillis(),
+                        response.hasFailures(),
+                        response.status().getStatus()
+                    )
+                );
                 if (response.hasFailures()) {
                     List<BulkItemResponse> failedItems = Arrays.stream(response.getItems()).filter(BulkItemResponse::isFailed).toList();
                     task.addNumFailed(failedItems.size());
@@ -283,6 +309,8 @@ class RollupShardIndexer {
                             searchExecutionContext.getIndexSettings().getTimestampBounds().startTime()
                         );
                     }
+                    task.setLastSourceTimestamp(timestamp);
+                    task.setLastTargetTimestamp(lastHistoTimestamp);
 
                     if (logger.isTraceEnabled()) {
                         logger.trace(
@@ -349,7 +377,9 @@ class RollupShardIndexer {
             if (logger.isTraceEnabled()) {
                 logger.trace("Indexing rollup doc: [{}]", Strings.toString(doc));
             }
-            bulkProcessor.addWithBackpressure(request.request(), () -> abort);
+            IndexRequest indexRequest = request.request();
+            task.setLastIndexingTimestamp(System.currentTimeMillis());
+            bulkProcessor.addWithBackpressure(indexRequest, () -> abort);
         }
 
         @Override

@@ -139,7 +139,7 @@ public record TransportVersion(int id) implements Comparable<TransportVersion> {
      * Reference to the most recent transport version.
      * This should be the transport version with the highest id.
      */
-    public static final TransportVersion CURRENT = findCurrent(V_8_500_009);
+    public static final TransportVersion CURRENT = findCurrent(V_8_500_011);
 
     /**
      * Reference to the earliest compatible transport version to this version of the codebase.

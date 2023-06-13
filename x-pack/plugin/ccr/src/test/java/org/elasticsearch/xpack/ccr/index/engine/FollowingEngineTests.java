@@ -271,7 +271,7 @@ public class FollowingEngineTests extends ESTestCase {
         store.associateIndexWithNewTranslog(translogUuid);
         FollowingEngine followingEngine = new FollowingEngine(config);
         TranslogHandler translogHandler = new TranslogHandler(xContentRegistry(), config.getIndexSettings());
-        followingEngine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);
+        EngineTestCase.recoverFromTranslog(followingEngine, translogHandler, Long.MAX_VALUE);
         return followingEngine;
     }
 
@@ -521,7 +521,7 @@ public class FollowingEngineTests extends ESTestCase {
                 }
             };
             TranslogHandler translogHandler = new TranslogHandler(xContentRegistry(), followerConfig.getIndexSettings());
-            followingEngine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);
+            EngineTestCase.recoverFromTranslog(followingEngine, translogHandler, Long.MAX_VALUE);
             try (followingEngine) {
                 final long leaderMaxSeqNoOfUpdatesOnPrimary = 3;
                 followingEngine.advanceMaxSeqNoOfUpdatesOrDeletes(leaderMaxSeqNoOfUpdatesOnPrimary);

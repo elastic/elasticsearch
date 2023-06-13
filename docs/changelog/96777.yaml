@@ -1,0 +1,7 @@
+pr: 96777
+summary: Fixing `GeoIpDownloaderStatsAction$NodeResponse` serialization by defensively
+  copying inputs
+area: Ingest Node
+type: bug
+issues:
+ - 96438

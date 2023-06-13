@@ -4249,13 +4249,10 @@ public class IndexShardTests extends IndexShardTestCase {
                 long recoverUpToSeqNo,
                 ActionListener<Void> listener
             ) {
-                super.recoverFromTranslog(translogRecoveryRunner, recoverUpToSeqNo, listener);
-                readyToSnapshotLatch.countDown();
-                try {
-                    snapshotDoneLatch.await();
-                } catch (InterruptedException e) {
-                    throw new AssertionError(e);
-                }
+                super.recoverFromTranslog(translogRecoveryRunner, recoverUpToSeqNo, ActionListener.runAfter(listener, () -> {
+                    readyToSnapshotLatch.countDown();
+                    safeAwait(snapshotDoneLatch);
+                }));
             }
         });
 

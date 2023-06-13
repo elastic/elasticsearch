@@ -18,6 +18,7 @@ import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
@@ -92,6 +93,7 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Date;
 import java.util.HashMap;
@@ -584,6 +586,12 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         IndexService indexService = indexServices.indexServiceSafe(srcIndex);
         int shardNum = randomIntBetween(0, numOfShards - 1);
         IndexShard shard = indexService.getShard(shardNum);
+
+        long totalDocCount = client().admin().indices().stats(new IndicesStatsRequest().indices(sourceIndex)).actionGet().getTotal().docs
+            .getCount();
+        long totalShardDocCount = Arrays.stream(
+            client().admin().indices().stats(new IndicesStatsRequest().indices(sourceIndex)).actionGet().getShards()
+        ).filter(shardStats -> shardStats.getShardRouting().shardId().equals(shard.shardId())).toList().get(0).getStats().docs.getCount();
         RollupShardTask task = new RollupShardTask(
             randomLong(),
             "rollup",
@@ -592,7 +600,9 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             rollupIndex,
             config,
             emptyMap(),
-            shard.shardId()
+            shard.shardId(),
+            totalDocCount,
+            totalShardDocCount
         );
         TaskCancelHelper.cancel(task, "test cancel");
 
@@ -655,6 +665,11 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         IndexService indexService = indexServices.indexServiceSafe(srcIndex);
         int shardNum = randomIntBetween(0, numOfShards - 1);
         IndexShard shard = indexService.getShard(shardNum);
+        long totalDocCount = client().admin().indices().stats(new IndicesStatsRequest().indices(sourceIndex)).actionGet().getTotal().docs
+            .getCount();
+        long totalShardDocCount = Arrays.stream(
+            client().admin().indices().stats(new IndicesStatsRequest().indices(sourceIndex)).actionGet().getShards()
+        ).filter(shardStats -> shardStats.getShardRouting().shardId().equals(shard.shardId())).toList().get(0).getStats().docs.getCount();
         RollupShardTask task = new RollupShardTask(
             randomLong(),
             "rollup",
@@ -663,7 +678,9 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             rollupIndex,
             config,
             emptyMap(),
-            shard.shardId()
+            shard.shardId(),
+            totalDocCount,
+            totalShardDocCount
         );
 
         // re-use source index as temp index for test

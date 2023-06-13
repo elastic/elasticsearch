@@ -18,6 +18,8 @@ import java.util.concurrent.atomic.AtomicLong;
 
 public class RollupShardTask extends CancellableTask {
     private final String rollupIndex;
+    private final long totalDocCount;
+    private final long totalShardDocCount;
     private final DownsampleConfig config;
     private final ShardId shardId;
     private final long rollupStartTime;
@@ -34,13 +36,17 @@ public class RollupShardTask extends CancellableTask {
         String rollupIndex,
         DownsampleConfig config,
         Map<String, String> headers,
-        ShardId shardId
+        ShardId shardId,
+        long totalDocCount,
+        long totalShardDocCount
     ) {
         super(id, type, action, RollupField.NAME + "_" + rollupIndex + "[" + shardId.id() + "]", parentTask, headers);
         this.rollupIndex = rollupIndex;
         this.config = config;
         this.shardId = shardId;
         this.rollupStartTime = System.currentTimeMillis();
+        this.totalDocCount = totalDocCount;
+        this.totalShardDocCount = totalShardDocCount;
     }
 
     public String getRollupIndex() {
@@ -49,6 +55,14 @@ public class RollupShardTask extends CancellableTask {
 
     public DownsampleConfig config() {
         return config;
+    }
+
+    public long getTotalDocCount() {
+        return totalDocCount;
+    }
+
+    public long getTotalShardDocCount() {
+        return totalShardDocCount;
     }
 
     @Override

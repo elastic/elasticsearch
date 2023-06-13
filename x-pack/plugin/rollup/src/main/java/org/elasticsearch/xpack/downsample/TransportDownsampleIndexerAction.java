@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.downsample;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.NoShardAvailableActionException;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.broadcast.TransportBroadcastAction;
 import org.elasticsearch.client.internal.Client;
@@ -126,7 +127,19 @@ public class TransportDownsampleIndexerAction extends TransportBroadcastAction<
         ShardRouting shard,
         DownsampleIndexerAction.Request request
     ) {
-        return new DownsampleIndexerAction.ShardDownsampleRequest(shard.shardId(), request);
+        long totalDocCount = client.admin()
+            .indices()
+            .stats(new IndicesStatsRequest().indices(request.getDownsampleRequest().getSourceIndex()))
+            .actionGet()
+            .getTotal().docs.getCount();
+        long totalShardDocCount = Arrays.stream(
+            client.admin()
+                .indices()
+                .stats(new IndicesStatsRequest().indices(request.getDownsampleRequest().getSourceIndex()))
+                .actionGet()
+                .getShards()
+        ).filter(shardStats -> shardStats.getShardRouting().shardId().equals(shard.shardId())).toList().get(0).getStats().docs.getCount();
+        return new DownsampleIndexerAction.ShardDownsampleRequest(shard.shardId(), totalDocCount, totalShardDocCount, request);
     }
 
     @Override

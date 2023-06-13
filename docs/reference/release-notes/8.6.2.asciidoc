@@ -9,6 +9,8 @@ Also see <<breaking-changes-8.6,Breaking changes in 8.6>>.
 
 include::8.6.0.asciidoc[tag=reconciliation-imbalance-known-issue]
 
+include::8.4.0.asciidoc[ingest-processor-log4j-cluster-instability-known-issue]
+
 [[bug-8.6.2]]
 [float]
 === Bug fixes

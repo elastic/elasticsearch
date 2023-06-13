@@ -30,6 +30,16 @@ affected node.
 
 include::8.0.0.asciidoc[tag=jackson-filtering-bug]
 
+// tag::ingest-processor-log4j-cluster-instability-known-issue[]
+* When the {ref}/attachment.html[ingest attachment processor] is used, the
+interaction of https://tika.apache.org/[Tika] with log4j 2.18.0 (introduced
+in 8.4.0) and higher results in excessive logging. This logging is so
+excessive that it can lead to cluster instability, to the point where the
+is unusable and all nodes must be restarted. (issue: {es-issue}93878[#93878])
++
+To resolve the issue, upgrade to 8.7.0 or higher.
+// end::ingest-processor-log4j-cluster-instability-known-issue[]
+
 [[bug-8.4.0]]
 [float]
 === Bug fixes

@@ -205,12 +205,12 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
                 new ActionListenerResponseHandler<>(listener.delegateFailure((l, r) -> {
                     var missingLocations = locationsWithMissingResults(r);
                     if (missingLocations.isEmpty()) {
-                        logger.info("--> received result of all ids in real-time mget[shard] from the promotable shard.");
+                        logger.debug("received result of all ids in real-time mget[shard] from the promotable shard.");
                         l.onResponse(r.multiGetShardResponse());
                     } else {
-                        logger.info(
+                        logger.debug(
                             () -> format(
-                                "--> no result for ids '%s' from the promotable shard (segment generation to wait for: %s)",
+                                "no result for ids '%s' from the promotable shard (segment generation to wait for: %s)",
                                 missingLocations.stream().map(i -> request.items.get(i).id()).toList(),
                                 r.segmentGeneration()
                             )
@@ -260,7 +260,7 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
         MultiGetShardResponse response,
         ShardId shardId
     ) {
-        logger.info("--> handling local gets for ids: {}", missingLocations);
+        logger.trace("handling local gets for locations: {}", missingLocations);
         var indexShard = getIndexShard(shardId);
         for (var l : missingLocations) {
             MultiGetRequest.Item item = request.items.get(l);
@@ -275,7 +275,6 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
                         item.fetchSourceContext(),
                         request.isForceSyntheticSource()
                     );
-                logger.info("--> local get for id {} returned {}", item.id(), getResult);
                 response.add(request.locations.get(l), new GetResponse(getResult));
             } catch (RuntimeException e) {
                 if (TransportActions.isShardNotAvailableException(e)) {

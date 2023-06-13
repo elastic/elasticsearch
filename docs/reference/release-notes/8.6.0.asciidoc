@@ -11,7 +11,7 @@ include::8.4.0.asciidoc[tag=file-based-settings-deadlock-known-issue]
 
 include::8.0.0.asciidoc[tag=jackson-filtering-bug]
 
-include::8.4.0.asciidoc[ingest-processor-log4j-cluster-instability-known-issue]
+include::8.4.0.asciidoc[tag=ingest-processor-log4j-cluster-instability-known-issue]
 
 // tag::reconciliation-imbalance-known-issue[]
 * Shard rebalancing may temporarily unbalance cluster

@@ -16,10 +16,6 @@ public class EmptyTDigestStateTests extends ESTestCase {
 
     private static final TDigestState singleton = new EmptyTDigestState();
 
-    public void testRecordAllData() {
-        expectThrows(UnsupportedOperationException.class, singleton::recordAllData);
-    }
-
     public void testAddValue() {
         expectThrows(UnsupportedOperationException.class, () -> singleton.add(randomDouble()));
     }
@@ -32,22 +28,11 @@ public class EmptyTDigestStateTests extends ESTestCase {
         expectThrows(UnsupportedOperationException.class, () -> singleton.add(randomDouble(), randomInt(10)));
     }
 
-    public void testCompress() {
-        expectThrows(UnsupportedOperationException.class, singleton::compress);
-    }
-
     public void testTestAddList() {
-        expectThrows(
-            UnsupportedOperationException.class,
-            () -> singleton.add(randomDouble(), randomInt(10), List.of(randomDouble(), randomDouble()))
-        );
+        expectThrows(UnsupportedOperationException.class, () -> singleton.add(randomDouble(), randomInt(10)));
     }
 
     public void testTestAddListTDigest() {
         expectThrows(UnsupportedOperationException.class, () -> singleton.add(List.of(new EmptyTDigestState(), new EmptyTDigestState())));
-    }
-
-    public void testIsRecording() {
-        assertFalse(singleton.isRecording());
     }
 }

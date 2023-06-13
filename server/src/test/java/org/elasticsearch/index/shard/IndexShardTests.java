@@ -3740,7 +3740,9 @@ public class IndexShardTests extends IndexShardTestCase {
         recoverShardFromStore(primary);
         indexDoc(primary, "_doc", "0", "{\"foo\" : \"bar\"}");
         assertTrue(primary.getEngine().refreshNeeded());
-        assertTrue(primary.scheduledRefresh());
+        PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
+        primary.scheduledRefresh(future);
+        assertTrue(future.actionGet());
         assertFalse(primary.isSearchIdle());
 
         IndexScopedSettings scopedSettings = primary.indexSettings().getScopedSettings();
@@ -3787,7 +3789,9 @@ public class IndexShardTests extends IndexShardTestCase {
         recoverShardFromStore(primary);
         indexDoc(primary, "_doc", "0", "{\"foo\" : \"bar\"}");
         assertTrue(primary.getEngine().refreshNeeded());
-        assertTrue(primary.scheduledRefresh());
+        PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
+        primary.scheduledRefresh(future);
+        assertTrue(future.actionGet());
         IndexScopedSettings scopedSettings = primary.indexSettings().getScopedSettings();
         settings = Settings.builder().put(settings).put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), TimeValue.ZERO).build();
         scopedSettings.applySettings(settings);
@@ -3796,7 +3800,9 @@ public class IndexShardTests extends IndexShardTestCase {
         indexDoc(primary, "_doc", "1", "{\"foo\" : \"bar\"}");
         assertTrue(primary.getEngine().refreshNeeded());
         long lastSearchAccess = primary.getLastSearcherAccess();
-        assertFalse(primary.scheduledRefresh());
+        PlainActionFuture<Boolean> future2 = PlainActionFuture.newFuture();
+        primary.scheduledRefresh(future2);
+        assertFalse(future2.actionGet());
         assertEquals(lastSearchAccess, primary.getLastSearcherAccess());
         // wait until the thread-pool has moved the timestamp otherwise we can't assert on this below
         assertBusy(() -> assertThat(primary.getThreadPool().relativeTimeInMillis(), greaterThan(lastSearchAccess)));
@@ -3821,7 +3827,9 @@ public class IndexShardTests extends IndexShardTestCase {
             assertEquals(1, searcher.getIndexReader().numDocs());
         }
         assertTrue(primary.getEngine().refreshNeeded());
-        assertTrue(primary.scheduledRefresh());
+        PlainActionFuture<Boolean> future3 = PlainActionFuture.newFuture();
+        primary.scheduledRefresh(future3);
+        assertTrue(future3.actionGet());
         latch.await();
         CountDownLatch latch1 = new CountDownLatch(1);
         primary.awaitShardSearchActive(refreshed -> {
@@ -3836,11 +3844,15 @@ public class IndexShardTests extends IndexShardTestCase {
         latch1.await();
 
         indexDoc(primary, "_doc", "2", "{\"foo\" : \"bar\"}");
-        assertFalse(primary.scheduledRefresh());
+        PlainActionFuture<Boolean> future4 = PlainActionFuture.newFuture();
+        primary.scheduledRefresh(future4);
+        assertFalse(future4.actionGet());
         assertTrue(primary.isSearchIdle());
         assertTrue(primary.searchIdleTime() >= TimeValue.ZERO.millis());
         primary.flushOnIdle(0);
-        assertTrue(primary.scheduledRefresh()); // make sure we refresh once the shard is inactive
+        PlainActionFuture<Boolean> future5 = PlainActionFuture.newFuture();
+        primary.scheduledRefresh(future5);
+        assertTrue(future5.actionGet()); // make sure we refresh once the shard is inactive
         try (Engine.Searcher searcher = primary.acquireSearcher("test")) {
             assertEquals(3, searcher.getIndexReader().numDocs());
         }
@@ -3855,7 +3867,9 @@ public class IndexShardTests extends IndexShardTestCase {
         recoverShardFromStore(primary);
         indexDoc(primary, "_doc", "0", "{\"foo\" : \"bar\"}");
         assertTrue(primary.getEngine().refreshNeeded());
-        assertTrue(primary.scheduledRefresh());
+        PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
+        primary.scheduledRefresh(future);
+        assertTrue(future.actionGet());
         Engine.IndexResult doc = indexDoc(primary, "_doc", "1", "{\"foo\" : \"bar\"}");
         CountDownLatch latch = new CountDownLatch(1);
         if (randomBoolean()) {
@@ -3875,7 +3889,9 @@ public class IndexShardTests extends IndexShardTestCase {
         }
         assertEquals(1, latch.getCount());
         assertTrue(primary.getEngine().refreshNeeded());
-        assertTrue(primary.scheduledRefresh());
+        PlainActionFuture<Boolean> future2 = PlainActionFuture.newFuture();
+        primary.scheduledRefresh(future2);
+        assertTrue(future2.actionGet());
         latch.await();
 
         IndexScopedSettings scopedSettings = primary.indexSettings().getScopedSettings();
@@ -3891,7 +3907,9 @@ public class IndexShardTests extends IndexShardTestCase {
         }
         assertEquals(1, latch1.getCount());
         assertTrue(primary.getEngine().refreshNeeded());
-        assertTrue(primary.scheduledRefresh());
+        PlainActionFuture<Boolean> future3 = PlainActionFuture.newFuture();
+        primary.scheduledRefresh(future3);
+        assertTrue(future3.actionGet());
         latch1.await();
         closeShards(primary);
     }
@@ -4164,15 +4182,18 @@ public class IndexShardTests extends IndexShardTestCase {
         CountDownLatch closeDoneLatch = new CountDownLatch(1);
         IndexShard shard = newStartedShard(false, Settings.EMPTY, config -> new InternalEngine(config) {
             @Override
-            public InternalEngine recoverFromTranslog(TranslogRecoveryRunner translogRecoveryRunner, long recoverUpToSeqNo)
-                throws IOException {
+            public void recoverFromTranslog(
+                TranslogRecoveryRunner translogRecoveryRunner,
+                long recoverUpToSeqNo,
+                ActionListener<Void> listener
+            ) {
                 readyToCloseLatch.countDown();
                 try {
                     closeDoneLatch.await();
                 } catch (InterruptedException e) {
                     throw new AssertionError(e);
                 }
-                return super.recoverFromTranslog(translogRecoveryRunner, recoverUpToSeqNo);
+                super.recoverFromTranslog(translogRecoveryRunner, recoverUpToSeqNo, listener);
             }
         });
 
@@ -4223,16 +4244,15 @@ public class IndexShardTests extends IndexShardTestCase {
         CountDownLatch snapshotDoneLatch = new CountDownLatch(1);
         IndexShard shard = newStartedShard(false, Settings.EMPTY, config -> new InternalEngine(config) {
             @Override
-            public InternalEngine recoverFromTranslog(TranslogRecoveryRunner translogRecoveryRunner, long recoverUpToSeqNo)
-                throws IOException {
-                InternalEngine internalEngine = super.recoverFromTranslog(translogRecoveryRunner, recoverUpToSeqNo);
-                readyToSnapshotLatch.countDown();
-                try {
-                    snapshotDoneLatch.await();
-                } catch (InterruptedException e) {
-                    throw new AssertionError(e);
-                }
-                return internalEngine;
+            public void recoverFromTranslog(
+                TranslogRecoveryRunner translogRecoveryRunner,
+                long recoverUpToSeqNo,
+                ActionListener<Void> listener
+            ) {
+                super.recoverFromTranslog(translogRecoveryRunner, recoverUpToSeqNo, ActionListener.runAfter(listener, () -> {
+                    readyToSnapshotLatch.countDown();
+                    safeAwait(snapshotDoneLatch);
+                }));
             }
         });
 

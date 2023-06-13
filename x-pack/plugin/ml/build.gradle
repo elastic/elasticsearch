@@ -75,6 +75,7 @@ dependencies {
   api "org.apache.commons:commons-math3:3.6.1"
   api "com.ibm.icu:icu4j:${versions.icu4j}"
   api "org.apache.lucene:lucene-analysis-icu:${versions.lucene}"
+  api "org.apache.lucene:lucene-analysis-kuromoji:${versions.lucene}"
   implementation 'org.ojalgo:ojalgo:51.2.0'
   nativeBundle("org.elasticsearch.ml:ml-cpp:${project.version}:deps@zip") {
     changing = true

@@ -22,6 +22,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
 
+import static org.elasticsearch.script.ScriptContextStatsTests.randomScriptContextStats;
+import static org.elasticsearch.script.TimeSeriesTests.randomTimeseries;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ScriptStatsTests extends ESTestCase {
@@ -164,6 +166,38 @@ public class ScriptStatsTests extends ESTestCase {
         deserStats = serDeser(TransportVersion.V_8_1_0, TransportVersion.V_8_1_0, stats);
         assertNotSame(stats, deserStats);
         assertEquals(stats, deserStats);
+    }
+
+    public void testMerge() {
+        var first = randomScriptStats();
+        var second = randomScriptStats();
+
+        assertEquals(
+            ScriptStats.merge(first, second),
+            new ScriptStats(
+                List.of(
+                    ScriptContextStats.merge(first.contextStats().get(0), second.contextStats().get(0)),
+                    ScriptContextStats.merge(first.contextStats().get(1), second.contextStats().get(1)),
+                    ScriptContextStats.merge(first.contextStats().get(2), second.contextStats().get(2))
+                ),
+                first.compilations() + second.compilations(),
+                first.cacheEvictions() + second.cacheEvictions(),
+                first.compilationLimitTriggered() + second.compilationLimitTriggered(),
+                TimeSeries.merge(first.compilationsHistory(), second.compilationsHistory()),
+                TimeSeries.merge(first.cacheEvictionsHistory(), second.cacheEvictionsHistory())
+            )
+        );
+    }
+
+    public static ScriptStats randomScriptStats() {
+        return new ScriptStats(
+            List.of(randomScriptContextStats("context-a"), randomScriptContextStats("context-b"), randomScriptContextStats("context-c")),
+            randomLongBetween(0, 10000),
+            randomLongBetween(0, 10000),
+            randomLongBetween(0, 10000),
+            randomTimeseries(),
+            randomTimeseries()
+        );
     }
 
     public ScriptContextStats serDeser(TransportVersion outVersion, TransportVersion inVersion, ScriptContextStats stats)

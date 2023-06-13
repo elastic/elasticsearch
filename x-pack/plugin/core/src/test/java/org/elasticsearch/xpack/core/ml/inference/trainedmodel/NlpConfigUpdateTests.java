@@ -73,7 +73,7 @@ public class NlpConfigUpdateTests extends ESTestCase {
         );
         assertThat(
             e.getMessage(),
-            containsString("unknown tokenization type expecting one of [bert, bert_ja, mpnet, roberta] got [not_bert]")
+            containsString("unknown tokenization type expecting one of [bert, bert_ja, mpnet, roberta, xlm_roberta] got [not_bert]")
         );
     }
 

@@ -30,7 +30,6 @@ import org.elasticsearch.xpack.core.ml.action.PutTrainedModelVocabularyAction.Re
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RobertaTokenization;
 import org.elasticsearch.xpack.ml.inference.nlp.Vocabulary;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 
@@ -70,22 +69,11 @@ public class TransportPutTrainedModelVocabularyAction extends TransportMasterNod
         ActionListener<TrainedModelConfig> configActionListener = ActionListener.wrap(config -> {
             InferenceConfig inferenceConfig = config.getInferenceConfig();
             if (inferenceConfig instanceof NlpConfig nlpConfig) {
-                if (nlpConfig.getTokenization() instanceof RobertaTokenization && request.getMerges().isEmpty()) {
-                    listener.onFailure(
-                        new ElasticsearchStatusException(
-                            "cannot put vocabulary for model [{}] as tokenizer type [{}] requires [{}] to be provided and non-empty",
-                            RestStatus.BAD_REQUEST,
-                            request.getModelId(),
-                            nlpConfig.getTokenization().getName(),
-                            Request.MERGES.getPreferredName()
-                        )
-                    );
-                    return;
-                }
+                nlpConfig.getTokenization().validateVocabulary(request);
                 trainedModelProvider.storeTrainedModelVocabulary(
                     request.getModelId(),
                     ((NlpConfig) inferenceConfig).getVocabularyConfig(),
-                    new Vocabulary(request.getVocabulary(), request.getModelId(), request.getMerges()),
+                    new Vocabulary(request.getVocabulary(), request.getModelId(), request.getMerges(), request.getScores()),
                     ActionListener.wrap(stored -> listener.onResponse(AcknowledgedResponse.TRUE), listener::onFailure)
                 );
                 return;

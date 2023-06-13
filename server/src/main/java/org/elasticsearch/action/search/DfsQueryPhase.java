@@ -8,7 +8,6 @@
 package org.elasticsearch.action.search;
 
 import org.apache.lucene.search.ScoreDoc;
-import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -138,31 +137,10 @@ final class DfsQueryPhase extends SearchPhase {
             return request;
         }
 
-        boolean usesRank = source.rankBuilder() != null;
-
-        BoolQueryBuilder boolQueryBuilder;
-        List<SubSearchSourceBuilder> subSearchSourceBuilders;
-
-        if (source.queries().isEmpty() == false) {
-            boolQueryBuilder = (BoolQueryBuilder) source.query();
-            subSearchSourceBuilders = new ArrayList<>(source.queries());
-        } else {
-            boolQueryBuilder = new BoolQueryBuilder();
-            subSearchSourceBuilders = new ArrayList<>();
-
-            if (source.query() != null) {
-                boolQueryBuilder.should(source.query());
-
-                if (usesRank) {
-                    subSearchSourceBuilders.add(new SubSearchSourceBuilder(source.query()));
-                }
-            }
+        List<SubSearchSourceBuilder> subSearchSourceBuilders = new ArrayList<>(source.queries());
+        if (source.query() != null) {
+            subSearchSourceBuilders.add(new SubSearchSourceBuilder(source.query()));
         }
-
-        source = source.shallowCopy();
-        source.query(boolQueryBuilder);
-        source.queries(subSearchSourceBuilders);
-        request.source(source);
 
         for (DfsKnnResults dfsKnnResults : knnResults) {
             List<ScoreDoc> scoreDocs = new ArrayList<>();
@@ -173,15 +151,11 @@ final class DfsQueryPhase extends SearchPhase {
             }
             scoreDocs.sort(Comparator.comparingInt(scoreDoc -> scoreDoc.doc));
             KnnScoreDocQueryBuilder knnQuery = new KnnScoreDocQueryBuilder(scoreDocs.toArray(new ScoreDoc[0]));
-
-            if (usesRank) {
-                subSearchSourceBuilders.add(new SubSearchSourceBuilder(knnQuery));
-            }
-
-            boolQueryBuilder.should(knnQuery);
+            subSearchSourceBuilders.add(new SubSearchSourceBuilder(knnQuery));
         }
 
-        source.knnSearch(List.of());
+        source = source.shallowCopy().query(null).queries(subSearchSourceBuilders).knnSearch(List.of());
+        request.source(source);
 
         return request;
     }

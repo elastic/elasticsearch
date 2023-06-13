@@ -126,8 +126,6 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
     }
 
     private ShardSearchRequest rewriteShardSearchRequest(ShardSearchRequest request) {
-        rewriteShardSearchRequestQueries(request);
-
         if (bottomSortCollector == null) {
             return request;
         }

@@ -49,6 +49,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.CoordinatorRewriteContextProvider;
 import org.elasticsearch.index.query.InnerHitContextBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -1170,9 +1171,21 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         context.from(source.from());
         context.size(source.size());
         Map<String, InnerHitContextBuilder> innerHitBuilders = new HashMap<>();
-        if (source.query() != null) {
-            InnerHitContextBuilder.extractInnerHits(source.query(), innerHitBuilders);
-            context.parsedQuery(searchExecutionContext.toQuery(source.query()));
+        QueryBuilder query;
+        if (source.queries().isEmpty()) {
+            query = source.query();
+        } else if (source.queries().size() == 1) {
+            query = source.queries().get(0).getQueryBuilder();
+        } else {
+            BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
+            for (SubSearchSourceBuilder subSearchSourceBuilder : source.queries()) {
+                boolQueryBuilder.should(subSearchSourceBuilder.getQueryBuilder());
+            }
+            query = boolQueryBuilder;
+        }
+        if (query != null) {
+            InnerHitContextBuilder.extractInnerHits(query, innerHitBuilders);
+            context.parsedQuery(searchExecutionContext.toQuery(query));
         }
         if (source.postFilter() != null) {
             InnerHitContextBuilder.extractInnerHits(source.postFilter(), innerHitBuilders);

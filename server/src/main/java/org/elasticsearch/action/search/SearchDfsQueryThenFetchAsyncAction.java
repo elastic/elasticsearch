@@ -77,7 +77,7 @@ final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction
     ) {
         getSearchTransport().sendExecuteDfs(
             getConnection(shard.getClusterAlias(), shard.getNodeId()),
-            rewriteShardSearchRequestQueries(buildShardSearchRequest(shardIt, listener.requestIndex)),
+            buildShardSearchRequest(shardIt, listener.requestIndex),
             getTask(),
             listener
         );

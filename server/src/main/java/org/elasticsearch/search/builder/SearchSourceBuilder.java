@@ -1594,6 +1594,10 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             builder.field(QUERY_FIELD.getPreferredName(), queryBuilder);
         }
 
+        if (subSearchSourceBuilders.isEmpty() == false) {
+            builder.array(QUERIES_FIELD.getPreferredName(), subSearchSourceBuilders);
+        }
+
         if (postQueryBuilder != null) {
             builder.field(POST_FILTER_FIELD.getPreferredName(), postQueryBuilder);
         }

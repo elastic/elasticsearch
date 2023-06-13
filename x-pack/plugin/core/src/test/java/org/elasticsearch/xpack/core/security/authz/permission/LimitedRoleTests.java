@@ -20,7 +20,6 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
@@ -698,9 +697,12 @@ public class LimitedRoleTests extends ESTestCase {
                 Set.of("read"),
                 false,
                 new ResourcePrivilegesMap(
-                    mapBuilder().put("ind-1-1-*", ResourcePrivileges.builder("ind-1-1-*").addPrivilege("read", false).build())
-                        .put("ind-1", ResourcePrivileges.builder("ind-1").addPrivilege("read", true).build())
-                        .map()
+                    Map.of(
+                        "ind-1-1-*",
+                        ResourcePrivileges.builder("ind-1-1-*").addPrivilege("read", false).build(),
+                        "ind-1",
+                        ResourcePrivileges.builder("ind-1").addPrivilege("read", true).build()
+                    )
                 )
             );
         }
@@ -716,9 +718,12 @@ public class LimitedRoleTests extends ESTestCase {
                 Set.of("read"),
                 true,
                 new ResourcePrivilegesMap(
-                    mapBuilder().put("ind-1", ResourcePrivileges.builder("ind-1").addPrivilege("read", true).build())
-                        .put(".security", ResourcePrivileges.builder(".security").addPrivilege("read", true).build())
-                        .map()
+                    Map.of(
+                        "ind-1",
+                        ResourcePrivileges.builder("ind-1").addPrivilege("read", true).build(),
+                        ".security",
+                        ResourcePrivileges.builder(".security").addPrivilege("read", true).build()
+                    )
                 )
             );
 
@@ -737,10 +742,14 @@ public class LimitedRoleTests extends ESTestCase {
                 Set.of("read"),
                 false,
                 new ResourcePrivilegesMap(
-                    mapBuilder().put("ind-1", ResourcePrivileges.builder("ind-1").addPrivilege("read", true).build())
-                        .put("ind-2", ResourcePrivileges.builder("ind-2").addPrivilege("read", true).build())
-                        .put(".security", ResourcePrivileges.builder(".security").addPrivilege("read", false).build())
-                        .map()
+                    Map.of(
+                        "ind-1",
+                        ResourcePrivileges.builder("ind-1").addPrivilege("read", true).build(),
+                        "ind-2",
+                        ResourcePrivileges.builder("ind-2").addPrivilege("read", true).build(),
+                        ".security",
+                        ResourcePrivileges.builder(".security").addPrivilege("read", false).build()
+                    )
                 )
             );
 
@@ -758,10 +767,14 @@ public class LimitedRoleTests extends ESTestCase {
                 Set.of("read"),
                 false,
                 new ResourcePrivilegesMap(
-                    mapBuilder().put("ind-1", ResourcePrivileges.builder("ind-1").addPrivilege("read", true).build())
-                        .put("ind-2", ResourcePrivileges.builder("ind-2").addPrivilege("read", false).build())
-                        .put(".security", ResourcePrivileges.builder(".security").addPrivilege("read", false).build())
-                        .map()
+                    Map.of(
+                        "ind-1",
+                        ResourcePrivileges.builder("ind-1").addPrivilege("read", true).build(),
+                        "ind-2",
+                        ResourcePrivileges.builder("ind-2").addPrivilege("read", false).build(),
+                        ".security",
+                        ResourcePrivileges.builder(".security").addPrivilege("read", false).build()
+                    )
                 )
             );
         }
@@ -1118,9 +1131,4 @@ public class LimitedRoleTests extends ESTestCase {
         );
         return ApplicationPrivilegeTests.createPrivilege(app, name, actions);
     }
-
-    private static MapBuilder<String, ResourcePrivileges> mapBuilder() {
-        return MapBuilder.newMapBuilder();
-    }
-
 }

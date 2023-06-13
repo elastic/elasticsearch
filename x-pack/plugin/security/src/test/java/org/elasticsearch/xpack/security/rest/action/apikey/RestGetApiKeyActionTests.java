@@ -15,7 +15,6 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.XPackLicenseState;
@@ -70,11 +69,11 @@ public class RestGetApiKeyActionTests extends ESTestCase {
     }
 
     public void testGetApiKey() throws Exception {
-        final Map<String, String> param1 = mapBuilder().put("realm_name", "realm-1").put("username", "user-x").map();
-        final Map<String, String> param2 = mapBuilder().put("realm_name", "realm-1").map();
-        final Map<String, String> param3 = mapBuilder().put("username", "user-x").map();
-        final Map<String, String> param4 = mapBuilder().put("id", "api-key-id-1").map();
-        final Map<String, String> param5 = mapBuilder().put("name", "api-key-name-1").map();
+        final Map<String, String> param1 = Map.of("realm_name", "realm-1", "username", "user-x");
+        final Map<String, String> param2 = Map.of("realm_name", "realm-1");
+        final Map<String, String> param3 = Map.of("username", "user-x");
+        final Map<String, String> param4 = Map.of("id", "api-key-id-1");
+        final Map<String, String> param5 = Map.of("name", "api-key-name-1");
         final Map<String, String> params = randomFrom(param1, param2, param3, param4, param5);
         final boolean withLimitedBy = randomBoolean();
         if (withLimitedBy) {
@@ -191,9 +190,9 @@ public class RestGetApiKeyActionTests extends ESTestCase {
         final boolean isGetRequestForOwnedKeysOnly = randomBoolean();
         final Map<String, String> param;
         if (isGetRequestForOwnedKeysOnly) {
-            param = mapBuilder().put("owner", Boolean.TRUE.toString()).map();
+            param = Map.of("owner", Boolean.TRUE.toString());
         } else {
-            param = mapBuilder().put("owner", Boolean.FALSE.toString()).put("realm_name", "realm-1").map();
+            param = Map.of("owner", Boolean.FALSE.toString(), "realm_name", "realm-1");
         }
         final boolean withLimitedBy = randomBoolean();
         if (withLimitedBy) {
@@ -286,10 +285,5 @@ public class RestGetApiKeyActionTests extends ESTestCase {
                 assertThat(actual.getApiKeyInfos(), arrayContaining(apiKey1, apiKey2));
             }
         }
-
-    }
-
-    private static MapBuilder<String, String> mapBuilder() {
-        return MapBuilder.newMapBuilder();
     }
 }

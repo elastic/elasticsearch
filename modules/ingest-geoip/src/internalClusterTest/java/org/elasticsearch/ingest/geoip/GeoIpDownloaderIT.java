@@ -315,9 +315,6 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
             GeoIpTaskState state = getGeoIpTaskState();
             assertEquals(Set.of("GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb"), state.getDatabases().keySet());
         }, 2, TimeUnit.MINUTES);
-
-        // Remove the created index.
-//        assertAcked(client().admin().indices().prepareDelete(indexIdentifier).get());
     }
 
     @TestLogging(value = "org.elasticsearch.ingest.geoip:TRACE", reason = "https://github.com/elastic/elasticsearch/issues/69972")

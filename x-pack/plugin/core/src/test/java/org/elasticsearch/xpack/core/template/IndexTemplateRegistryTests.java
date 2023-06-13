@@ -24,8 +24,8 @@ import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -39,14 +39,21 @@ import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.ilm.DeleteAction;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
+import org.elasticsearch.xpack.core.ilm.LifecycleAction;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
+import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -84,13 +91,16 @@ public class IndexTemplateRegistryTests extends ESTestCase {
     }
 
     public void testThatIndependentPipelinesAreAddedImmediately() throws Exception {
-        DiscoveryNode node = TestDiscoveryNode.create("node");
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         AtomicInteger calledTimes = new AtomicInteger(0);
         client.setVerifier((action, request, listener) -> {
             if (action instanceof PutPipelineAction) {
                 assertPutPipelineAction(calledTimes, action, request, listener, "custom-plugin-final_pipeline");
+                return AcknowledgedResponse.TRUE;
+            } else if (action instanceof PutLifecycleAction) {
+                // ignore lifecycle policies in this case
                 return AcknowledgedResponse.TRUE;
             } else {
                 // the composable template is not expected to be added, as it's dependency is not available in the cluster state
@@ -106,13 +116,16 @@ public class IndexTemplateRegistryTests extends ESTestCase {
     }
 
     public void testThatDependentPipelinesAreAddedIfDependenciesExist() throws Exception {
-        DiscoveryNode node = TestDiscoveryNode.create("node");
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         AtomicInteger calledTimes = new AtomicInteger(0);
         client.setVerifier((action, request, listener) -> {
             if (action instanceof PutPipelineAction) {
                 assertPutPipelineAction(calledTimes, action, request, listener, "custom-plugin-default_pipeline");
+                return AcknowledgedResponse.TRUE;
+            } else if (action instanceof PutLifecycleAction) {
+                // ignore lifecycle policies in this case
                 return AcknowledgedResponse.TRUE;
             } else {
                 // the composable template is not expected to be added, as it's dependency is not available in the cluster state
@@ -133,13 +146,16 @@ public class IndexTemplateRegistryTests extends ESTestCase {
     }
 
     public void testThatTemplateIsAddedIfAllDependenciesExist() throws Exception {
-        DiscoveryNode node = TestDiscoveryNode.create("node");
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         AtomicInteger calledTimes = new AtomicInteger(0);
         client.setVerifier((action, request, listener) -> {
             if (action instanceof PutComponentTemplateAction) {
                 assertPutComponentTemplate(calledTimes, action, request, listener);
+                return AcknowledgedResponse.TRUE;
+            } else if (action instanceof PutLifecycleAction) {
+                // ignore lifecycle policies in this case
                 return AcknowledgedResponse.TRUE;
             } else {
                 // the composable template is not expected to be added, as it's dependency is not available in the cluster state
@@ -159,13 +175,16 @@ public class IndexTemplateRegistryTests extends ESTestCase {
     }
 
     public void testThatTemplateIsNotAddedIfNotAllDependenciesExist() throws Exception {
-        DiscoveryNode node = TestDiscoveryNode.create("node");
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         AtomicInteger calledTimes = new AtomicInteger(0);
         client.setVerifier((action, request, listener) -> {
             if (action instanceof PutPipelineAction) {
                 assertPutPipelineAction(calledTimes, action, request, listener, "custom-plugin-default_pipeline");
+                return AcknowledgedResponse.TRUE;
+            } else if (action instanceof PutLifecycleAction) {
+                // ignore lifecycle policies in this case
                 return AcknowledgedResponse.TRUE;
             } else {
                 // the template is not expected to be added, as the final pipeline is missing
@@ -185,13 +204,16 @@ public class IndexTemplateRegistryTests extends ESTestCase {
     }
 
     public void testThatComposableTemplateIsAddedIfDependenciesExist() throws Exception {
-        DiscoveryNode node = TestDiscoveryNode.create("node");
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         AtomicInteger calledTimes = new AtomicInteger(0);
         client.setVerifier((action, request, listener) -> {
             if (action instanceof PutComposableIndexTemplateAction) {
                 assertPutComposableIndexTemplateAction(calledTimes, action, request, listener);
+                return AcknowledgedResponse.TRUE;
+            } else if (action instanceof PutLifecycleAction) {
+                // ignore lifecycle policies in this case
                 return AcknowledgedResponse.TRUE;
             } else if (action instanceof PutPipelineAction) {
                 // ignore pipelines in this case
@@ -209,7 +231,7 @@ public class IndexTemplateRegistryTests extends ESTestCase {
     }
 
     public void testThatTemplatesAreUpgradedWhenNeeded() throws Exception {
-        DiscoveryNode node = TestDiscoveryNode.create("node");
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         AtomicInteger calledTimes = new AtomicInteger(0);
@@ -223,6 +245,9 @@ public class IndexTemplateRegistryTests extends ESTestCase {
                     "custom-plugin-default_pipeline",
                     "custom-plugin-final_pipeline"
                 );
+                return AcknowledgedResponse.TRUE;
+            } else if (action instanceof PutLifecycleAction) {
+                // ignore lifecycle policies in this case
                 return AcknowledgedResponse.TRUE;
             } else if (action instanceof PutComponentTemplateAction) {
                 assertPutComponentTemplate(calledTimes, action, request, listener);
@@ -247,13 +272,16 @@ public class IndexTemplateRegistryTests extends ESTestCase {
     }
 
     public void testThatTemplatesAreNotUpgradedWhenNotNeeded() throws Exception {
-        DiscoveryNode node = TestDiscoveryNode.create("node");
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         AtomicInteger calledTimes = new AtomicInteger(0);
         client.setVerifier((action, request, listener) -> {
             if (action instanceof PutComposableIndexTemplateAction) {
                 // ignore this
+                return AcknowledgedResponse.TRUE;
+            } else if (action instanceof PutLifecycleAction) {
+                // ignore lifecycle policies in this case
                 return AcknowledgedResponse.TRUE;
             } else {
                 fail("client called with unexpected request: " + request.toString());
@@ -269,6 +297,173 @@ public class IndexTemplateRegistryTests extends ESTestCase {
         );
         registry.clusterChanged(event);
         assertBusy(() -> assertThat(calledTimes.get(), equalTo(0)));
+    }
+
+    public void testThatNonExistingPoliciesAreAddedImmediately() throws Exception {
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
+        DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
+
+        AtomicInteger calledTimes = new AtomicInteger(0);
+        client.setVerifier((action, request, listener) -> {
+            if (action instanceof PutComposableIndexTemplateAction) {
+                // ignore this
+                return AcknowledgedResponse.TRUE;
+            } else if (action instanceof PutLifecycleAction) {
+                assertPutLifecycleAction(calledTimes, action, request, listener);
+                return AcknowledgedResponse.TRUE;
+            } else {
+                fail("client called with unexpected request: " + request.toString());
+                return null;
+            }
+        });
+
+        ClusterChangedEvent event = createClusterChangedEvent(
+            Map.of("custom-plugin-settings", 3),
+            Map.of(),
+            Map.of("custom-plugin-default_pipeline", 3, "custom-plugin-final_pipeline", 3),
+            nodes
+        );
+        registry.clusterChanged(event);
+        assertBusy(() -> assertThat(calledTimes.get(), equalTo(registry.getPolicyConfigs().size())));
+    }
+
+    public void testPolicyAlreadyExists() {
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
+        DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
+
+        Map<String, LifecyclePolicy> policyMap = new HashMap<>();
+        List<LifecyclePolicy> policies = registry.getPolicyConfigs();
+        assertThat(policies, hasSize(1));
+        policies.forEach(p -> policyMap.put(p.getName(), p));
+
+        client.setVerifier((action, request, listener) -> {
+            if (action instanceof PutComposableIndexTemplateAction) {
+                // ignore this
+                return AcknowledgedResponse.TRUE;
+            } else if (action instanceof PutLifecycleAction) {
+                fail("if the policy already exists it should not be re-put");
+            } else {
+                fail("client called with unexpected request: " + request.toString());
+            }
+            return null;
+        });
+
+        ClusterChangedEvent event = createClusterChangedEvent(
+            Map.of("custom-plugin-settings", 3),
+            policyMap,
+            Map.of("custom-plugin-default_pipeline", 3, "custom-plugin-final_pipeline", 3),
+            nodes
+        );
+
+        registry.clusterChanged(event);
+    }
+
+    public void testPolicyAlreadyExistsButDiffers() throws IOException {
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
+        DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
+
+        Map<String, LifecyclePolicy> policyMap = new HashMap<>();
+        String policyStr = "{\"phases\":{\"delete\":{\"min_age\":\"1m\",\"actions\":{\"delete\":{}}}}}";
+        List<LifecyclePolicy> policies = registry.getPolicyConfigs();
+        assertThat(policies, hasSize(1));
+        policies.forEach(p -> policyMap.put(p.getName(), p));
+
+        client.setVerifier((action, request, listener) -> {
+            if (action instanceof PutComposableIndexTemplateAction) {
+                // ignore this
+                return AcknowledgedResponse.TRUE;
+            } else if (action instanceof PutLifecycleAction) {
+                fail("if the policy already exists it should not be re-put");
+            } else {
+                fail("client called with unexpected request: " + request.toString());
+            }
+            return null;
+        });
+
+        try (
+            XContentParser parser = XContentType.JSON.xContent()
+                .createParser(
+                    XContentParserConfiguration.EMPTY.withRegistry(
+                        new NamedXContentRegistry(
+                            List.of(
+                                new NamedXContentRegistry.Entry(
+                                    LifecycleAction.class,
+                                    new ParseField(DeleteAction.NAME),
+                                    DeleteAction::parse
+                                )
+                            )
+                        )
+                    ),
+                    policyStr
+                )
+        ) {
+            LifecyclePolicy different = LifecyclePolicy.parse(parser, policies.get(0).getName());
+            policyMap.put(policies.get(0).getName(), different);
+            ClusterChangedEvent event = createClusterChangedEvent(
+                Map.of("custom-plugin-settings", 3),
+                policyMap,
+                Map.of("custom-plugin-default_pipeline", 3, "custom-plugin-final_pipeline", 3),
+                nodes
+            );
+            registry.clusterChanged(event);
+        }
+    }
+
+    public void testPolicyUpgraded() throws Exception {
+        registry.setPolicyUpgradeRequired(true);
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
+        DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
+
+        Map<String, LifecyclePolicy> policyMap = new HashMap<>();
+        String priorPolicyStr = "{\"phases\":{\"delete\":{\"min_age\":\"1m\",\"actions\":{\"delete\":{}}}}}";
+        List<LifecyclePolicy> policies = registry.getPolicyConfigs();
+        assertThat(policies, hasSize(1));
+        policies.forEach(p -> policyMap.put(p.getName(), p));
+
+        AtomicInteger calledTimes = new AtomicInteger(0);
+        client.setVerifier((action, request, listener) -> {
+            if (action instanceof PutComposableIndexTemplateAction) {
+                // ignore this
+                return AcknowledgedResponse.TRUE;
+            } else if (action instanceof PutLifecycleAction) {
+                assertPutLifecycleAction(calledTimes, action, request, listener);
+                return AcknowledgedResponse.TRUE;
+
+            } else {
+                fail("client called with unexpected request: " + request.toString());
+            }
+            return null;
+        });
+
+        try (
+            XContentParser parser = XContentType.JSON.xContent()
+                .createParser(
+                    XContentParserConfiguration.EMPTY.withRegistry(
+                        new NamedXContentRegistry(
+                            List.of(
+                                new NamedXContentRegistry.Entry(
+                                    LifecycleAction.class,
+                                    new ParseField(DeleteAction.NAME),
+                                    DeleteAction::parse
+                                )
+                            )
+                        )
+                    ),
+                    priorPolicyStr
+                )
+        ) {
+            LifecyclePolicy priorPolicy = LifecyclePolicy.parse(parser, policies.get(0).getName());
+            policyMap.put(policies.get(0).getName(), priorPolicy);
+            ClusterChangedEvent event = createClusterChangedEvent(
+                Map.of("custom-plugin-settings", 3),
+                policyMap,
+                Map.of("custom-plugin-default_pipeline", 3, "custom-plugin-final_pipeline", 3),
+                nodes
+            );
+            registry.clusterChanged(event);
+            // we've changed one policy that should be upgraded
+            assertBusy(() -> assertThat(calledTimes.get(), equalTo(1)));
+        }
     }
 
     private static void assertPutComponentTemplate(
@@ -328,6 +523,20 @@ public class IndexTemplateRegistryTests extends ESTestCase {
         Map<?, ?> setProcessor = (Map<?, ?>) ((Map<?, ?>) processors.get(0)).get("set");
         assertNotNull(setProcessor.get("field"));
         assertNotNull(setProcessor.get("copy_from"));
+        assertNotNull(listener);
+        calledTimes.incrementAndGet();
+    }
+
+    private static void assertPutLifecycleAction(
+        AtomicInteger calledTimes,
+        ActionType<?> action,
+        ActionRequest request,
+        ActionListener<?> listener
+    ) {
+        assertThat(action, instanceOf(PutLifecycleAction.class));
+        assertThat(request, instanceOf(PutLifecycleAction.Request.class));
+        final PutLifecycleAction.Request putRequest = (PutLifecycleAction.Request) request;
+        assertThat(putRequest.getPolicy().getName(), equalTo("custom-plugin-policy"));
         assertNotNull(listener);
         calledTimes.incrementAndGet();
     }

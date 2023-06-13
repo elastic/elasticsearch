@@ -12,10 +12,9 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.common.Randomness;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Tuple;
@@ -84,7 +83,7 @@ public class JobNodeSelectorTests extends ESTestCase {
         TransportAddress ta = new TransportAddress(InetAddress.getLoopbackAddress(), 9300);
         Map<String, String> attributes = new HashMap<>();
         attributes.put("unrelated", "attribute");
-        DiscoveryNode node = TestDiscoveryNode.create("_node_name1", "_node_id1", ta, attributes, ROLES_WITHOUT_ML);
+        DiscoveryNode node = DiscoveryNodeUtils.create("_node_name1", "_node_id1", ta, attributes, ROLES_WITHOUT_ML);
         assertEquals("{_node_name1}{version=" + node.getVersion() + "}", JobNodeSelector.nodeNameAndVersion(node));
     }
 
@@ -92,14 +91,14 @@ public class JobNodeSelectorTests extends ESTestCase {
         TransportAddress ta = new TransportAddress(InetAddress.getLoopbackAddress(), 9300);
         SortedMap<String, String> attributes = new TreeMap<>();
         attributes.put("unrelated", "attribute");
-        DiscoveryNode node = TestDiscoveryNode.create("_node_name1", "_node_id1", ta, attributes, ROLES_WITHOUT_ML);
+        DiscoveryNode node = DiscoveryNodeUtils.create("_node_name1", "_node_id1", ta, attributes, ROLES_WITHOUT_ML);
         assertEquals("{_node_name1}", JobNodeSelector.nodeNameAndMlAttributes(node));
 
         attributes.put("ml.machine_memory", "5");
-        node = TestDiscoveryNode.create("_node_name1", "_node_id1", ta, attributes, ROLES_WITH_ML);
+        node = DiscoveryNodeUtils.create("_node_name1", "_node_id1", ta, attributes, ROLES_WITH_ML);
         assertEquals("{_node_name1}{ml.machine_memory=5}", JobNodeSelector.nodeNameAndMlAttributes(node));
 
-        node = TestDiscoveryNode.create(null, "_node_id1", ta, attributes, ROLES_WITH_ML);
+        node = DiscoveryNodeUtils.create(null, "_node_id1", ta, attributes, ROLES_WITH_ML);
         assertEquals("{_node_id1}{ml.machine_memory=5}", JobNodeSelector.nodeNameAndMlAttributes(node));
     }
 
@@ -459,7 +458,7 @@ public class JobNodeSelectorTests extends ESTestCase {
     public void testSelectLeastLoadedMlNode_noMlNodes() {
         DiscoveryNodes nodes = DiscoveryNodes.builder()
             .add(
-                TestDiscoveryNode.create(
+                DiscoveryNodeUtils.create(
                     "_node_name1",
                     "_node_id1",
                     new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
@@ -468,7 +467,7 @@ public class JobNodeSelectorTests extends ESTestCase {
                 )
             )
             .add(
-                TestDiscoveryNode.create(
+                DiscoveryNodeUtils.create(
                     "_node_name2",
                     "_node_id2",
                     new TransportAddress(InetAddress.getLoopbackAddress(), 9301),
@@ -513,7 +512,7 @@ public class JobNodeSelectorTests extends ESTestCase {
         );
         DiscoveryNodes nodes = DiscoveryNodes.builder()
             .add(
-                TestDiscoveryNode.create(
+                DiscoveryNodeUtils.create(
                     "_node_name1",
                     "_node_id1",
                     new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
@@ -522,7 +521,7 @@ public class JobNodeSelectorTests extends ESTestCase {
                 )
             )
             .add(
-                TestDiscoveryNode.create(
+                DiscoveryNodeUtils.create(
                     "_node_name2",
                     "_node_id2",
                     new TransportAddress(InetAddress.getLoopbackAddress(), 9301),
@@ -531,7 +530,7 @@ public class JobNodeSelectorTests extends ESTestCase {
                 )
             )
             .add(
-                TestDiscoveryNode.create(
+                DiscoveryNodeUtils.create(
                     "_node_name3",
                     "_node_id3",
                     new TransportAddress(InetAddress.getLoopbackAddress(), 9302),
@@ -645,7 +644,7 @@ public class JobNodeSelectorTests extends ESTestCase {
         );
         DiscoveryNodes nodes = DiscoveryNodes.builder()
             .add(
-                TestDiscoveryNode.create(
+                DiscoveryNodeUtils.create(
                     "_node_name1",
                     "_node_id1",
                     new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
@@ -654,7 +653,7 @@ public class JobNodeSelectorTests extends ESTestCase {
                 )
             )
             .add(
-                TestDiscoveryNode.create(
+                DiscoveryNodeUtils.create(
                     "_node_name2",
                     "_node_id2",
                     new TransportAddress(InetAddress.getLoopbackAddress(), 9301),
@@ -663,7 +662,7 @@ public class JobNodeSelectorTests extends ESTestCase {
                 )
             )
             .add(
-                TestDiscoveryNode.create(
+                DiscoveryNodeUtils.create(
                     "_node_name3",
                     "_node_id3",
                     new TransportAddress(InetAddress.getLoopbackAddress(), 9302),
@@ -740,7 +739,7 @@ public class JobNodeSelectorTests extends ESTestCase {
         );
         DiscoveryNodes nodes = DiscoveryNodes.builder()
             .add(
-                TestDiscoveryNode.create(
+                DiscoveryNodeUtils.create(
                     "_node_name1",
                     "_node_id1",
                     new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
@@ -749,7 +748,7 @@ public class JobNodeSelectorTests extends ESTestCase {
                 )
             )
             .add(
-                TestDiscoveryNode.create(
+                DiscoveryNodeUtils.create(
                     "_node_name2",
                     "_node_id2",
                     new TransportAddress(InetAddress.getLoopbackAddress(), 9301),
@@ -798,7 +797,7 @@ public class JobNodeSelectorTests extends ESTestCase {
         );
         DiscoveryNodes nodes = DiscoveryNodes.builder()
             .add(
-                TestDiscoveryNode.create(
+                DiscoveryNodeUtils.create(
                     "_node_name1",
                     "_node_id1",
                     new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
@@ -807,7 +806,7 @@ public class JobNodeSelectorTests extends ESTestCase {
                 )
             )
             .add(
-                TestDiscoveryNode.create(
+                DiscoveryNodeUtils.create(
                     "_node_name2",
                     "_node_id2",
                     new TransportAddress(InetAddress.getLoopbackAddress(), 9301),
@@ -980,7 +979,7 @@ public class JobNodeSelectorTests extends ESTestCase {
         );
         DiscoveryNodes nodes = DiscoveryNodes.builder()
             .add(
-                TestDiscoveryNode.create(
+                DiscoveryNodeUtils.create(
                     "_node_name1",
                     "_node_id1",
                     new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
@@ -989,7 +988,7 @@ public class JobNodeSelectorTests extends ESTestCase {
                 )
             )
             .add(
-                TestDiscoveryNode.create(
+                DiscoveryNodeUtils.create(
                     "_node_name2",
                     "_node_id2",
                     new TransportAddress(InetAddress.getLoopbackAddress(), 9301),
@@ -1029,7 +1028,7 @@ public class JobNodeSelectorTests extends ESTestCase {
     public void testConsiderLazyAssignmentWithNoLazyNodes() {
         DiscoveryNodes nodes = DiscoveryNodes.builder()
             .add(
-                TestDiscoveryNode.create(
+                DiscoveryNodeUtils.create(
                     "_node_name1",
                     "_node_id1",
                     new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
@@ -1038,7 +1037,7 @@ public class JobNodeSelectorTests extends ESTestCase {
                 )
             )
             .add(
-                TestDiscoveryNode.create(
+                DiscoveryNodeUtils.create(
                     "_node_name2",
                     "_node_id2",
                     new TransportAddress(InetAddress.getLoopbackAddress(), 9301),
@@ -1072,7 +1071,7 @@ public class JobNodeSelectorTests extends ESTestCase {
     public void testConsiderLazyAssignmentWithLazyNodes() {
         DiscoveryNodes nodes = DiscoveryNodes.builder()
             .add(
-                TestDiscoveryNode.create(
+                DiscoveryNodeUtils.create(
                     "_node_name1",
                     "_node_id1",
                     new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
@@ -1081,7 +1080,7 @@ public class JobNodeSelectorTests extends ESTestCase {
                 )
             )
             .add(
-                TestDiscoveryNode.create(
+                DiscoveryNodeUtils.create(
                     "_node_name2",
                     "_node_id2",
                     new TransportAddress(InetAddress.getLoopbackAddress(), 9301),
@@ -1115,7 +1114,7 @@ public class JobNodeSelectorTests extends ESTestCase {
     public void testConsiderLazyAssignmentWithFilledLazyNodesAndVerticalScale() {
         DiscoveryNodes nodes = DiscoveryNodes.builder()
             .add(
-                TestDiscoveryNode.create(
+                DiscoveryNodeUtils.create(
                     "_node_name1",
                     "_node_id1",
                     new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
@@ -1129,7 +1128,7 @@ public class JobNodeSelectorTests extends ESTestCase {
                 )
             )
             .add(
-                TestDiscoveryNode.create(
+                DiscoveryNodeUtils.create(
                     "_node_name2",
                     "_node_id2",
                     new TransportAddress(InetAddress.getLoopbackAddress(), 9301),
@@ -1212,7 +1211,7 @@ public class JobNodeSelectorTests extends ESTestCase {
     public void testPerceivedCapacityAndMaxFreeMemory() {
         DiscoveryNodes nodes = DiscoveryNodes.builder()
             .add(
-                TestDiscoveryNode.create(
+                DiscoveryNodeUtils.create(
                     "not_ml_node_name",
                     "_node_id",
                     new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
@@ -1221,38 +1220,44 @@ public class JobNodeSelectorTests extends ESTestCase {
                 )
             )
             .add(
-                TestDiscoveryNode.create(
+                DiscoveryNodeUtils.create(
                     "filled_ml_node_name",
                     "filled_ml_node_id",
                     new TransportAddress(InetAddress.getLoopbackAddress(), 9301),
-                    MapBuilder.<String, String>newMapBuilder()
-                        .put(MachineLearning.MAX_JVM_SIZE_NODE_ATTR, "10")
-                        .put(MachineLearning.MACHINE_MEMORY_NODE_ATTR, Long.toString(ByteSizeValue.ofGb(30).getBytes()))
-                        .map(),
+                    Map.of(
+                        MachineLearning.MAX_JVM_SIZE_NODE_ATTR,
+                        "10",
+                        MachineLearning.MACHINE_MEMORY_NODE_ATTR,
+                        Long.toString(ByteSizeValue.ofGb(30).getBytes())
+                    ),
                     ROLES_WITH_ML
                 )
             )
             .add(
-                TestDiscoveryNode.create(
+                DiscoveryNodeUtils.create(
                     "not_filled_ml_node",
                     "not_filled_ml_node_id",
                     new TransportAddress(InetAddress.getLoopbackAddress(), 9302),
-                    MapBuilder.<String, String>newMapBuilder()
-                        .put(MachineLearning.MAX_JVM_SIZE_NODE_ATTR, "10")
-                        .put(MachineLearning.MACHINE_MEMORY_NODE_ATTR, Long.toString(ByteSizeValue.ofGb(30).getBytes()))
-                        .map(),
+                    Map.of(
+                        MachineLearning.MAX_JVM_SIZE_NODE_ATTR,
+                        "10",
+                        MachineLearning.MACHINE_MEMORY_NODE_ATTR,
+                        Long.toString(ByteSizeValue.ofGb(30).getBytes())
+                    ),
                     ROLES_WITH_ML
                 )
             )
             .add(
-                TestDiscoveryNode.create(
+                DiscoveryNodeUtils.create(
                     "not_filled_smaller_ml_node",
                     "not_filled_smaller_ml_node_id",
                     new TransportAddress(InetAddress.getLoopbackAddress(), 9303),
-                    MapBuilder.<String, String>newMapBuilder()
-                        .put(MachineLearning.MAX_JVM_SIZE_NODE_ATTR, "10")
-                        .put(MachineLearning.MACHINE_MEMORY_NODE_ATTR, Long.toString(ByteSizeValue.ofGb(10).getBytes()))
-                        .map(),
+                    Map.of(
+                        MachineLearning.MAX_JVM_SIZE_NODE_ATTR,
+                        "10",
+                        MachineLearning.MACHINE_MEMORY_NODE_ATTR,
+                        Long.toString(ByteSizeValue.ofGb(10).getBytes())
+                    ),
                     ROLES_WITH_ML
                 )
             )
@@ -1312,7 +1317,7 @@ public class JobNodeSelectorTests extends ESTestCase {
         for (int i = 0; i < numNodes; i++) {
             String nodeId = "_node_id" + i;
             TransportAddress address = new TransportAddress(InetAddress.getLoopbackAddress(), 9300 + i);
-            nodes.add(TestDiscoveryNode.create("_node_name" + i, nodeId, address, nodeAttr, ROLES_WITH_ML));
+            nodes.add(DiscoveryNodeUtils.create("_node_name" + i, nodeId, address, nodeAttr, ROLES_WITH_ML));
             for (int j = 0; j < numRunningJobsPerNode; j++) {
                 int id = j + (numRunningJobsPerNode * i);
                 // Both anomaly detector jobs and data frame analytics jobs should count towards the limit

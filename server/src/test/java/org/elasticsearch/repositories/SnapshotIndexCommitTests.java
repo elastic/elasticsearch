@@ -8,31 +8,34 @@
 
 package org.elasticsearch.repositories;
 
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class SnapshotIndexCommitTests extends ESTestCase {
 
-    public void testCompleteAndCloseCleanly() throws Exception {
-        runCompleteTest(false);
+    public void testComplete() throws Exception {
+        runCompleteTest(false, null);
+        runCompleteTest(true, null);
+        runCompleteTest(false, new ElasticsearchException("outer"));
+        runCompleteTest(true, new ElasticsearchException("outer"));
     }
 
-    public void testCompleteAndFailOnClose() throws Exception {
-        runCompleteTest(true);
+    public void testAbort() throws Exception {
+        runAbortTest(false, null);
+        runAbortTest(true, null);
+        runAbortTest(false, new ElasticsearchException("outer"));
+        runAbortTest(true, new ElasticsearchException("outer"));
     }
 
-    public void testAbortAndCloseCleanly() throws Exception {
-        runAbortTest(false);
-    }
-
-    public void testAbortAndFailOnClose() throws Exception {
-        runAbortTest(true);
-    }
-
-    private void runCompleteTest(boolean throwOnClose) throws Exception {
+    private void runCompleteTest(boolean throwOnClose, @Nullable Exception outerException) throws Exception {
         final var isClosed = new AtomicBoolean();
         final var indexCommitRef = getSnapshotIndexCommit(throwOnClose, isClosed);
 
@@ -42,7 +45,7 @@ public class SnapshotIndexCommitTests extends ESTestCase {
             indexCommitRef.decRef();
         }
 
-        assertOnCompletionBehaviour(throwOnClose, indexCommitRef);
+        assertOnCompletionBehaviour(throwOnClose, outerException, indexCommitRef);
 
         assertTrue(isClosed.get());
         assertFalse(indexCommitRef.tryIncRef());
@@ -51,7 +54,7 @@ public class SnapshotIndexCommitTests extends ESTestCase {
         assertFalse(indexCommitRef.tryIncRef());
     }
 
-    private void runAbortTest(boolean throwOnClose) throws Exception {
+    private void runAbortTest(boolean throwOnClose, @Nullable Exception outerException) throws Exception {
         final var isClosed = new AtomicBoolean();
         final var indexCommitRef = getSnapshotIndexCommit(throwOnClose, isClosed);
 
@@ -67,7 +70,32 @@ public class SnapshotIndexCommitTests extends ESTestCase {
 
         assertTrue(isClosed.get());
 
-        assertOnCompletionBehaviour(throwOnClose, indexCommitRef);
+        assertOnCompletionBehaviour(throwOnClose, outerException, indexCommitRef);
+    }
+
+    private void runConcurrentTest(boolean throwOnClose) throws Exception {
+        final var isClosed = new AtomicBoolean();
+        final var indexCommitRef = getSnapshotIndexCommit(throwOnClose, isClosed);
+        final var completeFuture = new PlainActionFuture<String>();
+        final var closingActionListener = indexCommitRef.closingBefore(completeFuture);
+
+        final var barrier = new CyclicBarrier(2);
+        final var completeThread = new Thread(() -> {
+            safeAwait(barrier);
+            closingActionListener.onResponse("success");
+        });
+        completeThread.start();
+
+        final var abortThread = new Thread(() -> {
+            safeAwait(barrier);
+            indexCommitRef.onAbort();
+        });
+        abortThread.start();
+
+        completeThread.join();
+        abortThread.join();
+
+        assertOnCompletionFuture(throwOnClose, null, completeFuture);
     }
 
     private SnapshotIndexCommit getSnapshotIndexCommit(boolean throwOnClose, AtomicBoolean isClosed) {
@@ -79,11 +107,37 @@ public class SnapshotIndexCommitTests extends ESTestCase {
         }));
     }
 
-    private void assertOnCompletionBehaviour(boolean throwOnClose, SnapshotIndexCommit indexCommitRef) throws Exception {
-        if (throwOnClose) {
-            assertEquals("simulated", expectThrows(IOException.class, indexCommitRef::onCompletion).getMessage());
+    private void assertOnCompletionBehaviour(boolean throwOnClose, @Nullable Exception outerException, SnapshotIndexCommit indexCommitRef)
+        throws Exception {
+        final var future = new PlainActionFuture<String>();
+        if (outerException == null) {
+            indexCommitRef.closingBefore(future).onResponse("success");
         } else {
-            indexCommitRef.onCompletion();
+            indexCommitRef.closingBefore(future).onFailure(outerException);
+        }
+        assertOnCompletionFuture(throwOnClose, outerException, future);
+    }
+
+    private void assertOnCompletionFuture(
+        boolean throwOnClose,
+        @Nullable Exception outerException,
+        PlainActionFuture<String> completionFuture
+    ) throws Exception {
+        assertTrue(completionFuture.isDone());
+        if (outerException == null) {
+            if (throwOnClose) {
+                assertEquals("simulated", expectThrows(ExecutionException.class, IOException.class, completionFuture::get).getMessage());
+            } else {
+                assertEquals("success", completionFuture.get());
+            }
+        } else {
+            assertSame(outerException, expectThrows(ExecutionException.class, Exception.class, completionFuture::get));
+            if (throwOnClose) {
+                assertEquals(1, outerException.getSuppressed().length);
+                assertEquals("simulated", outerException.getSuppressed()[0].getMessage());
+            } else {
+                assertEquals(0, outerException.getSuppressed().length);
+            }
         }
     }
 

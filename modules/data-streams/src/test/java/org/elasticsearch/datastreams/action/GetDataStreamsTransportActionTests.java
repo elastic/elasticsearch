@@ -15,7 +15,9 @@ import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
@@ -26,10 +28,13 @@ import java.time.temporal.ChronoUnit;
 import java.util.List;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.getClusterStateWithDataStreams;
+import static org.elasticsearch.test.LambdaMatchers.transformedItemsMatch;
+import static org.elasticsearch.test.LambdaMatchers.transformedMatch;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasSize;
 
 public class GetDataStreamsTransportActionTests extends ESTestCase {
 
@@ -41,8 +46,7 @@ public class GetDataStreamsTransportActionTests extends ESTestCase {
         ClusterState cs = getClusterStateWithDataStreams(List.of(new Tuple<>(dataStreamName, 1)), List.of());
         GetDataStreamAction.Request req = new GetDataStreamAction.Request(new String[] { dataStreamName });
         List<DataStream> dataStreams = GetDataStreamsTransportAction.getDataStreams(cs, resolver, req);
-        assertThat(dataStreams.size(), equalTo(1));
-        assertThat(dataStreams.get(0).getName(), equalTo(dataStreamName));
+        assertThat(dataStreams, transformedItemsMatch(DataStream::getName, contains(dataStreamName)));
     }
 
     public void testGetDataStreamsWithWildcards() {
@@ -54,24 +58,19 @@ public class GetDataStreamsTransportActionTests extends ESTestCase {
 
         GetDataStreamAction.Request req = new GetDataStreamAction.Request(new String[] { dataStreamNames[1].substring(0, 5) + "*" });
         List<DataStream> dataStreams = GetDataStreamsTransportAction.getDataStreams(cs, resolver, req);
-        assertThat(dataStreams.size(), equalTo(1));
-        assertThat(dataStreams.get(0).getName(), equalTo(dataStreamNames[1]));
+        assertThat(dataStreams, transformedItemsMatch(DataStream::getName, contains(dataStreamNames[1])));
 
         req = new GetDataStreamAction.Request(new String[] { "*" });
         dataStreams = GetDataStreamsTransportAction.getDataStreams(cs, resolver, req);
-        assertThat(dataStreams.size(), equalTo(2));
-        assertThat(dataStreams.get(0).getName(), equalTo(dataStreamNames[1]));
-        assertThat(dataStreams.get(1).getName(), equalTo(dataStreamNames[0]));
+        assertThat(dataStreams, transformedItemsMatch(DataStream::getName, contains(dataStreamNames[1], dataStreamNames[0])));
 
         req = new GetDataStreamAction.Request((String[]) null);
         dataStreams = GetDataStreamsTransportAction.getDataStreams(cs, resolver, req);
-        assertThat(dataStreams.size(), equalTo(2));
-        assertThat(dataStreams.get(0).getName(), equalTo(dataStreamNames[1]));
-        assertThat(dataStreams.get(1).getName(), equalTo(dataStreamNames[0]));
+        assertThat(dataStreams, transformedItemsMatch(DataStream::getName, contains(dataStreamNames[1], dataStreamNames[0])));
 
         req = new GetDataStreamAction.Request(new String[] { "matches-none*" });
         dataStreams = GetDataStreamsTransportAction.getDataStreams(cs, resolver, req);
-        assertThat(dataStreams.size(), equalTo(0));
+        assertThat(dataStreams, empty());
     }
 
     public void testGetDataStreamsWithoutWildcards() {
@@ -83,19 +82,15 @@ public class GetDataStreamsTransportActionTests extends ESTestCase {
 
         GetDataStreamAction.Request req = new GetDataStreamAction.Request(new String[] { dataStreamNames[0], dataStreamNames[1] });
         List<DataStream> dataStreams = GetDataStreamsTransportAction.getDataStreams(cs, resolver, req);
-        assertThat(dataStreams.size(), equalTo(2));
-        assertThat(dataStreams.get(0).getName(), equalTo(dataStreamNames[1]));
-        assertThat(dataStreams.get(1).getName(), equalTo(dataStreamNames[0]));
+        assertThat(dataStreams, transformedItemsMatch(DataStream::getName, contains(dataStreamNames[1], dataStreamNames[0])));
 
         req = new GetDataStreamAction.Request(new String[] { dataStreamNames[1] });
         dataStreams = GetDataStreamsTransportAction.getDataStreams(cs, resolver, req);
-        assertThat(dataStreams.size(), equalTo(1));
-        assertThat(dataStreams.get(0).getName(), equalTo(dataStreamNames[1]));
+        assertThat(dataStreams, transformedItemsMatch(DataStream::getName, contains(dataStreamNames[1])));
 
         req = new GetDataStreamAction.Request(new String[] { dataStreamNames[0] });
         dataStreams = GetDataStreamsTransportAction.getDataStreams(cs, resolver, req);
-        assertThat(dataStreams.size(), equalTo(1));
-        assertThat(dataStreams.get(0).getName(), equalTo(dataStreamNames[0]));
+        assertThat(dataStreams, transformedItemsMatch(DataStream::getName, contains(dataStreamNames[0])));
 
         GetDataStreamAction.Request req2 = new GetDataStreamAction.Request(new String[] { "foo" });
         IndexNotFoundException e = expectThrows(
@@ -157,11 +152,19 @@ public class GetDataStreamsTransportActionTests extends ESTestCase {
             systemIndices,
             ClusterSettings.createBuiltInClusterSettings()
         );
-        assertThat(response.getDataStreams(), hasSize(2));
-        assertThat(response.getDataStreams().get(0).getDataStream().getName(), equalTo(dataStream1));
-        assertThat(response.getDataStreams().get(0).getTimeSeries().temporalRanges(), contains(new Tuple<>(sixHoursAgo, twoHoursAhead)));
-        assertThat(response.getDataStreams().get(1).getDataStream().getName(), equalTo(dataStream2));
-        assertThat(response.getDataStreams().get(1).getTimeSeries().temporalRanges(), contains(new Tuple<>(sixHoursAgo, twoHoursAhead)));
+        assertThat(
+            response.getDataStreams(),
+            contains(
+                allOf(
+                    transformedMatch(d -> d.getDataStream().getName(), equalTo(dataStream1)),
+                    transformedMatch(d -> d.getTimeSeries().temporalRanges(), contains(new Tuple<>(sixHoursAgo, twoHoursAhead)))
+                ),
+                allOf(
+                    transformedMatch(d -> d.getDataStream().getName(), equalTo(dataStream2)),
+                    transformedMatch(d -> d.getTimeSeries().temporalRanges(), contains(new Tuple<>(sixHoursAgo, twoHoursAhead)))
+                )
+            )
+        );
 
         // Remove the middle backing index first data stream, so that there is time gap in the data stream:
         {
@@ -178,14 +181,70 @@ public class GetDataStreamsTransportActionTests extends ESTestCase {
             systemIndices,
             ClusterSettings.createBuiltInClusterSettings()
         );
-        assertThat(response.getDataStreams(), hasSize(2));
-        assertThat(response.getDataStreams().get(0).getDataStream().getName(), equalTo(dataStream1));
         assertThat(
-            response.getDataStreams().get(0).getTimeSeries().temporalRanges(),
-            contains(new Tuple<>(sixHoursAgo, fourHoursAgo), new Tuple<>(twoHoursAgo, twoHoursAhead))
+            response.getDataStreams(),
+            contains(
+                allOf(
+                    transformedMatch(d -> d.getDataStream().getName(), equalTo(dataStream1)),
+                    transformedMatch(
+                        d -> d.getTimeSeries().temporalRanges(),
+                        contains(new Tuple<>(sixHoursAgo, fourHoursAgo), new Tuple<>(twoHoursAgo, twoHoursAhead))
+                    )
+                ),
+                allOf(
+                    transformedMatch(d -> d.getDataStream().getName(), equalTo(dataStream2)),
+                    transformedMatch(d -> d.getTimeSeries().temporalRanges(), contains(new Tuple<>(sixHoursAgo, twoHoursAhead)))
+                )
+            )
         );
-        assertThat(response.getDataStreams().get(1).getDataStream().getName(), equalTo(dataStream2));
-        assertThat(response.getDataStreams().get(1).getTimeSeries().temporalRanges(), contains(new Tuple<>(sixHoursAgo, twoHoursAhead)));
     }
 
+    public void testGetTimeSeriesMixedDataStream() {
+        Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
+        String dataStream1 = "ds-1";
+        Instant twoHoursAgo = now.minus(2, ChronoUnit.HOURS);
+        Instant twoHoursAhead = now.plus(2, ChronoUnit.HOURS);
+
+        ClusterState state;
+        {
+            var mBuilder = new Metadata.Builder();
+            DataStreamTestHelper.getClusterStateWithDataStreams(
+                mBuilder,
+                List.of(Tuple.tuple(dataStream1, 2)),
+                List.of(),
+                now.toEpochMilli(),
+                Settings.EMPTY,
+                0,
+                false
+            );
+            DataStreamTestHelper.getClusterStateWithDataStream(mBuilder, dataStream1, List.of(new Tuple<>(twoHoursAgo, twoHoursAhead)));
+            state = ClusterState.builder(new ClusterName("_name")).metadata(mBuilder).build();
+        }
+
+        var req = new GetDataStreamAction.Request(new String[] {});
+        var response = GetDataStreamsTransportAction.innerOperation(
+            state,
+            req,
+            resolver,
+            systemIndices,
+            ClusterSettings.createBuiltInClusterSettings()
+        );
+
+        var name1 = DataStream.getDefaultBackingIndexName("ds-1", 1, now.toEpochMilli());
+        var name2 = DataStream.getDefaultBackingIndexName("ds-1", 2, now.toEpochMilli());
+        var name3 = DataStream.getDefaultBackingIndexName("ds-1", 3, now.toEpochMilli());
+        assertThat(
+            response.getDataStreams(),
+            contains(
+                allOf(
+                    transformedMatch(d -> d.getDataStream().getName(), equalTo(dataStream1)),
+                    transformedMatch(
+                        d -> d.getDataStream().getIndices().stream().map(Index::getName).toList(),
+                        contains(name1, name2, name3)
+                    ),
+                    transformedMatch(d -> d.getTimeSeries().temporalRanges(), contains(new Tuple<>(twoHoursAgo, twoHoursAhead)))
+                )
+            )
+        );
+    }
 }

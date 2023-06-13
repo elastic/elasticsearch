@@ -1548,6 +1548,9 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                     followersChecker.setCurrentNodes(publishNodes);
                     lagDetector.setTrackedNodes(publishNodes);
                     publication.start(followersChecker.getFaultyNodes());
+                } catch (Exception e) {
+                    assert currentPublication.isEmpty() : e; // should not fail after setting currentPublication
+                    becomeCandidate("publish");
                 } finally {
                     publicationContext.decRef();
                 }

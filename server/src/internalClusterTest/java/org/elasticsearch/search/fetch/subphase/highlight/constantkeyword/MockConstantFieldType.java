@@ -15,18 +15,13 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.plain.ConstantIndexFieldData;
 import org.elasticsearch.index.mapper.ConstantFieldType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.script.field.KeywordDocValuesField;
-import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 
-import java.util.Locale;
 import java.util.Map;
 
 public class MockConstantFieldType extends ConstantFieldType {
@@ -55,12 +50,7 @@ public class MockConstantFieldType extends ConstantFieldType {
 
     @Override
     public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
-        return new ConstantIndexFieldData.Builder(
-            value,
-            name(),
-            CoreValuesSourceType.KEYWORD,
-            (dv, n) -> new KeywordDocValuesField(FieldData.toString(dv), n)
-        );
+        throw new UnsupportedOperationException();
     }
 
     @Override
@@ -83,22 +73,7 @@ public class MockConstantFieldType extends ConstantFieldType {
 
     @Override
     public TermsEnum getTerms(IndexReader reader, String prefix, boolean caseInsensitive, String searchAfter) {
-        if (value == null) {
-            return TermsEnum.EMPTY;
-        }
-        boolean matches = caseInsensitive
-            ? value.toLowerCase(Locale.ROOT).startsWith(prefix.toLowerCase(Locale.ROOT))
-            : value.startsWith(prefix);
-        if (matches == false) {
-            return TermsEnum.EMPTY;
-        }
-        if (searchAfter != null) {
-            if (searchAfter.compareTo(value) >= 0) {
-                // The constant value is before the searchAfter value so must be ignored
-                return TermsEnum.EMPTY;
-            }
-        }
-        return TermsEnum.EMPTY;
+        throw new UnsupportedOperationException();
     }
 
     @Override

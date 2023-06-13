@@ -8,16 +8,11 @@
 
 package org.elasticsearch.search.fetch.subphase.highlight.constantkeyword;
 
-import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
-import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.util.Map;
-import java.util.Objects;
 
 class MockConstantFieldMapper extends FieldMapper {
     @Override
@@ -34,35 +29,20 @@ class MockConstantFieldMapper extends FieldMapper {
 
     public static class Builder extends FieldMapper.Builder {
 
-        // This is defined as updateable because it can be updated once, from [null] to any value,
-        // by a dynamic mapping update. Once it has been set, however, the value cannot be changed.
-        private final Parameter<String> value = new Parameter<>("value", true, () -> null, (n, c, o) -> {
-            if (o instanceof Number == false && o instanceof CharSequence == false) {
-                throw new MapperParsingException(
-                    "Property [value] on field [" + n + "] must be a number or a string, but got [" + o + "]"
-                );
-            }
-            return o.toString();
-        }, m -> toType(m).fieldType().value, XContentBuilder::field, Objects::toString);
-        private final Parameter<Map<String, String>> meta = Parameter.metaParam();
+        private final Parameter<String> value = Parameter.stringParam("value", false, m -> toType(m).fieldType().value, null);
 
         protected Builder(String name) {
             super(name);
-            value.setSerializerCheck((id, ic, v) -> v != null);
-            value.setMergeValidator((previous, current, c) -> previous == null || Objects.equals(previous, current));
         }
 
         @Override
         protected Parameter<?>[] getParameters() {
-            return new Parameter<?>[]{value, meta};
+            return new Parameter<?>[] { value };
         }
 
         @Override
         public MockConstantFieldMapper build(MapperBuilderContext context) {
-            return new MockConstantFieldMapper(
-                name,
-                new MockConstantFieldType(context.buildFullName(name), value.getValue(), meta.getValue())
-            );
+            return new MockConstantFieldMapper(name, new MockConstantFieldType(context.buildFullName(name), value.getValue(), Map.of()));
         }
     }
 
@@ -72,13 +52,7 @@ class MockConstantFieldMapper extends FieldMapper {
     }
 
     @Override
-    public Map<String, NamedAnalyzer> indexAnalyzers() {
-        return Map.of(mappedFieldType.name(), Lucene.KEYWORD_ANALYZER);
-    }
-
-    @Override
-    protected void parseCreateField(DocumentParserContext context) {
-    }
+    protected void parseCreateField(DocumentParserContext context) {}
 
     @Override
     protected String contentType() {
@@ -86,7 +60,7 @@ class MockConstantFieldMapper extends FieldMapper {
     }
 
     @Override
-    public Builder getMergeBuilder() {
-        return new Builder(mappedFieldType.name());
+    public FieldMapper.Builder getMergeBuilder() {
+        return new Builder(mappedFieldType.name()).init(this);
     }
 }

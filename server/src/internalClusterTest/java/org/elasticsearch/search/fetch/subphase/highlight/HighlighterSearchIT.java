@@ -75,6 +75,7 @@ import static org.elasticsearch.index.query.QueryBuilders.combinedFieldsQuery;
 import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
 import static org.elasticsearch.index.query.QueryBuilders.fuzzyQuery;
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchPhrasePrefixQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchPhraseQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
@@ -3551,7 +3552,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
     }
 
     public void testConstantKeywordFieldHighlighting() throws IOException {
-        // check that keyword highlighting works
+        // check that constant_keyword highlighting works
         XContentBuilder mappings = jsonBuilder();
         mappings.startObject();
         mappings.startObject("_doc")
@@ -3573,24 +3574,21 @@ public class HighlighterSearchIT extends ESIntegTestCase {
             .setId("1")
             .setSource(
                 jsonBuilder().startObject()
-                    .field("level", "DEBUG")
-                     .field("message", "some text")
+                    .field("message", "some text")
                     .endObject()
             )
             .get();
         refresh();
         SearchResponse search = client().prepareSearch()
             .setSource(
-                new SearchSourceBuilder().query(QueryBuilders.matchQuery("message", "some"))
+                new SearchSourceBuilder().query(QueryBuilders.termQuery("level", "DEBUG"))
                     .highlighter(new HighlightBuilder().field("*"))
             )
             .get();
         assertNoFailures(search);
-
         assertThat(
-
-            search.getHits().getAt(0).getHighlightFields().get("message").getFragments()[0].toString(),
-            equalTo("<em>some</em> text")
+            search.getHits().getAt(0).getHighlightFields().get("level").getFragments()[0].toString(),
+            equalTo("<em>DEBUG</em>")
         );
     }
 

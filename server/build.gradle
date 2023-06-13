@@ -250,6 +250,7 @@ tasks.named("thirdPartyAudit").configure {
 
 tasks.named("dependencyLicenses").configure {
     mapping from: /lucene-.*/, to: 'lucene'
+    mapping from: /log4j-.*/, to: 'log4j'
     dependencies = project.configurations.runtimeClasspath.fileCollection {
         it.group.startsWith('org.elasticsearch') == false ||
                 // keep the following org.elasticsearch jars in

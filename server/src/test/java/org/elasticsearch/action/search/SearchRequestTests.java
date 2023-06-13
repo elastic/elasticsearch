@@ -101,6 +101,8 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         } else {
             // tests version prior to 8.8 so remove possible rank builder
             searchRequest.source().rankBuilder(null);
+            // tests version prior to 8_500_999 so remove possible multiple queries
+            searchRequest.source().queries(new ArrayList<>());
         }
         searchRequest.source()
             .knnSearch(

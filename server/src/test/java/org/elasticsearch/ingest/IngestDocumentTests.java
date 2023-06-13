@@ -780,8 +780,8 @@ public class IngestDocumentTests extends ESTestCase {
             assertThat(
                 e.getMessage(),
                 equalTo(
-                    "cannot create child of [0:'list'] with value [[{field=value}, null]] of type [java.util.ArrayList] as part of path " +
-                    "[list.test.field]"
+                    "cannot create child of [0:'list'] with value [[{field=value}, null]] of type [java.util.ArrayList] as part of path "
+                        + "[list.test.field]"
                 )
             );
         }
@@ -873,10 +873,7 @@ public class IngestDocumentTests extends ESTestCase {
             ingestDocument.removeField("foo.foo.bar");
             fail("remove field should have failed");
         } catch (IllegalArgumentException e) {
-            assertThat(
-                e.getMessage(),
-                equalTo("field [foo.foo] not present as part of path [foo.foo.bar]")
-            );
+            assertThat(e.getMessage(), equalTo("field [foo.foo] not present as part of path [foo.foo.bar]"));
         }
     }
 

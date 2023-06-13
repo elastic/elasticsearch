@@ -64,8 +64,8 @@ public final class DotExpanderProcessor extends AbstractProcessor {
 
     private void expandDot(IngestDocument ingestDocument, String pathToExpand, String fieldName, Map<String, Object> map) {
         if (map.containsKey(fieldName)) {
+            Object value = map.remove(fieldName);
             if (ingestDocument.hasField(pathToExpand)) {
-                Object value = map.remove(fieldName);
                 if (override) {
                     ingestDocument.setFieldValue(pathToExpand, value);
                 } else {
@@ -93,7 +93,6 @@ public final class DotExpanderProcessor extends AbstractProcessor {
                         break;
                     }
                 }
-                Object value = map.remove(fieldName);
                 ingestDocument.setFieldValue(pathToExpand, value);
             }
         }

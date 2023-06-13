@@ -100,6 +100,11 @@ public class IngestDocumentTests extends ESTestCase {
         assertThat(ingestDocument.getFieldValue("_source._ingest.timestamp", ZonedDateTime.class), equalTo(BOGUS_TIMESTAMP));
     }
 
+    public void testGetDottedField() {
+        ingestDocument.getCtxMap().put("a.b.c", "foo");
+        assertThat(ingestDocument.getFieldValue("a.b.c", String.class), equalTo("foo"));
+    }
+
     public void testGetSourceObject() {
         try {
             ingestDocument.getFieldValue("_source", Object.class);
@@ -158,10 +163,7 @@ public class IngestDocumentTests extends ESTestCase {
         try {
             ingestDocument.getFieldValue("foo.foo.bar", String.class);
         } catch (IllegalArgumentException e) {
-            assertThat(
-                e.getMessage(),
-                equalTo("cannot resolve [foo] from object of type [java.lang.String] as part of path [foo.foo.bar]")
-            );
+            assertThat(e.getMessage(), equalTo("field [foo.foo] not present as part of path [foo.foo.bar]"));
         }
     }
 
@@ -203,7 +205,7 @@ public class IngestDocumentTests extends ESTestCase {
             ingestDocument.getFieldValue("fizz.foo_null.not_there", String.class);
             fail("get field value should have failed");
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("cannot resolve [not_there] from null as part of path [fizz.foo_null.not_there]"));
+            assertThat(e.getMessage(), equalTo("field [not_there] not present as part of path [fizz.foo_null.not_there]"));
         }
     }
 
@@ -381,7 +383,9 @@ public class IngestDocumentTests extends ESTestCase {
         } catch (IllegalArgumentException e) {
             assertThat(
                 e.getMessage(),
-                equalTo("cannot set [new] with parent object of type [java.lang.String] as part of path [fizz.buzz.new]")
+                equalTo(
+                    "cannot create child of [1:'buzz'] with value [hello world] of type [java.lang.String] as part of path [fizz.buzz.new]"
+                )
             );
         }
     }
@@ -391,7 +395,10 @@ public class IngestDocumentTests extends ESTestCase {
             ingestDocument.setFieldValue("fizz.foo_null.test", "bar");
             fail("add field should have failed");
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("cannot set [test] with null parent as part of path [fizz.foo_null.test]"));
+            assertThat(
+                e.getMessage(),
+                equalTo("cannot create child of [1:'foo_null'] with value [null] of type [null] as part of path [fizz.foo_null.test]")
+            );
         }
     }
 
@@ -761,28 +768,43 @@ public class IngestDocumentTests extends ESTestCase {
     public void testListSetFieldValueIndexNotNumeric() {
         try {
             ingestDocument.setFieldValue("list.test", "value");
+            fail("set field should have failed");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("[test] is not an integer, cannot be used as an index as part of path [list.test]"));
         }
 
         try {
             ingestDocument.setFieldValue("list.test.field", "new_value");
+            fail("set field should have failed");
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("[test] is not an integer, cannot be used as an index as part of path [list.test.field]"));
+            assertThat(
+                e.getMessage(),
+                equalTo(
+                    "cannot create child of [0:'list'] with value [[{field=value}, null]] of type [java.util.ArrayList] as part of path [list.test.field]"
+                )
+            );
         }
     }
 
     public void testListSetFieldValueIndexOutOfBounds() {
         try {
             ingestDocument.setFieldValue("list.10", "value");
+            fail("set field should have failed");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("[10] is out of bounds for array with length [2] as part of path [list.10]"));
         }
 
         try {
             ingestDocument.setFieldValue("list.10.field", "value");
+            fail("set field should have failed");
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("[10] is out of bounds for array with length [2] as part of path [list.10.field]"));
+            assertThat(
+                e.getMessage(),
+                equalTo(
+                    "cannot create child of [0:'list'] with value [[{field=value}, null]] of type [java.util.ArrayList] as part of path "
+                        + "[list.10.field]"
+                )
+            );
         }
     }
 
@@ -852,7 +874,7 @@ public class IngestDocumentTests extends ESTestCase {
         } catch (IllegalArgumentException e) {
             assertThat(
                 e.getMessage(),
-                equalTo("cannot resolve [foo] from object of type [java.lang.String] as part of path [foo.foo.bar]")
+                equalTo("cannot resolve [foo.foo] from object of type [java.lang.String] as part of path [foo.foo.bar]")
             );
         }
     }
@@ -912,21 +934,23 @@ public class IngestDocumentTests extends ESTestCase {
             ingestDocument.removeField("fizz.foo_null.not_there");
             fail("get field value should have failed");
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("cannot remove [not_there] from null as part of path [fizz.foo_null.not_there]"));
+            assertThat(e.getMessage(), equalTo("field [not_there] not present as part of path [fizz.foo_null.not_there]"));
         }
     }
 
     public void testNestedRemoveFieldTypeMismatch() {
         try {
             ingestDocument.removeField("fizz.1.bar");
+            fail("remove field should have failed");
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("cannot remove [bar] from object of type [java.lang.String] as part of path [fizz.1.bar]"));
+            assertThat(e.getMessage(), equalTo("field [bar] not present as part of path [fizz.1.bar]"));
         }
     }
 
     public void testListRemoveFieldIndexNotNumeric() {
         try {
             ingestDocument.removeField("list.test");
+            fail("remove field should have failed");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("[test] is not an integer, cannot be used as an index as part of path [list.test]"));
         }
@@ -935,6 +959,7 @@ public class IngestDocumentTests extends ESTestCase {
     public void testListRemoveFieldIndexOutOfBounds() {
         try {
             ingestDocument.removeField("list.10");
+            fail("remove field should have failed");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("[10] is out of bounds for array with length [2] as part of path [list.10]"));
         }

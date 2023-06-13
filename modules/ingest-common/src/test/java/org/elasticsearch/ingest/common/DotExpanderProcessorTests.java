@@ -11,7 +11,6 @@ package org.elasticsearch.ingest.common;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.TestIngestDocument;
-import org.elasticsearch.ingest.TestTemplateService;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;
@@ -77,16 +76,9 @@ public class DotExpanderProcessorTests extends ESTestCase {
 
         // so because foo is no branch field but a value field the `foo.bar` field can't be expanded
         // into [foo].[bar], so foo should be renamed first into `[foo].[bar]:
+        source.put("foo", new HashMap<>(Map.of("bar", "baz2")));
         IngestDocument document = TestIngestDocument.withDefaultVersion(source);
-        Processor processor = new RenameProcessor(
-            "_tag",
-            null,
-            new TestTemplateService.MockTemplateScript.Factory("foo"),
-            new TestTemplateService.MockTemplateScript.Factory("foo.bar"),
-            false
-        );
-        processor.execute(document);
-        processor = new DotExpanderProcessor("_tag", null, null, "foo.bar");
+        Processor processor = new DotExpanderProcessor("_tag", null, null, "foo.bar");
         processor.execute(document);
         assertThat(document.getFieldValue("foo", Map.class).size(), equalTo(1));
         assertThat(document.getFieldValue("foo.bar.0", String.class), equalTo("baz2"));
@@ -147,8 +139,8 @@ public class DotExpanderProcessorTests extends ESTestCase {
         // abc.def does not exist in source, so don't mutate document
         DotExpanderProcessor processor = new DotExpanderProcessor("_tag", null, null, "abc.def");
         processor.execute(document);
-        // hasField returns false since it requires the expanded form, which is not expanded since we did not ask for it to be
-        assertFalse(document.hasField("foo.bar"));
+        assertTrue(document.hasField("foo.bar"));
+        assertFalse(document.hasField("foo"));
         // nothing has changed
         assertEquals(document.getSourceAndMetadata().get("foo.bar"), "baz1");
         // abc.def is not found anywhere

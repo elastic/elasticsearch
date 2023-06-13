@@ -394,15 +394,20 @@ public class WriteFieldTests extends ESTestCase {
         a.clear();
         a.put("b", "foo");
         IllegalArgumentException err = expectThrows(IllegalArgumentException.class, () -> new WriteField("a.b.c", () -> root).set("bar"));
-        assertEquals("Segment [1:'b'] has value [foo] of type [java.lang.String]", err.getMessage());
+        assertEquals(
+            "cannot create child of [1:'b'] with value [foo] of type [java.lang.String] as part of path [a.b.c]",
+            err.getMessage()
+        );
     }
 
     public void testSetList() {
-        Map<String, Object> root = Map.of("a.b", new ArrayList<>(List.of(1)));
+        Map<String, Object> root = new HashMap<>(Map.of("a.b", new ArrayList<>(List.of(1))));
         new WriteField("a.b.0", () -> root).set(42);
         assertEquals(List.of(42), root.get("a.b"));
 
-        new WriteField("a.b.1", () -> root).set("foo");
+        IllegalArgumentException err = expectThrows(IllegalArgumentException.class, () -> new WriteField("a.b.1", () -> root).set("foo"));
+        assertEquals("[1] is out of bounds for array with length [1] as part of path [a.b.1]", err.getMessage());
+
         assertEquals(List.of(42), root.get("a.b"));
     }
 
@@ -430,6 +435,19 @@ public class WriteFieldTests extends ESTestCase {
         wf = new WriteField("a.b.c", () -> root);
         wf.append("bar");
         assertEquals(new ArrayList<>(List.of("bar")), b.get("c"));
+        wf.append("bar", false);
+        assertEquals(new ArrayList<>(List.of("bar")), b.get("c"));
+    }
+
+    public void testAppendList() {
+        Map<String, Object> root = new HashMap<>();
+        root.put("a.b.c", new ArrayList<>(List.of("foo")));
+        WriteField wf = new WriteField("a.b.c", () -> root);
+        wf.append(List.of("bar", "baz"));
+        assertEquals(List.of("foo", "bar", "baz"), root.get("a.b.c"));
+
+        wf.append(List.of("bar", "baz", "qux"), false);
+        assertEquals(List.of("foo", "bar", "baz", "qux"), root.get("a.b.c"));
     }
 
     public void testAppendListElement() {
@@ -757,11 +775,22 @@ public class WriteFieldTests extends ESTestCase {
         assertEquals("cannot append NestedDocument [{foo=bar}] to path [b]", err.getMessage());
     }
 
+    public void testGetDottedFieldName() {
+        Map<String, Object> root = Map.of("a.b.c", "foo");
+        WriteField wf = new WriteField("a.b.c", () -> root);
+        assertTrue(wf.exists());
+        assertThat(wf.get(null), equalTo("foo"));
+
+        assertThat(new WriteField("a.b", () -> root).get(null), equalTo(null));
+    }
+
     public void testGetListElement() {
         Map<String, Object> root = Map.of("a", List.of("a1", "a2"));
         WriteField wf = new WriteField("a.0", () -> root);
         assertTrue(wf.exists());
         assertThat(wf.get(null), equalTo("a1"));
+
+        assertThat(new WriteField("a.b", () -> root).get(null), equalTo(null));
     }
 
     public void testGetNestedListElement() {
@@ -783,6 +812,12 @@ public class WriteFieldTests extends ESTestCase {
         WriteField wf = new WriteField("a.b.0", () -> root);
         assertTrue(wf.exists());
         assertThat(wf.get(null), equalTo("b1"));
+    }
+
+    public void testGetNonExisting() {
+        Map<String, Object> root = new HashMap<>();
+        IllegalArgumentException err = expectThrows(IllegalArgumentException.class, () -> new WriteField("a", () -> root).get());
+        assertEquals("field [a] not present as part of path [a]", err.getMessage());
     }
 
     public MapOfMaps addPath(Map<String, Object> root, String path, Object value) {

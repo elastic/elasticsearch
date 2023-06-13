@@ -91,25 +91,15 @@ public final class RerouteProcessor extends AbstractProcessor {
         String namespace = determineDataStreamField(ingestDocument, this.namespace, currentNamespace);
         String newTarget = type + "-" + dataset + "-" + namespace;
         ingestDocument.reroute(newTarget);
-        setFieldValue(ingestDocument, DATA_STREAM_TYPE, type);
-        setFieldValue(ingestDocument, DATA_STREAM_DATASET, dataset);
-        setFieldValue(ingestDocument, DATA_STREAM_NAMESPACE, namespace);
+        ingestDocument.setFieldValue(DATA_STREAM_TYPE, type);
+        ingestDocument.setFieldValue(DATA_STREAM_DATASET, dataset);
+        ingestDocument.setFieldValue(DATA_STREAM_NAMESPACE, namespace);
         if (ingestDocument.getCtxMap().containsKey(EVENT_DATASET) || ingestDocument.hasField(EVENT_DATASET)) {
             // ECS specifies that "event.dataset should have the same value as data_stream.dataset"
             // not eagerly set event.dataset but only if the doc contains it already to ensure it's consistent with data_stream.dataset
-            setFieldValue(ingestDocument, EVENT_DATASET, dataset);
+            ingestDocument.setFieldValue(EVENT_DATASET, dataset);
         }
         return ingestDocument;
-    }
-
-    /* sets a field value in either dotted or nested notation, preserving the notation used in the document */
-    private static void setFieldValue(IngestDocument doc, String path, String value) {
-        Map<String, Object> source = doc.getSourceAndMetadata();
-        if (source.containsKey(path)) {
-            source.put(path, value);
-        } else {
-            doc.setFieldValue(path, value);
-        }
     }
 
     private static String parseDataStreamType(String dataStreamName, int indexOfFirstDash) {
@@ -264,32 +254,10 @@ public final class RerouteProcessor extends AbstractProcessor {
         public String resolve(IngestDocument ingestDocument) {
             if (fieldReference != null) {
                 String value = ingestDocument.getFieldValue(fieldReference, String.class, true);
-                if (value == null) {
-                    value = getStringFieldValueInDottedNotation(ingestDocument);
-                }
                 return sanitizer.apply(value);
             } else {
                 return value;
             }
-        }
-
-        private String getStringFieldValueInDottedNotation(IngestDocument ingestDocument) {
-            String value = null;
-            Object valueObject = ingestDocument.getCtxMap().get(fieldReference);
-            if (valueObject instanceof String) {
-                value = (String) valueObject;
-            } else if (valueObject != null) {
-                throw new IllegalArgumentException(
-                    "field ["
-                        + fieldReference
-                        + "] of type ["
-                        + valueObject.getClass().getName()
-                        + "] cannot be cast to ["
-                        + String.class.getName()
-                        + "]"
-                );
-            }
-            return value;
         }
     }
 }

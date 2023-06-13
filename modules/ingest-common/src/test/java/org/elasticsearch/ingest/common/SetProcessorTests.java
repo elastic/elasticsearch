@@ -67,7 +67,7 @@ public class SetProcessorTests extends ESTestCase {
         } catch (IllegalArgumentException e) {
             assertThat(
                 e.getMessage(),
-                equalTo("cannot set [inner] with parent object of type [java.lang.String] as " + "part of path [field.inner]")
+                equalTo("cannot create child of [0:'field'] with value [value] of type [java.lang.String] as part of path [field.inner]")
             );
         }
     }

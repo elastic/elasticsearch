@@ -406,6 +406,10 @@ public interface Role {
             builder.runAs(new Privilege(Sets.newHashSet(rdRunAs), rdRunAs));
         }
 
+        if (roleDescriptor.hasWorkflowsRestriction()) {
+            builder.workflows(Set.of(roleDescriptor.getRestriction().getWorkflows()));
+        }
+
         return builder.build();
     }
 }

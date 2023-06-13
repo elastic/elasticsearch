@@ -40,6 +40,8 @@ import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.SortedNumericDocValuesLongFieldScript;
 import org.elasticsearch.script.field.GeoPointDocValuesField;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.TimeSeriesValuesSourceType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.runtime.GeoPointScriptFieldDistanceFeatureQuery;
@@ -207,7 +209,8 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
                 geoParser,
                 scriptValues(),
                 meta.get(),
-                metric.get()
+                metric.get(),
+                indexMode
             );
             if (this.script.get() == null) {
                 return new GeoPointFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo.build(), geoParser, this);
@@ -361,6 +364,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
         );
 
         private final FieldValues<GeoPoint> scriptValues;
+        private final IndexMode indexMode;
 
         private GeoPointFieldType(
             String name,
@@ -370,21 +374,23 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
             Parser<GeoPoint> parser,
             FieldValues<GeoPoint> scriptValues,
             Map<String, String> meta,
-            TimeSeriesParams.MetricType metricType
+            TimeSeriesParams.MetricType metricType,
+            IndexMode indexMode
         ) {
             super(name, indexed, stored, hasDocValues, parser, meta);
             this.scriptValues = scriptValues;
             this.metricType = metricType;
+            this.indexMode = indexMode;
         }
 
         // only used in test
-        public GeoPointFieldType(String name, TimeSeriesParams.MetricType metricType) {
-            this(name, true, false, true, null, null, Collections.emptyMap(), metricType);
+        public GeoPointFieldType(String name, TimeSeriesParams.MetricType metricType, IndexMode indexMode) {
+            this(name, true, false, true, null, null, Collections.emptyMap(), metricType, indexMode);
         }
 
         // only used in test
         public GeoPointFieldType(String name) {
-            this(name, null);
+            this(name, null, null);
         }
 
         @Override
@@ -448,8 +454,14 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
                 failIfNoDocValues();
             }
 
+            // TODO: Verify is we actually need this, as the POSITION value source is currently the GEOPOINT value source with some
+            // restrictions that are not verified to be needed
+            ValuesSourceType valuesSourceType = indexMode == IndexMode.TIME_SERIES && metricType == TimeSeriesParams.MetricType.POSITION
+                ? TimeSeriesValuesSourceType.POSITION
+                : CoreValuesSourceType.GEOPOINT;
+
             if ((operation == FielddataOperation.SEARCH || operation == FielddataOperation.SCRIPT) && hasDocValues()) {
-                return new LatLonPointIndexFieldData.Builder(name(), CoreValuesSourceType.GEOPOINT, GeoPointDocValuesField::new);
+                return new LatLonPointIndexFieldData.Builder(name(), valuesSourceType, GeoPointDocValuesField::new);
             }
 
             if (operation == FielddataOperation.SCRIPT) {
@@ -458,7 +470,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
 
                 return new SourceValueFetcherMultiGeoPointIndexFieldData.Builder(
                     name(),
-                    CoreValuesSourceType.GEOPOINT,
+                    valuesSourceType,
                     valueFetcher(sourcePaths, null, null),
                     searchLookup,
                     GeoPointDocValuesField::new

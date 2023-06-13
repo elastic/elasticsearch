@@ -46,7 +46,6 @@ import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
-import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -72,6 +71,8 @@ import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+import static org.elasticsearch.index.IndexMode.TIME_SERIES;
+import static org.elasticsearch.index.mapper.TimeSeriesParams.MetricType.POSITION;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -623,6 +624,20 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
         private String sortField() {
             return useTimestamp ? "@timestamp" : "time_field";
         }
+
+        private GeoLineAggregationBuilder lineAggregationBuilder(String name, String valueField, String sortField) {
+            MultiValuesSourceFieldConfig valueConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName(valueField).build();
+            GeoLineAggregationBuilder lineAggregationBuilder = new GeoLineAggregationBuilder(name).point(valueConfig)
+                .sortOrder(sortOrder)
+                .size(maxPoints);
+            if (useTimestamp) {
+                // In time-series we do not set the sort field
+                return lineAggregationBuilder;
+            } else {
+                MultiValuesSourceFieldConfig sortConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName(sortField).build();
+                return lineAggregationBuilder.sort(sortConfig);
+            }
+        }
     }
 
     private static class TestData {
@@ -747,12 +762,7 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
         TestData testData = new TestData(testConfig);
 
         // Create the nested aggregations to run
-        MultiValuesSourceFieldConfig valueConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName("value_field").build();
-        MultiValuesSourceFieldConfig sortConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName(testConfig.sortField()).build();
-        GeoLineAggregationBuilder lineAggregationBuilder = new GeoLineAggregationBuilder("track").point(valueConfig)
-            .sortOrder(testConfig.sortOrder)
-            .sort(sortConfig)
-            .size(testConfig.maxPoints);
+        var lineAggregationBuilder = testConfig.lineAggregationBuilder("track", "value_field", "time_field");
         TimeSeriesAggregationBuilder aggregationBuilder = makeTSAggBuilder.apply(lineAggregationBuilder);
 
         // Run the aggregation
@@ -905,10 +915,10 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
                 fieldTypes.add(TimeSeriesIdFieldMapper.FIELD_TYPE);
                 fieldTypes.add(new DateFieldMapper.DateFieldType("@timestamp"));
                 fieldTypes.add(new DateFieldMapper.DateFieldType("time_field"));
+                fieldTypes.add(new GeoPointFieldMapper.GeoPointFieldType("value_field", POSITION, TIME_SERIES));
+            } else {
+                fieldTypes.add(new GeoPointFieldMapper.GeoPointFieldType("value_field"));
             }
-
-            TimeSeriesParams.MetricType metricType = timeSeries ? TimeSeriesParams.MetricType.POSITION : null;
-            fieldTypes.add(new GeoPointFieldMapper.GeoPointFieldType("value_field", metricType));
             fieldTypes.add(new KeywordFieldMapper.KeywordFieldType("group_id", false, true, Collections.emptyMap()));
             fieldTypes.add(new NumberFieldMapper.NumberFieldType("sort_field", NumberFieldMapper.NumberType.LONG));
             AggTestConfig aggTestConfig = new AggTestConfig(aggregationBuilder, fieldTypes.toArray(new MappedFieldType[0]));

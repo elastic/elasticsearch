@@ -212,7 +212,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             try {
                 search(leafContexts, weight, firstCollector);
                 return collectorManager.reduce(Collections.singletonList(firstCollector));
-            } catch(Exception e) {
+            } catch (Exception e) {
                 collectorManager.reduce(Collections.singletonList(firstCollector));
                 throw e;
             }

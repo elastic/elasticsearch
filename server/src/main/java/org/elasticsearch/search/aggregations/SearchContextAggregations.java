@@ -17,7 +17,7 @@ public class SearchContextAggregations {
 
     private final AggregatorFactories factories;
     private Aggregator[] aggregators;
-    private CollectorManager<Collector, Void> aggCollectorManager;
+    private CollectorManager<? extends Collector, Void> aggCollectorManager;
 
     /**
      * Creates a new aggregation context with the parsed aggregator factories
@@ -46,14 +46,14 @@ public class SearchContextAggregations {
     /**
      * Registers the collector to be run for the aggregations phase
      */
-    public void registerAggsCollectorManager(CollectorManager<Collector, Void> aggCollectorManager) {
+    public void registerAggsCollectorManager(CollectorManager<? extends Collector, Void> aggCollectorManager) {
         this.aggCollectorManager = aggCollectorManager;
     }
 
     /**
      * Returns the collector to be run for the aggregations phase
      */
-    public CollectorManager<Collector, Void> getAggsCollectorManager() {
+    public CollectorManager<? extends Collector, Void> getAggsCollectorManager() {
         return aggCollectorManager;
     }
 }

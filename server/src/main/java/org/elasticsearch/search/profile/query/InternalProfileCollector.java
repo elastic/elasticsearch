@@ -27,9 +27,11 @@ import java.util.List;
 public class InternalProfileCollector extends ProfilerCollector {
 
     private final InternalProfileCollector[] children;
+    private final Collector collector;
 
     public InternalProfileCollector(Collector collector, String reason, InternalProfileCollector... children) {
         super(collector, reason, Arrays.asList(children));
+        this.collector = collector;
         this.children = children;
     }
 
@@ -67,5 +69,9 @@ public class InternalProfileCollector extends ProfilerCollector {
             childResults.add(result);
         }
         return new CollectorResult(getName(), getReason(), getTime(), childResults);
+    }
+
+    public Collector getCollector() {
+        return collector;
     }
 }

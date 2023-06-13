@@ -68,4 +68,8 @@ public class MinimumScoreCollector extends SimpleCollector {
     public ScoreMode scoreMode() {
         return collector.scoreMode() == ScoreMode.TOP_SCORES ? ScoreMode.TOP_SCORES : ScoreMode.COMPLETE;
     }
+
+    public Collector getCollector() {
+        return collector;
+    }
 }

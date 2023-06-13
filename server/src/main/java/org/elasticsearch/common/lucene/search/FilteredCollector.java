@@ -60,4 +60,8 @@ public class FilteredCollector implements Collector {
     public ScoreMode scoreMode() {
         return collector.scoreMode();
     }
+
+    public Collector getCollector() {
+        return collector;
+    }
 }

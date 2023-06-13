@@ -38,7 +38,6 @@ import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.search.TopFieldCollector;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TopScoreDocCollector;
-import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.search.MaxScoreCollector;
 import org.elasticsearch.common.lucene.Lucene;
@@ -109,7 +108,7 @@ abstract class TopDocsCollectorManagerFactory {
             super(REASON_SEARCH_COUNT, null);
             this.sort = sortAndFormats == null ? null : sortAndFormats.sort;
             if (trackTotalHitsUpTo == SearchContext.TRACK_TOTAL_HITS_DISABLED) {
-                this.collectorManager = new EarlyTerminatingCollectorManager<>(new TotalHitCountCollectorManager(), 0);
+                this.collectorManager = new EarlyTerminatingCollectorManager(new TotalHitCountCollectorManager(), 0);
                 // for bwc hit count is set to 0, it will be converted to -1 by the coordinating node
                 this.hitCountSupplier = () -> new TotalHits(0, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO);
             } else {
@@ -121,8 +120,10 @@ abstract class TopDocsCollectorManagerFactory {
                         TotalHits.Relation.EQUAL_TO
                     );
                 } else {
-                    EarlyTerminatingCollectorManager<TotalHitCountCollector> earlyTerminatingCollectorManager =
-                        new EarlyTerminatingCollectorManager<>(totalHitCountCollectorManager, trackTotalHitsUpTo);
+                    EarlyTerminatingCollectorManager earlyTerminatingCollectorManager = new EarlyTerminatingCollectorManager(
+                        totalHitCountCollectorManager,
+                        trackTotalHitsUpTo
+                    );
                     this.collectorManager = earlyTerminatingCollectorManager;
                     this.hitCountSupplier = () -> new TotalHits(
                         totalHitCountCollectorManager.getTotalHitCount(),

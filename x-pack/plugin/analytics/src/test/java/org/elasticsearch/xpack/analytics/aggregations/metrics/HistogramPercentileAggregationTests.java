@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.analytics.aggregations.metrics;
 
-import com.tdunning.math.stats.Centroid;
-
 import org.HdrHistogram.DoubleHistogram;
 import org.HdrHistogram.DoubleHistogramIterationValue;
 import org.apache.lucene.tests.util.TestUtil;
@@ -23,6 +21,7 @@ import org.elasticsearch.search.aggregations.metrics.InternalTDigestPercentiles;
 import org.elasticsearch.search.aggregations.metrics.PercentilesAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.PercentilesMethod;
 import org.elasticsearch.search.aggregations.metrics.TDigestState;
+import org.elasticsearch.tdigest.Centroid;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;

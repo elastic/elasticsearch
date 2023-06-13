@@ -41,18 +41,25 @@ public class FlushJobParams {
      */
     private final boolean waitForNormalization;
 
+    /**
+     * Should the flush request trigger a refresh or not.
+     */
+    private final boolean shouldRefresh;
+
     private FlushJobParams(
         boolean calcInterim,
         TimeRange timeRange,
         Long advanceTimeSeconds,
         Long skipTimeSeconds,
-        boolean waitForNormalization
+        boolean waitForNormalization,
+        boolean shouldRefresh
     ) {
         this.calcInterim = calcInterim;
         this.timeRange = Objects.requireNonNull(timeRange);
         this.advanceTimeSeconds = advanceTimeSeconds;
         this.skipTimeSeconds = skipTimeSeconds;
         this.waitForNormalization = waitForNormalization;
+        this.shouldRefresh = shouldRefresh;
     }
 
     public boolean shouldCalculateInterim() {
@@ -93,6 +100,10 @@ public class FlushJobParams {
         return waitForNormalization;
     }
 
+    public Boolean shouldRefresh() {
+        return shouldRefresh;
+    }
+
     public static Builder builder() {
         return new Builder();
     }
@@ -119,6 +130,7 @@ public class FlushJobParams {
         private String advanceTime;
         private String skipTime;
         private boolean waitForNormalization = true;
+        private boolean shouldRefresh = true;
 
         public Builder calcInterim(boolean value) {
             calcInterim = value;
@@ -145,6 +157,11 @@ public class FlushJobParams {
             return this;
         }
 
+        public Builder shouldRefresh(boolean shouldRefresh) {
+            this.shouldRefresh = shouldRefresh;
+            return this;
+        }
+
         public FlushJobParams build() {
             checkValidFlushArgumentsCombination();
             Long advanceTimeSeconds = parseTimeParam("advance_time", advanceTime);
@@ -154,7 +171,7 @@ public class FlushJobParams {
                     "advance_time [" + advanceTime + "] must be later than skip_time [" + skipTime + "]"
                 );
             }
-            return new FlushJobParams(calcInterim, timeRange, advanceTimeSeconds, skipTimeSeconds, waitForNormalization);
+            return new FlushJobParams(calcInterim, timeRange, advanceTimeSeconds, skipTimeSeconds, waitForNormalization, shouldRefresh);
         }
 
         private void checkValidFlushArgumentsCombination() {

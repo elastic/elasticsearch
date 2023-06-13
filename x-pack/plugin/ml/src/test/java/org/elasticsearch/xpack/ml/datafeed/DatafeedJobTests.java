@@ -285,6 +285,7 @@ public class DatafeedJobTests extends ESTestCase {
         flushRequest.setCalcInterim(true);
         flushRequest.setAdvanceTime("59000");
         flushRequest.setWaitForNormalization(false);
+        flushRequest.setShouldRefresh(false);
         verify(client).execute(same(FlushJobAction.INSTANCE), eq(flushRequest));
         verify(client, never()).execute(same(PersistJobAction.INSTANCE), any());
 

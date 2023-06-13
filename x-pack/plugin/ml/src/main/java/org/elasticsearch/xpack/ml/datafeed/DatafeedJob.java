@@ -175,6 +175,7 @@ class DatafeedJob {
 
         FlushJobAction.Request request = new FlushJobAction.Request(jobId);
         request.setCalcInterim(true);
+        request.setShouldRefresh(false);
         run(lookbackStartTimeMs, lookbackEnd, request);
         if (shouldPersistAfterLookback(isLookbackOnly)) {
             sendPersistRequest();
@@ -205,6 +206,7 @@ class DatafeedJob {
             // start time is after last checkpoint, thus we need to skip time
             FlushJobAction.Request request = new FlushJobAction.Request(jobId);
             request.setSkipTime(String.valueOf(startTime));
+            request.setShouldRefresh(false);
             FlushJobAction.Response flushResponse = flushJob(request);
             LOGGER.info("[{}] Skipped to time [{}]", jobId, flushResponse.getLastFinalizedBucketEnd().toEpochMilli());
             return flushResponse.getLastFinalizedBucketEnd().toEpochMilli();
@@ -218,6 +220,7 @@ class DatafeedJob {
         long end = toIntervalStartEpochMs(nowMinusQueryDelay);
         FlushJobAction.Request request = new FlushJobAction.Request(jobId);
         request.setWaitForNormalization(false);
+        request.setShouldRefresh(false);
         request.setCalcInterim(true);
         request.setAdvanceTime(String.valueOf(end));
         run(start, end, request);
@@ -500,7 +503,7 @@ class DatafeedJob {
 
     private FlushJobAction.Response flushJob(FlushJobAction.Request flushRequest) {
         try {
-            LOGGER.trace("[" + jobId + "] Sending flush request");
+            LOGGER.info("[" + jobId + "] Sending flush request");
             try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {
                 return client.execute(FlushJobAction.INSTANCE, flushRequest).actionGet();
             }

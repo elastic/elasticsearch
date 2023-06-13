@@ -248,10 +248,11 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         verify(bulkResultsPersister, never()).executeRequest();
     }
 
-    public void testProcessResult_flushAcknowledgement() {
+    public void testProcessResult_flushAcknowledgementWithRefresh() {
         AutodetectResult result = mock(AutodetectResult.class);
         FlushAcknowledgement flushAcknowledgement = mock(FlushAcknowledgement.class);
         when(flushAcknowledgement.getId()).thenReturn(JOB_ID);
+        when(flushAcknowledgement.getShouldRefresh()).thenReturn(true);
         when(result.getFlushAcknowledgement()).thenReturn(flushAcknowledgement);
 
         processorUnderTest.setDeleteInterimRequired(false);
@@ -267,10 +268,30 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         verify(bulkResultsPersister).executeRequest();
     }
 
+    public void testProcessResult_flushAcknowledgement() {
+        AutodetectResult result = mock(AutodetectResult.class);
+        FlushAcknowledgement flushAcknowledgement = mock(FlushAcknowledgement.class);
+        when(flushAcknowledgement.getId()).thenReturn(JOB_ID);
+        when(result.getFlushAcknowledgement()).thenReturn(flushAcknowledgement);
+
+        processorUnderTest.setDeleteInterimRequired(false);
+        processorUnderTest.processResult(result);
+        assertTrue(processorUnderTest.isDeleteInterimRequired());
+
+        verify(persister).bulkPersisterBuilder(eq(JOB_ID), any());
+        verify(flushListener).acknowledgeFlush(flushAcknowledgement, null);
+        verify(persister, never()).commitWrites(
+            JOB_ID,
+            EnumSet.of(JobResultsPersister.CommitType.RESULTS, JobResultsPersister.CommitType.ANNOTATIONS)
+        );
+        verify(bulkResultsPersister).executeRequest();
+    }
+
     public void testProcessResult_flushAcknowledgementMustBeProcessedLast() {
         AutodetectResult result = mock(AutodetectResult.class);
         FlushAcknowledgement flushAcknowledgement = mock(FlushAcknowledgement.class);
         when(flushAcknowledgement.getId()).thenReturn(Integer.valueOf(randomInt(100)).toString());
+        when(flushAcknowledgement.getShouldRefresh()).thenReturn(true);
         when(result.getFlushAcknowledgement()).thenReturn(flushAcknowledgement);
         CategoryDefinition categoryDefinition = mock(CategoryDefinition.class);
         when(categoryDefinition.getCategoryId()).thenReturn(1L);

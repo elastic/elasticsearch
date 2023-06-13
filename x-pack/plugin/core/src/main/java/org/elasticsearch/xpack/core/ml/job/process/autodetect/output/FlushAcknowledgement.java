@@ -28,44 +28,51 @@ public class FlushAcknowledgement implements ToXContentObject, Writeable {
     public static final ParseField TYPE = new ParseField("flush");
     public static final ParseField ID = new ParseField("id");
     public static final ParseField LAST_FINALIZED_BUCKET_END = new ParseField("last_finalized_bucket_end");
+    public static final ParseField SHOULD_REFRESH = new ParseField("should_refresh");
 
     public static final ConstructingObjectParser<FlushAcknowledgement, Void> PARSER = new ConstructingObjectParser<>(
         TYPE.getPreferredName(),
-        a -> new FlushAcknowledgement((String) a[0], (Long) a[1])
+        a -> new FlushAcknowledgement((String) a[0], (Long) a[1], (Boolean) a[2])
     );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), ID);
         PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), LAST_FINALIZED_BUCKET_END);
+        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), SHOULD_REFRESH);
     }
 
     private final String id;
     private final Instant lastFinalizedBucketEnd;
+    private final Boolean shouldRefresh;
 
-    public FlushAcknowledgement(String id, Long lastFinalizedBucketEndMs) {
+    public FlushAcknowledgement(String id, Long lastFinalizedBucketEndMs, Boolean shouldRefresh) {
         this.id = id;
         // The C++ passes 0 when last finalized bucket end is not available, so treat 0 as null
         this.lastFinalizedBucketEnd = (lastFinalizedBucketEndMs != null && lastFinalizedBucketEndMs > 0)
             ? Instant.ofEpochMilli(lastFinalizedBucketEndMs)
             : null;
+        this.shouldRefresh = shouldRefresh == null || shouldRefresh;
     }
 
-    public FlushAcknowledgement(String id, Instant lastFinalizedBucketEnd) {
+    public FlushAcknowledgement(String id, Instant lastFinalizedBucketEnd, Boolean shouldRefresh) {
         this.id = id;
         // Round to millisecond accuracy to ensure round-tripping via XContent results in an equal object
         long epochMillis = (lastFinalizedBucketEnd != null) ? lastFinalizedBucketEnd.toEpochMilli() : 0;
         this.lastFinalizedBucketEnd = (epochMillis > 0) ? Instant.ofEpochMilli(epochMillis) : null;
+        this.shouldRefresh = shouldRefresh == null || shouldRefresh;
     }
 
     public FlushAcknowledgement(StreamInput in) throws IOException {
         id = in.readString();
         lastFinalizedBucketEnd = in.readOptionalInstant();
+        shouldRefresh = in.readOptionalBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(id);
         out.writeOptionalInstant(lastFinalizedBucketEnd);
+        out.writeOptionalBoolean(shouldRefresh);
     }
 
     public String getId() {
@@ -74,6 +81,10 @@ public class FlushAcknowledgement implements ToXContentObject, Writeable {
 
     public Instant getLastFinalizedBucketEnd() {
         return lastFinalizedBucketEnd;
+    }
+
+    public Boolean getShouldRefresh() {
+        return shouldRefresh;
     }
 
     @Override
@@ -87,13 +98,14 @@ public class FlushAcknowledgement implements ToXContentObject, Writeable {
                 lastFinalizedBucketEnd.toEpochMilli()
             );
         }
+        builder.field(SHOULD_REFRESH.getPreferredName(), shouldRefresh);
         builder.endObject();
         return builder;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, lastFinalizedBucketEnd);
+        return Objects.hash(id, lastFinalizedBucketEnd, shouldRefresh);
     }
 
     @Override
@@ -105,6 +117,8 @@ public class FlushAcknowledgement implements ToXContentObject, Writeable {
             return false;
         }
         FlushAcknowledgement other = (FlushAcknowledgement) obj;
-        return Objects.equals(id, other.id) && Objects.equals(lastFinalizedBucketEnd, other.lastFinalizedBucketEnd);
+        return Objects.equals(id, other.id)
+            && Objects.equals(lastFinalizedBucketEnd, other.lastFinalizedBucketEnd)
+            && Objects.equals(shouldRefresh, other.shouldRefresh);
     }
 }

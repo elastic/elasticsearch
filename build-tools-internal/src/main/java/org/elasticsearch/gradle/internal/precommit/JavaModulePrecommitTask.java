@@ -116,9 +116,11 @@ public class JavaModulePrecommitTask extends PrecommitTask {
 
     private void checkModuleNamePrefix(ModuleReference mref) {
         getLogger().info("{} checking module name prefix for {}", this, mref.descriptor().name());
-        if (mref.descriptor().name().startsWith("org.elasticsearch.") == false &&
-            mref.descriptor().name().startsWith("co.elasticsearch.") == false  ) {
-            throw new GradleException("Expected name starting with \"org.elasticsearch.\" or \"co.elasticsearch.\" in " + mref.descriptor());
+        if (mref.descriptor().name().startsWith("org.elasticsearch.") == false
+            && mref.descriptor().name().startsWith("co.elasticsearch.") == false) {
+            throw new GradleException(
+                "Expected name starting with \"org.elasticsearch.\" or \"co.elasticsearch.\" in " + mref.descriptor()
+            );
         }
     }
 

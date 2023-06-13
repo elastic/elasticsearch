@@ -731,7 +731,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             while (values.size() < count) {
                 values.add(generateRandomInputValue(ft));
             }
-            assertFetch(mapperService, "field", values, randomFetchTestFormat());
+            assertFetchMany(mapperService, "field", values, randomFetchTestFormat(), count);
         } finally {
             assertParseMinimalWarnings();
         }
@@ -790,6 +790,14 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
      * with {@link XContentBuilder#value(Object)} and the field's parser.
      */
     protected abstract Object generateRandomInputValue(MappedFieldType ft);
+
+    /**
+     * Assert that fetching many values using {@link MappedFieldType#valueFetcher}
+     * produces the same values as fetching using doc values.
+     */
+    protected void assertFetchMany(MapperService mapperService, String field, Object value, String format, int count) throws IOException {
+        assertFetch(mapperService, field, value, format);
+    }
 
     /**
      * Assert that fetching a value using {@link MappedFieldType#valueFetcher}

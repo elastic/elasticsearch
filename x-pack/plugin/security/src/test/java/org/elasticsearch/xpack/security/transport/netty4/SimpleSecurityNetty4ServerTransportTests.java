@@ -854,13 +854,11 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
                     IOUtils.closeWhileHandlingException(acceptedSocket);
                 }
             }).start();
-            DiscoveryNode dummy = DiscoveryNodeUtils.create(
-                "TEST",
-                new TransportAddress(socket.getInetAddress(), socket.getLocalPort()),
-                emptyMap(),
-                emptySet(),
-                version0
-            );
+            DiscoveryNode dummy = DiscoveryNodeUtils.builder("TEST")
+                .address(new TransportAddress(socket.getInetAddress(), socket.getLocalPort()))
+                .roles(emptySet())
+                .version(version0)
+                .build();
             ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
             builder.addConnections(
                 1,
@@ -896,13 +894,11 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
                     throw new AssertionError(e);
                 }
             }).start();
-            DiscoveryNode dummy = DiscoveryNodeUtils.create(
-                "TEST",
-                new TransportAddress(socket.getInetAddress(), socket.getLocalPort()),
-                emptyMap(),
-                emptySet(),
-                version0
-            );
+            DiscoveryNode dummy = DiscoveryNodeUtils.builder("TEST")
+                .address(new TransportAddress(socket.getInetAddress(), socket.getLocalPort()))
+                .roles(emptySet())
+                .version(version0)
+                .build();
             ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
             builder.addConnections(
                 1,
@@ -933,13 +929,11 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
         try (ServerSocket socket = serverSocketFactory.createServerSocket()) {
             socket.bind(getLocalEphemeral(), 1);
             socket.setReuseAddress(true);
-            DiscoveryNode dummy = DiscoveryNodeUtils.create(
-                "TEST",
-                new TransportAddress(socket.getInetAddress(), socket.getLocalPort()),
-                emptyMap(),
-                emptySet(),
-                version0
-            );
+            DiscoveryNode dummy = DiscoveryNodeUtils.builder("TEST")
+                .address(new TransportAddress(socket.getInetAddress(), socket.getLocalPort()))
+                .roles(emptySet())
+                .version(version0)
+                .build();
             Thread t = new Thread(() -> {
                 try (Socket accept = SocketAccess.doPrivileged(socket::accept)) {
                     // A read call will execute the ssl handshake

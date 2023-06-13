@@ -80,8 +80,13 @@ public class DependenciesInfoTask extends ConventionTask {
      */
     @Optional
     @InputDirectory
-    public DirectoryProperty getLicensesDir() {
-        return licensesDir;
+    public File getLicensesDir() {
+        File asFile = licensesDir.get().getAsFile();
+        if (asFile.exists()) {
+            return asFile;
+        }
+
+        return null;
     }
 
     public void setLicensesDir(File licensesDir) {
@@ -110,10 +115,7 @@ public class DependenciesInfoTask extends ConventionTask {
     @Inject
     public DependenciesInfoTask(ProjectLayout projectLayout, ObjectFactory objectFactory, ProviderFactory providerFactory) {
         this.licensesDir = objectFactory.directoryProperty();
-        this.licensesDir.convention(
-            providerFactory.provider(() -> projectLayout.getProjectDirectory().dir("licenses"))
-                .map(dir -> dir.getAsFile().exists() ? dir : null)
-        );
+        this.licensesDir.convention(providerFactory.provider(() -> projectLayout.getProjectDirectory().dir("licenses")));
         this.outputFile = projectLayout.getBuildDirectory().dir("reports/dependencies").get().file("dependencies.csv").getAsFile();
         setDescription("Create a CSV file with dependencies information.");
     }
@@ -140,7 +142,7 @@ public class DependenciesInfoTask extends ConventionTask {
             }
 
             // only external dependencies are checked
-            if (dep instanceof ProjectDependency) {
+            if (dep instanceof ProjectDependency || dep.getGroup().startsWith("org.elasticsearch")) {
                 continue;
             }
 
@@ -214,27 +216,30 @@ public class DependenciesInfoTask extends ConventionTask {
         return licenseType;
     }
 
-    protected File getDependencyInfoFile(final String group, final String name, final String infoFileSuffix) {
-        java.util.Optional<File> license = licensesDir.map(
-            licenseDir -> Arrays.stream(
-                licenseDir.getAsFile().listFiles((dir, fileName) -> Pattern.matches(".*-" + infoFileSuffix + ".*", fileName))
-            ).filter(file -> {
-                String prefix = file.getName().split("-" + infoFileSuffix + ".*")[0];
-                return group.contains(prefix) || name.contains(prefix);
-            }).findFirst()
-        ).get();
+    private IllegalStateException missingInfo(String group, String name, String infoFileSuffix, String reason) {
+        return new IllegalStateException(
+            "Unable to find "
+                + infoFileSuffix
+                + " file for dependency "
+                + group
+                + ":"
+                + name
+                + " "
+                + reason);
+    }
 
-        return license.orElseThrow(
-            () -> new IllegalStateException(
-                "Unable to find "
-                    + infoFileSuffix
-                    + " file for dependency "
-                    + group
-                    + ":"
-                    + name
-                    + " in "
-                    + licensesDir.getAsFile().getOrNull()
-            )
-        );
+    protected File getDependencyInfoFile(final String group, final String name, final String infoFileSuffix) {
+        File dir = getLicensesDir();
+        if (dir == null) {
+            throw missingInfo(group, name, infoFileSuffix, " because license dir is missing at " + licensesDir.getAsFile().get());
+        }
+        java.util.Optional<File> license = Arrays.stream(
+            dir.listFiles((d, fileName) -> Pattern.matches(".*-" + infoFileSuffix + ".*", fileName))
+        ).filter(file -> {
+            String prefix = file.getName().split("-" + infoFileSuffix + ".*")[0];
+            return group.contains(prefix) || name.contains(prefix);
+        }).findFirst();
+
+        return license.orElseThrow(() -> missingInfo(group, name, infoFileSuffix, " in " + dir));
     }
 }

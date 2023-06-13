@@ -113,7 +113,7 @@ public class NodeService implements Closeable {
     ) {
         return new NodeInfo(
             Version.CURRENT,
-            TransportVersion.CURRENT,
+            TransportVersion.current(),
             Build.CURRENT,
             transportService.getLocalNode(),
             settings ? settingsFilter.filter(this.settings) : null,

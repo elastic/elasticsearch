@@ -436,14 +436,13 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
     }
 
     public void testRefreshNoFastRefresh() throws Exception {
+        startIndexNodes(numShards);
+        startSearchNodes(numReplicas);
+
         testRefresh(false);
     }
 
     public void testRefreshFastRefresh() throws Exception {
-        testRefresh(true);
-    }
-
-    public void testFastRefreshOnBulkDoesNotRefreshUnpromotables() {
         startIndexNodes(numShards);
         startSearchNodes(numReplicas);
 
@@ -458,32 +457,13 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
             });
         }
 
-        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        createIndex(
-            indexName,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numReplicas)
-                .put(IndexSettings.INDEX_FAST_REFRESH_SETTING.getKey(), true)
-                .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), false)
-                .build()
-        );
+        testRefresh(true);
 
-        ensureGreen(indexName);
-        int docsToIndex = randomIntBetween(1, 100);
-        var bulkRequest = client().prepareBulk();
-        for (int i = 0; i < docsToIndex; i++) {
-            bulkRequest.add(new IndexRequest(indexName).source("field", randomUnicodeOfCodepointLengthBetween(1, 25)));
-        }
-        bulkRequest.setRefreshPolicy(randomFrom(WAIT_UNTIL, IMMEDIATE));
-        assertNoFailures(bulkRequest.get());
         assertThat(unpromotableRefreshActions.get(), equalTo(0));
-
     }
 
     private void testRefresh(boolean fastRefresh) throws InterruptedException, ExecutionException {
-        startIndexNodes(numShards);
-        startSearchNodes(numReplicas);
+        assert cluster().numDataNodes() > 0 : "Should have already started nodes";
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(
             indexName,

@@ -312,7 +312,7 @@ the TDigest will use less memory.
 The default implementation of TDigest is optimized for performance, scaling to millions or even
 billions of sample values while maintaining acceptable accuracy levels (close to 1% relative error
 for millions of samples in some cases). There's an option to use an implementation optimized
-for improved accuracy that can be selected through parameter `optimize_for_accuracy`:
+for accuracy that can be selected through parameter `optimize_for_accuracy`:
 
 [source,console]
 --------------------------------------------------

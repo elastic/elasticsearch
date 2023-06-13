@@ -177,8 +177,6 @@ public class RBACEngine implements AuthorizationEngine {
             final Role role = ((RBACAuthorizationInfo) authorizationInfo).getRole();
             if (role.checkClusterAction(requestInfo.getAction(), requestInfo.getRequest(), requestInfo.getAuthentication())) {
                 listener.onResponse(AuthorizationResult.granted());
-            } else if (role == Role.EMPTY_RESTRICTED_BY_WORKFLOW) {
-                listener.onResponse(AuthorizationResult.deny());
             } else if (checkSameUserPermissions(requestInfo.getAction(), requestInfo.getRequest(), requestInfo.getAuthentication())) {
                 listener.onResponse(AuthorizationResult.granted());
             } else {

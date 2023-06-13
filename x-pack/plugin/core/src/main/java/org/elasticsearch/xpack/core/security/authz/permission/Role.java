@@ -48,11 +48,6 @@ public interface Role {
 
     Role EMPTY = builder(new RestrictedIndices(Automatons.EMPTY)).build();
 
-    /**
-     * This empty role is returned when effective role results in empty set of permissions due to workflows restriction.
-     */
-    Role EMPTY_RESTRICTED_BY_WORKFLOW = builder(new RestrictedIndices(Automatons.EMPTY)).build();
-
     String[] names();
 
     ClusterPermission cluster();
@@ -70,18 +65,6 @@ public interface Role {
     boolean checkWorkflowRestriction(Workflow workflow);
 
     boolean hasWorkflowsRestriction();
-
-    default Role forWorkflow(Workflow workflow) {
-        if (hasWorkflowsRestriction()) {
-            if (checkWorkflowRestriction(workflow)) {
-                return this;
-            } else {
-                return EMPTY_RESTRICTED_BY_WORKFLOW;
-            }
-        } else {
-            return this;
-        }
-    }
 
     /**
      * Whether the Role has any field or document level security enabled index privileges

@@ -306,7 +306,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             licenseState,
             TestIndexNameExpressionResolver.newInstance(),
             operatorPrivilegesService,
-            RESTRICTED_INDICES
+            RESTRICTED_INDICES,
+            new WorkflowService()
         );
     }
 
@@ -1641,7 +1642,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             new XPackLicenseState(() -> 0),
             TestIndexNameExpressionResolver.newInstance(),
             operatorPrivilegesService,
-            RESTRICTED_INDICES
+            RESTRICTED_INDICES,
+            new WorkflowService()
         );
 
         RoleDescriptor role = new RoleDescriptor(
@@ -1689,7 +1691,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             new XPackLicenseState(() -> 0),
             TestIndexNameExpressionResolver.newInstance(),
             operatorPrivilegesService,
-            RESTRICTED_INDICES
+            RESTRICTED_INDICES,
+            new WorkflowService()
         );
 
         RoleDescriptor role = new RoleDescriptor(
@@ -2785,7 +2788,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             licenseState,
             TestIndexNameExpressionResolver.newInstance(),
             operatorPrivilegesService,
-            RESTRICTED_INDICES
+            RESTRICTED_INDICES,
+            new WorkflowService()
         );
 
         Subject subject = new Subject(new User("test", "a role"), mock(RealmRef.class));
@@ -2940,7 +2944,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             licenseState,
             TestIndexNameExpressionResolver.newInstance(),
             operatorPrivilegesService,
-            RESTRICTED_INDICES
+            RESTRICTED_INDICES,
+            new WorkflowService()
         );
         Authentication authentication;
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {

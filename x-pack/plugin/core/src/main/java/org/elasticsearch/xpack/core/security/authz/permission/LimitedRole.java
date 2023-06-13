@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.automaton.Automaton;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -78,7 +79,15 @@ public final class LimitedRole implements Role {
 
     @Override
     public WorkflowsRestriction workflowsRestriction() {
-        throw new UnsupportedOperationException("cannot retrieve workflows restriction on limited role");
+        if (false == baseRole.hasWorkflowsRestriction()) {
+            return limitedByRole.workflowsRestriction();
+        }
+        if (false == limitedByRole.hasWorkflowsRestriction()) {
+            return baseRole.workflowsRestriction();
+        }
+        return new WorkflowsRestriction(
+            Sets.intersection(baseRole.workflowsRestriction().workflows(), limitedByRole.workflowsRestriction().workflows())
+        );
     }
 
     @Override

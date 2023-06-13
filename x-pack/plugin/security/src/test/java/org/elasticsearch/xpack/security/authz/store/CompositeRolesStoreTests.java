@@ -101,7 +101,6 @@ import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
-import org.elasticsearch.xpack.security.authz.restriction.WorkflowService;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.hamcrest.BaseMatcher;
@@ -716,7 +715,6 @@ public class CompositeRolesStoreTests extends ESTestCase {
             mock(ServiceAccountService.class),
             documentSubsetBitsetCache,
             TestRestrictedIndices.RESTRICTED_INDICES,
-            mock(WorkflowService.class),
             effectiveRoleDescriptors::set
         );
         verify(fileRolesStore).addListener(anyConsumer()); // adds a listener in ctor
@@ -824,7 +822,6 @@ public class CompositeRolesStoreTests extends ESTestCase {
             null,
             null,
             rds -> effectiveRoleDescriptors.set(rds),
-            null,
             null
         );
 
@@ -1380,7 +1377,6 @@ public class CompositeRolesStoreTests extends ESTestCase {
             null,
             null,
             rds -> effectiveRoleDescriptors.set(rds),
-            null,
             null
         );
 
@@ -1446,7 +1442,6 @@ public class CompositeRolesStoreTests extends ESTestCase {
             null,
             null,
             rds -> effectiveRoleDescriptors.set(rds),
-            null,
             null
         );
 
@@ -1528,8 +1523,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             null,
             null,
             null,
-            store -> numInvalidation.incrementAndGet(),
-            null
+            store -> numInvalidation.incrementAndGet()
         );
 
         int expectedInvalidation = 0;
@@ -1587,8 +1581,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             null,
             null,
             null,
-            store -> numInvalidation.incrementAndGet(),
-            null
+            store -> numInvalidation.incrementAndGet()
         );
 
         compositeRolesStore.onSecurityIndexStateChange(dummyIndexState(false, null), dummyIndexState(true, null));
@@ -2571,7 +2564,6 @@ public class CompositeRolesStoreTests extends ESTestCase {
             serviceAccountService,
             documentSubsetBitsetCache,
             roleConsumer,
-            null,
             null
         );
     }
@@ -2588,8 +2580,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         @Nullable ServiceAccountService serviceAccountService,
         @Nullable DocumentSubsetBitsetCache documentSubsetBitsetCache,
         @Nullable Consumer<Collection<RoleDescriptor>> roleConsumer,
-        @Nullable Consumer<CompositeRolesStore> onInvalidation,
-        @Nullable WorkflowService workflowService
+        @Nullable Consumer<CompositeRolesStore> onInvalidation
     ) {
         if (licenseState == null) {
             licenseState = new XPackLicenseState(() -> 0);
@@ -2625,9 +2616,6 @@ public class CompositeRolesStoreTests extends ESTestCase {
         if (roleConsumer == null) {
             roleConsumer = rds -> {};
         }
-        if (workflowService == null) {
-            workflowService = new WorkflowService();
-        }
 
         return new CompositeRolesStore(
             settings,
@@ -2640,7 +2628,6 @@ public class CompositeRolesStoreTests extends ESTestCase {
             serviceAccountService,
             documentSubsetBitsetCache,
             TestRestrictedIndices.RESTRICTED_INDICES,
-            workflowService,
             roleConsumer
         ) {
             @Override

@@ -134,6 +134,7 @@ public class AuthorizationService {
     private final OperatorPrivilegesService operatorPrivilegesService;
     private final RestrictedIndices restrictedIndices;
     private final DlsFlsFeatureTrackingIndicesAccessControlWrapper indicesAccessControlWrapper;
+    private final WorkflowService workflowService;
 
     private final boolean isAnonymousEnabled;
     private final boolean anonymousAuthzExceptionEnabled;
@@ -152,7 +153,8 @@ public class AuthorizationService {
         XPackLicenseState licenseState,
         IndexNameExpressionResolver resolver,
         OperatorPrivilegesService operatorPrivilegesService,
-        RestrictedIndices restrictedIndices
+        RestrictedIndices restrictedIndices,
+        WorkflowService workflowService
     ) {
         this.clusterService = clusterService;
         this.auditTrailService = auditTrailService;
@@ -176,6 +178,7 @@ public class AuthorizationService {
         this.licenseState = licenseState;
         this.operatorPrivilegesService = operatorPrivilegesService;
         this.indicesAccessControlWrapper = new DlsFlsFeatureTrackingIndicesAccessControlWrapper(settings, licenseState);
+        this.workflowService = workflowService;
     }
 
     public void checkPrivileges(
@@ -318,6 +321,12 @@ public class AuthorizationService {
                 final AuthorizationEngine engine = getAuthorizationEngine(authentication);
                 final ActionListener<AuthorizationInfo> authzInfoListener = wrapPreservingContext(
                     listener.delegateFailureAndWrap((l, authorizationInfo) -> {
+                        try {
+                            workflowService.checkWorkflowRestriction(authentication, authorizationInfo, threadContext);
+                        } catch (ElasticsearchSecurityException e) {
+                            l.onFailure(e);
+                            return;
+                        }
                         threadContext.putTransient(AUTHORIZATION_INFO_KEY, authorizationInfo);
                         maybeAuthorizeRunAs(requestInfo, auditId, authorizationInfo, l);
                     }),

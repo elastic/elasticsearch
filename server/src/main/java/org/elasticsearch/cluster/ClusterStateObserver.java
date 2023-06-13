@@ -207,14 +207,8 @@ public class ClusterStateObserver {
             listener.onNewClusterState(initialState);
             return;
         }
-        ClusterStateObserver observer = new ClusterStateObserver(clusterService, timeout, logger, threadContext);
-        // set observed state and check it again in case it changed concurrently
-        ClusterState state = observer.setAndGetObservedState();
-        if (initialState != state && statePredicate.test(state)) {
-            listener.onNewClusterState(state);
-        } else {
-            observer.waitForNextChange(listener, statePredicate);
-        }
+        ClusterStateObserver observer = new ClusterStateObserver(initialState, clusterService, timeout, logger, threadContext);
+        observer.waitForNextChange(listener, statePredicate);
     }
 
     class ObserverClusterStateListener implements TimeoutClusterStateListener {

@@ -72,10 +72,7 @@ import org.apache.http.message.BasicNameValuePair;
 import org.apache.http.nio.conn.NoopIOSessionStrategy;
 import org.apache.http.nio.conn.SchemeIOSessionStrategy;
 import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
-import org.apache.http.nio.protocol.HttpAsyncRequestProducer;
-import org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
 import org.apache.http.nio.reactor.ConnectingIOReactor;
-import org.apache.http.protocol.HttpContext;
 import org.apache.http.util.EntityUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -113,7 +110,6 @@ import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicReference;
 
 import javax.net.ssl.HostnameVerifier;
@@ -193,14 +189,6 @@ public class OpenIdConnectAuthenticator {
      * @param listener The listener to notify with the resolved {@link JWTClaimsSet}
      */
     public void authenticate(OpenIdConnectToken token, final ActionListener<JWTClaimsSet> listener) {
-        // TODO this is way too broad
-        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-            innerAuthenticate(token, listener);
-            return null;
-        });
-    }
-
-    private void innerAuthenticate(OpenIdConnectToken token, ActionListener<JWTClaimsSet> listener) {
         try {
             AuthenticationResponse authenticationResponse = AuthenticationResponseParser.parse(new URI(token.getRedirectUrl()));
             final Nonce expectedNonce = token.getNonce();
@@ -272,52 +260,70 @@ public class OpenIdConnectAuthenticator {
         boolean shouldRetry,
         ActionListener<JWTClaimsSet> claimsListener
     ) {
-        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-            try {
-                if (LOGGER.isDebugEnabled()) {
-                    LOGGER.debug("ID Token Header: {}", idToken.getHeader());
+        try {
+            if (LOGGER.isDebugEnabled()) {
+                LOGGER.debug("ID Token Header: {}", idToken.getHeader());
+            }
+            JWTClaimsSet verifiedIdTokenClaims = getVerifiedIdTokenClaims(idToken, expectedNonce);
+            if (LOGGER.isTraceEnabled()) {
+                LOGGER.trace("Received and validated the Id Token for the user: [{}]", verifiedIdTokenClaims);
+            }
+            // Add the Id Token string as a synthetic claim
+            final Map<String, Object> verifiedIdTokenClaimsObject = verifiedIdTokenClaims.toJSONObject();
+            final JWTClaimsSet idTokenClaim = new JWTClaimsSet.Builder().claim("id_token_hint", idToken.serialize()).build();
+            mergeObjects(verifiedIdTokenClaimsObject, idTokenClaim.toJSONObject());
+            final JWTClaimsSet enrichedVerifiedIdTokenClaims = JWTClaimsSet.parse(verifiedIdTokenClaimsObject);
+            if (accessToken != null && opConfig.getUserinfoEndpoint() != null) {
+                getAndCombineUserInfoClaims(accessToken, enrichedVerifiedIdTokenClaims, claimsListener);
+            } else {
+                if (accessToken == null && opConfig.getUserinfoEndpoint() != null) {
+                    LOGGER.debug("UserInfo endpoint is configured but the OP didn't return an access token so we can't query it");
+                } else if (accessToken != null && opConfig.getUserinfoEndpoint() == null) {
+                    LOGGER.debug("OP returned an access token but the UserInfo endpoint is not configured.");
                 }
-                JWTClaimsSet verifiedIdTokenClaims = idTokenValidator.get().validate(idToken, expectedNonce).toJWTClaimsSet();
-                if (LOGGER.isTraceEnabled()) {
-                    LOGGER.trace("Received and validated the Id Token for the user: [{}]", verifiedIdTokenClaims);
-                }
-                // Add the Id Token string as a synthetic claim
-                final Map<String, Object> verifiedIdTokenClaimsObject = verifiedIdTokenClaims.toJSONObject();
-                final JWTClaimsSet idTokenClaim = new JWTClaimsSet.Builder().claim("id_token_hint", idToken.serialize()).build();
-                mergeObjects(verifiedIdTokenClaimsObject, idTokenClaim.toJSONObject());
-                final JWTClaimsSet enrichedVerifiedIdTokenClaims = JWTClaimsSet.parse(verifiedIdTokenClaimsObject);
-                if (accessToken != null && opConfig.getUserinfoEndpoint() != null) {
-                    getAndCombineUserInfoClaims(accessToken, enrichedVerifiedIdTokenClaims, claimsListener);
-                } else {
-                    if (accessToken == null && opConfig.getUserinfoEndpoint() != null) {
-                        LOGGER.debug("UserInfo endpoint is configured but the OP didn't return an access token so we can't query it");
-                    } else if (accessToken != null && opConfig.getUserinfoEndpoint() == null) {
-                        LOGGER.debug("OP returned an access token but the UserInfo endpoint is not configured.");
-                    }
-                    claimsListener.onResponse(enrichedVerifiedIdTokenClaims);
-                }
-            } catch (BadJOSEException e) {
-                // We only try to update the cached JWK set once if a remote source is used and
-                // RSA or ECDSA is used for signatures
-                if (shouldRetry
-                    && JWSAlgorithm.Family.HMAC_SHA.contains(rpConfig.getSignatureAlgorithm()) == false
-                    && opConfig.getJwkSetPath().startsWith("https://")) {
-                    ((ReloadableJWKSource) ((JWSVerificationKeySelector) idTokenValidator.get().getJWSKeySelector()).getJWKSource())
-                        .triggerReload(
-                            ActionListener.wrap(v -> getUserClaims(accessToken, idToken, expectedNonce, false, claimsListener), ex -> {
-                                LOGGER.trace("Attempted and failed to refresh JWK cache upon token validation failure", e);
-                                claimsListener.onFailure(ex);
-                            })
-                        );
-                } else {
-                    claimsListener.onFailure(new ElasticsearchSecurityException("Failed to parse or validate the ID Token", e));
-                }
-            } catch (com.nimbusds.oauth2.sdk.ParseException | ParseException | JOSEException e) {
-                LOGGER.debug("ID Token: [{}], Nonce: [{}]", idToken.getParsedString(), expectedNonce);
+                claimsListener.onResponse(enrichedVerifiedIdTokenClaims);
+            }
+        } catch (BadJOSEException e) {
+            // We only try to update the cached JWK set once if a remote source is used and
+            // RSA or ECDSA is used for signatures
+            if (shouldRetry
+                && JWSAlgorithm.Family.HMAC_SHA.contains(rpConfig.getSignatureAlgorithm()) == false
+                && opConfig.getJwkSetPath().startsWith("https://")) {
+                ((ReloadableJWKSource<?>) ((JWSVerificationKeySelector<?>) idTokenValidator.get().getJWSKeySelector()).getJWKSource())
+                    .triggerReload(ActionListener.wrap(v -> {
+                        getUserClaims(accessToken, idToken, expectedNonce, false, claimsListener);
+                    }, ex -> {
+                        LOGGER.trace("Attempted and failed to refresh JWK cache upon token validation failure", e);
+                        claimsListener.onFailure(ex);
+                    }));
+            } else {
                 claimsListener.onFailure(new ElasticsearchSecurityException("Failed to parse or validate the ID Token", e));
             }
-            return null;
-        });
+        } catch (com.nimbusds.oauth2.sdk.ParseException | ParseException | JOSEException e) {
+            LOGGER.debug("ID Token: [{}], Nonce: [{}]", idToken.getParsedString(), expectedNonce);
+            claimsListener.onFailure(new ElasticsearchSecurityException("Failed to parse or validate the ID Token", e));
+        }
+    }
+
+    private JWTClaimsSet getVerifiedIdTokenClaims(JWT idToken, Nonce expectedNonce) throws BadJOSEException,
+        com.nimbusds.oauth2.sdk.ParseException, JOSEException {
+        SpecialPermission.check();
+        try {
+            return AccessController.doPrivileged(
+                (PrivilegedExceptionAction<JWTClaimsSet>) () -> idTokenValidator.get().validate(idToken, expectedNonce).toJWTClaimsSet()
+            );
+        } catch (PrivilegedActionException e) {
+            if (e.getCause() instanceof BadJOSEException cause) {
+                throw cause;
+            } else if (e.getCause() instanceof com.nimbusds.oauth2.sdk.ParseException cause) {
+                throw cause;
+            } else if (e.getCause() instanceof JOSEException cause) {
+                throw cause;
+            } else {
+                LOGGER.warn("Unexpected privileged action exception while validating claim set", e);
+                throw new IllegalStateException("Unexpected privileged action exception while validating claim set", e);
+            }
+        }
     }
 
     /**
@@ -334,43 +340,35 @@ public class OpenIdConnectAuthenticator {
      * @param idToken     The Id Token that was received in the same response
      */
     private void validateAccessToken(AccessToken accessToken, JWT idToken) {
-        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-            try {
-                if (rpConfig.getResponseType().equals(ResponseType.parse("id_token token"))
-                    || rpConfig.getResponseType().equals(ResponseType.parse("code"))) {
-                    assert (accessToken != null) : "Access Token cannot be null for Response Type " + rpConfig.getResponseType().toString();
-                    final boolean isValidationOptional = rpConfig.getResponseType().equals(ResponseType.parse("code"));
-                    // only "Bearer" is defined in the specification but check just in case
-                    if (accessToken.getType().toString().equals("Bearer") == false) {
-                        throw new ElasticsearchSecurityException(
-                            "Invalid access token type [{}], while [Bearer] was expected",
-                            accessToken.getType()
-                        );
-                    }
-                    String atHashValue = idToken.getJWTClaimsSet().getStringClaim("at_hash");
-                    if (Strings.hasText(atHashValue) == false) {
-                        if (isValidationOptional == false) {
-                            throw new ElasticsearchSecurityException(
-                                "Failed to verify access token. ID Token doesn't contain at_hash claim "
-                            );
-                        }
-                    } else {
-                        AccessTokenHash atHash = new AccessTokenHash(atHashValue);
-                        JWSAlgorithm jwsAlgorithm = JWSAlgorithm.parse(idToken.getHeader().getAlgorithm().getName());
-                        AccessTokenValidator.validate(accessToken, jwsAlgorithm, atHash);
-                    }
-                } else if (rpConfig.getResponseType().equals(ResponseType.parse("id_token")) && accessToken != null) {
-                    // This should NOT happen and indicates a misconfigured OP. Warn the user but do not fail
-                    LOGGER.warn(
-                        "Access Token incorrectly returned from the OpenId Connect Provider while using \"id_token\" response type."
+        try {
+            if (rpConfig.getResponseType().equals(ResponseType.parse("id_token token"))
+                || rpConfig.getResponseType().equals(ResponseType.parse("code"))) {
+                assert (accessToken != null) : "Access Token cannot be null for Response Type " + rpConfig.getResponseType().toString();
+                final boolean isValidationOptional = rpConfig.getResponseType().equals(ResponseType.parse("code"));
+                // only "Bearer" is defined in the specification but check just in case
+                if (accessToken.getType().toString().equals("Bearer") == false) {
+                    throw new ElasticsearchSecurityException(
+                        "Invalid access token type [{}], while [Bearer] was expected",
+                        accessToken.getType()
                     );
                 }
-            } catch (Exception e) {
-                throw new ElasticsearchSecurityException("Failed to verify access token.", e);
+                String atHashValue = idToken.getJWTClaimsSet().getStringClaim("at_hash");
+                if (Strings.hasText(atHashValue) == false) {
+                    if (isValidationOptional == false) {
+                        throw new ElasticsearchSecurityException("Failed to verify access token. ID Token doesn't contain at_hash claim ");
+                    }
+                } else {
+                    AccessTokenHash atHash = new AccessTokenHash(atHashValue);
+                    JWSAlgorithm jwsAlgorithm = JWSAlgorithm.parse(idToken.getHeader().getAlgorithm().getName());
+                    AccessTokenValidator.validate(accessToken, jwsAlgorithm, atHash);
+                }
+            } else if (rpConfig.getResponseType().equals(ResponseType.parse("id_token")) && accessToken != null) {
+                // This should NOT happen and indicates a misconfigured OP. Warn the user but do not fail
+                LOGGER.warn("Access Token incorrectly returned from the OpenId Connect Provider while using \"id_token\" response type.");
             }
-            return null;
-        });
-
+        } catch (Exception e) {
+            throw new ElasticsearchSecurityException("Failed to verify access token.", e);
+        }
     }
 
     /**
@@ -438,10 +436,7 @@ public class OpenIdConnectAuthenticator {
                 httpClient.execute(httpGet, new FutureCallback<>() {
                     @Override
                     public void completed(HttpResponse result) {
-                        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-                            handleUserinfoResponse(result, verifiedIdTokenClaims, claimsListener);
-                            return null;
-                        });
+                        handleUserinfoResponse(result, verifiedIdTokenClaims, claimsListener);
                     }
 
                     @Override
@@ -582,12 +577,7 @@ public class OpenIdConnectAuthenticator {
                 params.add(new BasicNameValuePair("client_id", rpConfig.getClientId().getValue()));
                 params.add(new BasicNameValuePair("client_secret", rpConfig.getClientSecret().toString()));
             } else if (rpConfig.getClientAuthenticationMethod().equals(ClientAuthenticationMethod.CLIENT_SECRET_JWT)) {
-                ClientSecretJWT clientSecretJWT = new ClientSecretJWT(
-                    rpConfig.getClientId(),
-                    opConfig.getTokenEndpoint(),
-                    rpConfig.getClientAuthenticationJwtAlgorithm(),
-                    new Secret(rpConfig.getClientSecret().toString())
-                );
+                ClientSecretJWT clientSecretJWT = createClientSecretJWT();
                 for (Map.Entry<String, List<String>> entry : clientSecretJWT.toParameters().entrySet()) {
                     // Both client_assertion and client_assertion_type are singleton lists
                     params.add(new BasicNameValuePair(entry.getKey(), entry.getValue().get(0)));
@@ -611,10 +601,7 @@ public class OpenIdConnectAuthenticator {
                 httpClient.execute(httpPost, new FutureCallback<>() {
                     @Override
                     public void completed(HttpResponse result) {
-                        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-                            handleTokenResponse(result, tokensListener);
-                            return null;
-                        });
+                        handleTokenResponse(result, tokensListener);
                     }
 
                     @Override
@@ -636,6 +623,27 @@ public class OpenIdConnectAuthenticator {
             tokensListener.onFailure(
                 new ElasticsearchSecurityException("Failed to exchange code for Id Token using the Token Endpoint.", e)
             );
+        }
+    }
+
+    private ClientSecretJWT createClientSecretJWT() throws JOSEException {
+        SpecialPermission.check();
+        try {
+            return AccessController.doPrivileged(
+                (PrivilegedExceptionAction<ClientSecretJWT>) () -> new ClientSecretJWT(
+                    rpConfig.getClientId(),
+                    opConfig.getTokenEndpoint(),
+                    rpConfig.getClientAuthenticationJwtAlgorithm(),
+                    new Secret(rpConfig.getClientSecret().toString())
+                )
+            );
+        } catch (PrivilegedActionException e) {
+            if (e.getCause() instanceof JOSEException cause) {
+                throw cause;
+            } else {
+                LOGGER.warn("Unexpected privileged action exception while validating claim set", e);
+                throw new IllegalStateException("Unexpected privileged action exception while validating claim set", e);
+            }
         }
     }
 
@@ -755,48 +763,12 @@ public class OpenIdConnectAuthenticator {
                         )
                     );
                 }
-                CloseableHttpAsyncClient httpAsyncClient = new ClientWrapper(httpAsyncClientBuilder.build());
+                CloseableHttpAsyncClient httpAsyncClient = httpAsyncClientBuilder.build();
                 httpAsyncClient.start();
                 return httpAsyncClient;
             });
         } catch (PrivilegedActionException e) {
             throw new IllegalStateException("Unable to create a HttpAsyncClient instance", e);
-        }
-    }
-
-    private class ClientWrapper extends CloseableHttpAsyncClient {
-
-        private final CloseableHttpAsyncClient client;
-
-        ClientWrapper(CloseableHttpAsyncClient client) {
-            this.client = client;
-        }
-
-        @Override
-        public boolean isRunning() {
-            return client.isRunning();
-        }
-
-        @Override
-        public void start() {
-            client.start();
-        }
-
-        @Override
-        public void close() throws IOException {
-            client.close();
-        }
-
-        @Override
-        public <T> Future<T> execute(
-            HttpAsyncRequestProducer requestProducer,
-            HttpAsyncResponseConsumer<T> responseConsumer,
-            HttpContext context,
-            FutureCallback<T> callback
-        ) {
-            return AccessController.doPrivileged(
-                (PrivilegedAction<Future<T>>) () -> client.execute(requestProducer, responseConsumer, context, callback)
-            );
         }
     }
 
@@ -1041,19 +1013,16 @@ public class OpenIdConnectAuthenticator {
                     httpClient.execute(httpGet, new FutureCallback<>() {
                         @Override
                         public void completed(HttpResponse result) {
-                            AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-                                try {
-                                    cachedJwkSet = JWKSet.parse(
-                                        IOUtils.readInputStreamToString(result.getEntity().getContent(), StandardCharsets.UTF_8)
-                                    );
-                                    reloadFutureRef.set(null);
-                                    LOGGER.trace("Successfully refreshed and cached remote JWKSet");
-                                    future.onResponse(null);
-                                } catch (Exception e) {
-                                    failed(e);
-                                }
-                                return null;
-                            });
+                            try {
+                                cachedJwkSet = JWKSet.parse(
+                                    IOUtils.readInputStreamToString(result.getEntity().getContent(), StandardCharsets.UTF_8)
+                                );
+                                reloadFutureRef.set(null);
+                                LOGGER.trace("Successfully refreshed and cached remote JWKSet");
+                                future.onResponse(null);
+                            } catch (Exception e) {
+                                failed(e);
+                            }
                         }
 
                         @Override

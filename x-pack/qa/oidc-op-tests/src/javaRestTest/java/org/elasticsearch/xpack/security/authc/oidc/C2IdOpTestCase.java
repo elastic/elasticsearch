@@ -52,6 +52,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -220,7 +221,7 @@ public abstract class C2IdOpTestCase extends ESRestTestCase {
             SocketAccess.doPrivileged(() -> {
                 for (HttpPost httpPost : requests) {
                     try (CloseableHttpResponse response = httpClient.execute(httpPost, context)) {
-                        assertBusy(() -> assertThat(response.getStatusLine().getStatusCode(), equalTo(201)));
+                        assertBusy(() -> assertThat(response.getStatusLine().getStatusCode(), equalTo(201)), 30, TimeUnit.SECONDS);
                     } catch (Exception e) {
                         fail("Encountered exception while registering client: " + e);
                     }

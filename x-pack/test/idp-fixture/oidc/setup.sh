@@ -16,10 +16,10 @@ PY_PID=$!
 until [ -f /config/c2id/override.properties ]
 do
   echo "Waiting for properties file"
-  sleep 1
+  sleep 0.5
 done
 echo "Properties file available. Starting server..."
 
 # now that the properties file is configured and available, stop our fake server and launch the real thing
-kill $PY_PID
+kill -SIGKILL $PY_PID
 bash /c2id-server/tomcat/bin/catalina.sh run

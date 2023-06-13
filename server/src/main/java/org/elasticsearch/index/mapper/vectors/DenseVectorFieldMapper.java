@@ -918,7 +918,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
     private Field parseBinaryDocValuesVector(DocumentParserContext context) throws IOException {
         // encode array of floats as array of integers and store into buf
-        // this code is here and not int the VectorEncoderDecoder so not to create extra arrays
+        // this code is here and not in the VectorEncoderDecoder so not to create extra arrays
         int numBytes = indexCreatedVersion.onOrAfter(MAGNITUDE_STORED_INDEX_VERSION)
             ? dims * elementType.elementBytes + MAGNITUDE_BYTES
             : dims * elementType.elementBytes;

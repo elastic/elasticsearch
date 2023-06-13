@@ -58,7 +58,6 @@ public class TDigestState {
         return create(compression, false);
     }
 
-
     /**
      * Factory for TDigestState. The underlying {@link org.elasticsearch.tdigest.TDigest} implementation is either optimized for
      * performance, potentially providing slightly inaccurate results for large populations, or optimized for accuracy but taking 2x-10x
@@ -238,5 +237,9 @@ public class TDigestState {
 
     public final double getMax() {
         return tdigest.getMax();
+    }
+
+    public final long byteSize() {
+        return tdigest.byteSize();
     }
 }

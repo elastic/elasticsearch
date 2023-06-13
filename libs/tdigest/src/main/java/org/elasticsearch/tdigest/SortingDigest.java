@@ -140,4 +140,12 @@ public class SortingDigest extends TDigest {
     public int centroidCount() {
         return centroids().size();
     }
+
+    /**
+     * Returns an upper bound on the number bytes that will be required to represent this histogram.
+     */
+    @Override
+    public int byteSize() {
+        return values.size() * 8;
+    }
 }

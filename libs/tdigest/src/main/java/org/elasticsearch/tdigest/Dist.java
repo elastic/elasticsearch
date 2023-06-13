@@ -21,40 +21,74 @@
 
 package org.elasticsearch.tdigest;
 
-import java.util.Collection;
 import java.util.List;
 import java.util.function.Function;
 
 /**
- * Reference implementations for cdf and quantile if we have all data.
+ * Reference implementations for cdf and quantile if we have all data sorted.
  */
 public class Dist {
+
+    private static double cdf(final double x, final int length, Function<Integer, Double> elementGetter) {
+        if (Double.compare(x, elementGetter.apply(0)) < 0) {
+            return 0;
+        }
+
+        if (Double.compare(x, elementGetter.apply(0)) == 0) {
+            // we have one or more centroids == x, treat them as one
+            // dw will accumulate the weight of all of the centroids at x
+            double dw = 0;
+            for (int i = 0; i < length && Double.compare(elementGetter.apply(i), x) == 0; i++) {
+                dw += 1;
+            }
+            return dw / 2.0 / length;
+        }
+
+        if (x > elementGetter.apply(length - 1)) {
+            return 1;
+        }
+        if (x == elementGetter.apply(length - 1)) {
+            double dw = 0;
+            for (int i = length - 1; i >= 0 && Double.compare(elementGetter.apply(i), x) == 0; i--) {
+                dw += 1;
+            }
+            return (length - dw / 2.0) / length;
+        }
+
+        // initially, we set left width equal to right width
+        double left = (elementGetter.apply(1) - elementGetter.apply(0)) / 2;
+        double weightSoFar = 0;
+
+        for (int i = 0; i < length - 1; i++) {
+            double right = (elementGetter.apply(i + 1) - elementGetter.apply(i)) / 2;
+            if (x < elementGetter.apply(i) + right) {
+                double value = (weightSoFar + AbstractTDigest.interpolate(x, elementGetter.apply(i) - left, elementGetter.apply(i) + right))
+                    / length;
+                return Math.max(value, 0.0);
+            }
+            weightSoFar += 1;
+            left = right;
+        }
+
+        // for the last element, assume right width is same as left
+        int lastOffset = length - 1;
+        double right = (elementGetter.apply(lastOffset) - elementGetter.apply(lastOffset - 1)) / 2;
+        if (x < elementGetter.apply(lastOffset) + right) {
+            return (weightSoFar + AbstractTDigest.interpolate(
+                x,
+                elementGetter.apply(lastOffset) - right,
+                elementGetter.apply(lastOffset) + right
+            )) / length;
+        }
+        return 1;
+    }
+
     public static double cdf(final double x, double[] data) {
-        return cdf(x, data, 0.5);
+        return cdf(x, data.length, (i) -> data[i]);
     }
 
-    public static double cdf(final double x, double[] data, double w) {
-        int n1 = 0;
-        int n2 = 0;
-        for (Double v : data) {
-            n1 += (v < x) ? 1 : 0;
-            n2 += (v == x) ? 1 : 0;
-        }
-        return (n1 + w * n2) / data.length;
-    }
-
-    public static double cdf(final double x, Collection<Double> data) {
-        return cdf(x, data, 0.5);
-    }
-
-    public static double cdf(final double x, Collection<Double> data, double w) {
-        int n1 = 0;
-        int n2 = 0;
-        for (Double v : data) {
-            n1 += (v < x) ? 1 : 0;
-            n2 += (v == x) ? 1 : 0;
-        }
-        return (n1 + w * n2) / data.size();
+    public static double cdf(final double x, List<Double> data) {
+        return cdf(x, data.size(), data::get);
     }
 
     private static double quantile(final double q, final int length, Function<Integer, Double> elementGetter) {

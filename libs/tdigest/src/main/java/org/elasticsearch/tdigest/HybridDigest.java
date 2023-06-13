@@ -177,4 +177,12 @@ public class HybridDigest extends TDigest {
         return sortingDigest.getMax();
     }
 
+    @Override
+    public int byteSize() {
+        if (mergingDigest != null) {
+            return mergingDigest.byteSize();
+        }
+        return sortingDigest.byteSize();
+    }
+
 }

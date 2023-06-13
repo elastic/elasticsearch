@@ -178,7 +178,7 @@ public class SynonymsManagementAPIService {
                 @Override
                 public void onFailure(Exception e) {
                     if (e instanceof IndexNotFoundException) {
-                        listener.onFailure(new ResourceNotFoundException(resourceName));
+                        listener.onFailure(new ResourceNotFoundException("Synonym set [" + resourceName + "] not found"));
                         return;
                     }
                     listener.onFailure(e);

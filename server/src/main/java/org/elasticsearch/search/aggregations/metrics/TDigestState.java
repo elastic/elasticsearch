@@ -38,7 +38,7 @@ public class TDigestState {
         SORTING;
 
         static Type defaultValue() {
-            return HYBRID;
+            return AVL_TREE;
         }
 
         static Type valueForHighAccuracy() {

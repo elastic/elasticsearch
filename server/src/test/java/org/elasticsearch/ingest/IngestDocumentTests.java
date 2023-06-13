@@ -875,7 +875,7 @@ public class IngestDocumentTests extends ESTestCase {
         } catch (IllegalArgumentException e) {
             assertThat(
                 e.getMessage(),
-                equalTo("cannot resolve [foo.foo] from object of type [java.lang.String] as part of path [foo.foo.bar]")
+                equalTo("field [foo.foo] not present as part of path [foo.foo.bar]")
             );
         }
     }

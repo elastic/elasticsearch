@@ -86,7 +86,7 @@ public abstract class TDigest {
      * @return the HybridDigest
      */
     public static TDigest createHybridDigest(double compression) {
-        return new AVLTreeDigest(compression);
+        return new HybridDigest(compression);
     }
 
     /**

@@ -32,7 +32,6 @@ import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.PathUtils;
@@ -250,10 +249,12 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
     public void testLogoutInvalidatesToken() throws Exception {
         final String session = randomAlphaOfLengthBetween(12, 18);
         final String nameId = randomAlphaOfLengthBetween(6, 16);
-        final Map<String, Object> userMetadata = MapBuilder.<String, Object>newMapBuilder()
-            .put(SamlRealm.USER_METADATA_NAMEID_FORMAT, NameID.TRANSIENT)
-            .put(SamlRealm.USER_METADATA_NAMEID_VALUE, nameId)
-            .map();
+        final Map<String, Object> userMetadata = Map.of(
+            SamlRealm.USER_METADATA_NAMEID_FORMAT,
+            NameID.TRANSIENT,
+            SamlRealm.USER_METADATA_NAMEID_VALUE,
+            nameId
+        );
         final User user = new User("punisher", new String[] { "superuser" }, null, null, userMetadata, true);
         final Authentication.RealmRef realmRef = new Authentication.RealmRef(samlRealm.name(), SamlRealmSettings.TYPE, "node01");
         final Map<String, Object> tokenMetadata = samlRealm.createTokenMetadata(

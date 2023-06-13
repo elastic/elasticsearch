@@ -17,7 +17,6 @@ import org.elasticsearch.monitor.os.OsInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -38,13 +37,7 @@ public class NodeInfoTests extends ESTestCase {
             Version.CURRENT,
             TransportVersion.CURRENT,
             Build.CURRENT,
-            DiscoveryNodeUtils.create(
-                "test_node",
-                buildNewFakeTransportAddress(),
-                emptyMap(),
-                emptySet(),
-                VersionUtils.randomVersion(random())
-            ),
+            DiscoveryNodeUtils.builder("test_node").roles(emptySet()).version(VersionUtils.randomVersion(random())).build(),
             null,
             null,
             null,

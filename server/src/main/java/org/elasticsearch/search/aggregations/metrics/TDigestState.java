@@ -7,17 +7,16 @@
  */
 package org.elasticsearch.search.aggregations.metrics;
 
-import com.tdunning.math.stats.AVLTreeDigest;
-import com.tdunning.math.stats.Centroid;
-
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.tdigest.AVLTreeDigest;
+import org.elasticsearch.tdigest.Centroid;
 
 import java.io.IOException;
 import java.util.Iterator;
 
 /**
- * Extension of {@link com.tdunning.math.stats.TDigest} with custom serialization.
+ * Extension of {@link org.elasticsearch.tdigest.TDigest} with custom serialization.
  */
 public class TDigestState extends AVLTreeDigest {
 
@@ -54,10 +53,13 @@ public class TDigestState extends AVLTreeDigest {
 
     @Override
     public boolean equals(Object obj) {
-        if (obj == null || obj instanceof TDigestState == false) {
+        if (obj instanceof TDigestState == false) {
             return false;
         }
         TDigestState that = (TDigestState) obj;
+        if (this == that) {
+            return true;
+        }
         if (compression != that.compression) {
             return false;
         }
@@ -67,9 +69,10 @@ public class TDigestState extends AVLTreeDigest {
         if (this.getMin() != that.getMin()) {
             return false;
         }
-        if (this.isRecording() != that.isRecording()) {
+        if (this.centroidCount() != that.centroidCount()) {
             return false;
         }
+
         Iterator<? extends Centroid> thisCentroids = centroids().iterator();
         Iterator<? extends Centroid> thatCentroids = that.centroids().iterator();
         while (thisCentroids.hasNext()) {
@@ -87,14 +90,13 @@ public class TDigestState extends AVLTreeDigest {
 
     @Override
     public int hashCode() {
-        int h = 31 * Double.hashCode(compression);
+        int h = 31 * Double.hashCode(compression) + Integer.hashCode(centroidCount());
         for (Centroid centroid : centroids()) {
             h = 31 * h + Double.hashCode(centroid.mean());
             h = 31 * h + centroid.count();
         }
         h = 31 * h + Double.hashCode(getMax());
         h = 31 * h + Double.hashCode(getMin());
-        h = 31 * h + Boolean.hashCode(isRecording());
         return h;
     }
 }

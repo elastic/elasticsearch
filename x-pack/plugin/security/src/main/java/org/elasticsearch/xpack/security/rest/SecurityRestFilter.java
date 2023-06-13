@@ -10,12 +10,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.logging.HeaderWarning;
-import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BytesRestResponse;
@@ -24,14 +22,12 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.RestRequestFilter;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
 
 public class SecurityRestFilter implements RestHandler {
 
@@ -104,27 +100,8 @@ public class SecurityRestFilter implements RestHandler {
 
     private void handleException(String actionType, RestRequest request, RestChannel channel, Exception e) {
         logger.debug(new ParameterizedMessage("{} failed for REST request [{}]", actionType, request.uri()), e);
-        final RestStatus restStatus = ExceptionsHelper.status(e);
         try {
-            channel.sendResponse(new BytesRestResponse(channel, restStatus, e) {
-
-                @Override
-                protected boolean skipStackTrace() {
-                    return restStatus == RestStatus.UNAUTHORIZED;
-                }
-
-                @Override
-                public Map<String, List<String>> filterHeaders(Map<String, List<String>> headers) {
-                    if (headers.containsKey("Warning")) {
-                        headers = Maps.copyMapWithRemovedEntry(headers, "Warning");
-                    }
-                    if (headers.containsKey("X-elastic-product")) {
-                        headers = Maps.copyMapWithRemovedEntry(headers, "X-elastic-product");
-                    }
-                    return headers;
-                }
-
-            });
+            channel.sendResponse(new BytesRestResponse(channel, e));
         } catch (Exception inner) {
             inner.addSuppressed(e);
             logger.error(

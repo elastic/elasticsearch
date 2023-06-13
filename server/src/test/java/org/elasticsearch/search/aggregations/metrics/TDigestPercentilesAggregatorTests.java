@@ -83,8 +83,8 @@ public class TDigestPercentilesAggregatorTests extends AggregatorTestCase {
         }, tdigest -> {
             assertEquals(7L, tdigest.state.size());
             assertEquals(7L, tdigest.state.centroidCount());
-            assertEquals(4.0d, tdigest.percentile(75), 0.0d);
-            assertEquals("4.0", tdigest.percentileAsString(75));
+            assertEquals(4.5d, tdigest.percentile(75), 0.0d);
+            assertEquals("4.5", tdigest.percentileAsString(75));
             assertEquals(2.0d, tdigest.percentile(50), 0.0d);
             assertEquals("2.0", tdigest.percentileAsString(50));
             assertEquals(1.0d, tdigest.percentile(22), 0.0d);
@@ -107,14 +107,14 @@ public class TDigestPercentilesAggregatorTests extends AggregatorTestCase {
             assertEquals(tdigest.state.centroidCount(), 7L);
             assertEquals(8.0d, tdigest.percentile(100), 0.0d);
             assertEquals("8.0", tdigest.percentileAsString(100));
-            assertEquals(4.0d, tdigest.percentile(75), 0.01d);
-            assertEquals("4.0", tdigest.percentileAsString(75));
-            assertEquals(2.0d, tdigest.percentile(50), 0.0d);
-            assertEquals("2.0", tdigest.percentileAsString(50));
-            assertEquals(1.0d, tdigest.percentile(22), 0.0d);
-            assertEquals("1.0", tdigest.percentileAsString(22));
-            assertEquals(0.0d, tdigest.percentile(0), 0.0d);
-            assertEquals("0.0", tdigest.percentileAsString(0));
+            assertEquals(6.98d, tdigest.percentile(88), 0.0d);
+            assertEquals("6.98", tdigest.percentileAsString(88));
+            assertEquals(1.0d, tdigest.percentile(33), 0.0d);
+            assertEquals("1.0", tdigest.percentileAsString(33));
+            assertEquals(1.0d, tdigest.percentile(25), 0.0d);
+            assertEquals("1.0", tdigest.percentileAsString(25));
+            assertEquals(0.0d, tdigest.percentile(1), 0.0d);
+            assertEquals("0.0", tdigest.percentileAsString(1));
             assertTrue(AggregationInspectionHelper.hasValue(tdigest));
         });
     }

@@ -1208,9 +1208,9 @@ GROUP BY gender ORDER BY gender;
 
    percentile    | percentile_rank  |    gender
 -----------------+------------------+---------------
-85906.32         |30.0              |null
-93503.28         |37.03569653103581 |F
-86754.72         |45.614035087719294|M
+86857.79999999999|32.69659025378865 |null
+94042.92000000001|37.03569653103581 |F
+87348.36         |44.337514210592246|M
 ;
 
 extendedStatsAggregateFunctionsWithScalars

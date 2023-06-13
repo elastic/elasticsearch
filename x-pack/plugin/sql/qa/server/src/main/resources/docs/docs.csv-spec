@@ -1565,13 +1565,13 @@ aggPercentileRank
 SELECT languages, PERCENTILE_RANK(salary, 65000) AS rank FROM emp GROUP BY languages;
 
    languages   |      rank       
----------------+--------------------
-null           |80.0
+---------------+-----------------
+null           |73.65766569962062
 1              |73.7291625157734 
 2              |88.88005607010643
-3              |76.47058823529412
-4              |83.33333333333334
-5              |95.23809523809523      
+3              |79.43662623295829
+4              |85.70446389643493
+5              |100.0      
 // end::aggPercentileRank
 ;
 
@@ -1582,12 +1582,12 @@ SELECT languages, PERCENTILE_RANK(salary/12, 5000) AS rank FROM emp GROUP BY lan
 
    languages   |       rank
 ---------------+------------------
-null           |60.0
+null           |66.91240875912409
 1              |66.70766707667076
 2              |84.13266895048271
-3              |58.82352941176471
-4              |72.22222222222221
-5              |95.23809523809523
+3              |61.052992625621684
+4              |76.55646443990001
+5              |94.00696864111498
 // end::aggPercentileRankScalars
 ;
 
@@ -1602,12 +1602,12 @@ GROUP BY languages;
 
    languages   | rank_TDigest  |   rank_HDR    
 ---------------+---------------+---------------
-null           |80.0           |80.0           
+null           |73.66          |80.0           
 1              |73.73          |73.33          
 2              |88.88          |89.47          
-3              |76.47          |76.47          
-4              |83.33          |83.33          
-5              |95.24          |95.24          
+3              |79.44          |76.47          
+4              |85.7           |83.33          
+5              |100.0          |95.24          
 // end::aggPercentileRankWithPercentileConfig
 ;
 

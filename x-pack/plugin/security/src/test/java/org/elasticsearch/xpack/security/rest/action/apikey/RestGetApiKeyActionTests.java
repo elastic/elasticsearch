@@ -38,6 +38,7 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -74,7 +75,7 @@ public class RestGetApiKeyActionTests extends ESTestCase {
         final Map<String, String> param3 = Map.of("username", "user-x");
         final Map<String, String> param4 = Map.of("id", "api-key-id-1");
         final Map<String, String> param5 = Map.of("name", "api-key-name-1");
-        final Map<String, String> params = randomFrom(param1, param2, param3, param4, param5);
+        final Map<String, String> params = new HashMap<>(randomFrom(param1, param2, param3, param4, param5));
         final boolean withLimitedBy = randomBoolean();
         if (withLimitedBy) {
             params.put("with_limited_by", "true");
@@ -188,11 +189,12 @@ public class RestGetApiKeyActionTests extends ESTestCase {
 
     public void testGetApiKeyOwnedByCurrentAuthenticatedUser() throws Exception {
         final boolean isGetRequestForOwnedKeysOnly = randomBoolean();
-        final Map<String, String> param;
+        final Map<String, String> param = new HashMap<>();
         if (isGetRequestForOwnedKeysOnly) {
-            param = Map.of("owner", Boolean.TRUE.toString());
+            param.put("owner", Boolean.TRUE.toString());
         } else {
-            param = Map.of("owner", Boolean.FALSE.toString(), "realm_name", "realm-1");
+            param.put("owner", Boolean.FALSE.toString());
+            param.put("realm_name", "realm-1");
         }
         final boolean withLimitedBy = randomBoolean();
         if (withLimitedBy) {

@@ -45,9 +45,7 @@ import org.elasticsearch.xpack.transform.transforms.scheduling.TransformSchedule
 
 import java.time.Clock;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -289,12 +287,10 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
             nodes.add(
                 DiscoveryNodeUtils.builder("dedicated-transform-node")
                     .roles(
-                        new HashSet<>(
-                            Arrays.asList(
-                                DiscoveryNodeRole.MASTER_ROLE,
-                                DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE,
-                                DiscoveryNodeRole.TRANSFORM_ROLE
-                            )
+                        Set.of(
+                            DiscoveryNodeRole.MASTER_ROLE,
+                            DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE,
+                            DiscoveryNodeRole.TRANSFORM_ROLE
                         )
                     )
                     .build()
@@ -303,20 +299,17 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
 
         if (pastDataNode) {
             nodes.add(
-                DiscoveryNodeUtils.create(
-                    "past-data-node-1",
-                    buildNewFakeTransportAddress(),
-                    Collections.emptyMap(),
-                    new HashSet<>(
-                        Arrays.asList(
+                DiscoveryNodeUtils.builder("past-data-node-1")
+                    .roles(
+                        Set.of(
                             DiscoveryNodeRole.DATA_ROLE,
                             DiscoveryNodeRole.MASTER_ROLE,
                             DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE,
                             DiscoveryNodeRole.TRANSFORM_ROLE
                         )
-                    ),
-                    Version.V_7_7_0
-                )
+                    )
+                    .version(Version.V_7_7_0)
+                    .build()
             );
         }
 
@@ -324,25 +317,17 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
             nodes.add(
                 DiscoveryNodeUtils.builder("current-data-node-with-2-tasks")
                     .roles(
-                        new HashSet<>(
-                            Arrays.asList(
-                                DiscoveryNodeRole.DATA_ROLE,
-                                DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE,
-                                DiscoveryNodeRole.TRANSFORM_ROLE
-                            )
-                        )
+                        Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE, DiscoveryNodeRole.TRANSFORM_ROLE)
                     )
                     .build()
             )
                 .add(
                     DiscoveryNodeUtils.builder("current-data-node-with-1-tasks")
                         .roles(
-                            new HashSet<>(
-                                Arrays.asList(
-                                    DiscoveryNodeRole.MASTER_ROLE,
-                                    DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE,
-                                    DiscoveryNodeRole.TRANSFORM_ROLE
-                                )
+                            Set.of(
+                                DiscoveryNodeRole.MASTER_ROLE,
+                                DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE,
+                                DiscoveryNodeRole.TRANSFORM_ROLE
                             )
                         )
                         .build()
@@ -352,11 +337,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         if (transformLocalOnlyNodes) {
             nodes.add(
                 DiscoveryNodeUtils.builder("current-data-node-with-0-tasks-transform-remote-disabled")
-                    .roles(
-                        new HashSet<>(
-                            Arrays.asList(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.TRANSFORM_ROLE)
-                        )
-                    )
+                    .roles(Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.TRANSFORM_ROLE))
                     .build()
             );
         }

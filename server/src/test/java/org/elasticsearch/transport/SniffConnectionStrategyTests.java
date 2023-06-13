@@ -1023,10 +1023,9 @@ public class SniffConnectionStrategyTests extends ESTestCase {
 
     public void testGetNodePredicateNodeVersion() {
         TransportAddress address = new TransportAddress(TransportAddress.META_ADDRESS, 0);
-        Set<DiscoveryNodeRole> roles = DiscoveryNodeRole.roles();
         Predicate<DiscoveryNode> nodePredicate = SniffConnectionStrategy.getNodePredicate(Settings.EMPTY);
         Version version = VersionUtils.randomVersion(random());
-        DiscoveryNode node = DiscoveryNodeUtils.create("id", address, Collections.emptyMap(), roles, version);
+        DiscoveryNode node = DiscoveryNodeUtils.builder("id").address(address).version(version).build();
         assertThat(nodePredicate.test(node), equalTo(Version.CURRENT.isCompatible(version)));
     }
 

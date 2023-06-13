@@ -109,29 +109,41 @@ public abstract class AbstractProcessWorkerExecutorService<T extends Runnable> e
                 }
             }
 
-            synchronized (this) {
-                // if shutdown with tasks pending notify the handlers
-                if (queue.isEmpty() == false) {
-                    List<Runnable> notExecuted = new ArrayList<>();
-                    queue.drainTo(notExecuted);
-
-                    String msg = "unable to process as " + processName + " worker service has shutdown";
-                    Exception ex = error.get();
-                    for (Runnable runnable : notExecuted) {
-                        if (runnable instanceof AbstractRunnable ar) {
-                            if (ex != null) {
-                                ar.onFailure(ex);
-                            } else {
-                                ar.onRejection(new EsRejectedExecutionException(msg, true));
-                            }
-                        }
-                    }
-                }
-            }
+            notifyQueueRunnables();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         } finally {
             awaitTermination.countDown();
+        }
+    }
+
+    /**
+     * Drains the queue of runnables and notifies each as either
+     * a rejected execution or failure.
+     *
+     * Although public this method should be used with caution.
+     * It should only be called _after_ the worker has shutdown.
+     *
+     * The method is synchronised to protect concurrent calls.
+     */
+    public synchronized void notifyQueueRunnables() {
+        assert isShutdown() : "Queue runnables should only be drained and notified after the worker is shutdown";
+
+        if (queue.isEmpty() == false) {
+            List<Runnable> notExecuted = new ArrayList<>();
+            queue.drainTo(notExecuted);
+
+            String msg = "unable to process as " + processName + " worker service has shutdown";
+            Exception ex = error.get();
+            for (Runnable runnable : notExecuted) {
+                if (runnable instanceof AbstractRunnable ar) {
+                    if (ex != null) {
+                        ar.onFailure(ex);
+                    } else {
+                        ar.onRejection(new EsRejectedExecutionException(msg, true));
+                    }
+                }
+            }
         }
     }
 }

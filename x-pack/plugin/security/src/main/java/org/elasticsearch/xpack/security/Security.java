@@ -295,10 +295,10 @@ import org.elasticsearch.xpack.security.authz.store.NativePrivilegeStore;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 import org.elasticsearch.xpack.security.authz.store.RoleProviders;
 import org.elasticsearch.xpack.security.ingest.SetSecurityUserProcessor;
+import org.elasticsearch.xpack.security.operator.DefaultOperatorOnlyRegistry;
 import org.elasticsearch.xpack.security.operator.FileOperatorUsersStore;
 import org.elasticsearch.xpack.security.operator.OperatorOnlyRegistry;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges;
-import org.elasticsearch.xpack.security.operator.OperatorPrivileges.OperatorPrivilegesService;
 import org.elasticsearch.xpack.security.profile.ProfileService;
 import org.elasticsearch.xpack.security.rest.RemoteHostHeader;
 import org.elasticsearch.xpack.security.rest.SecurityRestFilter;
@@ -543,6 +543,8 @@ public class Security extends Plugin
     private final List<SecurityExtension> securityExtensions = new ArrayList<>();
     private final SetOnce<Transport> transportReference = new SetOnce<>();
     private final SetOnce<ScriptService> scriptServiceReference = new SetOnce<>();
+    private final SetOnce<OperatorOnlyRegistry> operatorOnlyRegistry = new SetOnce<>();
+    private final SetOnce<OperatorPrivileges.OperatorPrivilegesService> operatorPrivilegesService = new SetOnce<>();
 
     private final SetOnce<ReservedRoleMappingAction> reservedRoleMappingAction = new SetOnce<>();
 
@@ -889,18 +891,26 @@ public class Security extends Plugin
         getLicenseState().addListener(allRolesStore::invalidateAll);
 
         final AuthenticationFailureHandler failureHandler = createAuthenticationFailureHandler(realms, extensionComponents);
-        final OperatorPrivilegesService operatorPrivilegesService;
-        final boolean operatorPrivilegesEnabled = OPERATOR_PRIVILEGES_ENABLED.get(settings);
+
+        // operator privileges are enabled either explicitly via the setting or if running serverless
+        final boolean operatorPrivilegesEnabled = OPERATOR_PRIVILEGES_ENABLED.get(settings) || DiscoveryNode.isServerless();
+
         if (operatorPrivilegesEnabled) {
             logger.info("operator privileges are enabled");
-            operatorPrivilegesService = new OperatorPrivileges.DefaultOperatorPrivilegesService(
-                getLicenseState(),
-                new FileOperatorUsersStore(environment, resourceWatcherService),
-                new OperatorOnlyRegistry(clusterService.getClusterSettings())
+            if (operatorOnlyRegistry.get() == null) {
+                operatorOnlyRegistry.set(new DefaultOperatorOnlyRegistry(clusterService.getClusterSettings()));
+            }
+            operatorPrivilegesService.set(
+                new OperatorPrivileges.DefaultOperatorPrivilegesService(
+                    getLicenseState(),
+                    new FileOperatorUsersStore(environment, resourceWatcherService),
+                    operatorOnlyRegistry.get()
+                )
             );
         } else {
-            operatorPrivilegesService = OperatorPrivileges.NOOP_OPERATOR_PRIVILEGES_SERVICE;
+            operatorPrivilegesService.set(OperatorPrivileges.NOOP_OPERATOR_PRIVILEGES_SERVICE);
         }
+
         authcService.set(
             new AuthenticationService(
                 settings,
@@ -912,7 +922,7 @@ public class Security extends Plugin
                 tokenService,
                 apiKeyService,
                 serviceAccountService,
-                operatorPrivilegesService
+                operatorPrivilegesService.get()
             )
         );
         components.add(authcService.get());
@@ -949,7 +959,7 @@ public class Security extends Plugin
             requestInterceptors,
             getLicenseState(),
             expressionResolver,
-            operatorPrivilegesService,
+            operatorPrivilegesService.get(),
             restrictedIndices,
             workflowService.get()
         );
@@ -1800,7 +1810,8 @@ public class Security extends Plugin
             secondayAuthc.get(),
             auditTrailService.get(),
             workflowService.get(),
-            handler
+            handler,
+            operatorPrivilegesService.get()
         );
     }
 
@@ -1904,6 +1915,19 @@ public class Security extends Plugin
     @Override
     public void loadExtensions(ExtensionLoader loader) {
         securityExtensions.addAll(loader.loadExtensions(SecurityExtension.class));
+
+        // operator registry SPI
+        List<OperatorOnlyRegistry> operatorOnlyRegistries = loader.loadExtensions(OperatorOnlyRegistry.class);
+        if (operatorOnlyRegistries.size() > 1) {
+            throw new IllegalStateException(OperatorOnlyRegistry.class + " may not have multiple implementations");
+        } else if (operatorOnlyRegistries.size() == 1) {
+            OperatorOnlyRegistry operatorOnlyRegistry = operatorOnlyRegistries.get(0);
+            this.operatorOnlyRegistry.set(operatorOnlyRegistry);
+            logger.debug(
+                "Loaded implementation [{}] for interface OperatorOnlyRegistry",
+                operatorOnlyRegistry.getClass().getCanonicalName()
+            );
+        }
     }
 
     private synchronized SharedGroupFactory getNettySharedGroupFactory(Settings settings) {
@@ -1945,5 +1969,10 @@ public class Security extends Plugin
             return Collections.emptyList();
         }
         return List.of(reservedRoleMappingAction.get());
+    }
+
+    // visible for testing
+    OperatorPrivileges.OperatorPrivilegesService getOperatorPrivilegesService() {
+        return operatorPrivilegesService.get();
     }
 }

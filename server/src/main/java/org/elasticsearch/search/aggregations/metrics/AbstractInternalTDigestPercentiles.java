@@ -49,6 +49,10 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
         this.keys = keys;
         this.state = state;
         this.keyed = keyed;
+
+        if (state != null) {
+            state.compress();
+        }
     }
 
     /**
@@ -104,10 +108,6 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
 
     public DocValueFormat formatter() {
         return format;
-    }
-
-    public long getEstimatedMemoryFootprint() {
-        return state.byteSize();
     }
 
     /**

@@ -16,6 +16,9 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.MockLicenseState;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.transport.TransportRequest;
@@ -40,21 +43,22 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-public class OperatorPrivilegesTests extends ESTestCase {
+public class DefaultOperatorPrivilegesTests extends ESTestCase {
 
     private MockLicenseState xPackLicenseState;
     private FileOperatorUsersStore fileOperatorUsersStore;
-    private OperatorOnlyRegistry operatorOnlyRegistry;
+    private DefaultOperatorOnlyRegistry operatorOnlyRegistry;
     private OperatorPrivilegesService operatorPrivilegesService;
 
     @Before
     public void init() {
         xPackLicenseState = mock(MockLicenseState.class);
         fileOperatorUsersStore = mock(FileOperatorUsersStore.class);
-        operatorOnlyRegistry = mock(OperatorOnlyRegistry.class);
+        operatorOnlyRegistry = mock(DefaultOperatorOnlyRegistry.class);
         operatorPrivilegesService = new DefaultOperatorPrivilegesService(xPackLicenseState, fileOperatorUsersStore, operatorOnlyRegistry);
     }
 
@@ -265,4 +269,22 @@ public class OperatorPrivilegesTests extends ESTestCase {
         NOOP_OPERATOR_PRIVILEGES_SERVICE.maybeInterceptRequest(threadContext, mock(TransportRequest.class));
     }
 
+    public void testCheckRest() {
+        final Settings settings = Settings.builder().put("xpack.security.operator_privileges.enabled", true).build();
+        when(xPackLicenseState.isAllowed(Security.OPERATOR_PRIVILEGES_FEATURE)).thenReturn(true);
+        RestHandler restHandler = mock(RestHandler.class);
+        RestRequest restRequest = mock(RestRequest.class);
+        RestChannel restChannel = mock(RestChannel.class);
+        ThreadContext threadContext = new ThreadContext(settings);
+
+        // not an operator
+        when(operatorOnlyRegistry.checkRest(restHandler, restRequest, restChannel)).thenReturn(() -> "violation!");
+        assertFalse(operatorPrivilegesService.checkRest(restHandler, restRequest, restChannel, threadContext));
+        Mockito.clearInvocations(operatorOnlyRegistry);
+
+        // is an operator
+        threadContext.putHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY, AuthenticationField.PRIVILEGE_CATEGORY_VALUE_OPERATOR);
+        verifyNoInteractions(operatorOnlyRegistry);
+        assertTrue(operatorPrivilegesService.checkRest(restHandler, restRequest, restChannel, threadContext));
+    }
 }

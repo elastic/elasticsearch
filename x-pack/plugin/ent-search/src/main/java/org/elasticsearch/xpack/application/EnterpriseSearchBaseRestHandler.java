@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.application.search.action;
+package org.elasticsearch.xpack.application;
 
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.license.XPackLicenseState;
@@ -16,10 +16,10 @@ import org.elasticsearch.xpack.application.utils.LicenseUtils;
 
 import java.io.IOException;
 
-public abstract class SearchApplicationRestHandler extends BaseRestHandler {
+public abstract class EnterpriseSearchBaseRestHandler extends BaseRestHandler {
     protected final XPackLicenseState licenseState;
 
-    protected SearchApplicationRestHandler(XPackLicenseState licenseState) {
+    protected EnterpriseSearchBaseRestHandler(XPackLicenseState licenseState) {
         this.licenseState = licenseState;
     }
 

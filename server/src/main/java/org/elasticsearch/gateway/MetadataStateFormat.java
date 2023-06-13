@@ -257,7 +257,9 @@ public abstract class MetadataStateFormat<T> {
             writeStateToFirstLocation(state, directories.get(0).v1(), directories.get(0).v2(), tmpFileName);
             copyStateToExtraLocations(directories, tmpFileName);
             performRenames(tmpFileName, fileName, directories);
-            performStateDirectoriesFsync(directories);
+            if (useFsync) {
+                performStateDirectoriesFsync(directories);
+            }
             renamesSuccessful = true;
         } catch (WriteStateException e) {
             if (cleanup) {

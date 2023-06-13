@@ -18,6 +18,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static java.util.Map.entry;
 import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEventTestUtils.convertMapToJson;
 import static org.elasticsearch.xpack.application.analytics.event.parser.field.DocumentAnalyticsEventField.DOCUMENT_ID_FIELD;
 import static org.elasticsearch.xpack.application.analytics.event.parser.field.DocumentAnalyticsEventField.DOCUMENT_INDEX_FIELD;
@@ -58,11 +59,9 @@ public class DocumentAnalyticsEventFieldTests extends AnalyticsEventFieldParserT
     }
 
     public static Map<String, String> randomEventDocumentField() {
-        return Map.of(
-            DOCUMENT_ID_FIELD.getPreferredName(),
-            randomIdentifier(),
-            DOCUMENT_INDEX_FIELD.getPreferredName(),
-            randomIdentifier()
+        return Map.ofEntries(
+            entry(DOCUMENT_ID_FIELD.getPreferredName(), randomIdentifier()),
+            entry(DOCUMENT_INDEX_FIELD.getPreferredName(), randomIdentifier())
         );
     }
 }

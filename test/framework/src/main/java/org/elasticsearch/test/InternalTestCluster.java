@@ -137,6 +137,7 @@ import java.util.stream.Stream;
 
 import static org.apache.lucene.tests.util.LuceneTestCase.TEST_NIGHTLY;
 import static org.apache.lucene.tests.util.LuceneTestCase.rarely;
+import static org.apache.lucene.tests.util.LuceneTestCase.usually;
 import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
@@ -609,8 +610,8 @@ public final class InternalTestCluster extends TestCluster {
             builder.put(INITIAL_STATE_TIMEOUT_SETTING.getKey(), "0s");
         }
 
-        if (random.nextBoolean() || random.nextBoolean()) {
-            // Disable fsync in 75% of test runs
+        if (usually()) {
+            // Disable fsync in most test runs to speed up tests
             builder.put(IndexModule.NODE_STORE_USE_FSYNC.getKey(), false);
         }
 

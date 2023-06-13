@@ -23,6 +23,7 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.IndexModule;
@@ -1869,10 +1870,11 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         final Path location,
         final long initialGlobalCheckpoint,
         final ShardId shardId,
-        final long primaryTerm
+        final long primaryTerm,
+        boolean useFsync
     ) throws IOException {
         final ChannelFactory channelFactory = FileChannel::open;
-        return createEmptyTranslog(location, initialGlobalCheckpoint, shardId, channelFactory, primaryTerm);
+        return createEmptyTranslog(location, initialGlobalCheckpoint, shardId, channelFactory, primaryTerm, useFsync);
     }
 
     static String createEmptyTranslog(
@@ -1880,21 +1882,50 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         long initialGlobalCheckpoint,
         ShardId shardId,
         ChannelFactory channelFactory,
-        long primaryTerm
+        long primaryTerm,
+        boolean useFsync
+    ) throws IOException {
+        return createEmptyTranslog(location, shardId, initialGlobalCheckpoint, primaryTerm, useFsync, null, channelFactory);
+    }
+
+    /**
+     * Creates a new empty translog within the specified {@code location} that contains the given {@code initialGlobalCheckpoint},
+     * {@code primaryTerm} and {@code translogUUID}.
+     *
+     * This method should be used directly under specific circumstances like for shards that will see no indexing. Specifying a non-unique
+     * translog UUID could cause a lot of issues and that's why in all (but one) cases the method
+     * {@link #createEmptyTranslog(Path, long, ShardId, long, boolean)} should be used instead.
+     *
+     * @param location                a {@link Path} to the directory that will contains the translog files (translog + translog checkpoint)
+     * @param shardId                 the {@link ShardId}
+     * @param initialGlobalCheckpoint the global checkpoint to initialize the translog with
+     * @param primaryTerm             the shard's primary term to initialize the translog with
+     * @param useFsync                whether to use fsync operations to make translog disk writes durable
+     * @param translogUUID            the unique identifier to initialize the translog with
+     * @param factory                 a {@link ChannelFactory} used to open translog files
+     * @return the translog's unique identifier
+     * @throws IOException if something went wrong during translog creation
+     */
+    public static String createEmptyTranslog(
+        final Path location,
+        final ShardId shardId,
+        final long initialGlobalCheckpoint,
+        final long primaryTerm,
+        final boolean useFsync,
+        @Nullable final String translogUUID,
+        @Nullable final ChannelFactory factory
     ) throws IOException {
         IOUtils.rm(location);
         Files.createDirectories(location);
 
         final long generation = 1L;
         final long minTranslogGeneration = 1L;
-        channelFactory = channelFactory != null ? channelFactory : FileChannel::open;
-        final String uuid = Strings.hasLength((String) null) ? null : UUIDs.randomBase64UUID();
+        final ChannelFactory channelFactory = factory != null ? factory : FileChannel::open;
+        final String uuid = Strings.hasLength(translogUUID) ? translogUUID : UUIDs.randomBase64UUID();
         final Path checkpointFile = location.resolve(CHECKPOINT_FILE_NAME);
         final Path translogFile = location.resolve(getFilename(generation));
         final Checkpoint checkpoint = Checkpoint.emptyTranslogCheckpoint(0, generation, initialGlobalCheckpoint, minTranslogGeneration);
 
-        // TODO: make this conditional on IndexModule#NODE_STORE_USE_FSYNC
-        boolean useFsync = true;
         Checkpoint.write(channelFactory, checkpointFile, checkpoint, useFsync, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW);
         final TranslogWriter writer = TranslogWriter.create(
             shardId,

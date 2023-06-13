@@ -12,6 +12,7 @@ import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -61,12 +62,13 @@ public class PeerRecoveryRetentionLeaseCreationIT extends ESIntegTestCase {
             .actionGet()
             .getSetting(INDEX_NAME, IndexMetadata.SETTING_INDEX_UUID);
         Path path = service.indexService(new Index(INDEX_NAME, uuid)).getShard(0).shardPath().getShardStatePath();
+        final boolean useFsync = service.clusterService().getClusterSettings().get(IndexModule.NODE_STORE_USE_FSYNC);
 
         long version = between(1, 1000);
         internalCluster().restartNode(dataNode, new InternalTestCluster.RestartCallback() {
             @Override
             public Settings onNodeStopped(String nodeName) throws Exception {
-                RetentionLeases.FORMAT.writeAndCleanup(new RetentionLeases(1, version, List.of()), path);
+                RetentionLeases.FORMAT.writeAndCleanup(new RetentionLeases(1, version, List.of()), useFsync, path);
                 return super.onNodeStopped(nodeName);
             }
         });

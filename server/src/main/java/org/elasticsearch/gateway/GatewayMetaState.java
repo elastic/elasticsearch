@@ -35,6 +35,7 @@ import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.NodeMetadata;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.ClusterCoordinationPlugin;
 import org.elasticsearch.plugins.MetadataUpgrader;
@@ -208,6 +209,7 @@ public class GatewayMetaState implements Closeable {
             // write legacy node metadata to prevent accidental downgrades from spawning empty cluster state
             NodeMetadata.FORMAT.writeAndCleanup(
                 new NodeMetadata(persistedClusterStateService.getNodeId(), Version.CURRENT, clusterState.metadata().oldestIndexVersion()),
+                IndexModule.NODE_STORE_USE_FSYNC.get(settings),
                 persistedClusterStateService.getDataPaths()
             );
             success = true;
@@ -244,6 +246,7 @@ public class GatewayMetaState implements Closeable {
             // write legacy node metadata to prevent downgrades from spawning empty cluster state
             NodeMetadata.FORMAT.writeAndCleanup(
                 new NodeMetadata(persistedClusterStateService.getNodeId(), Version.CURRENT, clusterState.metadata().oldestIndexVersion()),
+                IndexModule.NODE_STORE_USE_FSYNC.get(settings),
                 persistedClusterStateService.getDataPaths()
             );
         }

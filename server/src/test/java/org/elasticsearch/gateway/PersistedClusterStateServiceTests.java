@@ -281,7 +281,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
             }
         }
 
-        NodeMetadata.FORMAT.cleanupOldFiles(Long.MAX_VALUE, dataPaths2);
+        NodeMetadata.FORMAT.cleanupOldFiles(Long.MAX_VALUE, randomBoolean(), dataPaths2);
 
         final Path[] combinedPaths = Stream.concat(Arrays.stream(dataPaths1), Arrays.stream(dataPaths2)).toArray(Path[]::new);
 

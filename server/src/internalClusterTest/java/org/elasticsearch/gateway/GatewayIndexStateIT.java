@@ -36,6 +36,7 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.NodeMetadata;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.ShardLimitValidator;
@@ -578,7 +579,11 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
                     .putCustom(IndexGraveyard.TYPE, IndexGraveyard.builder().addTombstone(metadata.index("test").getIndex()).build())
                     .build()
             );
-            NodeMetadata.FORMAT.writeAndCleanup(new NodeMetadata(nodeId, Version.CURRENT, metadata.oldestIndexVersion()), paths);
+            NodeMetadata.FORMAT.writeAndCleanup(
+                new NodeMetadata(nodeId, Version.CURRENT, metadata.oldestIndexVersion()),
+                IndexModule.NODE_STORE_USE_FSYNC.get(nodeEnvironment.settings()),
+                paths
+            );
         });
 
         ensureGreen();

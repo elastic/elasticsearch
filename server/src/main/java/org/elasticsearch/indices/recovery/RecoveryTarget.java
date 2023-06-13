@@ -27,6 +27,7 @@ import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.seqno.ReplicationTracker;
@@ -504,7 +505,8 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
                         indexShard.shardPath().resolveTranslog(),
                         globalCheckpoint,
                         shardId,
-                        indexShard.getPendingPrimaryTerm()
+                        indexShard.getPendingPrimaryTerm(),
+                        IndexModule.NODE_STORE_USE_FSYNC.get(indexShard.indexSettings().getNodeSettings())
                     );
                     store.associateIndexWithNewTranslog(translogUUID);
                 } else {

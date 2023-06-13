@@ -16,6 +16,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -179,8 +180,9 @@ public class MetaStateServiceTests extends ESTestCase {
         });
 
         MetaStateWriterUtils.writeManifestAndCleanup(env, "second manifest write", manifest);
-        Metadata.FORMAT.cleanupOldFiles(globalGeneration, env.nodeDataPaths());
-        IndexMetadata.FORMAT.cleanupOldFiles(indexGeneration, env.indexPaths(index.getIndex()));
+        boolean useFsync = IndexModule.NODE_STORE_USE_FSYNC.get(env.settings());
+        Metadata.FORMAT.cleanupOldFiles(globalGeneration, useFsync, env.nodeDataPaths());
+        IndexMetadata.FORMAT.cleanupOldFiles(indexGeneration, useFsync, env.indexPaths(index.getIndex()));
 
         manifestAndMetadata = metaStateService.loadFullState();
         assertThat(manifestAndMetadata.v1(), equalTo(manifest));

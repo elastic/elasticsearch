@@ -266,7 +266,8 @@ public class FollowingEngineTests extends ESTestCase {
             config.getTranslogConfig().getTranslogPath(),
             SequenceNumbers.NO_OPS_PERFORMED,
             shardId,
-            1L
+            1L,
+            IndexModule.NODE_STORE_USE_FSYNC.get(config.getIndexSettings().getNodeSettings())
         );
         store.associateIndexWithNewTranslog(translogUuid);
         FollowingEngine followingEngine = new FollowingEngine(config);
@@ -500,7 +501,8 @@ public class FollowingEngineTests extends ESTestCase {
                 followerConfig.getTranslogConfig().getTranslogPath(),
                 SequenceNumbers.NO_OPS_PERFORMED,
                 shardId,
-                1L
+                1L,
+                IndexModule.NODE_STORE_USE_FSYNC.get(followerIndexSettings.getNodeSettings())
             );
             followerStore.associateIndexWithNewTranslog(translogUuid);
             CountDownLatch concurrentDeleteOpLatch = new CountDownLatch(1);
@@ -607,7 +609,8 @@ public class FollowingEngineTests extends ESTestCase {
                     leaderConfig.getTranslogConfig().getTranslogPath(),
                     SequenceNumbers.NO_OPS_PERFORMED,
                     shardId,
-                    1L
+                    1L,
+                    IndexModule.NODE_STORE_USE_FSYNC.get(leaderIndexSettings.getNodeSettings())
                 )
             );
             try (InternalEngine leaderEngine = new InternalEngine(leaderConfig)) {

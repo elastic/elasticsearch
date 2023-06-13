@@ -382,7 +382,11 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             return;
         }
         try {
-            IndexMetadata.FORMAT.writeAndCleanup(getMetadata(), nodeEnv.indexPaths(index()));
+            IndexMetadata.FORMAT.writeAndCleanup(
+                getMetadata(),
+                IndexModule.NODE_STORE_USE_FSYNC.get(nodeEnv.settings()),
+                nodeEnv.indexPaths(index())
+            );
         } catch (WriteStateException e) {
             logger.warn(() -> format("failed to write dangling indices state for index %s", index()), e);
         }

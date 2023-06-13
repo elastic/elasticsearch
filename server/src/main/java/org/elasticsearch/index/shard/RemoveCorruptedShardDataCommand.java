@@ -440,7 +440,7 @@ public class RemoveCorruptedShardDataCommand extends ElasticsearchNodeCommand {
             newAllocationId
         );
 
-        ShardStateMetadata.FORMAT.writeAndCleanup(newShardStateMetadata, shardStatePath);
+        ShardStateMetadata.FORMAT.writeAndCleanup(newShardStateMetadata, true, shardStatePath);
 
         terminal.println("");
         terminal.println("You should run the following command to allocate this shard:");

@@ -28,6 +28,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.VersionType;
@@ -247,7 +248,8 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
                     replica.shardPath().resolveTranslog(),
                     flushedDocs,
                     replica.shardId(),
-                    replica.getPendingPrimaryTerm()
+                    replica.getPendingPrimaryTerm(),
+                    IndexModule.NODE_STORE_USE_FSYNC.get(replica.indexSettings().getNodeSettings())
                 );
             } else {
                 translogUUIDtoUse = translogGeneration.translogUUID;

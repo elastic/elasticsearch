@@ -95,7 +95,7 @@ public class MetadataStateFormatTests extends ESTestCase {
             randomDouble(),
             randomBoolean()
         );
-        format.writeAndCleanup(state, dirs);
+        format.writeAndCleanup(state, randomBoolean(), dirs);
         for (Path file : dirs) {
             Path[] list = content("*", file);
             assertEquals(list.length, 1);
@@ -115,7 +115,7 @@ public class MetadataStateFormatTests extends ESTestCase {
             randomDouble(),
             randomBoolean()
         );
-        format.writeAndCleanup(state2, dirs);
+        format.writeAndCleanup(state2, randomBoolean(), dirs);
 
         for (Path file : dirs) {
             Path[] list = content("*", file);
@@ -147,7 +147,7 @@ public class MetadataStateFormatTests extends ESTestCase {
             randomDouble(),
             randomBoolean()
         );
-        format.writeAndCleanup(state, dirs);
+        format.writeAndCleanup(state, randomBoolean(), dirs);
         for (Path file : dirs) {
             Path[] list = content("*", file);
             assertEquals(list.length, 1);
@@ -176,7 +176,7 @@ public class MetadataStateFormatTests extends ESTestCase {
             randomDouble(),
             randomBoolean()
         );
-        format.writeAndCleanup(state, dirs);
+        format.writeAndCleanup(state, randomBoolean(), dirs);
         for (Path file : dirs) {
             Path[] list = content("*", file);
             assertEquals(list.length, 1);
@@ -258,7 +258,7 @@ public class MetadataStateFormatTests extends ESTestCase {
             randomDouble(),
             randomBoolean()
         );
-        format.writeAndCleanup(state, paths);
+        format.writeAndCleanup(state, randomBoolean(), paths);
         assertEquals(state, format.loadLatestState(logger, NamedXContentRegistry.EMPTY, paths));
         ensureOnlyOneStateFile(paths);
         return state;
@@ -292,7 +292,7 @@ public class MetadataStateFormatTests extends ESTestCase {
                 randomDouble(),
                 randomBoolean()
             );
-            WriteStateException ex = expectThrows(WriteStateException.class, () -> format.writeAndCleanup(newState, path));
+            WriteStateException ex = expectThrows(WriteStateException.class, () -> format.writeAndCleanup(newState, randomBoolean(), path));
             assertFalse(ex.isDirty());
 
             format.noFailures();
@@ -316,12 +316,12 @@ public class MetadataStateFormatTests extends ESTestCase {
             randomDouble(),
             randomBoolean()
         );
-        WriteStateException ex = expectThrows(WriteStateException.class, () -> format.writeAndCleanup(newState, path));
+        WriteStateException ex = expectThrows(WriteStateException.class, () -> format.writeAndCleanup(newState, randomBoolean(), path));
         assertFalse(ex.isDirty());
 
         format.noFailures();
         assertEquals(initialState, format.loadLatestState(logger, NamedXContentRegistry.EMPTY, path));
-        format.writeAndCleanup(newState, path);
+        format.writeAndCleanup(newState, randomBoolean(), path);
         assertEquals(newState, format.loadLatestState(logger, NamedXContentRegistry.EMPTY, path));
         writeAndReadStateSuccessfully(format, path);
     }
@@ -344,7 +344,7 @@ public class MetadataStateFormatTests extends ESTestCase {
                 randomBoolean()
             );
             possibleStates.add(newState);
-            WriteStateException ex = expectThrows(WriteStateException.class, () -> format.writeAndCleanup(newState, path));
+            WriteStateException ex = expectThrows(WriteStateException.class, () -> format.writeAndCleanup(newState, randomBoolean(), path));
             assertTrue(ex.isDirty());
 
             format.noFailures();
@@ -372,7 +372,10 @@ public class MetadataStateFormatTests extends ESTestCase {
                 randomDouble(),
                 randomBoolean()
             );
-            WriteStateException ex = expectThrows(WriteStateException.class, () -> format.writeAndCleanup(newState, paths));
+            WriteStateException ex = expectThrows(
+                WriteStateException.class,
+                () -> format.writeAndCleanup(newState, randomBoolean(), paths)
+            );
             assertFalse(ex.isDirty());
 
             format.noFailures();
@@ -403,7 +406,7 @@ public class MetadataStateFormatTests extends ESTestCase {
                 randomBoolean()
             );
             try {
-                format.writeAndCleanup(newState, paths);
+                format.writeAndCleanup(newState, randomBoolean(), paths);
                 possibleStates.clear();
                 possibleStates.add(newState);
             } catch (WriteStateException e) {
@@ -443,7 +446,7 @@ public class MetadataStateFormatTests extends ESTestCase {
             randomBoolean()
         );
         // Call write without clean-up to simulate multi-write transaction.
-        long genId = format.write(state, paths);
+        long genId = format.write(state, randomBoolean(), paths);
         assertEquals(state, format.loadLatestState(logger, NamedXContentRegistry.EMPTY, paths));
         ensureOnlyOneStateFile(paths);
 
@@ -466,7 +469,7 @@ public class MetadataStateFormatTests extends ESTestCase {
             randomBoolean()
         );
 
-        expectThrows(WriteStateException.class, () -> format.write(newState, paths));
+        expectThrows(WriteStateException.class, () -> format.write(newState, randomBoolean(), paths));
         long firstPathId = format.findMaxGenerationId("foo-", paths[0]);
         assertEquals(firstPathId, format.findMaxGenerationId("foo-", paths[1]));
         assertEquals(genId, format.findMaxGenerationId("foo-", badPath));
@@ -495,7 +498,7 @@ public class MetadataStateFormatTests extends ESTestCase {
             randomDouble(),
             randomBoolean()
         );
-        long genId = format.write(state, paths);
+        long genId = format.write(state, randomBoolean(), paths);
         assertEquals(state, format.loadLatestState(logger, NamedXContentRegistry.EMPTY, paths));
         ensureOnlyOneStateFile(paths);
 
@@ -532,7 +535,7 @@ public class MetadataStateFormatTests extends ESTestCase {
             randomDouble(),
             randomBoolean()
         );
-        long genId = format.write(state, paths);
+        long genId = format.write(state, randomBoolean(), paths);
         assertEquals(state, format.loadLatestState(logger, NamedXContentRegistry.EMPTY, paths));
         ensureOnlyOneStateFile(paths);
 
@@ -551,7 +554,7 @@ public class MetadataStateFormatTests extends ESTestCase {
 
         // Ensure clean-up old files doesn't fail with one bad dir. We pretend we want to
         // keep a newer generation that doesn't exist (genId + 1).
-        format.cleanupOldFiles(genId + 1, paths);
+        format.cleanupOldFiles(genId + 1, randomBoolean(), paths);
 
         // We simulated failure on deleting one stale state file, there should be one that's remaining from the old state.
         // We'll corrupt this remaining file and check to see if loading the state throws an exception.
@@ -642,7 +645,7 @@ public class MetadataStateFormatTests extends ESTestCase {
         }
 
         @Override
-        protected Directory newDirectory(Path dir) {
+        protected Directory newDirectory(Path dir, boolean useFsync) {
             MockDirectoryWrapper mock = newMockFSDirectory(dir);
             if (failureMode == FailureMode.FAIL_MULTIPLE_METHODS) {
                 final Set<String> failMethods = Set.of(failureMethods);

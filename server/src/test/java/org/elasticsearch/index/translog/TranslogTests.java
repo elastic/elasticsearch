@@ -213,7 +213,8 @@ public class TranslogTests extends ESTestCase {
             config.getTranslogPath(),
             SequenceNumbers.NO_OPS_PERFORMED,
             shardId,
-            primaryTerm.get()
+            primaryTerm.get(),
+            randomBoolean()
         );
         return new Translog(
             config,
@@ -260,7 +261,13 @@ public class TranslogTests extends ESTestCase {
     private Translog create(Path path) throws IOException {
         globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         final TranslogConfig translogConfig = getTranslogConfig(path);
-        final String translogUUID = Translog.createEmptyTranslog(path, SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
+        final String translogUUID = Translog.createEmptyTranslog(
+            path,
+            SequenceNumbers.NO_OPS_PERFORMED,
+            shardId,
+            primaryTerm.get(),
+            randomBoolean()
+        );
         return new Translog(
             translogConfig,
             translogUUID,
@@ -1428,7 +1435,8 @@ public class TranslogTests extends ESTestCase {
             SequenceNumbers.NO_OPS_PERFORMED,
             shardId,
             channelFactory,
-            primaryTerm.get()
+            primaryTerm.get(),
+            randomBoolean()
         );
 
         try (
@@ -1543,7 +1551,8 @@ public class TranslogTests extends ESTestCase {
             SequenceNumbers.NO_OPS_PERFORMED,
             shardId,
             channelFactory,
-            primaryTerm.get()
+            primaryTerm.get(),
+            randomBoolean()
         );
 
         try (
@@ -2868,7 +2877,8 @@ public class TranslogTests extends ESTestCase {
                 SequenceNumbers.NO_OPS_PERFORMED,
                 shardId,
                 channelFactory,
-                primaryTerm.get()
+                primaryTerm.get(),
+                randomBoolean()
             );
         }
         return new Translog(config, translogUUID, deletionPolicy, () -> SequenceNumbers.NO_OPS_PERFORMED, primaryTerm::get, seqNo -> {}) {
@@ -3242,7 +3252,8 @@ public class TranslogTests extends ESTestCase {
                     config.getTranslogPath(),
                     SequenceNumbers.NO_OPS_PERFORMED,
                     shardId,
-                    primaryTerm.get()
+                    primaryTerm.get(),
+                    randomBoolean()
                 );
             }
             try (
@@ -3722,7 +3733,13 @@ public class TranslogTests extends ESTestCase {
         globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         Path path = createTempDir();
         final TranslogConfig translogConfig = getTranslogConfig(path);
-        final String translogUUID = Translog.createEmptyTranslog(path, SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
+        final String translogUUID = Translog.createEmptyTranslog(
+            path,
+            SequenceNumbers.NO_OPS_PERFORMED,
+            shardId,
+            primaryTerm.get(),
+            randomBoolean()
+        );
         MisbehavingTranslog misbehavingTranslog = new MisbehavingTranslog(
             translogConfig,
             translogUUID,
@@ -3855,7 +3872,8 @@ public class TranslogTests extends ESTestCase {
             config.getTranslogPath(),
             SequenceNumbers.NO_OPS_PERFORMED,
             shardId,
-            primaryTerm.get()
+            primaryTerm.get(),
+            randomBoolean()
         );
         Set<Long> persistedSeqNos = ConcurrentCollections.newConcurrentSet();
         AtomicLong lastGlobalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
@@ -3950,7 +3968,8 @@ public class TranslogTests extends ESTestCase {
             SequenceNumbers.NO_OPS_PERFORMED,
             shardId,
             channelFactory,
-            primaryTerm.get()
+            primaryTerm.get(),
+            randomBoolean()
         );
         final Translog translog = new Translog(
             config,

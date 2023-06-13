@@ -201,7 +201,7 @@ public class IndexShardTests extends IndexShardTestCase {
     }
 
     public static void write(ShardStateMetadata shardStateMetadata, Path... shardPaths) throws IOException {
-        ShardStateMetadata.FORMAT.writeAndCleanup(shardStateMetadata, shardPaths);
+        ShardStateMetadata.FORMAT.writeAndCleanup(shardStateMetadata, randomBoolean(), shardPaths);
     }
 
     public static Engine getEngineFromShard(IndexShard shard) {

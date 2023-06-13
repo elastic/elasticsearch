@@ -24,6 +24,7 @@ import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.store.NoFsyncDirectory;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -191,10 +192,10 @@ public abstract class MetadataStateFormat<T> {
     /**
      * Writes the given state to the given directories and performs cleanup of old state files if the write succeeds or
      * newly created state file if write fails.
-     * See also {@link #write(Object, Path...)} and {@link #cleanupOldFiles(long, Path[])}.
+     * See also {@link #write(Object, boolean, Path...)} and {@link #cleanupOldFiles(long, boolean, Path[])}.
      */
-    public final long writeAndCleanup(final T state, final Path... locations) throws WriteStateException {
-        return write(state, true, locations);
+    public final long writeAndCleanup(final T state, boolean useFsync, final Path... locations) throws WriteStateException {
+        return write(state, true, useFsync, locations);
     }
 
     /**
@@ -209,19 +210,19 @@ public abstract class MetadataStateFormat<T> {
      * If this method fails with an exception, it performs cleanup of newly created state file.
      * But if this method succeeds, it does not perform cleanup of old state files.
      * If this write succeeds, but some further write fails, you may want to rollback the transaction and keep old file around.
-     * After transaction is finished use {@link #cleanupOldFiles(long, Path[])} for the clean-up.
-     * If this write is not a part of bigger transaction, consider using {@link #writeAndCleanup(Object, Path...)} method instead.
+     * After transaction is finished use {@link #cleanupOldFiles(long, boolean, Path[])} for the clean-up.
+     * If this write is not a part of bigger transaction, consider using {@link #writeAndCleanup(Object, boolean, Path...)} method instead.
      *
      * @param state     the state object to write
      * @param locations the locations where the state should be written to.
      * @throws WriteStateException if some exception during writing state occurs. See also {@link WriteStateException#isDirty()}.
      * @return generation of newly written state.
      */
-    public final long write(final T state, final Path... locations) throws WriteStateException {
-        return write(state, false, locations);
+    public final long write(final T state, boolean useFsync, final Path... locations) throws WriteStateException {
+        return write(state, false, useFsync, locations);
     }
 
-    private long write(final T state, boolean cleanup, final Path... locations) throws WriteStateException {
+    private long write(final T state, boolean cleanup, boolean useFsync, final Path... locations) throws WriteStateException {
         if (locations == null) {
             throw new IllegalArgumentException("Locations must not be null");
         }
@@ -247,7 +248,7 @@ public abstract class MetadataStateFormat<T> {
             for (Path location : locations) {
                 Path stateLocation = location.resolve(STATE_DIR_NAME);
                 try {
-                    directories.add(new Tuple<>(location, newDirectory(stateLocation)));
+                    directories.add(new Tuple<>(location, newDirectory(stateLocation, useFsync)));
                 } catch (IOException e) {
                     throw new WriteStateException(false, "failed to open state directory " + stateLocation, e);
                 }
@@ -260,7 +261,7 @@ public abstract class MetadataStateFormat<T> {
             renamesSuccessful = true;
         } catch (WriteStateException e) {
             if (cleanup) {
-                cleanupOldFiles(oldGenerationId, locations);
+                cleanupOldFiles(oldGenerationId, useFsync, locations);
             }
             throw e;
         } finally {
@@ -273,7 +274,7 @@ public abstract class MetadataStateFormat<T> {
         }
 
         if (cleanup) {
-            cleanupOldFiles(newGenerationId, locations);
+            cleanupOldFiles(newGenerationId, useFsync, locations);
         }
 
         return newGenerationId;
@@ -300,7 +301,8 @@ public abstract class MetadataStateFormat<T> {
      * the state.
      */
     public final T read(NamedXContentRegistry namedXContentRegistry, Path file) throws IOException {
-        try (Directory dir = newDirectory(file.getParent())) {
+        // dir only used for reading no need for the no-fsync wrapping
+        try (Directory dir = newDirectory(file.getParent(), true)) {
             try (IndexInput indexInput = dir.openInput(file.getFileName().toString(), IOContext.DEFAULT)) {
                 // We checksum the entire file before we even go and parse it. If it's corrupted we barf right here.
                 CodecUtil.checksumEntireFile(indexInput);
@@ -335,8 +337,12 @@ public abstract class MetadataStateFormat<T> {
         }
     }
 
-    protected Directory newDirectory(Path dir) throws IOException {
-        return new NIOFSDirectory(dir);
+    protected Directory newDirectory(Path dir, boolean useFsync) throws IOException {
+        var directory = new NIOFSDirectory(dir);
+        if (useFsync) {
+            return directory;
+        }
+        return new NoFsyncDirectory(directory);
     }
 
     /**
@@ -345,12 +351,12 @@ public abstract class MetadataStateFormat<T> {
      * @param currentGeneration state generation to keep.
      * @param locations         state paths.
      */
-    public void cleanupOldFiles(final long currentGeneration, Path[] locations) {
+    public void cleanupOldFiles(final long currentGeneration, boolean useFsync, Path[] locations) {
         final String fileNameToKeep = getStateFileName(currentGeneration);
         for (Path location : locations) {
             logger.trace("cleanupOldFiles: cleaning up {}", location);
             Path stateLocation = location.resolve(STATE_DIR_NAME);
-            try (Directory stateDir = newDirectory(stateLocation)) {
+            try (Directory stateDir = newDirectory(stateLocation, useFsync)) {
                 for (String file : stateDir.listAll()) {
                     if (file.startsWith(prefix) && file.equals(fileNameToKeep) == false) {
                         deleteFileIgnoreExceptions(stateLocation, stateDir, file);

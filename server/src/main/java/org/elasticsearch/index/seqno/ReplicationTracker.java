@@ -22,6 +22,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.gateway.WriteStateException;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.SafeCommitInfo;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
@@ -494,7 +495,11 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
                 currentRetentionLeases = retentionLeases;
             }
             logger.trace("persisting retention leases [{}]", currentRetentionLeases);
-            RetentionLeases.FORMAT.writeAndCleanup(currentRetentionLeases, path);
+            RetentionLeases.FORMAT.writeAndCleanup(
+                currentRetentionLeases,
+                IndexModule.NODE_STORE_USE_FSYNC.get(indexSettings.getNodeSettings()),
+                path
+            );
             persistedRetentionLeasesPrimaryTerm = currentRetentionLeases.primaryTerm();
             persistedRetentionLeasesVersion = currentRetentionLeases.version();
         }

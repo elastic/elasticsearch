@@ -475,7 +475,8 @@ public abstract class EngineTestCase extends ESTestCase {
             translogPath,
             SequenceNumbers.NO_OPS_PERFORMED,
             shardId,
-            primaryTermSupplier.getAsLong()
+            primaryTermSupplier.getAsLong(),
+            randomBoolean()
         );
         return new Translog(
             translogConfig,
@@ -619,7 +620,8 @@ public abstract class EngineTestCase extends ESTestCase {
                 config.getTranslogConfig().getTranslogPath(),
                 SequenceNumbers.NO_OPS_PERFORMED,
                 shardId,
-                primaryTerm.get()
+                primaryTerm.get(),
+                randomBoolean()
             );
             store.associateIndexWithNewTranslog(translogUuid);
 

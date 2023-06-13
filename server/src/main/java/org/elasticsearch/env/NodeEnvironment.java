@@ -167,6 +167,8 @@ public final class NodeEnvironment implements Closeable {
 
     private final NodeMetadata nodeMetadata;
 
+    private final Settings settings;
+
     /**
      * Seed for determining a persisted unique uuid of this node. If the node has already a persisted uuid on disk,
      * this seed will be ignored and the uuid from disk will be reused.
@@ -264,8 +266,9 @@ public final class NodeEnvironment implements Closeable {
      * @param environment global environment
      */
     public NodeEnvironment(Settings settings, Environment environment) throws IOException {
-        boolean success = false;
+        this.settings = settings;
 
+        boolean success = false;
         try {
             sharedDataPath = environment.sharedDataFile();
 
@@ -340,6 +343,10 @@ public final class NodeEnvironment implements Closeable {
                 close();
             }
         }
+    }
+
+    public Settings settings() {
+        return settings;
     }
 
     /**

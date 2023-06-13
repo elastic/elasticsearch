@@ -125,7 +125,8 @@ public class RefreshListenersTests extends ESTestCase {
             translogConfig.getTranslogPath(),
             SequenceNumbers.NO_OPS_PERFORMED,
             shardId,
-            primaryTerm
+            primaryTerm,
+            randomBoolean()
         );
         store.associateIndexWithNewTranslog(translogUUID);
         EngineConfig config = new EngineConfig(

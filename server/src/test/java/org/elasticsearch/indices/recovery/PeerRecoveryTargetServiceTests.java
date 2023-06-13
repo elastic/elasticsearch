@@ -34,6 +34,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.engine.NoOpEngine;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.seqno.SeqNoStats;
@@ -270,7 +271,8 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
             replica.shardPath().resolveTranslog(),
             globalCheckpoint,
             replica.shardId(),
-            replica.getPendingPrimaryTerm()
+            replica.getPendingPrimaryTerm(),
+            IndexModule.NODE_STORE_USE_FSYNC.get(replica.indexSettings().getNodeSettings())
         );
         replica.store().associateIndexWithNewTranslog(translogUUID);
         safeCommit = replica.store().findSafeIndexCommit(globalCheckpoint);
@@ -352,7 +354,8 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
                 shard.shardPath().resolveTranslog(),
                 seqNoStats.getGlobalCheckpoint(),
                 shard.shardId(),
-                shard.getOperationPrimaryTerm()
+                shard.getOperationPrimaryTerm(),
+                IndexModule.NODE_STORE_USE_FSYNC.get(shard.indexSettings().getNodeSettings())
             );
         } else {
             IOUtils.rm(shard.shardPath().resolveTranslog());

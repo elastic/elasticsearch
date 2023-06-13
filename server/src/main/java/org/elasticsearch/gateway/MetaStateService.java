@@ -19,6 +19,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
@@ -201,8 +202,10 @@ public class MetaStateService {
      * (only used for dangling indices at that point).
      */
     public void unreferenceAll() throws IOException {
-        Manifest.FORMAT.writeAndCleanup(Manifest.empty(), nodeEnv.nodeDataPaths()); // write empty file so that indices become unreferenced
-        Metadata.FORMAT.cleanupOldFiles(Long.MAX_VALUE, nodeEnv.nodeDataPaths());
+        boolean useFsync = IndexModule.NODE_STORE_USE_FSYNC.get(nodeEnv.settings());
+        // write empty file so that indices become unreferenced
+        Manifest.FORMAT.writeAndCleanup(Manifest.empty(), useFsync, nodeEnv.nodeDataPaths());
+        Metadata.FORMAT.cleanupOldFiles(Long.MAX_VALUE, useFsync, nodeEnv.nodeDataPaths());
     }
 
     /**
@@ -217,6 +220,7 @@ public class MetaStateService {
             // delete meta state directories of indices
             MetadataStateFormat.deleteMetaState(nodeEnv.resolveIndexFolder(indexFolderName));
         }
-        Manifest.FORMAT.cleanupOldFiles(Long.MAX_VALUE, nodeEnv.nodeDataPaths()); // finally delete manifest
+        // finally delete manifest
+        Manifest.FORMAT.cleanupOldFiles(Long.MAX_VALUE, IndexModule.NODE_STORE_USE_FSYNC.get(nodeEnv.settings()), nodeEnv.nodeDataPaths());
     }
 }

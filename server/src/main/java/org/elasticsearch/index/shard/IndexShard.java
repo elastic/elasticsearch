@@ -3245,7 +3245,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 indexSettings.getUUID(),
                 newRouting.allocationId()
             );
-            ShardStateMetadata.FORMAT.writeAndCleanup(newShardStateMetadata, shardPath.getShardStatePath());
+            ShardStateMetadata.FORMAT.writeAndCleanup(
+                newShardStateMetadata,
+                IndexModule.NODE_STORE_USE_FSYNC.get(indexSettings.getNodeSettings()),
+                shardPath.getShardStatePath()
+            );
         } else {
             logger.trace("{} skip writing shard state, has been written before", shardId);
         }

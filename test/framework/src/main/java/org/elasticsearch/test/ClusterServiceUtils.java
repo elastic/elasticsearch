@@ -194,15 +194,11 @@ public class ClusterServiceUtils {
 
     public static void awaitClusterState(Logger logger, Predicate<ClusterState> statePredicate, ClusterService clusterService)
         throws Exception {
-        final ClusterStateObserver observer = new ClusterStateObserver(
+        final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+        ClusterStateObserver.waitForState(
             clusterService,
-            null,
-            logger,
-            clusterService.getClusterApplierService().threadPool().getThreadContext()
-        );
-        if (statePredicate.test(observer.setAndGetObservedState()) == false) {
-            final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
-            observer.waitForNextChange(new ClusterStateObserver.Listener() {
+            clusterService.getClusterApplierService().threadPool().getThreadContext(),
+            new ClusterStateObserver.Listener() {
                 @Override
                 public void onNewClusterState(ClusterState state) {
                     future.onResponse(null);
@@ -217,9 +213,12 @@ public class ClusterServiceUtils {
                 public void onTimeout(TimeValue timeout) {
                     assert false : "onTimeout called with no timeout set";
                 }
-            }, statePredicate);
-            future.get(30L, TimeUnit.SECONDS);
-        }
+            },
+            statePredicate,
+            null,
+            logger
+        );
+        future.get(30L, TimeUnit.SECONDS);
     }
 
     public static void awaitNoPendingTasks(ClusterService clusterService) {

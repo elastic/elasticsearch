@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
+import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
@@ -106,6 +107,7 @@ public class PlanNamedTypesTests extends ESTestCase {
         EsQueryExec.class,
         EsSourceExec.class,
         EvalExec.class,
+        EnrichExec.class,
         ExchangeExec.class,
         ExchangeSinkExec.class,
         ExchangeSourceExec.class,

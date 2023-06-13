@@ -137,7 +137,15 @@ public class Mapper {
         }
 
         if (p instanceof Enrich enrich) {
-            return new EnrichExec(enrich.source(), child, enrich.matchField(), enrich.policy().index().get(), enrich.enrichFields());
+            return new EnrichExec(
+                enrich.source(),
+                child,
+                enrich.matchField(),
+                enrich.policy().policyName(),
+                enrich.policy().policy().getMatchField(),
+                enrich.policy().index().get(),
+                enrich.enrichFields()
+            );
         }
 
         //

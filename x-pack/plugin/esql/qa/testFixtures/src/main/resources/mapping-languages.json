@@ -1,9 +1,9 @@
 {
     "properties" : {
-        "id" : {
-            "type" : "integer"
+        "language_code" : {
+            "type" : "keyword"
         },
-        "language" : {
+        "language_name" : {
             "type" : "keyword"
         }
     }

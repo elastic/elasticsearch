@@ -1044,19 +1044,22 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     public void testEnrich() {
         LogicalPlan plan = optimizedPlan("""
             from test
-            | enrich languages_idx on languages
+            | eval x = to_string(languages)
+            | enrich languages_idx on x
             """);
         var enrich = as(plan, Enrich.class);
         assertTrue(enrich.policyName().resolved());
         assertThat(enrich.policyName().fold(), is(BytesRefs.toBytesRef("languages_idx")));
-        var limit = as(enrich.child(), Limit.class);
+        var eval = as(enrich.child(), Eval.class);
+        var limit = as(eval.child(), Limit.class);
         as(limit.child(), EsRelation.class);
     }
 
     public void testPushDownEnrichPastProject() {
         LogicalPlan plan = optimizedPlan("""
             from test
-            | rename x = languages
+            | eval a = to_string(languages)
+            | rename x = a
             | project x
             | enrich languages_idx on x
             """);
@@ -1069,9 +1072,10 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         LogicalPlan plan = optimizedPlan("""
             from test
             | rename x = languages
+            | eval x = to_string(x)
             | project x
             | enrich languages_idx on x
-            | sort language
+            | sort language_name
             """);
 
         var project = as(plan, Project.class);

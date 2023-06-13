@@ -1202,19 +1202,33 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("Unknown column [bar]"));
     }
 
+    public void testEnrichWrongMatchFieldType() {
+        var e = expectThrows(VerificationException.class, () -> analyze("""
+            from test
+            | enrich languages on languages
+            | project first_name, language_name, id
+            """));
+        assertThat(
+            e.getMessage(),
+            containsString("Unsupported type [INTEGER]  for enrich matching field [languages]; only KEYWORD allowed")
+        );
+    }
+
     public void testValidEnrich() {
         assertProjection("""
             from test
-            | enrich languages on languages
-            | project first_name, language
-            """, "first_name", "language");
+            | eval x = to_string(languages)
+            | enrich languages on x
+            | project first_name, language_name
+            """, "first_name", "language_name");
     }
 
     public void testEnrichExcludesPolicyKey() {
         var e = expectThrows(VerificationException.class, () -> analyze("""
             from test
-            | enrich languages on languages
-            | project first_name, language, id
+            | eval x = to_string(languages)
+            | enrich languages on x
+            | project first_name, language_name, id
             """));
         assertThat(e.getMessage(), containsString("Unknown column [id]"));
     }

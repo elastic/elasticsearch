@@ -13,6 +13,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.dissect.DissectParser;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
+import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolution;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
@@ -61,11 +63,13 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect.Parser;
+import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
+import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
@@ -121,6 +125,7 @@ import org.elasticsearch.xpack.ql.expression.predicate.regex.RegexMatch;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.WildcardLike;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.ql.index.EsIndex;
+import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
@@ -188,6 +193,7 @@ public final class PlanNamedTypes {
             of(PhysicalPlan.class, EsQueryExec.class, PlanNamedTypes::writeEsQueryExec, PlanNamedTypes::readEsQueryExec),
             of(PhysicalPlan.class, EsSourceExec.class, PlanNamedTypes::writeEsSourceExec, PlanNamedTypes::readEsSourceExec),
             of(PhysicalPlan.class, EvalExec.class, PlanNamedTypes::writeEvalExec, PlanNamedTypes::readEvalExec),
+            of(PhysicalPlan.class, EnrichExec.class, PlanNamedTypes::writeEnrichExec, PlanNamedTypes::readEnrichExec),
             of(PhysicalPlan.class, ExchangeExec.class, PlanNamedTypes::writeExchangeExec, PlanNamedTypes::readExchangeExec),
             of(PhysicalPlan.class, ExchangeSinkExec.class, PlanNamedTypes::writeExchangeSinkExec, PlanNamedTypes::readExchangeSinkExec),
             of(
@@ -212,6 +218,7 @@ public final class PlanNamedTypes {
             of(LogicalPlan.class, Dissect.class, PlanNamedTypes::writeDissect, PlanNamedTypes::readDissect),
             of(LogicalPlan.class, EsRelation.class, PlanNamedTypes::writeEsRelation, PlanNamedTypes::readEsRelation),
             of(LogicalPlan.class, Eval.class, PlanNamedTypes::writeEval, PlanNamedTypes::readEval),
+            of(LogicalPlan.class, Enrich.class, PlanNamedTypes::writeEnrich, PlanNamedTypes::readEnrich),
             of(LogicalPlan.class, Filter.class, PlanNamedTypes::writeFilter, PlanNamedTypes::readFilter),
             of(LogicalPlan.class, Grok.class, PlanNamedTypes::writeGrok, PlanNamedTypes::readGrok),
             of(LogicalPlan.class, Limit.class, PlanNamedTypes::writeLimit, PlanNamedTypes::readLimit),
@@ -370,6 +377,27 @@ public final class PlanNamedTypes {
     static void writeEvalExec(PlanStreamOutput out, EvalExec evalExec) throws IOException {
         out.writePhysicalPlanNode(evalExec.child());
         writeNamedExpressions(out, evalExec.fields());
+    }
+
+    static EnrichExec readEnrichExec(PlanStreamInput in) throws IOException {
+        return new EnrichExec(
+            Source.EMPTY,
+            in.readPhysicalPlanNode(),
+            in.readNamedExpression(),
+            in.readString(),
+            in.readString(),
+            readEsIndex(in),
+            readAttributes(in)
+        );
+    }
+
+    static void writeEnrichExec(PlanStreamOutput out, EnrichExec enrich) throws IOException {
+        out.writePhysicalPlanNode(enrich.child());
+        out.writeNamedExpression(enrich.matchField());
+        out.writeString(enrich.policyName());
+        out.writeString(enrich.policyMatchField());
+        writeEsIndex(out, enrich.enrichIndex());
+        writeAttributes(out, enrich.enrichFields());
     }
 
     static ExchangeExec readExchangeExec(PlanStreamInput in) throws IOException {
@@ -555,6 +583,27 @@ public final class PlanNamedTypes {
     static void writeEval(PlanStreamOutput out, Eval eval) throws IOException {
         out.writeLogicalPlanNode(eval.child());
         writeNamedExpressions(out, eval.fields());
+    }
+
+    static Enrich readEnrich(PlanStreamInput in) throws IOException {
+        return new Enrich(
+            Source.EMPTY,
+            in.readLogicalPlanNode(),
+            in.readExpression(),
+            in.readNamedExpression(),
+            new EnrichPolicyResolution(in.readString(), new EnrichPolicy(in), IndexResolution.valid(readEsIndex(in))),
+            readAttributes(in)
+        );
+    }
+
+    static void writeEnrich(PlanStreamOutput out, Enrich enrich) throws IOException {
+        out.writeLogicalPlanNode(enrich.child());
+        out.writeExpression(enrich.policyName());
+        out.writeNamedExpression(enrich.matchField());
+        out.writeString(enrich.policy().policyName());
+        enrich.policy().policy().writeTo(out);
+        writeEsIndex(out, enrich.policy().index().get());
+        writeAttributes(out, enrich.enrichFields());
     }
 
     static Filter readFilter(PlanStreamInput in) throws IOException {

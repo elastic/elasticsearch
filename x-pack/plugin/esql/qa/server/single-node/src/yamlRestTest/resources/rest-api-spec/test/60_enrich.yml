@@ -46,7 +46,7 @@ setup:
             properties:
               name:
                 type: keyword
-              city_code:
+              city_id:
                 type: keyword
   - do:
       bulk:
@@ -54,20 +54,20 @@ setup:
         refresh: true
         body:
           - { "index": { } }
-          - { "name": "Alice", "city_code": "nyc" }
+          - { "name": "Alice", "city_id": "nyc" }
           - { "index": { } }
-          - { "name": "Bob", "city_code": "nyc" }
+          - { "name": "Bob", "city_id": "nyc" }
           - { "index": { } }
-          - { "name": "Mario", "city_code": "rom" }
+          - { "name": "Mario", "city_id": "rom" }
           - { "index": { } }
-          - { "name": "Denise", "city_code": "sgn" }
+          - { "name": "Denise", "city_id": "sgn" }
 
 ---
 "Basic":
   - do:
       esql.query:
         body:
-          query: 'from test | enrich cities_policy on city_code | project name, city, country | sort name'
+          query: 'from test | enrich cities_policy on city_id | project name, city, country | sort name'
 
   - match: { columns.0.name: "name" }
   - match: { columns.0.type: "keyword" }

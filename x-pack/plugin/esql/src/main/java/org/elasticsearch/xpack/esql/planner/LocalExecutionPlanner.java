@@ -427,7 +427,7 @@ public class LocalExecutionPlanner {
                 enrichLookupService,
                 enrichIndex,
                 "match", // TODO: enrich should also resolve the match_type
-                enrich.matchField().name(),
+                enrich.policyMatchField(),
                 enrich.enrichFields()
             ),
             layout

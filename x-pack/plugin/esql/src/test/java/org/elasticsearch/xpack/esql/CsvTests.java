@@ -28,6 +28,9 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.CsvTestUtils.ActualResults;
 import org.elasticsearch.xpack.esql.CsvTestUtils.Type;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
@@ -35,6 +38,7 @@ import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
+import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolution;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
@@ -76,10 +80,12 @@ import org.junit.After;
 import org.junit.Before;
 import org.mockito.Mockito;
 
+import java.io.IOException;
 import java.net.URL;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -98,6 +104,8 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.ql.CsvSpecReader.specParser;
 import static org.elasticsearch.xpack.ql.TestUtils.classpathResources;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  * CSV-based unit testing.
@@ -153,7 +161,7 @@ public class CsvTests extends ESTestCase {
 
     @ParametersFactory(argumentFormatting = "%2$s.%3$s")
     public static List<Object[]> readScriptSpec() throws Exception {
-        List<URL> urls = classpathResources("/*.csv-spec");
+        List<URL> urls = classpathResources("/*.csv-spec").stream().filter(x -> x.toString().contains("-ignoreCsvTests") == false).toList();
         assertTrue("Not enough specs found " + urls, urls.size() > 0);
         return SpecReader.readScriptSpec(urls, specParser());
     }
@@ -227,11 +235,33 @@ public class CsvTests extends ESTestCase {
 
     private static IndexResolution loadIndexResolution(String mappingName, String indexName) {
         var mapping = new TreeMap<>(loadMapping(mappingName));
-        return IndexResolution.valid(new EsIndex(indexName, mapping));
+        return IndexResolution.valid(new EsIndex(indexName, mapping, Set.of(indexName)));
     }
 
     private static EnrichResolution loadEnrichPolicies() {
-        return new EnrichResolution(Set.of(), Set.of()); // TODO support enrich policies in tests
+        Set<String> names = new HashSet<>();
+        Set<EnrichPolicyResolution> resolutions = new HashSet<>();
+        for (CsvTestsDataLoader.EnrichConfig policyConfig : CsvTestsDataLoader.ENRICH_POLICIES) {
+            EnrichPolicy policy = loadEnrichPolicyMapping(policyConfig.policyFileName());
+            CsvTestsDataLoader.TestsDataset sourceIndex = CSV_DATASET_MAP.get(policy.getIndices().get(0));
+            // this could practically work, but it's wrong:
+            // EnrichPolicyResolution should contain the policy (system) index, not the source index
+            IndexResolution idxRes = loadIndexResolution(sourceIndex.mappingFileName(), sourceIndex.indexName());
+            names.add(policyConfig.policyName());
+            resolutions.add(new EnrichPolicyResolution(policyConfig.policyName(), policy, idxRes));
+        }
+        return new EnrichResolution(resolutions, names);
+    }
+
+    private static EnrichPolicy loadEnrichPolicyMapping(String policyFileName) {
+        URL policyMapping = CsvTestsDataLoader.class.getResource("/" + policyFileName);
+        assertThat(policyMapping, is(notNullValue()));
+        try {
+            String fileContent = CsvTestsDataLoader.readTextFile(policyMapping);
+            return EnrichPolicy.fromXContent(JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, fileContent));
+        } catch (IOException e) {
+            throw new IllegalArgumentException("Cannot read resource " + policyFileName);
+        }
     }
 
     private PhysicalPlan physicalPlan(LogicalPlan parsed, CsvTestsDataLoader.TestsDataset dataset) {

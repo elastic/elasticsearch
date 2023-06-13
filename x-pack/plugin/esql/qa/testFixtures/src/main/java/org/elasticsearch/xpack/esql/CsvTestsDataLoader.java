@@ -49,14 +49,22 @@ public class CsvTestsDataLoader {
     private static final TestsDataset EMPLOYEES = new TestsDataset("employees", "mapping-default.json", "employees.csv");
     private static final TestsDataset HOSTS = new TestsDataset("hosts", "mapping-hosts.json", "hosts.csv");
     private static final TestsDataset APPS = new TestsDataset("apps", "mapping-apps.json", "apps.csv");
+    private static final TestsDataset LANGUAGES = new TestsDataset("languages", "mapping-languages.json", "languages.csv");
+
     public static final Map<String, TestsDataset> CSV_DATASET_MAP = Map.of(
         EMPLOYEES.indexName,
         EMPLOYEES,
         HOSTS.indexName,
         HOSTS,
         APPS.indexName,
-        APPS
+        APPS,
+        LANGUAGES.indexName,
+        LANGUAGES
     );
+
+    private static final EnrichConfig LANGUAGES_ENRICH = new EnrichConfig("languages_policy", "enricy-policy-languages.json");
+
+    public static final List<EnrichConfig> ENRICH_POLICIES = List.of(LANGUAGES_ENRICH);
 
     /**
      * <p>
@@ -124,6 +132,23 @@ public class CsvTestsDataLoader {
         for (var dataSet : CSV_DATASET_MAP.values()) {
             load(client, dataSet.indexName, "/" + dataSet.mappingFileName, "/" + dataSet.dataFileName, logger);
         }
+        for (var policy : ENRICH_POLICIES) {
+            loadEnrichPolicy(client, policy.policyName, policy.policyFileName, logger);
+        }
+    }
+
+    private static void loadEnrichPolicy(RestClient client, String policyName, String policyFileName, Logger logger) throws IOException {
+        URL policyMapping = CsvTestsDataLoader.class.getResource("/" + policyFileName);
+        if (policyMapping == null) {
+            throw new IllegalArgumentException("Cannot find resource " + policyFileName);
+        }
+        String entity = readTextFile(policyMapping);
+        Request request = new Request("PUT", "/_enrich/policy/" + policyName);
+        request.setJsonEntity(entity);
+        client.performRequest(request);
+
+        request = new Request("POST", "/_enrich/policy/" + policyName + "/_execute");
+        client.performRequest(request);
     }
 
     private static void load(RestClient client, String indexName, String mappingName, String dataName, Logger logger) throws IOException {
@@ -135,7 +160,7 @@ public class CsvTestsDataLoader {
         if (data == null) {
             throw new IllegalArgumentException("Cannot find resource " + dataName);
         }
-        createTestIndex(client, indexName, readMapping(mapping));
+        createTestIndex(client, indexName, readTextFile(mapping));
         loadCsvData(client, indexName, data, CsvTestsDataLoader::createParser, logger);
     }
 
@@ -143,7 +168,7 @@ public class CsvTestsDataLoader {
         ESRestTestCase.createIndex(client, indexName, null, mapping, null);
     }
 
-    private static String readMapping(URL resource) throws IOException {
+    public static String readTextFile(URL resource) throws IOException {
         try (BufferedReader reader = TestUtils.reader(resource)) {
             StringBuilder b = new StringBuilder();
             String line;
@@ -298,4 +323,6 @@ public class CsvTestsDataLoader {
     }
 
     public record TestsDataset(String indexName, String mappingFileName, String dataFileName) {}
+
+    public record EnrichConfig(String policyName, String policyFileName) {}
 }

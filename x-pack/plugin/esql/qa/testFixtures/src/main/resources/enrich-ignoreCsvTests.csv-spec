@@ -1,0 +1,16 @@
+simple
+from employees  | sort emp_no | limit 1 | eval x = to_string(languages) | enrich languages_policy on x  | project emp_no, language_name;
+
+emp_no:integer | language_name:keyword
+10001          | French
+;
+
+
+// illegal_state_exception: docs within same block must be in order
+simple2-Ignore
+from employees | eval x = to_string(languages) | enrich languages_policy on x  | project emp_no, language_name | sort emp_no | limit 1 ;
+
+emp_no:integer | language_name:keyword
+10001          | French
+;
+

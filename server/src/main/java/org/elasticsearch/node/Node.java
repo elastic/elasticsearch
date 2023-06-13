@@ -953,7 +953,8 @@ public class Node implements Closeable {
                 responseCollectorService,
                 searchTransportService,
                 indexingLimits,
-                searchModule.getValuesSourceRegistry().getUsageService()
+                searchModule.getValuesSourceRegistry().getUsageService(),
+                repositoryService
             );
 
             final SearchService searchService = newSearchService(

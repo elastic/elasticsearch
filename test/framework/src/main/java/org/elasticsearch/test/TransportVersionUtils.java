@@ -109,7 +109,7 @@ public class TransportVersionUtils {
         return ALL_VERSIONS.get(place);
     }
 
-    /** Returns a random {@code TransportVersion} that is compatible with {@link TransportVersion#CURRENT} */
+    /** Returns a random {@code TransportVersion} that is compatible with {@link TransportVersion#current()} */
     public static TransportVersion randomCompatibleVersion(Random random) {
         return randomVersionBetween(random, TransportVersion.MINIMUM_COMPATIBLE, TransportVersion.current());
     }

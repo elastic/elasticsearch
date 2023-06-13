@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.rest;
 import com.nimbusds.jose.util.StandardCharset;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -27,6 +28,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.FakeRestRequest;
+import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentType;
@@ -44,6 +46,7 @@ import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator;
 import org.elasticsearch.xpack.security.authz.restriction.WorkflowService;
 import org.elasticsearch.xpack.security.authz.restriction.WorkflowServiceTests.TestBaseRestHandler;
+import org.elasticsearch.xpack.security.operator.OperatorPrivileges;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
@@ -56,6 +59,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
+import static org.elasticsearch.xpack.security.operator.OperatorPrivileges.NOOP_OPERATOR_PRIVILEGES_SERVICE;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -68,6 +72,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
@@ -88,13 +93,18 @@ public class SecurityRestFilterTests extends ESTestCase {
         restHandler = mock(RestHandler.class);
         threadContext = new ThreadContext(Settings.EMPTY);
         secondaryAuthenticator = new SecondaryAuthenticator(Settings.EMPTY, threadContext, authcService, new AuditTrailService(null, null));
-        filter = new SecurityRestFilter(
+        filter = getFilter(NOOP_OPERATOR_PRIVILEGES_SERVICE);
+    }
+
+    private SecurityRestFilter getFilter(OperatorPrivileges.OperatorPrivilegesService privilegesService) {
+        return new SecurityRestFilter(
             true,
             threadContext,
             secondaryAuthenticator,
             new AuditTrailService(null, null),
             new WorkflowService(),
-            restHandler
+            restHandler,
+            privilegesService
         );
     }
 
@@ -167,8 +177,10 @@ public class SecurityRestFilterTests extends ESTestCase {
             secondaryAuthenticator,
             mock(AuditTrailService.class),
             mock(WorkflowService.class),
-            restHandler
+            restHandler,
+            null
         );
+        assertEquals(NOOP_OPERATOR_PRIVILEGES_SERVICE, filter.getOperatorPrivilegesService());
         RestRequest request = mock(RestRequest.class);
         filter.handleRequest(request, channel, null);
         verify(restHandler).handleRequest(request, channel, null);
@@ -220,7 +232,8 @@ public class SecurityRestFilterTests extends ESTestCase {
             secondaryAuthenticator,
             new AuditTrailService(auditTrail, licenseState),
             new WorkflowService(),
-            restHandler
+            restHandler,
+            NOOP_OPERATOR_PRIVILEGES_SERVICE
         );
 
         filter.handleRequest(restRequest, channel, null);
@@ -291,7 +304,8 @@ public class SecurityRestFilterTests extends ESTestCase {
             secondaryAuthenticator,
             new AuditTrailService(null, null),
             workflowService,
-            restHandler
+            restHandler,
+            null
         );
 
         RestRequest request = mock(RestRequest.class);
@@ -317,12 +331,55 @@ public class SecurityRestFilterTests extends ESTestCase {
             secondaryAuthenticator,
             new AuditTrailService(null, null),
             workflowService,
-            restHandler
+            restHandler,
+            null
         );
 
         RestRequest request = mock(RestRequest.class);
         filter.handleRequest(request, channel, null);
         assertThat(workflowService.readWorkflowFromThreadContext(threadContext), nullValue());
+    }
+
+    public void testCheckRest() throws Exception {
+        for (Boolean isOperator : new Boolean[] { Boolean.TRUE, Boolean.FALSE }) {
+            RestRequest request = mock(RestRequest.class);
+            try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+                SecurityRestFilter filter = getFilter(new OperatorPrivileges.OperatorPrivilegesService() {
+                    @Override
+                    public void maybeMarkOperatorUser(Authentication authentication, ThreadContext threadContext) {}
+
+                    @Override
+                    public ElasticsearchSecurityException check(
+                        Authentication authentication,
+                        String action,
+                        TransportRequest request,
+                        ThreadContext threadContext
+                    ) {
+                        return null;
+                    }
+
+                    @Override
+                    public boolean checkRest(
+                        RestHandler restHandler,
+                        RestRequest restRequest,
+                        RestChannel restChannel,
+                        ThreadContext threadContext
+                    ) {
+                        return isOperator;
+                    }
+
+                    @Override
+                    public void maybeInterceptRequest(ThreadContext threadContext, TransportRequest request) {}
+                });
+
+                filter.handleRequest(request, channel, null);
+                if (isOperator) {
+                    verify(restHandler).handleRequest(request, channel, null);
+                } else {
+                    verify(restHandler, never()).handleRequest(request, channel, null);
+                }
+            }
+        }
     }
 
     private interface FilteredRestHandler extends RestHandler, RestRequestFilter {}

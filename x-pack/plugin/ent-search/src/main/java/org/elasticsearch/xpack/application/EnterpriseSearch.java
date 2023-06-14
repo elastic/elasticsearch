@@ -53,10 +53,13 @@ import org.elasticsearch.xpack.application.analytics.action.TransportPostAnalyti
 import org.elasticsearch.xpack.application.analytics.action.TransportPutAnalyticsCollectionAction;
 import org.elasticsearch.xpack.application.analytics.ingest.AnalyticsEventIngestConfig;
 import org.elasticsearch.xpack.application.rules.QueryRulesIndexService;
+import org.elasticsearch.xpack.application.rules.action.DeleteQueryRulesetAction;
 import org.elasticsearch.xpack.application.rules.action.GetQueryRulesetAction;
 import org.elasticsearch.xpack.application.rules.action.PutQueryRulesetAction;
+import org.elasticsearch.xpack.application.rules.action.RestDeleteQueryRulesetAction;
 import org.elasticsearch.xpack.application.rules.action.RestGetQueryRulesetAction;
 import org.elasticsearch.xpack.application.rules.action.RestPutQueryRulesetAction;
+import org.elasticsearch.xpack.application.rules.action.TransportDeleteQueryRulesetAction;
 import org.elasticsearch.xpack.application.rules.action.TransportGetQueryRulesetAction;
 import org.elasticsearch.xpack.application.rules.action.TransportPutQueryRulesetAction;
 import org.elasticsearch.xpack.application.search.SearchApplicationIndexService;
@@ -142,10 +145,13 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
         );
 
         if (QUERY_RULES_FEATURE_FLAG.isEnabled()) {
-            actionHandlers.addAll(List.of(
-                new ActionHandler<>(GetQueryRulesetAction.INSTANCE, TransportGetQueryRulesetAction.class),
-                new ActionHandler<>(PutQueryRulesetAction.INSTANCE, TransportPutQueryRulesetAction.class)
-            ));
+            actionHandlers.addAll(
+                List.of(
+                    new ActionHandler<>(DeleteQueryRulesetAction.INSTANCE, TransportDeleteQueryRulesetAction.class),
+                    new ActionHandler<>(GetQueryRulesetAction.INSTANCE, TransportGetQueryRulesetAction.class),
+                    new ActionHandler<>(PutQueryRulesetAction.INSTANCE, TransportPutQueryRulesetAction.class)
+                )
+            );
         }
 
         return Collections.unmodifiableList(actionHandlers);
@@ -182,10 +188,13 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
         );
 
         if (QUERY_RULES_FEATURE_FLAG.isEnabled()) {
-            restHandlers.addAll(List.of(
-                new RestGetQueryRulesetAction(getLicenseState()),
-                new RestPutQueryRulesetAction(getLicenseState())
-            ));
+            restHandlers.addAll(
+                List.of(
+                    new RestDeleteQueryRulesetAction(getLicenseState()),
+                    new RestGetQueryRulesetAction(getLicenseState()),
+                    new RestPutQueryRulesetAction(getLicenseState())
+                )
+            );
         }
 
         return Collections.unmodifiableList(restHandlers);

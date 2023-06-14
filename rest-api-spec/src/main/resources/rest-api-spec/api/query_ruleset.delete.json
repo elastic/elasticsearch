@@ -1,8 +1,8 @@
 {
-  "search_application.delete": {
+  "query_ruleset.delete": {
     "documentation": {
-      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/delete-search-application.html",
-      "description": "Deletes a search application."
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/delete-query-ruleset.html",
+      "description": "Deletes a query ruleset."
     },
     "stability": "experimental",
     "visibility": "public",
@@ -14,14 +14,14 @@
     "url": {
       "paths": [
         {
-          "path": "/_application/search_application/{name}",
+          "path": "/_query_rules/{ruleset_id}",
           "methods": [
             "DELETE"
           ],
           "parts": {
-            "name": {
+            "ruleset_id": {
               "type": "string",
-              "description": "The name of the search application"
+              "description": "The unique identifier of the query ruleset to delete"
             }
           }
         }

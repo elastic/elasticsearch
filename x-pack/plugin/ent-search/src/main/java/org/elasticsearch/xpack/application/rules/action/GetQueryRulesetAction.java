@@ -63,7 +63,9 @@ public class GetQueryRulesetAction extends ActionType<GetQueryRulesetAction.Resp
             out.writeString(rulesetId);
         }
 
-        public String rulesetId() { return rulesetId; }
+        public String rulesetId() {
+            return rulesetId;
+        }
 
         @Override
         public boolean equals(Object o) {
@@ -88,7 +90,9 @@ public class GetQueryRulesetAction extends ActionType<GetQueryRulesetAction.Resp
             this.queryRuleset = new QueryRuleset(in);
         }
 
-        public Response(QueryRuleset queryRuleset) { this.queryRuleset = queryRuleset; }
+        public Response(QueryRuleset queryRuleset) {
+            this.queryRuleset = queryRuleset;
+        }
 
         public Response(String rulesetId, List<QueryRule> rules) {
             this.queryRuleset = new QueryRuleset(rulesetId, rules);

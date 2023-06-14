@@ -27,7 +27,6 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -43,8 +42,13 @@ public class ProfileCollectorManagerTests extends ESTestCase {
         }
     }
 
-    public void testNewCollector() throws IOException {
-        ProfileCollectorManager pcm = ProfileCollectorManager.create(new CollectorManager<>() {
+    /**
+     * This test checks that each new collector is a different instance on each call and that
+     * the call to reduce() is forwarded to the wrapped collector manager.
+     */
+    public void testBasic() throws IOException {
+        final SetOnce<Boolean> reduceCalled = new SetOnce<>();
+        ProfileCollectorManager pcm = new ProfileCollectorManager(new CollectorManager<>() {
 
             private static int counter = 0;
 
@@ -55,68 +59,24 @@ public class ProfileCollectorManagerTests extends ESTestCase {
 
             @Override
             public Void reduce(Collection<Collector> collectors) {
+                reduceCalled.set(true);
                 return null;
             }
-        });
+        }, CollectorResult.REASON_SEARCH_TOP_HITS);
         for (int i = 0; i < randomIntBetween(5, 10); i++) {
             InternalProfileCollector internalProfileCollector = pcm.newCollector();
             assertEquals(i, ((TestCollector) internalProfileCollector.getWrappedCollector()).id);
         }
-    }
-
-    public void testReduce() throws IOException {
-        final SetOnce<Boolean> reduceCalled = new SetOnce<>();
-        ProfileCollectorManager pcm = ProfileCollectorManager.create(new CollectorManager<>() {
-
-            @Override
-            public Collector newCollector() {
-                return new TestCollector(0);
-            }
-
-            @Override
-            public Void reduce(Collection<Collector> collectors) {
-                reduceCalled.set(true);
-                return null;
-            }
-        });
         pcm.reduce(Collections.emptyList());
         assertTrue(reduceCalled.get());
     }
 
-    public void testGetCollectorTree() throws IOException {
-        ProfileCollectorManager pcm = ProfileCollectorManager.create(new CollectorManager<>() {
-
-            @Override
-            public Collector newCollector() {
-                return new TestCollector(0);
-            }
-
-            @Override
-            public Void reduce(Collection<Collector> collectors) {
-                return null;
-            }
-        });
-        expectThrows(IllegalStateException.class, pcm::getCollectorTree);
-        List<InternalProfileCollector> collectors = new ArrayList<>();
-        for (int i = 0; i < 5; i++) {
-            collectors.add(pcm.newCollector());
-        }
-        pcm.reduce(collectors);
-        CollectorResult collectorTree = pcm.getCollectorTree();
-        assertEquals("ProfileCollectorManager", collectorTree.getName());
-        assertEquals("search_top_hits_max", collectorTree.getReason());
-        assertEquals(0, collectorTree.getTime());
-        List<CollectorResult> nestedResults = collectorTree.getCollectorResults();
-        assertNotNull(nestedResults);
-        assertEquals(5, nestedResults.size());
-        for (CollectorResult cr : nestedResults) {
-            assertEquals("TestCollector", cr.getName());
-            assertEquals("search_top_hits", cr.getReason());
-            assertEquals(0L, cr.getTime());
-        }
-    }
-
-    public void testManager() throws IOException {
+    /**
+     * This test checks functionality with potentially more than one slice on a real searcher,
+     * wrapping a {@link TopScoreDocCollector} into  {@link ProfileCollectorManager} and checking the
+     * result from calling the collector tree contains profile results for each slice.
+     */
+    public void testManagerWithSearcher() throws IOException {
         Directory directory = newDirectory();
         try (RandomIndexWriter writer = new RandomIndexWriter(random(), directory, newIndexWriterConfig())) {
             int numDocs = randomIntBetween(900, 1000);
@@ -134,18 +94,21 @@ public class ProfileCollectorManagerTests extends ESTestCase {
             CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = TopScoreDocCollector.createSharedManager(10, null, 1000);
             TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), topDocsManager);
             assertEquals(numDocs, topDocs.totalHits.value);
-            ProfileCollectorManager profileCollectorManager = ProfileCollectorManager.create(topDocsManager);
+
+            String profileReason = "profiler_reason";
+            ProfileCollectorManager profileCollectorManager = new ProfileCollectorManager(topDocsManager, profileReason);
 
             searcher.search(new MatchAllDocsQuery(), profileCollectorManager);
+
             CollectorResult parent = profileCollectorManager.getCollectorTree();
             assertEquals("ProfileCollectorManager", parent.getName());
-            assertEquals("search_top_hits_max", parent.getReason());
-            assertTrue(parent.getTime() > 0);
+            assertEquals("parent_collector_manager", parent.getReason());
+            assertEquals(0, parent.getTime());
             List<ProfilerCollectorResult> delegateCollectorResults = parent.getProfiledChildren();
             assertEquals(numSlices, delegateCollectorResults.size());
             for (ProfilerCollectorResult pcr : delegateCollectorResults) {
                 assertEquals("SimpleTopScoreDocCollector", pcr.getName());
-                assertEquals("search_top_hits", pcr.getReason());
+                assertEquals(profileReason, pcr.getReason());
                 assertTrue(pcr.getTime() > 0);
             }
             reader.close();

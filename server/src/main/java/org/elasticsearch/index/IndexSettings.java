@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.Strings;
 import org.apache.lucene.index.MergePolicy;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.AbstractScopedSettings;
@@ -259,6 +260,15 @@ public final class IndexSettings {
         NODE_DEFAULT_REFRESH_INTERVAL_SETTING,
         new TimeValue(-1, TimeUnit.MILLISECONDS),
         Property.Dynamic,
+        Property.IndexScope
+    );
+    /**
+     * Only intended for stateless.
+     */
+    public static final Setting<Boolean> INDEX_FAST_REFRESH_SETTING = Setting.boolSetting(
+        "index.fast_refresh",
+        false,
+        Property.Final,
         Property.IndexScope
     );
     public static final Setting<ByteSizeValue> INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING = Setting.byteSizeSetting(
@@ -627,6 +637,7 @@ public final class IndexSettings {
     private volatile Translog.Durability durability;
     private volatile TimeValue syncInterval;
     private volatile TimeValue refreshInterval;
+    private final boolean fastRefresh;
     private volatile ByteSizeValue flushThresholdSize;
     private volatile TimeValue flushThresholdAge;
     private volatile ByteSizeValue generationThresholdSize;
@@ -776,6 +787,10 @@ public final class IndexSettings {
         defaultFields = scopedSettings.get(DEFAULT_FIELD_SETTING);
         syncInterval = INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.get(settings);
         refreshInterval = scopedSettings.get(INDEX_REFRESH_INTERVAL_SETTING);
+        fastRefresh = scopedSettings.get(INDEX_FAST_REFRESH_SETTING);
+        if (fastRefresh && DiscoveryNode.isStateless(nodeSettings) == false) {
+            throw new IllegalArgumentException(INDEX_FAST_REFRESH_SETTING.getKey() + " is allowed only in stateless");
+        }
         flushThresholdSize = scopedSettings.get(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING);
         flushThresholdAge = scopedSettings.get(INDEX_TRANSLOG_FLUSH_THRESHOLD_AGE_SETTING);
         generationThresholdSize = scopedSettings.get(INDEX_TRANSLOG_GENERATION_THRESHOLD_SIZE_SETTING);
@@ -1103,6 +1118,13 @@ public final class IndexSettings {
      */
     public TimeValue getRefreshInterval() {
         return refreshInterval;
+    }
+
+    /**
+     * Only intended for stateless.
+     */
+    public boolean isFastRefresh() {
+        return fastRefresh;
     }
 
     /**

@@ -13,15 +13,18 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
 import org.elasticsearch.index.mapper.vectors.DenseVectorScriptDocValues;
+import org.elasticsearch.index.mapper.vectors.VectorEncoderDecoder;
 
 import java.io.IOException;
 
 public class BinaryDenseVectorDocValuesField extends DenseVectorDocValuesField {
 
-    protected final BinaryDocValues input;
-    protected final IndexVersion indexVersion;
-    protected final int dims;
-    protected BytesRef value;
+    private final BinaryDocValues input;
+    private final float[] vectorValue;
+    private final IndexVersion indexVersion;
+    private boolean decoded;
+    private final int dims;
+    private BytesRef value;
 
     public BinaryDenseVectorDocValuesField(
         BinaryDocValues input,
@@ -34,10 +37,12 @@ public class BinaryDenseVectorDocValuesField extends DenseVectorDocValuesField {
         this.input = input;
         this.indexVersion = indexVersion;
         this.dims = dims;
+        this.vectorValue = new float[dims];
     }
 
     @Override
     public void setNextDocId(int docId) throws IOException {
+        decoded = false;
         if (input.advanceExact(docId)) {
             value = input.binaryValue();
         } else {
@@ -60,8 +65,8 @@ public class BinaryDenseVectorDocValuesField extends DenseVectorDocValuesField {
         if (isEmpty()) {
             return DenseVector.EMPTY;
         }
-
-        return new BinaryDenseVector(value, dims, indexVersion);
+        decodeVectorIfNecessary();
+        return new BinaryDenseVector(vectorValue, value, dims, indexVersion);
     }
 
     @Override
@@ -69,11 +74,19 @@ public class BinaryDenseVectorDocValuesField extends DenseVectorDocValuesField {
         if (isEmpty()) {
             return defaultValue;
         }
-        return new BinaryDenseVector(value, dims, indexVersion);
+        decodeVectorIfNecessary();
+        return new BinaryDenseVector(vectorValue, value, dims, indexVersion);
     }
 
     @Override
     public DenseVector getInternal() {
         return get(null);
+    }
+
+    private void decodeVectorIfNecessary() {
+        if (decoded == false && value != null) {
+            VectorEncoderDecoder.decodeDenseVector(indexVersion, value, vectorValue);
+            decoded = true;
+        }
     }
 }

@@ -31,23 +31,31 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DenseVectorFieldType;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.VectorSimilarity;
+import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 
 import static org.apache.lucene.codecs.lucene95.Lucene95HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
 import static org.apache.lucene.codecs.lucene95.Lucene95HnswVectorsFormat.DEFAULT_MAX_CONN;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class DenseVectorFieldMapperTests extends MapperTestCase {
 
@@ -465,11 +473,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
     private static float[] decodeDenseVector(IndexVersion indexVersion, BytesRef encodedVector) {
         int dimCount = VectorEncoderDecoder.denseVectorLength(indexVersion, encodedVector);
         float[] vector = new float[dimCount];
-
-        ByteBuffer byteBuffer = ByteBuffer.wrap(encodedVector.bytes, encodedVector.offset, encodedVector.length);
-        for (int dim = 0; dim < dimCount; dim++) {
-            vector[dim] = byteBuffer.getFloat();
-        }
+        VectorEncoderDecoder.decodeDenseVector(indexVersion, encodedVector, vector);
         return vector;
     }
 
@@ -570,9 +574,80 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
     }
 
     @Override
+    protected void assertFetchMany(MapperService mapperService, String field, Object value, String format, int count) throws IOException {
+        assumeFalse("Dense vectors currently don't support multiple values in the same field", false);
+    }
+
+    /**
+     * Dense vectors don't support doc values or string representation (for doc value parser/fetching).
+     * We may eventually support that, but until then, we only verify that the parsing and fields fetching matches the provided value object
+     */
+    @Override
+    protected void assertFetch(MapperService mapperService, String field, Object value, String format) throws IOException {
+        MappedFieldType ft = mapperService.fieldType(field);
+        MappedFieldType.FielddataOperation fdt = MappedFieldType.FielddataOperation.SEARCH;
+        SourceToParse source = source(b -> b.field(ft.name(), value));
+        SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
+        when(searchExecutionContext.isSourceEnabled()).thenReturn(true);
+        when(searchExecutionContext.sourcePath(field)).thenReturn(Set.of(field));
+        when(searchExecutionContext.getForField(ft, fdt)).thenAnswer(inv -> fieldDataLookup(mapperService).apply(ft, () -> {
+            throw new UnsupportedOperationException();
+        }, fdt));
+        ValueFetcher nativeFetcher = ft.valueFetcher(searchExecutionContext, format);
+        ParsedDocument doc = mapperService.documentMapper().parse(source);
+        withLuceneIndex(mapperService, iw -> iw.addDocuments(doc.docs()), ir -> {
+            Source s = SourceProvider.fromStoredFields().getSource(ir.leaves().get(0), 0);
+            nativeFetcher.setNextReader(ir.leaves().get(0));
+            List<Object> fromNative = nativeFetcher.fetchValues(s, 0, new ArrayList<>());
+            DenseVectorFieldType denseVectorFieldType = (DenseVectorFieldType) ft;
+            switch (denseVectorFieldType.getElementType()) {
+                case BYTE -> {
+                    assumeFalse("byte element type testing not currently added", false);
+                }
+                case FLOAT -> {
+                    float[] fetchedFloats = new float[denseVectorFieldType.getVectorDimensions()];
+                    int i = 0;
+                    for (var f : fromNative) {
+                        assert f instanceof Number;
+                        fetchedFloats[i++] = ((Number) f).floatValue();
+                    }
+                    assertThat("fetching " + value, fetchedFloats, equalTo(value));
+                }
+            }
+        });
+    }
+
+    @Override
+    // TODO: add `byte` element_type tests
+    protected void randomFetchTestFieldConfig(XContentBuilder b) throws IOException {
+        b.field("type", "dense_vector").field("dims", randomIntBetween(2, 2048)).field("element_type", "float");
+        if (randomBoolean()) {
+            b.field("index", true).field("similarity", randomFrom(VectorSimilarity.values()).toString());
+        }
+    }
+
+    @Override
     protected Object generateRandomInputValue(MappedFieldType ft) {
-        assumeFalse("Test implemented in a follow up", true);
-        return null;
+        DenseVectorFieldType vectorFieldType = (DenseVectorFieldType) ft;
+        return switch (vectorFieldType.getElementType()) {
+            case BYTE -> randomByteArrayOfLength(vectorFieldType.getVectorDimensions());
+            case FLOAT -> {
+                float[] floats = new float[vectorFieldType.getVectorDimensions()];
+                float magnitude = 0;
+                for (int i = 0; i < floats.length; i++) {
+                    float f = randomFloat();
+                    floats[i] = f;
+                    magnitude += f * f;
+                }
+                magnitude = (float) Math.sqrt(magnitude);
+                if (VectorSimilarity.DOT_PRODUCT.equals(vectorFieldType.getSimilarity())) {
+                    for (int i = 0; i < floats.length; i++) {
+                        floats[i] /= magnitude;
+                    }
+                }
+                yield floats;
+            }
+        };
     }
 
     @Override

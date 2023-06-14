@@ -130,6 +130,7 @@ import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.synonyms.SynonymsManagementAPIService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -152,6 +153,8 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(CommonAnalysisPlugin.class);
 
     private final SetOnce<ScriptService> scriptServiceHolder = new SetOnce<>();
+    private final SetOnce<SynonymsManagementAPIService> synonymsManagementServiceHolder = new SetOnce<>();
+    private final SetOnce<ThreadPool> threadPoolHolder = new SetOnce<>();
 
     @Override
     public Collection<Object> createComponents(
@@ -170,6 +173,8 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         AllocationService allocationService
     ) {
         this.scriptServiceHolder.set(scriptService);
+        this.synonymsManagementServiceHolder.set(new SynonymsManagementAPIService(client));
+        this.threadPoolHolder.set(threadPool);
         return Collections.emptyList();
     }
 
@@ -333,8 +338,25 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         filters.put("sorani_normalization", SoraniNormalizationFilterFactory::new);
         filters.put("stemmer_override", requiresAnalysisSettings(StemmerOverrideTokenFilterFactory::new));
         filters.put("stemmer", StemmerTokenFilterFactory::new);
-        filters.put("synonym", requiresAnalysisSettings(SynonymTokenFilterFactory::new));
-        filters.put("synonym_graph", requiresAnalysisSettings(SynonymGraphTokenFilterFactory::new));
+        filters.put(
+            "synonym",
+            requiresAnalysisSettings(
+                (i, e, n, s) -> new SynonymTokenFilterFactory(i, e, n, s, synonymsManagementServiceHolder.get(), threadPoolHolder.get())
+            )
+        );
+        filters.put(
+            "synonym_graph",
+            requiresAnalysisSettings(
+                (i, e, n, s) -> new SynonymGraphTokenFilterFactory(
+                    i,
+                    e,
+                    n,
+                    s,
+                    synonymsManagementServiceHolder.get(),
+                    threadPoolHolder.get()
+                )
+            )
+        );
         filters.put("trim", TrimTokenFilterFactory::new);
         filters.put("truncate", requiresAnalysisSettings(TruncateTokenFilterFactory::new));
         filters.put("unique", UniqueTokenFilterFactory::new);

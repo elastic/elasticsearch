@@ -264,10 +264,7 @@ public class SamlAuthenticationIT extends ESRestTestCase {
     }
 
     private String verifyElasticsearchRefreshToken(String refreshToken) throws IOException {
-        final Map<String, ?> body = MapBuilder.<String, Object>newMapBuilder()
-            .put("grant_type", "refresh_token")
-            .put("refresh_token", refreshToken)
-            .map();
+        final Map<String, ?> body = Map.of("grant_type", "refresh_token", "refresh_token", refreshToken);
         final Response response = client().performRequest(buildRequest("POST", "/_security/oauth2/token", body, kibanaAuth()));
         assertOK(response);
 

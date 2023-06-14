@@ -234,12 +234,11 @@ public class BinaryDenseVectorScriptDocValuesTests extends ESTestCase {
     }
 
     public static BytesRef mockEncodeDenseVector(float[] values, ElementType elementType, IndexVersion indexVersion) {
-        byte[] bytes = indexVersion.onOrAfter(IndexVersion.V_7_5_0)
-            ? new byte[elementType.elementBytes * values.length + DenseVectorFieldMapper.MAGNITUDE_BYTES]
-            : new byte[elementType.elementBytes * values.length];
+        int numBytes = indexVersion.onOrAfter(DenseVectorFieldMapper.MAGNITUDE_STORED_INDEX_VERSION)
+            ? elementType.elementBytes * values.length + DenseVectorFieldMapper.MAGNITUDE_BYTES
+            : elementType.elementBytes * values.length;
         double dotProduct = 0f;
-
-        ByteBuffer byteBuffer = ByteBuffer.wrap(bytes);
+        ByteBuffer byteBuffer = elementType.createByteBuffer(indexVersion, numBytes);
         for (float value : values) {
             if (elementType == ElementType.FLOAT) {
                 byteBuffer.putFloat(value);
@@ -251,12 +250,12 @@ public class BinaryDenseVectorScriptDocValuesTests extends ESTestCase {
             dotProduct += value * value;
         }
 
-        if (indexVersion.onOrAfter(IndexVersion.V_7_5_0)) {
+        if (indexVersion.onOrAfter(DenseVectorFieldMapper.MAGNITUDE_STORED_INDEX_VERSION)) {
             // encode vector magnitude at the end
             float vectorMagnitude = (float) Math.sqrt(dotProduct);
             byteBuffer.putFloat(vectorMagnitude);
         }
-        return new BytesRef(bytes);
+        return new BytesRef(byteBuffer.array());
     }
 
 }

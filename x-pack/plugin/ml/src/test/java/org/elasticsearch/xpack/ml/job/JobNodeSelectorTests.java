@@ -15,7 +15,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Randomness;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Tuple;
@@ -1225,10 +1224,12 @@ public class JobNodeSelectorTests extends ESTestCase {
                     "filled_ml_node_name",
                     "filled_ml_node_id",
                     new TransportAddress(InetAddress.getLoopbackAddress(), 9301),
-                    MapBuilder.<String, String>newMapBuilder()
-                        .put(MachineLearning.MAX_JVM_SIZE_NODE_ATTR, "10")
-                        .put(MachineLearning.MACHINE_MEMORY_NODE_ATTR, Long.toString(ByteSizeValue.ofGb(30).getBytes()))
-                        .map(),
+                    Map.of(
+                        MachineLearning.MAX_JVM_SIZE_NODE_ATTR,
+                        "10",
+                        MachineLearning.MACHINE_MEMORY_NODE_ATTR,
+                        Long.toString(ByteSizeValue.ofGb(30).getBytes())
+                    ),
                     ROLES_WITH_ML
                 )
             )
@@ -1237,10 +1238,12 @@ public class JobNodeSelectorTests extends ESTestCase {
                     "not_filled_ml_node",
                     "not_filled_ml_node_id",
                     new TransportAddress(InetAddress.getLoopbackAddress(), 9302),
-                    MapBuilder.<String, String>newMapBuilder()
-                        .put(MachineLearning.MAX_JVM_SIZE_NODE_ATTR, "10")
-                        .put(MachineLearning.MACHINE_MEMORY_NODE_ATTR, Long.toString(ByteSizeValue.ofGb(30).getBytes()))
-                        .map(),
+                    Map.of(
+                        MachineLearning.MAX_JVM_SIZE_NODE_ATTR,
+                        "10",
+                        MachineLearning.MACHINE_MEMORY_NODE_ATTR,
+                        Long.toString(ByteSizeValue.ofGb(30).getBytes())
+                    ),
                     ROLES_WITH_ML
                 )
             )
@@ -1249,10 +1252,12 @@ public class JobNodeSelectorTests extends ESTestCase {
                     "not_filled_smaller_ml_node",
                     "not_filled_smaller_ml_node_id",
                     new TransportAddress(InetAddress.getLoopbackAddress(), 9303),
-                    MapBuilder.<String, String>newMapBuilder()
-                        .put(MachineLearning.MAX_JVM_SIZE_NODE_ATTR, "10")
-                        .put(MachineLearning.MACHINE_MEMORY_NODE_ATTR, Long.toString(ByteSizeValue.ofGb(10).getBytes()))
-                        .map(),
+                    Map.of(
+                        MachineLearning.MAX_JVM_SIZE_NODE_ATTR,
+                        "10",
+                        MachineLearning.MACHINE_MEMORY_NODE_ATTR,
+                        Long.toString(ByteSizeValue.ofGb(10).getBytes())
+                    ),
                     ROLES_WITH_ML
                 )
             )

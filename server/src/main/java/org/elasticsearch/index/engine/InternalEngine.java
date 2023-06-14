@@ -43,6 +43,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.lucene.LoggerInfoStream;
 import org.elasticsearch.common.lucene.Lucene;
@@ -521,25 +522,24 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public InternalEngine recoverFromTranslog(TranslogRecoveryRunner translogRecoveryRunner, long recoverUpToSeqNo) throws IOException {
-        try (ReleasableLock lock = readLock.acquire()) {
-            ensureOpen();
-            if (pendingTranslogRecovery.get() == false) {
-                throw new IllegalStateException("Engine has already been recovered");
-            }
-            try {
-                recoverFromTranslogInternal(translogRecoveryRunner, recoverUpToSeqNo);
-            } catch (Exception e) {
-                try {
-                    pendingTranslogRecovery.set(true); // just play safe and never allow commits on this see #ensureCanFlush
-                    failEngine("failed to recover from translog", e);
-                } catch (Exception inner) {
-                    e.addSuppressed(inner);
+    public void recoverFromTranslog(TranslogRecoveryRunner translogRecoveryRunner, long recoverUpToSeqNo, ActionListener<Void> listener) {
+        ActionListener.run(listener, l -> {
+            try (ReleasableLock lock = readLock.acquire()) {
+                ensureOpen();
+                if (pendingTranslogRecovery.get() == false) {
+                    throw new IllegalStateException("Engine has already been recovered");
                 }
-                throw e;
+                recoverFromTranslogInternal(translogRecoveryRunner, recoverUpToSeqNo, l.delegateResponse((ll, e) -> {
+                    try {
+                        pendingTranslogRecovery.set(true); // just play safe and never allow commits on this see #ensureCanFlush
+                        failEngine("failed to recover from translog", e);
+                    } catch (Exception inner) {
+                        e.addSuppressed(inner);
+                    }
+                    ll.onFailure(e);
+                }));
             }
-        }
-        return this;
+        });
     }
 
     @Override
@@ -548,33 +548,45 @@ public class InternalEngine extends Engine {
         pendingTranslogRecovery.set(false); // we are good - now we can commit
     }
 
-    private void recoverFromTranslogInternal(TranslogRecoveryRunner translogRecoveryRunner, long recoverUpToSeqNo) throws IOException {
-        final int opsRecovered;
-        final long localCheckpoint = getProcessedLocalCheckpoint();
-        if (localCheckpoint < recoverUpToSeqNo) {
-            try (Translog.Snapshot snapshot = newTranslogSnapshot(localCheckpoint + 1, recoverUpToSeqNo)) {
-                opsRecovered = translogRecoveryRunner.run(this, snapshot);
-            } catch (Exception e) {
-                throw new EngineException(shardId, "failed to recover from translog", e);
+    private void recoverFromTranslogInternal(
+        TranslogRecoveryRunner translogRecoveryRunner,
+        long recoverUpToSeqNo,
+        ActionListener<Void> listener
+    ) {
+        ActionListener.run(listener, l -> {
+            final int opsRecovered;
+            final long localCheckpoint = getProcessedLocalCheckpoint();
+            if (localCheckpoint < recoverUpToSeqNo) {
+                try (Translog.Snapshot snapshot = newTranslogSnapshot(localCheckpoint + 1, recoverUpToSeqNo)) {
+                    opsRecovered = translogRecoveryRunner.run(this, snapshot);
+                } catch (Exception e) {
+                    throw new EngineException(shardId, "failed to recover from translog", e);
+                }
+            } else {
+                opsRecovered = 0;
             }
-        } else {
-            opsRecovered = 0;
-        }
-        // flush if we recovered something or if we have references to older translogs
-        // note: if opsRecovered == 0 and we have older translogs it means they are corrupted or 0 length.
-        assert pendingTranslogRecovery.get() : "translogRecovery is not pending but should be";
-        pendingTranslogRecovery.set(false); // we are good - now we can commit
-        logger.trace(
-            () -> format(
-                "flushing post recovery from translog: ops recovered [%s], current translog generation [%s]",
-                opsRecovered,
-                translog.currentFileGeneration()
-            )
-        );
-        PlainActionFuture<FlushResult> future = PlainActionFuture.newFuture();
-        flush(false, true, future);
-        future.actionGet();
-        translog.trimUnreferencedReaders();
+            // flush if we recovered something or if we have references to older translogs
+            // note: if opsRecovered == 0 and we have older translogs it means they are corrupted or 0 length.
+            assert pendingTranslogRecovery.get() : "translogRecovery is not pending but should be";
+            pendingTranslogRecovery.set(false); // we are good - now we can commit
+            logger.trace(
+                () -> format(
+                    "flushing post recovery from translog: ops recovered [%s], current translog generation [%s]",
+                    opsRecovered,
+                    translog.currentFileGeneration()
+                )
+            );
+
+            // flush might do something async and complete the listener on a different thread, from which we must fork back to a generic
+            // thread to continue with recovery, but if it doesn't do anything async then there's no need to fork, hence why we use a
+            // SubscribableListener here
+            final var flushListener = new SubscribableListener<FlushResult>();
+            flush(false, true, flushListener);
+            flushListener.addListener(l.delegateFailureAndWrap((ll, r) -> {
+                translog.trimUnreferencedReaders();
+                ll.onResponse(null);
+            }), engineConfig.getThreadPool().generic(), null);
+        });
     }
 
     protected Translog.Snapshot newTranslogSnapshot(long fromSeqNo, long toSeqNo) throws IOException {
@@ -1945,15 +1957,15 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public RefreshResult maybeRefresh(String source) throws EngineException {
-        return refresh(source, SearcherScope.EXTERNAL, false);
+    public void maybeRefresh(String source, ActionListener<RefreshResult> listener) throws EngineException {
+        ActionListener.completeWith(listener, () -> refresh(source, SearcherScope.EXTERNAL, false));
     }
 
     protected RefreshResult refreshInternalSearcher(String source, boolean block) throws EngineException {
         return refresh(source, SearcherScope.INTERNAL, block);
     }
 
-    final RefreshResult refresh(String source, SearcherScope scope, boolean block) throws EngineException {
+    protected final RefreshResult refresh(String source, SearcherScope scope, boolean block) throws EngineException {
         // both refresh types will result in an internal refresh but only the external will also
         // pass the new reader reference to the external reader manager.
         final long localCheckpointBeforeRefresh = localCheckpointTracker.getProcessedCheckpoint();
@@ -2114,7 +2126,7 @@ public class InternalEngine extends Engine {
                 // Only flush if (1) Lucene has uncommitted docs, or (2) forced by caller, or (3) the
                 // newly created commit points to a different translog generation (can free translog),
                 // or (4) the local checkpoint information in the last commit is stale, which slows down future recoveries.
-                boolean hasUncommittedChanges = indexWriter.hasUncommittedChanges();
+                boolean hasUncommittedChanges = hasUncommittedChanges();
                 if (hasUncommittedChanges
                     || force
                     || shouldPeriodicallyFlush()
@@ -2172,6 +2184,10 @@ public class InternalEngine extends Engine {
         }
 
         waitForCommitDurability(generation, listener.map(v -> new FlushResult(true, generation)));
+    }
+
+    protected boolean hasUncommittedChanges() {
+        return indexWriter.hasUncommittedChanges();
     }
 
     private void refreshLastCommittedSegmentInfos() {

@@ -435,8 +435,8 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public RefreshResult maybeRefresh(String source) throws EngineException {
-        return RefreshResult.NO_REFRESH;
+    public void maybeRefresh(String source, ActionListener<RefreshResult> listener) throws EngineException {
+        listener.onResponse(RefreshResult.NO_REFRESH);
     }
 
     @Override
@@ -519,16 +519,22 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public Engine recoverFromTranslog(final TranslogRecoveryRunner translogRecoveryRunner, final long recoverUpToSeqNo) {
-        try (ReleasableLock lock = readLock.acquire()) {
-            ensureOpen();
-            try {
-                translogRecoveryRunner.run(this, Translog.Snapshot.EMPTY);
-            } catch (final Exception e) {
-                throw new EngineException(shardId, "failed to recover from empty translog snapshot", e);
+    public void recoverFromTranslog(
+        final TranslogRecoveryRunner translogRecoveryRunner,
+        final long recoverUpToSeqNo,
+        ActionListener<Void> listener
+    ) {
+        ActionListener.run(listener, l -> {
+            try (ReleasableLock lock = readLock.acquire()) {
+                ensureOpen();
+                try {
+                    translogRecoveryRunner.run(this, Translog.Snapshot.EMPTY);
+                } catch (final Exception e) {
+                    throw new EngineException(shardId, "failed to recover from empty translog snapshot", e);
+                }
             }
-        }
-        return this;
+            l.onResponse(null);
+        });
     }
 
     @Override

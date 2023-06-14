@@ -2004,6 +2004,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             highlightBuilder,
             indexBoosts,
             minScore,
+            subSearchSourceBuilders,
             postQueryBuilder,
             knnSearch,
             rankBuilder,
@@ -2048,6 +2049,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             && Objects.equals(highlightBuilder, other.highlightBuilder)
             && Objects.equals(indexBoosts, other.indexBoosts)
             && Objects.equals(minScore, other.minScore)
+            && Objects.equals(subSearchSourceBuilders, other.subSearchSourceBuilders)
             && Objects.equals(postQueryBuilder, other.postQueryBuilder)
             && Objects.equals(knnSearch, other.knnSearch)
             && Objects.equals(rankBuilder, other.rankBuilder)

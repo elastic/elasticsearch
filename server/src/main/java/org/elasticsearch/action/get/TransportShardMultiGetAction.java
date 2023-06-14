@@ -39,8 +39,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 
 import static org.elasticsearch.action.get.TransportGetAction.getCurrentNodeOfPrimary;
 import static org.elasticsearch.core.Strings.format;
@@ -132,35 +130,10 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
 
     @Override
     protected MultiGetShardResponse shardOperation(MultiGetShardRequest request, ShardId shardId) {
-        var indexShard = getIndexShard(shardId);
         MultiGetShardResponse response = new MultiGetShardResponse();
         for (int i = 0; i < request.locations.size(); i++) {
-            MultiGetRequest.Item item = request.items.get(i);
-            try {
-                GetResult getResult = indexShard.getService()
-                    .get(
-                        item.id(),
-                        item.storedFields(),
-                        request.realtime(),
-                        item.version(),
-                        item.versionType(),
-                        item.fetchSourceContext(),
-                        request.isForceSyntheticSource()
-                    );
-                response.add(request.locations.get(i), new GetResponse(getResult));
-            } catch (RuntimeException e) {
-                if (TransportActions.isShardNotAvailableException(e)) {
-                    throw e;
-                } else {
-                    logger.debug(() -> format("%s failed to execute multi_get for [%s]", shardId, item.id()), e);
-                    response.add(request.locations.get(i), new MultiGetResponse.Failure(request.index(), item.id(), e));
-                }
-            } catch (IOException e) {
-                logger.debug(() -> format("%s failed to execute multi_get for [%s]", shardId, item.id()), e);
-                response.add(request.locations.get(i), new MultiGetResponse.Failure(request.index(), item.id(), e));
-            }
+            getAndAddToResponse(shardId, i, request, response);
         }
-
         return response;
     }
 
@@ -182,7 +155,7 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
         ActionListener<MultiGetShardResponse> listener
     ) throws IOException {
         ShardId shardId = indexShard.shardId();
-        var node = getCurrentNodeOfPrimary(clusterService.state().routingTable(), clusterService.state().nodes(), shardId);
+        var node = getCurrentNodeOfPrimary(clusterService.state(), shardId);
         if (request.refresh()) {
             logger.trace("send refresh action for shard {} to node {}", shardId, node.getId());
             var refreshRequest = new BasicReplicationRequest(shardId);
@@ -203,22 +176,24 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
                 TransportShardMultiGetFomTranslogAction.NAME,
                 mgetFromTranslogRequest,
                 new ActionListenerResponseHandler<>(listener.delegateFailure((l, r) -> {
-                    var missingLocations = locationsWithMissingResults(r);
-                    if (missingLocations.isEmpty()) {
+                    var responseHasMissingLocations = false;
+                    for (int i = 0; i < r.multiGetShardResponse().locations.size(); i++) {
+                        if (r.multiGetShardResponse().responses.get(i) == null && r.multiGetShardResponse().failures.get(i) == null) {
+                            responseHasMissingLocations = true;
+                            break;
+                        }
+                    }
+                    if (responseHasMissingLocations == false) {
                         logger.debug("received result of all ids in real-time mget[shard] from the promotable shard.");
                         l.onResponse(r.multiGetShardResponse());
                     } else {
                         logger.debug(
-                            () -> format(
-                                "no result for ids '%s' from the promotable shard (segment generation to wait for: %s)",
-                                missingLocations.stream().map(i -> request.items.get(i).id()).toList(),
-                                r.segmentGeneration()
-                            )
+                            "no result for some ids from the promotable shard (segment generation to wait for: {})",
+                            r.segmentGeneration()
                         );
                         if (r.segmentGeneration() == -1) {
                             // Nothing to wait for (no previous unsafe generation), just handle the rest locally.
-                            ActionRunnable.supply(l, () -> handleLocalGets(missingLocations, request, r.multiGetShardResponse(), shardId))
-                                .run();
+                            ActionRunnable.supply(l, () -> handleLocalGets(request, r.multiGetShardResponse(), shardId)).run();
                         } else {
                             assert r.segmentGeneration() > -1L;
                             indexShard.waitForSegmentGeneration(
@@ -226,10 +201,7 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
                                 listener.delegateFailureAndWrap(
                                     (ll, aLong) -> threadPool.executor(getExecutor(request, shardId))
                                         .execute(
-                                            ActionRunnable.supply(
-                                                ll,
-                                                () -> handleLocalGets(missingLocations, request, r.multiGetShardResponse(), shardId)
-                                            )
+                                            ActionRunnable.supply(ll, () -> handleLocalGets(request, r.multiGetShardResponse(), shardId))
                                         )
                                 )
                             );
@@ -243,52 +215,42 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
         }
     }
 
-    // Returns the indices of entries in response.locations that have a missing result with no failure on the promotable shard.
-    private static List<Integer> locationsWithMissingResults(TransportShardMultiGetFomTranslogAction.Response response) {
-        List<Integer> locations = new ArrayList<>();
-        for (int i = 0; i < response.multiGetShardResponse().locations.size(); i++) {
-            if (response.multiGetShardResponse().responses.get(i) == null && response.multiGetShardResponse().failures.get(i) == null) {
-                locations.add(i);
-            }
-        }
-        return locations;
-    }
-
-    private MultiGetShardResponse handleLocalGets(
-        List<Integer> missingLocations,
-        MultiGetShardRequest request,
-        MultiGetShardResponse response,
-        ShardId shardId
-    ) {
-        logger.trace("handling local gets for locations: {}", missingLocations);
-        var indexShard = getIndexShard(shardId);
-        for (var l : missingLocations) {
-            MultiGetRequest.Item item = request.items.get(l);
-            try {
-                GetResult getResult = indexShard.getService()
-                    .get(
-                        item.id(),
-                        item.storedFields(),
-                        request.realtime(),
-                        item.version(),
-                        item.versionType(),
-                        item.fetchSourceContext(),
-                        request.isForceSyntheticSource()
-                    );
-                response.add(request.locations.get(l), new GetResponse(getResult));
-            } catch (RuntimeException e) {
-                if (TransportActions.isShardNotAvailableException(e)) {
-                    throw e;
-                } else {
-                    logger.debug(() -> format("%s failed to execute multi_get for [%s]", shardId, item.id()), e);
-                    response.add(request.locations.get(l), new MultiGetResponse.Failure(request.index(), item.id(), e));
-                }
-            } catch (IOException e) {
-                logger.debug(() -> format("%s failed to execute multi_get for [%s]", shardId, item.id()), e);
-                response.add(request.locations.get(l), new MultiGetResponse.Failure(request.index(), item.id(), e));
+    private MultiGetShardResponse handleLocalGets(MultiGetShardRequest request, MultiGetShardResponse response, ShardId shardId) {
+        logger.trace("handling local gets for missing locations");
+        for (int i = 0; i < response.locations.size(); i++) {
+            if (response.responses.get(i) == null && response.failures.get(i) == null) {
+                getAndAddToResponse(shardId, i, request, response);
             }
         }
         return response;
+    }
+
+    private void getAndAddToResponse(ShardId shardId, int location, MultiGetShardRequest request, MultiGetShardResponse response) {
+        var indexShard = getIndexShard(shardId);
+        MultiGetRequest.Item item = request.items.get(location);
+        try {
+            GetResult getResult = indexShard.getService()
+                .get(
+                    item.id(),
+                    item.storedFields(),
+                    request.realtime(),
+                    item.version(),
+                    item.versionType(),
+                    item.fetchSourceContext(),
+                    request.isForceSyntheticSource()
+                );
+            response.add(request.locations.get(location), new GetResponse(getResult));
+        } catch (RuntimeException e) {
+            if (TransportActions.isShardNotAvailableException(e)) {
+                throw e;
+            } else {
+                logger.debug(() -> format("%s failed to execute multi_get for [%s]", shardId, item.id()), e);
+                response.add(request.locations.get(location), new MultiGetResponse.Failure(request.index(), item.id(), e));
+            }
+        } catch (IOException e) {
+            logger.debug(() -> format("%s failed to execute multi_get for [%s]", shardId, item.id()), e);
+            response.add(request.locations.get(location), new MultiGetResponse.Failure(request.index(), item.id(), e));
+        }
     }
 
     private void asyncShardMultiGet(MultiGetShardRequest request, ShardId shardId, ActionListener<MultiGetShardResponse> listener)

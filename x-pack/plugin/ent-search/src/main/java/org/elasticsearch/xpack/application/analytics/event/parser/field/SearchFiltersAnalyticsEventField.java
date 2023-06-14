@@ -15,26 +15,27 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.application.analytics.event.AnalyticsEvent;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 public class SearchFiltersAnalyticsEventField {
     public static ParseField SEARCH_FILTERS_FIELD = new ParseField("filters");
 
-    private static final ObjectParser<MapBuilder<String, List<String>>, AnalyticsEvent.Context> PARSER = new ObjectParser<>(
+    private static final ObjectParser<Map<String, List<String>>, AnalyticsEvent.Context> PARSER = new ObjectParser<>(
         SEARCH_FILTERS_FIELD.getPreferredName(),
         SearchFiltersAnalyticsEventField::parseValue,
-        MapBuilder::newMapBuilder
+        HashMap::new
     );
 
     private SearchFiltersAnalyticsEventField() {}
 
     public static Map<String, List<String>> fromXContent(XContentParser parser, AnalyticsEvent.Context context) throws IOException {
-        return PARSER.parse(parser, context).immutableMap();
+        return Map.copyOf(PARSER.parse(parser, context));
     }
 
     @SuppressWarnings("unchecked")
-    private static void parseValue(MapBuilder<String, List<String>> builder, String field, Object value) {
+    private static void parseValue(Map<String, List<String>> builder, String field, Object value) {
         if (value instanceof String) {
             builder.put(field, List.of((String) value));
             return;

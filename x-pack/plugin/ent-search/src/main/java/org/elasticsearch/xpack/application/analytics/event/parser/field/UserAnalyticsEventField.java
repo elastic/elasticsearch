@@ -15,6 +15,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.application.analytics.event.AnalyticsEvent;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.common.Strings.requireNonBlank;
@@ -24,9 +25,9 @@ public class UserAnalyticsEventField {
 
     public static ParseField USER_ID_FIELD = new ParseField("id");
 
-    private static final ObjectParser<MapBuilder<String, String>, AnalyticsEvent.Context> PARSER = new ObjectParser<>(
+    private static final ObjectParser<Map<String, String>, AnalyticsEvent.Context> PARSER = new ObjectParser<>(
         USER_FIELD.getPreferredName(),
-        MapBuilder::newMapBuilder
+        HashMap::new
     );
 
     static {
@@ -41,6 +42,6 @@ public class UserAnalyticsEventField {
     private UserAnalyticsEventField() {}
 
     public static Map<String, String> fromXContent(XContentParser parser, AnalyticsEvent.Context context) throws IOException {
-        return PARSER.parse(parser, context).immutableMap();
+        return Map.copyOf(PARSER.parse(parser, context));
     }
 }

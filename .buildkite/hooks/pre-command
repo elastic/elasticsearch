@@ -42,13 +42,8 @@ if [[ "$BUILDKITE_SCRIPT_PATH" != *"buildkite-agent pipeline upload"* ]]; then
   cd -
 fi
 
-VAULT_PATH_PREFIX="secret/ci/elastic-elasticsearch/migrated"
-if [[ "$VAULT_ADDR" = *"secrets.elastic.co"* ]]; then
-  VAULT_PATH_PREFIX="secret/elasticsearch-ci"
-fi
-
-GRADLE_BUILD_CACHE_USERNAME=$(vault read -field=username "${VAULT_PATH_PREFIX}/gradle-build-cache")
+GRADLE_BUILD_CACHE_USERNAME=$(vault read -field=username secret/ci/elastic-elasticsearch/migrated/gradle-build-cache)
 export GRADLE_BUILD_CACHE_USERNAME
 
-GRADLE_BUILD_CACHE_PASSWORD=$(vault read -field=password "${VAULT_PATH_PREFIX}/gradle-build-cache")
+GRADLE_BUILD_CACHE_PASSWORD=$(vault read -field=password secret/ci/elastic-elasticsearch/migrated/gradle-build-cache)
 export GRADLE_BUILD_CACHE_PASSWORD

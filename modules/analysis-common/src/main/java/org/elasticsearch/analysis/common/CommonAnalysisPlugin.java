@@ -112,6 +112,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalyzerProvider;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.PreBuiltAnalyzerProviderFactory;
@@ -260,7 +261,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
             return new EdgeNGramTokenFilterFactory(indexSettings, environment, name, settings) {
                 @Override
                 public TokenStream create(TokenStream tokenStream) {
-                    if (indexSettings.getIndexVersionCreated().onOrAfter(org.elasticsearch.Version.V_8_0_0)) {
+                    if (indexSettings.getIndexVersionCreated().onOrAfter(IndexVersion.V_8_0_0)) {
                         throw new IllegalArgumentException(
                             "The [edgeNGram] token filter name was deprecated in 6.4 and cannot be used in new indices. "
                                 + "Please change the filter name to [edge_ngram] instead."
@@ -301,7 +302,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
             return new NGramTokenFilterFactory(indexSettings, environment, name, settings) {
                 @Override
                 public TokenStream create(TokenStream tokenStream) {
-                    if (indexSettings.getIndexVersionCreated().onOrAfter(org.elasticsearch.Version.V_8_0_0)) {
+                    if (indexSettings.getIndexVersionCreated().onOrAfter(IndexVersion.V_8_0_0)) {
                         throw new IllegalArgumentException(
                             "The [nGram] token filter name was deprecated in 6.4 and cannot be used in new indices. "
                                 + "Please change the filter name to [ngram] instead."
@@ -381,12 +382,12 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         tokenizers.put("simple_pattern_split", SimplePatternSplitTokenizerFactory::new);
         tokenizers.put("thai", ThaiTokenizerFactory::new);
         tokenizers.put("nGram", (IndexSettings indexSettings, Environment environment, String name, Settings settings) -> {
-            if (indexSettings.getIndexVersionCreated().onOrAfter(org.elasticsearch.Version.V_8_0_0)) {
+            if (indexSettings.getIndexVersionCreated().onOrAfter(IndexVersion.V_8_0_0)) {
                 throw new IllegalArgumentException(
                     "The [nGram] tokenizer name was deprecated in 7.6. "
                         + "Please use the tokenizer name to [ngram] for indices created in versions 8 or higher instead."
                 );
-            } else if (indexSettings.getIndexVersionCreated().onOrAfter(org.elasticsearch.Version.V_7_6_0)) {
+            } else if (indexSettings.getIndexVersionCreated().onOrAfter(IndexVersion.V_7_6_0)) {
                 deprecationLogger.warn(
                     DeprecationCategory.ANALYSIS,
                     "nGram_tokenizer_deprecation",
@@ -398,12 +399,12 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         });
         tokenizers.put("ngram", NGramTokenizerFactory::new);
         tokenizers.put("edgeNGram", (IndexSettings indexSettings, Environment environment, String name, Settings settings) -> {
-            if (indexSettings.getIndexVersionCreated().onOrAfter(org.elasticsearch.Version.V_8_0_0)) {
+            if (indexSettings.getIndexVersionCreated().onOrAfter(IndexVersion.V_8_0_0)) {
                 throw new IllegalArgumentException(
                     "The [edgeNGram] tokenizer name was deprecated in 7.6. "
                         + "Please use the tokenizer name to [edge_nGram] for indices created in versions 8 or higher instead."
                 );
-            } else if (indexSettings.getIndexVersionCreated().onOrAfter(org.elasticsearch.Version.V_7_6_0)) {
+            } else if (indexSettings.getIndexVersionCreated().onOrAfter(IndexVersion.V_7_6_0)) {
                 deprecationLogger.warn(
                     DeprecationCategory.ANALYSIS,
                     "edgeNGram_tokenizer_deprecation",

@@ -20,9 +20,9 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
@@ -107,7 +107,7 @@ final class PercolatorMatchedSlotSubFetchPhase implements FetchSubPhase {
         final boolean singlePercolateQuery;
         final int[] rootDocsBySlot;
 
-        PercolateContext(PercolateQuery pq, boolean singlePercolateQuery, Version indexVersionCreated) throws IOException {
+        PercolateContext(PercolateQuery pq, boolean singlePercolateQuery, IndexVersion indexVersionCreated) throws IOException {
             this.percolateQuery = pq;
             this.singlePercolateQuery = singlePercolateQuery;
             IndexSearcher percolatorIndexSearcher = percolateQuery.getPercolatorIndexSearcher();
@@ -128,7 +128,7 @@ final class PercolatorMatchedSlotSubFetchPhase implements FetchSubPhase {
             return singlePercolateQuery ? FIELD_NAME_PREFIX : FIELD_NAME_PREFIX + "_" + percolateQuery.getName();
         }
 
-        Query filterNestedDocs(Query in, Version indexVersionCreated) {
+        Query filterNestedDocs(Query in, IndexVersion indexVersionCreated) {
             if (rootDocsBySlot != null) {
                 // Ensures that we filter out nested documents
                 return new BooleanQuery.Builder().add(in, BooleanClause.Occur.MUST)

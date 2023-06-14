@@ -48,6 +48,8 @@ public interface Role {
 
     Role EMPTY = builder(new RestrictedIndices(Automatons.EMPTY)).build();
 
+    Role EMPTY_RESTRICTED_BY_WORKFLOW = builder(new RestrictedIndices(Automatons.EMPTY)).build();
+
     String[] names();
 
     ClusterPermission cluster();
@@ -60,11 +62,11 @@ public interface Role {
 
     RemoteIndicesPermission remoteIndices();
 
-    WorkflowsRestriction workflowsRestriction();
-
-    boolean checkWorkflowRestriction(Workflow workflow);
-
     boolean hasWorkflowsRestriction();
+
+    Role forWorkflow(Workflow workflow);
+
+    boolean shouldAllowSameUserPermission();
 
     /**
      * Whether the Role has any field or document level security enabled index privileges

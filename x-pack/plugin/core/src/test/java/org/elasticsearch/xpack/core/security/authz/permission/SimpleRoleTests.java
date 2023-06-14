@@ -26,7 +26,6 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.RESTRICTED_INDICES;
-import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -266,6 +265,5 @@ public class SimpleRoleTests extends ESTestCase {
         );
 
         assertThat(role.hasWorkflowsRestriction(), equalTo(true));
-        assertThat(role.workflowsRestriction().workflows(), containsInAnyOrder(WorkflowResolver.SEARCH_APPLICATION_QUERY_WORKFLOW));
     }
 }

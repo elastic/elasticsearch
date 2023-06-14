@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.security.authz;
+package org.elasticsearch.xpack.security.authz.restriction;
 
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
@@ -16,6 +16,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authz.restriction.Workflow;
 import org.elasticsearch.xpack.core.security.authz.restriction.WorkflowResolver;
+import org.elasticsearch.xpack.security.authz.restriction.WorkflowService;
 import org.mockito.Mockito;
 
 import java.io.IOException;

@@ -51,7 +51,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -770,7 +769,7 @@ public class LimitedRoleTests extends ESTestCase {
         }
     }
 
-    public void testCheckWorkflowRestriction() {
+    public void testForWorkflowRestriction() {
         // Test when role is restricted to the same workflow as originating workflow
         {
             Workflow workflow = WorkflowResolver.SEARCH_APPLICATION_QUERY_WORKFLOW;
@@ -780,9 +779,8 @@ public class LimitedRoleTests extends ESTestCase {
                 .build();
             Role limitedBy = Role.builder(EMPTY_RESTRICTED_INDICES, "role-b").add(IndexPrivilege.READ, "index-a").build();
             Role role = baseRole.limitedBy(limitedBy);
-            assertThat(role.checkWorkflowRestriction(workflow), equalTo(true));
             assertThat(role.hasWorkflowsRestriction(), equalTo(true));
-            assertThat(role.workflowsRestriction().workflows(), contains(workflow));
+            assertThat(role.forWorkflow(workflow), equalTo(role));
         }
         // Test restriction when role is not restricted regardless of originating workflow
         {
@@ -790,7 +788,7 @@ public class LimitedRoleTests extends ESTestCase {
             Role baseRole = Role.builder(EMPTY_RESTRICTED_INDICES, "role-a").add(IndexPrivilege.READ, "index-a").build();
             Role limitedBy = Role.builder(EMPTY_RESTRICTED_INDICES, "role-b").add(IndexPrivilege.READ, "index-a").build();
             Role role = baseRole.limitedBy(limitedBy);
-            assertThat(role.checkWorkflowRestriction(originatingWorkflow), equalTo(true));
+            assertThat(role.forWorkflow(originatingWorkflow), equalTo(role));
             assertThat(role.hasWorkflowsRestriction(), equalTo(false));
         }
         // Test when role is restricted but originating workflow is not allowed
@@ -801,9 +799,8 @@ public class LimitedRoleTests extends ESTestCase {
                 .build();
             Role limitedBy = Role.builder(EMPTY_RESTRICTED_INDICES, "role-b").add(IndexPrivilege.READ, "index-a").build();
             Role role = baseRole.limitedBy(limitedBy);
-            assertThat(role.checkWorkflowRestriction(null), equalTo(false));
+            assertThat(role.forWorkflow(null), equalTo(Role.EMPTY_RESTRICTED_BY_WORKFLOW));
             assertThat(role.hasWorkflowsRestriction(), equalTo(true));
-            assertThat(role.workflowsRestriction().workflows(), contains(WorkflowResolver.SEARCH_APPLICATION_QUERY_WORKFLOW));
         }
     }
 

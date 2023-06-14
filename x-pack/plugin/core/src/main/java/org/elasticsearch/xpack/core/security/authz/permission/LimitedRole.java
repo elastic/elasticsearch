@@ -12,7 +12,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.automaton.Automaton;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -23,7 +22,6 @@ import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission.
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.restriction.Workflow;
-import org.elasticsearch.xpack.core.security.authz.restriction.WorkflowsRestriction;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 
 import java.util.ArrayList;
@@ -79,26 +77,26 @@ public final class LimitedRole implements Role {
     }
 
     @Override
-    public WorkflowsRestriction workflowsRestriction() {
-        if (false == baseRole.hasWorkflowsRestriction()) {
-            return limitedByRole.workflowsRestriction();
-        }
-        if (false == limitedByRole.hasWorkflowsRestriction()) {
-            return baseRole.workflowsRestriction();
-        }
-        return new WorkflowsRestriction(
-            Sets.intersection(baseRole.workflowsRestriction().workflows(), limitedByRole.workflowsRestriction().workflows())
-        );
-    }
-
-    @Override
-    public boolean checkWorkflowRestriction(Workflow workflow) {
-        return baseRole.checkWorkflowRestriction(workflow) && limitedByRole.checkWorkflowRestriction(workflow);
-    }
-
-    @Override
     public boolean hasWorkflowsRestriction() {
         return baseRole.hasWorkflowsRestriction() || limitedByRole.hasWorkflowsRestriction();
+    }
+
+    @Override
+    public Role forWorkflow(Workflow workflow) {
+        Role baseRestricted = baseRole.forWorkflow(workflow);
+        if (baseRestricted == EMPTY_RESTRICTED_BY_WORKFLOW) {
+            return EMPTY_RESTRICTED_BY_WORKFLOW;
+        }
+        Role limitedByRestricted = limitedByRole.forWorkflow(workflow);
+        if (limitedByRestricted == EMPTY_RESTRICTED_BY_WORKFLOW) {
+            return EMPTY_RESTRICTED_BY_WORKFLOW;
+        }
+        return baseRestricted.limitedBy(limitedByRestricted);
+    }
+
+    @Override
+    public boolean shouldAllowSameUserPermission() {
+        return baseRole != EMPTY_RESTRICTED_BY_WORKFLOW && limitedByRole != EMPTY_RESTRICTED_BY_WORKFLOW;
     }
 
     @Override

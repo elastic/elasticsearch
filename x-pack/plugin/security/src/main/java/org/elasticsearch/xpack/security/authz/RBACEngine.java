@@ -177,11 +177,12 @@ public class RBACEngine implements AuthorizationEngine {
             final Role role = ((RBACAuthorizationInfo) authorizationInfo).getRole();
             if (role.checkClusterAction(requestInfo.getAction(), requestInfo.getRequest(), requestInfo.getAuthentication())) {
                 listener.onResponse(AuthorizationResult.granted());
-            } else if (checkSameUserPermissions(requestInfo.getAction(), requestInfo.getRequest(), requestInfo.getAuthentication())) {
-                listener.onResponse(AuthorizationResult.granted());
-            } else {
-                listener.onResponse(AuthorizationResult.deny());
-            }
+            } else if (role.shouldAllowSameUserPermission()
+                && checkSameUserPermissions(requestInfo.getAction(), requestInfo.getRequest(), requestInfo.getAuthentication())) {
+                    listener.onResponse(AuthorizationResult.granted());
+                } else {
+                    listener.onResponse(AuthorizationResult.deny());
+                }
         } else {
             listener.onFailure(
                 new IllegalArgumentException("unsupported authorization info:" + authorizationInfo.getClass().getSimpleName())

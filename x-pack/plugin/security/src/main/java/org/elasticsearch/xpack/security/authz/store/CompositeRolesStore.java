@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivileg
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
+import org.elasticsearch.xpack.core.security.authz.restriction.Workflow;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.authz.store.RoleKey;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
@@ -51,6 +52,7 @@ import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
+import org.elasticsearch.xpack.security.authz.restriction.WorkflowService;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.util.ArrayList;
@@ -103,6 +105,8 @@ public class CompositeRolesStore {
     private final Role superuserRole;
     private final Map<String, Role> internalUserRoles;
     private final RestrictedIndices restrictedIndices;
+    private final WorkflowService workflowService;
+    private final ThreadContext threadContext;
 
     public CompositeRolesStore(
         Settings settings,
@@ -115,7 +119,8 @@ public class CompositeRolesStore {
         ServiceAccountService serviceAccountService,
         DocumentSubsetBitsetCache dlsBitsetCache,
         RestrictedIndices restrictedIndices,
-        Consumer<Collection<RoleDescriptor>> effectiveRoleDescriptorsConsumer
+        Consumer<Collection<RoleDescriptor>> effectiveRoleDescriptorsConsumer,
+        WorkflowService workflowService
     ) {
         this.roleProviders = roleProviders;
         roleProviders.addChangeListener(new RoleProviders.ChangeListener() {
@@ -175,6 +180,8 @@ public class CompositeRolesStore {
             effectiveRoleDescriptorsConsumer
         );
         this.anonymousUser = new AnonymousUser(settings);
+        this.workflowService = workflowService;
+        this.threadContext = threadContext;
     }
 
     public void getRoles(Authentication authentication, ActionListener<Tuple<Role, Role>> roleActionListener) {
@@ -282,7 +289,8 @@ public class CompositeRolesStore {
                 }
             }, failureHandler));
         } else {
-            roleActionListener.onResponse(existing);
+            Workflow workflow = workflowService.readWorkflowFromThreadContext(threadContext);
+            roleActionListener.onResponse(existing.forWorkflow(workflow));
         }
     }
 
@@ -332,7 +340,8 @@ public class CompositeRolesStore {
                     negativeLookupCache.computeIfAbsent(missingRole, s -> Boolean.TRUE);
                 }
             }
-            listener.onResponse(role);
+            Workflow workflow = workflowService.readWorkflowFromThreadContext(threadContext);
+            listener.onResponse(role.forWorkflow(workflow));
         }, listener::onFailure));
     }
 

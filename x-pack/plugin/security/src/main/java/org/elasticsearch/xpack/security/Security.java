@@ -277,7 +277,6 @@ import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingSt
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.DlsFlsRequestCacheDifferentiator;
 import org.elasticsearch.xpack.security.authz.SecuritySearchOperationListener;
-import org.elasticsearch.xpack.security.authz.WorkflowService;
 import org.elasticsearch.xpack.security.authz.accesscontrol.OptOutQueryCache;
 import org.elasticsearch.xpack.security.authz.interceptor.BulkShardRequestInterceptor;
 import org.elasticsearch.xpack.security.authz.interceptor.DlsFlsLicenseRequestInterceptor;
@@ -288,6 +287,7 @@ import org.elasticsearch.xpack.security.authz.interceptor.SearchRequestCacheDisa
 import org.elasticsearch.xpack.security.authz.interceptor.SearchRequestInterceptor;
 import org.elasticsearch.xpack.security.authz.interceptor.ShardSearchRequestInterceptor;
 import org.elasticsearch.xpack.security.authz.interceptor.UpdateRequestInterceptor;
+import org.elasticsearch.xpack.security.authz.restriction.WorkflowService;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.authz.store.DeprecationRoleDescriptorConsumer;
 import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
@@ -856,7 +856,8 @@ public class Security extends Plugin
             serviceAccountService,
             dlsBitsetCache.get(),
             restrictedIndices,
-            new DeprecationRoleDescriptorConsumer(clusterService, threadPool)
+            new DeprecationRoleDescriptorConsumer(clusterService, threadPool),
+            workflowService.get()
         );
         systemIndices.getMainIndexManager().addStateListener(allRolesStore::onSecurityIndexStateChange);
 
@@ -960,8 +961,7 @@ public class Security extends Plugin
             getLicenseState(),
             expressionResolver,
             operatorPrivilegesService.get(),
-            restrictedIndices,
-            workflowService.get()
+            restrictedIndices
         );
 
         components.add(nativeRolesStore); // used by roles actions

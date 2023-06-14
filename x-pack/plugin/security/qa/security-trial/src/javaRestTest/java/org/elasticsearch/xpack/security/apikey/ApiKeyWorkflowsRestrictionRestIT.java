@@ -163,14 +163,14 @@ public class ApiKeyWorkflowsRestrictionRestIT extends SecurityOnTrialLicenseRest
         final Request searchRequest = new Request("GET", "/index-a/_search");
         ResponseException e = expectThrows(ResponseException.class, () -> performRequestWithApiKey(searchRequest, apiKeyEncoded));
         assertEquals(403, e.getResponse().getStatusLine().getStatusCode());
-        assertThat(e.getMessage(), containsString("Access is restricted only to [search_application_query] workflow(s)."));
+        assertThat(e.getMessage(), containsString("action [indices:data/read/search] is unauthorized for API key "));
 
         // Check that "same user permissions" are denied.
         final Request getApiKeyRequest = new Request("GET", "/_security/api_key");
         getApiKeyRequest.addParameter("id", apiKeyId);
         e = expectThrows(ResponseException.class, () -> performRequestWithApiKey(getApiKeyRequest, apiKeyEncoded));
         assertEquals(403, e.getResponse().getStatusLine().getStatusCode());
-        assertThat(e.getMessage(), containsString("Access is restricted only to [search_application_query] workflow(s)."));
+        assertThat(e.getMessage(), containsString("action [cluster:admin/xpack/security/api_key/get] is unauthorized for API key "));
 
         final Request hasPrivilegeRequest = new Request("POST", "/_security/user/_has_privileges");
         hasPrivilegeRequest.setJsonEntity("""
@@ -185,12 +185,15 @@ public class ApiKeyWorkflowsRestrictionRestIT extends SecurityOnTrialLicenseRest
             """);
         e = expectThrows(ResponseException.class, () -> performRequestWithApiKey(hasPrivilegeRequest, apiKeyEncoded));
         assertEquals(403, e.getResponse().getStatusLine().getStatusCode());
-        assertThat(e.getMessage(), containsString("Access is restricted only to [search_application_query] workflow(s)."));
+        assertThat(
+            e.getMessage(),
+            containsString("action [cluster:admin/xpack/security/user/has_privileges] is unauthorized for API key ")
+        );
 
         final Request authenticateRequest = new Request("GET", "/_security/_authenticate");
         e = expectThrows(ResponseException.class, () -> performRequestWithApiKey(authenticateRequest, apiKeyEncoded));
         assertEquals(403, e.getResponse().getStatusLine().getStatusCode());
-        assertThat(e.getMessage(), containsString("Access is restricted only to [search_application_query] workflow(s)."));
+        assertThat(e.getMessage(), containsString("action [cluster:admin/xpack/security/user/authenticate] is unauthorized for API key "));
     }
 
     private Response performRequestWithUser(Request request, String username) throws IOException {

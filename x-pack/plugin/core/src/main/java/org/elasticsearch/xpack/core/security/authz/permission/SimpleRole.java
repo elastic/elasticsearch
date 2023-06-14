@@ -104,18 +104,26 @@ public class SimpleRole implements Role {
     }
 
     @Override
-    public WorkflowsRestriction workflowsRestriction() {
-        return workflowsRestriction;
-    }
-
-    @Override
-    public boolean checkWorkflowRestriction(Workflow workflow) {
-        return workflowsRestriction.isWorkflowAllowed(workflow);
-    }
-
-    @Override
     public boolean hasWorkflowsRestriction() {
         return workflowsRestriction.hasWorkflows();
+    }
+
+    @Override
+    public Role forWorkflow(Workflow workflow) {
+        if (workflowsRestriction.hasWorkflows()) {
+            if (workflowsRestriction.isWorkflowAllowed(workflow)) {
+                return this;
+            } else {
+                return EMPTY_RESTRICTED_BY_WORKFLOW;
+            }
+        } else {
+            return this;
+        }
+    }
+
+    @Override
+    public boolean shouldAllowSameUserPermission() {
+        return this != EMPTY_RESTRICTED_BY_WORKFLOW;
     }
 
     @Override

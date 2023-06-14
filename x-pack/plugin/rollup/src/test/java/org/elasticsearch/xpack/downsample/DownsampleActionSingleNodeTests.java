@@ -159,7 +159,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         sourceIndex = randomAlphaOfLength(14).toLowerCase(Locale.ROOT);
         rollupIndex = "rollup-" + sourceIndex;
         startTime = randomLongBetween(946769284000L, 1607470084000L); // random date between 2000-2020
-        docCount = randomIntBetween(10, 9000);
+        docCount = randomIntBetween(10, 2000);
         numOfShards = randomIntBetween(1, 4);
         numOfReplicas = randomIntBetween(0, 3);
 

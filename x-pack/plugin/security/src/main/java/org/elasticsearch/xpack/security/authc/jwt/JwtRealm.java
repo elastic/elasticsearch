@@ -33,7 +33,6 @@ import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.support.CacheIteratorHelper;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.SSLService;
-import org.elasticsearch.xpack.security.authc.oidc.OpenIdConnectAuthenticator;
 import org.elasticsearch.xpack.security.authc.support.ClaimParser;
 import org.elasticsearch.xpack.security.authc.support.DelegatedAuthorizationSupport;
 
@@ -188,29 +187,28 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
     @Override
     public AuthenticationToken token(final ThreadContext threadContext) {
         ensureInitialized();
-
-        final SecureString userCredentials = JwtUtil.getHeaderValue(
-            threadContext,
-            JwtRealm.HEADER_END_USER_AUTHENTICATION,
-            JwtRealm.HEADER_END_USER_AUTHENTICATION_SCHEME,
-            false
-        );
-        if (userCredentials == null) {
-            return null;
-        }
-        if (userCredentials.isEmpty()) {
-            throw new IllegalArgumentException("JWT bearer token must be non-empty");
-        }
-
-        final SecureString clientCredentials = JwtUtil.getHeaderValue(
-            threadContext,
-            JwtRealm.HEADER_CLIENT_AUTHENTICATION,
-            JwtRealm.HEADER_SHARED_SECRET_AUTHENTICATION_SCHEME,
-            true
-        );
-
         SpecialPermission.check();
         return AccessController.doPrivileged((PrivilegedAction<JwtAuthenticationToken>) () -> {
+            final SecureString userCredentials = JwtUtil.getHeaderValue(
+                threadContext,
+                JwtRealm.HEADER_END_USER_AUTHENTICATION,
+                JwtRealm.HEADER_END_USER_AUTHENTICATION_SCHEME,
+                false
+            );
+            if (userCredentials == null) {
+                return null;
+            }
+            if (userCredentials.isEmpty()) {
+                throw new IllegalArgumentException("JWT bearer token must be non-empty");
+            }
+
+            final SecureString clientCredentials = JwtUtil.getHeaderValue(
+                threadContext,
+                JwtRealm.HEADER_CLIENT_AUTHENTICATION,
+                JwtRealm.HEADER_SHARED_SECRET_AUTHENTICATION_SCHEME,
+                true
+            );
+
             // No point to fall through the realm chain if JWT parsing fails, so we throw error here on failure.
             final SignedJWT signedJWT;
             try {
@@ -267,12 +265,12 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
     public void authenticate(final AuthenticationToken authenticationToken, final ActionListener<AuthenticationResult<User>> listener) {
         ensureInitialized();
         if (authenticationToken instanceof JwtAuthenticationToken jwtAuthenticationToken) {
-            final String tokenPrincipal = jwtAuthenticationToken.principal();
-
-            // Authenticate client: If client authc off, fall through. Otherwise, only fall through if secret matched.
-            final SecureString clientSecret = jwtAuthenticationToken.getClientAuthenticationSharedSecret();
             SpecialPermission.check();
             AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+                final String tokenPrincipal = jwtAuthenticationToken.principal();
+
+                // Authenticate client: If client authc off, fall through. Otherwise, only fall through if secret matched.
+                final SecureString clientSecret = jwtAuthenticationToken.getClientAuthenticationSharedSecret();
                 try {
                     JwtUtil.validateClientAuthentication(clientAuthenticationType, clientAuthenticationSharedSecret, clientSecret);
                     logger.trace("Realm [{}] client authentication succeeded for token=[{}].", name(), tokenPrincipal);
@@ -280,7 +278,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                     final String msg = "Realm [" + name() + "] client authentication failed for token=[" + tokenPrincipal + "].";
                     logger.debug(msg, e);
                     listener.onResponse(AuthenticationResult.unsuccessful(msg, e));
-                    return null; // FAILED (secret is missing or mismatched)
+                    return null;
                 }
 
                 final BytesArray jwtCacheKey = isCacheEnabled() ? new BytesArray(jwtAuthenticationToken.getUserCredentialsHash()) : null;
@@ -297,8 +295,13 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                 }
 
                 // Validate JWT: Extract JWT and claims set, and validate JWT.
-                jwtAuthenticator.authenticate(jwtAuthenticationToken, OpenIdConnectAuthenticator.wrapWithDoPrivileged(claimsSet -> {
-                    processValidatedJwt(tokenPrincipal, jwtCacheKey, claimsSet, listener);
+                jwtAuthenticator.authenticate(jwtAuthenticationToken, ActionListener.wrap(claimsSet -> {
+                    // We need another doPrivileged call here, since ActionListener.wrap does not preserve the outer context
+                    SpecialPermission.check();
+                    AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+                        processValidatedJwt(tokenPrincipal, jwtCacheKey, claimsSet, listener);
+                        return null;
+                    });
                 }, ex -> {
                     final String msg = "Realm [" + name() + "] JWT validation failed for token=[" + tokenPrincipal + "].";
                     logger.debug(msg, ex);

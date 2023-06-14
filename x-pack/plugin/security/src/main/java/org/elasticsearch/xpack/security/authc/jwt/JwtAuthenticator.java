@@ -13,6 +13,7 @@ import com.nimbusds.jwt.SignedJWT;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Releasable;
@@ -21,6 +22,8 @@ import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.List;
@@ -64,6 +67,14 @@ public class JwtAuthenticator implements Releasable {
     }
 
     public void authenticate(JwtAuthenticationToken jwtAuthenticationToken, ActionListener<JWTClaimsSet> listener) {
+        SpecialPermission.check();
+        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+            doAuthenticate(jwtAuthenticationToken, listener);
+            return null;
+        });
+    }
+
+    private void doAuthenticate(JwtAuthenticationToken jwtAuthenticationToken, ActionListener<JWTClaimsSet> listener) {
         final String tokenPrincipal = jwtAuthenticationToken.principal();
         // JWT cache
         final SignedJWT signedJWT = jwtAuthenticationToken.getSignedJWT();

@@ -9,11 +9,11 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.lucene.index.NoMergePolicy;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.SnapshotMatchers;
@@ -90,7 +90,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
                     false,
                     randomBoolean(),
                     randomBoolean(),
-                    Version.CURRENT
+                    IndexVersion.CURRENT
                 )
             ) {
                 searcher = null;
@@ -109,7 +109,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
                     true,
                     randomBoolean(),
                     randomBoolean(),
-                    Version.CURRENT
+                    IndexVersion.CURRENT
                 )
             ) {
                 searcher = null;
@@ -134,7 +134,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
                     false,
                     randomBoolean(),
                     randomBoolean(),
-                    Version.CURRENT
+                    IndexVersion.CURRENT
                 )
             ) {
                 searcher = null;
@@ -152,7 +152,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
                     true,
                     randomBoolean(),
                     randomBoolean(),
-                    Version.CURRENT
+                    IndexVersion.CURRENT
                 )
             ) {
                 searcher = null;
@@ -175,7 +175,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
                     true,
                     randomBoolean(),
                     randomBoolean(),
-                    Version.CURRENT
+                    IndexVersion.CURRENT
                 )
             ) {
                 searcher = null;
@@ -237,7 +237,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
                 false,
                 randomBoolean(),
                 accessStats,
-                Version.CURRENT
+                IndexVersion.CURRENT
             )
         ) {
             if (accessStats) {

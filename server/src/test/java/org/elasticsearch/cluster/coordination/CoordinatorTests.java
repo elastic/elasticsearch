@@ -904,7 +904,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
 
             @Override
             public TransportVersion getMinimalSupportedVersion() {
-                return TransportVersion.CURRENT;
+                return TransportVersion.current();
             }
 
             @Override

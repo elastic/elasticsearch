@@ -1,6 +1,6 @@
 agents:
   provider: gcp
-  image: family/brian-elasticsearch-ubuntu-2022
+  image: family/brian-elasticsearch-ubuntu-2004
   imageProject: elastic-images-qa
   buildDirectory: /dev/shm/bk
   machineType: custom-32-98304
@@ -120,7 +120,7 @@ steps:
     command: /usr/bin/true
     agents:
       provider: gcp
-      image: family/brian-elasticsearch-ubuntu-2022
+      image: family/brian-elasticsearch-ubuntu-2004
       imageProject: elastic-images-qa
       buildDirectory: /dev/shm/bk
       machineType: n1-standard-1

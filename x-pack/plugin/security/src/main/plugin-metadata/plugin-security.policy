@@ -50,11 +50,11 @@ grant codeBase "${codebase.netty-transport}" {
 };
 
 grant codeBase "${codebase.oauth2-oidc-sdk}" {
-   // for JSON serialization based on a shaded GSON dependency
-   permission java.lang.RuntimePermission "accessDeclaredMembers";
+    // for JSON serialization based on a shaded GSON dependency
+    permission java.lang.RuntimePermission "accessDeclaredMembers";
 };
 
 grant codeBase "${codebase.nimbus-jose-jwt}" {
-   // for JSON serialization based on a shaded GSON dependency
-   permission java.lang.RuntimePermission "accessDeclaredMembers";
+    // for JSON serialization based on a shaded GSON dependency
+    permission java.lang.RuntimePermission "accessDeclaredMembers";
 };

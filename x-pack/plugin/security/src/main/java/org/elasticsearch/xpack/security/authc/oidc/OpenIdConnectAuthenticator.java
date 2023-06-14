@@ -111,6 +111,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLContext;
@@ -219,7 +220,7 @@ public class OpenIdConnectAuthenticator {
                 validateResponseType(response);
                 if (rpConfig.getResponseType().impliesCodeFlow()) {
                     final AuthorizationCode code = response.getAuthorizationCode();
-                    exchangeCodeForToken(code, ActionListener.wrap(tokens -> {
+                    exchangeCodeForToken(code, wrapWithDoPrivileged(tokens -> {
                         final AccessToken accessToken = tokens.v1();
                         final JWT idToken = tokens.v2();
                         validateAccessToken(accessToken, idToken);
@@ -268,7 +269,7 @@ public class OpenIdConnectAuthenticator {
             if (LOGGER.isDebugEnabled()) {
                 LOGGER.debug("ID Token Header: {}", idToken.getHeader());
             }
-            JWTClaimsSet verifiedIdTokenClaims = getVerifiedIdTokenClaims(idToken, expectedNonce);
+            JWTClaimsSet verifiedIdTokenClaims = idTokenValidator.get().validate(idToken, expectedNonce).toJWTClaimsSet();
             if (LOGGER.isTraceEnabled()) {
                 LOGGER.trace("Received and validated the Id Token for the user: [{}]", verifiedIdTokenClaims);
             }
@@ -294,12 +295,12 @@ public class OpenIdConnectAuthenticator {
                 && JWSAlgorithm.Family.HMAC_SHA.contains(rpConfig.getSignatureAlgorithm()) == false
                 && opConfig.getJwkSetPath().startsWith("https://")) {
                 ((ReloadableJWKSource) ((JWSVerificationKeySelector) idTokenValidator.get().getJWSKeySelector()).getJWKSource())
-                    .triggerReload(ActionListener.wrap(v -> {
-                        getUserClaims(accessToken, idToken, expectedNonce, false, claimsListener);
-                    }, ex -> {
-                        LOGGER.trace("Attempted and failed to refresh JWK cache upon token validation failure", e);
-                        claimsListener.onFailure(ex);
-                    }));
+                    .triggerReload(
+                        wrapWithDoPrivileged(v -> getUserClaims(accessToken, idToken, expectedNonce, false, claimsListener), ex -> {
+                            LOGGER.trace("Attempted and failed to refresh JWK cache upon token validation failure", e);
+                            claimsListener.onFailure(ex);
+                        })
+                    );
             } else {
                 claimsListener.onFailure(new ElasticsearchSecurityException("Failed to parse or validate the ID Token", e));
             }
@@ -307,11 +308,6 @@ public class OpenIdConnectAuthenticator {
             LOGGER.debug("ID Token: [{}], Nonce: [{}]", idToken.getParsedString(), expectedNonce);
             claimsListener.onFailure(new ElasticsearchSecurityException("Failed to parse or validate the ID Token", e));
         }
-    }
-
-    private JWTClaimsSet getVerifiedIdTokenClaims(JWT idToken, Nonce expectedNonce) throws BadJOSEException,
-        com.nimbusds.oauth2.sdk.ParseException, JOSEException {
-        return idTokenValidator.get().validate(idToken, expectedNonce).toJWTClaimsSet();
     }
 
     /**
@@ -524,6 +520,16 @@ public class OpenIdConnectAuthenticator {
         }
     }
 
+    static <Response> ActionListener<Response> wrapWithDoPrivileged(Consumer<Response> onResponse, Consumer<Exception> onFailure) {
+        return ActionListener.wrap(r -> {
+            SpecialPermission.check();
+            AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+                onResponse.accept(r);
+                return null;
+            });
+        }, onFailure);
+    }
+
     /**
      * Validates that the userinfo response contains a sub Claim and that this claim value is the same as the one returned in the ID Token
      */
@@ -565,7 +571,12 @@ public class OpenIdConnectAuthenticator {
                 params.add(new BasicNameValuePair("client_id", rpConfig.getClientId().getValue()));
                 params.add(new BasicNameValuePair("client_secret", rpConfig.getClientSecret().toString()));
             } else if (rpConfig.getClientAuthenticationMethod().equals(ClientAuthenticationMethod.CLIENT_SECRET_JWT)) {
-                ClientSecretJWT clientSecretJWT = createClientSecretJWT();
+                ClientSecretJWT clientSecretJWT = new ClientSecretJWT(
+                    rpConfig.getClientId(),
+                    opConfig.getTokenEndpoint(),
+                    rpConfig.getClientAuthenticationJwtAlgorithm(),
+                    new Secret(rpConfig.getClientSecret().toString())
+                );
                 for (Map.Entry<String, List<String>> entry : clientSecretJWT.toParameters().entrySet()) {
                     // Both client_assertion and client_assertion_type are singleton lists
                     params.add(new BasicNameValuePair(entry.getKey(), entry.getValue().get(0)));
@@ -612,15 +623,6 @@ public class OpenIdConnectAuthenticator {
                 new ElasticsearchSecurityException("Failed to exchange code for Id Token using the Token Endpoint.", e)
             );
         }
-    }
-
-    private ClientSecretJWT createClientSecretJWT() throws JOSEException {
-        return new ClientSecretJWT(
-            rpConfig.getClientId(),
-            opConfig.getTokenEndpoint(),
-            rpConfig.getClientAuthenticationJwtAlgorithm(),
-            new Secret(rpConfig.getClientSecret().toString())
-        );
     }
 
     /**

@@ -165,7 +165,7 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
         if (token instanceof OpenIdConnectToken oidcToken && isTokenForRealm(oidcToken)) {
             openIdConnectAuthenticator.authenticate(
                 oidcToken,
-                ActionListener.wrap(jwtClaimsSet -> { buildUserFromClaims(jwtClaimsSet, listener); }, e -> {
+                OpenIdConnectAuthenticator.wrapWithDoPrivileged(jwtClaimsSet -> buildUserFromClaims(jwtClaimsSet, listener), e -> {
                     logger.debug("Failed to consume the OpenIdConnectToken ", e);
                     if (e instanceof ElasticsearchSecurityException) {
                         listener.onResponse(AuthenticationResult.unsuccessful("Failed to authenticate user with OpenID Connect", e));

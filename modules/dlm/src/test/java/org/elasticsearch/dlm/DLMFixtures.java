@@ -96,9 +96,29 @@ public class DLMFixtures {
     static DataLifecycle randomDataLifecycle() {
         return switch (randomInt(3)) {
             case 0 -> new DataLifecycle();
-            case 1 -> new DataLifecycle(DataLifecycle.Retention.NULL);
+            case 1 -> new DataLifecycle(DataLifecycle.Retention.NULL, randomDownsampling());
             case 2 -> Template.NO_LIFECYCLE;
-            default -> new DataLifecycle(TimeValue.timeValueDays(randomIntBetween(1, 365)));
+            default -> new DataLifecycle(
+                new DataLifecycle.Retention(TimeValue.timeValueDays(randomIntBetween(1, 365))),
+                randomDownsampling()
+            );
         };
+    }
+
+    private static DataLifecycle.Downsampling randomDownsampling() {
+        return switch (randomInt(3)) {
+            case 0 -> null;
+            case 1 -> DataLifecycle.Downsampling.NULL;
+            default -> randomNonNullDownsampling();
+        };
+    }
+
+    private static DataLifecycle.Downsampling randomNonNullDownsampling() {
+        List<DataLifecycle.Downsample> downsamples = new ArrayList<>();
+        int numberOfDownsamples = randomIntBetween(0, 10);
+        for (int i = 0; i < numberOfDownsamples; i++) {
+            downsamples.add(new DataLifecycle.Downsample(TimeValue.timeValueDays(i), TimeValue.timeValueHours(2L * i)));
+        }
+        return new DataLifecycle.Downsampling(downsamples);
     }
 }

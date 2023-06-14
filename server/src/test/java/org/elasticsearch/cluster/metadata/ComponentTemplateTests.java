@@ -17,6 +17,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.SimpleDiffableSerializationTestCase;
@@ -27,7 +28,9 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
@@ -124,8 +127,28 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
             case 0 -> DataLifecycleTests.IMPLICIT_INFINITE_RETENTION;
             case 1 -> Template.NO_LIFECYCLE;
             case 2 -> DataLifecycleTests.EXPLICIT_INFINITE_RETENTION;
-            default -> new DataLifecycle(randomMillisUpToYear9999());
+            default -> new DataLifecycle(
+                new DataLifecycle.Retention(TimeValue.timeValueMillis(randomMillisUpToYear9999())),
+                randomDownsampling()
+            );
         };
+    }
+
+    private static DataLifecycle.Downsampling randomDownsampling() {
+        return switch (randomInt(3)) {
+            case 0 -> null;
+            case 1 -> DataLifecycle.Downsampling.NULL;
+            default -> randomNonNullDownsampling();
+        };
+    }
+
+    private static DataLifecycle.Downsampling randomNonNullDownsampling() {
+        List<DataLifecycle.Downsample> downsamples = new ArrayList<>();
+        int numberOfDownsamples = randomIntBetween(0, 10);
+        for (int i = 0; i < numberOfDownsamples; i++) {
+            downsamples.add(new DataLifecycle.Downsample(TimeValue.timeValueDays(i), TimeValue.timeValueHours(2L * i)));
+        }
+        return new DataLifecycle.Downsampling(downsamples);
     }
 
     private static Map<String, Object> randomMeta() {

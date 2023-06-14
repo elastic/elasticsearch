@@ -149,6 +149,13 @@ public class QueryRewriteContext {
     }
 
     /**
+     * Returns an instance of {@link DataRewriteContext} if available or null otherwise
+     */
+    public DataRewriteContext convertToDataRewriteContext() {
+        return null;
+    }
+
+    /**
      * Returns the {@link MappedFieldType} for the provided field name.
      * If the field is not mapped, the behaviour depends on the index.query.parse.allow_unmapped_fields setting, which defaults to true.
      * In case unmapped fields are allowed, null is returned when the field is not mapped.

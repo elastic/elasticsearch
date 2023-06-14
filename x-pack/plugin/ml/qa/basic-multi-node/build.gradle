@@ -12,6 +12,7 @@ testClusters.configureEach {
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'indices.lifecycle.history_index_enabled', 'false'
   setting 'slm.history_index_enabled', 'false'
+  requiresFeature 'es.inference_rescorer_feature_flag_enabled', Version.fromString("8.9.0")
 }
 
 if (BuildParams.inFipsJvm){

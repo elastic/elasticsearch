@@ -46,6 +46,7 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.CoordinatorRewriteContext;
+import org.elasticsearch.index.query.DataRewriteContext;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
@@ -332,6 +333,10 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
         return serviceHolder.createCoordinatorContext(dateFieldType, min, max);
     }
 
+    protected static DataRewriteContext dataRewriteContext() {
+        return serviceHolder.createDataContext();
+    }
+
     /**
      * @return a new {@link SearchExecutionContext} based on an index with no type registered
      */
@@ -607,6 +612,10 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 IndexLongFieldRange.NO_SHARDS.extendWithShardRange(0, 1, ShardLongFieldRange.of(min, max)),
                 dateFieldType
             );
+        }
+
+        DataRewriteContext createDataContext() {
+            return new DataRewriteContext(parserConfiguration, this.client, () -> nowInMillis);
         }
 
         ScriptModule createScriptModule(List<ScriptPlugin> scriptPlugins) {

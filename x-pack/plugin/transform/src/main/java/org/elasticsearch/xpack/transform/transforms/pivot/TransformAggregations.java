@@ -120,7 +120,7 @@ public final class TransformAggregations {
         MISSING("missing", LONG),
         TOP_METRICS("top_metrics", SOURCE),
         STATS("stats", DOUBLE),
-        BOXPLOT("boxplot", SOURCE);
+        BOXPLOT("boxplot", DOUBLE);
 
         private final String aggregationType;
         private final String targetMapping;

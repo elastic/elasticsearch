@@ -183,7 +183,6 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
     ) throws IOException {
         ShardId shardId = indexShard.shardId();
         var node = getCurrentNodeOfPrimary(clusterService.state().routingTable(), clusterService.state().nodes(), shardId);
-        ;
         if (request.refresh()) {
             logger.trace("send refresh action for shard {} to node {}", shardId, node.getId());
             var refreshRequest = new BasicReplicationRequest(shardId);

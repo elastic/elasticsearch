@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.esql.planner.PhysicalVerificationException;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.esql.stats.Metrics;
 import org.elasticsearch.xpack.ql.expression.Attribute;
@@ -1026,7 +1027,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
          \_ExchangeExec[REMOTE_SINK]
            \_ProjectExec[[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, !gender, languages{f}#6, last_name{f}#7, salary{f}#8]]
              \_FieldExtractExec[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, !ge..]
-               \_EsQueryExec[test], query[{"bool":{"must_not":[{"terms":{"emp_no":[10010,10011],"boost":1.0}}],"boost":1.0}}][_doc{f}#10],
+               \_EsQueryExec[test], query[sv(not(emp_no IN (10010, 10011)))][_doc{f}#10],
                                         limit[10000], sort[]
      */
     public void testPushDownNegatedDisjunction() {
@@ -1042,9 +1043,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var extractRest = as(project.child(), FieldExtractExec.class);
         var source = source(extractRest.child());
 
-        var boolQuery = as(source.query(), BoolQueryBuilder.class);
+        var boolQuery = as(sv(source.query(), "emp_no"), BoolQueryBuilder.class);
         assertThat(boolQuery.mustNot(), hasSize(1));
-        var termsQuery = as(sv(boolQuery.mustNot().get(0), "emp_no"), TermsQueryBuilder.class);
+        var termsQuery = as(boolQuery.mustNot().get(0), TermsQueryBuilder.class);
         assertThat(termsQuery.fieldName(), is("emp_no"));
         assertThat(termsQuery.values(), is(List.of(10010, 10011)));
     }
@@ -1055,8 +1056,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
          \_ExchangeExec[REMOTE_SINK]
            \_ProjectExec[[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, !gender, languages{f}#6, last_name{f}#7, salary{f}#8]]
              \_FieldExtractExec[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, !ge..]
-               \_EsQueryExec[test], query[{"bool":{"must_not":[{"bool":{"must":[{"term":{"emp_no":{"value":10010}}},
-                                {"term":{"first_name":{"value":"Parto"}}}],"boost":1.0}}],"boost":1.0}}][_doc{f}#10], limit[10000], sort[]
+               \_EsQueryExec[test], query[sv(emp_no, not(emp_no == 10010)) OR sv(not(first_name == "Parto"))], limit[10000], sort[]
      */
     public void testPushDownNegatedConjunction() {
         var plan = physicalPlan("""
@@ -1072,13 +1072,15 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var source = source(extractRest.child());
 
         var bq = as(source.query(), BoolQueryBuilder.class);
-        assertThat(bq.mustNot(), hasSize(1));
-        bq = as(bq.mustNot().get(0), BoolQueryBuilder.class);
-        assertThat(bq.must(), hasSize(2));
-        var tq = as(sv(bq.must().get(0), "emp_no"), TermQueryBuilder.class);
+        assertThat(bq.should(), hasSize(2));
+        var empNo = as(sv(bq.should().get(0), "emp_no"), BoolQueryBuilder.class);
+        assertThat(empNo.mustNot(), hasSize(1));
+        var tq = as(empNo.mustNot().get(0), TermQueryBuilder.class);
         assertThat(tq.fieldName(), equalTo("emp_no"));
         assertThat(tq.value(), equalTo(10010));
-        tq = as(sv(bq.must().get(1), "first_name"), TermQueryBuilder.class);
+        var firstName = as(sv(bq.should().get(1), "first_name"), BoolQueryBuilder.class);
+        assertThat(firstName.mustNot(), hasSize(1));
+        tq = as(firstName.mustNot().get(0), TermQueryBuilder.class);
         assertThat(tq.fieldName(), equalTo("first_name"));
         assertThat(tq.value(), equalTo("Parto"));
     }
@@ -1106,9 +1108,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var extractRest = as(project.child(), FieldExtractExec.class);
         var source = source(extractRest.child());
 
-        var boolQuery = as(source.query(), BoolQueryBuilder.class);
+        var boolQuery = as(sv(source.query(), "emp_no"), BoolQueryBuilder.class);
         assertThat(boolQuery.mustNot(), hasSize(1));
-        var termQuery = as(sv(boolQuery.mustNot().get(0), "emp_no"), TermQueryBuilder.class);
+        var termQuery = as(boolQuery.mustNot().get(0), TermQueryBuilder.class);
         assertThat(termQuery.fieldName(), is("emp_no"));
         assertThat(termQuery.value(), is(10010));  // TODO this will match multivalued fields and we don't want that
     }
@@ -1196,9 +1198,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var extractRest = as(project.child(), FieldExtractExec.class);
         var source = source(extractRest.child());
 
-        var boolQuery = as(source.query(), BoolQueryBuilder.class);
+        var boolQuery = as(sv(source.query(), "first_name"), BoolQueryBuilder.class);
         assertThat(boolQuery.mustNot(), hasSize(1));
-        var tq = as(sv(boolQuery.mustNot().get(0), "first_name"), TermQueryBuilder.class);
+        var tq = as(boolQuery.mustNot().get(0), TermQueryBuilder.class);
         assertThat(tq.fieldName(), is("first_name"));
         assertThat(tq.value(), is("%foo%"));
     }

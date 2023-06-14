@@ -133,3 +133,63 @@ emp_no:integer |salary_change:double
 10001          |1.19
 10079          |7.58
 ;
+
+notLessThanMultivalue
+from employees | where not(salary_change < 1) | project emp_no, salary_change | sort emp_no | limit 5;
+
+// Note that multivalued salaries aren't less than 1 - they are null - so they aren't included
+emp_no:integer |salary_change:double
+10001          | 1.19
+10044          | 8.09
+10046          | 2.39
+10066          | 5.94
+10079          | 7.58
+;
+
+notGreaterThanMultivalue
+from employees | where not(salary_change > 1) | project emp_no, salary_change | sort emp_no | limit 5;
+
+// Note that multivalued salaries aren't less than 1 - they are null - so they aren't included
+emp_no:integer |salary_change:double
+10006          | -3.9
+10012          |  0.04
+10017          | -6.33
+10020          | -5.81
+10030          | -0.4
+;
+
+notEqualToMultivalue
+from employees | where not(salary_change == 1.19) | project emp_no, salary_change | sort emp_no | limit 5;
+
+// Note that multivalued salaries aren't greater than 1 - they are null - so they aren't included
+emp_no:integer |salary_change:double
+10006          | -3.9
+10012          |  0.04
+10017          | -6.33
+10020          | -5.81
+10030          | -0.4
+;
+
+notEqualToAndEqualToMultivalue-Ignore
+from employees | where not(salary_change == 1.19 or salary_change == -3.9) | project emp_no, salary_change | sort emp_no;
+
+// Note that multivalued salaries aren't greater than 1 - they are null - so they aren't included
+emp_no:integer |salary_change:double
+10012          |  0.04
+10017          | -6.33
+10020          | -5.81
+10030          | -0.4
+10030          | -0.4
+;
+
+notInMultivalue-Ignore
+from employees | where not(salary_change in (1.19, -3.9)) | project emp_no, salary_change | sort emp_no;
+
+// Note that multivalued salaries aren't greater than 1 - they are null - so they aren't included
+emp_no:integer |salary_change:double
+10012          |  0.04
+10017          | -6.33
+10020          | -5.81
+10030          | -0.4
+10030          | -0.4
+;

@@ -53,7 +53,7 @@ class InMapper extends EvalMapper.ExpressionMapper<In> {
 
         private boolean evalPosition(int pos, Page page) {
             for (EvalOperator.ExpressionEvaluator evaluator : listEvaluators) {
-                Block block = evaluator.eval(page);
+                Block block = evaluator.eval(page); // TODO this evaluates the whole page once per position
                 Vector vector = block.asVector();
                 if (vector != null) {
                     BooleanVector booleanVector = (BooleanVector) vector;
@@ -62,7 +62,7 @@ class InMapper extends EvalMapper.ExpressionMapper<In> {
                     }
                 } else {
                     BooleanBlock boolBlock = (BooleanBlock) block;
-                    if (boolBlock.isNull(pos) == false) {
+                    if (boolBlock.isNull(pos) == false) {  // TODO null should be viral here
                         int start = block.getFirstValueIndex(pos);
                         int end = start + block.getValueCount(pos);
                         for (int i = start; i < end; i++) {

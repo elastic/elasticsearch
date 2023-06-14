@@ -14,6 +14,19 @@ import org.elasticsearch.xpack.ql.tree.Source;
  * Intermediate representation of queries that is rewritten to fetch
  * otherwise unreferenced nested fields and then used to build
  * Elasticsearch {@link QueryBuilder}s.
+ * <p>
+ *     Our expression language spits out one of three values for any
+ *     comparison, {@code true}, {@code false}, and {@code null}.
+ *     Lucene's queries either match or don't match. They don't have
+ *     a concept of {@code null}, at least not in the sense we need.
+ *     The Lucene queries produced by {@link #asBuilder()} produce
+ *     queries that do not match documents who's comparison would
+ *     return {@code null}. This is what we want in {@code WHERE}
+ *     style operations. But when you need to negate the matches you
+ *     need to make only {@code false} return values into matches -
+ *     {@code null} returns should continue to not match. You can
+ *     do that with the {@link #negate} method.
+ * </p>
  */
 public abstract class Query {
     private final Source source;
@@ -81,5 +94,17 @@ public abstract class Query {
     @Override
     public String toString() {
         return getClass().getSimpleName() + source + "[" + innerToString() + "]";
+    }
+
+    /**
+     * Negate this query, returning a query that includes documents that would
+     * return {@code false} when running the represented operation. The default
+     * implementation just returns a {@link NotQuery} wrapping {@code this} because
+     * most queries don't model underlying operations that can return {@code null}.
+     * Queries that model expressions that can return {@code null} must make sure
+     * all documents that would return {@code null} are still excluded from the match.
+     */
+    public Query negate(Source source) {
+        return new NotQuery(source, this);
     }
 }

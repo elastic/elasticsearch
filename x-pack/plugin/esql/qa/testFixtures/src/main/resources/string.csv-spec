@@ -340,6 +340,59 @@ emp_no:integer |job_positions:keyword
 10025          |Accountant
 ;
 
+notLessThanMultivalue
+from employees | where not(job_positions < "C") | project emp_no, job_positions | sort emp_no | limit 6;
+
+// Note that multivalued job_positions aren't included because they aren't less than or greater than C - that comparison is null
+emp_no:integer |job_positions:keyword
+10002          |Senior Team Lead
+10013          |Reporting Analyst
+10018          |Junior Developer
+10019          |Purchase Manager
+10020          |Tech Lead
+10021          |Support Engineer
+;
+
+notGreaterThanMultivalue
+from employees | where not(job_positions > "C") | project emp_no, job_positions | sort emp_no | limit 6;
+
+// Note that multivalued job_positions aren't included because they aren't less than or greater than C - that comparison is null
+emp_no:integer |job_positions:keyword
+10025          |Accountant
+10068          |Architect
+;
+
+notEqualToMultivalue
+from employees | where not(job_positions == "Accountant") | project emp_no, job_positions | sort emp_no | limit 6;
+
+// Note that multivalued job_positions aren't included because they aren't less than or greater than C - that comparison is null
+emp_no:integer |job_positions:keyword
+10002          |Senior Team Lead
+10013          |Reporting Analyst
+10018          |Junior Developer
+10019          |Purchase Manager
+10020          |Tech Lead
+10021          |Support Engineer
+;
+
+notEqualToOrEqualToMultivalue-Ignore
+from employees | where not(job_positions == "Accountant" or job_positions == "Tech Lead") | project emp_no, job_positions | sort emp_no | limit 6;
+
+// Note that multivalued job_positions aren't included because they aren't less than or greater than C - that comparison is null
+emp_no:integer |job_positions:keyword
+10020          |Tech Lead  // TODO flip results
+10025          |Accountant
+;
+
+notInMultivalue-Ignore
+from employees | where not(job_positions in ("Accountant", "Tech Lead")) | project emp_no, job_positions | sort emp_no | limit 6;
+
+// Note that multivalued job_positions aren't included because they aren't less than or greater than C - that comparison is null
+emp_no:integer |job_positions:keyword
+10020          |Tech Lead  // TODO flip results
+10025          |Accountant
+;
+
 convertFromBoolean
 from employees | eval rehired = to_string(is_rehired) | project emp_no, rehired, is_rehired | limit 5;
 

@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.optimizer;
+package org.elasticsearch.xpack.esql.querydsl.query;
 
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexReader;
@@ -40,6 +40,7 @@ import org.elasticsearch.search.sort.NestedSortBuilder;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.ql.querydsl.query.Query;
+import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -99,7 +100,26 @@ public class SingleValueQuery extends Query {
         return next.toString();
     }
 
-    static class Builder extends AbstractQueryBuilder<Builder> {
+    @Override
+    public SingleValueQuery negate(Source source) {
+        return new SingleValueQuery(next.negate(source), field);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (o == null || getClass() != o.getClass() || false == super.equals(o)) {
+            return false;
+        }
+        SingleValueQuery other = (SingleValueQuery) o;
+        return Objects.equals(next, other.next) && Objects.equals(field, other.field);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), next, field);
+    }
+
+    public static class Builder extends AbstractQueryBuilder<Builder> {
         private final QueryBuilder next;
         private final String field;
         private final Stats stats;
@@ -123,11 +143,11 @@ public class SingleValueQuery extends Query {
             out.writeString(field);
         }
 
-        QueryBuilder next() {
+        public QueryBuilder next() {
             return next;
         }
 
-        String field() {
+        public String field() {
             return field;
         }
 

@@ -116,4 +116,13 @@ public class BoolQuery extends Query {
         }
         return sb.toString();
     }
+
+    @Override
+    public Query negate(Source source) {
+        List<Query> negated = queries.stream().map(q -> q.negate(q.source())).toList();
+        if (negated.stream().allMatch(q -> q instanceof NotQuery)) {
+            return new NotQuery(source, this);
+        }
+        return new BoolQuery(source, isAnd == false, negated);
+    }
 }

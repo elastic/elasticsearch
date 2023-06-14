@@ -210,7 +210,7 @@ public final class ExpressionTranslators {
             Query wrappedQuery = handler.asQuery(not.field());
             Query q = wrappedQuery instanceof ScriptQuery
                 ? new ScriptQuery(not.source(), not.asScript())
-                : new NotQuery(not.source(), wrappedQuery);
+                : wrappedQuery.negate(not.source());
 
             return wrapIfNested(q, e);
         }

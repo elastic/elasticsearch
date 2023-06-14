@@ -64,6 +64,7 @@ dependencies {
   // logging
   api "org.apache.logging.log4j:log4j-api:${versions.log4j}"
   api "org.apache.logging.log4j:log4j-core:${versions.log4j}"
+  implementation "org.apache.logging.log4j:log4j-jul:${versions.log4j}"
 
   api "net.java.dev.jna:jna:${versions.jna}"
 
@@ -248,6 +249,7 @@ tasks.named("thirdPartyAudit").configure {
 
 tasks.named("dependencyLicenses").configure {
     mapping from: /lucene-.*/, to: 'lucene'
+    mapping from: /log4j-.*/, to: 'log4j'
     dependencies = project.configurations.runtimeClasspath.fileCollection {
         it.group.startsWith('org.elasticsearch') == false ||
                 // keep the following org.elasticsearch jars in

@@ -581,6 +581,7 @@ public class NodeEnvironmentTests extends ESTestCase {
                 );
             }
 
+            Version oldVersion = Version.fromId(between(1, Version.CURRENT.minimumCompatibilityVersion().id - 1));
             IndexVersion oldIndexVersion = IndexVersion.fromId(between(1, IndexVersion.MINIMUM_COMPATIBLE.id() - 1));
             Version previousNodeVersion = Version.fromId(between(Version.CURRENT.minimumCompatibilityVersion().id, Version.CURRENT.id - 1));
             overrideOldestIndexVersion(oldIndexVersion, previousNodeVersion, env.nodeDataPaths());
@@ -609,7 +610,7 @@ public class NodeEnvironmentTests extends ESTestCase {
             checkForIndexCompatibility(logger, env.dataPaths());
 
             // Simulate empty old index version, attempting to upgrade before 7.17
-            removeOldestIndexVersion(oldIndexVersion, env.nodeDataPaths());
+            removeOldestIndexVersion(oldVersion, env.nodeDataPaths());
 
             ex = expectThrows(
                 IllegalStateException.class,
@@ -617,7 +618,7 @@ public class NodeEnvironmentTests extends ESTestCase {
                 () -> checkForIndexCompatibility(logger, env.dataPaths())
             );
 
-            assertThat(ex.getMessage(), startsWith("cannot upgrade a node from version [" + oldIndexVersion + "] directly"));
+            assertThat(ex.getMessage(), startsWith("cannot upgrade a node from version [" + oldVersion + "] directly"));
             assertThat(ex.getMessage(), containsString("upgrade to version [" + Version.CURRENT.minimumCompatibilityVersion()));
         }
     }
@@ -741,7 +742,7 @@ public class NodeEnvironmentTests extends ESTestCase {
         }
     }
 
-    private static void removeOldestIndexVersion(IndexVersion oldVersion, Path... dataPaths) throws IOException {
+    private static void removeOldestIndexVersion(Version oldVersion, Path... dataPaths) throws IOException {
         for (final Path dataPath : dataPaths) {
             final Path indexPath = dataPath.resolve(METADATA_DIRECTORY_NAME);
             if (Files.exists(indexPath)) {
@@ -756,7 +757,7 @@ public class NodeEnvironmentTests extends ESTestCase {
                         )
                     ) {
                         final Map<String, String> commitData = new HashMap<>(userData);
-                        commitData.put(NODE_VERSION_KEY, Integer.toString(oldVersion.id()));
+                        commitData.put(NODE_VERSION_KEY, Integer.toString(oldVersion.id));
                         commitData.remove(OLDEST_INDEX_VERSION_KEY);
                         indexWriter.setLiveCommitData(commitData.entrySet());
                         indexWriter.commit();

@@ -1491,7 +1491,10 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
 
         IndexVersion oldVersion = IndexVersion.fromId(IndexVersion.MINIMUM_COMPATIBLE.id() - 1);
 
-        final IndexVersion[] indexVersions = new IndexVersion[] { oldVersion, IndexVersion.CURRENT, IndexVersion.fromId(IndexVersion.CURRENT.id() + 1) };
+        final IndexVersion[] indexVersions = new IndexVersion[] {
+            oldVersion,
+            IndexVersion.CURRENT,
+            IndexVersion.fromId(IndexVersion.CURRENT.id() + 1) };
         int lastIndexNum = randomIntBetween(9, 50);
         Metadata.Builder b = Metadata.builder();
         for (IndexVersion indexVersion : indexVersions) {

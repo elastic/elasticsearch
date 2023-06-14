@@ -817,7 +817,9 @@ public class MetadataTests extends ESTestCase {
 
     public void testOldestIndexComputation() {
         Metadata metadata = buildIndicesWithVersions(
-            IndexVersion.V_7_0_0, IndexVersion.CURRENT, IndexVersion.fromId(IndexVersion.CURRENT.id() + 1)
+            IndexVersion.V_7_0_0,
+            IndexVersion.CURRENT,
+            IndexVersion.fromId(IndexVersion.CURRENT.id() + 1)
         ).build();
 
         assertEquals(IndexVersion.V_7_0_0, metadata.oldestIndexVersion());

@@ -85,6 +85,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.NONE;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.WAIT_UNTIL;
 import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.get;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -475,33 +476,47 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
                 .build()
         );
         ensureGreen(indexName);
-        int docsToIndex = randomIntBetween(1, 100);
-        var bulkRequest = client().prepareBulk();
-        for (int i = 0; i < docsToIndex; i++) {
-            bulkRequest.add(new IndexRequest(indexName).source("field", randomUnicodeOfCodepointLengthBetween(1, 25)));
-        }
-        // Refresh via the bulk request or a follow-up Refresh API call
-        boolean bulkRefreshes = randomBoolean();
-        boolean forcedRefresh = false;
-        if (bulkRefreshes) {
-            WriteRequest.RefreshPolicy refreshPolicy = randomFrom(WAIT_UNTIL, IMMEDIATE);
+
+        List<WriteRequest.RefreshPolicy> refreshPolicies = shuffledList(List.of(NONE, WAIT_UNTIL, IMMEDIATE));
+        int totalDocs = 0;
+        for (WriteRequest.RefreshPolicy refreshPolicy : refreshPolicies) {
+            int docsToIndex = randomIntBetween(1, 100);
+            totalDocs += docsToIndex;
+
+            logger.info(
+                "Testing refresh policy [{}] expecting [{}] new documents and [{}] total documents",
+                refreshPolicy,
+                docsToIndex,
+                totalDocs
+            );
+
+            var bulkRequest = client().prepareBulk();
+            for (int i = 0; i < docsToIndex; i++) {
+                bulkRequest.add(new IndexRequest(indexName).source("field", randomUnicodeOfCodepointLengthBetween(1, 25)));
+            }
             bulkRequest.setRefreshPolicy(refreshPolicy);
-            forcedRefresh = refreshPolicy == IMMEDIATE;
-        }
-        var bulkResponse = bulkRequest.get();
-        assertNoFailures(bulkResponse);
-        if (bulkRefreshes == false) {
-            assertNoFailures(client().admin().indices().prepareRefresh(indexName).execute().get());
-        } else {
-            for (BulkItemResponse response : bulkResponse.getItems()) {
-                if (response.getResponse() != null) {
-                    assertThat(response.getResponse().forcedRefresh(), equalTo(forcedRefresh));
+            var bulkResponse = bulkRequest.get();
+            assertNoFailures(bulkResponse);
+
+            // When bulk refresh policy is NONE, we test the refresh API instead
+            if (refreshPolicy == NONE) {
+                assertNoFailures(client().admin().indices().prepareRefresh(indexName).execute().get());
+            } else {
+                for (BulkItemResponse response : bulkResponse.getItems()) {
+                    if (response.getResponse() != null) {
+                        assertThat(response.getResponse().forcedRefresh(), equalTo(refreshPolicy == IMMEDIATE));
+                    }
                 }
             }
+
+            var searchResponse = client().prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).get();
+            assertNoFailures(searchResponse);
+            assertEquals(
+                "Failed search hit count refresh test for bulk refresh policy: " + refreshPolicy,
+                totalDocs,
+                searchResponse.getHits().getTotalHits().value
+            );
         }
-        var searchResponse = client().prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).get();
-        assertNoFailures(searchResponse);
-        assertEquals(docsToIndex, searchResponse.getHits().getTotalHits().value);
     }
 
     public void testRefreshOnBulkWithNewShardAllocation() throws Exception {

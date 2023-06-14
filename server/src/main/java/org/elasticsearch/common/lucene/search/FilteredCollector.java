@@ -21,7 +21,6 @@ import org.elasticsearch.common.lucene.Lucene;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Collector that wraps another collector and collects only documents that match the provided filter.

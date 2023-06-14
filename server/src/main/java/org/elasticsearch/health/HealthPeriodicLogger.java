@@ -73,7 +73,7 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
     public static final String HEALTH_PERIODIC_LOGGER_POLL_INTERVAL = "health_periodic_logger.poll_interval";
     public static final Setting<TimeValue> HEALTH_PERIODIC_LOGGER_POLL_INTERVAL_SETTING = Setting.timeSetting(
         HEALTH_PERIODIC_LOGGER_POLL_INTERVAL,
-        TimeValue.timeValueSeconds(60),
+        TimeValue.timeValueSeconds(15),
         TimeValue.timeValueSeconds(15),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
@@ -97,21 +97,6 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
     private volatile TimeValue pollInterval;
 
     private static final Logger logger = LogManager.getLogger(HealthPeriodicLogger.class);
-
-    private final ActionListener<List<HealthIndicatorResult>> resultsListener = new ActionListener<List<HealthIndicatorResult>>() {
-        @Override
-        public void onResponse(List<HealthIndicatorResult> healthIndicatorResults) {
-            HealthPeriodicLoggerResult result = new HealthPeriodicLoggerResult(healthIndicatorResults);
-            ESLogMessage msg = new ESLogMessage().withFields(result.toMap());
-            logger.info(msg);
-        }
-
-        @Override
-        public void onFailure(Exception e) {
-            logger.warn("Health Service logging error:{}", e.toString());
-        }
-
-    };
 
     /**
      * Creates a new HealthPeriodicLogger.
@@ -184,6 +169,15 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
         }
     }
 
+    @Override
+    public void triggered(SchedulerEngine.Event event) {
+        if (event.getJobName().equals(HEALTH_PERIODIC_LOGGER_JOB_NAME)) {
+            if (this.isHealthNode.get()) {
+                this.healthService.getHealth(this.client, null, false, 0, resultsListener);
+            }
+        }
+    }
+
     private void cancelJob() {
         if (scheduler.get() != null) {
             scheduler.get().remove(HEALTH_PERIODIC_LOGGER_JOB_NAME);
@@ -222,13 +216,18 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
         scheduler.get().add(scheduledJob);
     }
 
-    @Override
-    public void triggered(SchedulerEngine.Event event) {
-        if (event.getJobName().equals(HEALTH_PERIODIC_LOGGER_JOB_NAME)) {
-            if (this.isHealthNode.get()) {
-                this.healthService.getHealth(this.client, null, true, 0, resultsListener);
-            }
+    private final ActionListener<List<HealthIndicatorResult>> resultsListener = new ActionListener<List<HealthIndicatorResult>>() {
+        @Override
+        public void onResponse(List<HealthIndicatorResult> healthIndicatorResults) {
+            HealthPeriodicLoggerResult result = new HealthPeriodicLoggerResult(healthIndicatorResults);
+            ESLogMessage msg = new ESLogMessage().withFields(result.toMap());
+            logger.info(msg);
         }
-    }
+
+        @Override
+        public void onFailure(Exception e) {
+            logger.warn("Health Service logging error:{}", e.toString());
+        }
+    };
 
 }

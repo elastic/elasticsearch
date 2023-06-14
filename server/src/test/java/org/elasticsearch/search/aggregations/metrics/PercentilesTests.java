@@ -105,7 +105,7 @@ public class PercentilesTests extends BaseAggregationTestCase<PercentilesAggrega
                    "percents": [1, 99],
                    "tdigest": {
                        "compression": 200,
-                       "optimize_for_accuracy": true
+                       "execution_hint": "high_accuracy"
                    }
                }
             }""";
@@ -118,6 +118,6 @@ public class PercentilesTests extends BaseAggregationTestCase<PercentilesAggrega
         assertEquals(PercentilesMethod.TDIGEST, parsed.percentilesConfig().getMethod());
         var tdigestConfig = (PercentilesConfig.TDigest) parsed.percentilesConfig();
         assertEquals(200.0, tdigestConfig.getCompression(), 0);
-        assertTrue(tdigestConfig.getOptimizeForAccuracy());
+        assertEquals(TDigestState.ExecutionHint.HIGH_ACCURACY, TDigestState.ExecutionHint.parse(tdigestConfig.getExecutionHint()));
     }
 }

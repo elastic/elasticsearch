@@ -36,14 +36,14 @@ public class BoxplotAggregator extends NumericMetricsAggregator.MultiValue {
     private final DocValueFormat format;
     protected ObjectArray<TDigestState> states;
     protected final double compression;
-    protected final boolean optimizeForAccuracy;
+    protected final String executionHint;
 
     BoxplotAggregator(
         String name,
         ValuesSourceConfig config,
         DocValueFormat formatter,
         double compression,
-        boolean optimizeForAccuracy,
+        String executionHint,
         AggregationContext context,
         Aggregator parent,
         Map<String, Object> metadata
@@ -53,7 +53,7 @@ public class BoxplotAggregator extends NumericMetricsAggregator.MultiValue {
         this.valuesSource = config.getValuesSource();
         this.format = formatter;
         this.compression = compression;
-        this.optimizeForAccuracy = optimizeForAccuracy;
+        this.executionHint = executionHint;
         states = context.bigArrays().newObjectArray(1);
     }
 
@@ -104,7 +104,7 @@ public class BoxplotAggregator extends NumericMetricsAggregator.MultiValue {
         states = bigArrays.grow(states, bucket + 1);
         TDigestState state = states.get(bucket);
         if (state == null) {
-            state = TDigestState.create(compression, optimizeForAccuracy);
+            state = TDigestState.create(compression, executionHint);
             states.set(bucket, state);
         }
         return state;
@@ -143,7 +143,7 @@ public class BoxplotAggregator extends NumericMetricsAggregator.MultiValue {
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return InternalBoxplot.empty(name, compression, optimizeForAccuracy, format, metadata());
+        return InternalBoxplot.empty(name, compression, executionHint, format, metadata());
     }
 
     @Override

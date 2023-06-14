@@ -14,6 +14,7 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.metrics.PercentilesMethod;
+import org.elasticsearch.search.aggregations.metrics.TDigestState;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
@@ -30,7 +31,7 @@ import java.util.Optional;
 import java.util.Set;
 
 import static org.elasticsearch.search.aggregations.metrics.PercentilesMethod.COMPRESSION_FIELD;
-import static org.elasticsearch.search.aggregations.metrics.PercentilesMethod.OPTIMIZE_FOR_ACCURACY_FIELD;
+import static org.elasticsearch.search.aggregations.metrics.PercentilesMethod.EXECUTION_HINT_FIELD;
 
 public class BoxplotAggregationBuilder extends ValuesSourceAggregationBuilder.MetricsAggregationBuilder<BoxplotAggregationBuilder> {
     public static final String NAME = "boxplot";
@@ -46,11 +47,11 @@ public class BoxplotAggregationBuilder extends ValuesSourceAggregationBuilder.Me
     static {
         ValuesSourceAggregationBuilder.declareFields(PARSER, true, true, false);
         PARSER.declareDouble(BoxplotAggregationBuilder::compression, COMPRESSION_FIELD);
-        PARSER.declareBoolean(BoxplotAggregationBuilder::optimizeForAccuracy, OPTIMIZE_FOR_ACCURACY_FIELD);
+        PARSER.declareString(BoxplotAggregationBuilder::executionHint, EXECUTION_HINT_FIELD);
     }
 
     private double compression = 100.0;
-    private boolean optimizeForAccuracy;
+    private String executionHint = "";
 
     public BoxplotAggregationBuilder(String name) {
         super(name);
@@ -63,7 +64,7 @@ public class BoxplotAggregationBuilder extends ValuesSourceAggregationBuilder.Me
     ) {
         super(clone, factoriesBuilder, metadata);
         this.compression = clone.compression;
-        this.optimizeForAccuracy = clone.optimizeForAccuracy;
+        this.executionHint = clone.executionHint;
     }
 
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
@@ -81,7 +82,9 @@ public class BoxplotAggregationBuilder extends ValuesSourceAggregationBuilder.Me
     public BoxplotAggregationBuilder(StreamInput in) throws IOException {
         super(in);
         compression = in.readDouble();
-        optimizeForAccuracy = in.getTransportVersion().onOrAfter(TransportVersion.V_8_9_0) == false || in.readBoolean();
+        executionHint = in.getTransportVersion().onOrAfter(TransportVersion.V_8_9_0)
+            ? in.readString()
+            : TDigestState.ExecutionHint.HIGH_ACCURACY.toString();
     }
 
     @Override
@@ -93,7 +96,7 @@ public class BoxplotAggregationBuilder extends ValuesSourceAggregationBuilder.Me
     protected void innerWriteTo(StreamOutput out) throws IOException {
         out.writeDouble(compression);
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_9_0)) {
-            out.writeBoolean(optimizeForAccuracy);
+            out.writeString(executionHint);
         }
     }
 
@@ -116,8 +119,8 @@ public class BoxplotAggregationBuilder extends ValuesSourceAggregationBuilder.Me
         return this;
     }
 
-    public BoxplotAggregationBuilder optimizeForAccuracy(boolean optimizeForAccuracy) {
-        this.optimizeForAccuracy = optimizeForAccuracy;
+    public BoxplotAggregationBuilder executionHint(String executionHint) {
+        this.executionHint = executionHint;
         return this;
     }
 
@@ -142,7 +145,7 @@ public class BoxplotAggregationBuilder extends ValuesSourceAggregationBuilder.Me
             name,
             config,
             compression,
-            optimizeForAccuracy,
+            executionHint,
             context,
             parent,
             subFactoriesBuilder,
@@ -154,7 +157,7 @@ public class BoxplotAggregationBuilder extends ValuesSourceAggregationBuilder.Me
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.field(COMPRESSION_FIELD.getPreferredName(), compression);
-        builder.field(OPTIMIZE_FOR_ACCURACY_FIELD.getPreferredName(), optimizeForAccuracy);
+        builder.field(EXECUTION_HINT_FIELD.getPreferredName(), executionHint);
         return builder;
     }
 
@@ -164,12 +167,12 @@ public class BoxplotAggregationBuilder extends ValuesSourceAggregationBuilder.Me
         if (obj == null || getClass() != obj.getClass()) return false;
         if (super.equals(obj) == false) return false;
         BoxplotAggregationBuilder other = (BoxplotAggregationBuilder) obj;
-        return Objects.equals(compression, other.compression) && optimizeForAccuracy == other.optimizeForAccuracy;
+        return Objects.equals(compression, other.compression) && executionHint.equals(other.executionHint);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), compression, optimizeForAccuracy);
+        return Objects.hash(super.hashCode(), compression, executionHint);
     }
 
     @Override

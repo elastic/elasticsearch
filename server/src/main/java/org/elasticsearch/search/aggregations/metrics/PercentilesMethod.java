@@ -41,14 +41,14 @@ public enum PercentilesMethod implements Writeable {
 
     public static final ParseField COMPRESSION_FIELD = new ParseField("compression");
 
-    public static final ParseField OPTIMIZE_FOR_ACCURACY_FIELD = new ParseField("optimize_for_accuracy");
+    public static final ParseField EXECUTION_HINT_FIELD = new ParseField("execution_hint");
     public static final ParseField NUMBER_SIGNIFICANT_DIGITS_FIELD = new ParseField("number_of_significant_value_digits");
 
     public static final ObjectParser<PercentilesConfig.TDigest, String> TDIGEST_PARSER;
     static {
         TDIGEST_PARSER = new ObjectParser<>(PercentilesMethod.TDIGEST.getParseField().getPreferredName(), PercentilesConfig.TDigest::new);
         TDIGEST_PARSER.declareDouble(PercentilesConfig.TDigest::setCompression, COMPRESSION_FIELD);
-        TDIGEST_PARSER.declareBoolean(PercentilesConfig.TDigest::setOptimizeForAccuracy, OPTIMIZE_FOR_ACCURACY_FIELD);
+        TDIGEST_PARSER.declareString(PercentilesConfig.TDigest::setExecutionHint, EXECUTION_HINT_FIELD);
     }
 
     public static final ObjectParser<PercentilesConfig.Hdr, String> HDR_PARSER;

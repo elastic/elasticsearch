@@ -26,6 +26,31 @@ import java.util.List;
  */
 public class TDigestState {
 
+    /**
+     * Indicates which implementation is used in TDigestState.
+     */
+    public enum ExecutionHint {
+        HIGH_ACCURACY,
+        DEFAULT;
+
+        /**
+         * Case-insensitive wrapper for valueOf()
+         * @param value input string value
+         * @return an ExecutionHint
+         */
+        public static ExecutionHint parse(String value) {
+            try {
+                return switch (value) {
+                    case "high_accuracy" -> HIGH_ACCURACY;
+                    case "default", "" -> DEFAULT;
+                    default -> valueOf(value);
+                };
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException("Invalid execution_hint [" + value + "], valid values are [high_accuracy]");
+            }
+        }
+    }
+
     private final double compression;
 
     private final TDigest tdigest;
@@ -55,22 +80,31 @@ public class TDigestState {
      * @return a TDigestState object that's optimized for performance
      */
     public static TDigestState create(double compression) {
-        return create(compression, false);
+        return new TDigestState(Type.defaultValue(), compression);
+    }
+
+    /**
+     * Factory for TDigestState that's optimized for high accuracy. It's substantially slower than the default implementation.
+     * @param compression the compression factor for the underlying {@link org.elasticsearch.tdigest.TDigest} object
+     * @return a TDigestState object that's optimized for performance
+     */
+    public static TDigestState createOptimizedForAccuracy(double compression) {
+        return new TDigestState(Type.valueForHighAccuracy(), compression);
     }
 
     /**
      * Factory for TDigestState. The underlying {@link org.elasticsearch.tdigest.TDigest} implementation is either optimized for
-     * performance, potentially providing slightly inaccurate results for large populations, or optimized for accuracy but taking 2x-10x
-     * more to build.
+     * performance (default), potentially providing slightly inaccurate results for large populations, or optimized for accuracy but taking
+     * 2x-10x more to build.
      * @param compression the compression factor for the underlying {@link org.elasticsearch.tdigest.TDigest} object
-     * @param optimizeForAccuracy controls whether the constructed object is optimized for accuracy or performance
+     * @param executionHint controls which implementation is used; accepted values are 'high_accuracy' and '' (default)
      * @return a TDigestState object
      */
-    public static TDigestState create(double compression, boolean optimizeForAccuracy) {
-        if (optimizeForAccuracy) {
-            return new TDigestState(Type.valueForHighAccuracy(), compression);
-        }
-        return new TDigestState(Type.defaultValue(), compression);
+    public static TDigestState create(double compression, String executionHint) {
+        return switch (ExecutionHint.parse(executionHint)) {
+            case HIGH_ACCURACY -> createOptimizedForAccuracy(compression);
+            case DEFAULT -> create(compression);
+        };
     }
 
     /**

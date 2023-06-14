@@ -27,12 +27,12 @@ public class HistoBackedTDigestPercentilesAggregator extends AbstractHistoBacked
         Aggregator parent,
         double[] percents,
         double compression,
-        boolean optimizeForAccuracy,
+        String executionHint,
         boolean keyed,
         DocValueFormat formatter,
         Map<String, Object> metadata
     ) throws IOException {
-        super(name, config, context, parent, percents, compression, optimizeForAccuracy, keyed, formatter, metadata);
+        super(name, config, context, parent, percents, compression, executionHint, keyed, formatter, metadata);
     }
 
     @Override
@@ -57,7 +57,7 @@ public class HistoBackedTDigestPercentilesAggregator extends AbstractHistoBacked
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        TDigestState state = TDigestState.create(compression, optimizeForAccuracy);
+        TDigestState state = TDigestState.create(compression, executionHint);
         return new InternalTDigestPercentiles(name, keys, state, keyed, formatter, metadata());
     }
 }

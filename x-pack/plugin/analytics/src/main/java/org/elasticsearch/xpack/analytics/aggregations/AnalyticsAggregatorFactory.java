@@ -40,7 +40,7 @@ public class AnalyticsAggregatorFactory {
             (name, config, context, parent, percents, percentilesConfig, keyed, formatter, metadata) -> {
                 if (percentilesConfig.getMethod().equals(PercentilesMethod.TDIGEST)) {
                     double compression = ((PercentilesConfig.TDigest) percentilesConfig).getCompression();
-                    boolean optimizeForAccuracy = ((PercentilesConfig.TDigest) percentilesConfig).getOptimizeForAccuracy();
+                    String executionHint = ((PercentilesConfig.TDigest) percentilesConfig).getExecutionHint();
                     return new HistoBackedTDigestPercentilesAggregator(
                         name,
                         config,
@@ -48,7 +48,7 @@ public class AnalyticsAggregatorFactory {
                         parent,
                         percents,
                         compression,
-                        optimizeForAccuracy,
+                        executionHint,
                         keyed,
                         formatter,
                         metadata
@@ -84,7 +84,7 @@ public class AnalyticsAggregatorFactory {
             (name, config, context, parent, percents, percentilesConfig, keyed, formatter, metadata) -> {
                 if (percentilesConfig.getMethod().equals(PercentilesMethod.TDIGEST)) {
                     double compression = ((PercentilesConfig.TDigest) percentilesConfig).getCompression();
-                    boolean optimizeForAccuracy = ((PercentilesConfig.TDigest) percentilesConfig).getOptimizeForAccuracy();
+                    String executionHint = ((PercentilesConfig.TDigest) percentilesConfig).getExecutionHint();
                     return new HistoBackedTDigestPercentileRanksAggregator(
                         name,
                         config,
@@ -92,7 +92,7 @@ public class AnalyticsAggregatorFactory {
                         parent,
                         percents,
                         compression,
-                        optimizeForAccuracy,
+                        executionHint,
                         keyed,
                         formatter,
                         metadata

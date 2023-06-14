@@ -166,12 +166,12 @@ GET latency/_search
 
 include::percentile-aggregation.asciidoc[tags=t-digest]
 
-==== Accuracy
+==== Execution hint
 
 The default implementation of TDigest is optimized for performance, scaling to millions or even
 billions of sample values while maintaining acceptable accuracy levels (close to 1% relative error
 for millions of samples in some cases). There's an option to use an implementation optimized
-for accuracy that can be selected through parameter `optimize_for_accuracy`:
+for accuracy by setting parameter `execution_hint` to value `high_accuracy`:
 
 [source,console]
 --------------------------------------------------
@@ -182,7 +182,7 @@ GET latency/_search
     "load_time_boxplot": {
       "boxplot": {
         "field": "load_time",
-        "optimize_for_accuracy": true    <1>
+        "execution_hint": "high_accuracy"    <1>
       }
     }
   }

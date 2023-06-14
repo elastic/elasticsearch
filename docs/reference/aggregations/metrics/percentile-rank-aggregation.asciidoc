@@ -12,7 +12,7 @@ extracted from specific numeric or <<histogram,histogram fields>> in the documen
 ==================================================
 Please see <<search-aggregations-metrics-percentile-aggregation-approximation>>,
 <<search-aggregations-metrics-percentile-aggregation-compression>> and
-<<search-aggregations-metrics-percentile-aggregation-accuracy>> for advice
+<<search-aggregations-metrics-percentile-aggregation-execution-hint>> for advice
 regarding approximation, performance and memory use of the percentile ranks aggregation
 ==================================================
 

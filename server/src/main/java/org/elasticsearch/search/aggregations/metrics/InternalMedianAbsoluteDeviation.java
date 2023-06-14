@@ -66,9 +66,9 @@ public class InternalMedianAbsoluteDeviation extends InternalNumericMetricsAggre
         Map<String, Object> metadata,
         DocValueFormat format,
         double compression,
-        boolean optimizeForAccuracy
+        String executionHint
     ) {
-        return new InternalMedianAbsoluteDeviation(name, metadata, format, TDigestState.create(compression, optimizeForAccuracy));
+        return new InternalMedianAbsoluteDeviation(name, metadata, format, TDigestState.create(compression, executionHint));
     }
 
     @Override

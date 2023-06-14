@@ -22,7 +22,7 @@ public interface BoxplotAggregatorSupplier {
         ValuesSourceConfig config,
         DocValueFormat formatter,
         double compression,
-        boolean optimizeForAccuracy,
+        String executionHint,
         AggregationContext context,
         Aggregator parent,
         Map<String, Object> metadata

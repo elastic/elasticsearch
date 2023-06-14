@@ -27,7 +27,7 @@ import java.util.function.Predicate;
 public class BoxplotAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     private final double compression;
-    private final boolean optimizeForAccuracy;
+    private final String executionHint;
     private final BoxplotAggregatorSupplier aggregatorSupplier;
 
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {
@@ -43,7 +43,7 @@ public class BoxplotAggregatorFactory extends ValuesSourceAggregatorFactory {
         String name,
         ValuesSourceConfig config,
         double compression,
-        boolean optimizeForAccuracy,
+        String executionHint,
         AggregationContext context,
         AggregatorFactory parent,
         AggregatorFactories.Builder subFactoriesBuilder,
@@ -52,13 +52,13 @@ public class BoxplotAggregatorFactory extends ValuesSourceAggregatorFactory {
     ) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metadata);
         this.compression = compression;
-        this.optimizeForAccuracy = optimizeForAccuracy;
+        this.executionHint = executionHint;
         this.aggregatorSupplier = aggregatorSupplier;
     }
 
     @Override
     protected Aggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException {
-        final InternalBoxplot empty = InternalBoxplot.empty(name, compression, optimizeForAccuracy, config.format(), metadata);
+        final InternalBoxplot empty = InternalBoxplot.empty(name, compression, executionHint, config.format(), metadata);
         final Predicate<String> hasMetric = InternalBoxplot.Metrics::hasMetric;
         return new NonCollectingMultiMetricAggregator(name, context, parent, empty, hasMetric, metadata);
     }
@@ -66,6 +66,6 @@ public class BoxplotAggregatorFactory extends ValuesSourceAggregatorFactory {
     @Override
     protected Aggregator doCreateInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
         throws IOException {
-        return aggregatorSupplier.build(name, config, config.format(), compression, optimizeForAccuracy, context, parent, metadata);
+        return aggregatorSupplier.build(name, config, config.format(), compression, executionHint, context, parent, metadata);
     }
 }

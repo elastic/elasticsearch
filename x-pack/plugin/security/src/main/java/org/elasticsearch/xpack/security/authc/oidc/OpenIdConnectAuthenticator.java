@@ -421,7 +421,7 @@ public class OpenIdConnectAuthenticator {
             final HttpGet httpGet = new HttpGet(opConfig.getUserinfoEndpoint());
             httpGet.setHeader("Authorization", "Bearer " + accessToken.getValue());
             AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-                httpClient.execute(httpGet, new FutureCallback<>() {
+                httpClient.execute(httpGet, new FutureCallback<HttpResponse>() {
                     @Override
                     public void completed(HttpResponse result) {
                         handleUserinfoResponse(result, verifiedIdTokenClaims, claimsListener);
@@ -524,7 +524,7 @@ public class OpenIdConnectAuthenticator {
         }
     }
 
-    public static <Response> ActionListener<Response> wrapWithDoPrivileged(Consumer<Response> onResponse, Consumer<Exception> onFailure) {
+    static <Response> ActionListener<Response> wrapWithDoPrivileged(Consumer<Response> onResponse, Consumer<Exception> onFailure) {
         return ActionListener.wrap(r -> {
             SpecialPermission.check();
             AccessController.doPrivileged((PrivilegedAction<Void>) () -> {

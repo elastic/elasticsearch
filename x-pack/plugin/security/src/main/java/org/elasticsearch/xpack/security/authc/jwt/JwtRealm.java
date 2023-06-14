@@ -188,72 +188,69 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
     public AuthenticationToken token(final ThreadContext threadContext) {
         ensureInitialized();
         SpecialPermission.check();
-        return AccessController.doPrivileged((PrivilegedAction<JwtAuthenticationToken>) () -> {
-            final SecureString userCredentials = JwtUtil.getHeaderValue(
-                threadContext,
-                JwtRealm.HEADER_END_USER_AUTHENTICATION,
-                JwtRealm.HEADER_END_USER_AUTHENTICATION_SCHEME,
-                false
-            );
-            if (userCredentials == null) {
-                return null;
-            }
-            if (userCredentials.isEmpty()) {
-                throw new IllegalArgumentException("JWT bearer token must be non-empty");
-            }
+        return AccessController.doPrivileged((PrivilegedAction<JwtAuthenticationToken>) () -> extractToken(threadContext));
+    }
 
-            final SecureString clientCredentials = JwtUtil.getHeaderValue(
-                threadContext,
-                JwtRealm.HEADER_CLIENT_AUTHENTICATION,
-                JwtRealm.HEADER_SHARED_SECRET_AUTHENTICATION_SCHEME,
-                true
-            );
+    private JwtAuthenticationToken extractToken(ThreadContext threadContext) {
+        final SecureString userCredentials = JwtUtil.getHeaderValue(
+            threadContext,
+            JwtRealm.HEADER_END_USER_AUTHENTICATION,
+            JwtRealm.HEADER_END_USER_AUTHENTICATION_SCHEME,
+            false
+        );
+        if (userCredentials == null) {
+            return null;
+        }
+        if (userCredentials.isEmpty()) {
+            throw new IllegalArgumentException("JWT bearer token must be non-empty");
+        }
 
-            // No point to fall through the realm chain if JWT parsing fails, so we throw error here on failure.
-            final SignedJWT signedJWT;
-            try {
-                signedJWT = SignedJWT.parse(userCredentials.toString());
-            } catch (ParseException e) {
-                throw new IllegalArgumentException("Failed to parse JWT bearer token", e);
+        final SecureString clientCredentials = JwtUtil.getHeaderValue(
+            threadContext,
+            JwtRealm.HEADER_CLIENT_AUTHENTICATION,
+            JwtRealm.HEADER_SHARED_SECRET_AUTHENTICATION_SCHEME,
+            true
+        );
+
+        // No point to fall through the realm chain if JWT parsing fails, so we throw error here on failure.
+        final SignedJWT signedJWT;
+        try {
+            signedJWT = SignedJWT.parse(userCredentials.toString());
+        } catch (ParseException e) {
+            throw new IllegalArgumentException("Failed to parse JWT bearer token", e);
+        }
+
+        final JWTClaimsSet jwtClaimsSet;
+        try {
+            jwtClaimsSet = signedJWT.getJWTClaimsSet();
+        } catch (ParseException e) {
+            throw new IllegalArgumentException("Failed to parse JWT claims set", e);
+        }
+
+        // If Issuer is not found, still return a JWT token since it is after still a JWT, authentication
+        // will fail later because issuer is mandated
+        final String issuer = jwtClaimsSet.getIssuer();
+        if (Strings.hasText(issuer) == false) {
+            logger.warn("Issuer claim 'iss' is missing.");
+            return new JwtAuthenticationToken("<unrecognized-jwt>", signedJWT, JwtUtil.sha256(userCredentials), clientCredentials);
+        }
+
+        // Try all known extraction functions to build the token principal
+        for (Function<JWTClaimsSet, String> func : tokenPrincipalFunctions) {
+            final String tokenPrincipalSuffix = func.apply(jwtClaimsSet);
+            if (tokenPrincipalSuffix != null) {
+                return new JwtAuthenticationToken(
+                    issuer + "/" + tokenPrincipalSuffix,
+                    signedJWT,
+                    JwtUtil.sha256(userCredentials),
+                    clientCredentials
+                );
             }
+        }
 
-            final JWTClaimsSet jwtClaimsSet;
-            try {
-                jwtClaimsSet = signedJWT.getJWTClaimsSet();
-            } catch (ParseException e) {
-                throw new IllegalArgumentException("Failed to parse JWT claims set", e);
-            }
-
-            // If Issuer is not found, still return a JWT token since it is after still a JWT, authentication
-            // will fail later because issuer is mandated
-            final String issuer = jwtClaimsSet.getIssuer();
-            if (Strings.hasText(issuer) == false) {
-                logger.warn("Issuer claim 'iss' is missing.");
-                return new JwtAuthenticationToken("<unrecognized-jwt>", signedJWT, JwtUtil.sha256(userCredentials), clientCredentials);
-            }
-
-            // Try all known extraction functions to build the token principal
-            for (Function<JWTClaimsSet, String> func : tokenPrincipalFunctions) {
-                final String tokenPrincipalSuffix = func.apply(jwtClaimsSet);
-                if (tokenPrincipalSuffix != null) {
-                    return new JwtAuthenticationToken(
-                        issuer + "/" + tokenPrincipalSuffix,
-                        signedJWT,
-                        JwtUtil.sha256(userCredentials),
-                        clientCredentials
-                    );
-                }
-            }
-
-            // Token principal cannot be extracted even after trying all functions, but this is
-            // still a JWT token so that we should return as one.
-            return new JwtAuthenticationToken(
-                "<unrecognized-jwt> by " + issuer,
-                signedJWT,
-                JwtUtil.sha256(userCredentials),
-                clientCredentials
-            );
-        });
+        // Token principal cannot be extracted even after trying all functions, but this is
+        // still a JWT token so that we should return as one.
+        return new JwtAuthenticationToken("<unrecognized-jwt> by " + issuer, signedJWT, JwtUtil.sha256(userCredentials), clientCredentials);
     }
 
     @Override
@@ -266,50 +263,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         ensureInitialized();
         if (authenticationToken instanceof JwtAuthenticationToken jwtAuthenticationToken) {
             SpecialPermission.check();
-            AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-                final String tokenPrincipal = jwtAuthenticationToken.principal();
-
-                // Authenticate client: If client authc off, fall through. Otherwise, only fall through if secret matched.
-                final SecureString clientSecret = jwtAuthenticationToken.getClientAuthenticationSharedSecret();
-                try {
-                    JwtUtil.validateClientAuthentication(clientAuthenticationType, clientAuthenticationSharedSecret, clientSecret);
-                    logger.trace("Realm [{}] client authentication succeeded for token=[{}].", name(), tokenPrincipal);
-                } catch (Exception e) {
-                    final String msg = "Realm [" + name() + "] client authentication failed for token=[" + tokenPrincipal + "].";
-                    logger.debug(msg, e);
-                    listener.onResponse(AuthenticationResult.unsuccessful(msg, e));
-                    return null;
-                }
-
-                final BytesArray jwtCacheKey = isCacheEnabled() ? new BytesArray(jwtAuthenticationToken.getUserCredentialsHash()) : null;
-                if (jwtCacheKey != null) {
-                    final User cachedUser = tryAuthenticateWithCache(tokenPrincipal, jwtCacheKey);
-                    if (cachedUser != null) {
-                        if (delegatedAuthorizationSupport.hasDelegation()) {
-                            delegatedAuthorizationSupport.resolve(cachedUser.principal(), listener);
-                        } else {
-                            listener.onResponse(AuthenticationResult.success(cachedUser));
-                        }
-                        return null;
-                    }
-                }
-
-                // Validate JWT: Extract JWT and claims set, and validate JWT.
-                jwtAuthenticator.authenticate(jwtAuthenticationToken, ActionListener.wrap(claimsSet -> {
-                    // We need another doPrivileged call here, since ActionListener.wrap does not preserve the outer context
-                    SpecialPermission.check();
-                    AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-                        processValidatedJwt(tokenPrincipal, jwtCacheKey, claimsSet, listener);
-                        return null;
-                    });
-                }, ex -> {
-                    final String msg = "Realm [" + name() + "] JWT validation failed for token=[" + tokenPrincipal + "].";
-                    logger.debug(msg, ex);
-                    // TODO: No point to continue to another realm if failure is ParseException
-                    listener.onResponse(AuthenticationResult.unsuccessful(msg, ex));
-                }));
-                return null;
-            });
+            AccessController.doPrivileged((PrivilegedAction<Void>) () -> doAuthenticate(listener, jwtAuthenticationToken));
         } else {
             assert false : "should not happen";
             final String className = (authenticationToken == null) ? "null" : authenticationToken.getClass().getCanonicalName();
@@ -317,6 +271,51 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             logger.trace(msg);
             listener.onResponse(AuthenticationResult.unsuccessful(msg, null));
         }
+    }
+
+    private Void doAuthenticate(ActionListener<AuthenticationResult<User>> listener, JwtAuthenticationToken jwtAuthenticationToken) {
+        final String tokenPrincipal = jwtAuthenticationToken.principal();
+
+        // Authenticate client: If client authc off, fall through. Otherwise, only fall through if secret matched.
+        final SecureString clientSecret = jwtAuthenticationToken.getClientAuthenticationSharedSecret();
+        try {
+            JwtUtil.validateClientAuthentication(clientAuthenticationType, clientAuthenticationSharedSecret, clientSecret);
+            logger.trace("Realm [{}] client authentication succeeded for token=[{}].", name(), tokenPrincipal);
+        } catch (Exception e) {
+            final String msg = "Realm [" + name() + "] client authentication failed for token=[" + tokenPrincipal + "].";
+            logger.debug(msg, e);
+            listener.onResponse(AuthenticationResult.unsuccessful(msg, e));
+            return null;
+        }
+
+        final BytesArray jwtCacheKey = isCacheEnabled() ? new BytesArray(jwtAuthenticationToken.getUserCredentialsHash()) : null;
+        if (jwtCacheKey != null) {
+            final User cachedUser = tryAuthenticateWithCache(tokenPrincipal, jwtCacheKey);
+            if (cachedUser != null) {
+                if (delegatedAuthorizationSupport.hasDelegation()) {
+                    delegatedAuthorizationSupport.resolve(cachedUser.principal(), listener);
+                } else {
+                    listener.onResponse(AuthenticationResult.success(cachedUser));
+                }
+                return null;
+            }
+        }
+
+        // Validate JWT: Extract JWT and claims set, and validate JWT.
+        jwtAuthenticator.authenticate(jwtAuthenticationToken, ActionListener.wrap(claimsSet -> {
+            // We need another doPrivileged call here, since ActionListener.wrap does not preserve the outer context
+            SpecialPermission.check();
+            AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+                processValidatedJwt(tokenPrincipal, jwtCacheKey, claimsSet, listener);
+                return null;
+            });
+        }, ex -> {
+            final String msg = "Realm [" + name() + "] JWT validation failed for token=[" + tokenPrincipal + "].";
+            logger.debug(msg, ex);
+            // TODO: No point to continue to another realm if failure is ParseException
+            listener.onResponse(AuthenticationResult.unsuccessful(msg, ex));
+        }));
+        return null;
     }
 
     void ensureInitialized() {

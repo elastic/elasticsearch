@@ -189,52 +189,56 @@ public class OpenIdConnectAuthenticator {
      * @param listener The listener to notify with the resolved {@link JWTClaimsSet}
      */
     public void authenticate(OpenIdConnectToken token, final ActionListener<JWTClaimsSet> listener) {
-        try {
-            AuthenticationResponse authenticationResponse = AuthenticationResponseParser.parse(new URI(token.getRedirectUrl()));
-            final Nonce expectedNonce = token.getNonce();
-            State expectedState = token.getState();
-            if (LOGGER.isTraceEnabled()) {
-                LOGGER.trace(
-                    "OpenID Connect Provider redirected user to [{}]. Expected Nonce is [{}] and expected State is [{}]",
-                    token.getRedirectUrl(),
-                    expectedNonce,
-                    expectedState
-                );
-            }
-            if (authenticationResponse instanceof AuthenticationErrorResponse) {
-                ErrorObject error = ((AuthenticationErrorResponse) authenticationResponse).getErrorObject();
-                listener.onFailure(
-                    new ElasticsearchSecurityException(
-                        "OpenID Connect Provider response indicates authentication failure" + "Code=[{}], Description=[{}]",
-                        error.getCode(),
-                        error.getDescription()
-                    )
-                );
-                return;
-            }
-            final AuthenticationSuccessResponse response = authenticationResponse.toSuccessResponse();
-            validateState(expectedState, response.getState());
-            validateResponseType(response);
-            if (rpConfig.getResponseType().impliesCodeFlow()) {
-                final AuthorizationCode code = response.getAuthorizationCode();
-                exchangeCodeForToken(code, ActionListener.wrap(tokens -> {
-                    final AccessToken accessToken = tokens.v1();
-                    final JWT idToken = tokens.v2();
+        SpecialPermission.check();
+        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+            try {
+                AuthenticationResponse authenticationResponse = AuthenticationResponseParser.parse(new URI(token.getRedirectUrl()));
+                final Nonce expectedNonce = token.getNonce();
+                State expectedState = token.getState();
+                if (LOGGER.isTraceEnabled()) {
+                    LOGGER.trace(
+                        "OpenID Connect Provider redirected user to [{}]. Expected Nonce is [{}] and expected State is [{}]",
+                        token.getRedirectUrl(),
+                        expectedNonce,
+                        expectedState
+                    );
+                }
+                if (authenticationResponse instanceof AuthenticationErrorResponse) {
+                    ErrorObject error = ((AuthenticationErrorResponse) authenticationResponse).getErrorObject();
+                    listener.onFailure(
+                        new ElasticsearchSecurityException(
+                            "OpenID Connect Provider response indicates authentication failure" + "Code=[{}], Description=[{}]",
+                            error.getCode(),
+                            error.getDescription()
+                        )
+                    );
+                    return null;
+                }
+                final AuthenticationSuccessResponse response = authenticationResponse.toSuccessResponse();
+                validateState(expectedState, response.getState());
+                validateResponseType(response);
+                if (rpConfig.getResponseType().impliesCodeFlow()) {
+                    final AuthorizationCode code = response.getAuthorizationCode();
+                    exchangeCodeForToken(code, ActionListener.wrap(tokens -> {
+                        final AccessToken accessToken = tokens.v1();
+                        final JWT idToken = tokens.v2();
+                        validateAccessToken(accessToken, idToken);
+                        getUserClaims(accessToken, idToken, expectedNonce, true, listener);
+                    }, listener::onFailure));
+                } else {
+                    final JWT idToken = response.getIDToken();
+                    final AccessToken accessToken = response.getAccessToken();
                     validateAccessToken(accessToken, idToken);
                     getUserClaims(accessToken, idToken, expectedNonce, true, listener);
-                }, listener::onFailure));
-            } else {
-                final JWT idToken = response.getIDToken();
-                final AccessToken accessToken = response.getAccessToken();
-                validateAccessToken(accessToken, idToken);
-                getUserClaims(accessToken, idToken, expectedNonce, true, listener);
+                }
+            } catch (ElasticsearchSecurityException e) {
+                // Don't wrap in a new ElasticsearchSecurityException
+                listener.onFailure(e);
+            } catch (Exception e) {
+                listener.onFailure(new ElasticsearchSecurityException("Failed to consume the OpenID connect response. ", e));
             }
-        } catch (ElasticsearchSecurityException e) {
-            // Don't wrap in a new ElasticsearchSecurityException
-            listener.onFailure(e);
-        } catch (Exception e) {
-            listener.onFailure(new ElasticsearchSecurityException("Failed to consume the OpenID connect response. ", e));
-        }
+            return null;
+        });
     }
 
     /**
@@ -289,7 +293,7 @@ public class OpenIdConnectAuthenticator {
             if (shouldRetry
                 && JWSAlgorithm.Family.HMAC_SHA.contains(rpConfig.getSignatureAlgorithm()) == false
                 && opConfig.getJwkSetPath().startsWith("https://")) {
-                ((ReloadableJWKSource<?>) ((JWSVerificationKeySelector<?>) idTokenValidator.get().getJWSKeySelector()).getJWKSource())
+                ((ReloadableJWKSource) ((JWSVerificationKeySelector) idTokenValidator.get().getJWSKeySelector()).getJWKSource())
                     .triggerReload(ActionListener.wrap(v -> {
                         getUserClaims(accessToken, idToken, expectedNonce, false, claimsListener);
                     }, ex -> {
@@ -307,23 +311,7 @@ public class OpenIdConnectAuthenticator {
 
     private JWTClaimsSet getVerifiedIdTokenClaims(JWT idToken, Nonce expectedNonce) throws BadJOSEException,
         com.nimbusds.oauth2.sdk.ParseException, JOSEException {
-        SpecialPermission.check();
-        try {
-            return AccessController.doPrivileged(
-                (PrivilegedExceptionAction<JWTClaimsSet>) () -> idTokenValidator.get().validate(idToken, expectedNonce).toJWTClaimsSet()
-            );
-        } catch (PrivilegedActionException e) {
-            if (e.getCause() instanceof BadJOSEException cause) {
-                throw cause;
-            } else if (e.getCause() instanceof com.nimbusds.oauth2.sdk.ParseException cause) {
-                throw cause;
-            } else if (e.getCause() instanceof JOSEException cause) {
-                throw cause;
-            } else {
-                LOGGER.warn("Unexpected privileged action exception while validating claim set", e);
-                throw new IllegalStateException("Unexpected privileged action exception while validating claim set", e);
-            }
-        }
+        return idTokenValidator.get().validate(idToken, expectedNonce).toJWTClaimsSet();
     }
 
     /**
@@ -627,24 +615,12 @@ public class OpenIdConnectAuthenticator {
     }
 
     private ClientSecretJWT createClientSecretJWT() throws JOSEException {
-        SpecialPermission.check();
-        try {
-            return AccessController.doPrivileged(
-                (PrivilegedExceptionAction<ClientSecretJWT>) () -> new ClientSecretJWT(
-                    rpConfig.getClientId(),
-                    opConfig.getTokenEndpoint(),
-                    rpConfig.getClientAuthenticationJwtAlgorithm(),
-                    new Secret(rpConfig.getClientSecret().toString())
-                )
-            );
-        } catch (PrivilegedActionException e) {
-            if (e.getCause() instanceof JOSEException cause) {
-                throw cause;
-            } else {
-                LOGGER.warn("Unexpected privileged action exception while validating claim set", e);
-                throw new IllegalStateException("Unexpected privileged action exception while validating claim set", e);
-            }
-        }
+        return new ClientSecretJWT(
+            rpConfig.getClientId(),
+            opConfig.getTokenEndpoint(),
+            rpConfig.getClientAuthenticationJwtAlgorithm(),
+            new Secret(rpConfig.getClientSecret().toString())
+        );
     }
 
     /**

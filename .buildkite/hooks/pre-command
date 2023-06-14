@@ -41,3 +41,14 @@ if [[ "$BUILDKITE_SCRIPT_PATH" != *"buildkite-agent pipeline upload"* ]]; then
   mv jdk-17.0.2 openjdk17
   cd -
 fi
+
+VAULT_PATH_PREFIX="secret/ci/elastic-elasticsearch/migrated"
+if [[ "$VAULT_ADDR" = *"secrets.elastic.co"* ]]; then
+  VAULT_PATH_PREFIX="secret/elasticsearch-ci"
+fi
+
+GRADLE_BUILD_CACHE_USERNAME=$(vault read -field=username "${VAULT_PATH_PREFIX}/gradle-build-cache")
+export GRADLE_BUILD_CACHE_USERNAME
+
+GRADLE_BUILD_CACHE_PASSWORD=$(vault read -field=password "${VAULT_PATH_PREFIX}/gradle-build-cache")
+export GRADLE_BUILD_CACHE_PASSWORD

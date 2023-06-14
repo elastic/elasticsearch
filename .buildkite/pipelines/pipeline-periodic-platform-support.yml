@@ -7,7 +7,7 @@ agents:
 steps:
   - group: platform-support-unix
     steps:
-      - label: "{{matrix.image}} platform-support-unix"
+      - label: "{{matrix.image}} / platform-support-unix"
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dbwc.checkout.align=true check
         agents:
           provider: gcp
@@ -37,7 +37,7 @@ steps:
         env: {}
   - group: platform-support-arm
     steps:
-      - label: "{{matrix.image}} {{matrix.GRADLE_TASK}} platform-support-arm"
+      - label: "{{matrix.image}} / {{matrix.GRADLE_TASK}} / platform-support-arm"
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dbwc.checkout.align=true
           $$GRADLE_TASK
         agents:

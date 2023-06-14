@@ -31,7 +31,7 @@ steps:
       tar -czf $$WORKSPACE/build/$${BUILD_NUMBER}.tar.bz2 profile-out
   - group: bwc-snapshots
     steps:
-      - label: "{{matrix.BWC_VERSION}} bwc-snapshots"
+      - label: "{{matrix.BWC_VERSION}} / bwc-snapshots"
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed
           v$$BWC_VERSION#bwcTest
         matrix:
@@ -562,7 +562,8 @@ steps:
           BWC_VERSION: 8.9.0
   - group: packaging-tests-unix-sample
     steps:
-      - label: "{{matrix.image}} {{matrix.PACKAGING_TASK}} packaging-tests-unix-sample"
+      - label: "{{matrix.image}} / {{matrix.PACKAGING_TASK}} /
+          packaging-tests-unix-sample"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           $$PACKAGING_TASK
@@ -585,7 +586,7 @@ steps:
           PACKAGING_TASK: "{{matrix.PACKAGING_TASK}}"
   - group: packaging-tests-unix
     steps:
-      - label: "{{matrix.image}} {{matrix.PACKAGING_TASK}} packaging-tests-unix"
+      - label: "{{matrix.image}} / {{matrix.PACKAGING_TASK}} / packaging-tests-unix"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           $$PACKAGING_TASK
@@ -622,7 +623,7 @@ steps:
           PACKAGING_TASK: "{{matrix.PACKAGING_TASK}}"
   - group: packaging-upgrade-tests
     steps:
-      - label: "{{matrix.image}} packaging-upgrade-tests / 7.0.0"
+      - label: "{{matrix.image}} / packaging-upgrade-tests / 7.0.0"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructiveDistroUpgradeTest.v$$BWC_VERSION

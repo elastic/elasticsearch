@@ -11,7 +11,7 @@ following: `arabic_normalization`, `asciifolding`, `bengali_normalization`,
 `cjk_width`, `decimal_digit`, `elision`, `german_normalization`,
 `hindi_normalization`, `indic_normalization`, `lowercase`,
 `persian_normalization`, `scandinavian_folding`, `serbian_normalization`,
-`sorani_normalization`, `uppercase`.
+`sorani_normalization`, `trim`, `uppercase`.
 
 Elasticsearch ships with a `lowercase` built-in normalizer. For other forms of
 normalization a custom configuration is required.

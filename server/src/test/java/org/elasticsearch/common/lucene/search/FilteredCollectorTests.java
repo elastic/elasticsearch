@@ -13,10 +13,12 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopScoreDocCollector;
 import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.search.Weight;
@@ -94,6 +96,28 @@ public class FilteredCollectorTests extends ESTestCase {
             Weight filterWeight = termQuery.createWeight(searcher, ScoreMode.TOP_DOCS, 1f);
             searcher.search(new MatchAllDocsQuery(), new FilteredCollector(totalHitCountCollector, filterWeight));
             assertEquals(1, totalHitCountCollector.getTotalHits());
+        }
+    }
+
+    public void testManager() throws IOException {
+        CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = TopScoreDocCollector.createSharedManager(1, null, 100);
+        {
+            TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), topDocsManager);
+            assertEquals(numDocs, topDocs.totalHits.value);
+        }
+        {
+            TermQuery termQuery = new TermQuery(new Term("field2", "value"));
+            Weight filterWeight = termQuery.createWeight(searcher, ScoreMode.TOP_DOCS, 1f);
+            CollectorManager<FilteredCollector, TopDocs> filteredManager = FilteredCollector.createManager(topDocsManager, filterWeight);
+            TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), filteredManager);
+            assertEquals(1, topDocs.totalHits.value);
+        }
+        {
+            TermQuery termQuery = new TermQuery(new Term("field1", "value"));
+            Weight filterWeight = termQuery.createWeight(searcher, ScoreMode.TOP_DOCS, 1f);
+            CollectorManager<FilteredCollector, TopDocs> filteredManager = FilteredCollector.createManager(topDocsManager, filterWeight);
+            TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), filteredManager);
+            assertEquals(numDocs, topDocs.totalHits.value);
         }
     }
 }

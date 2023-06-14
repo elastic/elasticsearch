@@ -9,6 +9,7 @@ package org.elasticsearch.common.lucene.search;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.FilterLeafCollector;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.ScoreMode;
@@ -18,6 +19,8 @@ import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.lucene.Lucene;
 
 import java.io.IOException;
+import java.util.Collection;
+import java.util.List;
 
 /**
  * Collector that wraps another collector and collects only documents that match the provided filter.
@@ -59,5 +62,26 @@ public class FilteredCollector implements Collector {
     @Override
     public ScoreMode scoreMode() {
         return collector.scoreMode();
+    }
+
+    /**
+     * Creates a {@link CollectorManager} for {@link FilteredCollector}, which enables inter-segment search concurrency
+     * when a <code>post_filter</code> is provided as part of a search request.
+     */
+    public static <C extends Collector, T> CollectorManager<FilteredCollector, T> createManager(CollectorManager<C, T> collectorManager,
+                                                                          Weight filter) {
+        return new CollectorManager<>() {
+            @Override
+            public FilteredCollector newCollector() throws IOException {
+                return new FilteredCollector(collectorManager.newCollector(), filter);
+            }
+
+            @Override
+            public T reduce(Collection<FilteredCollector> collectors) throws IOException {
+                @SuppressWarnings("unchecked")
+                List<C> innerCollectors = collectors.stream().map(filteredCollector -> (C)filteredCollector.collector).toList();
+                return collectorManager.reduce(innerCollectors);
+            }
+        };
     }
 }

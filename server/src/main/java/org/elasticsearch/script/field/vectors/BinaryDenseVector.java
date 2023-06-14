@@ -9,8 +9,8 @@
 package org.elasticsearch.script.field.vectors;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.index.IndexVersion;
 import org.apache.lucene.util.VectorUtil;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.vectors.VectorEncoderDecoder;
 
 import java.util.List;

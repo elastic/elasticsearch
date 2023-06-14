@@ -32,7 +32,7 @@ grant {
   permission java.lang.RuntimePermission "accessUserInformation";
   permission java.lang.RuntimePermission "getFileStoreAttributes";
 
-  // TODO the ES security code also needs this permission (in addition to nimbus)
+  // needed for OIDC and JWT realm nimbus-jose-jwt dependency
   permission java.lang.RuntimePermission "accessDeclaredMembers";
 };
 

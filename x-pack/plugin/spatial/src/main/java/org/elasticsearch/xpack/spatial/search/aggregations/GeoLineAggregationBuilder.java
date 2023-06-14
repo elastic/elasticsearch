@@ -170,7 +170,7 @@ public class GeoLineAggregationBuilder extends MultiValuesSourceAggregationBuild
                     defaultValueSourceType()
                 );
                 configs.put(SORT_FIELD.getPreferredName(), sourceConfig);
-            } else if (false && sourceConfig.fieldContext().field().equals(TIMESTAMP_FIELD.getName()) == false) {
+            } else if (sourceConfig.fieldContext().field().equals(TIMESTAMP_FIELD.getName()) == false) {
                 // TODO: Decide if this is an error or just reverting to classic geo_line code
                 throw new IllegalArgumentException(
                     "invalid field ["

@@ -322,12 +322,15 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
             for (int g : new int[] { 1, 3 }) {
                 for (SortOrder sortOrder : new SortOrder[] { SortOrder.ASC, SortOrder.DESC }) {
                     var testConfig = new TestConfig(100, 100, 3, 7, g, sortOrder, useTimestamp);
-                    assertGeoLine_TSDB(testConfig, gl -> new TimeSeriesAggregationBuilder("ts").subAggregation(gl), tsx -> {
+                    Function<GeoLineAggregationBuilder, AggregationBuilder> aggBuilderFunc = useTimestamp
+                        ? gl -> new TimeSeriesAggregationBuilder("ts").subAggregation(gl)
+                        : gl -> new TermsAggregationBuilder("groups").field("group_id").subAggregation(gl);
+                    assertGeoLine_TSDB(testConfig, aggBuilderFunc, tsx -> {
                         assertThat("Number of groups matches number of buckets", tsx.ts.getBuckets().size(), equalTo(tsx.groups.length));
                         assertThat("Number of time-series buckets", tsx.ts.getBuckets().size(), equalTo(g));
                         for (int i = 0; i < tsx.groups.length; i++) {
                             InternalGeoLine geoLine = tsx.ts.getBuckets().get(i).getAggregations().get("track");
-                            assertGeoLine2(sortOrder, tsx.groups[i], geoLine, tsx, true);
+                            assertGeoLine(sortOrder, tsx.groups[i], geoLine, tsx, true);
                         }
                     });
                 }
@@ -336,25 +339,23 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
     }
 
     public void testGeoLine_Terms_TSDB() throws IOException {
-        for (boolean useTimestamp : new boolean[] { true, false }) {
-            for (int g : new int[] { 1, 3 }) {
-                for (SortOrder sortOrder : new SortOrder[] { SortOrder.ASC, SortOrder.DESC }) {
-                    var testConfig = new TestConfig(80, 80, 7, 3, g, sortOrder, useTimestamp);
-                    assertGeoLine_TSDB(testConfig, gl -> {
-                        var termsAggBuilder = new TermsAggregationBuilder("groups").field("group_id").subAggregation(gl);
-                        return new TimeSeriesAggregationBuilder("ts").subAggregation(termsAggBuilder);
-                    }, tsx -> {
-                        assertThat("Number of groups matches number of buckets", tsx.ts.getBuckets().size(), equalTo(tsx.groups.length));
+        for (int g : new int[] { 1, 3 }) {
+            for (SortOrder sortOrder : new SortOrder[] { SortOrder.ASC, SortOrder.DESC }) {
+                var testConfig = new TestConfig(80, 80, 7, 3, g, sortOrder, true);
+                assertGeoLine_TSDB(testConfig, gl -> {
+                    var termsAggBuilder = new TermsAggregationBuilder("groups").field("group_id").subAggregation(gl);
+                    return new TimeSeriesAggregationBuilder("ts").subAggregation(termsAggBuilder);
+                }, tsx -> {
+                    assertThat("Number of groups matches number of buckets", tsx.ts.getBuckets().size(), equalTo(tsx.groups.length));
+                    assertThat("Number of time-series buckets", tsx.ts.getBuckets().size(), equalTo(g));
+                    for (int i = 0; i < tsx.groups.length; i++) {
                         assertThat("Number of time-series buckets", tsx.ts.getBuckets().size(), equalTo(g));
-                        for (int i = 0; i < tsx.groups.length; i++) {
-                            assertThat("Number of time-series buckets", tsx.ts.getBuckets().size(), equalTo(g));
-                            StringTerms terms = tsx.ts.getBuckets().get(i).getAggregations().get("groups");
-                            assertThat("Number of terms buckets", terms.getBuckets().size(), equalTo(1));
-                            InternalGeoLine geoLine = terms.getBuckets().get(0).getAggregations().get("track");
-                            assertGeoLine2(sortOrder, tsx.groups[i], geoLine, tsx, true);
-                        }
-                    });
-                }
+                        StringTerms terms = tsx.ts.getBuckets().get(i).getAggregations().get("groups");
+                        assertThat("Number of terms buckets", terms.getBuckets().size(), equalTo(1));
+                        InternalGeoLine geoLine = terms.getBuckets().get(0).getAggregations().get("track");
+                        assertGeoLine(sortOrder, tsx.groups[i], geoLine, tsx, true);
+                    }
+                });
             }
         }
     }
@@ -364,12 +365,15 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
             for (int g : new int[] { 1, 3 }) {
                 for (SortOrder sortOrder : new SortOrder[] { SortOrder.ASC, SortOrder.DESC }) {
                     var testConfig = new TestConfig(100, 10, 3, 7, g, sortOrder, useTimestamp);
-                    assertGeoLine_TSDB(testConfig, gl -> new TimeSeriesAggregationBuilder("ts").subAggregation(gl), tsx -> {
+                    Function<GeoLineAggregationBuilder, AggregationBuilder> aggBuilderFunc = useTimestamp
+                        ? gl -> new TimeSeriesAggregationBuilder("ts").subAggregation(gl)
+                        : gl -> new TermsAggregationBuilder("groups").field("group_id").subAggregation(gl);
+                    assertGeoLine_TSDB(testConfig, aggBuilderFunc, tsx -> {
                         assertThat("Number of groups matches number of buckets", tsx.ts.getBuckets().size(), equalTo(tsx.groups.length));
                         assertThat("Number of time-series buckets", tsx.ts.getBuckets().size(), equalTo(g));
                         for (int i = 0; i < tsx.groups.length; i++) {
                             InternalGeoLine geoLine = tsx.ts.getBuckets().get(i).getAggregations().get("track");
-                            assertGeoLine2(sortOrder, tsx.groups[i], geoLine, tsx, false);
+                            assertGeoLine(sortOrder, tsx.groups[i], geoLine, tsx, false);
                         }
                     });
                 }
@@ -378,30 +382,28 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
     }
 
     public void testGeoLine_Terms_TSDB_simplified() throws IOException {
-        for (boolean useTimestamp : new boolean[] { true, false }) {
-            for (int g : new int[] { 1, 3 }) {
-                for (SortOrder sortOrder : new SortOrder[] { SortOrder.ASC, SortOrder.DESC }) {
-                    var testConfig = new TestConfig(80, 10, 7, 3, g, sortOrder, useTimestamp);
-                    assertGeoLine_TSDB(testConfig, gl -> {
-                        var termsAggBuilder = new TermsAggregationBuilder("groups").field("group_id").subAggregation(gl);
-                        return new TimeSeriesAggregationBuilder("ts").subAggregation(termsAggBuilder);
-                    }, tsx -> {
-                        assertThat("Number of groups matches number of buckets", tsx.ts.getBuckets().size(), equalTo(tsx.groups.length));
+        for (int g : new int[] { 1, 3 }) {
+            for (SortOrder sortOrder : new SortOrder[] { SortOrder.ASC, SortOrder.DESC }) {
+                var testConfig = new TestConfig(80, 10, 7, 3, g, sortOrder, true);
+                assertGeoLine_TSDB(testConfig, gl -> {
+                    var termsAggBuilder = new TermsAggregationBuilder("groups").field("group_id").subAggregation(gl);
+                    return new TimeSeriesAggregationBuilder("ts").subAggregation(termsAggBuilder);
+                }, tsx -> {
+                    assertThat("Number of groups matches number of buckets", tsx.ts.getBuckets().size(), equalTo(tsx.groups.length));
+                    assertThat("Number of time-series buckets", tsx.ts.getBuckets().size(), equalTo(g));
+                    for (int i = 0; i < tsx.groups.length; i++) {
                         assertThat("Number of time-series buckets", tsx.ts.getBuckets().size(), equalTo(g));
-                        for (int i = 0; i < tsx.groups.length; i++) {
-                            assertThat("Number of time-series buckets", tsx.ts.getBuckets().size(), equalTo(g));
-                            StringTerms terms = tsx.ts.getBuckets().get(i).getAggregations().get("groups");
-                            assertThat("Number of terms buckets", terms.getBuckets().size(), equalTo(1));
-                            InternalGeoLine geoLine = terms.getBuckets().get(0).getAggregations().get("track");
-                            assertGeoLine2(sortOrder, tsx.groups[i], geoLine, tsx, false);
-                        }
-                    });
-                }
+                        StringTerms terms = tsx.ts.getBuckets().get(i).getAggregations().get("groups");
+                        assertThat("Number of terms buckets", terms.getBuckets().size(), equalTo(1));
+                        InternalGeoLine geoLine = terms.getBuckets().get(0).getAggregations().get("track");
+                        assertGeoLine(sortOrder, tsx.groups[i], geoLine, tsx, false);
+                    }
+                });
             }
         }
     }
 
-    private void assertGeoLine2(SortOrder sortOrder, String group, InternalGeoLine geoLine, TestTSAssertionResults tsx, boolean complete) {
+    private void assertGeoLine(SortOrder sortOrder, String group, InternalGeoLine geoLine, TestTSAssertionResults tsx, boolean complete) {
         long[] expectedAggPoints = tsx.expectedAggPoints.get(group);
         double[] expectedAggSortValues = tsx.expectedAggSortValues.get(group);
         String prefix = "GeoLine[sort=" + sortOrder + ", use-timestamps=" + tsx.useTimestampField + "]";
@@ -625,6 +627,7 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
             return useTimestamp ? "@timestamp" : "time_field";
         }
 
+        @SuppressWarnings("SameParameterValue")
         private GeoLineAggregationBuilder lineAggregationBuilder(String name, String valueField, String sortField) {
             MultiValuesSourceFieldConfig valueConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName(valueField).build();
             GeoLineAggregationBuilder lineAggregationBuilder = new GeoLineAggregationBuilder(name).point(valueConfig)
@@ -755,15 +758,15 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
 
     private void assertGeoLine_TSDB(
         TestConfig testConfig,
-        Function<GeoLineAggregationBuilder, TimeSeriesAggregationBuilder> makeTSAggBuilder,
+        Function<GeoLineAggregationBuilder, AggregationBuilder> makeTSAggBuilder,
         Consumer<TestTSAssertionResults> verifyTSResults
     ) throws IOException {
         // Prepare test data
         TestData testData = new TestData(testConfig);
 
         // Create the nested aggregations to run
-        var lineAggregationBuilder = testConfig.lineAggregationBuilder("track", "value_field", "time_field");
-        TimeSeriesAggregationBuilder aggregationBuilder = makeTSAggBuilder.apply(lineAggregationBuilder);
+        GeoLineAggregationBuilder lineAggregationBuilder = testConfig.lineAggregationBuilder("track", "value_field", "time_field");
+        AggregationBuilder aggregationBuilder = makeTSAggBuilder.apply(lineAggregationBuilder);
 
         // Run the aggregation
         testCase(aggregationBuilder, iw -> {

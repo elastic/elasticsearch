@@ -57,7 +57,7 @@ public class PostWriteRefreshTests extends IndexShardTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        transportService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, TransportVersion.CURRENT, threadPool);
+        transportService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, TransportVersion.current(), threadPool);
         transportService.start();
         transportService.acceptIncomingRequests();
         transportService.registerRequestHandler(

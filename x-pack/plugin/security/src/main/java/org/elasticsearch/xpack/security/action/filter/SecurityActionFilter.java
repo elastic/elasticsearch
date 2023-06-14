@@ -106,7 +106,7 @@ public class SecurityActionFilter implements ActionFilter {
                 AuthorizationUtils.switchUserBasedOnActionOriginAndExecute(
                     threadContext,
                     securityContext,
-                    TransportVersion.CURRENT, // current version since this is on the same node
+                    TransportVersion.current(), // current version since this is on the same node
                     (original) -> { applyInternal(task, chain, action, request, contextPreservingListener); }
                 );
             } else {

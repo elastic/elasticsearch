@@ -10,7 +10,6 @@ package org.elasticsearch.index;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.Strings;
 import org.apache.lucene.index.MergePolicy;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRouting;
@@ -975,8 +974,8 @@ public final class IndexSettings {
      * Returns the version the index was created on.
      * @see IndexMetadata#SETTING_VERSION_CREATED
      */
-    public Version getIndexVersionCreated() {
-        return version.toVersion();
+    public IndexVersion getIndexVersionCreated() {
+        return version;
     }
 
     /**

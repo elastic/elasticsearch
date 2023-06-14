@@ -179,7 +179,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         ADAPTIVE_SELECTION("adaptive_selection"),
         SCRIPT_CACHE("script_cache"),
         INDEXING_PRESSURE("indexing_pressure"),
-        REPOSITORY("repository");
+        REPOSITORIES("repositories");
 
         private String metricName;
 

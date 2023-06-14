@@ -467,7 +467,7 @@ public class DiscoveryNodesTests extends ESTestCase {
                             discoveryNodes,
                             writableRegistry(),
                             in -> DiscoveryNodes.readFrom(in, null),
-                            TransportVersion.CURRENT
+                            TransportVersion.current()
                         );
                     } catch (IOException e) {
                         throw new AssertionError("unexpected", e);

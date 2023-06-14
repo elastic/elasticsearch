@@ -150,7 +150,7 @@ public class TDigestState {
         double compression = in.readDouble();
         TDigestState state;
         long size = 0;
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_9_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_012)) {
             state = new TDigestState(Type.valueOf(in.readString()), compression);
             size = in.readVLong();
         } else {

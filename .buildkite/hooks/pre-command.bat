@@ -1,6 +1,6 @@
 @ECHO OFF
 
-FOR /F "tokens=* eol=#" %%i in ('type .ci/java-versions.properties') do SET %%i
+FOR /F "tokens=* eol=#" %%i in ('type .ci\java-versions.properties') do set %%i
 
 SET JAVA_HOME="%USERPROFILE%\.java\%ES_BUILD_JAVA%"
 SET JAVA11_HOME="%USERPROFILE%\.java\java11"
@@ -19,4 +19,5 @@ powershell -Command "Invoke-WebRequest https://download.java.net/java/GA/jdk17.0
 powershell -Command "Expand-Archive openjdk-17.0.2_windows-x64_bin.zip"
 
 md "%JAVA_HOME%"
-move openjdk-17.0.2_windows-x64_bin\jdk-17.0.2 "%JAVA_HOME%"
+rem move openjdk-17.0.2_windows-x64_bin\jdk-17.0.2 "%JAVA_HOME%"
+robocopy openjdk-17.0.2_windows-x64_bin\jdk-17.0.2\ %JAVA_HOME% /E /MOV /NFL /NDL

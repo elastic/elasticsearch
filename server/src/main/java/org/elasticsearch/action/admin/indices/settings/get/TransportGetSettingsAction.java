@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
@@ -33,9 +32,6 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static java.util.Collections.unmodifiableMap;
-import static org.elasticsearch.index.IndexSettings.INDEX_FAST_REFRESH_SETTING;
-import static org.elasticsearch.index.IndexSettings.INDEX_REFRESH_INTERVAL_SETTING;
-import static org.elasticsearch.index.IndexSettings.STATELESS_MIN_NON_FAST_REFRESH_INTERVAL;
 
 public class TransportGetSettingsAction extends TransportMasterNodeReadAction<GetSettingsRequest, GetSettingsResponse> {
 
@@ -104,15 +100,7 @@ public class TransportGetSettingsAction extends TransportMasterNodeReadAction<Ge
 
             indexToSettings.put(concreteIndex.getName(), indexSettings);
             if (request.includeDefaults()) {
-                Settings defaultSettings = Settings.EMPTY;
-                if (DiscoveryNode.isStateless(clusterService.getSettings())
-                    && INDEX_FAST_REFRESH_SETTING.get(indexMetadata.getSettings()) == false) {
-                    // Override refresh interval default value for stateless non fast refresh indices
-                    defaultSettings = Settings.builder()
-                        .put(INDEX_REFRESH_INTERVAL_SETTING.getKey(), STATELESS_MIN_NON_FAST_REFRESH_INTERVAL)
-                        .build();
-                }
-                defaultSettings = settingsFilter.filter(indexScopedSettings.diff(indexSettings, defaultSettings));
+                Settings defaultSettings = settingsFilter.filter(indexScopedSettings.diff(indexSettings, Settings.EMPTY));
                 if (isFilteredRequest(request)) {
                     defaultSettings = defaultSettings.filter(k -> Regex.simpleMatch(request.names(), k));
                 }

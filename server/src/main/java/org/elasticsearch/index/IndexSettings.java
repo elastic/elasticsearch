@@ -36,6 +36,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+import static org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING;
@@ -128,6 +129,7 @@ public final class IndexSettings {
         Property.Dynamic,
         Property.IndexScope
     );
+
     /**
      * Index setting describing the maximum value of from + size on an individual inner hit definition or
      * top hits aggregation. The default maximum of 100 is defensive for the reason that the number of inner hit responses
@@ -237,6 +239,7 @@ public final class IndexSettings {
         Property.Dynamic,
         Property.IndexScope
     );
+
     /**
      * Index setting describing the maximum size of the rescore window. Defaults to {@link #MAX_RESULT_WINDOW_SETTING}
      * because they both do the same thing: control the size of the heap of hits.
@@ -248,6 +251,7 @@ public final class IndexSettings {
         Property.Dynamic,
         Property.IndexScope
     );
+
     public static final TimeValue DEFAULT_REFRESH_INTERVAL = new TimeValue(1, TimeUnit.SECONDS);
     public static final Setting<TimeValue> NODE_DEFAULT_REFRESH_INTERVAL_SETTING = Setting.timeSetting(
         "node._internal.default_refresh_interval",
@@ -255,14 +259,7 @@ public final class IndexSettings {
         new TimeValue(-1, TimeUnit.MILLISECONDS),
         Property.NodeScope
     );
-    public static TimeValue STATELESS_MIN_NON_FAST_REFRESH_INTERVAL = TimeValue.timeValueSeconds(5);
-    public static final Setting<TimeValue> INDEX_REFRESH_INTERVAL_SETTING = Setting.timeSetting(
-        "index.refresh_interval",
-        NODE_DEFAULT_REFRESH_INTERVAL_SETTING, // default value may be overridden in stateless with STATELESS_MIN_NON_FAST_REFRESH_INTERVAL
-        TimeValue.MINUS_ONE,
-        Property.Dynamic,
-        Property.IndexScope
-    );
+
     /**
      * Only intended for stateless.
      */
@@ -272,6 +269,64 @@ public final class IndexSettings {
         Property.Final,
         Property.IndexScope
     );
+
+    public static TimeValue STATELESS_MIN_NON_FAST_REFRESH_INTERVAL = TimeValue.timeValueSeconds(5);
+    public static final Setting<TimeValue> INDEX_REFRESH_INTERVAL_SETTING = Setting.timeSetting("index.refresh_interval", (settings) -> {
+        if (EXISTING_SHARDS_ALLOCATOR_SETTING.get(settings).equals("stateless") && INDEX_FAST_REFRESH_SETTING.get(settings) == false) {
+            return STATELESS_MIN_NON_FAST_REFRESH_INTERVAL;
+        }
+        return NODE_DEFAULT_REFRESH_INTERVAL_SETTING.get(settings);
+    }, new RefreshIntervalValidator(), Property.Dynamic, Property.IndexScope);
+
+    static class RefreshIntervalValidator implements Setting.Validator<TimeValue> {
+        @Override
+        public void validate(TimeValue value) {}
+
+        @Override
+        public void validate(final TimeValue value, final Map<Setting<?>, Object> settings) {
+            final String existingShardsAllocator = (String) settings.get(EXISTING_SHARDS_ALLOCATOR_SETTING);
+            final Boolean fastRefresh = (Boolean) settings.get(INDEX_FAST_REFRESH_SETTING);
+
+            if (existingShardsAllocator.equals("stateless")
+                && fastRefresh == false
+                && value.compareTo(TimeValue.ZERO) >= 0
+                && value.compareTo(STATELESS_MIN_NON_FAST_REFRESH_INTERVAL) < 0) {
+                throw new IllegalArgumentException(
+                    "index setting ["
+                        + IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey()
+                        + "="
+                        + value
+                        + "] should be either "
+                        + TimeValue.MINUS_ONE
+                        + " or equal to or greater than "
+                        + STATELESS_MIN_NON_FAST_REFRESH_INTERVAL
+                );
+            }
+
+            if (value.compareTo(TimeValue.MINUS_ONE) < 0) {
+                throw new IllegalArgumentException(
+                    "index setting ["
+                        + IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey()
+                        + "="
+                        + value
+                        + "] should be minimum "
+                        + TimeValue.MINUS_ONE
+                );
+            }
+        }
+
+        @Override
+        public Iterator<Setting<?>> settings() {
+            return REFRESH_INTERVAL_VALIDATOR_SETTINGS_LIST.iterator();
+        }
+    }
+
+    private static final List<Setting<?>> REFRESH_INTERVAL_VALIDATOR_SETTINGS_LIST = List.of(
+        INDEX_REFRESH_INTERVAL_SETTING,
+        EXISTING_SHARDS_ALLOCATOR_SETTING,
+        INDEX_FAST_REFRESH_SETTING
+    );
+
     public static final Setting<ByteSizeValue> INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING = Setting.byteSizeSetting(
         "index.translog.flush_threshold_size",
         /*
@@ -316,6 +371,7 @@ public final class IndexSettings {
         Property.Dynamic,
         Property.IndexScope
     );
+
     /**
      * The maximum size of a translog generation. This is independent of the maximum size of
      * translog operations that have not been flushed.
@@ -787,11 +843,11 @@ public final class IndexSettings {
         this.durability = scopedSettings.get(INDEX_TRANSLOG_DURABILITY_SETTING);
         defaultFields = scopedSettings.get(DEFAULT_FIELD_SETTING);
         syncInterval = INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.get(settings);
+        refreshInterval = scopedSettings.get(INDEX_REFRESH_INTERVAL_SETTING);
         fastRefresh = scopedSettings.get(INDEX_FAST_REFRESH_SETTING);
         if (fastRefresh && DiscoveryNode.isStateless(nodeSettings) == false) {
             throw new IllegalArgumentException(INDEX_FAST_REFRESH_SETTING.getKey() + " is allowed only in stateless");
         }
-        setRefreshInterval(scopedSettings.get(INDEX_REFRESH_INTERVAL_SETTING));
         flushThresholdSize = scopedSettings.get(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING);
         flushThresholdAge = scopedSettings.get(INDEX_TRANSLOG_FLUSH_THRESHOLD_AGE_SETTING);
         generationThresholdSize = scopedSettings.get(INDEX_TRANSLOG_GENERATION_THRESHOLD_SIZE_SETTING);
@@ -932,28 +988,7 @@ public final class IndexSettings {
     }
 
     private void setRefreshInterval(TimeValue timeValue) {
-        if (DiscoveryNode.isStateless(nodeSettings) && fastRefresh == false) {
-            // Imposing a default and minimum value for stateless non fast refresh indices
-            boolean newValueExplicitlySet = indexMetadata.getSettings().hasValue(INDEX_REFRESH_INTERVAL_SETTING.getKey());
-            if (newValueExplicitlySet) {
-                if (timeValue.compareTo(TimeValue.ZERO) >= 0 && timeValue.compareTo(STATELESS_MIN_NON_FAST_REFRESH_INTERVAL) < 0) {
-                    throw new IllegalArgumentException(
-                        "index cannot have ["
-                            + IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey()
-                            + "="
-                            + timeValue
-                            + "] as it is less than "
-                            + STATELESS_MIN_NON_FAST_REFRESH_INTERVAL
-                    );
-                } else {
-                    this.refreshInterval = timeValue;
-                }
-            } else {
-                this.refreshInterval = STATELESS_MIN_NON_FAST_REFRESH_INTERVAL;
-            }
-        } else {
-            this.refreshInterval = timeValue;
-        }
+        this.refreshInterval = timeValue;
     }
 
     /**

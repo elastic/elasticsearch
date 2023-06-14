@@ -16,7 +16,6 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authz.restriction.Workflow;
 import org.elasticsearch.xpack.core.security.authz.restriction.WorkflowResolver;
-import org.elasticsearch.xpack.security.authz.restriction.WorkflowService;
 import org.mockito.Mockito;
 
 import java.io.IOException;

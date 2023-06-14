@@ -24,8 +24,8 @@ import org.apache.lucene.search.KnnByteVectorQuery;
 import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.ArraySourceValueFetcher;
@@ -65,8 +65,8 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
  * A {@link FieldMapper} for indexing a dense vector of floats.
  */
 public class DenseVectorFieldMapper extends FieldMapper {
-    public static final Version MAGNITUDE_STORED_INDEX_VERSION = Version.V_7_5_0;
-    public static final Version LITTLE_ENDIAN_FLOAT_STORED_INDEX_VERSION = Version.V_8_9_0;
+    public static final IndexVersion MAGNITUDE_STORED_INDEX_VERSION = IndexVersion.V_7_5_0;
+    public static final IndexVersion LITTLE_ENDIAN_FLOAT_STORED_INDEX_VERSION = IndexVersion.V_8_9_0;
 
     public static final String CONTENT_TYPE = "dense_vector";
     public static short MAX_DIMS_COUNT = 2048; // maximum allowed number of dimensions
@@ -128,9 +128,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
         );
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
-        final Version indexVersionCreated;
+        final IndexVersion indexVersionCreated;
 
-        public Builder(String name, Version indexVersionCreated) {
+        public Builder(String name, IndexVersion indexVersionCreated) {
             super(name);
             this.indexVersionCreated = indexVersionCreated;
 
@@ -358,7 +358,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
 
             @Override
-            ByteBuffer createByteBuffer(Version indexVersion, int numBytes) {
+            ByteBuffer createByteBuffer(IndexVersion indexVersion, int numBytes) {
                 return ByteBuffer.wrap(new byte[numBytes]);
             }
         },
@@ -470,7 +470,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
 
             @Override
-            ByteBuffer createByteBuffer(Version indexVersion, int numBytes) {
+            ByteBuffer createByteBuffer(IndexVersion indexVersion, int numBytes) {
                 return indexVersion.onOrAfter(LITTLE_ENDIAN_FLOAT_STORED_INDEX_VERSION)
                     ? ByteBuffer.wrap(new byte[numBytes]).order(ByteOrder.LITTLE_ENDIAN)
                     : ByteBuffer.wrap(new byte[numBytes]);
@@ -498,7 +498,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         abstract double parseKnnVectorToByteBuffer(DocumentParserContext context, DenseVectorFieldMapper fieldMapper, ByteBuffer byteBuffer)
             throws IOException;
 
-        abstract ByteBuffer createByteBuffer(Version indexVersion, int numBytes);
+        abstract ByteBuffer createByteBuffer(IndexVersion indexVersion, int numBytes);
 
         public abstract void checkVectorBounds(float[] vector);
 
@@ -701,11 +701,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
         private final int dims;
         private final boolean indexed;
         private final VectorSimilarity similarity;
-        private final Version indexVersionCreated;
+        private final IndexVersion indexVersionCreated;
 
         public DenseVectorFieldType(
             String name,
-            Version indexVersionCreated,
+            IndexVersion indexVersionCreated,
             ElementType elementType,
             int dims,
             boolean indexed,
@@ -861,7 +861,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
     private final boolean indexed;
     private final VectorSimilarity similarity;
     private final IndexOptions indexOptions;
-    private final Version indexCreatedVersion;
+    private final IndexVersion indexCreatedVersion;
 
     private DenseVectorFieldMapper(
         String simpleName,
@@ -871,7 +871,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         boolean indexed,
         VectorSimilarity similarity,
         IndexOptions indexOptions,
-        Version indexCreatedVersion,
+        IndexVersion indexCreatedVersion,
         MultiFields multiFields,
         CopyTo copyTo
     ) {
@@ -1089,9 +1089,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
     private class DocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFieldLoader {
         private BinaryDocValues values;
         private boolean hasValue;
-        private final Version indexCreatedVersion;
+        private final IndexVersion indexCreatedVersion;
 
-        private DocValuesSyntheticFieldLoader(Version indexCreatedVersion) {
+        private DocValuesSyntheticFieldLoader(IndexVersion indexCreatedVersion) {
             this.indexCreatedVersion = indexCreatedVersion;
         }
 

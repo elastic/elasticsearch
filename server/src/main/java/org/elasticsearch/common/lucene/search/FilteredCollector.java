@@ -73,7 +73,6 @@ public class FilteredCollector implements Collector {
         CollectorManager<C, T> collectorManager,
         Weight filter
     ) {
-        AtomicInteger counter = new AtomicInteger(0);
         return new CollectorManager<>() {
             @Override
             public FilteredCollector newCollector() throws IOException {

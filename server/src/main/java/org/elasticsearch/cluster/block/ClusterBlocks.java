@@ -29,7 +29,6 @@ import java.util.Set;
 import java.util.function.Predicate;
 
 import static java.util.Collections.emptySet;
-import static java.util.Collections.unmodifiableSet;
 import static java.util.stream.Collectors.toSet;
 import static java.util.stream.Collectors.toUnmodifiableSet;
 
@@ -283,8 +282,7 @@ public class ClusterBlocks implements SimpleDiffable<ClusterBlocks> {
     }
 
     private static Set<ClusterBlock> readBlockSet(StreamInput in) throws IOException {
-        final Set<ClusterBlock> blocks = in.readSet(ClusterBlock::new);
-        return blocks.isEmpty() ? blocks : unmodifiableSet(blocks);
+        return in.readImmutableSet(ClusterBlock::new);
     }
 
     public static Diff<ClusterBlocks> readDiffFrom(StreamInput in) throws IOException {

@@ -1160,6 +1160,32 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
+     * Reads a set of objects. The set is expected to have been written using {@link StreamOutput#writeCollection(Collection)}}.
+     * The returned set is immutable.
+     *
+     * @return the set of objects
+     * @throws IOException if an I/O exception occurs reading the set
+     */
+    public <T> Set<T> readImmutableSet(final Writeable.Reader<T> reader) throws IOException {
+        int count = readArraySize();
+        // special cases small arrays, just like in java.util.Set.of(...)
+        if (count == 0) {
+            return Set.of();
+        } else if (count == 1) {
+            return Set.of(reader.read(this));
+        } else if (count == 2) {
+            return Set.of(reader.read(this), reader.read(this));
+        }
+        Object[] entries = new Object[count];
+        for (int i = 0; i < count; i++) {
+            entries[i] = reader.read(this);
+        }
+        @SuppressWarnings("unchecked")
+        T[] typedEntries = (T[]) entries;
+        return Set.of(typedEntries);
+    }
+
+    /**
      * Reads a collection of objects
      */
     private <T, C extends Collection<? super T>> C readCollection(Writeable.Reader<T> reader, IntFunction<C> constructor, C empty)

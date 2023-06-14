@@ -62,7 +62,7 @@ public class GetSnapshotsResponseTests extends ESTestCase {
             new NamedWriteableRegistry(Collections.emptyList()),
             (out, value) -> value.writeTo(out),
             GetSnapshotsResponse::new,
-            TransportVersion.CURRENT
+            TransportVersion.current()
         );
 
     }

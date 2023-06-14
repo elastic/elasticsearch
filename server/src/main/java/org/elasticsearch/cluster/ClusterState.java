@@ -222,7 +222,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         this.routingNodes = routingNodes;
         assert assertConsistentRoutingNodes(routingTable, nodes, routingNodes);
 
-        this.minTransportVersion = transportVersions.values().stream().min(Comparator.naturalOrder()).orElse(TransportVersion.CURRENT);
+        this.minTransportVersion = transportVersions.values().stream().min(Comparator.naturalOrder()).orElse(TransportVersion.current());
     }
 
     private static boolean assertConsistentRoutingNodes(

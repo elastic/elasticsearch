@@ -91,7 +91,7 @@ public class JoinValidationServiceTests extends ESTestCase {
 
                         @Override
                         public TransportVersion getTransportVersion() {
-                            return TransportVersion.CURRENT;
+                            return TransportVersion.current();
                         }
 
                         @Override
@@ -251,7 +251,7 @@ public class JoinValidationServiceTests extends ESTestCase {
 
             @Override
             public TransportVersion getMinimalSupportedVersion() {
-                return TransportVersion.CURRENT;
+                return TransportVersion.current();
             }
 
             @Override

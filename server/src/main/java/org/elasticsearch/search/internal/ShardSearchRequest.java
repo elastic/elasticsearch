@@ -239,7 +239,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         this.readerId = readerId;
         this.keepAlive = keepAlive;
         assert keepAlive == null || readerId != null : "readerId: " + readerId + " keepAlive: " + keepAlive;
-        this.channelVersion = TransportVersion.CURRENT;
+        this.channelVersion = TransportVersion.current();
         this.waitForCheckpoint = waitForCheckpoint;
         this.waitForCheckpointsTimeout = waitForCheckpointsTimeout;
         this.forceSyntheticSource = forceSyntheticSource;
@@ -689,7 +689,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
 
     /**
      * Returns the minimum version of the channel that the request has been passed. If the request never passes around, then the channel
-     * version is {@link TransportVersion#CURRENT}; otherwise, it's the minimum transport version of the coordinating node and data node
+     * version is {@link TransportVersion#current()}; otherwise, it's the minimum transport version of the coordinating node and data node
      * (and the proxy node in case the request is sent to the proxy node of the remote cluster before reaching the data node).
      */
     public TransportVersion getChannelVersion() {

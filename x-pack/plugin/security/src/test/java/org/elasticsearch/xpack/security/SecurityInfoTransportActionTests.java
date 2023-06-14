@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.security;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.MockLicenseState;
@@ -149,10 +148,7 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
         final boolean httpIpFilterEnabled = randomBoolean();
         final boolean transportIPFilterEnabled = randomBoolean();
         when(ipFilter.usageStats()).thenReturn(
-            MapBuilder.<String, Object>newMapBuilder()
-                .put("http", Collections.singletonMap("enabled", httpIpFilterEnabled))
-                .put("transport", Collections.singletonMap("enabled", transportIPFilterEnabled))
-                .map()
+            Map.of("http", Map.of("enabled", httpIpFilterEnabled), "transport", Map.of("enabled", transportIPFilterEnabled))
         );
 
         final boolean rolesStoreEnabled = randomBoolean();

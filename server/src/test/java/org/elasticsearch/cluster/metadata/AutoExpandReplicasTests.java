@@ -196,7 +196,7 @@ public class AutoExpandReplicasTests extends ESTestCase {
                     nodesToAdd.add(createNode(DiscoveryNodeRole.DATA_ROLE));
                 }
 
-                state = cluster.joinNodesAndBecomeMaster(state, nodesToAdd, TransportVersion.CURRENT);
+                state = cluster.joinNodesAndBecomeMaster(state, nodesToAdd, TransportVersion.current());
                 postTable = state.routingTable().index("index").shard(0);
             }
 

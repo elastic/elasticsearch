@@ -19,15 +19,19 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.DocBlock;
+import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class MatchQuerySourceOperatorTests extends ESTestCase {
 
@@ -161,6 +165,52 @@ public class MatchQuerySourceOperatorTests extends ESTestCase {
             assertThat(docs.getInt(i), equalTo(expectedDocs[i]));
             assertThat(positions.getInt(i), equalTo(expectedPositions[i]));
         }
+        IOUtils.close(reader, dir);
+    }
+
+    public void testRandomMatchQueries() throws Exception {
+        MockDirectoryWrapper dir = newMockDirectory();
+        IndexWriterConfig iwc = new IndexWriterConfig();
+        iwc.setMergePolicy(NoMergePolicy.INSTANCE);
+        IndexWriter writer = new IndexWriter(dir, iwc);
+        int numTerms = randomIntBetween(10, 1000);
+        Map<String, Integer> terms = new HashMap<>();
+        for (int i = 0; i < numTerms; i++) {
+            Document doc = new Document();
+            String term = "term-" + i;
+            terms.put(term, i);
+            doc.add(new StringField("id", term, Field.Store.NO));
+            writer.addDocument(doc);
+        }
+        writer.forceMerge(1);
+        writer.commit();
+        DirectoryReader reader = DirectoryReader.open(writer);
+        writer.close();
+
+        Map<Integer, Integer> expectedPositions = new HashMap<>();
+        int numPositions = randomIntBetween(1, 1000);
+        BytesRefBlock.Builder inputTerms = BytesRefBlock.newBlockBuilder(numPositions);
+        for (int i = 0; i < numPositions; i++) {
+            String term = randomFrom(terms.keySet());
+            inputTerms.appendBytesRef(new BytesRef(term));
+            expectedPositions.put(i, terms.get(term));
+        }
+        MatchQuerySourceOperator queryOperator = new MatchQuerySourceOperator("id", reader, inputTerms.build());
+        Page page = queryOperator.getOutput();
+        assertNotNull(page);
+        assertThat(page.getPositionCount(), equalTo(numPositions));
+
+        DocVector docBlock = ((DocBlock) page.getBlock(0)).asVector();
+        IntVector docs = docBlock.docs();
+        for (int i = 1; i < docs.getPositionCount(); i++) {
+            assertThat("docs are not sorted ascending", docs.getInt(i), greaterThanOrEqualTo(docs.getInt(i - 1)));
+        }
+        Map<Integer, Integer> actualPositions = new HashMap<>();
+        IntBlock positionBlock = page.getBlock(1);
+        for (int i = 0; i < page.getPositionCount(); i++) {
+            actualPositions.put(positionBlock.getInt(i), docs.getInt(i));
+        }
+        assertThat(actualPositions, equalTo(expectedPositions));
         IOUtils.close(reader, dir);
     }
 }

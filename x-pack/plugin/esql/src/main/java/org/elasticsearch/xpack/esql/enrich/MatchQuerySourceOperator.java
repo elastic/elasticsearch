@@ -115,12 +115,12 @@ final class MatchQuerySourceOperator extends SourceOperator {
 
             @Override
             protected void setPivot(int i) {
-                pivot = i;
+                pivot = finalDocs[i];
             }
 
             @Override
             protected int comparePivot(int j) {
-                return Integer.compare(finalDocs[pivot], finalDocs[j]);
+                return Integer.compare(pivot, finalDocs[j]);
             }
 
             @Override

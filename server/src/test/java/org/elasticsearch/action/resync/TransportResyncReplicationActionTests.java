@@ -140,6 +140,7 @@ public class TransportResyncReplicationActionTests extends ESTestCase {
                 when(indexShard.getPendingPrimaryTerm()).thenReturn(primaryTerm);
                 when(indexShard.getOperationPrimaryTerm()).thenReturn(primaryTerm);
                 when(indexShard.getActiveOperationsCount()).then(i -> acquiredPermits.get());
+                when(indexShard.isPrimaryMode()).then(i -> true);
                 doAnswer(invocation -> {
                     @SuppressWarnings("unchecked")
                     ActionListener<Releasable> callback = (ActionListener<Releasable>) invocation.getArguments()[0];

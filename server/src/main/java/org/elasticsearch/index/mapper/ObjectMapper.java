@@ -10,11 +10,11 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.LeafReader;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -183,7 +183,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
     public static class TypeParser implements Mapper.TypeParser {
         @Override
-        public boolean supportsVersion(Version indexCreatedVersion) {
+        public boolean supportsVersion(IndexVersion indexCreatedVersion) {
             return true;
         }
 
@@ -348,11 +348,11 @@ public class ObjectMapper extends Mapper implements Cloneable {
         }
     }
 
-    private static void validateFieldName(String fieldName, Version indexCreatedVersion) {
+    private static void validateFieldName(String fieldName, IndexVersion indexCreatedVersion) {
         if (fieldName.isEmpty()) {
             throw new IllegalArgumentException("field name cannot be an empty string");
         }
-        if (fieldName.isBlank() & indexCreatedVersion.onOrAfter(Version.V_8_6_0)) {
+        if (fieldName.isBlank() & indexCreatedVersion.onOrAfter(IndexVersion.V_8_6_0)) {
             // blank field names were previously accepted in mappings, but not in documents.
             throw new IllegalArgumentException("field name cannot contain only whitespaces");
         }
@@ -403,7 +403,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
     /**
      * @return a Builder that will produce an empty ObjectMapper with the same configuration as this one
      */
-    public ObjectMapper.Builder newBuilder(Version indexVersionCreated) {
+    public ObjectMapper.Builder newBuilder(IndexVersion indexVersionCreated) {
         ObjectMapper.Builder builder = new ObjectMapper.Builder(simpleName(), subobjects);
         builder.enabled = this.enabled;
         builder.dynamic = this.dynamic;

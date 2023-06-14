@@ -144,7 +144,7 @@ public class EvilLoggerConfigurationTests extends ESTestCase {
         final LoggerContext ctx = (LoggerContext) LogManager.getContext(false);
         final Configuration config = ctx.getConfiguration();
         final Map<String, LoggerConfig> loggerConfigs = config.getLoggers();
-        assertThat(loggerConfigs.size(), equalTo(5));
+        assertThat(loggerConfigs.size(), equalTo(3));
         assertThat(loggerConfigs, hasKey(""));
         assertThat(loggerConfigs.get("").getLevel(), equalTo(rootLevel));
         assertThat(loggerConfigs, hasKey("foo"));

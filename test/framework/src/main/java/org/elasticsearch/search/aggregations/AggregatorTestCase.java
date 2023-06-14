@@ -66,6 +66,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.cache.query.DisabledQueryCache;
@@ -1218,7 +1219,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 null,
                 null,
                 null,
-                Version.CURRENT,
+                IndexVersion.CURRENT,
                 () -> TransportVersion.current(),
                 null,
                 ScriptCompiler.NONE,

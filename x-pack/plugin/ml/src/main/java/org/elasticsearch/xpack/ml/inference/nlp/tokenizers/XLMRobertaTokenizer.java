@@ -121,7 +121,7 @@ public class XLMRobertaTokenizer extends NlpTokenizer {
 
     @Override
     public TokenizationResult buildTokenizationResult(List<TokenizationResult.Tokens> tokenizations) {
-        return new RobertaTokenizationResult(originalVocab, tokenizations, padTokenId);
+        return new XLMRobertaTokenizationResult(originalVocab, tokenizations, padTokenId);
     }
 
     @Override
@@ -160,7 +160,7 @@ public class XLMRobertaTokenizer extends NlpTokenizer {
 
     @Override
     TokenizationResult.TokensBuilder createTokensBuilder(int clsTokenId, int sepTokenId, boolean withSpecialTokens) {
-        return new RobertaTokenizationResult.RobertaTokensBuilder(withSpecialTokens, clsTokenId, sepTokenId);
+        return new XLMRobertaTokenizationResult.XLMRobertaTokensBuilder(withSpecialTokens, clsTokenId, sepTokenId);
     }
 
     @Override

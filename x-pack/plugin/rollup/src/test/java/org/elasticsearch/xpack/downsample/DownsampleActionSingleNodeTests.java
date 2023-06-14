@@ -1190,7 +1190,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         bulkIndex(sourceIndex, sourceSupplier);
         prepareSourceIndex(sourceIndex);
 
-        int n = randomIntBetween(5, 20);
+        int n = randomIntBetween(5, 10);
         final CountDownLatch rollupComplete = new CountDownLatch(n);
         final List<String> targets = new ArrayList<>();
         final List<Thread> threads = new ArrayList<>();

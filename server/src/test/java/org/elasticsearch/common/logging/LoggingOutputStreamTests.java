@@ -29,20 +29,22 @@ public class LoggingOutputStreamTests extends ESTestCase {
         List<String> lines = new ArrayList<>();
 
         TestLoggingOutputStream() {
-            super(null, null);
+            super(null, null, messageFilters);
         }
 
         @Override
-        protected void log(String msg) {
+        protected void log0(String msg) {
             lines.add(msg);
         }
     }
 
+    List<String> messageFilters = new ArrayList<>();
     TestLoggingOutputStream loggingStream;
     PrintStream printStream;
 
     @Before
     public void createStream() {
+        messageFilters.clear();
         loggingStream = new TestLoggingOutputStream();
         printStream = new PrintStream(loggingStream, false, StandardCharsets.UTF_8);
     }
@@ -114,5 +116,13 @@ public class LoggingOutputStreamTests extends ESTestCase {
         thread2.join();
         printStream.flush();
         assertThat(loggingStream.lines, contains("from thread 2", "from thread 1"));
+    }
+
+    public void testMessageFilters() throws Exception {
+        messageFilters.add("foo bar");
+        printStream.println("prefix foo bar suffix");
+        printStream.println("non-filtered message");
+        printStream.flush();
+        assertThat(loggingStream.lines, contains("non-filtered message"));
     }
 }

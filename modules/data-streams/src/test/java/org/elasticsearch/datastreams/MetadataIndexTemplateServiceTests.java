@@ -20,6 +20,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.indices.EmptySystemIndices;
@@ -28,10 +29,13 @@ import org.elasticsearch.indices.InvalidIndexTemplateException;
 import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
+import static org.elasticsearch.cluster.metadata.DataLifecycle.Downsample;
+import static org.elasticsearch.cluster.metadata.DataLifecycle.Downsampling;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.generateTsdbMapping;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.composeDataLifecycles;
 import static org.elasticsearch.common.settings.Settings.builder;
@@ -151,37 +155,88 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         }
         // One lifecycle results to this lifecycle as the final
         {
-            DataLifecycle lifecycle = switch (randomInt(2)) {
+            DataLifecycle lifecycle = switch (randomInt(4)) {
                 case 0 -> new DataLifecycle();
-                case 1 -> new DataLifecycle(DataLifecycle.Retention.NULL);
-                default -> new DataLifecycle(randomMillisUpToYear9999());
+                case 1 -> new DataLifecycle(DataLifecycle.Retention.NULL, DataLifecycle.Downsampling.NULL);
+                case 2 -> new DataLifecycle(randomMillisUpToYear9999());
+                case 3 -> new DataLifecycle(null, getRandomDownsampling());
+                default -> new DataLifecycle(
+                    new DataLifecycle.Retention(TimeValue.timeValueMillis(randomMillisUpToYear9999())),
+                    getRandomDownsampling()
+                );
             };
             List<DataLifecycle> lifecycles = List.of(lifecycle);
             assertThat(composeDataLifecycles(lifecycles), equalTo(lifecycle));
         }
         // If the last lifecycle is missing a property we keep the latest from the previous ones
         {
-            DataLifecycle lifecycleWithRetention = new DataLifecycle(randomMillisUpToYear9999());
+            DataLifecycle lifecycleWithRetention = new DataLifecycle(
+                new DataLifecycle.Retention(TimeValue.timeValueMillis(randomMillisUpToYear9999())),
+                getRandomDownsampling()
+            );
             List<DataLifecycle> lifecycles = List.of(lifecycleWithRetention, new DataLifecycle());
             assertThat(
                 composeDataLifecycles(lifecycles).getEffectiveDataRetention(),
                 equalTo(lifecycleWithRetention.getEffectiveDataRetention())
             );
+            assertThat(composeDataLifecycles(lifecycles).getDownsampling(), equalTo(lifecycleWithRetention.getDownsampling()));
         }
         // If both lifecycle have all properties, then the latest one overwrites all the others
         {
-            DataLifecycle lifecycle1 = new DataLifecycle(randomMillisUpToYear9999());
-            DataLifecycle lifecycle2 = new DataLifecycle(randomMillisUpToYear9999());
+            DataLifecycle lifecycle1 = new DataLifecycle(
+                new DataLifecycle.Retention(TimeValue.timeValueMillis(randomMillisUpToYear9999())),
+                getRandomDownsampling()
+            );
+            DataLifecycle lifecycle2 = new DataLifecycle(
+                new DataLifecycle.Retention(TimeValue.timeValueMillis(randomMillisUpToYear9999())),
+                getRandomNonNullDownsampling()
+            );
             List<DataLifecycle> lifecycles = List.of(lifecycle1, lifecycle2);
             assertThat(composeDataLifecycles(lifecycles), equalTo(lifecycle2));
         }
+        // If both lifecycle has one non-null field, the non-null fields are merged into the new lifecycle
+        {
+            DataLifecycle lifecycle1 = new DataLifecycle(
+                new DataLifecycle.Retention(TimeValue.timeValueMillis(randomMillisUpToYear9999())),
+                null
+            );
+            DataLifecycle lifecycle2 = new DataLifecycle(null, getRandomDownsampling());
+            List<DataLifecycle> lifecycles = List.of(lifecycle1, lifecycle2);
+            DataLifecycle expected = new DataLifecycle(
+                new DataLifecycle.Retention(lifecycle1.getEffectiveDataRetention()),
+                lifecycle2.getDownsampling()
+            );
+            assertThat(composeDataLifecycles(lifecycles), equalTo(expected));
+        }
         // If the last lifecycle is explicitly null, the result is also null
         {
-            DataLifecycle lifecycle1 = new DataLifecycle(randomMillisUpToYear9999());
-            DataLifecycle lifecycle2 = new DataLifecycle(randomMillisUpToYear9999());
+            DataLifecycle lifecycle1 = new DataLifecycle(
+                new DataLifecycle.Retention(TimeValue.timeValueMillis(randomMillisUpToYear9999())),
+                getRandomDownsampling()
+            );
+            DataLifecycle lifecycle2 = new DataLifecycle(
+                new DataLifecycle.Retention(TimeValue.timeValueMillis(randomMillisUpToYear9999())),
+                getRandomDownsampling()
+            );
             List<DataLifecycle> lifecycles = List.of(lifecycle1, lifecycle2, Template.NO_LIFECYCLE);
             assertThat(composeDataLifecycles(lifecycles), nullValue());
         }
+    }
+
+    private Downsampling getRandomDownsampling() {
+        if (randomBoolean()) {
+            return null;
+        }
+        return getRandomNonNullDownsampling();
+    }
+
+    private Downsampling getRandomNonNullDownsampling() {
+        List<Downsample> downsamples = new ArrayList<>();
+        int numberOfDownsamples = randomIntBetween(0, 10);
+        for (int i = 0; i < numberOfDownsamples; i++) {
+            downsamples.add(new Downsample(TimeValue.timeValueDays(i), TimeValue.timeValueHours(2L * i)));
+        }
+        return new Downsampling(downsamples);
     }
 
     private MetadataIndexTemplateService getMetadataIndexTemplateService() {

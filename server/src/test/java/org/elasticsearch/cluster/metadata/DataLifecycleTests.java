@@ -49,8 +49,10 @@ public class DataLifecycleTests extends AbstractXContentSerializingTestCase<Data
     @Override
     protected DataLifecycle createTestInstance() {
         List<DataLifecycle.Downsample> downsamples = new ArrayList<>();
-        downsamples.add(new DataLifecycle.Downsample(TimeValue.timeValueDays(1), TimeValue.timeValueHours(2)));
-        downsamples.add(new DataLifecycle.Downsample(TimeValue.timeValueDays(15), TimeValue.timeValueDays(1)));
+        int numberOfDownsamples = randomIntBetween(0, 10);
+        for (int i = 0; i < numberOfDownsamples; i++) {
+            downsamples.add(new DataLifecycle.Downsample(TimeValue.timeValueDays(i), TimeValue.timeValueHours(2L * i)));
+        }
         DataLifecycle.Downsampling downsampling = new DataLifecycle.Downsampling(downsamples);
         return switch (randomInt(2)) {
             case 0 -> IMPLICIT_INFINITE_RETENTION;

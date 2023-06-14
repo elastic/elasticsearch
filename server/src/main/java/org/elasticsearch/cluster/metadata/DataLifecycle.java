@@ -173,7 +173,7 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
     }
 
     @Nullable
-    Downsampling getDownsampling() {
+    public Downsampling getDownsampling() {
         return downsampling;
     }
 
@@ -287,7 +287,7 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
         }
 
         DataLifecycle build() {
-            return new DataLifecycle(dataRetention);
+            return new DataLifecycle(dataRetention, downsampling);
         }
 
         static Builder newBuilder(DataLifecycle dataLifecycle) {

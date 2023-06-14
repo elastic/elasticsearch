@@ -69,6 +69,7 @@ import org.elasticsearch.gateway.ReplicaShardAllocatorIT;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.engine.Engine;
@@ -1722,7 +1723,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             final Query query = new BooleanQuery.Builder().add(
                 LongPoint.newRangeQuery(SeqNoFieldMapper.NAME, commitLocalCheckpoint + 1, Long.MAX_VALUE),
                 BooleanClause.Occur.MUST
-            ).add(Queries.newNonNestedFilter(Version.CURRENT), BooleanClause.Occur.MUST).build();
+            ).add(Queries.newNonNestedFilter(IndexVersion.CURRENT), BooleanClause.Occur.MUST).build();
             final Weight weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1.0f);
             for (LeafReaderContext leaf : directoryReader.leaves()) {
                 final Scorer scorer = weight.scorer(leaf);

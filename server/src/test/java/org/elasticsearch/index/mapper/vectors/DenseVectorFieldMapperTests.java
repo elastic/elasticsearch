@@ -19,8 +19,8 @@ import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.codec.PerFieldMapperCodec;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -44,7 +44,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -240,8 +239,8 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         assertThat(fields.get(0), instanceOf(BinaryDocValuesField.class));
         // assert that after decoding the indexed value is equal to expected
         BytesRef vectorBR = fields.get(0).binaryValue();
-        float[] decodedValues = decodeDenseVector(Version.CURRENT, vectorBR);
-        float decodedMagnitude = VectorEncoderDecoder.decodeMagnitude(Version.CURRENT, vectorBR);
+        float[] decodedValues = decodeDenseVector(IndexVersion.CURRENT, vectorBR);
+        float decodedMagnitude = VectorEncoderDecoder.decodeMagnitude(IndexVersion.CURRENT, vectorBR);
         assertEquals(expectedMagnitude, decodedMagnitude, 0.001f);
         assertArrayEquals("Decoded dense vector values is not equal to the indexed one.", validVector, decodedValues, 0.001f);
     }
@@ -457,7 +456,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
     }
 
     public void testAddDocumentsToIndexBefore_V_7_5_0() throws Exception {
-        Version indexVersion = Version.V_7_4_0;
+        IndexVersion indexVersion = IndexVersion.V_7_4_0;
         DocumentMapper mapper = createDocumentMapper(indexVersion, fieldMapping(b -> b.field("type", "dense_vector").field("dims", 3)));
 
         float[] validVector = { -12.1f, 100.7f, -4 };
@@ -471,14 +470,10 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         assertArrayEquals("Decoded dense vector values is not equal to the indexed one.", validVector, decodedValues, 0.001f);
     }
 
-    private static float[] decodeDenseVector(Version indexVersion, BytesRef encodedVector) {
+    private static float[] decodeDenseVector(IndexVersion indexVersion, BytesRef encodedVector) {
         int dimCount = VectorEncoderDecoder.denseVectorLength(indexVersion, encodedVector);
         float[] vector = new float[dimCount];
-
-        ByteBuffer byteBuffer = ByteBuffer.wrap(encodedVector.bytes, encodedVector.offset, encodedVector.length);
-        for (int dim = 0; dim < dimCount; dim++) {
-            vector[dim] = byteBuffer.getFloat();
-        }
+        VectorEncoderDecoder.decodeDenseVector(indexVersion, encodedVector, vector);
         return vector;
     }
 

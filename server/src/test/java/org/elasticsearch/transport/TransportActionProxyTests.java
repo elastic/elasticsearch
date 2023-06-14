@@ -53,7 +53,7 @@ public class TransportActionProxyTests extends ESTestCase {
     protected MockTransportService serviceA;
 
     protected static final Version version1 = Version.fromId(CURRENT_VERSION.id + 1);
-    protected static final TransportVersion transportVersion1 = TransportVersion.fromId(TransportVersion.CURRENT.id() + 1);
+    protected static final TransportVersion transportVersion1 = TransportVersion.fromId(TransportVersion.current().id() + 1);
     protected DiscoveryNode nodeB;
     protected MockTransportService serviceB;
 

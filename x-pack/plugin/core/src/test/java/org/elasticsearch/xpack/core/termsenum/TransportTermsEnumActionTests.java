@@ -71,7 +71,7 @@ public class TransportTermsEnumActionTests extends ESSingleNodeTestCase {
         request.indexFilter(new DummyQueryBuilder() {
             @Override
             public TransportVersion getMinimalSupportedVersion() {
-                return TransportVersion.CURRENT;
+                return TransportVersion.current();
             }
         });
         ExecutionException ex = expectThrows(ExecutionException.class, () -> client().execute(TermsEnumAction.INSTANCE, request).get());
@@ -81,7 +81,7 @@ public class TransportTermsEnumActionTests extends ESSingleNodeTestCase {
             ex.getCause().getCause().getMessage(),
             containsString(
                 "was released first in version "
-                    + TransportVersion.CURRENT
+                    + TransportVersion.current()
                     + ", failed compatibility check trying to send it to node with version"
             )
         );

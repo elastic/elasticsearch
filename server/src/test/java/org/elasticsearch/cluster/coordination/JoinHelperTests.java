@@ -336,7 +336,7 @@ public class JoinHelperTests extends ESTestCase {
 
         final var joinAccumulator = joinHelper.new CandidateJoinAccumulator();
         final var joinListener = new PlainActionFuture<Void>();
-        joinAccumulator.handleJoinRequest(localNode, TransportVersion.CURRENT, joinListener);
+        joinAccumulator.handleJoinRequest(localNode, TransportVersion.current(), joinListener);
         assert joinListener.isDone() == false;
 
         final var mockAppender = new MockLogAppender();

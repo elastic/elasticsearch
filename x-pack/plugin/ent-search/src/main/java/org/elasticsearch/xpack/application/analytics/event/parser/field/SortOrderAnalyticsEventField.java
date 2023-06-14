@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.application.analytics.event.parser.field;
 
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;

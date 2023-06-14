@@ -10,6 +10,7 @@ package org.elasticsearch.common.lucene;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreCachingWrappingScorer;
@@ -18,6 +19,8 @@ import org.apache.lucene.search.SimpleCollector;
 import org.apache.lucene.search.Weight;
 
 import java.io.IOException;
+import java.util.Collection;
+import java.util.List;
 
 /**
  * Collector that wraps another collector and collects only documents that have a score that's greater or equal than the
@@ -68,4 +71,28 @@ public class MinimumScoreCollector extends SimpleCollector {
     public ScoreMode scoreMode() {
         return collector.scoreMode() == ScoreMode.TOP_SCORES ? ScoreMode.TOP_SCORES : ScoreMode.COMPLETE;
     }
+
+    /**
+     * Creates a {@link CollectorManager} for {@link MinimumScoreCollector}, which enables inter-segment search concurrency
+     * when a <code>min_score</code> is provided as part of a search request.
+     */
+    public static <C extends Collector, T> CollectorManager<MinimumScoreCollector, T> createManager(
+        CollectorManager<C, T> collectorManager,
+        float minimumScore
+    ) {
+        return new CollectorManager<>() {
+            @Override
+            public MinimumScoreCollector newCollector() throws IOException {
+                return new MinimumScoreCollector(collectorManager.newCollector(), minimumScore);
+            }
+
+            @Override
+            public T reduce(Collection<MinimumScoreCollector> collectors) throws IOException {
+                @SuppressWarnings("unchecked")
+                List<C> innerCollectors = collectors.stream().map(minimumScoreCollector -> (C) minimumScoreCollector.collector).toList();
+                return collectorManager.reduce(innerCollectors);
+            }
+        };
+    }
+
 }

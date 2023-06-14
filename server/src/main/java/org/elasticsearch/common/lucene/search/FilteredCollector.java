@@ -21,6 +21,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Collector that wraps another collector and collects only documents that match the provided filter.
@@ -68,8 +69,11 @@ public class FilteredCollector implements Collector {
      * Creates a {@link CollectorManager} for {@link FilteredCollector}, which enables inter-segment search concurrency
      * when a <code>post_filter</code> is provided as part of a search request.
      */
-    public static <C extends Collector, T> CollectorManager<FilteredCollector, T> createManager(CollectorManager<C, T> collectorManager,
-                                                                          Weight filter) {
+    public static <C extends Collector, T> CollectorManager<FilteredCollector, T> createManager(
+        CollectorManager<C, T> collectorManager,
+        Weight filter
+    ) {
+        AtomicInteger counter = new AtomicInteger(0);
         return new CollectorManager<>() {
             @Override
             public FilteredCollector newCollector() throws IOException {
@@ -79,7 +83,7 @@ public class FilteredCollector implements Collector {
             @Override
             public T reduce(Collection<FilteredCollector> collectors) throws IOException {
                 @SuppressWarnings("unchecked")
-                List<C> innerCollectors = collectors.stream().map(filteredCollector -> (C)filteredCollector.collector).toList();
+                List<C> innerCollectors = collectors.stream().map(filteredCollector -> (C) filteredCollector.collector).toList();
                 return collectorManager.reduce(innerCollectors);
             }
         };

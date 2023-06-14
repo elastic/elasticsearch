@@ -320,7 +320,7 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
             .issuer(opConfig.getIssuer().getValue())
             .issueTime(Date.from(now().minusSeconds(200)))
             .notBeforeTime(Date.from(now().minusSeconds(200)))
-            .claim("nonce", nonce.toString())
+            .claim("nonce", nonce)
             .subject(subject);
         final Tuple<AccessToken, JWT> tokens = buildTokens(
             idTokenBuilder.build(),
@@ -414,7 +414,7 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
             // Issued 80 seconds in the future with max allowed clock skew of 60
             .issueTime(Date.from(now().plusSeconds(80)))
             .notBeforeTime(Date.from(now().minusSeconds(80)))
-            .claim("nonce", nonce.toString())
+            .claim("nonce", nonce)
             .subject(subject);
         final Tuple<AccessToken, JWT> tokens = buildTokens(
             idTokenBuilder.build(),
@@ -463,7 +463,7 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
             .issuer("https://another.op.org")
             .issueTime(Date.from(now().minusSeconds(200)))
             .notBeforeTime(Date.from(now().minusSeconds(200)))
-            .claim("nonce", nonce.toString())
+            .claim("nonce", nonce)
             .subject(subject);
         final Tuple<AccessToken, JWT> tokens = buildTokens(
             idTokenBuilder.build(),
@@ -512,7 +512,7 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
             .issuer(opConfig.getIssuer().getValue())
             .issueTime(Date.from(now().minusSeconds(200)))
             .notBeforeTime(Date.from(now().minusSeconds(80)))
-            .claim("nonce", nonce.toString())
+            .claim("nonce", nonce)
             .subject(subject);
         final Tuple<AccessToken, JWT> tokens = buildTokens(
             idTokenBuilder.build(),
@@ -736,11 +736,10 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
             .issuer(opConfig.getIssuer().getValue())
             .issueTime(Date.from(now().minusSeconds(200)))
             .notBeforeTime(Date.from(now().minusSeconds(200)))
-            .claim("nonce", nonce.toString())
+            .claim("nonce", nonce)
             .subject(subject);
-        JWTClaimsSet idToken = idTokenBuilder.build();
 
-        final String responseUrl = buildAuthResponse(new PlainJWT(idToken), null, state, rpConfig.getRedirectUri());
+        final String responseUrl = buildAuthResponse(new PlainJWT(idTokenBuilder.build()), null, state, rpConfig.getRedirectUri());
         final String authenticatingRealm = randomBoolean() ? REALM_NAME : null;
         final OpenIdConnectToken token = new OpenIdConnectToken(responseUrl, state, nonce, authenticatingRealm);
         final PlainActionFuture<JWTClaimsSet> future = new PlainActionFuture<>();
@@ -1373,7 +1372,7 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
             .issuer(opConfig.getIssuer().getValue())
             .issueTime(Date.from(now().minusSeconds(4)))
             .notBeforeTime(Date.from(now().minusSeconds(4)))
-            .claim("nonce", nonce.toString())
+            .claim("nonce", nonce)
             .subject(subject);
 
         return buildTokens(idTokenBuilder.build(), key, alg, keyId, subject, withAccessToken, forged);

@@ -86,7 +86,7 @@ public class TransportPutWatchActionTests extends ESTestCase {
         final ClusterService clusterService = mock(ClusterService.class);
         final ClusterState clusterState = mock(ClusterState.class);
         when(clusterService.state()).thenReturn(clusterState);
-        when(clusterState.getMinTransportVersion()).thenReturn(TransportVersion.CURRENT);
+        when(clusterState.getMinTransportVersion()).thenReturn(TransportVersion.current());
 
         action = new TransportPutWatchAction(
             transportService,

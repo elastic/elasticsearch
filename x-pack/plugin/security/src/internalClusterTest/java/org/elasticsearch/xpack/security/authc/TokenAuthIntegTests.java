@@ -311,7 +311,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         // Perform a request to invalidate a token, before the tokens index is created
         ResponseException e = expectThrows(
             ResponseException.class,
-            () -> invalidateAccessToken(generateAccessToken(TransportVersion.CURRENT))
+            () -> invalidateAccessToken(generateAccessToken(TransportVersion.current()))
         );
         assertThat(e.getResponse(), hasStatusCode(RestStatus.BAD_REQUEST));
         // Create a token to trigger index creation
@@ -326,14 +326,14 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         assertThat(invalidateResponse.previouslyInvalidated(), equalTo(0));
         assertThat(invalidateResponse.errors(), empty());
 
-        invalidateResponse = invalidateAccessToken(generateInvalidShortAccessToken(TransportVersion.CURRENT));
+        invalidateResponse = invalidateAccessToken(generateInvalidShortAccessToken(TransportVersion.current()));
         assertThat(invalidateResponse.invalidated(), equalTo(0));
         assertThat(invalidateResponse.previouslyInvalidated(), equalTo(0));
         assertThat(invalidateResponse.errors(), empty());
 
         // Generate a token that could be a valid token string for the version we are on, and should decode fine, but is not found in our
         // tokens index
-        invalidateResponse = invalidateAccessToken(generateAccessToken(TransportVersion.CURRENT));
+        invalidateResponse = invalidateAccessToken(generateAccessToken(TransportVersion.current()));
         assertThat(invalidateResponse.invalidated(), equalTo(0));
         assertThat(invalidateResponse.previouslyInvalidated(), equalTo(0));
         assertThat(invalidateResponse.errors(), empty());
@@ -344,7 +344,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         ResponseException e = expectThrows(
             ResponseException.class,
             () -> invalidateRefreshToken(
-                TokenService.prependVersionAndEncodeRefreshToken(TransportVersion.CURRENT, UUIDs.randomBase64UUID())
+                TokenService.prependVersionAndEncodeRefreshToken(TransportVersion.current(), UUIDs.randomBase64UUID())
             )
         );
         assertThat(e.getResponse(), hasStatusCode(RestStatus.BAD_REQUEST));
@@ -361,7 +361,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         assertThat(invalidateResponse.errors(), empty());
 
         invalidateResponse = invalidateRefreshToken(
-            TokenService.prependVersionAndEncodeRefreshToken(TransportVersion.CURRENT, randomAlphaOfLength(32))
+            TokenService.prependVersionAndEncodeRefreshToken(TransportVersion.current(), randomAlphaOfLength(32))
         );
         assertThat(invalidateResponse.invalidated(), equalTo(0));
         assertThat(invalidateResponse.previouslyInvalidated(), equalTo(0));
@@ -370,7 +370,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         // Generate a token that could be a valid token string for the version we are on, and should decode fine, but is not found in our
         // tokens index
         invalidateResponse = invalidateRefreshToken(
-            TokenService.prependVersionAndEncodeRefreshToken(TransportVersion.CURRENT, UUIDs.randomBase64UUID())
+            TokenService.prependVersionAndEncodeRefreshToken(TransportVersion.current(), UUIDs.randomBase64UUID())
         );
         assertThat(invalidateResponse.invalidated(), equalTo(0));
         assertThat(invalidateResponse.previouslyInvalidated(), equalTo(0));

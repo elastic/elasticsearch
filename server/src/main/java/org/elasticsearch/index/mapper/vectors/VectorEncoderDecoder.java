@@ -9,7 +9,7 @@
 package org.elasticsearch.index.mapper.vectors;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
+import org.elasticsearch.index.IndexVersion;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -23,7 +23,7 @@ public final class VectorEncoderDecoder {
 
     private VectorEncoderDecoder() {}
 
-    public static int denseVectorLength(Version indexVersion, BytesRef vectorBR) {
+    public static int denseVectorLength(IndexVersion indexVersion, BytesRef vectorBR) {
         return indexVersion.onOrAfter(MAGNITUDE_STORED_INDEX_VERSION)
             ? (vectorBR.length - INT_BYTES) / INT_BYTES
             : vectorBR.length / INT_BYTES;
@@ -34,7 +34,7 @@ public final class VectorEncoderDecoder {
      * NOTE: this function can only be called on vectors from an index version greater than or
      * equal to 7.5.0, since vectors created prior to that do not store the magnitude.
      */
-    public static float decodeMagnitude(Version indexVersion, BytesRef vectorBR) {
+    public static float decodeMagnitude(IndexVersion indexVersion, BytesRef vectorBR) {
         assert indexVersion.onOrAfter(MAGNITUDE_STORED_INDEX_VERSION);
         ByteBuffer byteBuffer = indexVersion.onOrAfter(LITTLE_ENDIAN_FLOAT_STORED_INDEX_VERSION)
             ? ByteBuffer.wrap(vectorBR.bytes, vectorBR.offset, vectorBR.length).order(ByteOrder.LITTLE_ENDIAN)
@@ -54,7 +54,7 @@ public final class VectorEncoderDecoder {
         return (float) magnitude;
     }
 
-    public static float getMagnitude(Version indexVersion, BytesRef vectorBR, float[] decodedVector) {
+    public static float getMagnitude(IndexVersion indexVersion, BytesRef vectorBR, float[] decodedVector) {
         if (vectorBR == null) {
             throw new IllegalArgumentException(DenseVectorScriptDocValues.MISSING_VECTOR_FIELD_MESSAGE);
         }
@@ -70,7 +70,7 @@ public final class VectorEncoderDecoder {
      * @param vectorBR - dense vector encoded in BytesRef
      * @param vector - array of floats where the decoded vector should be stored
      */
-    public static void decodeDenseVector(Version indexVersion, BytesRef vectorBR, float[] vector) {
+    public static void decodeDenseVector(IndexVersion indexVersion, BytesRef vectorBR, float[] vector) {
         if (vectorBR == null) {
             throw new IllegalArgumentException(DenseVectorScriptDocValues.MISSING_VECTOR_FIELD_MESSAGE);
         }

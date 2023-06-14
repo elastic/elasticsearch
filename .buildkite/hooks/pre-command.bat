@@ -21,4 +21,5 @@ powershell -Command "Expand-Archive openjdk-17.0.2_windows-x64_bin.zip"
 md "%JAVA_HOME%"
 rem move openjdk-17.0.2_windows-x64_bin\jdk-17.0.2 "%JAVA_HOME%"
 robocopy openjdk-17.0.2_windows-x64_bin\jdk-17.0.2\ %JAVA_HOME% /E /MOV /NFL /NDL
-echo 1
+
+exit /b 0

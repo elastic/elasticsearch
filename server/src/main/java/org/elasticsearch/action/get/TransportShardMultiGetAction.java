@@ -12,7 +12,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.admin.indices.refresh.TransportShardRefreshAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportActions;
@@ -43,6 +42,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.elasticsearch.action.get.TransportGetAction.getCurrentNodeOfPrimary;
 import static org.elasticsearch.core.Strings.format;
 
 public class TransportShardMultiGetAction extends TransportSingleShardAction<MultiGetShardRequest, MultiGetShardResponse> {
@@ -182,7 +182,8 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
         ActionListener<MultiGetShardResponse> listener
     ) throws IOException {
         ShardId shardId = indexShard.shardId();
-        var node = getCurrentNodeOfPrimary(shardId);
+        var node = getCurrentNodeOfPrimary(clusterService.state().routingTable(), clusterService.state().nodes(), shardId);
+        ;
         if (request.refresh()) {
             logger.trace("send refresh action for shard {} to node {}", shardId, node.getId());
             var refreshRequest = new BasicReplicationRequest(shardId);
@@ -193,15 +194,15 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
                 listener.delegateFailureAndWrap((l, replicationResponse) -> super.asyncShardOperation(request, shardId, l))
             );
         } else if (request.realtime()) {
-            TransportShardMultiGetFomTranslogAction.Request getFromTranslogRequest = new TransportShardMultiGetFomTranslogAction.Request(
+            TransportShardMultiGetFomTranslogAction.Request mgetFromTranslogRequest = new TransportShardMultiGetFomTranslogAction.Request(
                 request,
                 shardId
             );
-            getFromTranslogRequest.setParentTask(request.getParentTask());
+            mgetFromTranslogRequest.setParentTask(request.getParentTask());
             transportService.sendRequest(
                 node,
                 TransportShardMultiGetFomTranslogAction.NAME,
-                getFromTranslogRequest,
+                mgetFromTranslogRequest,
                 new ActionListenerResponseHandler<>(listener.delegateFailure((l, r) -> {
                     var missingLocations = locationsWithMissingResults(r);
                     if (missingLocations.isEmpty()) {
@@ -243,7 +244,7 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
         }
     }
 
-    // Returns the index of entries in response.locations that have a missing result with no failure on the promotable shard.
+    // Returns the indices of entries in response.locations that have a missing result with no failure on the promotable shard.
     private static List<Integer> locationsWithMissingResults(TransportShardMultiGetFomTranslogAction.Response response) {
         List<Integer> locations = new ArrayList<>();
         for (int i = 0; i < response.multiGetShardResponse().locations.size(); i++) {
@@ -301,17 +302,6 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
         } else {
             super.asyncShardOperation(request, shardId, listener);
         }
-    }
-
-    private DiscoveryNode getCurrentNodeOfPrimary(ShardId shardId) {
-        var clusterState = clusterService.state();
-        var shardRoutingTable = clusterState.routingTable().shardRoutingTable(shardId);
-        if (shardRoutingTable.primaryShard() == null || shardRoutingTable.primaryShard().active() == false) {
-            throw new NoShardAvailableActionException(shardId, "primary shard is not active");
-        }
-        DiscoveryNode node = clusterState.nodes().get(shardRoutingTable.primaryShard().currentNodeId());
-        assert node != null;
-        return node;
     }
 
     private IndexShard getIndexShard(ShardId shardId) {

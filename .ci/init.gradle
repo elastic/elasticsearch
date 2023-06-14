@@ -106,8 +106,8 @@ if (buildCacheUrl) {
         url = buildCacheUrl
         push = buildCachePush
         credentials {
-          username = System.getenv("GRADLE_BUILD_CACHE_USERNAME") ?? buildCacheCredentials.get("username")
-          password = System.getenv("GRADLE_BUILD_CACHE_PASSWORD") ?? buildCacheCredentials.get("password")
+          username = System.getenv("GRADLE_BUILD_CACHE_USERNAME") ?: buildCacheCredentials.get("username")
+          password = System.getenv("GRADLE_BUILD_CACHE_PASSWORD") ?: buildCacheCredentials.get("password")
         }
       }
     }

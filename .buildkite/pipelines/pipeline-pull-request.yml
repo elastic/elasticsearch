@@ -17,7 +17,7 @@ steps:
               - 8.9.0
         agents:
           provider: gcp
-          image: family/core-windows-2022
+          image: family/brian-elasticsearch-windows-2022
           machineType: custom-32-98304
           diskType: pd-ssd
           diskSizeGb: 350
@@ -31,10 +31,10 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-windows-2012-r2
-              - family/core-windows-2016
-              - family/core-windows-2019
-              - family/core-windows-2022
+              - family/brian-elasticsearch-windows-2012-r2
+              - family/brian-elasticsearch-windows-2016
+              - family/brian-elasticsearch-windows-2019
+              - family/brian-elasticsearch-windows-2022
             PACKAGING_TASK:
               - default-windows-archive
               - default-windows-archive-no-jdk
@@ -54,7 +54,7 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-windows-2019
+              - family/brian-elasticsearch-windows-2019
             PACKAGING_TASK:
               - default-windows-archive
               - default-windows-archive-no-jdk
@@ -74,7 +74,7 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-windows-2019
+              - family/brian-elasticsearch-windows-2019
             PACKAGING_TASK:
               - default-windows-archive
         agents:
@@ -92,10 +92,10 @@ steps:
         matrix:
           setup:
             image:
-              - family/core-windows-2012-r2
-              - family/core-windows-2016
-              - family/core-windows-2019
-              - family/core-windows-2022
+              - family/brian-elasticsearch-windows-2012-r2
+              - family/brian-elasticsearch-windows-2016
+              - family/brian-elasticsearch-windows-2019
+              - family/brian-elasticsearch-windows-2022
             PACKAGING_TASK:
               - default-windows-archive
         agents:
@@ -110,7 +110,7 @@ steps:
     command: .buildkite\generated-scripts\0ed44aaeab2687b9cc3da467568468e5.bat
     agents:
       provider: gcp
-      image: family/core-windows-2022
+      image: family/brian-elasticsearch-windows-2022
       machineType: custom-32-98304
       diskType: pd-ssd
       diskSizeGb: 350
@@ -118,7 +118,7 @@ steps:
     command: .buildkite\generated-scripts\0ed44aaeab2687b9cc3da467568468e5.bat
     agents:
       provider: gcp
-      image: family/core-windows-2022
+      image: family/brian-elasticsearch-windows-2022
       machineType: custom-32-98304
       diskType: pd-ssd
       diskSizeGb: 350
@@ -126,7 +126,7 @@ steps:
     command: .buildkite\generated-scripts\0ed44aaeab2687b9cc3da467568468e5.bat
     agents:
       provider: gcp
-      image: family/core-windows-2022
+      image: family/brian-elasticsearch-windows-2022
       machineType: custom-32-98304
       diskType: pd-ssd
       diskSizeGb: 350

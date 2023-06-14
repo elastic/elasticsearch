@@ -17,4 +17,6 @@ set GRADLE_BUILD_CACHE_USERNAME=vault read -field=username secret/ci/elastic-ela
 
 powershell -Command "Invoke-WebRequest https://download.java.net/java/GA/jdk17.0.2/dfd4a8d0985749f896bed50d7138ee7f/8/GPL/openjdk-17.0.2_windows-x64_bin.zip -OutFile openjdk-17.0.2_windows-x64_bin.zip"
 powershell -Command "Expand-Archive openjdk-17.0.2_windows-x64_bin.zip"
-move jdk-17.0.2 %JAVA_HOME%
+
+md "%JAVA_HOME%"
+move openjdk-17.0.2_windows-x64_bin\jdk-17.0.2 "%JAVA_HOME%"

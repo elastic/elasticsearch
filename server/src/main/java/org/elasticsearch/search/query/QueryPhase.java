@@ -48,7 +48,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 
@@ -198,7 +197,9 @@ public class QueryPhase {
             CollectorManager<? extends Collector, Void> collectorManager = wrapWithProfilerCollectorManagerIfNeeded(
                 searchContext.getProfilers(),
                 topDocsFactory.collectorManager(),
-                topDocsFactory.profilerName
+                topDocsFactory.profilerName,
+                null,
+                null
             );
 
             if (searchContext.terminateAfter() != SearchContext.DEFAULT_TERMINATE_AFTER) {
@@ -213,7 +214,8 @@ public class QueryPhase {
                     searchContext.getProfilers(),
                     new MultiCollectorManager(new SingleThreadCollectorManager(earlyTerminatingCollector), collectorManager),
                     REASON_SEARCH_TERMINATE_AFTER_COUNT,
-                    collectorManager
+                    collectorManager,
+                    null
                 );
             }
             if (searchContext.parsedPostFilter() != null) {
@@ -228,7 +230,8 @@ public class QueryPhase {
                     searchContext.getProfilers(),
                     new FilteredCollectorManager(collectorManager, filterWeight),
                     REASON_SEARCH_POST_FILTER,
-                    collectorManager
+                    collectorManager,
+                    null
                 );
             }
             if (searchContext.aggregations() != null) {
@@ -250,7 +253,8 @@ public class QueryPhase {
                     searchContext.getProfilers(),
                     new MinimumScoreCollectorManager(collectorManager, searchContext.minimumScore()),
                     REASON_SEARCH_MIN_SCORE,
-                    collectorManager
+                    collectorManager,
+                    null
                 );
             }
 
@@ -282,20 +286,32 @@ public class QueryPhase {
         }
     }
 
-    @SafeVarargs
     private static CollectorManager<? extends Collector, Void> wrapWithProfilerCollectorManagerIfNeeded(
         Profilers profilers,
         CollectorManager<? extends Collector, Void> collectorManager,
         String profilerName,
-        CollectorManager<? extends Collector, Void>... childCollectorManagers
+        CollectorManager<? extends Collector, Void> childCollectorManager1,
+        CollectorManager<? extends Collector, Void> childCollectorManager2
     ) {
         if (profilers == null) {
             return collectorManager;
         } else {
-            InternalProfileCollectorManager[] childProfileManagers = Arrays.stream(childCollectorManagers)
-                .map(cm -> (InternalProfileCollectorManager) cm)
-                .toArray(InternalProfileCollectorManager[]::new);
-            return new InternalProfileCollectorManager(collectorManager, profilerName, childProfileManagers);
+            if (childCollectorManager1 != null && childCollectorManager2 != null) {
+                return new InternalProfileCollectorManager(
+                    collectorManager,
+                    profilerName,
+                    (InternalProfileCollectorManager) childCollectorManager1,
+                    (InternalProfileCollectorManager) childCollectorManager2
+                );
+            }
+            if (childCollectorManager1 != null) {
+                return new InternalProfileCollectorManager(
+                    collectorManager,
+                    profilerName,
+                    (InternalProfileCollectorManager) childCollectorManager1
+                );
+            }
+            return new InternalProfileCollectorManager(collectorManager, profilerName);
         }
     }
 

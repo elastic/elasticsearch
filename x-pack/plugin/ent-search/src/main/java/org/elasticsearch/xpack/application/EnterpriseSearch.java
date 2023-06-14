@@ -142,7 +142,7 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
             actionHandlers.add(new ActionHandler<>(PutQueryRulesetAction.INSTANCE, TransportPutQueryRulesetAction.class));
         }
 
-        return actionHandlers;
+        return Collections.unmodifiableList(actionHandlers);
     }
 
     @Override

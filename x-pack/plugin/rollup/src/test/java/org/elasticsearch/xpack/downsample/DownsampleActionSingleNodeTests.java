@@ -1144,7 +1144,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             String labelIpv4Address = NetworkAddress.format(randomIp(true));
             String labelIpv6Address = NetworkAddress.format(randomIp(false));
             Date labelDateValue = randomDate();
-            int keywordArraySize = randomIntBetween(3, 10);
+            int keywordArraySize = randomIntBetween(2, 5);
             String[] keywordArray = new String[keywordArraySize];
             for (int i = 0; i < keywordArraySize; ++i) {
                 keywordArray[i] = randomAlphaOfLength(10);

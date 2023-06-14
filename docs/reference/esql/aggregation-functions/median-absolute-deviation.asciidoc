@@ -1,0 +1,28 @@
+[[esql-agg-median-absolute-deviation]]
+=== `MEDIAN_ABSOLUTE_DEVIATION`
+The median absolute deviation, a measure of variability. It is a robust
+statistic, meaning that it is useful for describing data that may have outliers,
+or may not be normally distributed. For such data it can be more descriptive than
+standard deviation.
+
+It is calculated as the median of each data point’s deviation from the median of
+the entire sample. That is, for a random variable `X`, the median absolute deviation
+is `median(|median(X) - Xi|)`.
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/stats_percentile.csv-spec[tag=median-absolute-deviation]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/stats_percentile.csv-spec[tag=median-absolute-deviation-result]
+|===
+
+NOTE: Like <<esql-agg-percentile>>, `MEDIAN_ABSOLUTE_DEVIATION` is
+      <<esql-agg-percentile-approximate,usually approximate>>.
+
+[WARNING]
+====
+`MEDIAN_ABSOLUTE_DEVIATION` is also {wikipedia}/Nondeterministic_algorithm[non-deterministic].
+This means you can get slightly different results using the same data.
+====

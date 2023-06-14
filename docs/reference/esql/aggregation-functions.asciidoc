@@ -1,0 +1,32 @@
+[[esql-agg-functions]]
+== ESQL aggregation functions
+
+++++
+<titleabbrev>Aggregation functions</titleabbrev>
+++++
+:keywords: {es}, ESQL, {es} query language, functions
+:description: ESQL supports various functions for calculating values.
+
+<<esql-stats-by>> support these functions:
+
+// tag::functions[]
+* <<esql-agg-avg>>
+* <<esql-agg-count>>
+* <<esql-agg-count-distinct>>
+* <<esql-agg-max>>
+* <<esql-agg-median>>
+* <<esql-agg-median-absolute-deviation>>
+* <<esql-agg-min>>
+* <<esql-agg-percentile>>
+* <<esql-agg-sum>>
+// end::functions[]
+
+include::aggregation-functions/avg.asciidoc[]
+include::aggregation-functions/count.asciidoc[]
+include::aggregation-functions/count-distinct.asciidoc[]
+include::aggregation-functions/max.asciidoc[]
+include::aggregation-functions/median.asciidoc[]
+include::aggregation-functions/median-absolute-deviation.asciidoc[]
+include::aggregation-functions/min.asciidoc[]
+include::aggregation-functions/percentile.asciidoc[]
+include::aggregation-functions/sum.asciidoc[]

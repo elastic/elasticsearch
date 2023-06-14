@@ -41,11 +41,4 @@ include::{esql-specs}/docs.csv-spec[tag=statsGroupByMultipleValues]
 
 The following aggregation functions are supported:
 
-* `AVG`
-* `COUNT`
-* `COUNT_DISTINCT`
-* `MAX`
-* `MEDIAN`
-* `MEDIAN_ABSOLUTE_DEVIATION`
-* `MIN`
-* `SUM`
+include::../aggregation-functions.asciidoc[tag=functions]

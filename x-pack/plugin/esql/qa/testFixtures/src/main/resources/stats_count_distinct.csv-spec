@@ -75,10 +75,29 @@ g:long | h:long
 ;
 
 countDistinctOfIp
-from hosts | stats h0 = count_distinct(ip0), h1 = count_distinct(ip1);
+// tag::count-distinct[]
+FROM hosts
+| STATS COUNT_DISTINCT(ip0), COUNT_DISTINCT(ip1)
+// end::count-distinct[]
+;
 
-h0:long   | h1:long
-7         | 8
+// tag::count-distinct-result[]
+COUNT_DISTINCT(ip0):long | COUNT_DISTINCT(ip1):long
+7                        | 8
+// end::count-distinct-result[]
+;
+
+countDistinctOfIpPrecision
+// tag::count-distinct-precision[]
+FROM hosts
+| STATS COUNT_DISTINCT(ip0, 80000), COUNT_DISTINCT(ip1, 5)
+// end::count-distinct-precision[]
+;
+
+// tag::count-distinct-precision-result[]
+COUNT_DISTINCT(ip0,80000):long | COUNT_DISTINCT(ip1,5):long
+7                              | 9
+// end::count-distinct-precision-result[]
 ;
 
 countDistinctOfDates

@@ -1,0 +1,21 @@
+[[esql-agg-median]]
+=== `MEDIAN`
+The value that is greater than half of all values and less than half of
+all values, also known as the 50% <<esql-agg-percentile>>.
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/stats_percentile.csv-spec[tag=median]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/stats_percentile.csv-spec[tag=median-result]
+|===
+
+NOTE: Like <<esql-agg-percentile>>, `MEDIAN` is <<esql-agg-percentile-approximate,usually approximate>>.
+
+[WARNING]
+====
+`MEDIAN` is also {wikipedia}/Nondeterministic_algorithm[non-deterministic].
+This means you can get slightly different results using the same data.
+====

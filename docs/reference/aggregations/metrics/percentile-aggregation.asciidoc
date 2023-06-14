@@ -220,6 +220,7 @@ GET latency/_search
 [[search-aggregations-metrics-percentile-aggregation-approximation]]
 ==== Percentiles are (usually) approximate
 
+// tag::approximate[]
 There are many different algorithms to calculate percentiles. The naive
 implementation simply stores all the values in a sorted array. To find the 50th
 percentile, you simply find the value that is at `my_array[count(my_array) * 0.5]`.
@@ -253,6 +254,8 @@ It shows how precision is better for extreme percentiles. The reason why error d
 for large number of values is that the law of large numbers makes the distribution of
 values more and more uniform and the t-digest tree can do a better job at summarizing
 it. It would not be the case on more skewed distributions.
+
+// end::approximate[]
 
 [WARNING]
 ====

@@ -6,10 +6,27 @@ l:long
 ;
 
 maxOfInteger
-from employees | stats l = max(languages);
+// tag::max[]
+FROM employees
+| STATS MAX(languages);
+// end::max[]
 
-l:integer
+// tag::max-result[]
+MAX(languages):integer
 5
+// end::max-result[]
+;
+
+minOfInteger
+// tag::min[]
+FROM employees
+| STATS MIN(languages);
+// end::min[]
+
+// tag::min-result[]
+MIN(languages):integer
+1
+// end::min-result[]
 ;
 
 maxOfShort
@@ -114,10 +131,16 @@ l:double
 ;
 
 avgOfDouble
-from employees | stats h = avg(height);
+// tag::avg[]
+FROM employees
+| STATS AVG(height)
+// end::avg[]
+;
 
-h:double
+// tag::avg-result[]
+AVG(height):double
 1.7682
+// end::avg-result[]
 ;
 
 avgOfFloat
@@ -140,6 +163,19 @@ h:double
 1.7682
 ;
 
+countOfDouble
+// tag::count[]
+FROM employees
+| STATS COUNT(height)
+// end::count[]
+;
+
+// tag::count-result[]
+COUNT(height):long
+100
+// end::count-result[]
+;
+
 sumOfLong
 from employees | stats l = sum(languages.long);
 
@@ -148,10 +184,15 @@ l:long
 ;
 
 sumOfInteger
-from employees | stats l = sum(languages);
+// tag::sum[]
+FROM employees
+| STATS SUM(languages);
+// end::sum[]
 
-l:long
+// tag::sum-result[]
+SUM(languages):long
 281
+// end::sum-result[]
 ;
 
 sumOfByte

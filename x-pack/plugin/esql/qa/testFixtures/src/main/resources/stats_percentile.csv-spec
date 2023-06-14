@@ -7,10 +7,18 @@ p0:double   | p50:double  | p99:double
 
 
 percentileOfInteger
-from employees | stats p0 = percentile(salary, 0), p50 = percentile(salary, 50), p99 = percentile(salary, 99);
+// tag::percentile[]
+FROM employees
+| STATS p0 = PERCENTILE(salary,  0)
+     , p50 = PERCENTILE(salary, 50)
+     , p99 = PERCENTILE(salary, 99)
+// end::percentile[]
+;
 
+// tag::percentile-result[]
 p0:double   | p50:double  | p99:double
 25324       | 47003       | 74984.5
+// end::percentile-result[]
 ;
 
 
@@ -69,14 +77,18 @@ m:double   | p50:double
 0          | 0 
 ;
 
-
 medianOfInteger
-from employees | stats m = median(salary), p50 = percentile(salary, 50);
-
-m:double   | p50:double
-47003       | 47003    
+// tag::median[]
+FROM employees
+| STATS MEDIAN(salary), PERCENTILE(salary, 50)
+// end::median[]
 ;
 
+// tag::median-result[]
+MEDIAN(salary):double | PERCENTILE(salary,50):double
+47003                 | 47003    
+// end::median-result[]
+;
 
 medianOfDouble
 from employees | stats m = median(salary_change), p50 = percentile(salary_change, 50);
@@ -116,4 +128,17 @@ m:double           | p50:double           | job_positions:keyword
 4.87               | 4.87                 | "Reporting Analyst"
 4.62               | 4.62                 | "Support Engineer"
 3.9299999999999997 | 3.9299999999999997   | "Architect"
+;
+
+medianAbsoluteDeviation
+// tag::median-absolute-deviation[]
+FROM employees
+| STATS MEDIAN(salary), MEDIAN_ABSOLUTE_DEVIATION(salary)
+// end::median-absolute-deviation[]
+;
+
+// tag::median-absolute-deviation-result[]
+MEDIAN(salary):double | MEDIAN_ABSOLUTE_DEVIATION(salary):double
+47003                 | 10096.5
+// end::median-absolute-deviation-result[]
 ;

@@ -129,6 +129,8 @@ include::esql-processing-commands.asciidoc[]
 
 include::esql-functions.asciidoc[]
 
+include::aggregation-functions.asciidoc[]
+
 include::multivalued-fields.asciidoc[]
 
 :esql-tests!:

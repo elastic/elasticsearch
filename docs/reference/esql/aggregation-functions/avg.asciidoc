@@ -1,0 +1,14 @@
+[[esql-agg-avg]]
+=== `AVG`
+The average of a numeric field.
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/stats.csv-spec[tag=avg]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/stats.csv-spec[tag=avg-result]
+|===
+
+The result is always a `double` not matter the input type.

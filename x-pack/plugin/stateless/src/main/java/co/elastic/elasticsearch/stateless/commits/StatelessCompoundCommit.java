@@ -182,7 +182,7 @@ public record StatelessCompoundCommit(
             if (version < VERSION_WITH_XCONTENT_ENCODING) {
                 BufferedChecksumStreamOutput out = new BufferedChecksumStreamOutput(positionTracking);
                 CodecUtil.writeHeader(new OutputStreamDataOutput(out), SHARD_COMMIT_CODEC, version);
-                TransportVersion.writeVersion(TransportVersion.CURRENT, out);
+                TransportVersion.writeVersion(TransportVersion.current(), out);
                 out.writeWriteable(shardId);
                 out.writeVLong(generation);
                 out.writeVLong(primaryTerm);

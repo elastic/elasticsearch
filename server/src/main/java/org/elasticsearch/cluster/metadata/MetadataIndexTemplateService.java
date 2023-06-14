@@ -1514,7 +1514,7 @@ public class MetadataIndexTemplateService {
                 builder = DataLifecycle.Builder.newBuilder(current);
             } else {
                 if (current.getDataRetention() != null) {
-                    builder.dataRetention(current.getDataRetention());
+                    builder.dataRetention(current.getDataRetention()).downsampling(current.getDownsampling());
                 }
             }
         }

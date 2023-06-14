@@ -67,7 +67,7 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
             if (args.length == 2) {
                 return new DataLifecycle((Retention) args[0], (List<Downsample>) args[1]);
             } else {
-                return new DataLifecycle((Retention) args[0], (Downsampling) null);
+                return new DataLifecycle((Retention) args[0], (List<Downsample>) null);
             }
         }
     );
@@ -124,12 +124,24 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
         this.downsampling = downsampling;
     }
 
-    DataLifecycle(Retention retention, List<Downsample> downsamples) {
+    /*
+     * This constructor is meant to only be used by the xcontent parser.
+     */
+    private DataLifecycle(@Nullable Retention retention, @Nullable List<Downsample> downsamples) {
         this.dataRetention = retention;
-        if (downsamples != null && downsamples.size() == 1 && downsamples.get(0).equals(Downsample.NULL_MARKER)) {
+        if (downsamples == null) {
+            /*
+             * This is the case where the parser found {"lifecycle": null}
+             */
+            this.downsampling = null;
+        } else if (downsamples.size() == 1 && downsamples.get(0).equals(Downsample.NULL_MARKER)) {
+            /*
+             * This is the special case where the parser found a {"lifecycle": {"downsampling": null}}, and it notifies us by passing
+             * this marker in a singleton list.
+             */
             this.downsampling = new Downsampling(null);
         } else {
-            this.downsampling = downsamples == null ? null : new Downsampling(downsamples);
+            this.downsampling = new Downsampling(downsamples);
         }
     }
 
@@ -279,7 +291,7 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
         }
 
         static Builder newBuilder(DataLifecycle dataLifecycle) {
-            return new Builder().dataRetention(dataLifecycle.getDataRetention());
+            return new Builder().dataRetention(dataLifecycle.getDataRetention()).downsampling(dataLifecycle.getDownsampling());
         }
     }
 

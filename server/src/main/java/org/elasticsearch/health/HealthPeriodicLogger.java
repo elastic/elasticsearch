@@ -14,32 +14,20 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.scheduler.SchedulerEngine;
 import org.elasticsearch.common.scheduler.TimeValueSchedule;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.health.node.selection.HealthNode;
-import org.elasticsearch.indices.IndicesModule;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentType;
 
 import java.io.Closeable;
-import java.io.IOException;
 import java.time.Clock;
 import java.util.HashMap;
 import java.util.List;
@@ -47,26 +35,22 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+/**
+ * This class periodically logs the results of the Health API to the standard Elasticsearch server log file.
+ */
 public class HealthPeriodicLogger implements ClusterStateListener, Closeable, SchedulerEngine.Listener {
 
-    public static class HealthPeriodicLoggerResult {
-        private final List<HealthIndicatorResult> indicatorResults;
+    /**
+     * Creates a new HealthPeriodicLoggerResult.
+     * This creates a record that's used as the output of this feature.
+     *
+     * @param indicatorResults the results of the Health API call that will be used as the output.
+     */
+    public record HealthPeriodicLoggerResult(List<HealthIndicatorResult> indicatorResults) {
 
-        public HealthPeriodicLoggerResult(List<HealthIndicatorResult> indicatorResults) {
-            this.indicatorResults = indicatorResults;
-        }
-
-        private Map<String, Object> xContentToMap(ToXContent xcontent) throws IOException {
-            NamedXContentRegistry registry = new NamedXContentRegistry(
-                CollectionUtils.concatLists(ClusterModule.getNamedXWriteables(), IndicesModule.getNamedXContents())
-            );
-            XContentBuilder builder = XContentFactory.jsonBuilder();
-            xcontent.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            XContentParser parser = XContentType.JSON.xContent()
-                .createParser(registry, LoggingDeprecationHandler.INSTANCE, BytesReference.bytes(builder).streamInput());
-            return parser.map();
-        }
-
+        /**
+         * Create a Map of the results, which is then turned into JSON for logging
+         */
         public Map<String, Object> toMap() {
             final Map<String, Object> result = new HashMap<>();
 
@@ -129,6 +113,15 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
 
     };
 
+    /**
+     * Creates a new HealthPeriodicLogger.
+     * This creates a scheduled job using the SchedulerEngine framework and runs it on the current health node.
+     *
+     * @param settings the cluster settings, used to get the interval setting.
+     * @param clusterService the cluster service, used to know when the health node changes.
+     * @param client the client used to call the Health Service.
+     * @param healthService the Health Service, where the actual Health API logic lives.
+     */
     public HealthPeriodicLogger(Settings settings, ClusterService clusterService, NodeClient client, HealthService healthService) {
         this.settings = settings;
         this.clusterService = clusterService;

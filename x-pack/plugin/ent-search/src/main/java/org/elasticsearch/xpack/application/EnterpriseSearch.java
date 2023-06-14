@@ -179,7 +179,7 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
             restHandlers.add(new RestPutQueryRulesetAction(getLicenseState()));
         }
 
-        return restHandlers;
+        return Collections.unmodifiableList(restHandlers);
     }
 
     @Override

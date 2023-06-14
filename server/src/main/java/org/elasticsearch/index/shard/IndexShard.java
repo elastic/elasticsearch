@@ -3324,7 +3324,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public boolean isPrimaryMode() {
-        assert indexShardOperationPermits.getActiveOperationsCount() > 0 : "must hold permit to check primary mode";
+        assert indexShardOperationPermits.getActiveOperationsCount() != 0 : "must hold permit to check primary mode";
         return replicationTracker.isPrimaryMode();
     }
 

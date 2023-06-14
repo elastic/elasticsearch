@@ -21,6 +21,7 @@ import com.nimbusds.openid.connect.sdk.LogoutRequest;
 import com.nimbusds.openid.connect.sdk.Nonce;
 
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
@@ -48,6 +49,8 @@ import org.elasticsearch.xpack.security.authc.support.DelegatedAuthorizationSupp
 
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -163,17 +166,21 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
     @Override
     public void authenticate(AuthenticationToken token, ActionListener<AuthenticationResult<User>> listener) {
         if (token instanceof OpenIdConnectToken oidcToken && isTokenForRealm(oidcToken)) {
-            openIdConnectAuthenticator.authenticate(
-                oidcToken,
-                OpenIdConnectAuthenticator.wrapWithDoPrivileged(jwtClaimsSet -> buildUserFromClaims(jwtClaimsSet, listener), e -> {
-                    logger.debug("Failed to consume the OpenIdConnectToken ", e);
-                    if (e instanceof ElasticsearchSecurityException) {
-                        listener.onResponse(AuthenticationResult.unsuccessful("Failed to authenticate user with OpenID Connect", e));
-                    } else {
-                        listener.onFailure(e);
-                    }
-                })
-            );
+            SpecialPermission.check();
+            AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+                openIdConnectAuthenticator.authenticate(
+                    oidcToken,
+                    OpenIdConnectAuthenticator.wrapWithDoPrivileged(jwtClaimsSet -> buildUserFromClaims(jwtClaimsSet, listener), e -> {
+                        logger.debug("Failed to consume the OpenIdConnectToken ", e);
+                        if (e instanceof ElasticsearchSecurityException) {
+                            listener.onResponse(AuthenticationResult.unsuccessful("Failed to authenticate user with OpenID Connect", e));
+                        } else {
+                            listener.onFailure(e);
+                        }
+                    })
+                );
+                return null;
+            });
         } else {
             listener.onResponse(AuthenticationResult.notHandled());
         }

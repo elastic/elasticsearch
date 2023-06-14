@@ -192,54 +192,58 @@ public class OpenIdConnectAuthenticator {
     public void authenticate(OpenIdConnectToken token, final ActionListener<JWTClaimsSet> listener) {
         SpecialPermission.check();
         AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-            try {
-                AuthenticationResponse authenticationResponse = AuthenticationResponseParser.parse(new URI(token.getRedirectUrl()));
-                final Nonce expectedNonce = token.getNonce();
-                State expectedState = token.getState();
-                if (LOGGER.isTraceEnabled()) {
-                    LOGGER.trace(
-                        "OpenID Connect Provider redirected user to [{}]. Expected Nonce is [{}] and expected State is [{}]",
-                        token.getRedirectUrl(),
-                        expectedNonce,
-                        expectedState
-                    );
-                }
-                if (authenticationResponse instanceof AuthenticationErrorResponse) {
-                    ErrorObject error = ((AuthenticationErrorResponse) authenticationResponse).getErrorObject();
-                    listener.onFailure(
-                        new ElasticsearchSecurityException(
-                            "OpenID Connect Provider response indicates authentication failure" + "Code=[{}], Description=[{}]",
-                            error.getCode(),
-                            error.getDescription()
-                        )
-                    );
-                    return null;
-                }
-                final AuthenticationSuccessResponse response = authenticationResponse.toSuccessResponse();
-                validateState(expectedState, response.getState());
-                validateResponseType(response);
-                if (rpConfig.getResponseType().impliesCodeFlow()) {
-                    final AuthorizationCode code = response.getAuthorizationCode();
-                    exchangeCodeForToken(code, wrapWithDoPrivileged(tokens -> {
-                        final AccessToken accessToken = tokens.v1();
-                        final JWT idToken = tokens.v2();
-                        validateAccessToken(accessToken, idToken);
-                        getUserClaims(accessToken, idToken, expectedNonce, true, listener);
-                    }, listener::onFailure));
-                } else {
-                    final JWT idToken = response.getIDToken();
-                    final AccessToken accessToken = response.getAccessToken();
-                    validateAccessToken(accessToken, idToken);
-                    getUserClaims(accessToken, idToken, expectedNonce, true, listener);
-                }
-            } catch (ElasticsearchSecurityException e) {
-                // Don't wrap in a new ElasticsearchSecurityException
-                listener.onFailure(e);
-            } catch (Exception e) {
-                listener.onFailure(new ElasticsearchSecurityException("Failed to consume the OpenID connect response. ", e));
-            }
+            doAuthenticate(token, listener);
             return null;
         });
+    }
+
+    private void doAuthenticate(OpenIdConnectToken token, ActionListener<JWTClaimsSet> listener) {
+        try {
+            AuthenticationResponse authenticationResponse = AuthenticationResponseParser.parse(new URI(token.getRedirectUrl()));
+            final Nonce expectedNonce = token.getNonce();
+            State expectedState = token.getState();
+            if (LOGGER.isTraceEnabled()) {
+                LOGGER.trace(
+                    "OpenID Connect Provider redirected user to [{}]. Expected Nonce is [{}] and expected State is [{}]",
+                    token.getRedirectUrl(),
+                    expectedNonce,
+                    expectedState
+                );
+            }
+            if (authenticationResponse instanceof AuthenticationErrorResponse) {
+                ErrorObject error = ((AuthenticationErrorResponse) authenticationResponse).getErrorObject();
+                listener.onFailure(
+                    new ElasticsearchSecurityException(
+                        "OpenID Connect Provider response indicates authentication failure" + "Code=[{}], Description=[{}]",
+                        error.getCode(),
+                        error.getDescription()
+                    )
+                );
+                return;
+            }
+            final AuthenticationSuccessResponse response = authenticationResponse.toSuccessResponse();
+            validateState(expectedState, response.getState());
+            validateResponseType(response);
+            if (rpConfig.getResponseType().impliesCodeFlow()) {
+                final AuthorizationCode code = response.getAuthorizationCode();
+                exchangeCodeForToken(code, wrapWithDoPrivileged(tokens -> {
+                    final AccessToken accessToken = tokens.v1();
+                    final JWT idToken = tokens.v2();
+                    validateAccessToken(accessToken, idToken);
+                    getUserClaims(accessToken, idToken, expectedNonce, true, listener);
+                }, listener::onFailure));
+            } else {
+                final JWT idToken = response.getIDToken();
+                final AccessToken accessToken = response.getAccessToken();
+                validateAccessToken(accessToken, idToken);
+                getUserClaims(accessToken, idToken, expectedNonce, true, listener);
+            }
+        } catch (ElasticsearchSecurityException e) {
+            // Don't wrap in a new ElasticsearchSecurityException
+            listener.onFailure(e);
+        } catch (Exception e) {
+            listener.onFailure(new ElasticsearchSecurityException("Failed to consume the OpenID connect response. ", e));
+        }
     }
 
     /**

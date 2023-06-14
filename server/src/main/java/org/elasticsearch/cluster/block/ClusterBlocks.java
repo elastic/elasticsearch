@@ -20,23 +20,23 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
-import java.util.Collections;
+import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Predicate;
 
-import static java.util.Collections.emptySet;
 import static java.util.stream.Collectors.toSet;
-import static java.util.stream.Collectors.toUnmodifiableSet;
 
 /**
  * Represents current cluster level blocks to block dirty operations done against the cluster.
  */
 public class ClusterBlocks implements SimpleDiffable<ClusterBlocks> {
-    public static final ClusterBlocks EMPTY_CLUSTER_BLOCK = new ClusterBlocks(emptySet(), Map.of());
+    private static final ClusterBlock[] EMPTY_BLOCKS_ARRAY = new ClusterBlock[0];
+
+    public static final ClusterBlocks EMPTY_CLUSTER_BLOCK = new ClusterBlocks(Set.of(), Map.of());
 
     private final Set<ClusterBlock> global;
 
@@ -67,7 +67,7 @@ public class ClusterBlocks implements SimpleDiffable<ClusterBlocks> {
     }
 
     private Set<ClusterBlock> blocksForIndex(ClusterBlockLevel level, String index) {
-        return indices(level).getOrDefault(index, emptySet());
+        return indices(level).getOrDefault(index, Set.of());
     }
 
     private static EnumMap<ClusterBlockLevel, ImmutableLevelHolder> generateLevelHolders(
@@ -75,17 +75,29 @@ public class ClusterBlocks implements SimpleDiffable<ClusterBlocks> {
         Map<String, Set<ClusterBlock>> indicesBlocks
     ) {
         EnumMap<ClusterBlockLevel, ImmutableLevelHolder> levelHolders = new EnumMap<>(ClusterBlockLevel.class);
+        // reusable scratch list to collect matching blocks into in #addBlocksAtLevel temporarily, so we don't have to allocate it in the
+        // loop
+        List<ClusterBlock> scratch = new ArrayList<>();
+        Map<String, Set<ClusterBlock>> indicesBuilder = Maps.newMapWithExpectedSize(indicesBlocks.size());
         for (final ClusterBlockLevel level : ClusterBlockLevel.values()) {
-            Predicate<ClusterBlock> containsLevel = block -> block.contains(level);
-            Set<ClusterBlock> newGlobal = global.stream().filter(containsLevel).collect(toUnmodifiableSet());
-
-            Map<String, Set<ClusterBlock>> indicesBuilder = Maps.newMapWithExpectedSize(indicesBlocks.size());
             for (Map.Entry<String, Set<ClusterBlock>> entry : indicesBlocks.entrySet()) {
-                indicesBuilder.put(entry.getKey(), entry.getValue().stream().filter(containsLevel).collect(toUnmodifiableSet()));
+                indicesBuilder.put(entry.getKey(), addBlocksAtLevel(entry.getValue(), scratch, level));
             }
-            levelHolders.put(level, new ImmutableLevelHolder(newGlobal, Map.copyOf(indicesBuilder)));
+            levelHolders.put(level, new ImmutableLevelHolder(addBlocksAtLevel(global, scratch, level), Map.copyOf(indicesBuilder)));
+            indicesBuilder.clear();
         }
         return levelHolders;
+    }
+
+    private static Set<ClusterBlock> addBlocksAtLevel(Set<ClusterBlock> blocks, List<ClusterBlock> scratch, ClusterBlockLevel level) {
+        for (ClusterBlock clusterBlock : blocks) {
+            if (clusterBlock.contains(level)) {
+                scratch.add(clusterBlock);
+            }
+        }
+        var res = Set.of(scratch.toArray(EMPTY_BLOCKS_ARRAY));
+        scratch.clear();
+        return res;
     }
 
     /**
@@ -382,7 +394,7 @@ public class ClusterBlocks implements SimpleDiffable<ClusterBlocks> {
         }
 
         public boolean hasIndexBlock(String index, ClusterBlock block) {
-            return indices.getOrDefault(index, Collections.emptySet()).contains(block);
+            return indices.getOrDefault(index, Set.of()).contains(block);
         }
 
         public Builder removeIndexBlock(String index, ClusterBlock block) {

@@ -575,7 +575,7 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
     }
 
     private static FlushAcknowledgement createFlushAcknowledgement() {
-        return new FlushAcknowledgement(randomAlphaOfLength(5), randomInstant(), randomBoolean());
+        return new FlushAcknowledgement(randomAlphaOfLength(5), randomInstant(), true);
     }
 
     private static class ResultsBuilder {

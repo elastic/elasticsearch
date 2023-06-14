@@ -142,10 +142,13 @@ public class RBACEngine implements AuthorizationEngine {
     @Override
     public void resolveAuthorizationInfo(RequestInfo requestInfo, ActionListener<AuthorizationInfo> listener) {
         final Authentication authentication = requestInfo.getAuthentication();
-        rolesStore.getRoles(
-            authentication,
-            listener.delegateFailureAndWrap((l, roleTuple) -> l.onResponse(new RBACAuthorizationInfo(roleTuple.v1(), roleTuple.v2())))
-        );
+        rolesStore.getRoles(authentication, listener.delegateFailureAndWrap((l, roleTuple) -> {
+            if (roleTuple.v1() == Role.EMPTY_RESTRICTED_BY_WORKFLOW || roleTuple.v2() == Role.EMPTY_RESTRICTED_BY_WORKFLOW) {
+                l.onResponse(DeniedAuthorizationInfo.INSTANCE);
+            } else {
+                l.onResponse(new RBACAuthorizationInfo(roleTuple.v1(), roleTuple.v2()));
+            }
+        }));
     }
 
     @Override
@@ -177,12 +180,11 @@ public class RBACEngine implements AuthorizationEngine {
             final Role role = ((RBACAuthorizationInfo) authorizationInfo).getRole();
             if (role.checkClusterAction(requestInfo.getAction(), requestInfo.getRequest(), requestInfo.getAuthentication())) {
                 listener.onResponse(AuthorizationResult.granted());
-            } else if (role.shouldAllowSameUserPermissions()
-                && checkSameUserPermissions(requestInfo.getAction(), requestInfo.getRequest(), requestInfo.getAuthentication())) {
-                    listener.onResponse(AuthorizationResult.granted());
-                } else {
-                    listener.onResponse(AuthorizationResult.deny());
-                }
+            } else if (checkSameUserPermissions(requestInfo.getAction(), requestInfo.getRequest(), requestInfo.getAuthentication())) {
+                listener.onResponse(AuthorizationResult.granted());
+            } else {
+                listener.onResponse(AuthorizationResult.deny());
+            }
         } else {
             listener.onFailure(
                 new IllegalArgumentException("unsupported authorization info:" + authorizationInfo.getClass().getSimpleName())

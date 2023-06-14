@@ -118,11 +118,6 @@ public class SimpleRole implements Role {
     }
 
     @Override
-    public boolean shouldAllowSameUserPermissions() {
-        return this != EMPTY_RESTRICTED_BY_WORKFLOW;
-    }
-
-    @Override
     public boolean hasFieldOrDocumentLevelSecurity() {
         return indices.hasFieldOrDocumentLevelSecurity();
     }

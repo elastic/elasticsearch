@@ -87,16 +87,9 @@ public final class LimitedRole implements Role {
         if (baseRestricted == EMPTY_RESTRICTED_BY_WORKFLOW) {
             return EMPTY_RESTRICTED_BY_WORKFLOW;
         }
-        Role limitedByRestricted = limitedByRole.forWorkflow(workflow);
-        if (limitedByRestricted == EMPTY_RESTRICTED_BY_WORKFLOW) {
-            return EMPTY_RESTRICTED_BY_WORKFLOW;
-        }
-        return baseRestricted.limitedBy(limitedByRestricted);
-    }
-
-    @Override
-    public boolean shouldAllowSameUserPermissions() {
-        return baseRole != EMPTY_RESTRICTED_BY_WORKFLOW && limitedByRole != EMPTY_RESTRICTED_BY_WORKFLOW;
+        // We don't support workflows restriction for limitedByRole,
+        // hence it is safe to return this object unchanged.
+        return this;
     }
 
     @Override

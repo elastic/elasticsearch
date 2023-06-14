@@ -56,6 +56,7 @@ import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AsyncSupp
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationContext;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationResult;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.DeniedAuthorizationInfo;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.EmptyAuthorizationInfo;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.IndexAuthorizationResult;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.ParentActionAuthorization;
@@ -318,8 +319,22 @@ public class AuthorizationService {
                 final AuthorizationEngine engine = getAuthorizationEngine(authentication);
                 final ActionListener<AuthorizationInfo> authzInfoListener = wrapPreservingContext(
                     listener.delegateFailureAndWrap((l, authorizationInfo) -> {
-                        threadContext.putTransient(AUTHORIZATION_INFO_KEY, authorizationInfo);
-                        maybeAuthorizeRunAs(requestInfo, auditId, authorizationInfo, l);
+                        if (authorizationInfo == DeniedAuthorizationInfo.INSTANCE) {
+                            // TODO: add audit log and dedicated denial message
+                            l.onFailure(
+                                actionDenied(
+                                    authentication,
+                                    authorizationInfo,
+                                    action,
+                                    unwrappedRequest,
+                                    "because access is denied to a workflow",
+                                    null
+                                )
+                            );
+                        } else {
+                            threadContext.putTransient(AUTHORIZATION_INFO_KEY, authorizationInfo);
+                            maybeAuthorizeRunAs(requestInfo, auditId, authorizationInfo, l);
+                        }
                     }),
                     threadContext
                 );

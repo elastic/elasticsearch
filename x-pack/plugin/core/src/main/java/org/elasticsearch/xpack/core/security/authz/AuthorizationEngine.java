@@ -476,6 +476,22 @@ public interface AuthorizationEngine {
     }
 
     /**
+     * Implementation of the authorization info that is used when a resolved authorization info results
+     * in an empty permissions due to denied access.
+     */
+    final class DeniedAuthorizationInfo implements AuthorizationInfo {
+
+        public static final DeniedAuthorizationInfo INSTANCE = new DeniedAuthorizationInfo();
+
+        private DeniedAuthorizationInfo() {}
+
+        @Override
+        public Map<String, Object> asMap() {
+            return Collections.emptyMap();
+        }
+    }
+
+    /**
      * A class that encapsulates information about the request that is being authorized including
      * the actual transport request, the authentication, and the action being invoked.
      */

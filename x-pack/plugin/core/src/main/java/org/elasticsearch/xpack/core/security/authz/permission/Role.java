@@ -66,8 +66,6 @@ public interface Role {
 
     Role forWorkflow(Workflow workflow);
 
-    boolean shouldAllowSameUserPermissions();
-
     /**
      * Whether the Role has any field or document level security enabled index privileges
      * @return
@@ -186,7 +184,10 @@ public interface Role {
     /***
      * Creates a {@link LimitedRole} that uses this Role as base and the given role as limited-by.
      */
-    default LimitedRole limitedBy(Role role) {
+    default Role limitedBy(Role role) {
+        if (role == EMPTY_RESTRICTED_BY_WORKFLOW || this == EMPTY_RESTRICTED_BY_WORKFLOW) {
+            return EMPTY_RESTRICTED_BY_WORKFLOW;
+        }
         return new LimitedRole(this, role);
     }
 

@@ -189,19 +189,21 @@ public class TDigestStateTests extends ESTestCase {
     }
 
     public void testSerialization() throws IOException {
-        // Past default was the accuracy-optimized version.
-        TDigestState backwardsCompatible = TDigestState.createOptimizedForAccuracy(100);
-        TDigestState state = TDigestState.create(100);
-        for (int i = 0; i < 1000; i++) {
-            state.add(i);
-            backwardsCompatible.add(i);
+        for (int size : new int[] { 10, 1000, 100_000 }) {
+            // Past default was the accuracy-optimized version.
+            TDigestState backwardsCompatible = TDigestState.createOptimizedForAccuracy(100);
+            TDigestState state = TDigestState.create(100);
+            for (int i = 0; i < size; i++) {
+                state.add(i);
+                backwardsCompatible.add(i);
+            }
+
+            TDigestState serialized = writeToAndReadFrom(state, TransportVersion.V_8_9_0);
+            assertEquals(serialized, state);
+
+            TDigestState serializedBackwardsCompatible = writeToAndReadFrom(state, TransportVersion.V_8_8_0);
+            // assertNotEquals(serializedBackwardsCompatible, state);
+            assertEquals(serializedBackwardsCompatible, backwardsCompatible);
         }
-
-        TDigestState serialized = writeToAndReadFrom(state, TransportVersion.V_8_9_0);
-        assertEquals(serialized, state);
-
-        TDigestState serializedBackwardsCompatible = writeToAndReadFrom(state, TransportVersion.V_8_8_0);
-        // assertNotEquals(serializedBackwardsCompatible, state);
-        assertEquals(serializedBackwardsCompatible, backwardsCompatible);
     }
 }

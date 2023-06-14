@@ -306,10 +306,14 @@ public abstract class TDigestTests extends ESTestCase {
         final TDigest digest = factory().create();
         final double value = rand.nextDouble() * 1000;
         digest.add(value);
-        final double q = rand.nextDouble();
-        for (double qValue : new double[] { 0, q, 1 }) {
-            assertEquals(value, digest.quantile(qValue), 0.001f);
-        }
+
+        assertEquals(value, digest.quantile(0.0), 0);
+        assertEquals(value, digest.quantile(1.0), 0);
+        assertEquals(value, digest.quantile(rand.nextDouble()), 0);
+
+        assertEquals(0.0, digest.cdf(value - 1e-5), 0.0);
+        assertEquals(1.0, digest.cdf(value + 1e5), 0.0);
+        assertEquals(0.5, digest.cdf(value), 0.0);
     }
 
     public void testFewValues() {
@@ -343,13 +347,9 @@ public abstract class TDigestTests extends ESTestCase {
     public void testEmptyDigest() {
         TDigest digest = factory().create();
         assertEquals(0, digest.centroids().size());
-        assertEquals(0, digest.centroids().size());
-    }
-
-    public void testEmpty() {
-        final TDigest digest = factory().create();
-        final double q = random().nextDouble();
-        assertTrue(Double.isNaN(digest.quantile(q)));
+        assertEquals(0, digest.size());
+        assertTrue(Double.isNaN(digest.quantile(random().nextDouble())));
+        assertTrue(Double.isNaN(digest.cdf(0)));
     }
 
     public void testMoreThan2BValues() {

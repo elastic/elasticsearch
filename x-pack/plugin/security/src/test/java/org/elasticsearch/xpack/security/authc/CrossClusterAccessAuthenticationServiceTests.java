@@ -58,7 +58,7 @@ public class CrossClusterAccessAuthenticationServiceTests extends ESTestCase {
     public void init() throws Exception {
         this.apiKeyService = mock(ApiKeyService.class);
         this.authenticationService = mock(AuthenticationService.class);
-        this.clusterService = mockClusterServiceWithMinTransportVersion(TransportVersion.CURRENT);
+        this.clusterService = mockClusterServiceWithMinTransportVersion(TransportVersion.current());
     }
 
     public void testAuthenticateThrowsOnUnsupportedMinVersions() throws IOException {
@@ -157,18 +157,7 @@ public class CrossClusterAccessAuthenticationServiceTests extends ESTestCase {
                 // Invalid internal user
                 AuthenticationTestHelper.builder().internal(InternalUsers.XPACK_USER).build(),
                 new RoleDescriptorsIntersection(
-                    new RoleDescriptor(
-                        "invalid_role",
-                        new String[] { "all" },
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null
-
-                    )
+                    new RoleDescriptor("invalid_role", new String[] { "all" }, null, null, null, null, null, null, null, null)
                 )
             )
         );

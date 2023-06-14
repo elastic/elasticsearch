@@ -37,8 +37,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Predicate;
 
-import static org.elasticsearch.cluster.metadata.NodesShutdownMetadata.getShutdownsOrEmpty;
-
 public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterNodeAction<Request> {
     private static final Logger logger = LogManager.getLogger(TransportPutShutdownNodeAction.class);
 
@@ -121,7 +119,7 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
         @Override
         public ClusterState execute(BatchExecutionContext<PutShutdownNodeTask> batchExecutionContext) throws Exception {
             final var initialState = batchExecutionContext.initialState();
-            var shutdownMetadata = new HashMap<>(getShutdownsOrEmpty(initialState).getAllNodeMetadataMap());
+            var shutdownMetadata = new HashMap<>(initialState.metadata().nodeShutdowns().getAll());
             Predicate<String> nodeExistsPredicate = batchExecutionContext.initialState().getNodes()::nodeExists;
             boolean changed = false;
             for (final var taskContext : batchExecutionContext.taskContexts()) {
@@ -171,7 +169,7 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
 
     @Override
     protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener) {
-        if (isNoop(getShutdownsOrEmpty(state).getAllNodeMetadataMap(), request)) {
+        if (isNoop(state.getMetadata().nodeShutdowns().getAll(), request)) {
             listener.onResponse(AcknowledgedResponse.TRUE);
             return;
         }

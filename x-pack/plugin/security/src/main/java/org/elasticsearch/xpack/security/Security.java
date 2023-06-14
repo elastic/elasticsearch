@@ -7,11 +7,14 @@
 package org.elasticsearch.xpack.security;
 
 import io.netty.channel.Channel;
+import io.netty.handler.codec.http.HttpMethod;
+import io.netty.handler.codec.http.HttpUtil;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -82,6 +85,7 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestHeaderDefinition;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.threadpool.ExecutorBuilder;
@@ -283,6 +287,7 @@ import org.elasticsearch.xpack.security.authz.interceptor.SearchRequestCacheDisa
 import org.elasticsearch.xpack.security.authz.interceptor.SearchRequestInterceptor;
 import org.elasticsearch.xpack.security.authz.interceptor.ShardSearchRequestInterceptor;
 import org.elasticsearch.xpack.security.authz.interceptor.UpdateRequestInterceptor;
+import org.elasticsearch.xpack.security.authz.restriction.WorkflowService;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.authz.store.DeprecationRoleDescriptorConsumer;
 import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
@@ -290,10 +295,10 @@ import org.elasticsearch.xpack.security.authz.store.NativePrivilegeStore;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 import org.elasticsearch.xpack.security.authz.store.RoleProviders;
 import org.elasticsearch.xpack.security.ingest.SetSecurityUserProcessor;
+import org.elasticsearch.xpack.security.operator.DefaultOperatorOnlyRegistry;
 import org.elasticsearch.xpack.security.operator.FileOperatorUsersStore;
 import org.elasticsearch.xpack.security.operator.OperatorOnlyRegistry;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges;
-import org.elasticsearch.xpack.security.operator.OperatorPrivileges.OperatorPrivilegesService;
 import org.elasticsearch.xpack.security.profile.ProfileService;
 import org.elasticsearch.xpack.security.rest.RemoteHostHeader;
 import org.elasticsearch.xpack.security.rest.SecurityRestFilter;
@@ -538,8 +543,12 @@ public class Security extends Plugin
     private final List<SecurityExtension> securityExtensions = new ArrayList<>();
     private final SetOnce<Transport> transportReference = new SetOnce<>();
     private final SetOnce<ScriptService> scriptServiceReference = new SetOnce<>();
+    private final SetOnce<OperatorOnlyRegistry> operatorOnlyRegistry = new SetOnce<>();
+    private final SetOnce<OperatorPrivileges.OperatorPrivilegesService> operatorPrivilegesService = new SetOnce<>();
 
     private final SetOnce<ReservedRoleMappingAction> reservedRoleMappingAction = new SetOnce<>();
+
+    private final SetOnce<WorkflowService> workflowService = new SetOnce<>();
 
     public Security(Settings settings) {
         this(settings, Collections.emptyList());
@@ -671,6 +680,8 @@ public class Security extends Plugin
         securityContext.set(new SecurityContext(settings, threadPool.getThreadContext()));
         components.add(securityContext.get());
 
+        workflowService.set(new WorkflowService());
+
         final RestrictedIndices restrictedIndices = new RestrictedIndices(expressionResolver);
 
         // audit trail service construction
@@ -755,7 +766,8 @@ public class Security extends Plugin
             settings,
             client,
             systemIndices.getMainIndexManager(),
-            cacheInvalidatorRegistry
+            cacheInvalidatorRegistry,
+            clusterService
         );
         components.add(privilegeStore);
 
@@ -879,18 +891,26 @@ public class Security extends Plugin
         getLicenseState().addListener(allRolesStore::invalidateAll);
 
         final AuthenticationFailureHandler failureHandler = createAuthenticationFailureHandler(realms, extensionComponents);
-        final OperatorPrivilegesService operatorPrivilegesService;
-        final boolean operatorPrivilegesEnabled = OPERATOR_PRIVILEGES_ENABLED.get(settings);
+
+        // operator privileges are enabled either explicitly via the setting or if running serverless
+        final boolean operatorPrivilegesEnabled = OPERATOR_PRIVILEGES_ENABLED.get(settings) || DiscoveryNode.isServerless();
+
         if (operatorPrivilegesEnabled) {
             logger.info("operator privileges are enabled");
-            operatorPrivilegesService = new OperatorPrivileges.DefaultOperatorPrivilegesService(
-                getLicenseState(),
-                new FileOperatorUsersStore(environment, resourceWatcherService),
-                new OperatorOnlyRegistry(clusterService.getClusterSettings())
+            if (operatorOnlyRegistry.get() == null) {
+                operatorOnlyRegistry.set(new DefaultOperatorOnlyRegistry(clusterService.getClusterSettings()));
+            }
+            operatorPrivilegesService.set(
+                new OperatorPrivileges.DefaultOperatorPrivilegesService(
+                    getLicenseState(),
+                    new FileOperatorUsersStore(environment, resourceWatcherService),
+                    operatorOnlyRegistry.get()
+                )
             );
         } else {
-            operatorPrivilegesService = OperatorPrivileges.NOOP_OPERATOR_PRIVILEGES_SERVICE;
+            operatorPrivilegesService.set(OperatorPrivileges.NOOP_OPERATOR_PRIVILEGES_SERVICE);
         }
+
         authcService.set(
             new AuthenticationService(
                 settings,
@@ -902,7 +922,7 @@ public class Security extends Plugin
                 tokenService,
                 apiKeyService,
                 serviceAccountService,
-                operatorPrivilegesService
+                operatorPrivilegesService.get()
             )
         );
         components.add(authcService.get());
@@ -939,7 +959,7 @@ public class Security extends Plugin
             requestInterceptors,
             getLicenseState(),
             expressionResolver,
-            operatorPrivilegesService,
+            operatorPrivilegesService.get(),
             restrictedIndices
         );
 
@@ -1584,7 +1604,7 @@ public class Security extends Plugin
                 transportReference.set(
                     new SecurityNetty4ServerTransport(
                         settings,
-                        TransportVersion.CURRENT,
+                        TransportVersion.current(),
                         threadPool,
                         networkService,
                         pageCacheRecycler,
@@ -1656,26 +1676,6 @@ public class Security extends Plugin
             }
             final AuthenticationService authenticationService = this.authcService.get();
             final ThreadContext threadContext = this.threadContext.get();
-            final HttpValidator httpValidator = (httpRequest, channel, listener) -> {
-                HttpPreRequest httpPreRequest = HttpHeadersAuthenticatorUtils.asHttpPreRequest(httpRequest);
-                // step 1: Populate the thread context with credentials and any other HTTP request header values (eg run-as) that the
-                // authentication process looks for while doing its duty.
-                perRequestThreadContext.accept(httpPreRequest, threadContext);
-                populateClientCertificate.accept(channel, threadContext);
-                RemoteHostHeader.process(channel, threadContext);
-                // step 2: Run authentication on the now properly prepared thread-context.
-                // This inspects and modifies the thread context.
-                if (httpPreRequest.method() != RestRequest.Method.OPTIONS) {
-                    authenticationService.authenticate(
-                        httpPreRequest,
-                        ActionListener.wrap(ignored -> listener.onResponse(null), listener::onFailure)
-                    );
-                } else {
-                    // allow for unauthenticated OPTIONS request
-                    // this includes CORS preflight, and regular OPTIONS that return permitted methods for a given path
-                    listener.onResponse(null);
-                }
-            };
             return getHttpServerTransportWithHeadersValidator(
                 settings,
                 networkService,
@@ -1687,10 +1687,76 @@ public class Security extends Plugin
                 tracer,
                 new TLSConfig(sslConfiguration, sslService::createSSLEngine),
                 acceptPredicate,
-                httpValidator
+                (httpRequest, channel, listener) -> {
+                    HttpPreRequest httpPreRequest = HttpHeadersAuthenticatorUtils.asHttpPreRequest(httpRequest);
+                    // step 1: Populate the thread context with credentials and any other HTTP request header values (eg run-as) that the
+                    // authentication process looks for while doing its duty.
+                    perRequestThreadContext.accept(httpPreRequest, threadContext);
+                    populateClientCertificate.accept(channel, threadContext);
+                    RemoteHostHeader.process(channel, threadContext);
+                    // step 2: Run authentication on the now properly prepared thread-context.
+                    // This inspects and modifies the thread context.
+                    authenticationService.authenticate(httpPreRequest, listener.delegateFailureAndWrap((l, ignored) -> l.onResponse(null)));
+                },
+                (httpRequest, channel, listener) -> {
+                    // allow unauthenticated OPTIONS request through
+                    // this includes CORS preflight, and regular OPTIONS that return permitted methods for a given path
+                    // But still populate the thread context with the usual request headers (as for any other request that is dispatched)
+                    HttpPreRequest httpPreRequest = HttpHeadersAuthenticatorUtils.asHttpPreRequest(httpRequest);
+                    perRequestThreadContext.accept(httpPreRequest, threadContext);
+                    populateClientCertificate.accept(channel, threadContext);
+                    RemoteHostHeader.process(channel, threadContext);
+                    listener.onResponse(null);
+                }
             );
         });
         return httpTransports;
+    }
+
+    // "public" so it can be used in tests
+    public static Netty4HttpServerTransport getHttpServerTransportWithHeadersValidator(
+        Settings settings,
+        NetworkService networkService,
+        ThreadPool threadPool,
+        NamedXContentRegistry xContentRegistry,
+        HttpServerTransport.Dispatcher dispatcher,
+        ClusterSettings clusterSettings,
+        SharedGroupFactory sharedGroupFactory,
+        Tracer tracer,
+        TLSConfig tlsConfig,
+        @Nullable AcceptChannelHandler.AcceptPredicate acceptPredicate,
+        HttpValidator httpValidator,
+        HttpValidator httpOptionsValidator
+    ) {
+        return getHttpServerTransportWithHeadersValidator(
+            settings,
+            networkService,
+            threadPool,
+            xContentRegistry,
+            dispatcher,
+            clusterSettings,
+            sharedGroupFactory,
+            tracer,
+            tlsConfig,
+            acceptPredicate,
+            (httpRequest, channel, listener) -> {
+                if (httpRequest.method() == HttpMethod.OPTIONS) {
+                    if (HttpUtil.getContentLength(httpRequest, -1L) > 1 || HttpUtil.isTransferEncodingChunked(httpRequest)) {
+                        // OPTIONS requests with a body are not supported
+                        listener.onFailure(
+                            new ElasticsearchStatusException(
+                                "OPTIONS requests with a payload body are not supported",
+                                RestStatus.BAD_REQUEST
+                            )
+                        );
+                    } else {
+                        httpOptionsValidator.validate(httpRequest, channel, listener);
+                    }
+                } else {
+                    httpValidator.validate(httpRequest, channel, listener);
+                }
+            }
+        );
     }
 
     // "public" so it can be used in tests
@@ -1737,7 +1803,15 @@ public class Security extends Plugin
 
     @Override
     public UnaryOperator<RestHandler> getRestHandlerInterceptor(ThreadContext threadContext) {
-        return handler -> new SecurityRestFilter(enabled, threadContext, secondayAuthc.get(), auditTrailService.get(), handler);
+        return handler -> new SecurityRestFilter(
+            enabled,
+            threadContext,
+            secondayAuthc.get(),
+            auditTrailService.get(),
+            workflowService.get(),
+            handler,
+            operatorPrivilegesService.get()
+        );
     }
 
     @Override
@@ -1840,6 +1914,19 @@ public class Security extends Plugin
     @Override
     public void loadExtensions(ExtensionLoader loader) {
         securityExtensions.addAll(loader.loadExtensions(SecurityExtension.class));
+
+        // operator registry SPI
+        List<OperatorOnlyRegistry> operatorOnlyRegistries = loader.loadExtensions(OperatorOnlyRegistry.class);
+        if (operatorOnlyRegistries.size() > 1) {
+            throw new IllegalStateException(OperatorOnlyRegistry.class + " may not have multiple implementations");
+        } else if (operatorOnlyRegistries.size() == 1) {
+            OperatorOnlyRegistry operatorOnlyRegistry = operatorOnlyRegistries.get(0);
+            this.operatorOnlyRegistry.set(operatorOnlyRegistry);
+            logger.debug(
+                "Loaded implementation [{}] for interface OperatorOnlyRegistry",
+                operatorOnlyRegistry.getClass().getCanonicalName()
+            );
+        }
     }
 
     private synchronized SharedGroupFactory getNettySharedGroupFactory(Settings settings) {
@@ -1881,5 +1968,10 @@ public class Security extends Plugin
             return Collections.emptyList();
         }
         return List.of(reservedRoleMappingAction.get());
+    }
+
+    // visible for testing
+    OperatorPrivileges.OperatorPrivilegesService getOperatorPrivilegesService() {
+        return operatorPrivilegesService.get();
     }
 }

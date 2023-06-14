@@ -38,7 +38,7 @@ must have the `read` index privilege for the alias's data streams or indices.
 
 Allows you to execute a search query and get back search hits that match the
 query. You can provide search queries using the <<search-api-query-params-q,`q`
-query string parameter>> or <<search-request-body,request body>>.
+query string parameter>> or <<search-search,request body>>.
 
 [[search-search-api-path-params]]
 ==== {api-path-parms-title}
@@ -483,7 +483,6 @@ A boost value greater than `1.0` increases the score. A boost value between
 `0` and `1.0` decreases the score.
 ====
 
-experimental::[]
 [[search-api-knn]]
 `knn`::
 (Optional, object or array of objects)

@@ -24,7 +24,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
-import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -573,7 +573,7 @@ public class TransportCloseJobAction extends TransportTasksAction<
             return;
         }
 
-        final Set<String> movedJobs = Sets.newConcurrentHashSet();
+        final Set<String> movedJobs = ConcurrentCollections.newConcurrentSet();
 
         ActionListener<CloseJobAction.Response> intermediateListener = ActionListener.wrap(response -> {
             for (String jobId : movedJobs) {

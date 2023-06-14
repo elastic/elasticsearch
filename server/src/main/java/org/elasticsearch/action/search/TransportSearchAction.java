@@ -310,6 +310,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     rewritten,
                     localIndices,
                     clusterState,
+                    SearchResponse.Clusters.EMPTY,
                     searchContext,
                     searchPhaseProvider.apply(listener)
                 );
@@ -320,6 +321,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         && rewritten.source().aggregations() != null
                             ? searchService.aggReduceContextBuilder(task::isCancelled, rewritten.source().aggregations())
                             : null;
+                    final int totalClusters = (localIndices == null ? 0 : 1) + remoteClusterIndices.size();
+                    var initClusters = new SearchResponse.Clusters(totalClusters, 0, 0, remoteClusterIndices.size(), true);
+                    if (localIndices == null) {
+                        // Notify the progress listener that a CCS with minimize_roundtrips is happening remote-only (no local shards)
+                        task.getProgressListener().notifyListShards(Collections.emptyList(), Collections.emptyList(), initClusters, false);
+                    }
                     ccsRemoteReduce(
                         parentTaskId,
                         rewritten,
@@ -336,6 +343,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                             r,
                             localIndices,
                             clusterState,
+                            initClusters,
                             searchContext,
                             searchPhaseProvider.apply(l)
                         )
@@ -403,21 +411,23 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     }
 
     static void adjustSearchType(SearchRequest searchRequest, boolean singleShard) {
-        // optimize search type for cases where there is only one shard group to search on
-        if (singleShard) {
-            // if we only have one group, then we always want Q_T_F, no need for DFS, and no need to do THEN since we hit one shard
-            searchRequest.searchType(QUERY_THEN_FETCH);
+        // if there's a kNN search, always use DFS_QUERY_THEN_FETCH
+        if (searchRequest.hasKnnSearch()) {
+            searchRequest.searchType(DFS_QUERY_THEN_FETCH);
+            return;
         }
 
         // if there's only suggest, disable request cache and always use QUERY_THEN_FETCH
         if (searchRequest.isSuggestOnly()) {
             searchRequest.requestCache(false);
             searchRequest.searchType(QUERY_THEN_FETCH);
+            return;
         }
 
-        // if there's a kNN search, always use DFS_QUERY_THEN_FETCH
-        if (searchRequest.hasKnnSearch()) {
-            searchRequest.searchType(DFS_QUERY_THEN_FETCH);
+        // optimize search type for cases where there is only one shard group to search on
+        if (singleShard) {
+            // if we only have one group, then we always want Q_T_F, no need for DFS, and no need to do THEN since we hit one shard
+            searchRequest.searchType(QUERY_THEN_FETCH);
         }
     }
 
@@ -456,7 +466,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         ActionListener<SearchResponse> listener,
         BiConsumer<SearchRequest, ActionListener<SearchResponse>> localSearchConsumer
     ) {
-
         if (localIndices == null && remoteIndices.size() == 1) {
             // if we are searching against a single remote cluster, we simply forward the original search request to such cluster
             // and we directly perform final reduction in the remote cluster
@@ -719,6 +728,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         SearchRequest searchRequest,
         OriginalIndices localIndices,
         ClusterState clusterState,
+        SearchResponse.Clusters clusterInfo,
         SearchContextId searchContext,
         SearchPhaseProvider searchPhaseProvider
     ) {
@@ -731,7 +741,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             (clusterName, nodeId) -> null,
             clusterState,
             Collections.emptyMap(),
-            SearchResponse.Clusters.EMPTY,
+            clusterInfo,
             searchContext,
             searchPhaseProvider
         );
@@ -870,7 +880,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         @Nullable SearchContextId searchContext,
         SearchPhaseProvider searchPhaseProvider
     ) {
-
         clusterState.blocks().globalBlockedRaiseException(ClusterBlockLevel.READ);
         if (searchRequest.allowPartialSearchResults() == null) {
             // No user preference defined in search request - apply cluster service default
@@ -1085,7 +1094,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     task,
                     true,
                     searchService.getCoordinatorRewriteContextProvider(timeProvider::absoluteStartMillis),
-                    ActionListener.wrap(iters -> {
+                    listener.delegateFailureAndWrap((l, iters) -> {
                         SearchPhase action = newSearchPhase(
                             task,
                             searchRequest,
@@ -1101,7 +1110,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                             clusters
                         );
                         action.start();
-                    }, listener::onFailure)
+                    })
                 );
             } else {
                 final QueryPhaseResultConsumer queryResultConsumer = searchPhaseController.newSearchPhaseResults(

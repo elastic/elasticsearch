@@ -9,19 +9,19 @@ package org.elasticsearch.xpack.profiler;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.action.RestActionListener;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
-import org.elasticsearch.rest.action.RestStatusToXContentListener;
+import org.elasticsearch.rest.action.RestChunkedToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestGetProfilingAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, "/_profiling/stacktraces"), new Route(POST, "/_profiling/stacktraces"));
+        return List.of(new Route(POST, "/_profiling/stacktraces"));
     }
 
     @Override
@@ -30,7 +30,7 @@ public class RestGetProfilingAction extends BaseRestHandler {
         request.applyContentParser(getProfilingRequest::parseXContent);
 
         return channel -> {
-            RestStatusToXContentListener<GetProfilingResponse> listener = new RestStatusToXContentListener<>(channel);
+            RestActionListener<GetProfilingResponse> listener = new RestChunkedToXContentListener<>(channel);
             RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, request.getHttpChannel());
             cancelClient.execute(GetProfilingAction.INSTANCE, getProfilingRequest, listener);
         };

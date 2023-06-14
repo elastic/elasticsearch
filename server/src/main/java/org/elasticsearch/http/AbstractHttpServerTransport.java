@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -28,6 +29,7 @@ import org.elasticsearch.common.transport.NetworkExceptionHelper;
 import org.elasticsearch.common.transport.PortsRange;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.AbstractRefCounted;
@@ -54,6 +56,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -63,6 +66,7 @@ import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_CONT
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_PORT;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_PUBLISH_HOST;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_PUBLISH_PORT;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_SERVER_SHUTDOWN_GRACE_PERIOD;
 
 public abstract class AbstractHttpServerTransport extends AbstractLifecycleComponent implements HttpServerTransport {
     private static final Logger logger = LogManager.getLogger(AbstractHttpServerTransport.class);
@@ -87,10 +91,12 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     private final PlainActionFuture<Void> allClientsClosedListener = PlainActionFuture.newFuture();
     private final RefCounted refCounted = AbstractRefCounted.of(() -> allClientsClosedListener.onResponse(null));
     private final Set<HttpServerChannel> httpServerChannels = Collections.newSetFromMap(new ConcurrentHashMap<>());
+    private final long shutdownGracePeriodMillis;
     private final HttpClientStatsTracker httpClientStatsTracker;
 
     private final HttpTracer httpLogger;
     private final Tracer tracer;
+    private volatile boolean gracefullyCloseConnections;
 
     private volatile long slowLogThresholdMs;
 
@@ -135,6 +141,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         );
         slowLogThresholdMs = TransportSettings.SLOW_OPERATION_THRESHOLD_SETTING.get(settings).getMillis();
         httpClientStatsTracker = new HttpClientStatsTracker(settings, clusterSettings, threadPool);
+        shutdownGracePeriodMillis = SETTING_HTTP_SERVER_SHUTDOWN_GRACE_PERIOD.get(settings).getMillis();
     }
 
     public Recycler<BytesRef> recycler() {
@@ -215,6 +222,18 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
 
     protected abstract HttpServerChannel bind(InetSocketAddress hostAddress) throws Exception;
 
+    /**
+     * Gracefully shut down.  If {@link HttpTransportSettings#SETTING_HTTP_SERVER_SHUTDOWN_GRACE_PERIOD} is zero, the default, then
+     * forcefully close all open connections immediately.
+     * Serially run through the following steps:
+     * 1) Stop listening for new HTTP connections, which means no new HttpChannel are added to the {@link #httpChannels} list
+     * 2) Add the {@code Connection: close} response header to all new requests on existing {@link #httpChannels} and close the HttpChannel
+     *    after the new request completes
+     * 3) If grace period is set, wait for all {@link #httpChannels} to close via 2 for up to the configured grace period,
+     *    {@link #shutdownGracePeriodMillis}.
+     *    If all connections are closed before the expiration of the grace period, stop waiting early.
+     * 4) Close all open httpChannels even if requests are in flight.
+     */
     @Override
     protected void doStop() {
         synchronized (httpServerChannels) {
@@ -228,20 +247,39 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
                 }
             }
         }
-        try {
-            refCounted.decRef();
-            CloseableChannel.closeChannels(new ArrayList<>(httpChannels), true);
-        } catch (Exception e) {
-            logger.warn("unexpected exception while closing http channels", e);
+        gracefullyCloseConnections();
+        refCounted.decRef();
+        boolean closed = false;
+        if (shutdownGracePeriodMillis > 0) {
+            try {
+                FutureUtils.get(allClientsClosedListener, shutdownGracePeriodMillis, TimeUnit.MILLISECONDS);
+                closed = true;
+            } catch (ElasticsearchTimeoutException t) {
+                logger.warn(format("timed out while waiting [%d]ms for clients to close connections", shutdownGracePeriodMillis));
+            }
         }
+        if (closed == false) {
+            try {
+                CloseableChannel.closeChannels(new ArrayList<>(httpChannels), true);
+            } catch (Exception e) {
+                logger.warn("unexpected exception while closing http channels", e);
+            }
 
-        try {
-            allClientsClosedListener.get();
-        } catch (Exception e) {
-            assert false : e;
-            logger.warn("unexpected exception while waiting for http channels to close", e);
+            try {
+                allClientsClosedListener.get();
+            } catch (Exception e) {
+                assert false : e;
+                logger.warn("unexpected exception while waiting for http channels to close", e);
+            }
         }
         stopInternal();
+    }
+
+    /**
+     * Close the client channel after a new request.
+     */
+    void gracefullyCloseConnections() {
+        gracefullyCloseConnections = true;
     }
 
     @Override
@@ -454,7 +492,8 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
                     threadContext,
                     corsHandler,
                     maybeHttpLogger,
-                    tracer
+                    tracer,
+                    gracefullyCloseConnections
                 );
             } catch (final IllegalArgumentException e) {
                 badRequestCause = ExceptionsHelper.useOrSuppress(badRequestCause, e);
@@ -468,7 +507,8 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
                     threadContext,
                     corsHandler,
                     httpLogger,
-                    tracer
+                    tracer,
+                    gracefullyCloseConnections
                 );
             }
             channel = innerChannel;

@@ -313,6 +313,20 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
     }
 
     /**
+     * Check if a node with provided name exists
+     *
+     * @return {@code true} node identified with provided name exists or {@code false} otherwise
+     */
+    public boolean hasByName(String name) {
+        for (DiscoveryNode node : nodes.values()) {
+            if (node.getName().equals(name)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * Returns the version of the node with the oldest version in the cluster that is not a client node
      *
      * If there are no non-client nodes, Version.CURRENT will be returned.

@@ -66,10 +66,13 @@ if (BuildParams.isSnapshotBuild() == false) {
   // private key, these tests are blacklisted in non-snapshot test runs
   restTestBlacklist.addAll(['xpack/15_basic/*', 'license/20_put_license/*', 'license/30_enterprise_license/*'])
 
-  // TODO: Remove the following when RCS feature is released
-  // cross_cluster_search privilege is only available when untrusted_remote_cluster_feature_flag_registered is enabled
-  // which requires snapshot build
+  // TODO: Remove the following when the following features are released. These tests include new privileges only available under feature flags
+  //  which require snapshot builds:
+  // * RCS 2.0. cross_cluster_search is only available with untrusted_remote_cluster_feature_flag_registered set
+  // * DLM. manage_dlm privilege is only available with dlm_feature_flag_enabled set
+  // We disable these tests for snapshot builds to maintain release build coverage.
   restTestBlacklist.add('privileges/11_builtin/Test get builtin privileges')
+  restTestBlacklist.add('api_key/50_cross_cluster/*')
 }
 
 tasks.named("yamlRestTest").configure {
@@ -86,6 +89,8 @@ tasks.named("yamlRestTestV7CompatTest").configure {
     'aggregate-metrics/90_tsdb_mappings/aggregate_double_metric with wrong time series mappings',
     'analytics/histogram/histogram with wrong time series mappings',
     'analytics/histogram/histogram with time series mappings',
+    'ml/evaluate_data_frame/Test classification auc_roc',
+    'ml/evaluate_data_frame/Test classification auc_roc with default top_classes_field',
   ].join(',')
 }
 
@@ -94,7 +99,10 @@ tasks.named("yamlRestTestV7CompatTransform").configure { task ->
     "vectors/10_dense_vector_basic/Deprecated function signature",
     "to support it, it would require to almost revert back the #48725 and complicate the code"
   )
-  task.skipTest("vectors/20_dense_vector_special_cases/Indexing of Dense vectors should error when dims don't match defined in the mapping", "Error message has changed")
+  task.skipTest(
+    "vectors/20_dense_vector_special_cases/Indexing of Dense vectors should error when dims don't match defined in the mapping",
+    "Error message has changed"
+  )
   task.skipTest("vectors/30_sparse_vector_basic/Cosine Similarity", "not supported for compatibility")
   task.skipTest("vectors/30_sparse_vector_basic/Deprecated function signature", "not supported for compatibility")
   task.skipTest("vectors/30_sparse_vector_basic/Dot Product", "not supported for compatibility")

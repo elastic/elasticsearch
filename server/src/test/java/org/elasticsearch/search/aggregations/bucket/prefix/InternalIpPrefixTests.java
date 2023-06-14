@@ -101,7 +101,7 @@ public class InternalIpPrefixTests extends InternalMultiBucketAggregationTestCas
         int m = 0;
         int b = 0x80;
         for (int i = 0; i < prefixLength; i++) {
-            mask[m] |= b;
+            mask[m] |= (byte) b;
             b = b >> 1;
             if (b == 0) {
                 m++;

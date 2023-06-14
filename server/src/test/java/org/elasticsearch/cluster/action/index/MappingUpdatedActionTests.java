@@ -16,8 +16,8 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.IndicesAdminClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -128,9 +128,7 @@ public class MappingUpdatedActionTests extends ESTestCase {
     }
 
     public void testSendUpdateMappingUsingAutoPutMappingAction() {
-        DiscoveryNodes nodes = DiscoveryNodes.builder()
-            .add(TestDiscoveryNode.create("first", buildNewFakeTransportAddress(), Version.V_7_9_0))
-            .build();
+        DiscoveryNodes nodes = DiscoveryNodes.builder().add(DiscoveryNodeUtils.builder("first").version(Version.V_7_9_0).build()).build();
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).nodes(nodes).build();
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(clusterState);

@@ -56,6 +56,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -265,6 +266,68 @@ public class PivotTests extends ESTestCase {
         assertThat(pivot.processSearchResponse(searchResponseFromAggs(aggs), null, null, null, null, null), is(nullValue()));
     }
 
+    public void testPreviewForEmptyAggregation() throws Exception{
+        Function pivot = new Pivot(
+            PivotConfigTests.randomPivotConfig(),
+            SettingsConfigTests.randomSettingsConfig(),
+            Version.CURRENT,
+            Collections.emptySet()
+        );
+
+        CountDownLatch latch = new CountDownLatch(1);
+        final  AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
+        final AtomicReference<List<Map<String, Object>>> response = new AtomicReference<>();
+
+        Client emptyAggregationClient = new MyMockClientWithEmptyAggregation("empty aggregation test for preview");
+        pivot.preview(emptyAggregationClient,null, new HashMap<>(), new SourceConfig("test"), null, 1, ActionListener.wrap(r -> {
+            response.set(r);
+            latch.countDown();
+            }, e -> {
+            exceptionHolder.set(e);
+            latch.countDown();
+        }));
+        latch.await();
+        emptyAggregationClient.close();
+
+        if (exceptionHolder.get() != null){
+            throw exceptionHolder.get();
+        }
+        if(response.get().isEmpty() == false){
+            fail("testPreview failed as the response for myMockClientWithEmptyAggregation client should be empty");
+        }
+    }
+
+    public void testPreviewForCompositeAggregation() throws Exception{
+        Function pivot = new Pivot(
+            PivotConfigTests.randomPivotConfig(),
+            SettingsConfigTests.randomSettingsConfig(),
+            Version.CURRENT,
+            Collections.emptySet()
+        );
+
+        CountDownLatch latch = new CountDownLatch(1);
+        final  AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
+        final AtomicReference<List<Map<String, Object>>> response = new AtomicReference<>();
+
+        Client compositeAggregationClient = new MyMockClientWithCompositeAggregation("composite aggregation test for preview");
+        pivot.preview(compositeAggregationClient,null, new HashMap<>(), new SourceConfig("test"), null, 1, ActionListener.wrap(r -> {
+            response.set(r);
+            latch.countDown();
+        }, e -> {
+            exceptionHolder.set(e);
+            latch.countDown();
+        }));
+        latch.await();
+        compositeAggregationClient.close();
+
+        if (exceptionHolder.get() != null){
+            throw exceptionHolder.get();
+        }
+        if(response.get().isEmpty() == false){
+            fail("testPreview failed as the response for compositeAggregationClient client should be empty");
+        }
+    }
+
     private static SearchResponse searchResponseFromAggs(Aggregations aggs) {
         SearchResponseSections sections = new SearchResponseSections(null, aggs, null, false, null, null, 1);
         SearchResponse searchResponse = new SearchResponse(sections, null, 10, 5, 0, 0, new ShardSearchFailure[0], null);
@@ -325,6 +388,45 @@ public class PivotTests extends ESTestCase {
             super.doExecute(action, request, listener);
         }
     }
+
+    private class MyMockClientWithEmptyAggregation extends NoOpClient {
+        MyMockClientWithEmptyAggregation(String testName) {
+            super(testName);
+        }
+
+        @SuppressWarnings("unchecked")
+        @Override
+        protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+            ActionType<Response> action,
+            Request request,
+            ActionListener<Response> listener
+        ) {
+            SearchResponse response = mock(SearchResponse.class);
+            when(response.getAggregations()).thenReturn(new Aggregations(List.of()));
+            listener.onResponse((Response) response);
+        }
+    }
+
+    private class MyMockClientWithCompositeAggregation extends NoOpClient {
+        MyMockClientWithCompositeAggregation(String testName) {
+            super(testName);
+        }
+
+        @SuppressWarnings("unchecked")
+        @Override
+        protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+            ActionType<Response> action,
+            Request request,
+            ActionListener<Response> listener
+        ) {
+            SearchResponse response = mock(SearchResponse.class);
+            CompositeAggregation compositeAggregation = mock(CompositeAggregation.class);
+            when(response.getAggregations()).thenReturn(new Aggregations(List.of(compositeAggregation)));
+            when(compositeAggregation.getBuckets()).thenReturn(new ArrayList<>());
+            listener.onResponse((Response) response);
+        }
+    }
+
 
     private PivotConfig getValidPivotConfig() throws IOException {
         return new PivotConfig(GroupConfigTests.randomGroupConfig(), getValidAggregationConfig(), null);

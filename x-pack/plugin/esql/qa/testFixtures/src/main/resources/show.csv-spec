@@ -1,0 +1,69 @@
+showInfo
+show info | stats v = count(version);
+
+v:long
+1
+;
+
+showFunctions
+show functions;
+
+  name:keyword           |           synopsis:keyword
+abs                      |abs(arg1)
+auto_bucket              |auto_bucket(arg1, arg2, arg3, arg4)
+avg                      |avg(arg1)
+case                     |case(arg1...)
+cidr_match               |cidr_match(arg1, arg2...)
+concat                   |concat(arg1, arg2...)
+count                    |count(arg1)
+count_distinct           |count_distinct(arg1, arg2)
+date_format              |date_format(arg1, arg2)
+date_parse               |date_parse(arg1, arg2)
+date_trunc               |date_trunc(arg1, arg2)
+is_finite                |is_finite(arg1)
+is_infinite              |is_infinite(arg1)
+is_nan                   |is_nan(arg1)
+is_null                  |is_null(arg1)
+length                   |length(arg1)
+max                      |max(arg1)
+median                   |median(arg1)
+median_absolute_deviation|median_absolute_deviation(arg1)
+min                      |min(arg1)
+mv_avg                   |mv_avg(arg1)
+mv_concat                |mv_concat(arg1, arg2)
+mv_count                 |mv_count(arg1)
+mv_max                   |mv_max(arg1)
+mv_median                |mv_median(arg1)
+mv_min                   |mv_min(arg1)
+mv_sum                   |mv_sum(arg1)
+percentile               |percentile(arg1, arg2)
+pow                      |pow(arg1, arg2)
+round                    |round(arg1, arg2)
+split                    |split(arg1, arg2)
+starts_with              |starts_with(arg1, arg2)
+substring                |substring(arg1, arg2, arg3)
+sum                      |sum(arg1)
+to_bool                  |to_bool(arg1)                  
+to_boolean               |to_boolean(arg1)               
+to_datetime              |to_datetime(arg1)              
+to_dbl                   |to_dbl(arg1)                   
+to_double                |to_double(arg1)                
+to_dt                    |to_dt(arg1)                    
+to_int                   |to_int(arg1)                   
+to_integer               |to_integer(arg1)               
+to_ip                    |to_ip(arg1)                    
+to_long                  |to_long(arg1)                  
+to_str                   |to_str(arg1)                   
+to_string                |to_string(arg1) 
+to_ver                   |to_ver(arg1) 
+to_version               |to_version(arg1) 
+;
+
+showFunctionsFiltered
+show functions | where starts_with(name, "is_");
+
+  name:keyword           |           synopsis:keyword
+is_finite                |is_finite(arg1)
+is_infinite              |is_infinite(arg1)
+is_nan                   |is_nan(arg1)
+;

@@ -1,0 +1,16 @@
+[[esql-mv_avg]]
+=== `MV_AVG`
+Converts a multivalued field into a single valued field containing the average
+of all of the values. For example:
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/math.csv-spec[tag=mv_avg]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/math.csv-spec[tag=mv_avg-result]
+|===
+
+
+NOTE: The output type is always a `double` and the input type can be any number.

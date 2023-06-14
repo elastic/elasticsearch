@@ -16,12 +16,12 @@ dependencies {
   api project(path: xpackModule('sql:sql-cli'))
 
   // H2GIS testing dependencies
-  api( "org.orbisgis:h2gis:${h2gisVersion}") {
+  api("org.orbisgis:h2gis:${h2gisVersion}") {
     exclude group: "org.locationtech.jts"
   }
 
   // select just the parts of JLine that are needed
-  api( "org.jline:jline-terminal-jna:${jlineVersion}") {
+  api("org.jline:jline-terminal-jna:${jlineVersion}") {
     exclude group: "net.java.dev.jna"
   }
   api "org.jline:jline-terminal:${jlineVersion}"
@@ -67,7 +67,7 @@ subprojects {
       transitive = false
     }
     javaRestTestImplementation project(":test:framework")
-    javaRestTestRuntimeOnly project(xpackModule('ql:test-fixtures'))
+    javaRestTestImplementation project(xpackModule('ql:test-fixtures'))
 
     // JDBC testing dependencies
     javaRestTestRuntimeOnly "net.sourceforge.csvjdbc:csvjdbc:${csvjdbcVersion}"

@@ -1,0 +1,78 @@
+twoEqualsOr
+from employees | where emp_no == 10010 or emp_no == 10011 | project emp_no, first_name | sort emp_no;  
+
+emp_no:integer | first_name:keyword
+10010          |Duangkaew      
+10011          |Mary       
+;
+
+
+twoEqualsOrKeyword
+from employees | where first_name == "Duangkaew" or first_name == "Mary" | project emp_no, first_name | sort emp_no;  
+
+emp_no:integer | first_name:keyword
+10010          |Duangkaew      
+10011          |Mary       
+;
+
+
+twoEqualsAndOr
+from employees | where emp_no == 10010 and first_name == "Duangkaew" or emp_no == 10011 and first_name == "Mary" | project emp_no, first_name | sort emp_no;  
+
+emp_no:integer | first_name:keyword
+10010          |Duangkaew      
+10011          |Mary       
+;
+
+
+twoEqualsAndOr2
+from employees | where emp_no == 10010 and first_name == "Duangkaew" or emp_no == 10011 and first_name == "FooBar" | project emp_no, first_name | sort emp_no;  
+
+emp_no:integer | first_name:keyword
+10010          |Duangkaew
+;
+
+
+twoEqualsOrBraces
+from employees | where (emp_no == 10010 or emp_no == 10011) | project emp_no, first_name | sort emp_no;  
+
+emp_no:integer | first_name:keyword
+10010          |Duangkaew      
+10011          |Mary       
+;
+
+
+twoInequalityAnd
+from employees | where emp_no >= 10010 and emp_no <= 10011 | project emp_no, first_name | sort emp_no;  
+
+emp_no:integer | first_name:keyword
+10010          |Duangkaew      
+10011          |Mary       
+;
+
+threeEqualsOr
+from employees | where emp_no == 10010 or emp_no == 10011 or emp_no == 10012  | project emp_no, first_name | sort emp_no;  
+
+emp_no:integer | first_name:keyword
+10010          |Duangkaew      
+10011          |Mary       
+10012          |Patricio       
+;
+
+
+evalTwoEqualsOr
+from employees | eval x = emp_no + 10010 - emp_no | where emp_no == x or emp_no == 10011 | project emp_no, first_name | sort emp_no;  
+
+emp_no:integer | first_name:keyword
+10010          |Duangkaew      
+10011          |Mary       
+;
+
+
+evalTwoInequalityAnd
+from employees | eval x = emp_no + 10010 - emp_no | where emp_no >= x and emp_no <= 10011 | project emp_no, first_name | sort emp_no;  
+
+emp_no:integer | first_name:keyword
+10010          |Duangkaew      
+10011          |Mary       
+;

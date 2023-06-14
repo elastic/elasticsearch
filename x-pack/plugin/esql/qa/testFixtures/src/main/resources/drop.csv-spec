@@ -1,0 +1,56 @@
+sortWithLimitOne_DropHeight
+from employees | sort languages | limit 1 | drop height*;
+
+avg_worked_seconds:long | birth_date:date | emp_no:integer | first_name:keyword | gender:keyword | hire_date:date | is_rehired:boolean | job_positions:keyword | languages:integer | languages.byte:integer | languages.long:long | languages.short:integer | last_name:keyword | salary:integer | salary_change:double | salary_change.int:integer |salary_change.long:long | still_hired:boolean
+244294991         |1955-01-21T00:00:00.000Z|10005          |Kyoichi        |M              |1989-09-12T00:00:00.000Z|[false, false, false, true]|null           |1              |1              |1              |1              |Maliniak       |63528          |[-2.14, 13.07] |[-2, 13]         |[-2, 13]          |true
+;
+
+simpleEvalWithSortAndLimitOne_DropHeight
+from employees | eval x = languages + 7 | sort x | limit 1 | drop height*;
+
+avg_worked_seconds:long | birth_date:date | emp_no:integer | first_name:keyword | gender:keyword | hire_date:date | is_rehired:boolean | job_positions:keyword | languages:integer | languages.byte:integer | languages.long:long | languages.short:integer | last_name:keyword | salary:integer | salary_change:double | salary_change.int:integer |salary_change.long:long | still_hired:boolean | x:integer
+244294991         |1955-01-21T00:00:00.000Z|10005          |Kyoichi        |M              |1989-09-12T00:00:00.000Z|[false, false, false, true]|null           |1              |1              |1              |1              |Maliniak       |63528          |[-2.14, 13.07] |[-2, 13]         |[-2, 13]          |true           |8
+;
+
+whereWithEvalGeneratedValue_DropHeight
+from employees | eval x = salary / 2 | where x > 37000 | drop height*;
+
+avg_worked_seconds:long | birth_date:date | emp_no:integer | first_name:keyword | gender:keyword | hire_date:date | is_rehired:boolean | job_positions:keyword | languages:integer | languages.byte:integer | languages.long:long | languages.short:integer | last_name:keyword | salary:integer | salary_change:double | salary_change.int:integer |salary_change.long:long | still_hired:boolean | x:integer
+393084805         |1957-05-23T00:00:00.000Z|10007          |Tzvetan        |F              |1989-02-10T00:00:00.000Z|[false, false, true, true]|null                                                                        |4              |4              |4              |4              |Zielinski      |74572          |[-7.06, 0.57, 1.99] |[-7, 0, 1]       |[-7, 0, 1]        |true           |37286          
+257694181         |1956-12-13T00:00:00.000Z|10029          |Otmar          |M              |1985-11-20T00:00:00.000Z|true                      |[Data Scientist, Principal Support Engineer, Senior Python Developer]       |null           |null           |null           |null           |Herbst         |74999          |[-8.19, -1.9, -0.32]|[-8, -1, 0]      |[-8, -1, 0]       |false          |37499          
+371418933         |null                    |10045          |Moss           |M              |1989-09-02T00:00:00.000Z|[false, true]             |[Accountant, Junior Developer, Principal Support Engineer, Purchase Manager]|3              |3              |3              |3              |Shanbhogue     |74970          |null                |null             |null              |false          |37485                    
+;
+
+projectDropWithWildcardKeepOthers
+row a = 1+3, b = 2, ab = 5 | eval x = 1 + b + 5 | eval abc = x * 2 | drop a* | project b,x;
+
+b:integer | x:integer
+2 | 8
+;
+
+dropAllColumns
+from employees | project height | drop height | eval x = 1;
+
+x:integer
+;
+
+dropAllColumns_WithLimit
+from employees | project height | drop height | eval x = 1 | limit 3;
+
+x:integer
+;
+
+dropAllColumns_WithCount
+from employees | project height | drop height | eval x = 1 | stats c=count(x);
+
+c:long
+0
+;
+
+dropAllColumns_WithStats
+from employees | project height | drop height | eval x = 1 | stats c=count(x), mi=min(x), s=sum(x);
+
+c:l|mi:i|s:l
+0  |null|null
+;
+

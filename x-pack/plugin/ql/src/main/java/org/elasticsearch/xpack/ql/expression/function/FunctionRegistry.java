@@ -196,7 +196,7 @@ public class FunctionRegistry {
      * Build a {@linkplain FunctionDefinition} for a unary function.
      */
     @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
-    protected static <T extends Function> FunctionDefinition def(
+    public static <T extends Function> FunctionDefinition def(
         Class<T> function,
         BiFunction<Source, Expression, T> ctorRef,
         String... names

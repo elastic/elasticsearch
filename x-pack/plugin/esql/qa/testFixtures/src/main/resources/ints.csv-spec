@@ -1,0 +1,206 @@
+// Integral types-specific tests
+
+inLongAndInt
+from employees | where avg_worked_seconds in (372957040, salary_change.long, 236703986) | where emp_no in (10017, emp_no - 1) | project emp_no, avg_worked_seconds;
+
+emp_no:integer |avg_worked_seconds:long
+10017          |236703986
+;
+
+inShortAndByte
+from employees | project emp_no, languages.short, languages.byte | where languages.short in (2, 4, 5) and languages.byte in (4, -1) and emp_no < 10010;
+
+emp_no:integer |languages.short:short|languages.byte:byte
+10003          |4                    |4
+10007          |4                    |4
+;
+
+inCast
+from employees | project emp_no, languages.byte, avg_worked_seconds, height | where languages.byte in (4, -1, avg_worked_seconds, 1000000000000, null, height) and emp_no < 10010;
+
+emp_no:integer |languages.byte:byte |avg_worked_seconds:long |height:double
+10003          |4                   |200296405               |1.83
+10007          |4                   |393084805               |1.7
+;
+
+// `<= 10030` insures going over records where is_null(languages)==true; `in (.., emp_no)` prevents pushing the IN to Lucene
+inOverNulls
+from employees | project emp_no, languages | where is_null(languages) or emp_no <= 10030 | where languages in (2, 3, emp_no);
+
+emp_no:integer |languages:integer
+10001          |2
+10006          |3
+10008          |2
+10016          |2
+10017          |2
+10018          |2
+10030          |3
+;
+
+// conversions to LONG
+
+convertLongToLong
+row long = [501379200000, 520128000000] | eval ll = to_long(long);
+
+long:long                    |ll:long
+[501379200000, 520128000000] |[501379200000, 520128000000]
+;
+
+convertIntToLong
+row int = [5013792, 520128] | eval long = to_long(int);
+
+int:integer       |long:long
+[5013792, 520128] |[5013792, 520128]
+;
+
+convertDatetimeToLong
+from employees | sort emp_no | eval hired_long = to_long(hire_date) | project emp_no, hire_date, hired_long  | limit 3;
+
+emp_no:integer |hire_date:date          |hired_long:long
+10001          |1986-06-26T00:00:00.000Z|520128000000
+10002          |1985-11-21T00:00:00.000Z|501379200000
+10003          |1986-08-28T00:00:00.000Z|525571200000
+;
+
+convertBooleanToLong
+row tf = [true, false] | eval t2l = to_long(true), f2l = to_long(false), tf2l = to_long(tf);
+
+tf:boolean     |t2l:long       |f2l:long       |tf2l:long
+[true, false]  |1              |0              |[1, 0]
+;
+
+convertStringToLong
+// tag::to_long-str[]
+ROW str1 = "2147483648", str2 = "2147483648.2", str3 = "foo"
+| EVAL long1 = TO_LONG(str1), long2 = TO_LONG(str2), long3 = TO_LONG(str3)
+// end::to_long-str[]
+;
+warning:Line 2:62: evaluation of [TO_LONG(str3)] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.NumberFormatException: For input string: \"foo\"
+
+
+// tag::to_long-str-result[]
+str1:keyword |str2:keyword |str3:keyword |long1:long  |long2:long |long3:long
+2147483648   |2147483648.2 |foo          |2147483648  |2147483648 |null
+// end::to_long-str-result[]
+;
+
+convertDoubleToLong
+row d = 123.4 | eval d2l = to_long(d), overflow = to_long(1e19);
+warning:Line 1:51: evaluation of [to_long(1e19)] failed, treating result as null. Only first 20 failures recorded.
+warning:org.elasticsearch.xpack.ql.QlIllegalArgumentException: [1.0E19] out of [long] range
+
+d:double       |d2l:long      |overflow:long     
+123.4          |123           |null    
+;
+
+// conversions to INTEGER
+
+convertIntToInt
+row int = [5013792, 520128] | eval ii = to_integer(int);
+
+int:integer       |ii:integer
+[5013792, 520128] |[5013792, 520128]
+;
+
+convertLongToInt
+// tag::to_int-long[]
+ROW long = [5013792, 2147483647, 501379200000]
+| EVAL int = TO_INTEGER(long)
+// end::to_int-long[]
+;
+warning:Line 2:14: evaluation of [TO_INTEGER(long)] failed, treating result as null. Only first 20 failures recorded.
+warning:org.elasticsearch.xpack.ql.QlIllegalArgumentException: [501379200000] out of [integer] range
+
+// tag::to_int-long-result[]
+long:long                           |int:integer
+[5013792, 2147483647, 501379200000] |[5013792, 2147483647]
+// end::to_int-long-result[]
+;
+
+convertDatetimeToInt
+row int = [5013792, 520128] | eval dt = to_datetime(int) | eval ii = to_integer(dt);
+
+int:integer      |dt:date                                             |ii:integer
+[5013792, 520128]|[1970-01-01T01:23:33.792Z, 1970-01-01T00:08:40.128Z]|[5013792, 520128]
+;
+
+convertBooleanToInt
+row tf = [true, false] | eval t2i = to_integer(true), f2i = to_integer(false), tf2i = to_integer(tf);
+
+tf:boolean     |t2i:integer    |f2i:integer    |tf2i:integer
+[true, false]  |1              |0              |[1, 0]
+;
+
+convertStringToInt
+row int_str = "2147483647", int_dbl_str = "2147483647.2" | eval is2i = to_integer(int_str), ids2i = to_integer(int_dbl_str), overflow = to_integer("2147483648"), no_number = to_integer("foo");
+warning:Line 1:137: evaluation of [to_integer(\"2147483648\")] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.NumberFormatException: For input string: \"2147483648\"
+warning:Line 1:175: evaluation of [to_integer(\"foo\")] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.NumberFormatException: For input string: \"foo\"
+
+int_str:keyword  |int_dbl_str:keyword |is2i:integer|ids2i:integer   |overflow:integer |no_number:integer
+2147483647       |2147483647.2        |2147483647  |2147483647      |null             |null
+;
+
+convertDoubleToInt
+row d = 123.4 | eval d2i = to_integer(d), overflow = to_integer(1e19);
+warning:Line 1:54: evaluation of [to_integer(1e19)] failed, treating result as null. Only first 20 failures recorded.
+warning:org.elasticsearch.xpack.ql.QlIllegalArgumentException: [1.0E19] out of [long] range
+
+d:double       |d2i:integer   |overflow:integer
+123.4          |123           |null    
+;
+
+lessThanMultivalue
+from employees | where salary_change.int < 1 | project emp_no, salary_change.int | sort emp_no | limit 5;
+
+// Note that multivalued salaries aren't less than 1 - they are null - so they aren't included
+emp_no:integer |salary_change.int:integer
+10006          |-3
+10012          | 0
+10017          |-6
+10020          |-5
+10030          | 0
+;
+
+greaterThanMultivalue
+from employees | where salary_change.int > 1 | project emp_no, salary_change.int | sort emp_no | limit 5;
+
+// Note that multivalued salaries aren't greater than 1 - they are null - so they aren't included
+emp_no:integer |salary_change.int:integer
+10044          | 8
+10046          | 2
+10066          | 5
+10079          | 7
+10086          |13
+;
+
+equalToMultivalue
+from employees | where salary_change.int == 0 | project emp_no, salary_change.int | sort emp_no;
+
+// Note that multivalued salaries aren't greater than 1 - they are null - so they aren't included
+emp_no:integer |salary_change.int:integer
+10012          | 0
+10030          | 0
+10077          | 0
+10093          | 0
+;
+
+equalToOrEqualToMultivalue
+from employees | where salary_change.int == 1 or salary_change.int == 8 | project emp_no, salary_change.int | sort emp_no;
+
+// Note that multivalued salaries are filtered out
+emp_no:integer |salary_change.int:integer
+10001          |1
+10044          |8
+;
+
+inMultivalue
+from employees | where salary_change.int in (1, 7) | project emp_no, salary_change.int | sort emp_no;
+
+// Note that multivalued salaries are filtered out
+emp_no:integer |salary_change.int:integer
+10001          |1
+10079          |7
+;

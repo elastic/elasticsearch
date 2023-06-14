@@ -1,0 +1,259 @@
+---
+unsupported:
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: 5
+          mappings:
+            properties:
+              aggregate_metric_double:
+                type: aggregate_metric_double
+                metrics: [ min, max ]
+                default_metric: max
+              binary:
+                type: binary
+              completion:
+                type: completion
+              date_nanos:
+                type: date_nanos
+              date_range:
+                type: date_range
+                format: "yyyy-MM-dd HH:mm:ss||yyyy-MM-dd||epoch_millis"
+              dense_vector:
+                type: dense_vector
+                dims: 3
+              double_range:
+                type: double_range
+              float_range:
+                type: float_range
+              histogram:
+                type: histogram
+              integer_range:
+                type: integer_range
+              name:
+                type: keyword
+              geo_point:
+                type: geo_point
+              geo_point_alias:
+                type: alias
+                path: geo_point
+              ip_range:
+                type: ip_range
+              long_range:
+                type: long_range
+              match_only_text:
+                type: match_only_text
+              nested:
+                type: nested
+              rank_feature:
+                type: rank_feature
+              rank_features:
+                type: rank_features
+              search_as_you_type:
+                type: search_as_you_type
+              shape:
+                type: shape
+              some_doc:
+                properties:
+                  foo:
+                    type: keyword
+                  bar:
+                    type: long
+              text:
+                type: text
+              token_count:
+                type: token_count
+                analyzer: standard
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - { "index": { } }
+          - {
+            "aggregate_metric_double": { "min": 1.0, "max": 3.0 },
+            "binary": "U29tZSBiaW5hcnkgYmxvYg==",
+            "completion": "foo bar",
+            "date_nanos": "2015-01-01T12:10:30.123456789Z",
+            "date_range": { "gte": "2015-10-31 12:00:00", "lte": "2050-12-31 12:00:00" },
+            "dense_vector": [ 0.5, 10, 6 ],
+            "double_range": { "gte": 1.0, "lte": 2.0 },
+            "float_range": { "gte": 1.0, "lte": 2.0 },
+            "geo_point": [ 10.0, 12.0 ],
+            "histogram": { "values": [ 0.1, 0.25, 0.35, 0.4, 0.45, 0.5 ], "counts": [ 8, 17, 8, 7, 6, 2 ] },
+            "integer_range": { "gte": 1, "lte": 2 },
+            "ip_range": "127.0.0.1/16",
+            "long_range": { "gte": 1, "lte": 2 },
+            "match_only_text": "foo bar baz",
+            "name": "Alice",
+            "rank_feature": 10,
+            "rank_features": { "foo": 10, "bar": 20 },
+            "search_as_you_type": "foo bar baz",
+            "shape": "LINESTRING (-377.03653 389.897676, -377.009051 389.889939)",
+            "text": "foo bar",
+            "token_count": "foo bar baz",
+            "some_doc": { "foo": "xy", "bar": 12 }
+          }
+
+  - do:
+      esql.query:
+        body:
+          query: 'from test'
+  - match: { columns.0.name: aggregate_metric_double }
+  - match: { columns.0.type: unsupported }
+  - match: { columns.1.name: binary }
+  - match: { columns.1.type: unsupported }
+  - match: { columns.2.name: completion }
+  - match: { columns.2.type: unsupported }
+  - match: { columns.3.name: date_nanos }
+  - match: { columns.3.type: unsupported }
+  - match: { columns.4.name: date_range }
+  - match: { columns.4.type: unsupported }
+  - match: { columns.5.name: dense_vector }
+  - match: { columns.5.type: unsupported }
+  - match: { columns.6.name: double_range }
+  - match: { columns.6.type: unsupported }
+  - match: { columns.7.name: float_range }
+  - match: { columns.7.type: unsupported }
+  - match: { columns.8.name: geo_point }
+  - match: { columns.8.type: unsupported }
+  - match: { columns.9.name: geo_point_alias }
+  - match: { columns.9.type: unsupported }
+  - match: { columns.10.name: histogram }
+  - match: { columns.10.type: unsupported }
+  - match: { columns.11.name: integer_range }
+  - match: { columns.11.type: unsupported }
+  - match: { columns.12.name: ip_range }
+  - match: { columns.12.type: unsupported }
+  - match: { columns.13.name: long_range }
+  - match: { columns.13.type: unsupported }
+  - match: { columns.14.name: match_only_text }
+  - match: { columns.14.type: unsupported }
+  - match: { columns.15.name: name }
+  - match: { columns.15.type: keyword }
+  - match: { columns.16.name: rank_feature }
+  - match: { columns.16.type: unsupported }
+  - match: { columns.17.name: rank_features }
+  - match: { columns.17.type: unsupported }
+  - match: { columns.18.name: search_as_you_type }
+  - match: { columns.18.type: unsupported }
+  - match: { columns.19.name: search_as_you_type._2gram }
+  - match: { columns.19.type: unsupported }
+  - match: { columns.20.name: search_as_you_type._3gram }
+  - match: { columns.20.type: unsupported }
+  - match: { columns.21.name: search_as_you_type._index_prefix }
+  - match: { columns.21.type: unsupported }
+  - match: { columns.22.name: shape }
+  - match: { columns.22.type: unsupported }
+  - match: { columns.23.name: some_doc.bar }
+  - match: { columns.23.type: long }
+  - match: { columns.24.name: some_doc.foo }
+  - match: { columns.24.type: keyword }
+  - match: { columns.25.name: text }
+  - match: { columns.25.type: unsupported }
+  - match: { columns.26.name: token_count }
+  - match: { columns.26.type: integer }
+
+  - length: { values: 1 }
+  - match: { values.0.0: "<unsupported>" }
+  - match: { values.0.1: "<unsupported>" }
+  - match: { values.0.2: "<unsupported>" }
+  - match: { values.0.3: "<unsupported>" }
+  - match: { values.0.4: "<unsupported>" }
+  - match: { values.0.5: "<unsupported>" }
+  - match: { values.0.6: "<unsupported>" }
+  - match: { values.0.7: "<unsupported>" }
+  - match: { values.0.8: "<unsupported>" }
+  - match: { values.0.9: "<unsupported>" }
+  - match: { values.0.10: "<unsupported>" }
+  - match: { values.0.11: "<unsupported>" }
+  - match: { values.0.12: "<unsupported>" }
+  - match: { values.0.13: "<unsupported>" }
+  - match: { values.0.14: "<unsupported>" }
+  - match: { values.0.15: Alice }
+  - match: { values.0.16: "<unsupported>" }
+  - match: { values.0.17: "<unsupported>" }
+  - match: { values.0.18: "<unsupported>" }
+  - match: { values.0.19: "<unsupported>" }
+  - match: { values.0.20: "<unsupported>" }
+  - match: { values.0.21: "<unsupported>" }
+  - match: { values.0.22: "<unsupported>" }
+  - match: { values.0.23: 12 }
+  - match: { values.0.24: xy }
+  - match: { values.0.25: "<unsupported>" }
+  - match: { values.0.26: 3 }
+
+
+# limit 0
+  - do:
+      esql.query:
+        body:
+          query: 'from test | limit 0'
+  - match: { columns.0.name: aggregate_metric_double }
+  - match: { columns.0.type: unsupported }
+  - match: { columns.1.name: binary }
+  - match: { columns.1.type: unsupported }
+  - match: { columns.2.name: completion }
+  - match: { columns.2.type: unsupported }
+  - match: { columns.3.name: date_nanos }
+  - match: { columns.3.type: unsupported }
+  - match: { columns.4.name: date_range }
+  - match: { columns.4.type: unsupported }
+  - match: { columns.5.name: dense_vector }
+  - match: { columns.5.type: unsupported }
+  - match: { columns.6.name: double_range }
+  - match: { columns.6.type: unsupported }
+  - match: { columns.7.name: float_range }
+  - match: { columns.7.type: unsupported }
+  - match: { columns.8.name: geo_point }
+  - match: { columns.8.type: unsupported }
+  - match: { columns.9.name: geo_point_alias }
+  - match: { columns.9.type: unsupported }
+  - match: { columns.10.name: histogram }
+  - match: { columns.10.type: unsupported }
+  - match: { columns.11.name: integer_range }
+  - match: { columns.11.type: unsupported }
+  - match: { columns.12.name: ip_range }
+  - match: { columns.12.type: unsupported }
+  - match: { columns.13.name: long_range }
+  - match: { columns.13.type: unsupported }
+  - match: { columns.14.name: match_only_text }
+  - match: { columns.14.type: unsupported }
+  - match: { columns.15.name: name }
+  - match: { columns.15.type: keyword }
+  - match: { columns.16.name: rank_feature }
+  - match: { columns.16.type: unsupported }
+  - match: { columns.17.name: rank_features }
+  - match: { columns.17.type: unsupported }
+  - match: { columns.18.name: search_as_you_type }
+  - match: { columns.18.type: unsupported }
+  - match: { columns.19.name: search_as_you_type._2gram }
+  - match: { columns.19.type: unsupported }
+  - match: { columns.20.name: search_as_you_type._3gram }
+  - match: { columns.20.type: unsupported }
+  - match: { columns.21.name: search_as_you_type._index_prefix }
+  - match: { columns.21.type: unsupported }
+  - match: { columns.22.name: shape }
+  - match: { columns.22.type: unsupported }
+  - match: { columns.23.name: some_doc.bar }
+  - match: { columns.23.type: long }
+  - match: { columns.24.name: some_doc.foo }
+  - match: { columns.24.type: keyword }
+  - match: { columns.25.name: text }
+  - match: { columns.25.type: unsupported }
+  - match: { columns.26.name: token_count }
+  - match: { columns.26.type: integer }
+
+  - length: { values: 0 }
+
+# project unsupported and limit 0
+  - do:
+      esql.query:
+        body:
+          query: 'from test | project shape | limit 0'
+  - match: { columns.0.name: shape }
+  - match: { columns.0.type: unsupported }
+  - length: { values: 0 }

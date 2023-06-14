@@ -1,0 +1,117 @@
+twoConditionsWithDefault
+from employees
+| eval type = case(
+    languages <= 1, "monolingual",
+    languages <= 2, "bilingual",
+     "polyglot")
+| project emp_no, type
+| limit 10;
+
+emp_no:integer | type:keyword
+10001          |bilingual      
+10002          |polyglot       
+10003          |polyglot       
+10004          |polyglot       
+10005          |monolingual    
+10006          |polyglot       
+10007          |polyglot       
+10008          |bilingual      
+10009          |monolingual    
+10010          |polyglot       
+;
+
+singleCondition
+from employees
+| eval g = case(gender == "F", true)
+| project gender, g
+| limit 10;
+
+gender:keyword |g:boolean
+M              |null           
+F              |true           
+M              |null           
+M              |null           
+M              |null           
+F              |true           
+F              |true           
+M              |null           
+F              |true           
+null           |null           
+;
+
+conditionIsNull
+from employees 
+| eval g = case(
+    gender == "F", 1,
+    languages > 1, 2,
+    3) 
+| project gender, languages, g 
+| limit 25;
+
+gender:keyword |languages:integer|g:integer
+M              |2                |2              
+F              |5                |1              
+M              |4                |2              
+M              |5                |2              
+M              |1                |3              
+F              |3                |1              
+F              |4                |1              
+M              |2                |2              
+F              |1                |1              
+null           |4                |2
+null           |5                |2
+null           |5                |2
+null           |1                |3
+null           |5                |2
+null           |5                |2
+null           |2                |2
+null           |2                |2
+null           |2                |2
+null           |1                |3
+M              |null             |3
+M              |null             |3
+M              |null             |3
+F              |null             |1              
+F              |null             |1              
+M              |null             |3
+;
+
+nullValue
+from employees
+| eval g = case(gender == "F", 1 + null, 10)
+| project gender, g
+| limit 5;
+
+gender:keyword |g:integer
+M              |10           
+F              |null           
+M              |10           
+M              |10           
+M              |10           
+;
+
+isNull
+from employees
+| where is_null(gender)
+| sort first_name
+| project first_name, gender
+| limit 3;
+
+first_name:keyword|gender:keyword
+Berni             |null
+Cristinel         |null
+Duangkaew         |null
+;
+
+notIsNull
+from employees
+| where not is_null(gender)
+| sort first_name
+| project first_name, gender
+| limit 3;
+
+first_name:keyword|gender:keyword
+Alejandro         |F
+Amabile           |M
+Anneke            |F
+;

@@ -1,0 +1,77 @@
+[[esql-functions]]
+== ESQL functions
+
+++++
+<titleabbrev>Functions</titleabbrev>
+++++
+:keywords: {es}, ESQL, {es} query language, functions
+:description: ESQL supports various functions for calculating values.
+
+<<esql-row,`ROW`>>, <<esql-eval,`EVAL`>> and <<esql-where,`WHERE`>> support
+these functions:
+
+* <<esql-abs>>
+* <<esql-auto_bucket>>
+* <<esql-case>>
+* <<esql-cidr_match>>
+* <<esql-concat>>
+* <<esql-date_format>>
+* <<esql-date_trunc>>
+* <<esql-is_finite>>
+* <<esql-is_infinite>>
+* <<esql-is_nan>>
+* <<esql-is_null>>
+* <<esql-length>>
+* <<esql-mv_avg>>
+* <<esql-mv_concat>>
+* <<esql-mv_count>>
+* <<esql-mv_max>>
+* <<esql-mv_median>>
+* <<esql-mv_min>>
+* <<esql-mv_sum>>
+* <<esql-pow>>
+* <<esql-round>>
+* <<esql-split>>
+* <<esql-starts_with>>
+* <<esql-substring>>
+* <<esql-to_boolean>>
+* <<esql-to_datetime>>
+* <<esql-to_double>>
+* <<esql-to_integer>>
+* <<esql-to_ip>>
+* <<esql-to_long>>
+* <<esql-to_string>>
+* <<esql-to_version>>
+
+include::functions/abs.asciidoc[]
+include::functions/auto_bucket.asciidoc[]
+include::functions/case.asciidoc[]
+include::functions/cidr_match.asciidoc[]
+include::functions/concat.asciidoc[]
+include::functions/date_format.asciidoc[]
+include::functions/date_trunc.asciidoc[]
+include::functions/is_finite.asciidoc[]
+include::functions/is_infinite.asciidoc[]
+include::functions/is_nan.asciidoc[]
+include::functions/is_null.asciidoc[]
+include::functions/length.asciidoc[]
+include::functions/mv_avg.asciidoc[]
+include::functions/mv_concat.asciidoc[]
+include::functions/mv_count.asciidoc[]
+include::functions/mv_max.asciidoc[]
+include::functions/mv_median.asciidoc[]
+include::functions/mv_min.asciidoc[]
+include::functions/mv_sum.asciidoc[]
+include::functions/pow.asciidoc[]
+include::functions/round.asciidoc[]
+include::functions/split.asciidoc[]
+include::functions/starts_with.asciidoc[]
+include::functions/substring.asciidoc[]
+include::functions/to_boolean.asciidoc[]
+include::functions/to_datetime.asciidoc[]
+include::functions/to_double.asciidoc[]
+include::functions/to_integer.asciidoc[]
+include::functions/to_ip.asciidoc[]
+include::functions/to_long.asciidoc[]
+include::functions/to_string.asciidoc[]
+include::functions/to_version.asciidoc[]

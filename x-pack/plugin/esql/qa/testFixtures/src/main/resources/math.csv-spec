@@ -1,0 +1,341 @@
+addIntAndInt
+from employees | eval s = emp_no + languages | project emp_no, s | sort emp_no asc | limit 2;
+
+emp_no:integer | s:integer
+         10001 |     10003
+         10002 |     10007
+;
+
+addLongAndLong
+from employees | eval s = avg_worked_seconds + languages.long | project emp_no, s | sort emp_no asc | limit 2;
+
+emp_no:integer | s:long
+         10001 | 268728051
+         10002 | 328922892
+;
+
+addDoubleAndDouble
+from employees | eval s = height + 5 | project emp_no, s | sort emp_no asc | limit 2;
+
+emp_no:integer | s:double
+         10001 | 7.029999999999999
+         10002 | 7.08
+;
+
+addIntAndLong
+from employees | eval s = emp_no + languages.long | project emp_no, s | sort emp_no asc | limit 2;
+
+emp_no:integer | s:long
+         10001 |  10003
+         10002 |  10007
+;
+
+addLongAndInt
+from employees | eval s = languages.long + emp_no | project emp_no, s | sort emp_no asc | limit 2;
+
+emp_no:integer | s:long
+         10001 |  10003
+         10002 |  10007
+;
+
+addIntAndDouble
+from employees | eval s = emp_no + height | project emp_no, s | sort emp_no asc | limit 2;
+
+emp_no:integer | s:double
+         10001 | 10003.03
+         10002 | 10004.08
+;
+
+addDoubleAndInt
+from employees | eval s = height + emp_no | project emp_no, s | sort emp_no asc | limit 2;
+
+emp_no:integer | s:double
+         10001 | 10003.03
+         10002 | 10004.08
+;
+
+addLongAndDouble
+from employees | eval s = languages.long + height | project emp_no, s | sort emp_no asc | limit 2;
+
+emp_no:integer | s:double
+         10001 | 4.029999999999999
+         10002 | 7.08
+;
+
+addDoubleAndLong
+from employees | eval s = height + languages.long | project emp_no, s | sort emp_no asc | limit 2;
+
+emp_no:integer | s:double
+         10001 | 4.029999999999999
+         10002 | 7.08
+;
+
+absLong
+from employees | eval l = abs(0-languages.long) | project l | sort l asc | limit 3;
+
+l:long
+1
+1
+1
+;
+
+absInt
+from employees | eval s = abs(0-salary) | project s | sort s asc | limit 3;
+
+s:integer
+25324
+25945
+25976
+;
+
+absDouble
+from employees | eval s = abs(0.0-salary) | project s | sort s asc | limit 3;
+
+s:double
+25324.0
+25945.0
+25976.0
+;
+
+powHeightSquared
+from employees | sort height asc | limit 20 | eval s = round(pow(height, 2) - 2, 2) | project height, s | sort s desc | limit 4;
+
+height:double | s:double
+1.55          | 0.40
+1.54          | 0.37
+1.53          | 0.34
+1.53          | 0.34
+;
+
+powSalarySquared
+from employees | eval s = pow(salary - 75000, 2) + 10000 | project salary, s | sort salary desc | limit 4;
+
+salary:integer | s:integer
+74999          | 10001
+74970          | 10900
+74572          | 193184
+73851          | 1330201
+;
+
+isFiniteFalse
+row d = 1.0 | eval s = is_finite(d/0);
+
+d:double | s:boolean
+1.0      | false
+;
+
+isFiniteTrue
+row d = 1.0 | eval s = is_finite(d);
+
+d:double | s:boolean
+1.0      | true
+;
+
+isInfiniteFalse
+row d = 1.0 | eval s = is_infinite(d);
+
+d:double | s:boolean
+1.0      | false
+;
+
+isInfiniteTrue
+row d = 1.0/0 | eval s = is_infinite(d);
+
+d:double | s:boolean
+Infinity | true
+;
+
+isNaN
+row d = 1.0 | eval s = is_nan(d);
+
+d:double | s:boolean
+1.0      | false
+;
+
+powDoubleDouble
+row base = 2.0, exponent = 2.0 | eval s = pow(base, exponent);
+
+base:double | exponent:double | s:double
+2.0         | 2.0             | 4.0
+;
+
+powDoubleInt
+row base = 2.0, exponent = 2 | eval s = pow(base, exponent);
+
+base:double | exponent:integer | s:double
+2.0         | 2                | 4.0
+;
+
+powIntInt
+row base = 2, exponent = 2 | eval s = pow(base, exponent);
+
+base:integer | exponent:integer | s:integer
+2            | 2                | 4
+;
+
+powIntIntPlusInt
+row s = 1 + pow(2, 2);
+
+s:integer
+5
+;
+
+powIntIntPlusDouble
+row s = 1.0 + pow(2, 2);
+
+s:double
+5
+;
+
+mvAvg
+from employees | where emp_no > 10008 | eval salary_change = mv_avg(salary_change) | sort emp_no | project emp_no, salary_change.int, salary_change | limit 7;
+
+emp_no:integer | salary_change.int:integer | salary_change:double
+10009          | null                      | null
+10010          | [-6, 4, 5, 12]            |  3.7800000000000002
+10011          | [-7, 3, 8, 10]            |  3.685
+10012          | 0                         |  0.04
+10013          | null                      | null
+10014          | [-1, 9]                   |  3.5900000000000003
+10015          | [12, 14]                  | 13.325
+;
+
+mvAvgSimple
+// tag::mv_avg[]
+ROW a=[3, 5, 1, 6]
+| EVAL avg_a = MV_AVG(a)
+// end::mv_avg[]
+;
+
+// tag::mv_avg-result[]
+   a:integer | avg_a:double
+[3, 5, 1, 6] | 3.75
+// end::mv_avg-result[]
+;
+
+mvCount
+ROW a=[3, 5, 1, 6]
+| EVAL count_a = MV_COUNT(a)
+;
+
+   a:integer | count_a:integer
+[3, 5, 1, 6] | 4
+;
+
+
+mvMax
+from employees | where emp_no > 10008 | eval salary_change = mv_max(salary_change.int) | sort emp_no | project emp_no, salary_change.int, salary_change | limit 7;
+
+emp_no:integer | salary_change.int:integer | salary_change:integer
+10009          | null                      | null
+10010          | [-6, 4, 5, 12]            | 12
+10011          | [-7, 3, 8, 10]            | 10
+10012          | 0                         | 0
+10013          | null                      | null
+10014          | [-1, 9]                   | 9
+10015          | [12, 14]                  | 14
+;
+
+mvMaxSimple
+// tag::mv_max[]
+ROW a=[3, 5, 1]
+| EVAL max_a = MV_MAX(a)
+// end::mv_max[]
+;
+
+// tag::mv_max-result[]
+a:integer | max_a:integer
+[3, 5, 1] | 5
+// end::mv_max-result[]
+;
+
+mvMedian
+from employees | where emp_no > 10008 | eval med = mv_median(salary_change) | sort emp_no | project emp_no, salary_change, med | limit 7;
+
+emp_no:integer | salary_change:double         | med:double
+10009          | null                         | null
+10010          | [-6.77, 4.69, 5.05, 12.15]   | 4.87
+10011          | [-7.82, 3.48, 8.73, 10.35]   | 6.105
+10012          | 0.04                         | 0.04
+10013          | null                         | null
+10014          | [-1.89, 9.07]                | 3.5900000000000003
+10015          | [12.4, 14.25]                | 13.325
+;
+
+mvMedianSimple
+// tag::mv_median[]
+ROW a=[3, 5, 1]
+| EVAL median_a = MV_MEDIAN(a)
+// end::mv_median[]
+;
+
+// tag::mv_median-result[]
+a:integer | median_a:integer
+[3, 5, 1] | 3
+// end::mv_median-result[]
+;
+
+mvMedianRoundDown
+// tag::mv_median_round_down[]
+ROW a=[3, 7, 1, 6]
+| EVAL median_a = MV_MEDIAN(a)
+// end::mv_median_round_down[]
+;
+
+// tag::mv_median_round_down-result[]
+   a:integer | median_a:integer
+[3, 7, 1, 6] | 4
+// end::mv_median_round_down-result[]
+;
+
+mvMin
+from employees | where emp_no > 10008 | eval salary_change = mv_min(salary_change.int) | sort emp_no | project emp_no, salary_change.int, salary_change | limit 7;
+
+emp_no:integer | salary_change.int:integer | salary_change:integer
+10009          |null                       |null           
+10010          |[-6, 4, 5, 12]             |-6             
+10011          |[-7, 3, 8, 10]             |-7             
+10012          |0                          |0              
+10013          |null                       |null           
+10014          |[-1, 9]                    |-1             
+10015          |[12, 14]                   |12             
+;
+
+mvMinSimple
+// tag::mv_min[]
+ROW a=[2, 1]
+| EVAL min_a = MV_MIN(a)
+// end::mv_min[]
+;
+
+// tag::mv_min-result[]
+a:integer | min_a:integer
+   [2, 1] | 1
+// end::mv_min-result[]
+;
+
+mvSum
+from employees | where emp_no > 10008 | eval salary_change = mv_sum(salary_change.int) | sort emp_no | project emp_no, salary_change.int, salary_change | limit 7;
+
+emp_no:integer | salary_change.int:integer | salary_change:integer
+10009          | null                      | null
+10010          | [-6, 4, 5, 12]            | 15
+10011          | [-7, 3, 8, 10]            | 14
+10012          | 0                         | 0
+10013          | null                      | null
+10014          | [-1, 9]                   | 8
+10015          | [12, 14]                  | 26
+;
+
+mvSumSimple
+// tag::mv_sum[]
+ROW a=[3, 5, 6]
+| EVAL sum_a = MV_SUM(a)
+// end::mv_sum[]
+;
+
+// tag::mv_sum-result[]
+a:integer | sum_a:integer
+[3, 5, 6] | 14
+// end::mv_sum-result[]
+;

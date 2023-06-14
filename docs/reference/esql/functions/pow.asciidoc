@@ -1,0 +1,10 @@
+[[esql-pow]]
+=== `POW`
+Returns the the value of a base (first argument) raised to a power (second
+argument).
+
+[source,esql]
+----
+ROW base = 2.0, exponent = 2.0
+| EVAL s = POW(base, exponent)
+----

@@ -203,6 +203,33 @@ GET /_xpack/usage
     "available" : true,
     "enabled" : true
   },
+  "esql" : {
+    "available" : true,
+    "enabled" : true,
+    "features" : {
+      "eval" : 0,
+      "stats" : 0,
+      "dissect ": 0,
+      "grok" : 0,
+      "limit" : 0,
+      "where" : 0,
+      "sort" : 0
+    },
+    "queries" : {
+      "rest" : {
+        "total" : 0,
+        "failed" : 0
+      },
+      "kibana" : {
+        "total" : 0,
+        "failed" : 0
+      },
+      "_all" : {
+        "total" : 0,
+        "failed" : 0
+     }
+   }
+  },
   "sql" : {
     "available" : true,
     "enabled" : true,

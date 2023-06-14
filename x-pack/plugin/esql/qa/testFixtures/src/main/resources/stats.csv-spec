@@ -1,0 +1,407 @@
+maxOfLong
+from employees | stats l = max(languages.long);
+
+l:long
+5
+;
+
+maxOfInteger
+from employees | stats l = max(languages);
+
+l:integer
+5
+;
+
+maxOfShort
+// short becomes int until https://github.com/elastic/elasticsearch-internal/issues/724
+from employees | stats l = max(languages.short);
+
+l:integer
+5
+;
+
+maxOfByte
+// byte becomes int until https://github.com/elastic/elasticsearch-internal/issues/724
+from employees | stats l = max(languages.byte);
+
+l:integer
+5
+;
+
+maxOfDouble
+from employees | stats h = max(height);
+
+h:double
+2.1
+;
+
+maxOfFloat
+// float becomes double until https://github.com/elastic/elasticsearch-internal/issues/724
+from employees | stats h = max(height.float);
+
+h:double
+2.0999999046325684
+;
+
+maxOfHalfFloat
+// float becomes double until https://github.com/elastic/elasticsearch-internal/issues/724
+from employees | stats h = max(height.half_float);
+
+h:double
+2.099609375
+;
+
+
+maxOfScaledFloat
+// float becomes double until https://github.com/elastic/elasticsearch-internal/issues/724
+from employees | stats h = max(height.scaled_float);
+
+h:double
+2.1
+;
+
+
+maxOfManyLongs
+from employees | stats l = max(salary_change.long);
+
+l:long
+14
+;
+
+
+maxOfManyInts
+from employees | stats l = max(salary_change.int);
+
+l:integer
+14
+;
+
+
+maxOfManyDoubles
+from employees | stats l = max(salary_change);
+
+l:double
+14.74
+;
+
+
+avgOfLong
+from employees | stats l = avg(languages.long);
+
+l:double
+3.1222222222222222
+;
+
+avgOfInteger
+from employees | stats l = avg(languages);
+
+l:double
+3.1222222222222222
+;
+
+avgOfShort
+from employees | stats l = avg(languages.short);
+
+l:double
+3.1222222222222222
+;
+
+avgOfByte
+from employees | stats l = avg(languages.byte);
+
+l:double
+3.1222222222222222
+;
+
+avgOfDouble
+from employees | stats h = avg(height);
+
+h:double
+1.7682
+;
+
+avgOfFloat
+from employees | stats h = avg(height.float);
+
+h:double
+1.7681999909877777
+;
+
+avgOfHalfFloat
+from employees | stats h = avg(height.half_float);
+
+h:double
+1.76818359375
+;
+avgOfScaledFloat
+from employees | stats h = avg(height.scaled_float);
+
+h:double
+1.7682
+;
+
+sumOfLong
+from employees | stats l = sum(languages.long);
+
+l:long
+281
+;
+
+sumOfInteger
+from employees | stats l = sum(languages);
+
+l:long
+281
+;
+
+sumOfByte
+from employees | stats l = sum(languages.byte);
+
+l:long
+281
+;
+
+sumOfShort
+from employees | stats l = sum(languages.short);
+
+l:long
+281
+;
+
+sumOfDouble
+from employees | stats h = sum(height);
+
+h:double
+176.82
+;
+
+sumOfFloat
+from employees | stats h = sum(height.float);
+
+h:double
+176.81999909877777
+;
+
+sumOfHalfFloat
+from employees | stats h = sum(height.half_float);
+
+h:double
+176.818359375
+;
+
+sumOfScaledFloat
+from employees | stats h = sum(height.scaled_float);
+
+h:double
+176.82
+;
+
+groupWithMin
+// declared to double check the tests below
+from employees | stats m = min(height) by languages | sort languages;
+
+m:d  | languages:i
+1.42 | 1
+1.42 | 2
+1.44 | 3
+1.52 | 4
+1.5  | 5
+; 
+
+IfDuplicateNamesLastOneWins
+from employees | stats h = avg(height), h = min(height) by languages | sort languages;
+
+h:d  | languages:i
+1.42 | 1
+1.42 | 2
+1.44 | 3
+1.52 | 4
+1.5  | 5
+;
+
+groupByAlias
+from employees | rename l = languages | project l, height | stats m = min(height) by l | sort l;
+
+m:d  | l:i
+1.42 | 1
+1.42 | 2
+1.44 | 3
+1.52 | 4
+1.5  | 5
+; 
+
+IfDuplicateNamesGroupingHasPriority
+from employees | stats languages = avg(height), languages = min(height) by languages | sort languages;
+
+languages:i
+1
+2
+3
+4
+5
+;
+
+byStringAndLong
+from employees | eval trunk_worked_seconds = avg_worked_seconds / 100000000 * 100000000 | stats c = count(gender) by gender, trunk_worked_seconds | sort c desc;
+
+c:long | gender:keyword | trunk_worked_seconds:long
+30 | M | 300000000
+27 | M | 200000000
+22 | F | 300000000
+11 | F | 200000000
+;
+
+byStringAndLongWithAlias
+from employees | eval trunk_worked_seconds = avg_worked_seconds / 100000000 * 100000000 | rename g = gender, tws = trunk_worked_seconds | project g, tws | stats c = count(g) by g, tws | sort c desc;
+
+c:long | g:keyword | tws:long
+30 | M | 300000000
+27 | M | 200000000
+22 | F | 300000000
+11 | F | 200000000
+;
+
+byStringAndString
+from employees | eval hire_year_str = date_format(hire_date, "yyyy") | stats c = count(gender) by gender, hire_year_str | sort c desc, gender, hire_year_str | where c >= 5;
+
+c:long | gender:keyword | hire_year_str:keyword
+8 | F | 1989
+8 | M | 1987
+8 | M | 1990
+7 | M | 1986
+6 | M | 1985
+6 | M | 1988
+5 | M | 1991
+5 | M | 1992
+;
+
+byLongAndLong
+from employees | eval trunk_worked_seconds = avg_worked_seconds / 100000000 * 100000000 | stats c = count(languages.long) by languages.long, trunk_worked_seconds | sort c desc;
+
+c:long | languages.long:long | trunk_worked_seconds:long
+15 | 5 | 300000000
+11 | 2 | 300000000
+10 | 4 | 300000000
+ 9 | 3 | 200000000
+ 8 | 2 | 200000000
+ 8 | 4 | 200000000
+ 8 | 3 | 300000000
+ 8 | 1 | 200000000
+ 7 | 1 | 300000000
+ 6 | 5 | 200000000
+;
+
+byUnmentionedLongAndLong
+from employees | eval trunk_worked_seconds = avg_worked_seconds / 100000000 * 100000000 | stats c = count(gender) by languages.long, trunk_worked_seconds | sort c desc;
+
+c:long | languages.long:long | trunk_worked_seconds:long
+13 | 5 | 300000000
+10 | 2 | 300000000
+ 9 | 4 | 300000000
+ 9 | 3 | 200000000
+ 8 | 4 | 200000000
+ 8 | 3 | 300000000
+ 7 | 1 | 200000000
+ 6 | 2 | 200000000
+ 6 | 1 | 300000000
+ 4 | 5 | 200000000
+;
+
+byUnmentionedIntAndLong
+from employees | eval trunk_worked_seconds = avg_worked_seconds / 100000000 * 100000000 | stats c = count(gender) by languages, trunk_worked_seconds | sort c desc;
+
+c:long | languages:integer | trunk_worked_seconds:long
+13 | 5 | 300000000
+10 | 2 | 300000000
+ 9 | 4 | 300000000
+ 9 | 3 | 200000000
+ 8 | 4 | 200000000
+ 8 | 3 | 300000000
+ 7 | 1 | 200000000
+ 6 | 2 | 200000000
+ 6 | 1 | 300000000
+ 4 | 5 | 200000000
+;
+
+byUnmentionedIntAndBoolean
+from employees | stats c = count(gender) by languages, still_hired | sort c desc, languages desc;
+
+c:long | languages:integer | still_hired:boolean
+11 | 3 | false
+11 | 2 | true
+10 | 4 | false
+ 9 | 5 | true
+ 8 | 5 | false
+ 8 | 1 | false
+ 7 | 4 | true
+ 6 | 3 | true
+ 5 | 2 | false
+ 5 | 1 | true
+;
+
+byDateAndKeywordAndInt
+from employees | eval d = date_trunc(hire_date, 1 year) | stats c = count(emp_no) by d, gender, languages | sort c desc, d, languages desc | limit 10;
+
+c:long | d:date | gender:keyword | languages:integer
+3 | 1986-01-01T00:00:00.000Z | M | 2
+3 | 1987-01-01T00:00:00.000Z | M | 2
+2 | 1985-01-01T00:00:00.000Z | M | 5
+2 | 1985-01-01T00:00:00.000Z | M | 3
+2 | 1986-01-01T00:00:00.000Z | M | 5
+2 | 1986-01-01T00:00:00.000Z | M | 4
+2 | 1987-01-01T00:00:00.000Z | F | 5
+2 | 1987-01-01T00:00:00.000Z | M | 3
+2 | 1987-01-01T00:00:00.000Z | M | 1
+2 | 1988-01-01T00:00:00.000Z | F | 5
+;
+
+byDateAndKeywordAndIntWithAlias
+from employees | eval d = date_trunc(hire_date, 1 year) | rename g = gender, l = languages, e = emp_no | project d, g, l, e | stats c = count(e) by d, g, l | sort c desc, d, l desc | limit 10;
+
+c:long | d:date | g:keyword | l:integer
+3 | 1986-01-01T00:00:00.000Z | M | 2
+3 | 1987-01-01T00:00:00.000Z | M | 2
+2 | 1985-01-01T00:00:00.000Z | M | 5
+2 | 1985-01-01T00:00:00.000Z | M | 3
+2 | 1986-01-01T00:00:00.000Z | M | 5
+2 | 1986-01-01T00:00:00.000Z | M | 4
+2 | 1987-01-01T00:00:00.000Z | F | 5
+2 | 1987-01-01T00:00:00.000Z | M | 3
+2 | 1987-01-01T00:00:00.000Z | M | 1
+2 | 1988-01-01T00:00:00.000Z | F | 5
+;
+
+byDoubleAndBoolean
+from employees | stats c = count(gender) by height, still_hired | sort c desc, height | limit 10;
+
+c:long | height:double | still_hired:boolean
+4 | 1.52 | true
+4 | 1.77 | true
+3 | 1.83 | false
+3 | 2.1  | true
+2 | 1.44 | true
+2 | 1.53 | false
+2 | 1.55 | false
+2 | 1.57 | true
+2 | 1.59 | false
+2 | 1.61 | false
+;
+
+byMvBoolean
+from employees | stats min(salary), max(salary) by is_rehired | sort is_rehired;
+
+min(salary):integer | max(salary):integer | is_rehired:boolean
+25324               | 74970               | false
+25324               | 74999               | true
+;
+
+byMvInt
+from employees | stats min(salary), max(salary) by salary_change.int | sort salary_change.int desc | limit 5;
+
+min(salary):integer | max(salary):integer | salary_change.int:integer
+25324               | 73578               | 14
+36174               | 68547               | 13
+25324               | 69904               | 12
+28336               | 56760               | 11
+28336               | 73578               | 10
+;

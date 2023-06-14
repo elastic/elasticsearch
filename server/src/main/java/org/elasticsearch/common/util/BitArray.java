@@ -30,6 +30,11 @@ public final class BitArray implements Releasable {
         this.bits = bigArrays.newLongArray(wordNum(initialSize) + 1, true);
     }
 
+    public BitArray(BigArrays bigArrays, LongArray bits) {
+        this.bigArrays = bigArrays;
+        this.bits = bits;
+    }
+
     /**
      * Set the {@code index}th bit.
      */
@@ -49,6 +54,10 @@ public final class BitArray implements Releasable {
         long bitMask = bitmask(index);
         bits.set(wordNum, word | bitMask);
         return (word & bitMask) != 0;
+    }
+
+    public void ensureCapacity(long index) {
+        bits = bigArrays.grow(bits, wordNum(index) + 1);
     }
 
     /** this = this OR other */
@@ -130,6 +139,10 @@ public final class BitArray implements Releasable {
 
     private static long bitmask(long index) {
         return 1L << index;
+    }
+
+    public LongArray getBits() {
+        return bits;
     }
 
     @Override

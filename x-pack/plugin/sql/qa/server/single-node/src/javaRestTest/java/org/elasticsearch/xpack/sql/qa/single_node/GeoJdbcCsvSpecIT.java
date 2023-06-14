@@ -10,12 +10,12 @@ package org.elasticsearch.xpack.sql.qa.single_node;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.xpack.sql.qa.geo.GeoCsvSpecTestCase;
-import org.elasticsearch.xpack.sql.qa.jdbc.CsvTestUtils.CsvTestCase;
 
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.xpack.sql.qa.jdbc.CsvTestUtils.specParser;
+import static org.elasticsearch.xpack.ql.CsvSpecReader.CsvTestCase;
+import static org.elasticsearch.xpack.ql.CsvSpecReader.specParser;
 
 public class GeoJdbcCsvSpecIT extends GeoCsvSpecTestCase {
 

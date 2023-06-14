@@ -1,0 +1,135 @@
+// Floating point types-specific tests
+
+inDouble
+from employees | project emp_no, height, height.float, height.half_float, height.scaled_float | where height in (2.03, 2.0299999713897705, 2.029296875, 2.0300000000000002);
+
+emp_no:integer |height:double  |height.float:double |height.half_float:double |height.scaled_float:double
+10001          |2.03           |2.0299999713897705  |2.029296875              |2.0300000000000002
+10090          |2.03           |2.0299999713897705  |2.029296875              |2.0300000000000002
+;
+
+inFloat
+from employees | project emp_no, height, height.float, height.half_float, height.scaled_float | where height.float in (2.03, 2.0299999713897705, 2.029296875, 2.0300000000000002);
+
+emp_no:integer |height:double  |height.float:double |height.half_float:double |height.scaled_float:double
+10001          |2.03           |2.0299999713897705  |2.029296875              |2.0300000000000002
+10090          |2.03           |2.0299999713897705  |2.029296875              |2.0300000000000002
+;
+
+inHalfFloat
+from employees | project emp_no, height, height.float, height.half_float, height.scaled_float | where height.half_float in (2.03, 2.0299999713897705, 2.029296875, 2.0300000000000002);
+
+emp_no:integer |height:double  |height.float:double |height.half_float:double |height.scaled_float:double
+10001          |2.03           |2.0299999713897705  |2.029296875              |2.0300000000000002
+10090          |2.03           |2.0299999713897705  |2.029296875              |2.0300000000000002
+;
+
+inScaledFloat
+from employees | project emp_no, height, height.float, height.half_float, height.scaled_float | where height.scaled_float in (2.03, 2.0299999713897705, 2.029296875, 2.0300000000000002);
+
+emp_no:integer |height:double  |height.float:double |height.half_float:double |height.scaled_float:double
+10001          |2.03           |2.0299999713897705  |2.029296875              |2.0300000000000002
+10090          |2.03           |2.0299999713897705  |2.029296875              |2.0300000000000002
+;
+
+convertFromDouble
+row d = [123.4, 567.8] | eval dd = to_double(d);
+
+d:double       |dd:double
+[123.4, 567.8] |[123.4, 567.8]
+;
+
+convertFromBoolean
+row ft = [false, true] | eval fd = to_double(false), td = to_double(true), ftd = to_double(ft);
+
+ft:boolean    |fd:double |td:double |ftd:double
+[false, true] |0         |1         |[0, 1]
+;
+
+convertFromDatetime
+from employees | sort emp_no | eval hire_double = to_double(hire_date) | project emp_no, hire_date, hire_double | limit 3;
+
+emp_no:integer |hire_date:date          |hire_double:double
+10001          |1986-06-26T00:00:00.000Z|5.20128E11
+10002          |1985-11-21T00:00:00.000Z|5.013792E11
+10003          |1986-08-28T00:00:00.000Z|5.255712E11
+;
+
+convertFromString
+// tag::to_double-str[]
+ROW str1 = "5.20128E11", str2 = "foo"
+| EVAL dbl = TO_DOUBLE("520128000000"), dbl1 = TO_DOUBLE(str1), dbl2 = TO_DOUBLE(str2)
+// end::to_double-str[]
+;
+warning:Line 2:72: evaluation of [TO_DOUBLE(str2)] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.NumberFormatException: For input string: \"foo\"
+
+// tag::to_double-str-result[]
+str1:keyword |str2:keyword |dbl:double |dbl1:double |dbl2:double
+5.20128E11   |foo          |5.20128E11 |5.20128E11  |null
+// end::to_double-str-result[]
+;
+
+convertFromLong
+row long = 520128000000 | eval dbl = to_double(long);
+
+long:long    |dbl:double
+520128000000 |520128000000
+;
+
+convertFromInt
+row int = 520128 | eval dbl = to_double(int);
+
+int:integer |dbl:double
+520128      |520128
+;
+
+lessThanMultivalue
+from employees | where salary_change < 1 | project emp_no, salary_change | sort emp_no | limit 5;
+
+// Note that multivalued salaries aren't less than 1 - they are null - so they aren't included
+emp_no:integer |salary_change:double
+10006          |-3.9
+10012          | 0.04
+10017          |-6.33
+10020          |-5.81
+10030          |-0.4
+;
+
+greaterThanMultivalue
+from employees | where salary_change > 1 | project emp_no, salary_change | sort emp_no | limit 5;
+
+// Note that multivalued salaries aren't greater than 1 - they are null - so they aren't included
+emp_no:integer |salary_change:double
+10001          |1.19
+10044          |8.09
+10046          |2.39
+10066          |5.94
+10079          |7.58
+;
+
+equalToMultivalue
+from employees | where salary_change == 1.19 | project emp_no, salary_change | sort emp_no;
+
+// Note that multivalued salaries aren't greater than 1 - they are null - so they aren't included
+emp_no:integer |salary_change:double
+10001          |1.19
+;
+
+equalToOrEqualToMultivalue
+from employees | where salary_change == 1.19 or salary_change == 7.58 | project emp_no, salary_change | sort emp_no;
+
+// Note that multivalued salaries are filtered out
+emp_no:integer |salary_change:double
+10001          |1.19
+10079          |7.58
+;
+
+inMultivalue
+from employees | where salary_change in (1.19, 7.58) | project emp_no, salary_change | sort emp_no;
+
+// Note that multivalued salaries are filtered out
+emp_no:integer |salary_change:double
+10001          |1.19
+10079          |7.58
+;

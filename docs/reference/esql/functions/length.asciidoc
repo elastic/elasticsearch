@@ -1,0 +1,10 @@
+[[esql-length]]
+=== `LENGTH`
+Returns the character length of a string.
+
+[source,esql]
+----
+FROM employees
+| PROJECT first_name, last_name, height
+| EVAL fn_length = LENGTH(first_name)
+----

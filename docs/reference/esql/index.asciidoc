@@ -1,0 +1,135 @@
+[[esql]]
+= ESQL
+
+:keywords: {es}, ESQL, {es} query language
+:description: ESQL is a query language that enables the iterative exploration of data.
+
+:esql-tests: {xes-repo-dir}/../../plugin/esql/qa
+:esql-specs: {esql-tests}/testFixtures/src/main/resources
+
+[partintro]
+--
+The {es} Query Language (ESQL) is a query language that enables the iterative
+exploration of data.
+
+An ESQL query consists of a series of commands, separated by pipes. Each query
+starts with a <<esql-source-commands,source command>>. A source command produces
+a table, typically with data from {es}.
+
+image::images/esql/source-command.svg[A source command producing a table from {es},align="center"]
+
+A source command can be followed by one or more
+<<esql-processing-commands,processing commands>>. Processing commands change an
+input table by adding, removing, or changing rows and columns.
+
+image::images/esql/processing-command.svg[A processing command changing an input table,align="center"]
+
+You can chain processing commands, separated by a pipe character: `|`. Each
+processing command works on the output table of the previous command.
+
+image::images/esql/chaining-processing-commands.svg[Processing commands can be chained,align="center"]
+
+The result of a query is the table produced by the final processing command.
+
+[discrete]
+[[esql-console]]
+=== Run an ESQL query
+
+[discrete]
+==== The ESQL API
+
+Use the `_esql` endpoint to run an ESQL query:
+
+[source,console]
+----
+POST /_esql
+{
+  "query": """
+    FROM library
+    | EVAL year = DATE_TRUNC(release_date, 1 YEARS)
+    | STATS MAX(page_count) BY year
+    | SORT year
+    | LIMIT 5
+  """
+}
+----
+// TEST[setup:library]
+
+The results come back in rows:
+
+[source,console-result]
+----
+{
+  "columns": [
+    { "name": "MAX(page_count)", "type": "integer"},
+    { "name": "year"           , "type": "date"}
+  ],
+  "values": [
+    [268, "1932-01-01T00:00:00.000Z"],
+    [224, "1951-01-01T00:00:00.000Z"],
+    [227, "1953-01-01T00:00:00.000Z"],
+    [335, "1959-01-01T00:00:00.000Z"],
+    [604, "1965-01-01T00:00:00.000Z"]
+  ]
+}
+----
+
+By default, results are returned as JSON. To return results formatted as text,
+CSV, or TSV, use the `format` parameter:
+
+[source,console]
+----
+POST /_esql?format=txt
+{
+  "query": """
+    FROM library
+    | EVAL year = DATE_TRUNC(release_date, 1 YEARS)
+    | STATS MAX(page_count) BY year
+    | SORT year
+    | LIMIT 5
+  """
+}
+----
+// TEST[setup:library]
+
+[discrete]
+==== {kib}
+
+ESQL can be used in Discover to explore a data set, and in Lens to visualize it.
+First, enable the `enableTextBased` setting in *Advanced Settings*. Next, in
+Discover or Lens, from the data view dropdown, select *ESQL*.
+
+NOTE: ESQL queries in Discover and Lens are subject to the time range selected
+with the time filter.
+
+[discrete]
+[[esql-limitations]]
+=== Limitations
+
+ESQL currently supports the following <<mapping-types,field types>>:
+
+- `alias`
+- `boolean`
+- `date`
+- `ip`
+- `keyword` family (`keyword`, `constant_keyword`, and `wildcard`)
+- `double`/`float`/`half_float` (represented as `double`)
+- `long`
+- `int`/`short`/`byte` (represented as `int`)
+- `version`
+--
+
+include::esql-get-started.asciidoc[]
+
+include::esql-syntax.asciidoc[]
+
+include::esql-source-commands.asciidoc[]
+
+include::esql-processing-commands.asciidoc[]
+
+include::esql-functions.asciidoc[]
+
+include::multivalued-fields.asciidoc[]
+
+:esql-tests!:
+:esql-specs!:

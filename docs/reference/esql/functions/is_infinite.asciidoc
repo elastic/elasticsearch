@@ -1,0 +1,9 @@
+[[esql-is_infinite]]
+=== `IS_INFINITE`
+Returns a boolean that indicates whether its input is infinite.
+
+[source,esql]
+----
+ROW d = 1.0
+| EVAL s = IS_INFINITE(d/0)
+----

@@ -1,0 +1,10 @@
+[[esql-abs]]
+=== `ABS`
+Returns the absolute value.
+
+[source,esql]
+----
+FROM employees
+| PROJECT first_name, last_name, height
+| EVAL abs_height = ABS(0.0 - height)
+----

@@ -1,0 +1,54 @@
+[[esql-auto_bucket]]
+=== `AUTO_BUCKET`
+Creates human-friendly buckets and returns a `datetime` value for each row that
+corresponds to the resulting bucket the row falls into. Combine `AUTO_BUCKET`
+with <<esql-stats-by>> to create a date histogram.
+
+You provide a target number of buckets, a start date, and an end date, and it
+picks an appropriate bucket size to generate the target number of buckets or
+fewer. For example, this asks for at most 20 buckets over a whole year, which
+picks monthly buckets:
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/date.csv-spec[tag=auto_bucket_month]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/date.csv-spec[tag=auto_bucket_month-result]
+|===
+
+The goal isn't to provide *exactly* the target number of buckets, it's to pick a
+range that people are comfortable with that provides at most the target number of
+buckets.
+
+If you ask for more buckets then `AUTO_BUCKET` can pick a smaller range. For example,
+asking for at most 100 buckets in a year will get you week long buckets:
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/date.csv-spec[tag=auto_bucket_week]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/date.csv-spec[tag=auto_bucket_week-result]
+|===
+
+`AUTO_BUCKET` does not filter any rows. It only uses the provided time range to
+pick a good bucket size. For rows with a date outside of the range, it returns a
+`datetime` that corresponds to a bucket outside the range. Combine `AUTO_BUCKET`
+with <<esql-where>> to filter rows.
+
+A more complete example might look like:
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/date.csv-spec[tag=auto_bucket_in_agg]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/date.csv-spec[tag=auto_bucket_in_agg-result]
+|===
+
+NOTE: `AUTO_BUCKET` does not create buckets that don't match any documents. That's
+why the example above is missing `1985-02-01` and other dates.

@@ -1,0 +1,140 @@
+[[esql-syntax]]
+== ESQL syntax reference
+
+++++
+<titleabbrev>Syntax reference</titleabbrev>
+++++
+:keywords: {es}, ESQL, {es} query language, syntax
+:description: An ESQL query is composed of a source command followed by an optional series of processing commands, separated by a pipe character.
+
+[discrete]
+[[esql-basic-syntax]]
+=== Basic syntax
+
+An ESQL query is composed of a <<esql-source-commands,source command>> followed
+by an optional series of <<esql-processing-commands,processing commands>>,
+separated by a pipe character: `|`. For example:
+
+[source,esql]
+----
+source-command
+| processing-command1
+| processing-command2
+----
+
+The result of a query is the table produced by the final processing command.
+
+For readability, this documentation puts each processing command on a new line.
+However, you can write an ESQL query as a single line. The following query is
+identical to the previous one:
+
+[source,esql]
+----
+source-command | processing-command1 | processing-command2
+----
+
+[discrete]
+[[esql-comments]]
+=== Comments
+ESQL uses C++ style comments:
+
+* double slash `//` for single line comments
+* `/*` and `*/` for block comments
+
+[source,esql]
+----
+// Query the employees index
+FROM employees
+| WHERE height > 2
+----
+
+[source,esql]
+----
+FROM /* Query the employees index */ employees
+| WHERE height > 2
+----
+
+[source,esql]
+----
+FROM employees
+/* Query the
+ * employees
+ * index */
+| WHERE height > 2
+----
+
+[discrete]
+[[esql-operators]]
+=== Operators
+These binary comparison operators are supported:
+
+* equality: `==`
+* inequality: `!=`
+* less than: `<`
+* less than or equal: `<=`
+* larger than: `>`
+* larger than or equal: `>=`
+
+The `IN` operator allows testing whether a field or expression equals
+an element in a list of literals, fields or expressions:
+
+[source,esql]
+----
+include::{esql-specs}/row.csv-spec[tag=in-with-expressions]
+----
+
+For string comparison using wildcards or regular expressions, use `LIKE` or
+`RLIKE`:
+
+* Use `LIKE` to match strings using wildcards. The following wildcard characters
+are supported:
++
+--
+** `*` matches zero or more characters.
+** `?` matches one character.
+
+[source,esql]
+----
+FROM employees
+| WHERE first_name LIKE "?b*"
+| PROJECT first_name, last_name
+----
+--
+
+* Use `RLIKE` to match strings using <<regexp-syntax,regular expressions>>:
++
+[source,esql]
+----
+FROM employees
+| WHERE first_name RLIKE ".leja.*"
+| PROJECT first_name, last_name
+----
+
+The following boolean operators are supported:
+
+* `AND`
+* `OR`
+* `NOT`
+
+[discrete]
+[[esql-timespan-literals]]
+=== Timespan literals
+
+Datetime intervals and timespans can be expressed using timespan literals.
+Timespan literals are a combination of a number and a qualifier. These
+qualifiers are supported:
+
+* `millisecond`/`milliseconds`
+* `second`/`seconds`
+* `minute`/`minutes`
+* `hour`/`hours`
+* `day`/`days`
+* `week`/`weeks`
+* `month`/`months`
+* `year`/`years`
+
+Timespan literals are not whitespace sensitive. These expressions are all valid:
+
+* `1day`
+* `1 day`
+* `1       day`

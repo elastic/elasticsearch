@@ -33,6 +33,7 @@ public class XPackUsageFeatureAction extends ActionType<XPackUsageFeatureRespons
     public static final XPackUsageFeatureAction MACHINE_LEARNING = new XPackUsageFeatureAction(XPackField.MACHINE_LEARNING);
     public static final XPackUsageFeatureAction LOGSTASH = new XPackUsageFeatureAction(XPackField.LOGSTASH);
     public static final XPackUsageFeatureAction EQL = new XPackUsageFeatureAction(XPackField.EQL);
+    public static final XPackUsageFeatureAction ESQL = new XPackUsageFeatureAction(XPackField.ESQL);
     public static final XPackUsageFeatureAction SQL = new XPackUsageFeatureAction(XPackField.SQL);
     public static final XPackUsageFeatureAction ROLLUP = new XPackUsageFeatureAction(XPackField.ROLLUP);
     public static final XPackUsageFeatureAction INDEX_LIFECYCLE = new XPackUsageFeatureAction(XPackField.INDEX_LIFECYCLE);
@@ -62,6 +63,7 @@ public class XPackUsageFeatureAction extends ActionType<XPackUsageFeatureRespons
         DataLifecycle.isEnabled() ? DATA_LIFECYCLE : null,
         DATA_TIERS,
         EQL,
+        ESQL,
         FROZEN_INDICES,
         GRAPH,
         INDEX_LIFECYCLE,

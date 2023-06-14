@@ -1,0 +1,208 @@
+simple
+from employees | sort emp_no | project emp_no, still_hired | limit 3;
+
+emp_no:integer | still_hired:boolean
+10001          | true
+10002          | true
+10003          | false
+;
+
+directFilter
+from employees | sort emp_no | where still_hired | project emp_no | limit 3;
+
+emp_no:integer
+10001
+10002
+10004
+;
+
+sort
+from employees | sort still_hired, emp_no | project emp_no, still_hired | limit 3;
+
+emp_no:integer | still_hired:boolean
+10003          | false
+10006          | false
+10009          | false
+;
+
+statsBy
+from employees | stats avg(salary) by still_hired | sort still_hired;
+
+avg(salary):double | still_hired:boolean
+50625.163636363635 | false
+           45343.8 | true
+;
+
+statsByAlwaysTrue
+from employees | eval always_true = starts_with(first_name, "") | stats avg(salary) by always_true;
+
+avg(salary):double | always_true:boolean
+ 48353.72222222222 | true
+;
+
+statsByAlwaysFalse
+from employees | eval always_false = starts_with(first_name, "nonestartwiththis") | stats avg(salary) by always_false;
+
+avg(salary):double | always_false:boolean
+ 48353.72222222222 | false
+;
+
+in
+from employees | project emp_no, is_rehired, still_hired | where is_rehired in (still_hired, true) | where is_rehired != still_hired;
+
+emp_no:integer |is_rehired:boolean |still_hired:boolean
+10021          |true               |false
+10029          |true               |false
+10033          |true               |false
+10075          |true               |false
+10088          |true               |false
+;
+
+trueTrue
+row lhs=true, rhs=true | eval aa=lhs AND rhs, oo=lhs OR rhs | project aa, oo;
+
+aa:boolean | oo:boolean
+true       | true
+;
+
+trueFalse
+row lhs=true, rhs=false | eval aa=lhs AND rhs, oo=lhs OR rhs | project aa, oo;
+
+aa:boolean | oo:boolean
+false      | true
+;
+
+trueNull
+row lhs=true, rhs=null | eval aa=lhs AND rhs, oo=lhs OR rhs | project aa, oo;
+
+aa:boolean | oo:boolean
+null       | true
+;
+
+falseTrue
+row lhs=false, rhs=true | eval aa=lhs AND rhs, oo=lhs OR rhs | project aa, oo;
+
+aa:boolean | oo:boolean
+false      | true
+;
+
+falseFalse
+row lhs=false, rhs=false | eval aa=lhs AND rhs, oo=lhs OR rhs | project aa, oo;
+
+aa:boolean | oo:boolean
+false      | false
+;
+
+falseNull
+row lhs=false, rhs=null | eval aa=lhs AND rhs, oo=lhs OR rhs | project aa, oo;
+
+aa:boolean | oo:boolean
+false      | null
+;
+
+nullTrue
+row lhs=null, rhs=true | eval aa=lhs AND rhs, oo=lhs OR rhs | project aa, oo;
+
+aa:boolean | oo:boolean
+null       | true
+;
+
+nullFalse
+row lhs=null, rhs=false | eval aa=lhs AND rhs, oo=lhs OR rhs | project aa, oo;
+
+aa:boolean | oo:boolean
+false      | null
+;
+
+nullNull
+row lhs=null, rhs=null | eval aa=lhs AND rhs, oo=lhs OR rhs | project aa, oo;
+
+aa:boolean | oo:boolean
+null       | null
+;
+
+notTrue
+row v=true | eval v=NOT v | project v;
+
+v:boolean
+false
+;
+
+notFalse
+row v=false | eval v=NOT v | project v;
+
+v:boolean
+true
+;
+
+notNull
+row v=null | eval v=NOT v | project v;
+
+v:boolean
+null
+;
+
+convertFromBoolean
+row tf = [true, false] | eval tt = to_boolean(true), ff = to_boolean(false), ttff = to_boolean(tf);
+
+tf:boolean    |tt:boolean |ff:boolean |ttff:boolean
+[true, false] |true       |false      |[true, false]
+;
+
+convertFromString
+from employees | project emp_no, is_rehired, first_name | eval rehired_str = to_string(is_rehired) | eval rehired_bool = to_boolean(rehired_str) | eval all_false = to_boolean(first_name) | drop first_name | limit 5;
+emp_no:integer |is_rehired:boolean         |rehired_str:keyword        |rehired_bool:boolean        |all_false:boolean
+10001          |[false, true]              |[false, true]              |[false, true]               |false
+10002          |[false, false]             |[false, false]             |[false, false]              |false
+10003          |null                       |null                       |null                        |false
+10004          |true                       |true                       |true                        |false
+10005          |[false, false, false, true]|[false, false, false, true]|[false, false, false, true] |false
+;
+
+convertFromStringForDocs
+// tag::to_boolean[]
+ROW str = ["true", "TRuE", "false", "", "yes", "1"]
+| EVAL bool = TO_BOOLEAN(str)
+// end::to_boolean[]
+;
+
+// tag::to_boolean-result[]
+str:keyword                                | bool:boolean
+["true", "TRuE", "false", "", "yes", "1"] | [true, true, false, false, false, false]
+// end::to_boolean-result[]
+;
+
+convertFromDouble
+from employees | eval h_2 = height - 2.0, double2bool = to_boolean(h_2) | where emp_no in (10036, 10037, 10038) | project emp_no, height, *2bool;
+
+emp_no:integer |height:double |double2bool:boolean
+10036          |1.61          |true
+10037          |2.0           |false
+10038          |1.53          |true
+;
+
+convertFromIntAndLong
+from employees | project emp_no, salary_change* | eval int2bool = to_boolean(salary_change.int), long2bool = to_boolean(salary_change.long) | limit 10;
+
+emp_no:integer |salary_change:double      |salary_change.int:integer |salary_change.long:long |int2bool:boolean          |long2bool:boolean       
+10001          |1.19                      |1                         |1                       |true                      |true
+10002          |[-7.23, 11.17]            |[-7, 11]                  |[-7, 11]                |[true, true]              |[true, true]
+10003          |[12.82, 14.68]            |[12, 14]                  |[12, 14]                |[true, true]              |[true, true]
+10004          |[-0.35, 1.13, 3.65, 13.48]|[0, 1, 3, 13]             |[0, 1, 3, 13]           |[false, true, true, true] |[false, true, true, true]
+10005          |[-2.14, 13.07]            |[-2, 13]                  |[-2, 13]                |[true, true]              |[true, true]
+10006          |-3.9                      |-3                        |-3                      |true                      |true
+10007          |[-7.06, 0.57, 1.99]       |[-7, 0, 1]                |[-7, 0, 1]              |[true, false, true]       |[true, false, true]
+10008          |[-2.92, 0.75, 3.54, 12.68]|[-2, 0, 3, 12]            |[-2, 0, 3, 12]          |[true, false, true, true] |[true, false, true, true]
+10009          |null                      |null                      |null                    |null                      |null
+10010          |[-6.77, 4.69, 5.05, 12.15]|[-6, 4, 5, 12]            |[-6, 4, 5, 12]          |[true, true, true, true]  |[true, true, true, true]
+;
+
+// short and byte aren't actually tested, these are loaded as int blocks atm
+convertFromByteAndShort
+from employees | eval byte2bool = to_boolean(languages.byte), short2bool = to_boolean(languages.short) | where emp_no in (10019, 10020, 10030) | project emp_no, languages, *2bool;
+
+emp_no:integer |languages:integer |byte2bool:boolean |short2bool:boolean
+10019          |1                 |true              |true
+10020          |null              |null              |null
+10030          |3                 |true              |true
+;

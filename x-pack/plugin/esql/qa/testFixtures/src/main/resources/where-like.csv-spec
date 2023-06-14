@@ -1,0 +1,270 @@
+likePrefix
+from employees | where first_name like "Eberhar*" | project emp_no, first_name;
+
+emp_no:integer | first_name:keyword
+10013          | Eberhardt      
+;
+
+
+likeSuffix
+from employees | where first_name like "*uhito" | project emp_no, first_name;
+
+emp_no:integer | first_name:keyword
+10016          | Kazuhito      
+;
+
+
+likePrefixSuffix
+from employees | where first_name like "*har*" | project emp_no, first_name | sort emp_no;
+
+emp_no:integer | first_name:keyword
+10013          | Eberhardt      
+10058          | Berhard
+10068          | Charlene
+;
+
+
+likePrefixSuffix2
+from employees | where first_name like "?berhar*" | project emp_no, first_name;
+
+emp_no:integer | first_name:keyword
+10013          | Eberhardt      
+;
+
+
+likeAndEquals
+from employees | where first_name like "Mayu*" and last_name == "Warwick" | project emp_no, first_name, last_name;
+
+emp_no:integer | first_name:keyword | last_name:keyword
+10020          | Mayuko             | Warwick
+;
+
+
+likeAndOr
+from employees | where first_name like "Eberhar*" or first_name like "*zuh*" and last_name like "*eha" | project emp_no, first_name, last_name;
+
+emp_no:integer | first_name:keyword | last_name:keyword
+10013          | Eberhardt          | Terkki
+10018          | Kazuhide           | Peha
+;
+
+
+evalLike
+from employees | eval x = concat(first_name, "--")| where x like "Hidefu*" | project emp_no, first_name;
+
+emp_no:integer | first_name:keyword
+10051          | Hidefumi      
+;
+
+
+likeExpression
+from employees | where concat(first_name, "--") like "Hidefu*" | project emp_no, first_name;
+
+emp_no:integer | first_name:keyword
+10051          | Hidefumi      
+;
+
+
+likeNoWildcard
+from employees | where first_name like "Eberhardt" | project emp_no, first_name;
+
+emp_no:integer | first_name:keyword
+10013          | Eberhardt      
+;
+
+
+likeEvalNoWildcard
+from employees | eval x = concat(first_name, "X") | where x like "EberhardtX" | project emp_no, first_name;
+
+emp_no:integer | first_name:keyword
+10013          | Eberhardt      
+;
+
+
+likeAll
+from employees | where first_name like "*" and emp_no > 10028 | sort emp_no | project emp_no, first_name | limit 2;
+
+emp_no:integer | first_name:keyword
+10029          | Otmar
+10040          | Weiyi      
+;
+
+
+
+notFieldLike
+from employees | where not first_name like "Geor*" | sort emp_no | project emp_no, first_name | limit 2;
+
+emp_no:integer | first_name:keyword
+10002          | Bezalel
+10003          | Parto      
+;
+
+
+fieldNotLike
+from employees | where first_name not like "Geor*" | sort emp_no | project emp_no, first_name | limit 2;
+
+emp_no:integer | first_name:keyword
+10002          | Bezalel
+10003          | Parto      
+;
+
+
+notFieldNotLike
+from employees | where not first_name not like "Xing*" | sort emp_no | project emp_no, first_name;
+
+emp_no:integer | first_name:keyword
+10087          | Xinglin
+;
+
+
+notBraceFieldNotLike
+from employees | where not (first_name not like "Xing*") | sort emp_no | project emp_no, first_name;
+
+emp_no:integer | first_name:keyword
+10087          | Xinglin
+;
+
+
+rLikePrefix
+from employees | where first_name rlike "Aleja.*" | project emp_no, first_name;
+
+emp_no:integer | first_name:keyword
+10059          | Alejandro      
+;
+
+
+rLikeSuffix
+from employees | where first_name rlike ".*itij" | project emp_no, first_name;
+
+emp_no:integer | first_name:keyword
+10079          | Kshitij      
+;
+
+
+rLikePrefixSuffix
+from employees | where first_name rlike ".*har.*" | project emp_no, first_name | sort emp_no;
+
+emp_no:integer | first_name:keyword
+10013          | Eberhardt      
+10058          | Berhard
+10068          | Charlene
+;
+
+
+rLikePrefix2
+from employees | where first_name rlike ".leja.*" | project emp_no, first_name;
+
+emp_no:integer | first_name:keyword
+10059          | Alejandro      
+;
+
+
+rLikeComplex
+from employees | where first_name rlike "(Eberhar.*)|(.*arlene)" | project emp_no, first_name | sort emp_no;
+
+emp_no:integer | first_name:keyword
+10013          | Eberhardt      
+10068          | Charlene
+;
+
+
+rlikeAndEquals
+from employees | where first_name rlike "Mayu.*" and last_name == "Warwick" | project emp_no, first_name, last_name;
+
+emp_no:integer | first_name:keyword | last_name:keyword
+10020          | Mayuko             | Warwick
+;
+
+
+rLikeAndOr
+from employees | where first_name rlike "Eberhar.*" or first_name rlike ".*zuh.*" and last_name rlike ".*eha" | project emp_no, first_name, last_name;
+
+emp_no:integer | first_name:keyword | last_name:keyword
+10013          | Eberhardt          | Terkki
+10018          | Kazuhide           | Peha
+;
+
+
+evalRLike
+from employees | eval x = concat(first_name, "--")| where x rlike "Hidefu.*" | project emp_no, first_name;
+
+emp_no:integer | first_name:keyword
+10051          | Hidefumi      
+;
+
+
+rlikeExpression
+from employees | where concat(first_name, "--") rlike "Hidefu.*" | project emp_no, first_name;
+
+emp_no:integer | first_name:keyword
+10051          | Hidefumi      
+;
+
+
+rLikeNoWildcard
+from employees | where first_name rlike "Eberhardt" | project emp_no, first_name;
+
+emp_no:integer | first_name:keyword
+10013          | Eberhardt      
+;
+
+
+rLikeEvalNoWildcard
+from employees | eval x = concat(first_name, "X") | where x rlike "EberhardtX" | project emp_no, first_name;
+
+emp_no:integer | first_name:keyword
+10013          | Eberhardt      
+;
+
+
+rLikeAll
+from employees | where first_name rlike ".*" and emp_no > 10028 | sort emp_no | project emp_no, first_name | limit 2;
+
+emp_no:integer | first_name:keyword
+10029          | Otmar
+10040          | Weiyi      
+;
+
+
+notFieldRLike
+from employees | where not first_name rlike "Geor.*" | sort emp_no | project emp_no, first_name | limit 2;
+
+emp_no:integer | first_name:keyword
+10002          | Bezalel
+10003          | Parto      
+;
+
+
+fieldNotRLike
+from employees | where first_name not rlike "Geor.*" | sort emp_no | project emp_no, first_name | limit 2;
+
+emp_no:integer | first_name:keyword
+10002          | Bezalel
+10003          | Parto      
+;
+
+
+notFieldNotRLike
+from employees | where not first_name not rlike "Xing.*" | sort emp_no | project emp_no, first_name;
+
+emp_no:integer | first_name:keyword
+10087          | Xinglin
+;
+
+
+notBraceFieldNotRLike
+from employees | where not (first_name not rlike "Xing.*") | sort emp_no | project emp_no, first_name;
+
+emp_no:integer | first_name:keyword
+10087          | Xinglin
+;
+
+
+rLikeOrComplexExpression
+from employees | project emp_no, first_name, last_name | where first_name RLIKE ".*o{2,}.*" OR last_name RLIKE ".*o{2,}.*" | sort emp_no;
+
+emp_no:integer | first_name:keyword | last_name:keyword 
+10015          | Guoxiang           | Nooteboom
+10062          | Anoosh             | Peyn
+10086          | Somnath            | Foote
+;

@@ -1,0 +1,149 @@
+renameFirstCol
+row a = 1, b = 2 | rename c = a;
+
+c:integer | b:integer
+1 | 2
+;
+
+renameSecondCol
+row a = 1, b = 2 | rename c = b;
+
+a:integer | c:integer
+1 | 2
+;
+
+chaining
+row a = 1, b = 2 | rename c = a, d = c, e = d;
+
+e:integer | b:integer
+1 | 2
+;
+
+chainReuse
+row a = 1, b = 2 | rename c = a, d = c, c = b;
+
+d:integer | c:integer
+1 | 2
+;
+
+effectivelyANop
+row a = 1, b = 2 | rename c = a, a = c;
+
+a:integer | b:integer
+1 | 2
+;
+
+reuseAlias
+row a = 1, b = 2 | rename c = a, c = b;
+
+c:integer
+2
+;
+
+unquotedNamesWithAt
+row @a = 10 | rename @b = @a | eval @c = @b + 1;
+
+@b:integer | @c:integer
+10         | 11
+;
+
+renameEval
+row a = 1, b = 2 | rename c = a | eval e = b + c;
+
+c:integer | b:integer | e:integer
+1 | 2 | 3
+;
+
+rowRenameEvalProject
+row a = 1, b = 2 | rename c = a | project c | eval e = 2 * c | project e, c;
+
+e:integer | c:integer
+2 | 1
+;
+
+rowRenameNop
+row a = 1, b = 2 | rename a = a;
+
+a:integer | b:integer
+1         | 2
+;
+
+rowRenameDrop
+row a = 1, b = 2, c = 3 | rename d = a | drop b;
+
+d:integer | c:integer
+1         | 3
+;
+
+renameEvalProject
+from employees | rename x = languages | project x | eval z = 2 * x | project x, z | limit 3;
+
+x:integer | z:integer
+2 | 4
+5 | 10
+4 | 8
+;
+
+renameProjectEval
+from employees | eval y = languages | rename x = languages | project x, y | eval x2 = x + 1 | eval y2 = y + 2 | limit 3;
+
+x:integer | y:integer | x2:integer | y2:integer
+2 | 2 | 3 | 4
+5 | 5 | 6 | 7
+4 | 4 | 5 | 6
+;
+
+renameWithFilterPushedToES
+from employees | rename x = emp_no | project languages, first_name, last_name, x | where x > 10030 and x < 10040 | limit 5;
+
+languages:integer | first_name:keyword | last_name:keyword | x:integer
+4 | null | Joslin | 10031
+3 | null | Reistad | 10032
+1 | null | Merlo | 10033
+1 | null | Swan | 10034
+5 | null | Chappelet | 10035
+;
+
+renameNopProject
+from employees | rename emp_no = emp_no | project emp_no, last_name | limit 3;
+
+emp_no:integer | last_name:keyword
+10001 | Facello
+10002 | Simmel
+10003 | Bamford
+;
+
+renameOverride
+from employees | rename languages = emp_no | project languages, last_name | limit 3;
+
+languages:integer | last_name:keyword
+10001 | Facello
+10002 | Simmel
+10003 | Bamford
+;
+
+projectRenameDate
+from employees | sort hire_date | rename x = hire_date | project emp_no, x | limit 5;
+
+emp_no:integer | x:date
+10009          | 1985-02-18T00:00:00.000Z            
+10048          | 1985-02-24T00:00:00.000Z                  
+10098          | 1985-05-13T00:00:00.000Z                  
+10076          | 1985-07-09T00:00:00.000Z                  
+10061          | 1985-09-17T00:00:00.000Z                  
+;
+
+renameDrop
+from employees
+ | sort hire_date
+ | rename x = hire_date, y = emp_no
+ | drop first_name, last_name, gender, birth_date, salary, languages*, height*, still_hired, avg_worked_seconds, job_positions, is_rehired, salary_change* 
+ | limit 5;
+
+y:integer | x:date
+10009     | 1985-02-18T00:00:00.000Z            
+10048     | 1985-02-24T00:00:00.000Z                  
+10098     | 1985-05-13T00:00:00.000Z                  
+10076     | 1985-07-09T00:00:00.000Z                  
+10061     | 1985-09-17T00:00:00.000Z                  
+;

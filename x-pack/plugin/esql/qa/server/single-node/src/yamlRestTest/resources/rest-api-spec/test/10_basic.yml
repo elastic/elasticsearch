@@ -1,0 +1,264 @@
+---
+setup:
+  - do:
+      indices.create:
+        index:  test
+        body:
+          settings:
+            number_of_shards: 5
+          mappings:
+            properties:
+              data:
+                type: long
+              data_d:
+                type: double
+              count:
+                type: long
+              count_d:
+                type: double
+              time:
+                type: long
+              color:
+                type: keyword
+  - do:
+      bulk:
+        index: "test"
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "data": 1, "count": 40, "data_d": 1, "count_d": 40, "time": 1674835275187, "color": "red" }
+          - { "index": { } }
+          - { "data": 2, "count": 42, "data_d": 2, "count_d": 42, "time": 1674835275188, "color": "blue" }
+          - { "index": { } }
+          - { "data": 1, "count": 44, "data_d": 1, "count_d": 44, "time": 1674835275189, "color": "green" }
+          - { "index": { } }
+          - { "data": 2, "count": 46, "data_d": 2, "count_d": 46, "time": 1674835275190, "color": "red" }
+          - { "index": { } }
+          - { "data": 1, "count": 40, "data_d": 1, "count_d": 40, "time": 1674835275191, "color": "red" }
+          - { "index": { } }
+          - { "data": 2, "count": 42, "data_d": 2, "count_d": 42, "time": 1674835275192, "color": "blue" }
+          - { "index": { } }
+          - { "data": 1, "count": 44, "data_d": 1, "count_d": 44, "time": 1674835275193, "color": "green" }
+          - { "index": { } }
+          - { "data": 2, "count": 46, "data_d": 2, "count_d": 46, "time": 1674835275194, "color": "red" }
+          - { "index": { } }
+          - { "data": 1, "count": 40, "data_d": 1, "count_d": 40, "time": 1674835275195, "color": "red" }
+          - { "index": { } }
+          - { "data": 2, "count": 42, "data_d": 2, "count_d": 42, "time": 1674835275196, "color": "blue" }
+          - { "index": { } }
+          - { "data": 1, "count": 44, "data_d": 1, "count_d": 44, "time": 1674835275197, "color": "green" }
+          - { "index": { } }
+          - { "data": 2, "count": 46, "data_d": 2, "count_d": 46, "time": 1674835275198, "color": "red" }
+          - { "index": { } }
+          - { "data": 1, "count": 40, "data_d": 1, "count_d": 40, "time": 1674835275199, "color": "red" }
+          - { "index": { } }
+          - { "data": 2, "count": 42, "data_d": 2, "count_d": 42, "time": 1674835275200, "color": "blue" }
+          - { "index": { } }
+          - { "data": 1, "count": 44, "data_d": 1, "count_d": 44, "time": 1674835275201, "color": "green" }
+          - { "index": { } }
+          - { "data": 2, "count": 46, "data_d": 2, "count_d": 46, "time": 1674835275202, "color": "red" }
+          - { "index": { } }
+          - { "data": 1, "count": 40, "data_d": 1, "count_d": 40, "time": 1674835275203, "color": "red" }
+          - { "index": { } }
+          - { "data": 2, "count": 42, "data_d": 2, "count_d": 42, "time": 1674835275204, "color": "blue" }
+          - { "index": { } }
+          - { "data": 1, "count": 44, "data_d": 1, "count_d": 44, "time": 1674835275205, "color": "green" }
+          - { "index": { } }
+          - { "data": 2, "count": 46, "data_d": 2, "count_d": 46, "time": 1674835275206, "color": "red" }
+          - { "index": { } }
+          - { "data": 1, "count": 40, "data_d": 1, "count_d": 40, "time": 1674835275207, "color": "red" }
+          - { "index": { } }
+          - { "data": 2, "count": 42, "data_d": 2, "count_d": 42, "time": 1674835275208, "color": "blue" }
+          - { "index": { } }
+          - { "data": 1, "count": 44, "data_d": 1, "count_d": 44, "time": 1674835275209, "color": "green" }
+          - { "index": { } }
+          - { "data": 2, "count": 46, "data_d": 2, "count_d": 46, "time": 1674835275210, "color": "red" }
+          - { "index": { } }
+          - { "data": 1, "count": 40, "data_d": 1, "count_d": 40, "time": 1674835275211, "color": "red" }
+          - { "index": { } }
+          - { "data": 2, "count": 42, "data_d": 2, "count_d": 42, "time": 1674835275212, "color": "blue" }
+          - { "index": { } }
+          - { "data": 1, "count": 44, "data_d": 1, "count_d": 44, "time": 1674835275213, "color": "green" }
+          - { "index": { } }
+          - { "data": 2, "count": 46, "data_d": 2, "count_d": 46, "time": 1674835275214, "color": "red" }
+          - { "index": { } }
+          - { "data": 1, "count": 40, "data_d": 1, "count_d": 40, "time": 1674835275215, "color": "red" }
+          - { "index": { } }
+          - { "data": 2, "count": 42, "data_d": 2, "count_d": 42, "time": 1674835275216, "color": "blue" }
+          - { "index": { } }
+          - { "data": 1, "count": 44, "data_d": 1, "count_d": 44, "time": 1674835275217, "color": "green" }
+          - { "index": { } }
+          - { "data": 2, "count": 46, "data_d": 2, "count_d": 46, "time": 1674835275218, "color": "red" }
+          - { "index": { } }
+          - { "data": 1, "count": 40, "data_d": 1, "count_d": 40, "time": 1674835275219, "color": "red" }
+          - { "index": { } }
+          - { "data": 2, "count": 42, "data_d": 2, "count_d": 42, "time": 1674835275220, "color": "blue" }
+          - { "index": { } }
+          - { "data": 1, "count": 44, "data_d": 1, "count_d": 44, "time": 1674835275221, "color": "green" }
+          - { "index": { } }
+          - { "data": 2, "count": 46, "data_d": 2, "count_d": 46, "time": 1674835275222, "color": "red" }
+          - { "index": { } }
+          - { "data": 1, "count": 40, "data_d": 1, "count_d": 40, "time": 1674835275223, "color": "red" }
+          - { "index": { } }
+          - { "data": 2, "count": 42, "data_d": 2, "count_d": 42, "time": 1674835275224, "color": "blue" }
+          - { "index": { } }
+          - { "data": 1, "count": 44, "data_d": 1, "count_d": 44, "time": 1674835275225, "color": "green" }
+          - { "index": { } }
+          - { "data": 2, "count": 46, "data_d": 2, "count_d": 46, "time": 1674835275226, "color": "red" }
+
+---
+"Test From":
+  - do:
+      esql.query:
+        body:
+          query: 'from test'
+
+  - match: {columns.0.name: "color"}
+  - match: {columns.0.type: "keyword"}
+  - match: {columns.1.name: "count"}
+  - match: {columns.1.type: "long"}
+  - match: {columns.2.name: "count_d"}
+  - match: {columns.2.type: "double"}
+  - match: {columns.3.name: "data"}
+  - match: {columns.3.type: "long"}
+  - match: {columns.4.name: "data_d"}
+  - match: {columns.4.type: "double"}
+  - match: {columns.5.name: "time"}
+  - match: {columns.5.type: "long"}
+  - length: {values: 40}
+
+---
+"Test From Sort Limit":
+  - do:
+      esql.query:
+        body:
+          query: 'from test | sort count | limit 1'
+
+  - match: {columns.1.name: "count"}
+  - match: {columns.1.type: "long"}
+  - match: {values.0.1: 40}
+
+---
+"Basic ESQL query":
+  - do:
+      esql.query:
+        body:
+          query: 'from test | project data | sort data | limit 2'
+          columnar: true
+
+  - match: {columns.0.name: "data"}
+  - match: {columns.0.type: "long"}
+  - match: {values.0: [1, 1]}
+
+---
+"Test From Eval Sort Limit":
+  - do:
+      esql.query:
+        body:
+          query: 'from test | eval x = count + 7 | sort x | limit 1'
+
+  - match: {columns.0.name: "color"}
+  - match: {columns.1.name: "count"}
+  - match: {columns.2.name: "count_d"}
+  - match: {columns.3.name: "data"}
+  - match: {columns.4.name: "data_d"}
+  - match: {columns.5.name: "time"}
+  - match: {columns.6.name: "x"}
+  - match: {values.0.6: 47}
+  - length: {values: 1}
+
+---
+"Test Eval With Multiple Expressions":
+  - do:
+      esql.query:
+        body:
+          query: 'from test | sort time | eval x = data + 1, y = data_d + count, z = x + y | project data, x, y, z, time | limit 2'
+
+  - match: {columns.0.name: "data"}
+  - match: {columns.0.type: "long"}
+  - match: {columns.1.name: "x"}
+  - match: {columns.1.type: "long"}
+  - match: {columns.2.name: "y"}
+  - match: {columns.2.type: "double"}
+  - match: {columns.3.name: "z"}
+  - match: {columns.3.type: "double"}
+  - match: {columns.4.name: "time"}
+  - match: {columns.4.type: "long"}
+  - length: {values: 2}
+  - length: {values.0: 5}
+  - match: {values.0.0: 1}
+  - match: {values.0.1: 2}
+  - match: {values.0.2: 41.0}
+  - match: {values.0.3: 43.0}
+  - length: {values.1: 5}
+  - match: {values.1.0: 2}
+  - match: {values.1.1: 3}
+  - match: {values.1.2: 44.0}
+  - match: {values.1.3: 47.0}
+
+---
+"Test Project After TopN":
+  - do:
+      esql.query:
+        body:
+          query: 'from test | sort time | limit 2 | project count'
+          columnar: true
+
+  - length: {columns: 1}
+  - match: {columns.0.name: "count"}
+  - match: {columns.0.type: "long"}
+  - match: {values.0: [40, 42]}
+
+---
+"Test Project After TopN Desc":
+  - do:
+      esql.query:
+        body:
+          query: 'from test | sort time desc | limit 2 | project count'
+          columnar: true
+
+  - length: {columns: 1}
+  - match: {columns.0.name: "count"}
+  - match: {columns.0.type: "long"}
+  - match: {values.0: [46, 44]}
+
+---
+"Test TopN Project Eval":
+  - do:
+      esql.query:
+        body:
+          query: 'from test | sort time | limit 2 | project count | eval x = count + 1'
+          columnar: true
+
+  - length: {columns: 2}
+  - match: {columns.0.name: "count"}
+  - match: {columns.0.type: "long"}
+  - match: {columns.1.name: "x"}
+  - match: {columns.1.type: "long"}
+  - length: {values: 2}
+  - match: {values.0: [40, 42]}
+  - match: {values.1: [41, 43]}
+
+---
+"Test TopN Project Eval Project":
+  - do:
+      esql.query:
+        body:
+          query: 'from test | sort time | limit 2 | project count | eval x = count + 1 | project x'
+          columnar: true
+
+  - length: {columns: 1}
+  - match: {columns.0.name: "x"}
+  - match: {columns.0.type: "long"}
+  - length: {values: 1}
+  - match: {values.0: [41, 43]}
+
+---
+"Test Multi Limit Project":
+  - do:
+      esql.query:
+        body:
+          query: 'from test | limit 10 | sort time | limit 1'
+
+  - length: {columns: 6}
+  - length: {values: 1}

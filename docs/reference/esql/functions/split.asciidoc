@@ -1,0 +1,17 @@
+[[esql-split]]
+=== `SPLIT`
+Split a single valued string into multiple strings. For example:
+
+[source,esql]
+----
+include::{esql-specs}/string.csv-spec[tag=split]
+----
+
+Which splits `"foo;bar;baz;qux;quux;corge"` on `;` and returns an array:
+
+[%header,format=dsv,separator=|]
+|===
+include::{esql-specs}/string.csv-spec[tag=split-result]
+|===
+
+WARNING: Only single byte delimiters are currently supported.

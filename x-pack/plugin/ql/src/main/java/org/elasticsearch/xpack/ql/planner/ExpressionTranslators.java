@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.ql.planner;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
@@ -51,6 +53,7 @@ import org.elasticsearch.xpack.ql.querydsl.query.TermQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.TermsQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.WildcardQuery;
 import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.Check;
 import org.elasticsearch.xpack.ql.util.CollectionUtils;
@@ -66,6 +69,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.ql.type.DataTypes.IP;
 import static org.elasticsearch.xpack.ql.type.DataTypes.VERSION;
 
 public final class ExpressionTranslators {
@@ -292,10 +296,14 @@ public final class ExpressionTranslators {
                 }
                 format = formatter.pattern();
                 isDateLiteralComparison = true;
+            } else if (field.dataType() == IP && value instanceof BytesRef bytesRef) {
+                value = DocValueFormat.IP.format(bytesRef);
             } else if (field.dataType() == VERSION) {
                 // VersionStringFieldMapper#indexedValueForSearch() only accepts as input String or BytesRef with the String (i.e. not
                 // encoded) representation of the version as it'll do the encoding itself.
-                if (value instanceof Version version) {
+                if (value instanceof BytesRef bytesRef) {
+                    value = new Version(bytesRef).toString();
+                } else if (value instanceof Version version) {
                     value = version.toString();
                 }
             }
@@ -400,7 +408,8 @@ public final class ExpressionTranslators {
 
         private static Query translate(In in, TranslatorHandler handler) {
             FieldAttribute field = checkIsFieldAttribute(in.value());
-            boolean needsTypeSpecificValueHandling = DataTypes.isDateTime(field.dataType()) || field.dataType() == VERSION;
+            DataType fieldType = field.dataType();
+            boolean needsTypeSpecificValueHandling = DataTypes.isDateTime(fieldType) || fieldType == IP || fieldType == VERSION;
 
             Set<Object> terms = new LinkedHashSet<>();
             List<Query> queries = new ArrayList<>();

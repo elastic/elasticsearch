@@ -27,9 +27,11 @@ public class SplitPackagesAuditPrecommitPlugin extends PrecommitPlugin {
     public TaskProvider<? extends Task> createTask(Project project) {
         TaskProvider<SplitPackagesAuditTask> task = project.getTasks().register(TASK_NAME, SplitPackagesAuditTask.class);
         task.configure(t -> {
+
             t.setProjectBuildDirs(getProjectBuildDirs(project));
             t.setClasspath(project.getConfigurations().getByName(JavaPlugin.COMPILE_CLASSPATH_CONFIGURATION_NAME));
             SourceSet mainSourceSet = GradleUtils.getJavaSourceSets(project).findByName(SourceSet.MAIN_SOURCE_SET_NAME);
+            t.dependsOn(mainSourceSet.getJava().getSourceDirectories());
             t.getSrcDirs().set(project.provider(() -> mainSourceSet.getAllSource().getSrcDirs()));
         });
         return task;

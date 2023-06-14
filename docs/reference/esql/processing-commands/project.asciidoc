@@ -1,0 +1,34 @@
+[[esql-project]]
+=== `PROJECT`
+
+The `PROJECT` command enables you to specify what columns are returned and the
+order in which they are returned.
+
+To limit the columns that are returned, use a comma-separated list of column
+names. The columns are returned in the specified order:
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/docs.csv-spec[tag=project]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/docs.csv-spec[tag=project-result]
+|===
+
+Rather than specify each column by name, you can use wildcards to return all
+columns with a name that matches a pattern:
+
+[source,esql]
+----
+include::{esql-specs}/docs.csv-spec[tag=projectWildcard]
+----
+
+The asterisk wildcard (`*`) by itself translates to all columns that do not
+match the other arguments. This query will first return all columns with a name
+that starts with an h, followed by all other columns:
+
+[source,esql]
+----
+include::{esql-specs}/docs.csv-spec[tag=projectDoubleWildcard]
+----

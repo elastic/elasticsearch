@@ -1,0 +1,156 @@
+simpleDissect
+row a = "foo bar" | dissect a "%{b} %{c}";
+
+a:keyword | b:keyword | c:keyword
+foo bar   | foo       | bar
+;
+
+
+simpleDissectNoMatch
+row a = "foo bar" | dissect a "%{b} %{c} baz";
+
+a:keyword | b:keyword | c:keyword
+foo bar   | null       | null
+;
+
+
+complexPattern
+// tag::dissect[]
+ROW a = "1953-01-23T12:15:00Z - some text - 127.0.0.1;" 
+| DISSECT a "%{Y}-%{M}-%{D}T%{h}:%{m}:%{s}Z - %{msg} - %{ip};" 
+| PROJECT Y, M, D, h, m, s, msg, ip
+// end::dissect[]
+;
+
+// tag::dissect-result[]
+Y:keyword | M:keyword | D:keyword | h:keyword | m:keyword | s:keyword | msg:keyword  | ip:keyword
+1953      | 01        | 23        | 12        | 15        | 00        | some text    | 127.0.0.1
+// end::dissect-result[]
+;
+
+
+append
+row a = "foo 1 bar 2 baz" | dissect a "%{+b} %{c} %{+b} %{d} %{+b}";
+
+a:keyword        | b:keyword  | c:keyword | d:keyword
+foo 1 bar 2 baz  | foobarbaz  | 1          | 2         
+;
+
+
+appendWithOrder
+row a = "foo 1 bar 2 baz" | dissect a "%{+b/3} %{c} %{+b/2} %{d} %{+b/1}";
+
+a:keyword        | b:keyword | c:keyword  | d:keyword 
+foo 1 bar 2 baz  | bazbarfoo | 1          | 2         
+;
+
+
+appendSeparator
+row a = "foo 1 bar 2 baz" | dissect a "%{+b} %{c} %{+b} %{d} %{+b}" append_separator=",";
+
+a:keyword        | b:keyword   | c:keyword    | d:keyword 
+foo 1 bar 2 baz  | foo,bar,baz | 1            | 2         
+;
+
+
+namedSkip
+row a = "foo bar baz" | dissect a "%{b} %{?c} %{d}";
+
+a:keyword    | b:keyword  | d:keyword
+foo bar baz  | foo        | baz 
+;
+
+
+padding
+row a = "foo           bar" | dissect a "%{b->} %{c}";
+
+a:keyword          | b:keyword  | c:keyword
+foo           bar  | foo        | bar
+;
+
+
+evalDissect
+from employees | eval full_name = concat(first_name, " ", last_name) | dissect full_name "%{a} %{b}" | sort emp_no asc | project full_name, a, b | limit 3;
+
+full_name:keyword | a:keyword | b:keyword
+Georgi Facello    | Georgi    | Facello
+Bezalel Simmel    | Bezalel   | Simmel 
+Parto Bamford     | Parto     | Bamford
+;
+
+
+dissectExpression
+from employees | dissect concat(first_name, " ", last_name) "%{a} %{b}" | sort emp_no asc | project a, b | limit 3;
+
+a:keyword | b:keyword
+Georgi    | Facello
+Bezalel   | Simmel 
+Parto     | Bamford
+;
+
+
+evalDissectSort
+from employees | eval full_name = concat(first_name, " ", last_name) | dissect full_name "%{a} %{b}" | sort a asc | project full_name, a, b | limit 3;
+
+full_name:keyword     | a:keyword    | b:keyword
+Alejandro McAlpine    | Alejandro    | McAlpine
+Amabile Gomatam       | Amabile      | Gomatam 
+Anneke Preusig        | Anneke       | Preusig
+;
+
+
+dissectStats
+from employees | eval x = concat(gender, " foobar") | dissect x "%{a} %{b}" | stats n = max(emp_no) by a | project a, n | sort a asc;
+
+a:keyword  | n:integer
+F          | 10100    
+M          | 10097       
+;
+
+
+nullOnePattern
+from employees | where emp_no == 10030 | dissect first_name "%{a}" | project first_name, a;
+
+first_name:keyword | a:keyword
+null               | null     
+;
+
+
+nullTwoPatterns
+from employees | where emp_no == 10030 | dissect first_name "%{a} %{b}" | project first_name, a, b;
+
+first_name:keyword | a:keyword | b:keyword
+null               | null      | null
+;
+
+
+overwriteName
+from employees | sort emp_no asc | eval full_name = concat(first_name, " ", last_name) | dissect full_name "%{emp_no} %{b}" | project full_name, emp_no, b | limit 3;
+
+full_name:keyword | emp_no:keyword | b:keyword
+Georgi Facello    | Georgi         | Facello
+Bezalel Simmel    | Bezalel        | Simmel 
+Parto Bamford     | Parto          | Bamford
+;
+
+
+overwriteNameWhere
+from employees | sort emp_no asc | eval full_name = concat(first_name, " ", last_name) | dissect full_name "%{emp_no} %{b}" | where emp_no == "Bezalel" | project full_name, emp_no, b | limit 3;
+
+full_name:keyword | emp_no:keyword | b:keyword
+Bezalel Simmel    | Bezalel        | Simmel 
+;
+
+
+# for now it calculates only based on the first value
+multivalueInput
+from employees | where emp_no <= 10006 | dissect job_positions "%{a} %{b} %{c}" | sort emp_no | project emp_no, a, b, c;
+
+emp_no:integer | a:keyword | b:keyword | c:keyword
+10001          | null      | null      | null
+10002          | Senior    | Team      | Lead
+10003          | null      | null      | null
+10004          | Head      | Human     | Resources
+10005          | null      | null      | null 
+10006          | Principal | Support   | Engineer
+;

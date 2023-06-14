@@ -1,0 +1,14 @@
+apply plugin: 'elasticsearch.legacy-java-rest-test'
+
+testClusters.configureEach {
+  testDistribution = 'DEFAULT'
+  setting 'xpack.license.self_generated.type', 'trial'
+  setting 'xpack.monitoring.collection.enabled', 'false'
+  setting 'xpack.security.enabled', 'true'
+  numberOfNodes = 1
+  extraConfigFile 'roles.yml', file('roles.yml')
+  user username: "test-admin", password: 'x-pack-test-password', role: "test-admin"
+  user username: "user1", password: 'x-pack-test-password', role: "user1"
+  user username: "user2", password: 'x-pack-test-password', role: "user2"
+  user username: "user3", password: 'x-pack-test-password', role: "user3"
+}

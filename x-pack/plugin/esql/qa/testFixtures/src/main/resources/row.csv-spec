@@ -1,0 +1,312 @@
+oneField
+row a = 1;
+
+a:integer
+1
+;
+
+multipleFields
+// tag::example[]
+ROW a = 1, b = "two", c = null
+// end::example[]
+;
+
+// tag::example-result[]
+a:integer | b:keyword  | c:null
+1         | "two"      | null
+// end::example-result[]
+;
+
+implicitNames
+row 100, 10, c = 1;
+
+100:integer | 10:integer | c:integer
+100 | 10 | 1
+;
+
+multivalue
+// tag::multivalue[]
+ROW a = [2, 1]
+// end::multivalue[]
+;
+
+// tag::multivalue-result[]
+a:integer
+[2, 1]
+// end::multivalue-result[]
+;
+
+fieldFromFunctionEvaluation
+// tag::function[]
+ROW a = ROUND(1.23, 0)
+// end::function[]
+;
+
+// tag::function-result[]
+a:double
+1.0
+// end::function-result[]
+;
+
+evalRow
+row a = 1, b = 2 | eval c = a + b;
+
+a:integer | b:integer | c:integer
+1 | 2 | 3
+;
+
+evalRowWithNull
+row a = 1, b = 2, c = null | eval z = c+b+a;
+
+a:integer | b:integer | c:null | z:integer
+1 | 2 | null | null
+;
+
+evalRowWithNull2
+row a = 1, null, b = 2, c = null, null | eval z = a+b;
+
+a:integer | null:null | b:integer | c:null | null:null | z:integer
+1 | null | 2 | null | null | 3
+;
+
+evalRowWithNull3
+row a = 1, b = 2, x = round(null) | eval z = a+b+x;
+
+a:integer | b:integer | x:null | z:integer
+1 | 2 | null | null
+;
+
+evalRowWithRound
+row a = 1, b = 2 | eval y = round(-123.5);
+
+a:integer | b:integer | y:double
+1 | 2 | -124.0
+;
+
+evalRowWithRoundNullDecimals
+row a = 1, b = 2 | eval y = round(-123.5, null);
+
+a:integer | b:integer | y:double
+1 | 2 | null
+;
+
+evalRowWithComplexRound
+row a = 1, b = 2 | eval y = round(-123.56789, 3) + ROUND(a + b / 2);
+
+a:integer | b:integer | y:double
+1 | 2 | -121.568
+;
+
+evalOverride
+row a = 1, b = 100 | eval b = a + 1 | eval a = b + 1;
+
+b:integer | a:integer
+2 | 3
+;
+
+evalOverride2
+row a = 1, b = 10, c = 100, d = 1000, e = 10000 | eval d = a + 1 | eval b = d + 1;
+
+a:integer | c:integer | e:integer | d:integer | b:integer
+1 | 100 | 10000 | 2 | 3
+;
+
+filterRow
+row a = 1 | where a > 0;
+
+a:integer
+1
+;
+
+filterRow2
+row a = 1 | where a > 10;
+
+a:integer
+;
+
+filterRow3
+row a = 1 | eval b = a * null | where b > 10;
+
+a:integer | b:integer
+;
+
+filterRow4
+row a = 1 | eval b = null * 1 | where b > 10;
+
+a:integer | b:integer
+;
+
+filterRow5
+row a = 1.0 | eval b = a * null | where b > 2.0;
+
+a:double | b:double
+;
+
+evalRowWithNulls
+row a = 1, b = 2 | eval y = null;
+
+a:integer | b:integer | y:null
+1 | 2 | null
+;
+
+evalRowWithNullsInRound
+row a = 1, b = 2 | eval y = round(null, 3) + ROUND(a + b / 2);
+
+a:integer | b:integer | y:integer
+1 | 2 | null
+;
+
+evalRowWithNullsInArithmethicOp
+row a = 1, b = 2 | eval y = null + 3;
+
+a:integer | b:integer | y:integer
+1 | 2 | null
+;
+
+rowWithNullsInCount
+row a = 1.5, b = 2.6, c = null | eval s = null + a + b | stats c = count(s);
+
+c:long
+0
+;
+
+rowWithNullsInAvg
+row a = 1.5, b = 2.6, c = null | eval s = null + a + b | stats c = avg(s);
+
+c:double
+NaN
+;
+
+rowWithNullsInAvg2
+row a = 1.5, b = 2.6, c = null | eval s = a - b * c | stats avg(s);
+
+avg(s):double
+NaN
+;
+
+rowStatsProjectGroupByInt
+row a = 1, b = 2 | stats count(b) by a | project a;
+
+a:integer
+1
+;
+
+rowStatsProjectGroupByLong
+row a = 1000000000000, b = 2 | stats count(b) by a | project a;
+
+a:long
+1000000000000
+;
+
+rowStatsProjectGroupByDouble
+row a = 1.0, b = 2 | stats count(b) by a | project a;
+
+a:double
+1.0
+;
+
+rowStatsProjectGroupByLong
+row a = "hello world", b = 2 | stats count(b) by a | project a;
+
+a:keyword
+"hello world"
+;
+
+limitRow
+row a = 1 | limit 0;
+
+a:integer
+;
+
+rowWithMultipleStats
+row a = 1+3, b = 2, ab = 5 | eval x = 1 + b + 5 | stats avg = avg(x), min(x), max(x), count(x), avg(x), avg(ab), avg(a);
+
+avg:double | min(x):integer | max(x):integer | count(x):long | avg(x):double | avg(ab):double | avg(a):double
+       8.0 |              8 |              8 |             1 |           8.0 |            5.0 |           4.0
+;
+
+rowWithMultipleStatsOverNull
+row x=1, y=2 | eval tot = null + y + x | stats c=count(tot), a=avg(tot), mi=min(tot), ma=max(tot), s=sum(tot);
+
+c:long | a:double |   mi:integer |  ma:integer | s:long
+     0 |      NaN |   2147483647 | -2147483648 |      0
+;
+
+
+min
+row l=1, d=1.0, ln=1 + null, dn=1.0 + null | stats min(l), min(d), min(ln), min(dn);
+
+min(l):integer | min(d):double | min(ln):integer | min(dn):double
+             1 |           1.0 |      2147483647 |       Infinity
+;
+
+
+sum
+row l=1, d=1.0, ln=1 + null, dn=1.0 + null | stats sum(l), sum(d), sum(ln), sum(dn);
+
+sum(l):long | sum(d):double | sum(ln):long | sum(dn):double
+          1 |           1.0 |            0 |            0.0
+;
+
+boolean
+row false;
+
+false:boolean
+false
+;
+
+in
+row a=1, b=2 | where a in (0, b-1);
+
+a:integer|b:integer
+1        |2
+;
+
+inWithLiteralValue
+row a=1, b=2 | where 2 in (a, b);
+
+a:integer|b:integer
+1        |2
+;
+
+inWithExpressions
+// tag::in-with-expressions[]
+ROW a = 1, b = 4, c = 3
+| WHERE c-a IN (3, b / 2, a)
+// end::in-with-expressions[]
+;
+
+// tag::in-with-expressions-result[]
+a:integer |b:integer |c:integer
+1         |4         |3
+// end::in-with-expressions-result[]
+;
+
+convertMvToMvDifferentCardinality
+row strings = ["1", "2", "three"] | eval ints = to_int(strings);
+warning:Line 1:49: evaluation of [to_int(strings)] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.NumberFormatException: For input string: \"three\"
+
+strings:keyword |ints:integer
+[1, 2, three]   |[1, 2]
+;
+
+convertMvToSv
+row strings = ["1", "two"] | eval ints = to_int(strings);
+
+warning:Line 1:42: evaluation of [to_int(strings)] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.NumberFormatException: For input string: \"two\"
+
+strings:keyword |ints:integer
+[1, two]        |1
+;
+
+convertMvToNull
+row strings = ["one", "two"] | eval ints = to_int(strings);
+warning:Line 1:44: evaluation of [to_int(strings)] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.NumberFormatException: For input string: \"one\"
+warning:java.lang.NumberFormatException: For input string: \"two\"
+
+strings:keyword |ints:integer
+[one, two]      |null
+;

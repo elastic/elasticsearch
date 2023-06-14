@@ -1,0 +1,507 @@
+---
+constant_keyword:
+  - do:
+      indices.create:
+        index:  test
+        body:
+          mappings:
+            properties:
+              kind:
+                type: constant_keyword
+                value: wow such constant
+              color:
+                type: keyword
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "color": "red" }
+
+  - do:
+      esql.query:
+        body:
+          query: 'from test'
+  - match: { columns.0.name: color }
+  - match: { columns.0.type: keyword }
+  - match: { columns.1.name: kind }
+  - match: { columns.1.type: keyword }
+  - length: { values: 1 }
+  - match: { values.0.0: red }
+  - match: { values.0.1: wow such constant }
+
+  - do:
+      esql.query:
+        body:
+          query: 'from test | eval l=length(kind) | project l'
+
+  - match: {columns.0.name: l}
+  - match: {columns.0.type: integer}
+  - length: {values: 1}
+  - match: {values.0.0: 17}
+
+---
+multivalued keyword:
+  - do:
+      indices.create:
+        index:  test
+        body:
+          mappings:
+            properties:
+              card:
+                type: keyword
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "card": ["jack", "of", "diamonds"] }
+
+  - do:
+      esql.query:
+        body:
+          query: 'from test'
+  - match: {columns.0.name: card}
+  - match: {columns.0.type: keyword}
+  - length: {values: 1}
+  - match: {values.0.0: [diamonds, jack, of]}
+
+---
+wildcard:
+  - do:
+      indices.create:
+        index:  test
+        body:
+          mappings:
+            properties:
+              card:
+                type: wildcard
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "card": "jack of diamonds" }
+
+  - do:
+      esql.query:
+        body:
+          query: 'from test'
+  - match: {columns.0.name: card}
+  - match: {columns.0.type: keyword}
+  - length: {values: 1}
+  - match: {values.0.0: jack of diamonds}
+
+  - do:
+      esql.query:
+        body:
+          query: 'from test | eval l=length(card) | project l'
+  - match: {columns.0.name: l}
+  - match: {columns.0.type: integer}
+  - length: {values: 1}
+  - match: {values.0.0: 16}
+
+---
+numbers:
+  - do:
+      indices.create:
+        index:  test
+        body:
+          mappings:
+            properties:
+              i:
+                type: integer
+              l:
+                type: long
+              d:
+                type: double
+              mv_i:
+                type: integer
+              mv_l:
+                type: long
+              mv_d:
+                type: double
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - { "index": { } }
+          - { i: 123, l: -1234567891011121131, d: 1.234567891234568, mv_i: [123456, -123456], mv_l: [1234567891011121131, -1234567891011121131], mv_d: [1.234567891234568, -1.234567891234568] }
+
+  - do:
+      esql.query:
+        body:
+          query: 'from test'
+  - match: {columns.0.name: d}
+  - match: {columns.0.type: double}
+  - match: {columns.1.name: i}
+  - match: {columns.1.type: integer}
+  - match: {columns.2.name: l}
+  - match: {columns.2.type: long}
+  - match: {columns.3.name: mv_d}
+  - match: {columns.3.type: double}
+  - match: {columns.4.name: mv_i}
+  - match: {columns.4.type: integer}
+  - match: {columns.5.name: mv_l}
+  - match: {columns.5.type: long}
+  - length: {values: 1}
+  - match: {values.0.0: 1.234567891234568}
+  - match: {values.0.1: 123}
+  - match: {values.0.2: -1234567891011121131}
+  - match: {values.0.3: [-1.234567891234568, 1.234567891234568]}
+  - match: {values.0.4: [-123456, 123456]}
+  - match: {values.0.5: [-1234567891011121131, 1234567891011121131]}
+
+---
+small_numbers:
+  - do:
+      indices.create:
+        index:  test
+        body:
+          mappings:
+            properties:
+              b:
+                type: byte
+              s:
+                type: short
+              hf:
+                type: half_float
+              f:
+                type: float
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - { "index": { } }
+          - { b: 1, s: 1245, hf: 12.01, f: 112.0 }
+
+  - do:
+      esql.query:
+        body:
+          query: 'from test'
+  - match: {columns.0.name: b}
+  - match: {columns.0.type: integer}
+  - match: {columns.1.name: f}
+  - match: {columns.1.type: double}
+  - match: {columns.2.name: hf}
+  - match: {columns.2.type: double}
+  - match: {columns.3.name: s}
+  - match: {columns.3.type: integer}
+  - length: {values: 1}
+  - match: {values.0.0: 1}
+  - match: {values.0.1: 112.0}
+  - match: {values.0.2: 12.0078125}
+  - match: {values.0.3: 1245}
+
+  - do:
+      esql.query:
+        body:
+          query: 'from test | eval sum_d = b + f + hf + s, sum_i = b + s | project sum_d, sum_i'
+  - match: {columns.0.name: sum_d}
+  - match: {columns.0.type: double}
+  - match: {columns.1.name: sum_i}
+  - match: {columns.1.type: integer}
+  - length: {values: 1}
+  - match: {values.0.0: 1370.0078125}
+  - match: {values.0.1: 1246}
+
+  - do:
+      esql.query:
+        body:
+          query: 'from test | eval r_f = round(f), r_hf = round(hf) | project r_f, r_hf'
+  - match: {columns.0.name: r_f}
+  - match: {columns.0.type: double}
+  - match: {columns.1.name: r_hf}
+  - match: {columns.1.type: double}
+  - length: {values: 1}
+  - match: {values.0.0: 112.0}
+  - match: {values.0.1: 12.0}
+
+---
+scaled_float:
+  - do:
+      indices.create:
+        index:  test
+        body:
+          mappings:
+            properties:
+              f:
+                type: scaled_float
+                scaling_factor: 100
+              d:
+                type: double
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - { "index": { } }
+          - { f: 112.01, d: 1.0 }
+
+  - do:
+      esql.query:
+        body:
+          query: 'from test'
+  - match: {columns.0.name: d}
+  - match: {columns.0.type: double}
+  - match: {columns.1.name: f}
+  - match: {columns.1.type: double}
+  - length: {values: 1}
+  - match: {values.0.0: 1.0}
+  - match: {values.0.1: 112.01}
+
+  - do:
+      esql.query:
+        body:
+          query: 'from test | eval sum = d + f | project sum'
+  - match: {columns.0.name: sum}
+  - match: {columns.0.type: double}
+  - length: {values: 1}
+  - match: {values.0.0: 113.01}
+
+---
+multivalued boolean:
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              booleans:
+                type: boolean
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "booleans": [ true, false, false, false ] }
+
+  - do:
+      esql.query:
+        body:
+          query: 'from test'
+  - match: { columns.0.name: booleans }
+  - match: { columns.0.type: boolean }
+  - length: { values: 1 }
+  - match: { values.0.0: [ false, false, false, true ] }
+
+---
+ip:
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              ip:
+                type: ip
+              keyword:
+                type: keyword
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "ip": "127.0.0.1", "keyword": "127.0.0.2" }
+
+  - do:
+      esql.query:
+        body:
+          query: 'from test'
+  - match: { columns.0.name: ip }
+  - match: { columns.0.type: ip }
+  - match: { columns.1.name: keyword }
+  - match: { columns.1.type: keyword }
+  - length: { values: 1 }
+  - match: { values.0.0: "127.0.0.1" }
+  - match: { values.0.1: "127.0.0.2" }
+
+  - do:
+      esql.query:
+        body:
+          query: 'from test | where keyword == "127.0.0.2" | rename IP = ip | drop keyword'
+
+  - match: {columns.0.name: IP }
+  - match: {columns.0.type: ip }
+  - length: {values: 1 }
+  - match: {values.0.0: "127.0.0.1" }
+
+---
+alias:
+  - do:
+      indices.create:
+        index:  test
+        body:
+          mappings:
+            properties:
+              foo:
+                type: keyword
+              bar:
+                type: alias
+                path: foo
+              level1:
+                properties:
+                  level2:
+                    type: long
+              level2_alias:
+                type: alias
+                path: level1.level2
+              some_long:
+                type: long
+              some_long_alias:
+                type: alias
+                path: some_long
+              some_long_alias2:
+                type: alias
+                path: some_long
+              some_date:
+                type: date
+              some_date_alias:
+                type: alias
+                path: some_date
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "foo": "abc", "level1": {"level2": 10}, "some_long": 12, "some_date": "2015-01-01T12:00:00.000Z" }
+          - { "index": { } }
+          - { "foo": "def", "level1": {"level2": 50}, "some_long": 15, "some_date": "2015-01-01T12:00:00.000Z" }
+
+  - do:
+      esql.query:
+        body:
+          query: 'from test | project foo, bar, level1.level2, level2_alias, some_long, some_long_alias, some_long_alias2, some_date, some_date_alias | sort level2_alias'
+  - match: { columns.0.name: foo }
+  - match: { columns.0.type: keyword }
+  - match: { columns.1.name: bar }
+  - match: { columns.1.type: keyword }
+  - match: { columns.2.name: level1.level2 }
+  - match: { columns.2.type: long }
+  - match: { columns.3.name: level2_alias }
+  - match: { columns.3.type: long }
+  - match: { columns.4.name: some_long }
+  - match: { columns.4.type: long }
+  - match: { columns.5.name: some_long_alias }
+  - match: { columns.5.type: long }
+  - match: { columns.6.name: some_long_alias2 }
+  - match: { columns.6.type: long }
+  - match: { columns.7.name: some_date }
+  - match: { columns.7.type: date }
+  - match: { columns.8.name: some_date_alias }
+  - match: { columns.8.type: date }
+  - length: { values: 2 }
+  - match: { values.0.0: abc }
+  - match: { values.0.1: abc }
+  - match: { values.0.2: 10 }
+  - match: { values.0.3: 10 }
+  - match: { values.0.4: 12 }
+  - match: { values.0.5: 12 }
+  - match: { values.0.6: 12 }
+  - match: { values.0.7: 2015-01-01T12:00:00.000Z }
+  - match: { values.0.8: 2015-01-01T12:00:00.000Z }
+  - match: { values.1.0: def }
+  - match: { values.1.1: def }
+  - match: { values.1.2: 50 }
+  - match: { values.1.3: 50 }
+  - match: { values.1.4: 15 }
+  - match: { values.1.5: 15 }
+  - match: { values.1.6: 15 }
+  - match: { values.1.7: 2015-01-01T12:00:00.000Z }
+  - match: { values.1.8: 2015-01-01T12:00:00.000Z }
+
+  - do:
+      esql.query:
+        body:
+          query: 'from test | where bar == "abc" | project foo, bar, level1.level2, level2_alias'
+  - match: { columns.0.name: foo }
+  - match: { columns.0.type: keyword }
+  - match: { columns.1.name: bar }
+  - match: { columns.1.type: keyword }
+  - match: { columns.2.name: level1.level2 }
+  - match: { columns.2.type: long }
+  - match: { columns.3.name: level2_alias }
+  - match: { columns.3.type: long }
+  - length: { values: 1 }
+  - match: { values.0.0: abc }
+  - match: { values.0.1: abc }
+  - match: { values.0.2: 10 }
+  - match: { values.0.3: 10 }
+
+  - do:
+      esql.query:
+        body:
+          query: 'from test | where level2_alias == 10 | project foo, bar, level1.level2, level2_alias'
+  - match: { columns.0.name: foo }
+  - match: { columns.0.type: keyword }
+  - match: { columns.1.name: bar }
+  - match: { columns.1.type: keyword }
+  - match: { columns.2.name: level1.level2 }
+  - match: { columns.2.type: long }
+  - match: { columns.3.name: level2_alias }
+  - match: { columns.3.type: long }
+  - length: { values: 1 }
+  - match: { values.0.0: abc }
+  - match: { values.0.1: abc }
+  - match: { values.0.2: 10 }
+  - match: { values.0.3: 10 }
+
+  - do:
+      esql.query:
+        body:
+          query: 'from test | where level2_alias == 20'
+  - length: { values: 0 }
+
+  - do:
+      esql.query:
+        body:
+          query: 'from test | stats x = max(level2_alias)'
+  - match: { columns.0.name: x }
+  - match: { columns.0.type: long }
+  - length: { values: 1 }
+  - match: { values.0.0: 50 }
+
+---
+version:
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              version:
+                type: version
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "version": [ "1.2.3", "4.5.6-SNOOPY" ] }
+
+  - do:
+      esql.query:
+        body:
+          query: 'from test'
+  - match: { columns.0.name: version }
+  - match: { columns.0.type: version }
+  - length: { values: 1 }
+  - match: { values.0.0: [ "1.2.3", "4.5.6-SNOOPY" ] }

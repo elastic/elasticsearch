@@ -1,0 +1,423 @@
+rowWithStrings
+row a = "hi", b = "", c = "Ünîcødé❗️";
+
+a:keyword | b:keyword | c:keyword
+hi | | Ünîcødé❗️
+;
+
+length
+row a = "hello", b = "" | eval y = length(a) + length(b);
+
+a:keyword | b:keyword | y:integer
+hello | | 5
+;
+
+// note, emojis are encoded with at least two unicode code points
+lengthWithNonAsciiChars
+row a = "¡", b = "❗️" | eval y = length(a) | eval z = length(b);
+
+a:keyword | b:keyword | y:integer | z:integer
+¡ | ❗️ | 1 | 2
+;
+
+foldLength
+row a = 1 | eval b = length("hello");
+
+a:integer | b:integer
+1 | 5
+;
+
+
+length
+from employees | sort emp_no | limit 3 | eval l = length(first_name) | project emp_no, l;
+
+emp_no:integer | l:integer
+10001 | 6
+10002 | 7
+10003 | 5
+;
+
+startsWithConstant
+from employees | sort emp_no | limit 10 | eval f_S = starts_with(first_name, "S") | project emp_no, first_name, f_S;
+
+emp_no:integer | first_name:keyword  | f_S:boolean
+10001 | Georgi    | false
+10002 | Bezalel   | false
+10003 | Parto     | false
+10004 | Chirstian | false
+10005 | Kyoichi   | false
+10006 | Anneke    | false
+10007 | Tzvetan   | false
+10008 | Saniya    | true
+10009 | Sumant    | true
+10010 | Duangkaew | false
+;
+
+startsWithField
+from employees | where emp_no <= 10010 | eval f_l = starts_with(last_name, gender) | project emp_no, last_name, gender, f_l;
+
+emp_no:integer | last_name:keyword | gender:keyword | f_l:boolean
+10001 | Facello   | M    | false
+10002 | Simmel    | F    | false
+10003 | Bamford   | M    | false
+10004 | Koblick   | M    | false
+10005 | Maliniak  | M    | true
+10006 | Preusig   | F    | false
+10007 | Zielinski | F    | false
+10008 | Kalloufi  | M    | false
+10009 | Peac      | F    | false
+10010 | Piveteau  | null | null
+;
+
+substring
+from employees | where emp_no <= 10010 | eval f_l = substring(last_name, 3) | project emp_no, last_name, f_l;
+
+emp_no:integer | last_name:keyword | f_l:keyword
+10001 | Facello   | cello
+10002 | Simmel    | mmel
+10003 | Bamford   | mford
+10004 | Koblick   | blick
+10005 | Maliniak  | liniak
+10006 | Preusig   | eusig
+10007 | Zielinski | elinski
+10008 | Kalloufi  | lloufi
+10009 | Peac      | ac
+10010 | Piveteau  | veteau
+;
+
+substring with length
+from employees | where emp_no <= 10010 | eval f_l = substring(last_name, 3, 1) | project emp_no, last_name, f_l;
+
+emp_no:integer | last_name:keyword | f_l:keyword
+10001 | Facello   | c
+10002 | Simmel    | m
+10003 | Bamford   | m
+10004 | Koblick   | b
+10005 | Maliniak  | l
+10006 | Preusig   | e
+10007 | Zielinski | e
+10008 | Kalloufi  | l
+10009 | Peac      | a
+10010 | Piveteau  | v
+;
+
+substring negative start
+from employees | where emp_no <= 10010 | eval f_l = substring(last_name, -3) | project emp_no, last_name, f_l;
+
+emp_no:integer | last_name:keyword | f_l:keyword
+10001 | Facello   | llo
+10002 | Simmel    | mel
+10003 | Bamford   | ord
+10004 | Koblick   | ick
+10005 | Maliniak  | iak
+10006 | Preusig   | sig
+10007 | Zielinski | ski
+10008 | Kalloufi  | ufi
+10009 | Peac      | eac
+10010 | Piveteau  | eau
+;
+
+substring nested negative start
+from employees | where emp_no <= 10010 | eval f_l = substring(substring(last_name, -3),-1) | project emp_no, last_name, f_l;
+
+emp_no:integer | last_name:keyword | f_l:keyword
+10001 | Facello   | o
+10002 | Simmel    | l
+10003 | Bamford   | d
+10004 | Koblick   | k
+10005 | Maliniak  | k
+10006 | Preusig   | g
+10007 | Zielinski | i
+10008 | Kalloufi  | i
+10009 | Peac      | c
+10010 | Piveteau  | u
+;
+
+substring length
+from employees | where emp_no <= 10010 | eval f_l = length(substring(last_name, 3)) | project emp_no, last_name, f_l;
+
+emp_no:integer | last_name:keyword | f_l:integer
+10001 | Facello   | 5
+10002 | Simmel    | 4
+10003 | Bamford   | 5
+10004 | Koblick   | 5
+10005 | Maliniak  | 6
+10006 | Preusig   | 5
+10007 | Zielinski | 7
+10008 | Kalloufi  | 6
+10009 | Peac      | 2
+10010 | Piveteau  | 6
+;
+
+substring pair
+from employees | where emp_no <= 10010 | eval x = substring(last_name, 1, 1), y = 1, z = substring("abcdef", y, y) | project emp_no, last_name, x, z;
+
+emp_no:integer | last_name:keyword | x:keyword | z:keyword
+10001 | Facello   | F | a
+10002 | Simmel    | S | a
+10003 | Bamford   | B | a
+10004 | Koblick   | K | a
+10005 | Maliniak  | M | a
+10006 | Preusig   | P | a
+10007 | Zielinski | Z | a
+10008 | Kalloufi  | K | a
+10009 | Peac      | P | a
+10010 | Piveteau  | P | a
+;
+
+concat
+from employees | sort emp_no | limit 10 | eval name = concat(first_name, " ", last_name) | project emp_no, name;
+
+emp_no:integer | name:keyword
+10001 | Georgi Facello
+10002 | Bezalel Simmel
+10003 | Parto Bamford
+10004 | Chirstian Koblick
+10005 | Kyoichi Maliniak
+10006 | Anneke Preusig
+10007 | Tzvetan Zielinski
+10008 | Saniya Kalloufi
+10009 | Sumant Peac
+10010 | Duangkaew Piveteau
+;
+
+concatComplex
+from employees | sort emp_no | limit 10 | eval foo = " - ", x = concat(gender, foo) | eval name = concat(x, first_name, " ", last_name, ", ", concat(first_name, last_name)) | project emp_no, name;
+
+emp_no:integer | name:keyword
+10001          | M - Georgi Facello, GeorgiFacello
+10002          | F - Bezalel Simmel, BezalelSimmel
+10003          | M - Parto Bamford, PartoBamford
+10004          | M - Chirstian Koblick, ChirstianKoblick
+10005          | M - Kyoichi Maliniak, KyoichiMaliniak
+10006          | F - Anneke Preusig, AnnekePreusig
+10007          | F - Tzvetan Zielinski, TzvetanZielinski
+10008          | M - Saniya Kalloufi, SaniyaKalloufi
+10009          | F - Sumant Peac, SumantPeac
+10010          | null
+;
+
+// Note: no matches in MV returned
+in
+from employees | where job_positions in ("Internship", first_name) | project emp_no, job_positions;
+
+emp_no:integer |job_positions:keyword
+10048          |Internship
+10077          |Internship
+;
+
+split
+// tag::split[]
+ROW words="foo;bar;baz;qux;quux;corge"
+| EVAL word = SPLIT(words, ";")
+// end::split[]
+;
+
+// tag::split-result[]
+             words:keyword | word:keyword
+foo;bar;baz;qux;quux;corge | [foo,bar,baz,qux,quux,corge]
+// end::split-result[]
+;
+
+mvCount
+// tag::mv_count[]
+ROW a=["foo", "zoo", "bar"]
+| EVAL count_a = MV_COUNT(a)
+// end::mv_count[]
+;
+
+// tag::mv_count-result[]
+            a:keyword | count_a:integer
+["foo", "zoo", "bar"] | 3
+// end::mv_count-result[]
+;
+
+mvJoin
+// tag::mv_concat[]
+ROW a=["foo", "zoo", "bar"]
+| EVAL j = MV_CONCAT(a, ", ")
+// end::mv_concat[]
+;
+
+// tag::mv_concat-result[]
+            a:keyword | j:keyword
+["foo", "zoo", "bar"] | "foo, zoo, bar"
+// end::mv_concat-result[]
+;
+
+mvMax
+// tag::mv_max[]
+ROW a=["foo", "zoo", "bar"]
+| EVAL max_a = MV_MAX(a)
+// end::mv_max[]
+;
+
+// tag::mv_max-result[]
+            a:keyword | max_a:keyword
+["foo", "zoo", "bar"] | "zoo"
+// end::mv_max-result[]
+;
+
+mvMin
+// tag::mv_min[]
+ROW a=["foo", "bar"]
+| EVAL min_a = MV_MIN(a)
+// end::mv_min[]
+;
+
+// tag::mv_min-result[]
+     a:keyword | min_a:keyword
+["foo", "bar"] | "bar"
+// end::mv_min-result[]
+;
+
+groupByMv
+from employees | stats min(salary), max(salary) by job_positions | sort job_positions | limit 5;
+
+min(salary):integer | max(salary):integer | job_positions:keyword
+25976               | 74970               | Accountant
+28941               | 69904               | Architect
+29175               | 58121               | Business Analyst
+25945               | 74999               | Data Scientist
+25324               | 58715               | Head Human Resources
+;
+
+convertFromString
+from employees | eval positions = to_string(job_positions) | project emp_no, positions, job_positions | limit 5;
+
+emp_no:integer |positions:keyword                                                     |job_positions:keyword
+10001          |[Accountant, Senior Python Developer]                                 |[Accountant, Senior Python Developer]                                 
+10002          |Senior Team Lead                                                      |Senior Team Lead                                                      
+10003          |null                                                                  |null                                                                  
+10004          |[Head Human Resources, Reporting Analyst, Support Engineer, Tech Lead]|[Head Human Resources, Reporting Analyst, Support Engineer, Tech Lead]
+10005          |null                                                                  |null                                                                  
+;
+
+lessThanMultivalue
+from employees | where job_positions < "C" | project emp_no, job_positions | sort emp_no;
+
+// Note that multivalued job_positions aren't included because they aren't less than or greater than C - that comparison is null
+emp_no:integer |job_positions:keyword
+10025          |Accountant
+10068          |Architect
+;
+
+greaterThanMultivalue
+from employees | where job_positions > "C" | project emp_no, job_positions | sort emp_no | limit 6;
+
+// Note that multivalued job_positions aren't included because they aren't less than or greater than C - that comparison is null
+emp_no:integer |job_positions:keyword
+10002          |Senior Team Lead
+10013          |Reporting Analyst
+10018          |Junior Developer
+10019          |Purchase Manager
+10020          |Tech Lead
+;
+
+equalToMultivalue
+from employees | where job_positions == "Accountant" | project emp_no, job_positions | sort emp_no;
+
+// Note that multivalued job_positions aren't included because they aren't less than or greater than C - that comparison is null
+emp_no:integer |job_positions:keyword
+10025          |Accountant
+;
+
+equalToOrEqualToMultivalue
+from employees | where job_positions == "Accountant" or job_positions == "Tech Lead" | project emp_no, job_positions | sort emp_no;
+
+// Note that multivalued job_positions aren't included because they aren't less than or greater than C - that comparison is null
+emp_no:integer |job_positions:keyword
+10020          |Tech Lead
+10025          |Accountant
+;
+
+inMultivalue
+from employees | where job_positions in ("Accountant", "Tech Lead") | project emp_no, job_positions | sort emp_no;
+
+// Note that multivalued job_positions aren't included because they aren't less than or greater than C - that comparison is null
+emp_no:integer |job_positions:keyword
+10020          |Tech Lead
+10025          |Accountant
+;
+
+convertFromBoolean
+from employees | eval rehired = to_string(is_rehired) | project emp_no, rehired, is_rehired | limit 5;
+
+emp_no:integer |rehired:string              |is_rehired:boolean
+10001          |[false, true]               |[false, true]
+10002          |[false, false]              |[false, false]
+10003          |null                        |null
+10004          |true                        |true
+10005          |[false, false, false, true] |[false, false, false, true]
+;
+
+convertFromDatetime
+from employees | sort emp_no| eval hired_at = to_string(hire_date) | project emp_no, hired_at, hire_date  | limit 1;
+
+emp_no:integer |hired_at:keyword         |hire_date:date
+10001          |1986-06-26T00:00:00.000Z |1986-06-26T00:00:00.000Z
+;
+
+convertFromIP
+from hosts | where host=="epsilon" | eval str0 = to_string(ip0) | project str0, ip0;
+
+str0:keyword                                                                            |ip0:ip
+["fe80::cae2:65ff:fece:feb9", "fe80::cae2:65ff:fece:fec0", "fe80::cae2:65ff:fece:fec1"] |[fe80::cae2:65ff:fece:feb9, fe80::cae2:65ff:fece:fec0, fe80::cae2:65ff:fece:fec1]
+null                                                                                    |null
+["fe81::cae2:65ff:fece:feb9", "fe82::cae2:65ff:fece:fec0"]                              |[fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece:fec0]
+;
+
+convertFromFloats
+from employees | sort emp_no| eval double = to_string(height), float = to_string(height.float), scaled_float = to_string(height.scaled_float), half_float = to_string(height.half_float) | project emp_no, double, float, scaled_float, half_float, height  | limit 2;
+
+emp_no:integer |double:keyword |float:keyword     |scaled_float:keyword   |half_float:keyword   |height:double
+10001          |2.03           |2.0299999713897705|2.0300000000000002     |2.029296875          |2.03
+10002          |2.08           |2.0799999237060547|2.08                   |2.080078125          |2.08
+;
+
+convertFromInts
+from employees | sort emp_no| eval byte = to_string(languages.byte), short = to_string(languages.short), long = to_string(languages.long), int = to_string(languages) | project emp_no, byte, short, long, int, languages  | limit 2;
+
+emp_no:integer |byte:keyword   |short:keyword  |long:keyword |int:keyword |languages:integer
+10001          |2              |2              |2            |2           |2
+10002          |5              |5              |5            |5           |5
+;
+
+convertFromIntSimple
+// tag::to_string[]
+ROW a=10
+| EVAL j = TO_STRING(a)
+// end::to_string[]
+;
+
+// tag::to_string-result[]
+a:integer | j:keyword
+       10 | "10"
+// end::to_string-result[]
+;
+
+convertFromIntMultivalue
+// tag::to_string_multivalue[]
+ROW a=[10, 9, 8]
+| EVAL j = TO_STRING(a)
+// end::to_string_multivalue[]
+;
+
+// tag::to_string_multivalue-result[]
+ a:integer | j:keyword
+[10, 9, 8] | ["10", "9", "8"]
+// end::to_string_multivalue-result[]
+;
+
+mvConcatToString
+// tag::mv_concat-to_string[]
+ROW a=[10, 9, 8]
+| EVAL j = MV_CONCAT(TO_STRING(a), ", ")
+// end::mv_concat-to_string[]
+;
+
+// tag::mv_concat-to_string-result[]
+ a:integer | j:keyword
+[10, 9, 8] | "10, 9, 8"
+// end::mv_concat-to_string-result[]
+;

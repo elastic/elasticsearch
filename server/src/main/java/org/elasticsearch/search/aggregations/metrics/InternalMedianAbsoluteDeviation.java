@@ -23,29 +23,14 @@ import java.util.Objects;
 
 public class InternalMedianAbsoluteDeviation extends InternalNumericMetricsAggregation.SingleValue implements MedianAbsoluteDeviation {
 
-    static double computeMedianAbsoluteDeviation(TDigestState valuesSketch) {
-
-        if (valuesSketch.size() == 0) {
-            return Double.NaN;
-        } else {
-            final double approximateMedian = valuesSketch.quantile(0.5);
-            final TDigestState approximatedDeviationsSketch = new TDigestState(valuesSketch.compression());
-            valuesSketch.centroids().forEach(centroid -> {
-                final double deviation = Math.abs(approximateMedian - centroid.mean());
-                approximatedDeviationsSketch.add(deviation, centroid.count());
-            });
-
-            return approximatedDeviationsSketch.quantile(0.5);
-        }
-    }
-
     private final TDigestState valuesSketch;
     private final double medianAbsoluteDeviation;
 
     InternalMedianAbsoluteDeviation(String name, Map<String, Object> metadata, DocValueFormat format, TDigestState valuesSketch) {
         super(name, Objects.requireNonNull(format), metadata);
         this.valuesSketch = Objects.requireNonNull(valuesSketch);
-        this.medianAbsoluteDeviation = computeMedianAbsoluteDeviation(this.valuesSketch);
+
+        this.medianAbsoluteDeviation = valuesSketch.computeMedianAbsoluteDeviation();
     }
 
     public InternalMedianAbsoluteDeviation(StreamInput in) throws IOException {

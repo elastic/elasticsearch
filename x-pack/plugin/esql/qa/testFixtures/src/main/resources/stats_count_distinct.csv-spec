@@ -1,0 +1,110 @@
+countDistinctOfLong
+from employees | stats l = count_distinct(languages.long);
+
+l:long
+5
+;
+
+countDistinctOfInteger
+from employees | stats l = count_distinct(languages);
+
+l:long
+5
+;
+
+countDistinctOfShort
+// short becomes int until https://github.com/elastic/elasticsearch-internal/issues/724
+from employees | stats l = count_distinct(languages.short);
+
+l:long
+5
+;
+
+countDistinctOfByte
+// byte becomes int until https://github.com/elastic/elasticsearch-internal/issues/724
+from employees | stats l = count_distinct(languages.byte);
+
+l:long
+5
+;
+
+countDistinctOfDouble
+from employees | stats h = count_distinct(height, 100);
+
+h:long
+54
+;
+
+countDistinctOfFloat
+// float becomes double until https://github.com/elastic/elasticsearch-internal/issues/724
+from employees | stats h = count_distinct(height.float);
+
+h:long
+54
+;
+
+countDistinctOfHalfFloat
+// float becomes double until https://github.com/elastic/elasticsearch-internal/issues/724
+from employees | stats h = count_distinct(height.half_float);
+
+h:long
+54
+;
+
+countDistinctOfScaledFloat
+// float becomes double until https://github.com/elastic/elasticsearch-internal/issues/724
+from employees | stats h = count_distinct(height.scaled_float);
+
+h:long
+54
+;
+
+countDistinctOfBoolean
+// float becomes double until https://github.com/elastic/elasticsearch-internal/issues/724
+from employees | stats c = count_distinct(still_hired);
+
+c:long
+2
+;
+
+countDistinctOfKeywords
+from employees | eval hire_year_str = date_format(hire_date, "yyyy") | stats g = count_distinct(gender), h = count_distinct(hire_year_str);
+
+g:long | h:long
+2      | 14
+;
+
+countDistinctOfIp
+from hosts | stats h0 = count_distinct(ip0), h1 = count_distinct(ip1);
+
+h0:long   | h1:long
+7         | 8
+;
+
+countDistinctOfDates
+from employees | eval d = date_trunc(hire_date, 1 year) | stats h = count_distinct(d);  
+
+h:long
+14
+;
+
+countDistinctWithGroup
+from employees | stats m = count_distinct(height, 9876) by languages | sort languages;
+
+m:long  | languages:i
+13   | 1
+16   | 2
+14   | 3
+15   | 4
+20   | 5
+; 
+
+countDistinctOfIpGroupByKeyword
+from hosts | stats h0 = count_distinct(ip0), h1 = count_distinct(ip1)  by host | sort host;
+
+h0:long | h1:long | host:keyword
+2       | 2       | alpha
+1       | 3       | beta
+5       | 6       | epsilon
+1       | 2       | gamma
+;

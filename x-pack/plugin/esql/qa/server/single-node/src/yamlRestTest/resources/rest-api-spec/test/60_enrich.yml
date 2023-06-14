@@ -1,0 +1,83 @@
+---
+setup:
+  - do:
+      indices.create:
+        index:  cities
+        body:
+          settings:
+            number_of_shards: 5
+          mappings:
+            properties:
+              city_code:
+                type: keyword
+              city:
+                type: keyword
+              country:
+                type: keyword
+
+  - do:
+      bulk:
+        index: "cities"
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "city_code": "nyc", "city": "New York", "country": "USA" }
+          - { "index": { } }
+          - { "city_code": "rom", "city": "Rome", "country": "Italy" }
+
+  - do:
+      enrich.put_policy:
+        name: cities_policy
+        body:
+          match:
+            indices: ["cities"]
+            match_field: "city_code"
+            enrich_fields: ["city", "country"]
+
+  - do:
+      enrich.execute_policy:
+        name: cities_policy
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              name:
+                type: keyword
+              city_id:
+                type: keyword
+  - do:
+      bulk:
+        index: "test"
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "name": "Alice", "city_id": "nyc" }
+          - { "index": { } }
+          - { "name": "Bob", "city_id": "nyc" }
+          - { "index": { } }
+          - { "name": "Mario", "city_id": "rom" }
+          - { "index": { } }
+          - { "name": "Denise", "city_id": "sgn" }
+
+---
+"Basic":
+  - do:
+      esql.query:
+        body:
+          query: 'from test | enrich cities_policy on city_id | project name, city, country | sort name'
+
+  - match: { columns.0.name: "name" }
+  - match: { columns.0.type: "keyword" }
+  - match: { columns.1.name: "city" }
+  - match: { columns.1.type: "keyword" }
+  - match: { columns.2.name: "country" }
+  - match: { columns.2.type: "keyword" }
+
+  - length: { values: 4 }
+  - match: { values.0: [ "Alice", "New York", "USA" ] }
+  - match: { values.1: [ "Bob", "New York", "USA" ] }
+  - match: { values.2: [ "Denise", null, null ] }
+  - match: { values.3: [ "Mario", "Rome", "Italy" ] }

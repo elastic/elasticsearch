@@ -1,0 +1,46 @@
+[[esql-to_datetime]]
+=== `TO_DATETIME`
+Converts an input value to a date value.
+
+The input can be a single- or multi-valued field or an expression. The input
+type must be of a string or numeric type.
+
+A string will only be successfully converted if it's respecting the format
+`yyyy-MM-dd'T'HH:mm:ss.SSS'Z'`. For example:
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/date.csv-spec[tag=to_datetime-str]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/date.csv-spec[tag=to_datetime-str-result]
+|===
+
+Note that in this example, the last value in the source multi-valued
+field has not been converted. The reason being that if the date format is not
+respected, the conversion will result in a *null* value. When this happens a
+_Warning_ header is added to the response. The header will provide information
+on the source of the failure:
+
+`"Line 1:112: evaluation of [TO_DATETIME(string)] failed, treating result as null. Only first 20 failures recorded."`
+
+A following header will contain the failure reason and the offending value:
+
+`"java.lang.IllegalArgumentException: failed to parse date field [1964-06-02 00:00:00] with format [yyyy-MM-dd'T'HH:mm:ss.SSS'Z']"`
+
+
+If the input parameter is of a numeric type, its value will be interpreted as
+milliseconds since the https://en.wikipedia.org/wiki/Unix_time[Unix epoch].
+For example:
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/date.csv-spec[tag=to_datetime-int]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/date.csv-spec[tag=to_datetime-int-result]
+|===
+
+Alias: TO_DT

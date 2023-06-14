@@ -1,0 +1,103 @@
+simpleEval
+row a = 1 | eval b = 2;
+
+a:integer | b:integer
+1         | 2
+;
+
+withMath
+row a = 1 | eval b = 2 + 3;
+
+a:integer | b:integer
+1         | 5
+;
+
+
+withMathAndVariables
+row a = 1 | eval b = a + 2;
+
+a:integer | b:integer
+1         | 3
+;
+
+
+evalEval
+row a = 1 | eval b = a + 1 | eval c = b + 2;
+
+a:integer | b:integer | c:integer
+1         | 2         | 4
+;
+
+
+multiple
+row a = 1 | eval b = a + 1, c = b + 2;
+
+a:integer | b:integer | c:integer
+1         | 2         | 4
+;
+
+
+multiple2
+row a = 1 | eval b = a + 1, c = b + 2, d = a + b + c | eval e = a + d - 2;
+
+a:integer | b:integer | c:integer | d:integer | e:integer
+1         | 2         | 4         | 7         | 6
+;
+
+
+multipleDuplicateInterleaved1
+row a = 1 | eval b = a, c = 1, c = 3, d = b + 1, b = c * 2, c = 2, c = d * c + b | project a, b, c, d;
+
+a:integer | b:integer | c:integer | d:integer 
+1         | 6         | 10        | 2         
+;
+
+
+multipleDuplicateInterleaved2
+row a = 1 | eval b = a, c = 1 | eval c = 3, d = b + 1 | eval b = c * 2, c = 2 | eval c = d * c + b | project a, b, c, d;
+
+a:integer | b:integer | c:integer | d:integer 
+1         | 6         | 10        | 2         
+;
+
+
+multipleDuplicateInterleaved3
+row a = 1 | eval b = a, c = 1, c = 3 | eval d = b + 1 | eval b = c * 2, c = 2, c = d * c + b | project a, b, c, d;
+
+a:integer | b:integer | c:integer | d:integer 
+1         | 6         | 10        | 2         
+;
+
+multipleDuplicateInterleaved4
+row a = 1 | eval b = a | eval c = 1 | eval c = 3 | eval d = b + 1 | eval b = c * 2 | eval c = 2 | eval c = d * c + b | project a, b, c, d;
+
+a:integer | b:integer | c:integer | d:integer 
+1         | 6         | 10         | 2         
+;
+
+
+projectEval
+row x = 1  | project x | eval a1 = x + 1, a2 = x + 1, a3 = a1 + a2, a1 = a1 + a2;
+
+x:integer | a2:integer | a3:integer | a1:integer 
+1         | 2          | 4          | 4         
+;
+
+evalNullSort
+from employees | eval x = null | sort x asc, emp_no desc | project emp_no, x, last_name | limit 2;
+
+emp_no:integer | x:null | last_name:keyword
+10100          | null   | Haraldson
+10099          | null   | Sullins
+;
+
+
+filterEvalFilter
+from employees | where emp_no < 100010 | eval name_len = length(first_name) | where name_len < 4 | project first_name | sort first_name;
+
+first_name:keyword
+Gao
+Tse
+Udi
+Uri
+;

@@ -1,0 +1,131 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.compute.operator.exchange;
+
+import org.elasticsearch.action.support.ListenableActionFuture;
+import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.Operator;
+
+import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.atomic.AtomicInteger;
+
+final class ExchangeBuffer {
+
+    private final Queue<Page> queue = new ConcurrentLinkedQueue<>();
+    // uses a separate counter for size for CAS; and ConcurrentLinkedQueue#size is not a constant time operation.
+    private final AtomicInteger queueSize = new AtomicInteger();
+    private final int maxSize;
+
+    private final Object notEmptyLock = new Object();
+    private ListenableActionFuture<Void> notEmptyFuture = null;
+
+    private final Object notFullLock = new Object();
+    private ListenableActionFuture<Void> notFullFuture = null;
+
+    private volatile boolean noMoreInputs = false;
+
+    ExchangeBuffer(int maxSize) {
+        if (maxSize < 1) {
+            throw new IllegalArgumentException("max_buffer_size must be at least one; got=" + maxSize);
+        }
+        this.maxSize = maxSize;
+    }
+
+    void addPage(Page page) {
+        if (noMoreInputs == false) {
+            queue.add(page);
+            if (queueSize.incrementAndGet() == 1) {
+                notifyNotEmpty();
+            }
+        }
+    }
+
+    Page pollPage() {
+        final var page = queue.poll();
+        if (page != null && queueSize.decrementAndGet() == maxSize - 1) {
+            notifyNotFull();
+        }
+        return page;
+    }
+
+    private void notifyNotEmpty() {
+        final ListenableActionFuture<Void> toNotify;
+        synchronized (notEmptyLock) {
+            toNotify = notEmptyFuture;
+            notEmptyFuture = null;
+        }
+        if (toNotify != null) {
+            toNotify.onResponse(null);
+        }
+    }
+
+    private void notifyNotFull() {
+        final ListenableActionFuture<Void> toNotify;
+        synchronized (notFullLock) {
+            toNotify = notFullFuture;
+            notFullFuture = null;
+        }
+        if (toNotify != null) {
+            toNotify.onResponse(null);
+        }
+    }
+
+    ListenableActionFuture<Void> waitForWriting() {
+        // maxBufferSize check is not water-tight as more than one sink can pass this check at the same time.
+        if (queueSize.get() < maxSize || noMoreInputs) {
+            return Operator.NOT_BLOCKED;
+        }
+        synchronized (notFullLock) {
+            if (queueSize.get() < maxSize || noMoreInputs) {
+                return Operator.NOT_BLOCKED;
+            }
+            if (notFullFuture == null) {
+                notFullFuture = new ListenableActionFuture<>();
+            }
+            return notFullFuture;
+        }
+    }
+
+    ListenableActionFuture<Void> waitForReading() {
+        if (size() > 0 || noMoreInputs) {
+            return Operator.NOT_BLOCKED;
+        }
+        synchronized (notEmptyLock) {
+            if (size() > 0 || noMoreInputs) {
+                return Operator.NOT_BLOCKED;
+            }
+            if (notEmptyFuture == null) {
+                notEmptyFuture = new ListenableActionFuture<>();
+            }
+            return notEmptyFuture;
+        }
+    }
+
+    void finish(boolean drainingPages) {
+        noMoreInputs = true;
+        if (drainingPages) {
+            while (pollPage() != null) {
+
+            }
+        }
+        notifyNotEmpty();
+    }
+
+    boolean isFinished() {
+        return noMoreInputs && queueSize.get() == 0;
+    }
+
+    boolean noMoreInputs() {
+        return noMoreInputs;
+    }
+
+    int size() {
+        return queueSize.get();
+    }
+}

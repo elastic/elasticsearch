@@ -1,0 +1,26 @@
+simple
+// tag::simple[]
+ROW a=[1,2,3], b="b", j=["a","b"] 
+| MV_EXPAND a
+// end::simple[]
+;
+
+// tag::simple-result[]
+a:integer | b:keyword | j:keyword
+        1 | b         | ["a", "b"]
+        2 | b         | ["a", "b"]
+        3 | b         | ["a", "b"]
+// end::simple-result[]
+;
+
+twice
+row a=[1,2,3], b="b", j=["a","b"] | mv_expand a | mv_expand j;
+
+a:integer | b:keyword | j:keyword
+        1 | b         | "a"
+        1 | b         | "b"
+        2 | b         | "a"
+        2 | b         | "b"
+        3 | b         | "a"
+        3 | b         | "b"
+;

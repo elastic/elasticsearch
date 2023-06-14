@@ -116,7 +116,7 @@ public class AnalyzerTests extends ESTestCase {
         // see https://github.com/elastic/elasticsearch/issues/81577
         // The query itself is not supported (using aggregates in a sub-select) but it shouldn't bring down ES
         LogicalPlan plan = analyze(
-            "SELECT salary AS salary, salary AS s FROM (SELECT ROUND(AVG(salary)) AS salary FROM test_emp GROUP BY gender) "
+            "SELECT salary AS salary, salary AS s FROM (SELECT ROUND(AVG(salary)) AS salary FROM test GROUP BY gender) "
                 + "WHERE s > 48000 OR salary > 46000"
         );
         // passing the analysis step should succeed

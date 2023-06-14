@@ -417,7 +417,13 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
             if (events.isEmpty() == false) {
                 builder.startArray(Fields.EVENTS);
                 for (Event event : events) {
-                    event.toXContent(builder, params);
+                    if (event == null) {
+                        builder.startObject();
+                        builder.field("missing", true);
+                        builder.endObject();
+                    } else {
+                        event.toXContent(builder, params);
+                    }
                 }
                 builder.endArray();
             }

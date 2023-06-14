@@ -54,6 +54,7 @@ import org.elasticsearch.xpack.application.analytics.action.TransportPutAnalytic
 import org.elasticsearch.xpack.application.analytics.ingest.AnalyticsEventIngestConfig;
 import org.elasticsearch.xpack.application.rules.QueryRulesIndexService;
 import org.elasticsearch.xpack.application.rules.action.PutQueryRulesetAction;
+import org.elasticsearch.xpack.application.rules.action.RestPutQueryRulesetAction;
 import org.elasticsearch.xpack.application.rules.action.TransportPutQueryRulesetAction;
 import org.elasticsearch.xpack.application.search.SearchApplicationIndexService;
 import org.elasticsearch.xpack.application.search.action.DeleteSearchApplicationAction;
@@ -175,7 +176,7 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
         );
 
         if (QUERY_RULES_FEATURE_FLAG.isEnabled()) {
-            restHandlers.add(new RestPutSearchApplicationAction(getLicenseState()));
+            restHandlers.add(new RestPutQueryRulesetAction(getLicenseState()));
         }
 
         return restHandlers;

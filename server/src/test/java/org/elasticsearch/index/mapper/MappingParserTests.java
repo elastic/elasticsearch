@@ -32,7 +32,7 @@ import java.util.function.Supplier;
 public class MappingParserTests extends MapperServiceTestCase {
 
     private static MappingParser createMappingParser(Settings settings) {
-        return createMappingParser(settings, Version.CURRENT, TransportVersion.CURRENT);
+        return createMappingParser(settings, Version.CURRENT, TransportVersion.current());
     }
 
     private static MappingParser createMappingParser(Settings settings, Version version, TransportVersion transportVersion) {

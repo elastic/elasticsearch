@@ -130,12 +130,12 @@ public class SqlCompatIT extends BaseRestSqlTestCase {
 
     public void testHistoricCursorFromOldNodeFailsOnNewNode() throws IOException {
         assumeTrue("BwC checks only enabled for <=8.7.0", bwcVersion.before(TransportVersion.V_8_8_0));
-        assertCursorNotCompatibleAcrossVersions(bwcVersion, oldNodesClient, TransportVersion.CURRENT, newNodesClient);
+        assertCursorNotCompatibleAcrossVersions(bwcVersion, oldNodesClient, TransportVersion.current(), newNodesClient);
     }
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/83726")
     public void testCursorFromNewNodeFailsOnOldNode() throws IOException {
-        assertCursorNotCompatibleAcrossVersions(TransportVersion.CURRENT, newNodesClient, bwcVersion, oldNodesClient);
+        assertCursorNotCompatibleAcrossVersions(TransportVersion.current(), newNodesClient, bwcVersion, oldNodesClient);
     }
 
     private void assertCursorNotCompatibleAcrossVersions(

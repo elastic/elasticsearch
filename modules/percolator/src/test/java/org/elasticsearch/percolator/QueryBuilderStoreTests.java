@@ -18,10 +18,10 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.plain.BytesBinaryIndexFieldData;
 import org.elasticsearch.index.mapper.BinaryFieldMapper;
 import org.elasticsearch.index.mapper.DocumentParserContext;
@@ -70,8 +70,8 @@ public class QueryBuilderStoreTests extends ESTestCase {
                     queryBuilders[i] = new TermQueryBuilder(randomAlphaOfLength(4), randomAlphaOfLength(8));
                     DocumentParserContext documentParserContext = new TestDocumentParserContext();
                     PercolatorFieldMapper.createQueryBuilderField(
-                        Version.CURRENT,
-                        TransportVersion.CURRENT,
+                        IndexVersion.CURRENT,
+                        TransportVersion.current(),
                         fieldMapper,
                         queryBuilders[i],
                         documentParserContext
@@ -81,7 +81,7 @@ public class QueryBuilderStoreTests extends ESTestCase {
             }
 
             SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
-            when(searchExecutionContext.indexVersionCreated()).thenReturn(Version.CURRENT);
+            when(searchExecutionContext.indexVersionCreated()).thenReturn(IndexVersion.CURRENT);
             when(searchExecutionContext.getWriteableRegistry()).thenReturn(writableRegistry());
             when(searchExecutionContext.getParserConfig()).thenReturn(parserConfig());
             when(searchExecutionContext.getForField(fieldMapper.fieldType(), fielddataOperation)).thenReturn(

@@ -244,6 +244,14 @@ public record TransportVersion(int id) implements Comparable<TransportVersion> {
         return version.onOrAfter(MINIMUM_COMPATIBLE);
     }
 
+    /**
+     * Reference to the most recent transport version.
+     * This should be the transport version with the highest id.
+     */
+    public static TransportVersion current() {
+        return CURRENT;
+    }
+
     public boolean after(TransportVersion version) {
         return version.id < id;
     }

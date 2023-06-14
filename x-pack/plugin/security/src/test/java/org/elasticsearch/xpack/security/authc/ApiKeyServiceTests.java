@@ -1835,7 +1835,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             randomAlphaOfLength(8),
             apiKeyCreatorRealm,
             "file",
-            TransportVersion.CURRENT
+            TransportVersion.current()
         );
         assertThat(Arrays.asList(ApiKeyService.getOwnersRealmNames(authentication)), contains(apiKeyCreatorRealm));
         assertThat(Arrays.asList(ApiKeyService.getOwnersRealmNames(authentication.token())), contains(apiKeyCreatorRealm));
@@ -2355,7 +2355,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         final TransportVersion minTransportVersion = TransportVersionUtils.randomVersionBetween(
             random(),
             TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS,
-            TransportVersion.CURRENT
+            TransportVersion.current()
         );
 
         final Set<RoleDescriptor> result = ApiKeyService.maybeRemoveRemoteIndicesPrivileges(
@@ -2595,7 +2595,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         final TransportVersion minTransportVersion = TransportVersionUtils.randomVersionBetween(
             random(),
             WORKFLOWS_RESTRICTION_VERSION,
-            TransportVersion.CURRENT
+            TransportVersion.current()
         );
         when(clusterState.getMinTransportVersion()).thenReturn(minTransportVersion);
         final ApiKeyService service = new ApiKeyService(
@@ -2748,7 +2748,7 @@ public class ApiKeyServiceTests extends ESTestCase {
                 authentication,
                 Collections.singleton(new RoleDescriptor("user_role_" + randomAlphaOfLength(4), new String[] { "manage" }, null, null)),
                 null,
-                TransportVersion.CURRENT
+                TransportVersion.current()
             );
         }
     }

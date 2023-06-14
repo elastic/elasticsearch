@@ -10,7 +10,7 @@ package org.elasticsearch.script.field.vectors;
 
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
 import org.elasticsearch.index.mapper.vectors.DenseVectorScriptDocValues;
 import org.elasticsearch.index.mapper.vectors.VectorEncoderDecoder;
@@ -21,12 +21,18 @@ public class BinaryDenseVectorDocValuesField extends DenseVectorDocValuesField {
 
     private final BinaryDocValues input;
     private final float[] vectorValue;
-    private final Version indexVersion;
+    private final IndexVersion indexVersion;
     private boolean decoded;
     private final int dims;
     private BytesRef value;
 
-    public BinaryDenseVectorDocValuesField(BinaryDocValues input, String name, ElementType elementType, int dims, Version indexVersion) {
+    public BinaryDenseVectorDocValuesField(
+        BinaryDocValues input,
+        String name,
+        ElementType elementType,
+        int dims,
+        IndexVersion indexVersion
+    ) {
         super(name, elementType);
         this.input = input;
         this.indexVersion = indexVersion;

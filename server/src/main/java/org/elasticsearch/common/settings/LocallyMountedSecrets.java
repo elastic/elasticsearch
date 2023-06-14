@@ -248,10 +248,10 @@ public class LocallyMountedSecrets implements SecureSettings {
          * Read LocalFileSecrets from stream input
          *
          * <p>This class should only be used node-locally, to represent the local secrets on a particular
-         * node. Thus, the transport version should always be {@link TransportVersion#CURRENT}
+         * node. Thus, the transport version should always be {@link TransportVersion#current()}
          */
         public static LocalFileSecrets readFrom(StreamInput in) throws IOException {
-            assert in.getTransportVersion() == TransportVersion.CURRENT;
+            assert in.getTransportVersion() == TransportVersion.current();
             return new LocalFileSecrets(in.readMap(StreamInput::readString, StreamInput::readByteArray), ReservedStateVersion.readFrom(in));
         }
 
@@ -259,11 +259,11 @@ public class LocallyMountedSecrets implements SecureSettings {
          * Write LocalFileSecrets to stream output
          *
          * <p>This class should only be used node-locally, to represent the local secrets on a particular
-         * node. Thus, the transport version should always be {@link TransportVersion#CURRENT}
+         * node. Thus, the transport version should always be {@link TransportVersion#current()}
          */
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            assert out.getTransportVersion() == TransportVersion.CURRENT;
+            assert out.getTransportVersion() == TransportVersion.current();
             out.writeMap((entries == null) ? Map.of() : entries, StreamOutput::writeString, StreamOutput::writeByteArray);
             metadata.writeTo(out);
         }

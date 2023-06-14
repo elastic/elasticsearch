@@ -520,7 +520,7 @@ public class OpenIdConnectAuthenticator {
         }
     }
 
-    static <Response> ActionListener<Response> wrapWithDoPrivileged(Consumer<Response> onResponse, Consumer<Exception> onFailure) {
+    public static <Response> ActionListener<Response> wrapWithDoPrivileged(Consumer<Response> onResponse, Consumer<Exception> onFailure) {
         return ActionListener.wrap(r -> {
             SpecialPermission.check();
             AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
@@ -597,7 +597,7 @@ public class OpenIdConnectAuthenticator {
             SpecialPermission.check();
             AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
 
-                httpClient.execute(httpPost, new FutureCallback<>() {
+                httpClient.execute(httpPost, new FutureCallback<HttpResponse>() {
                     @Override
                     public void completed(HttpResponse result) {
                         handleTokenResponse(result, tokensListener);
@@ -988,7 +988,7 @@ public class OpenIdConnectAuthenticator {
             try {
                 final HttpGet httpGet = new HttpGet(jwkSetPath.toURI());
                 AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-                    httpClient.execute(httpGet, new FutureCallback<>() {
+                    httpClient.execute(httpGet, new FutureCallback<HttpResponse>() {
                         @Override
                         public void completed(HttpResponse result) {
                             try {

@@ -34,6 +34,7 @@ grant {
 
   // needed for OIDC and JWT realm nimbus-jose-jwt dependency
   permission java.lang.RuntimePermission "accessDeclaredMembers";
+  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
 };
 
 grant codeBase "${codebase.netty-common}" {
@@ -52,9 +53,11 @@ grant codeBase "${codebase.netty-transport}" {
 grant codeBase "${codebase.oauth2-oidc-sdk}" {
     // for JSON serialization based on a shaded GSON dependency
     permission java.lang.RuntimePermission "accessDeclaredMembers";
+    permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
 };
 
 grant codeBase "${codebase.nimbus-jose-jwt}" {
     // for JSON serialization based on a shaded GSON dependency
     permission java.lang.RuntimePermission "accessDeclaredMembers";
+    permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
 };

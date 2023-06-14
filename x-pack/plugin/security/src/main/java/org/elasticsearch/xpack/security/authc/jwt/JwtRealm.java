@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.support.CacheIteratorHelper;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.security.authc.oidc.OpenIdConnectAuthenticator;
 import org.elasticsearch.xpack.security.authc.support.ClaimParser;
 import org.elasticsearch.xpack.security.authc.support.DelegatedAuthorizationSupport;
 
@@ -296,15 +297,14 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                 }
 
                 // Validate JWT: Extract JWT and claims set, and validate JWT.
-                jwtAuthenticator.authenticate(
-                    jwtAuthenticationToken,
-                    ActionListener.wrap(claimsSet -> processValidatedJwt(tokenPrincipal, jwtCacheKey, claimsSet, listener), ex -> {
-                        final String msg = "Realm [" + name() + "] JWT validation failed for token=[" + tokenPrincipal + "].";
-                        logger.debug(msg, ex);
-                        // TODO: No point to continue to another realm if failure is ParseException
-                        listener.onResponse(AuthenticationResult.unsuccessful(msg, ex));
-                    })
-                );
+                jwtAuthenticator.authenticate(jwtAuthenticationToken, OpenIdConnectAuthenticator.wrapWithDoPrivileged(claimsSet -> {
+                    processValidatedJwt(tokenPrincipal, jwtCacheKey, claimsSet, listener);
+                }, ex -> {
+                    final String msg = "Realm [" + name() + "] JWT validation failed for token=[" + tokenPrincipal + "].";
+                    logger.debug(msg, ex);
+                    // TODO: No point to continue to another realm if failure is ParseException
+                    listener.onResponse(AuthenticationResult.unsuccessful(msg, ex));
+                }));
                 return null;
             });
         } else {

@@ -9,7 +9,10 @@
 package org.elasticsearch.search.fetch.subphase.highlight;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
+import org.elasticsearch.index.mapper.ConstantFieldType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.TextFieldMapper;
@@ -23,6 +26,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -66,7 +70,7 @@ public class HighlightPhase implements FetchSubPhase {
                 for (String field : contextBuilders.keySet()) {
                     FieldHighlightContext fieldContext = contextBuilders.get(field).apply(hitContext);
                     Highlighter highlighter = getHighlighter(fieldContext.field);
-                    HighlightField highlightField = highlighter.highlight(fieldContext);
+                    HighlightField highlightField = highlighter.highlight(fieldContext); //field context query should have also original query
                     if (highlightField != null) {
                         // Note that we make sure to use the original field name in the response. This is because the
                         // original field could be an alias, and highlighter implementations may instead reference the
@@ -124,6 +128,7 @@ public class HighlightPhase implements FetchSubPhase {
                 if (fieldNameContainsWildcards) {
                     if (fieldType.typeName().equals(TextFieldMapper.CONTENT_TYPE) == false
                         && fieldType.typeName().equals(KeywordFieldMapper.CONTENT_TYPE) == false
+                        && fieldType.typeName().equals("constant_keyword") == false
                         && fieldType.typeName().equals("match_only_text") == false) {
                         continue;
                     }
@@ -139,7 +144,15 @@ public class HighlightPhase implements FetchSubPhase {
                 }
 
                 Query highlightQuery = field.fieldOptions().highlightQuery();
-
+                if (fieldType instanceof ConstantFieldType){
+                    highlightQuery = new TermQuery(
+                        new Term(
+                            fieldType.name(),
+                            getValueForConstantFieldType(context, fieldType)
+                        )
+                    );
+                }
+                Query finalHighlightQuery = highlightQuery;
                 builders.put(
                     fieldName,
                     hc -> new FieldHighlightContext(
@@ -148,7 +161,7 @@ public class HighlightPhase implements FetchSubPhase {
                         fieldType,
                         context,
                         hc,
-                        highlightQuery == null ? query : highlightQuery,
+                        finalHighlightQuery == null ? query : finalHighlightQuery,
                         sharedCache
                     )
                 );
@@ -156,5 +169,13 @@ public class HighlightPhase implements FetchSubPhase {
             storedFieldsSpec = storedFieldsSpec.merge(new StoredFieldsSpec(sourceRequired, false, storedFields));
         }
         return new FieldContext(storedFieldsSpec, builders);
+    }
+
+    private String getValueForConstantFieldType(FetchContext context, MappedFieldType fieldType){ //TODO Move this somewhere-else
+        try {
+            return (String) fieldType.valueFetcher(context.getSearchExecutionContext(), null).fetchValues(null,0, List.of()).get(0);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 }

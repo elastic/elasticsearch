@@ -30,6 +30,17 @@ import java.util.function.Function;
 public class Dist {
 
     private static double cdf(final double x, final int length, Function<Integer, Double> elementGetter) {
+        if (length == 0) {
+            // no data to examine
+            return Double.NaN;
+        }
+        if (length == 1) {
+            double value = elementGetter.apply(0);
+            if (x < value) return 0;
+            if (x > value) return 1;
+            return 0.5;
+        }
+
         if (Double.compare(x, elementGetter.apply(0)) < 0) {
             return 0;
         }

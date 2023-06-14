@@ -158,8 +158,8 @@ public class TDigestStateTests extends ESTestCase {
 
         assertEquals(fast, anotherFast);
         assertEquals(accurate, anotherAccurate);
-        // assertNotEquals(fast, accurate);
-        // assertNotEquals(anotherFast, anotherAccurate);
+        assertNotEquals(fast, accurate);
+        assertNotEquals(anotherFast, anotherAccurate);
     }
 
     private TDigestState writeToAndReadFrom(TDigestState state, TransportVersion version) throws IOException {
@@ -185,19 +185,21 @@ public class TDigestStateTests extends ESTestCase {
     }
 
     public void testSerialization() throws IOException {
-        // Past default was the accuracy-optimized version.
-        TDigestState backwardsCompatible = TDigestState.create(100, true);
-        TDigestState state = TDigestState.create(100);
-        for (int i = 0; i < 1000; i++) {
-            state.add(i);
-            backwardsCompatible.add(i);
+        for (int values : new int[] {10, 1000, 100_000}) {
+            // Past default was the accuracy-optimized version.
+            TDigestState backwardsCompatible = TDigestState.create(100, true);
+            TDigestState state = TDigestState.create(100);
+            for (int i = 0; i < 1000; i++) {
+                state.add(i);
+                backwardsCompatible.add(i);
+            }
+
+            TDigestState serialized = writeToAndReadFrom(state, TransportVersion.V_8_9_0);
+            assertEquals(serialized, state);
+
+            TDigestState serializedBackwardsCompatible = writeToAndReadFrom(state, TransportVersion.V_8_8_0);
+            assertNotEquals(serializedBackwardsCompatible, state);
+            assertEquals(serializedBackwardsCompatible, backwardsCompatible);
         }
-
-        TDigestState serialized = writeToAndReadFrom(state, TransportVersion.V_8_9_0);
-        assertEquals(serialized, state);
-
-        TDigestState serializedBackwardsCompatible = writeToAndReadFrom(state, TransportVersion.V_8_8_0);
-        // assertNotEquals(serializedBackwardsCompatible, state);
-        assertEquals(serializedBackwardsCompatible, backwardsCompatible);
     }
 }

@@ -7,9 +7,14 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
@@ -47,6 +52,12 @@ public class DataNodeRequestTests extends AbstractWireSerializingTestCase<DataNo
     }
 
     @Override
+    protected NamedWriteableRegistry getNamedWriteableRegistry() {
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, List.of());
+        return new NamedWriteableRegistry(searchModule.getNamedWriteables());
+    }
+
+    @Override
     protected DataNodeRequest createTestInstance() {
         var sessionId = randomAlphaOfLength(10);
         String query = randomFrom("""
@@ -64,10 +75,15 @@ public class DataNodeRequestTests extends AbstractWireSerializingTestCase<DataNo
             """);
         List<ShardId> shardIds = randomList(1, 10, () -> new ShardId("index-" + between(1, 10), "n/a", between(1, 10)));
         PhysicalPlan physicalPlan = mapAndMaybeOptimize(parse(query));
+        Map<Index, AliasFilter> aliasFilters = Map.of(
+            new Index("concrete-index", "n/a"),
+            AliasFilter.of(new TermQueryBuilder("id", "1"), "alias-1")
+        );
         DataNodeRequest request = new DataNodeRequest(
             sessionId,
             EsqlConfigurationSerializationTests.randomConfiguration(),
             shardIds,
+            aliasFilters,
             physicalPlan
         );
         request.setParentTask(randomAlphaOfLength(10), randomNonNegativeLong());
@@ -76,9 +92,9 @@ public class DataNodeRequestTests extends AbstractWireSerializingTestCase<DataNo
 
     @Override
     protected DataNodeRequest mutateInstance(DataNodeRequest in) throws IOException {
-        return switch (between(0, 4)) {
+        return switch (between(0, 5)) {
             case 0 -> {
-                var request = new DataNodeRequest(randomAlphaOfLength(20), in.configuration(), in.shardIds(), in.plan());
+                var request = new DataNodeRequest(randomAlphaOfLength(20), in.configuration(), in.shardIds(), in.aliasFilters(), in.plan());
                 request.setParentTask(in.getParentTask());
                 yield request;
             }
@@ -87,6 +103,7 @@ public class DataNodeRequestTests extends AbstractWireSerializingTestCase<DataNo
                     in.sessionId(),
                     EsqlConfigurationSerializationTests.randomConfiguration(),
                     in.shardIds(),
+                    in.aliasFilters(),
                     in.plan()
                 );
                 request.setParentTask(in.getParentTask());
@@ -94,7 +111,7 @@ public class DataNodeRequestTests extends AbstractWireSerializingTestCase<DataNo
             }
             case 2 -> {
                 List<ShardId> shardIds = randomList(1, 10, () -> new ShardId("new-index-" + between(1, 10), "n/a", between(1, 10)));
-                var request = new DataNodeRequest(in.sessionId(), in.configuration(), shardIds, in.plan());
+                var request = new DataNodeRequest(in.sessionId(), in.configuration(), shardIds, in.aliasFilters(), in.plan());
                 request.setParentTask(in.getParentTask());
                 yield request;
             }
@@ -112,12 +129,29 @@ public class DataNodeRequestTests extends AbstractWireSerializingTestCase<DataNo
                     | eval c = first_name
                     | stats x = avg(salary)
                     """);
-                var request = new DataNodeRequest(in.sessionId(), in.configuration(), in.shardIds(), mapAndMaybeOptimize(parse(newQuery)));
+                var request = new DataNodeRequest(
+                    in.sessionId(),
+                    in.configuration(),
+                    in.shardIds(),
+                    in.aliasFilters(),
+                    mapAndMaybeOptimize(parse(newQuery))
+                );
                 request.setParentTask(in.getParentTask());
                 yield request;
             }
             case 4 -> {
-                var request = new DataNodeRequest(in.sessionId(), in.configuration(), in.shardIds(), in.plan());
+                final Map<Index, AliasFilter> aliasFilters;
+                if (randomBoolean()) {
+                    aliasFilters = Map.of();
+                } else {
+                    aliasFilters = Map.of(new Index("concrete-index", "n/a"), AliasFilter.of(new TermQueryBuilder("id", "2"), "alias-2"));
+                }
+                var request = new DataNodeRequest(in.sessionId(), in.configuration(), in.shardIds(), aliasFilters, in.plan());
+                request.setParentTask(request.getParentTask());
+                yield request;
+            }
+            case 5 -> {
+                var request = new DataNodeRequest(in.sessionId(), in.configuration(), in.shardIds(), in.aliasFilters(), in.plan());
                 request.setParentTask(
                     randomValueOtherThan(request.getParentTask().getNodeId(), () -> randomAlphaOfLength(10)),
                     randomNonNegativeLong()

@@ -12,6 +12,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -58,6 +59,10 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
 
     protected static EsqlQueryResponse run(String esqlCommands, QueryPragmas pragmas) {
         return new EsqlQueryRequestBuilder(client(), EsqlQueryAction.INSTANCE).query(esqlCommands).pragmas(pragmas).get();
+    }
+
+    protected static EsqlQueryResponse run(String esqlCommands, QueryPragmas pragmas, QueryBuilder filter) {
+        return new EsqlQueryRequestBuilder(client(), EsqlQueryAction.INSTANCE).query(esqlCommands).pragmas(pragmas).filter(filter).get();
     }
 
     protected static QueryPragmas randomPragmas() {

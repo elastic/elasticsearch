@@ -11,7 +11,9 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -32,14 +34,22 @@ final class DataNodeRequest extends TransportRequest implements IndicesRequest {
     private final String sessionId;
     private final EsqlConfiguration configuration;
     private final List<ShardId> shardIds;
+    private final Map<Index, AliasFilter> aliasFilters;
     private final PhysicalPlan plan;
 
     private String[] indices; // lazily computed
 
-    DataNodeRequest(String sessionId, EsqlConfiguration configuration, List<ShardId> shardIds, PhysicalPlan plan) {
+    DataNodeRequest(
+        String sessionId,
+        EsqlConfiguration configuration,
+        List<ShardId> shardIds,
+        Map<Index, AliasFilter> aliasFilters,
+        PhysicalPlan plan
+    ) {
         this.sessionId = sessionId;
         this.configuration = configuration;
         this.shardIds = shardIds;
+        this.aliasFilters = aliasFilters;
         this.plan = plan;
     }
 
@@ -48,6 +58,7 @@ final class DataNodeRequest extends TransportRequest implements IndicesRequest {
         this.sessionId = in.readString();
         this.configuration = new EsqlConfiguration(in);
         this.shardIds = in.readList(ShardId::new);
+        this.aliasFilters = in.readMap(Index::new, AliasFilter::readFrom);
         this.plan = new PlanStreamInput(in, planNameRegistry, in.namedWriteableRegistry()).readPhysicalPlanNode();
     }
 
@@ -57,6 +68,7 @@ final class DataNodeRequest extends TransportRequest implements IndicesRequest {
         out.writeString(sessionId);
         configuration.writeTo(out);
         out.writeList(shardIds);
+        out.writeMap(aliasFilters);
         new PlanStreamOutput(out, planNameRegistry).writePhysicalPlanNode(plan);
     }
 
@@ -103,6 +115,13 @@ final class DataNodeRequest extends TransportRequest implements IndicesRequest {
         return shardIds;
     }
 
+    /**
+     * Returns a map from index UUID to alias filters
+     */
+    Map<Index, AliasFilter> aliasFilters() {
+        return aliasFilters;
+    }
+
     PhysicalPlan plan() {
         return plan;
     }
@@ -125,12 +144,13 @@ final class DataNodeRequest extends TransportRequest implements IndicesRequest {
         return sessionId.equals(request.sessionId)
             && configuration.equals(request.configuration)
             && shardIds.equals(request.shardIds)
+            && aliasFilters.equals(request.aliasFilters)
             && plan.equals(request.plan)
             && getParentTask().equals(request.getParentTask());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(sessionId, configuration, shardIds, plan);
+        return Objects.hash(sessionId, configuration, shardIds, aliasFilters, plan);
     }
 }

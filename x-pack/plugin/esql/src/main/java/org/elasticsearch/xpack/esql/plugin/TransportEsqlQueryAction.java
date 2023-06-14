@@ -64,7 +64,6 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         this.enrichLookupService = new EnrichLookupService(clusterService, searchService, transportService);
         this.computeService = new ComputeService(
             searchService,
-            clusterService,
             transportService,
             exchangeService,
             enrichLookupService,

@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.esql.planner;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
@@ -26,8 +28,10 @@ import org.elasticsearch.xpack.ql.util.DateUtils;
 import org.elasticsearch.xpack.ql.util.Holder;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 
+import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 public class PlannerUtils {
 
@@ -51,12 +55,31 @@ public class PlannerUtils {
         return new Tuple<>(coordinatorPlan, dataNodePlan.get());
     }
 
-    public static String[] planIndices(PhysicalPlan plan) {
+    /**
+     * Returns a set of concrete indices after resolving the original indices specified in the FROM command.
+     */
+    public static Set<String> planConcreteIndices(PhysicalPlan plan) {
         if (plan == null) {
-            return new String[0];
+            return Set.of();
         }
         var indices = new LinkedHashSet<String>();
         plan.forEachUp(FragmentExec.class, f -> f.fragment().forEachUp(EsRelation.class, r -> indices.addAll(r.index().concreteIndices())));
+        return indices;
+    }
+
+    /**
+     * Returns the original indices specified in the FROM command of the query. We need the original query to resolve alias filters.
+     */
+    public static String[] planOriginalIndices(PhysicalPlan plan) {
+        if (plan == null) {
+            return Strings.EMPTY_ARRAY;
+        }
+        var indices = new LinkedHashSet<String>();
+        plan.forEachUp(
+            FragmentExec.class,
+            f -> f.fragment()
+                .forEachUp(EsRelation.class, r -> indices.addAll(Arrays.asList(Strings.commaDelimitedListToStringArray(r.index().name()))))
+        );
         return indices.toArray(String[]::new);
     }
 
@@ -79,5 +102,14 @@ public class PlannerUtils {
         return isCoordPlan.get()
             ? plan
             : new LocalPhysicalPlanOptimizer(new LocalPhysicalOptimizerContext(configuration)).localOptimize(localPhysicalPlan);
+    }
+
+    /**
+     * Extracts the ES query provided by the filter parameter
+     */
+    public static QueryBuilder requestFilter(PhysicalPlan plan) {
+        var filter = new Holder<QueryBuilder>(null);
+        plan.forEachDown(FragmentExec.class, es -> filter.set(es.esFilter()));
+        return filter.get();
     }
 }

@@ -9,18 +9,20 @@ package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchShardsAction;
+import org.elasticsearch.action.search.SearchShardsGroup;
+import org.elasticsearch.action.search.SearchShardsRequest;
+import org.elasticsearch.action.search.SearchShardsResponse;
 import org.elasticsearch.action.support.ChannelActionListener;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.RefCountingListener;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.GroupShardsIterator;
-import org.elasticsearch.cluster.routing.ShardIterator;
-import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.CountDown;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverTaskRunner;
@@ -31,6 +33,8 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.logging.LogManager;
@@ -62,6 +66,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_THREAD_POOL_NAME;
@@ -72,7 +77,6 @@ import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_THREAD_POOL_NA
 public class ComputeService {
     private static final Logger LOGGER = LogManager.getLogger(ComputeService.class);
     private final SearchService searchService;
-    private final ClusterService clusterService;
     private final ThreadPool threadPool;
     private final BigArrays bigArrays;
     private final TransportService transportService;
@@ -82,7 +86,6 @@ public class ComputeService {
 
     public ComputeService(
         SearchService searchService,
-        ClusterService clusterService,
         TransportService transportService,
         ExchangeService exchangeService,
         EnrichLookupService enrichLookupService,
@@ -90,7 +93,6 @@ public class ComputeService {
         BigArrays bigArrays
     ) {
         this.searchService = searchService;
-        this.clusterService = clusterService;
         this.transportService = transportService;
         this.threadPool = threadPool;
         this.bigArrays = bigArrays.withCircuitBreaking();
@@ -113,65 +115,63 @@ public class ComputeService {
         ActionListener<List<Page>> listener
     ) {
         Tuple<PhysicalPlan, PhysicalPlan> coordinatorAndDataNodePlan = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(physicalPlan);
-        PhysicalPlan coordinatorPlan = coordinatorAndDataNodePlan.v1();
+        final List<Page> collectedPages = Collections.synchronizedList(new ArrayList<>());
+        PhysicalPlan coordinatorPlan = new OutputExec(coordinatorAndDataNodePlan.v1(), collectedPages::add);
         PhysicalPlan dataNodePlan = coordinatorAndDataNodePlan.v2();
 
-        var indexNames = PlannerUtils.planIndices(dataNodePlan);
+        var concreteIndices = PlannerUtils.planConcreteIndices(physicalPlan);
 
-        final List<Page> collectedPages = Collections.synchronizedList(new ArrayList<>());
-        coordinatorPlan = new OutputExec(coordinatorPlan, collectedPages::add);
         QueryPragmas queryPragmas = configuration.pragmas();
 
         var computeContext = new ComputeContext(sessionId, List.of(), configuration);
 
-        if (indexNames.length == 0) {
+        if (concreteIndices.isEmpty()) {
             runCompute(rootTask, computeContext, coordinatorPlan, listener.map(unused -> collectedPages));
             return;
         }
-
-        ClusterState clusterState = clusterService.state();
-        Map<String, List<ShardId>> targetNodes = computeTargetNodes(clusterState, indexNames);
-
-        final AtomicBoolean cancelled = new AtomicBoolean();
-        final ExchangeSourceHandler sourceHandler = exchangeService.createSourceHandler(
-            sessionId,
-            queryPragmas.exchangeBufferSize(),
-            ESQL_THREAD_POOL_NAME
-        );
-        try (
-            Releasable ignored = sourceHandler::decRef;
-            RefCountingListener refs = new RefCountingListener(listener.map(unused -> collectedPages))
-        ) {
-            // wait until the source handler is completed
-            sourceHandler.addCompletionListener(refs.acquire());
-            // run compute on the coordinator
-            runCompute(rootTask, computeContext, coordinatorPlan, cancelOnFailure(rootTask, cancelled, refs.acquire()));
-            // link with exchange sinks
-            if (targetNodes.isEmpty()) {
-                sourceHandler.addRemoteSink(RemoteSink.EMPTY, 1);
-            } else {
-                for (String targetNode : targetNodes.keySet()) {
-                    DiscoveryNode remoteNode = clusterState.nodes().get(targetNode);
-                    var remoteSink = exchangeService.newRemoteSink(rootTask, sessionId, transportService, remoteNode);
-                    sourceHandler.addRemoteSink(remoteSink, queryPragmas.concurrentExchangeClients());
+        QueryBuilder requestFilter = PlannerUtils.requestFilter(dataNodePlan);
+        String[] originalIndices = PlannerUtils.planOriginalIndices(physicalPlan);
+        computeTargetNodes(rootTask, requestFilter, concreteIndices, originalIndices, ActionListener.wrap(targetNodes -> {
+            final AtomicBoolean cancelled = new AtomicBoolean();
+            final ExchangeSourceHandler sourceHandler = exchangeService.createSourceHandler(
+                sessionId,
+                queryPragmas.exchangeBufferSize(),
+                ESQL_THREAD_POOL_NAME
+            );
+            try (
+                Releasable ignored = sourceHandler::decRef;
+                RefCountingListener refs = new RefCountingListener(listener.map(unused -> collectedPages))
+            ) {
+                // wait until the source handler is completed
+                sourceHandler.addCompletionListener(refs.acquire());
+                // run compute on the coordinator
+                runCompute(rootTask, computeContext, coordinatorPlan, cancelOnFailure(rootTask, cancelled, refs.acquire()));
+                // link with exchange sinks
+                // link with exchange sinks
+                if (targetNodes.isEmpty()) {
+                    sourceHandler.addRemoteSink(RemoteSink.EMPTY, 1);
+                } else {
+                    for (TargetNode targetNode : targetNodes) {
+                        var remoteSink = exchangeService.newRemoteSink(rootTask, sessionId, transportService, targetNode.node);
+                        sourceHandler.addRemoteSink(remoteSink, queryPragmas.concurrentExchangeClients());
+                    }
+                }
+                // dispatch compute requests to data nodes
+                for (TargetNode targetNode : targetNodes) {
+                    transportService.sendChildRequest(
+                        targetNode.node,
+                        DATA_ACTION_NAME,
+                        new DataNodeRequest(sessionId, configuration, targetNode.shardIds, targetNode.aliasFilters, dataNodePlan),
+                        rootTask,
+                        TransportRequestOptions.EMPTY,
+                        new ActionListenerResponseHandler<TransportResponse>(
+                            cancelOnFailure(rootTask, cancelled, refs.acquire()).map(unused -> null),
+                            DataNodeResponse::new
+                        )
+                    );
                 }
             }
-            // dispatch compute requests to data nodes
-            for (Map.Entry<String, List<ShardId>> e : targetNodes.entrySet()) {
-                DiscoveryNode targetNode = clusterState.nodes().get(e.getKey());
-                transportService.sendChildRequest(
-                    targetNode,
-                    DATA_ACTION_NAME,
-                    new DataNodeRequest(sessionId, configuration, e.getValue(), dataNodePlan),
-                    rootTask,
-                    TransportRequestOptions.EMPTY,
-                    new ActionListenerResponseHandler<TransportResponse>(
-                        cancelOnFailure(rootTask, cancelled, refs.acquire()).map(unused -> null),
-                        DataNodeResponse::new
-                    )
-                );
-            }
-        }
+        }, listener::onFailure));
     }
 
     private ActionListener<Void> cancelOnFailure(CancellableTask task, AtomicBoolean cancelled, ActionListener<Void> listener) {
@@ -215,7 +215,11 @@ public class ComputeService {
         }
     }
 
-    private void acquireSearchContexts(List<ShardId> shardIds, ActionListener<List<SearchContext>> listener) {
+    private void acquireSearchContexts(
+        List<ShardId> shardIds,
+        Map<Index, AliasFilter> aliasFilters,
+        ActionListener<List<SearchContext>> listener
+    ) {
         try {
             List<IndexShard> targetShards = new ArrayList<>();
             for (ShardId shardId : shardIds) {
@@ -235,11 +239,8 @@ public class ComputeService {
                             boolean success = false;
                             try {
                                 for (IndexShard shard : targetShards) {
-                                    ShardSearchRequest shardSearchLocalRequest = new ShardSearchRequest(
-                                        shard.shardId(),
-                                        0,
-                                        AliasFilter.EMPTY
-                                    );
+                                    var aliasFilter = aliasFilters.getOrDefault(shard.shardId().getIndex(), AliasFilter.EMPTY);
+                                    ShardSearchRequest shardSearchLocalRequest = new ShardSearchRequest(shard.shardId(), 0, aliasFilter);
                                     SearchContext context = searchService.createSearchContext(
                                         shardSearchLocalRequest,
                                         SearchService.NO_TIMEOUT
@@ -265,17 +266,73 @@ public class ComputeService {
         }
     }
 
-    private Map<String, List<ShardId>> computeTargetNodes(ClusterState clusterState, String[] indices) {
-        // TODO: Integrate with ARS
-        GroupShardsIterator<ShardIterator> shardIts = clusterService.operationRouting().searchShards(clusterState, indices, null, null);
-        Map<String, List<ShardId>> nodes = new HashMap<>();
-        for (ShardIterator shardIt : shardIts) {
-            ShardRouting shardRouting = shardIt.nextOrNull();
-            if (shardRouting != null) {
-                nodes.computeIfAbsent(shardRouting.currentNodeId(), k -> new ArrayList<>()).add(shardRouting.shardId());
-            }
+    record TargetNode(DiscoveryNode node, List<ShardId> shardIds, Map<Index, AliasFilter> aliasFilters) {
+
+    }
+
+    private void computeTargetNodes(
+        Task parentTask,
+        QueryBuilder filter,
+        Set<String> concreteIndices,
+        String[] originalIndices,
+        ActionListener<List<TargetNode>> listener
+    ) {
+        // Ideally, the search_shards API should be called before the field-caps API; however, this can lead
+        // to a situation where the column structure (i.e., matched data types) differs depending on the query.
+        ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
+        ActionListener<SearchShardsResponse> preservingContextListener = ContextPreservingActionListener.wrapPreservingContext(
+            listener.map(resp -> {
+                Map<String, DiscoveryNode> nodes = new HashMap<>();
+                for (DiscoveryNode node : resp.getNodes()) {
+                    nodes.put(node.getId(), node);
+                }
+                Map<String, List<ShardId>> nodeToShards = new HashMap<>();
+                Map<String, Map<Index, AliasFilter>> nodeToAliasFilters = new HashMap<>();
+                for (SearchShardsGroup group : resp.getGroups()) {
+                    var shardId = group.shardId();
+                    if (concreteIndices.contains(shardId.getIndexName()) == false) {
+                        continue;
+                    }
+                    if (group.skipped() || group.allocatedNodes().isEmpty()) {
+                        continue;
+                    }
+                    String targetNode = group.allocatedNodes().get(0);
+                    nodeToShards.computeIfAbsent(targetNode, k -> new ArrayList<>()).add(shardId);
+                    AliasFilter aliasFilter = resp.getAliasFilters().get(shardId.getIndex().getUUID());
+                    if (aliasFilter != null) {
+                        nodeToAliasFilters.computeIfAbsent(targetNode, k -> new HashMap<>()).put(shardId.getIndex(), aliasFilter);
+                    }
+                }
+                List<TargetNode> targetNodes = new ArrayList<>(nodeToShards.size());
+                for (Map.Entry<String, List<ShardId>> e : nodeToShards.entrySet()) {
+                    DiscoveryNode node = nodes.get(e.getKey());
+                    Map<Index, AliasFilter> aliasFilters = nodeToAliasFilters.getOrDefault(e.getKey(), Map.of());
+                    targetNodes.add(new TargetNode(node, e.getValue(), aliasFilters));
+                }
+                return targetNodes;
+            }),
+            threadContext
+        );
+        try (ThreadContext.StoredContext ignored = threadContext.newStoredContextPreservingResponseHeaders()) {
+            threadContext.markAsSystemContext();
+            SearchShardsRequest searchShardsRequest = new SearchShardsRequest(
+                originalIndices,
+                SearchRequest.DEFAULT_INDICES_OPTIONS,
+                filter,
+                null,
+                null,
+                false,
+                null
+            );
+            transportService.sendChildRequest(
+                transportService.getLocalNode(),
+                SearchShardsAction.NAME,
+                searchShardsRequest,
+                parentTask,
+                TransportRequestOptions.EMPTY,
+                new ActionListenerResponseHandler<>(preservingContextListener, SearchShardsResponse::new)
+            );
         }
-        return nodes;
     }
 
     // TODO: To include stats/profiles
@@ -300,7 +357,7 @@ public class ComputeService {
         public void messageReceived(DataNodeRequest request, TransportChannel channel, Task task) {
             final var sessionId = request.sessionId();
             var listener = new ChannelActionListener<DataNodeResponse>(channel);
-            acquireSearchContexts(request.shardIds(), ActionListener.wrap(searchContexts -> {
+            acquireSearchContexts(request.shardIds(), request.aliasFilters(), ActionListener.wrap(searchContexts -> {
                 Releasable releasable = () -> Releasables.close(
                     () -> Releasables.close(searchContexts),
                     () -> exchangeService.completeSinkHandler(sessionId)

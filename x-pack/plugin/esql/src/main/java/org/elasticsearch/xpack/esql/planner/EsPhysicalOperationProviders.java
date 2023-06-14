@@ -24,6 +24,7 @@ import org.elasticsearch.compute.operator.OrdinalsGroupingOperator;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.search.NestedHelper;
+import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
@@ -95,6 +96,13 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                         .add(newNonNestedFilter(ctx.indexVersionCreated()), BooleanClause.Occur.FILTER)
                         .build();
                 }
+            }
+            AliasFilter aliasFilter = searchContext.request().getAliasFilter();
+            if (aliasFilter != AliasFilter.EMPTY) {
+                Query filterQuery = ctx.toQuery(aliasFilter.getQueryBuilder()).query();
+                query = new BooleanQuery.Builder().add(query, BooleanClause.Occur.MUST)
+                    .add(filterQuery, BooleanClause.Occur.FILTER)
+                    .build();
             }
             return query;
         };

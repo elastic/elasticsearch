@@ -32,7 +32,7 @@ public final class ValueSources {
         for (SearchContext searchContext : searchContexts) {
             SearchExecutionContext ctx = searchContext.getSearchExecutionContext();
             var fieldType = ctx.getFieldType(fieldName);
-            if (fieldType == null && searchContexts.size() > 1) {
+            if (fieldType == null) {
                 sources.add(new ValueSourceInfo(new NullValueSourceType(), new NullValueSource(), elementType, ctx.getIndexReader()));
                 continue; // the field does not exist in this context
             }

@@ -44,7 +44,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.test.transport.StubbableTransport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
@@ -259,7 +258,6 @@ public class DataLifecycleServiceIT extends ESIntegTestCase {
         });
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/96084")
     public void testAutomaticForceMerge() throws Exception {
         /*
          * This test makes sure that (1) DLM does _not_ call forcemerge on an index in the same DLM pass when it rolls over the index and
@@ -282,30 +280,20 @@ public class DataLifecycleServiceIT extends ESIntegTestCase {
         );
         // This is the set of all indices against which a ForceMergeAction has been run:
         final Set<String> forceMergedIndices = new HashSet<>();
-        {
-            // This creates a SendRequestBehavior to add the name of any index that has been forcemerged to the forceMergedIndices set.
-            final StubbableTransport.SendRequestBehavior sendBehavior = (connection, requestId, action, request, options) -> {
-                if (action.startsWith(ForceMergeAction.NAME)) {
-                    String index = ((IndicesRequest) request).indices()[0];
-                    forceMergedIndices.add(index);
-                    logger.info("Force merging {}", index);
-                }
-                connection.sendRequest(requestId, action, request, options);
-            };
-            String masterNode = internalCluster().getMasterName();
-            final MockTransportService targetTransportService = (MockTransportService) internalCluster().getInstance(
+        // Here we update the transport service on each node to record when a forcemerge action is called for an index:
+        for (DiscoveryNode node : internalCluster().getInstance(ClusterService.class, internalCluster().getMasterName())
+            .state()
+            .getNodes()) {
+            final MockTransportService transportService = (MockTransportService) internalCluster().getInstance(
                 TransportService.class,
-                masterNode
+                node.getName()
             );
-
-            for (DiscoveryNode node : internalCluster().getInstance(ClusterService.class, internalCluster().getMasterName())
-                .state()
-                .getNodes()) {
-                if (node.canContainData() && node.getName().equals(masterNode) == false) {
-                    final TransportService sourceTransportService = internalCluster().getInstance(TransportService.class, node.getName());
-                    targetTransportService.addSendBehavior(sourceTransportService, sendBehavior);
-                }
-            }
+            transportService.addRequestHandlingBehavior(ForceMergeAction.NAME + "[n]", (handler, request, channel, task) -> {
+                String index = ((IndicesRequest) request).indices()[0];
+                forceMergedIndices.add(index);
+                logger.info("Force merging {}", index);
+                handler.messageReceived(request, channel, task);
+            });
         }
 
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);

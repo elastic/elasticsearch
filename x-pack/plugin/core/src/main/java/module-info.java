@@ -20,6 +20,7 @@ module org.elasticsearch.xcore {
     requires org.apache.lucene.core;
     requires org.apache.lucene.join;
     requires unboundid.ldapsdk;
+    requires org.elasticsearch.tdigest;
 
     exports org.elasticsearch.index.engine.frozen;
     exports org.elasticsearch.license;
@@ -154,6 +155,7 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.security.authz.accesscontrol;
     exports org.elasticsearch.xpack.core.security.authz.permission;
     exports org.elasticsearch.xpack.core.security.authz.privilege;
+    exports org.elasticsearch.xpack.core.security.authz.restriction;
     exports org.elasticsearch.xpack.core.security.authz.store;
     exports org.elasticsearch.xpack.core.security.authz.support;
     exports org.elasticsearch.xpack.core.security.authz;

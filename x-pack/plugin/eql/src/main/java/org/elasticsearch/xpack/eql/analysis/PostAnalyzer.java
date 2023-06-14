@@ -60,7 +60,7 @@ public class PostAnalyzer {
                             newPlan
                         );
                     }
-                    return new KeyedFilter(k.source(), newPlan, k.keys(), k.timestamp(), k.tiebreaker());
+                    return new KeyedFilter(k.source(), newPlan, k.keys(), k.timestamp(), k.tiebreaker(), k.isMissingEventFilter());
                 });
             } else {
                 // in case of event queries, filter everything

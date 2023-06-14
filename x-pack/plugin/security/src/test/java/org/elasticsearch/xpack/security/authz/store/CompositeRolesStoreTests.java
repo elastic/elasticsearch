@@ -1794,48 +1794,6 @@ public class CompositeRolesStoreTests extends ESTestCase {
         assertEquals("the internal user [_system] should never have its roles resolved", iae.getMessage());
     }
 
-    public void testGetRolesForCrossClusterAccessUserThrowsException() {
-        final FileRolesStore fileRolesStore = mock(FileRolesStore.class);
-        doCallRealMethod().when(fileRolesStore).accept(anySet(), anyActionListener());
-        final NativeRolesStore nativeRolesStore = mock(NativeRolesStore.class);
-        doCallRealMethod().when(nativeRolesStore).accept(anySet(), anyActionListener());
-        when(fileRolesStore.roleDescriptors(anySet())).thenReturn(Collections.emptySet());
-        doAnswer((invocationOnMock) -> {
-            @SuppressWarnings("unchecked")
-            ActionListener<RoleRetrievalResult> callback = (ActionListener<RoleRetrievalResult>) invocationOnMock.getArguments()[1];
-            callback.onResponse(RoleRetrievalResult.failure(new RuntimeException("intentionally failed!")));
-            return null;
-        }).when(nativeRolesStore).getRoleDescriptors(isASet(), anyActionListener());
-        final ReservedRolesStore reservedRolesStore = spy(new ReservedRolesStore());
-
-        final AtomicReference<Collection<RoleDescriptor>> effectiveRoleDescriptors = new AtomicReference<Collection<RoleDescriptor>>();
-        final CompositeRolesStore compositeRolesStore = buildCompositeRolesStore(
-            SECURITY_ENABLED_SETTINGS,
-            fileRolesStore,
-            nativeRolesStore,
-            reservedRolesStore,
-            null,
-            null,
-            null,
-            null,
-            null,
-            effectiveRoleDescriptors::set
-        );
-        verify(fileRolesStore).addListener(anyConsumer()); // adds a listener in ctor
-        IllegalArgumentException iae = expectThrows(
-            IllegalArgumentException.class,
-            () -> compositeRolesStore.getRole(
-                new Subject(
-                    InternalUsers.CROSS_CLUSTER_ACCESS_USER,
-                    new RealmRef("__attach", "__attach", randomAlphaOfLengthBetween(3, 8))
-                ),
-                null
-            )
-        );
-        assertThat(effectiveRoleDescriptors.get(), is(nullValue()));
-        assertEquals("the internal user [_cross_cluster_access] should never have its roles resolved", iae.getMessage());
-    }
-
     public void testApiKeyAuthUsesApiKeyService() throws Exception {
         final FileRolesStore fileRolesStore = mock(FileRolesStore.class);
         doCallRealMethod().when(fileRolesStore).accept(anySet(), anyActionListener());
@@ -1889,7 +1847,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         );
         AuditUtil.getOrGenerateRequestId(threadContext);
         final TransportVersion version = randomFrom(
-            TransportVersion.CURRENT,
+            TransportVersion.current(),
             TransportVersionUtils.randomVersionBetween(random(), TransportVersion.V_7_0_0, TransportVersion.V_7_8_1)
         );
         final Authentication authentication = createApiKeyAuthentication(
@@ -1908,7 +1866,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         Role role = roleFuture.actionGet();
         assertThat(effectiveRoleDescriptors.get(), is(nullValue()));
 
-        if (version == TransportVersion.CURRENT) {
+        if (version == TransportVersion.current()) {
             verify(apiKeyService, times(1)).parseRoleDescriptorsBytes(anyString(), any(BytesReference.class), any());
         } else {
             verify(apiKeyService, times(1)).parseRoleDescriptors(anyString(), anyMap(), any());
@@ -1972,7 +1930,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         );
         AuditUtil.getOrGenerateRequestId(threadContext);
         final TransportVersion version = randomFrom(
-            TransportVersion.CURRENT,
+            TransportVersion.current(),
             TransportVersionUtils.randomVersionBetween(random(), TransportVersion.V_7_0_0, TransportVersion.V_7_8_1)
         );
         final Authentication authentication = createApiKeyAuthentication(
@@ -1992,7 +1950,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         Role role = roleFuture.actionGet();
         assertThat(role.checkClusterAction("cluster:admin/foo", Empty.INSTANCE, AuthenticationTestHelper.builder().build()), is(false));
         assertThat(effectiveRoleDescriptors.get(), is(nullValue()));
-        if (version == TransportVersion.CURRENT) {
+        if (version == TransportVersion.current()) {
             verify(apiKeyService).parseRoleDescriptorsBytes(
                 apiKeyId,
                 (BytesReference) authentication.getAuthenticatingSubject().getMetadata().get(API_KEY_ROLE_DESCRIPTORS_KEY),
@@ -2510,16 +2468,6 @@ public class CompositeRolesStoreTests extends ESTestCase {
             () -> compositeRolesStore.getRoleDescriptorsList(subject, new PlainActionFuture<>())
         );
         assertThat(e1.getMessage(), equalTo("should never try to get the roles for internal user [" + SystemUser.NAME + "]"));
-
-        when(subject.getUser()).thenReturn(InternalUsers.CROSS_CLUSTER_ACCESS_USER);
-        final IllegalArgumentException e2 = expectThrows(
-            IllegalArgumentException.class,
-            () -> compositeRolesStore.getRoleDescriptorsList(subject, new PlainActionFuture<>())
-        );
-        assertThat(
-            e2.getMessage(),
-            equalTo("should never try to get the roles for internal user [" + InternalUsers.CROSS_CLUSTER_ACCESS_USER.principal() + "]")
-        );
 
         for (var internalUser : AuthenticationTestHelper.internalUsersWithLocalRoleDescriptor()) {
             when(subject.getUser()).thenReturn(internalUser);

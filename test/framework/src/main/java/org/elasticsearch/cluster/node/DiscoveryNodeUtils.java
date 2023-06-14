@@ -42,16 +42,6 @@ public class DiscoveryNodeUtils {
     }
 
     public static DiscoveryNode create(
-        String id,
-        TransportAddress address,
-        Map<String, String> attributes,
-        Set<DiscoveryNodeRole> roles,
-        Version version
-    ) {
-        return builder(id).address(address).attributes(attributes).roles(roles).version(version).build();
-    }
-
-    public static DiscoveryNode create(
         String nodeName,
         String nodeId,
         TransportAddress address,

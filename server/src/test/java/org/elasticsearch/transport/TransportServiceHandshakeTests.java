@@ -118,7 +118,7 @@ public class TransportServiceHandshakeTests extends ESTestCase {
         TransportService transportServiceA = startServices(
             "TS_A",
             settings,
-            TransportVersion.CURRENT,
+            TransportVersion.current(),
             Version.CURRENT,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR
         );
@@ -129,13 +129,11 @@ public class TransportServiceHandshakeTests extends ESTestCase {
             VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(), Version.CURRENT),
             TransportService.NOOP_TRANSPORT_INTERCEPTOR
         );
-        DiscoveryNode discoveryNode = DiscoveryNodeUtils.create(
-            "",
-            transportServiceB.getLocalNode().getAddress(),
-            emptyMap(),
-            emptySet(),
-            Version.CURRENT.minimumCompatibilityVersion()
-        );
+        DiscoveryNode discoveryNode = DiscoveryNodeUtils.builder("")
+            .address(transportServiceB.getLocalNode().getAddress())
+            .roles(emptySet())
+            .version(Version.CURRENT.minimumCompatibilityVersion())
+            .build();
         try (
             Transport.Connection connection = AbstractSimpleTransportTestCase.openConnection(
                 transportServiceA,
@@ -157,24 +155,22 @@ public class TransportServiceHandshakeTests extends ESTestCase {
         TransportService transportServiceA = startServices(
             "TS_A",
             Settings.builder().put("cluster.name", "a").build(),
-            TransportVersion.CURRENT,
+            TransportVersion.current(),
             Version.CURRENT,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR
         );
         TransportService transportServiceB = startServices(
             "TS_B",
             Settings.builder().put("cluster.name", "b").build(),
-            TransportVersion.CURRENT,
+            TransportVersion.current(),
             Version.CURRENT,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR
         );
-        DiscoveryNode discoveryNode = DiscoveryNodeUtils.create(
-            "",
-            transportServiceB.getLocalNode().getAddress(),
-            emptyMap(),
-            emptySet(),
-            Version.CURRENT.minimumCompatibilityVersion()
-        );
+        DiscoveryNode discoveryNode = DiscoveryNodeUtils.builder("")
+            .address(transportServiceB.getLocalNode().getAddress())
+            .roles(emptySet())
+            .version(Version.CURRENT.minimumCompatibilityVersion())
+            .build();
         IllegalStateException ex = expectThrows(IllegalStateException.class, () -> {
             try (
                 Transport.Connection connection = AbstractSimpleTransportTestCase.openConnection(
@@ -198,7 +194,7 @@ public class TransportServiceHandshakeTests extends ESTestCase {
         TransportService transportServiceA = startServices(
             "TS_A",
             settings,
-            TransportVersion.CURRENT,
+            TransportVersion.current(),
             Version.CURRENT,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR
         );
@@ -209,13 +205,11 @@ public class TransportServiceHandshakeTests extends ESTestCase {
             VersionUtils.getPreviousVersion(Version.CURRENT.minimumCompatibilityVersion()),
             TransportService.NOOP_TRANSPORT_INTERCEPTOR
         );
-        DiscoveryNode discoveryNode = DiscoveryNodeUtils.create(
-            "",
-            transportServiceB.getLocalNode().getAddress(),
-            emptyMap(),
-            emptySet(),
-            Version.CURRENT.minimumCompatibilityVersion()
-        );
+        DiscoveryNode discoveryNode = DiscoveryNodeUtils.builder("")
+            .address(transportServiceB.getLocalNode().getAddress())
+            .roles(emptySet())
+            .version(Version.CURRENT.minimumCompatibilityVersion())
+            .build();
         IllegalStateException ex = expectThrows(IllegalStateException.class, () -> {
             try (
                 Transport.Connection connection = AbstractSimpleTransportTestCase.openConnection(
@@ -247,7 +241,7 @@ public class TransportServiceHandshakeTests extends ESTestCase {
         TransportService transportServiceA = startServices(
             "TS_A",
             settings,
-            TransportVersion.CURRENT,
+            TransportVersion.current(),
             Version.CURRENT,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR
         );
@@ -258,13 +252,11 @@ public class TransportServiceHandshakeTests extends ESTestCase {
             Version.CURRENT.minimumCompatibilityVersion(),
             TransportService.NOOP_TRANSPORT_INTERCEPTOR
         );
-        DiscoveryNode discoveryNode = DiscoveryNodeUtils.create(
-            "",
-            transportServiceB.getLocalNode().getAddress(),
-            emptyMap(),
-            emptySet(),
-            Version.CURRENT.minimumCompatibilityVersion()
-        );
+        DiscoveryNode discoveryNode = DiscoveryNodeUtils.builder("")
+            .address(transportServiceB.getLocalNode().getAddress())
+            .roles(emptySet())
+            .version(Version.CURRENT.minimumCompatibilityVersion())
+            .build();
         expectThrows(ConnectTransportException.class, () -> {
             try (
                 Transport.Connection connection = AbstractSimpleTransportTestCase.openConnection(
@@ -285,24 +277,22 @@ public class TransportServiceHandshakeTests extends ESTestCase {
         TransportService transportServiceA = startServices(
             "TS_A",
             settings,
-            TransportVersion.CURRENT,
+            TransportVersion.current(),
             Version.CURRENT,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR
         );
         TransportService transportServiceB = startServices(
             "TS_B",
             settings,
-            TransportVersion.CURRENT,
+            TransportVersion.current(),
             Version.CURRENT,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR
         );
-        DiscoveryNode discoveryNode = DiscoveryNodeUtils.create(
-            randomAlphaOfLength(10),
-            transportServiceB.getLocalNode().getAddress(),
-            emptyMap(),
-            emptySet(),
-            transportServiceB.getLocalNode().getVersion()
-        );
+        DiscoveryNode discoveryNode = DiscoveryNodeUtils.builder(randomAlphaOfLength(10))
+            .address(transportServiceB.getLocalNode().getAddress())
+            .roles(emptySet())
+            .version(transportServiceB.getLocalNode().getVersion())
+            .build();
         ConnectTransportException ex = expectThrows(
             ConnectTransportException.class,
             () -> AbstractSimpleTransportTestCase.connectToNode(transportServiceA, discoveryNode, TestProfiles.LIGHT_PROFILE)
@@ -323,24 +313,22 @@ public class TransportServiceHandshakeTests extends ESTestCase {
         final TransportService transportServiceA = startServices(
             "TS_A",
             settings,
-            TransportVersion.CURRENT,
+            TransportVersion.current(),
             Version.CURRENT,
             transportInterceptorA
         );
         final TransportService transportServiceB = startServices(
             "TS_B",
             settings,
-            TransportVersion.CURRENT,
+            TransportVersion.current(),
             Version.CURRENT,
             transportInterceptorB
         );
-        final DiscoveryNode discoveryNode = DiscoveryNodeUtils.create(
-            "",
-            transportServiceB.getLocalNode().getAddress(),
-            emptyMap(),
-            emptySet(),
-            Version.CURRENT.minimumCompatibilityVersion()
-        );
+        final DiscoveryNode discoveryNode = DiscoveryNodeUtils.builder("")
+            .address(transportServiceB.getLocalNode().getAddress())
+            .roles(emptySet())
+            .version(Version.CURRENT.minimumCompatibilityVersion())
+            .build();
         TransportSerializationException ex = expectThrows(TransportSerializationException.class, () -> {
             try (
                 Transport.Connection connection = AbstractSimpleTransportTestCase.openConnection(
@@ -376,14 +364,14 @@ public class TransportServiceHandshakeTests extends ESTestCase {
             final TransportService transportServiceA = startServices(
                 "TS_A",
                 settings,
-                TransportVersion.CURRENT,
+                TransportVersion.current(),
                 Version.CURRENT,
                 transportInterceptorA
             );
             final TransportService transportServiceB = startServices(
                 "TS_B",
                 settings,
-                TransportVersion.CURRENT,
+                TransportVersion.current(),
                 Version.CURRENT,
                 transportInterceptorB
             );
@@ -402,7 +390,7 @@ public class TransportServiceHandshakeTests extends ESTestCase {
         final TransportService transportServiceA = startServices(
             "TS_A",
             Settings.builder().put("cluster.name", "a").build(),
-            TransportVersion.CURRENT,
+            TransportVersion.current(),
             Version.CURRENT,
             transportInterceptorA
         );

@@ -70,6 +70,7 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.bulk.stats.BulkOperationListener;
 import org.elasticsearch.index.bulk.stats.BulkStats;
@@ -544,7 +545,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     );
                 }
 
-            if (newRouting.active() != false && state != IndexShardState.STARTED && state != IndexShardState.CLOSED) {
+            if (newRouting.active() && state != IndexShardState.STARTED && state != IndexShardState.CLOSED) {
                 // If cluster.no_master_block: all then we remove all shards locally whenever there's no master, but there might still be
                 // a shard-started message in flight. When the new master is elected we start to recover our shards again and the stale
                 // shard-started message could arrive and move this shard to STARTED in the cluster state too soon. This is pretty rare so
@@ -2145,6 +2146,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         } else {
             if (origin == Engine.Operation.Origin.PRIMARY) {
                 assert assertPrimaryMode();
+                // We only do indexing into primaries that are started since:
+                // * TransportReplicationAction.ReroutePhase only allows to index into active primaries.
+                // * A relocation will retry the reroute phase.
+                // * Allocation ids protect against spurious requests towards old allocations.
+                // * We apply the cluster state on IndexShard instances before making it available for routing
+                assert state == IndexShardState.STARTED : "must be started to do primary indexing";
             } else if (origin == Engine.Operation.Origin.REPLICA) {
                 assert assertReplicationTarget();
             } else {
@@ -3162,7 +3169,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     ) {
         assert assertPrimaryMode();
         // only needed for BWC reasons involving rolling upgrades from versions that do not support PRRLs:
-        assert indexSettings.getIndexVersionCreated().before(Version.V_7_4_0) || indexSettings.isSoftDeleteEnabled() == false;
+        assert indexSettings.getIndexVersionCreated().before(IndexVersion.V_7_4_0) || indexSettings.isSoftDeleteEnabled() == false;
         return replicationTracker.addPeerRecoveryRetentionLease(nodeId, globalCheckpoint, listener);
     }
 
@@ -3732,11 +3739,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Executes a scheduled refresh if necessary.
-     *
-     * @return <code>true</code> iff the engine got refreshed otherwise <code>false</code>
+     * Executes a scheduled refresh if necessary. Completes the listener with true if a refreshed was performed otherwise false.
      */
-    public boolean scheduledRefresh() {
+    public void scheduledRefresh(ActionListener<Boolean> listener) {
         verifyNotClosed();
         boolean listenerNeedsRefresh = refreshListeners.refreshNeeded();
         if (isReadAllowed() && (listenerNeedsRefresh || getEngine().refreshNeeded())) {
@@ -3750,15 +3755,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 final Engine engine = getEngine();
                 engine.maybePruneDeletes(); // try to prune the deletes in the engine if we accumulated some
                 setRefreshPending(engine);
-                return false;
+                ActionListener.completeWith(listener, () -> false);
             } else {
                 logger.trace("refresh with source [schedule]");
-                return getEngine().maybeRefresh("schedule").refreshed();
+                getEngine().maybeRefresh("schedule", listener.map(Engine.RefreshResult::refreshed));
             }
         }
         final Engine engine = getEngine();
         engine.maybePruneDeletes(); // try to prune the deletes in the engine if we accumulated some
-        return false;
+        ActionListener.completeWith(listener, () -> false);
     }
 
     /**

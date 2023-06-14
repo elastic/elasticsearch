@@ -1544,6 +1544,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     readerContext = findReaderContext(request.readerId(), request);
                     releasable = readerContext.markAsUsed(getKeepAlive(request));
                     indexService = readerContext.indexService();
+                    if (canMatchAfterRewrite(request, indexService) == false) {
+                        return new CanMatchShardResponse(false, null);
+                    }
                     searcher = readerContext.acquireSearcher(Engine.CAN_MATCH_SEARCH_SOURCE);
                 } catch (SearchContextMissingException e) {
                     final String searcherId = request.readerId().getSearcherId();
@@ -1551,6 +1554,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                         throw e;
                     }
                     indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
+                    if (canMatchAfterRewrite(request, indexService) == false) {
+                        return new CanMatchShardResponse(false, null);
+                    }
                     IndexShard indexShard = indexService.getShard(request.shardId().getId());
                     final Engine.SearcherSupplier searcherSupplier = indexShard.acquireSearcherSupplier();
                     if (searcherId.equals(searcherSupplier.getSearcherId()) == false) {
@@ -1563,6 +1569,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 canMatchSearcher = searcher;
             } else {
                 indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
+                if (canMatchAfterRewrite(request, indexService) == false) {
+                    return new CanMatchShardResponse(false, null);
+                }
                 IndexShard indexShard = indexService.getShard(request.shardId().getId());
                 boolean needsWaitForRefresh = request.waitForCheckpoint() != UNASSIGNED_SEQ_NO;
                 // If this request wait_for_refresh behavior, it is safest to assume a refresh is pending. Theoretically,
@@ -1595,6 +1604,22 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
     }
 
+    /**
+     * This method tries to rewrite a query without using a {@link SearchExecutionContext}. It takes advantage of the fact that
+     * we can skip some shards in the query phase because we have enough information in the index mapping to decide the 'can match'
+     * outcome. One such example is a term based query against a constant keyword field. This queries can rewrite themselves to a
+     * {@link MatchNoneQueryBuilder}. This allows us to avoid extra work for example making the shard search active and waiting for
+     * refreshes.
+     */
+    private static boolean canMatchAfterRewrite(final ShardSearchRequest request, final IndexService indexService) throws IOException {
+        final QueryRewriteContext queryRewriteContext = indexService.newQueryRewriteContext(
+            request::nowInMillis,
+            request.getRuntimeMappings(),
+            request.getClusterAlias()
+        );
+        return queryStillMatchesAfterRewrite(request, queryRewriteContext);
+    }
+
     @SuppressWarnings("unchecked")
     public static boolean queryStillMatchesAfterRewrite(ShardSearchRequest request, QueryRewriteContext context) throws IOException {
         Rewriteable.rewrite(request.getRewriteable(), context, false);
@@ -1625,14 +1650,14 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     @SuppressWarnings({ "rawtypes", "unchecked" })
     private void rewriteAndFetchShardRequest(IndexShard shard, ShardSearchRequest request, ActionListener<ShardSearchRequest> listener) {
-        ActionListener<Rewriteable> actionListener = ActionListener.wrap(r -> {
+        ActionListener<Rewriteable> actionListener = listener.delegateFailureAndWrap((l, r) -> {
             if (request.readerId() != null) {
-                listener.onResponse(request);
+                l.onResponse(request);
             } else {
                 // now we need to check if there is a pending refresh and register
-                shard.awaitShardSearchActive(b -> listener.onResponse(request));
+                shard.awaitShardSearchActive(b -> l.onResponse(request));
             }
-        }, listener::onFailure);
+        });
         // we also do rewrite on the coordinating node (TransportSearchService) but we also need to do it here for BWC as well as
         // AliasFilters that might need to be rewritten. These are edge-cases but we are every efficient doing the rewrite here so it's not
         // adding a lot of overhead

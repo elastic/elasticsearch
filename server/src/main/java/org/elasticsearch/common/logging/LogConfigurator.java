@@ -12,7 +12,6 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.Appender;
-import org.apache.logging.log4j.core.Filter;
 import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.appender.ConsoleAppender;
 import org.apache.logging.log4j.core.config.AbstractConfiguration;
@@ -22,13 +21,11 @@ import org.apache.logging.log4j.core.config.Configurator;
 import org.apache.logging.log4j.core.config.builder.api.ConfigurationBuilder;
 import org.apache.logging.log4j.core.config.builder.api.ConfigurationBuilderFactory;
 import org.apache.logging.log4j.core.config.builder.impl.BuiltConfiguration;
-import org.apache.logging.log4j.core.config.builder.impl.DefaultConfigurationBuilder;
 import org.apache.logging.log4j.core.config.composite.CompositeConfiguration;
 import org.apache.logging.log4j.core.config.plugins.util.PluginManager;
 import org.apache.logging.log4j.core.config.properties.PropertiesConfiguration;
 import org.apache.logging.log4j.core.config.properties.PropertiesConfigurationBuilder;
 import org.apache.logging.log4j.core.config.properties.PropertiesConfigurationFactory;
-import org.apache.logging.log4j.jul.Log4jBridgeHandler;
 import org.apache.logging.log4j.status.StatusConsoleListener;
 import org.apache.logging.log4j.status.StatusData;
 import org.apache.logging.log4j.status.StatusListener;
@@ -225,7 +222,6 @@ public class LogConfigurator {
                         properties.setProperty(name, value.replace("%marker", "[%node_name]%marker "));
                     }
                 }
-
                 // end hack
                 return new PropertiesConfigurationBuilder().setConfigurationSource(source)
                     .setRootProperties(properties)
@@ -245,8 +241,6 @@ public class LogConfigurator {
         });
         assert configurations.isEmpty() == false;
 
-        configurations.add(createStaticConfiguration(context));
-
         context.start(new CompositeConfiguration(configurations));
 
         configureLoggerLevels(settings);
@@ -263,13 +257,26 @@ public class LogConfigurator {
                 );
         }
 
-        Log4jBridgeHandler.install(true, "", true);
-
         // Redirect stdout/stderr to log4j. While we ensure Elasticsearch code does not write to those streams,
         // third party libraries may do that. Note that we do NOT close the streams because other code may have
         // grabbed a handle to the streams and intend to write to it, eg log4j for writing to the console
-        System.setOut(new PrintStream(new LoggingOutputStream(LogManager.getLogger("stdout"), Level.INFO), false, StandardCharsets.UTF_8));
-        System.setErr(new PrintStream(new LoggingOutputStream(LogManager.getLogger("stderr"), Level.WARN), false, StandardCharsets.UTF_8));
+        System.setOut(
+            new PrintStream(new LoggingOutputStream(LogManager.getLogger("stdout"), Level.INFO, List.of()), false, StandardCharsets.UTF_8)
+        );
+        System.setErr(
+            new PrintStream(
+                new LoggingOutputStream(
+                    LogManager.getLogger("stderr"),
+                    Level.WARN,
+                    // MMapDirectory messages come from Lucene, suggesting to users as a warning that they should enable preview features in
+                    // the JDK. Vector logs come from Lucene too, but only if the used explicitly disables the Vector API - no point warning
+                    // in this case.
+                    List.of("MMapDirectory", "VectorUtilProvider", "WARNING: Java vector incubator module is not readable")
+                ),
+                false,
+                StandardCharsets.UTF_8
+            )
+        );
 
         final Logger rootLogger = LogManager.getRootLogger();
         Appender appender = Loggers.findAppender(rootLogger, ConsoleAppender.class);
@@ -280,29 +287,6 @@ public class LogConfigurator {
                 Loggers.removeAppender(rootLogger, appender);
             }
         }
-    }
-
-    /**
-     * Creates a log4j configuration that is not changeable by users.
-     */
-    private static AbstractConfiguration createStaticConfiguration(LoggerContext context) {
-        var builder = new DefaultConfigurationBuilder<>();
-        builder.setConfigurationSource(ConfigurationSource.NULL_SOURCE);
-        builder.setLoggerContext(context);
-
-        // adding filters for confusing Lucene messages
-        addRegexFilter(builder, "org.apache.lucene.store.MemorySegmentIndexInputProvider", "Using MemorySegmentIndexInput.*");
-        addRegexFilter(builder, "org.apache.lucene.util.VectorUtilProvider", ".* incubator module is not readable.*");
-
-        return builder.build();
-    }
-
-    private static void addRegexFilter(DefaultConfigurationBuilder<BuiltConfiguration> builder, String loggerName, String pattern) {
-        var filterBuilder = builder.newFilter("RegexFilter", Filter.Result.DENY, Filter.Result.NEUTRAL);
-        filterBuilder.addAttribute("regex", pattern);
-        var loggerBuilder = builder.newLogger(loggerName);
-        loggerBuilder.add(filterBuilder);
-        builder.add(loggerBuilder);
     }
 
     /**

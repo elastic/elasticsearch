@@ -1,0 +1,6 @@
+pr: 96821
+summary: Change rollup thread pool settings
+area: Downsampling
+type: enhancement
+issues:
+ - 96758

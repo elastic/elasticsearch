@@ -8,7 +8,7 @@ steps:
   - group: bwc-snapshots-windows
     steps:
       - label: "{{matrix.BWC_VERSION}} / bwc-snapshots-windows"
-        command: .buildkite\generated-scripts\bfe9a0fc79a31626a63ab3cbefbd720d.bat
+        command: .buildkite\generated-scripts\4ef3241cf6b8dbbae758f32a006b0bc0.bat
         matrix:
           setup:
             BWC_VERSION:
@@ -27,7 +27,7 @@ steps:
     steps:
       - label: "{{matrix.image}} / {{matrix.PACKAGING_TASK}} /
           packaging-tests-windows-nojdk"
-        command: .buildkite\generated-scripts\c5ac3327881549b3f4e1963de55cce91.bat
+        command: .buildkite\generated-scripts\ca6b2b9c7738eac3d32fd7cd4ac2faa8.bat
         matrix:
           setup:
             image:
@@ -50,7 +50,7 @@ steps:
     steps:
       - label: "{{matrix.image}} / {{matrix.PACKAGING_TASK}} /
           packaging-tests-windows-sample-nojdk"
-        command: .buildkite\generated-scripts\c5ac3327881549b3f4e1963de55cce91.bat
+        command: .buildkite\generated-scripts\ca6b2b9c7738eac3d32fd7cd4ac2faa8.bat
         matrix:
           setup:
             image:
@@ -70,7 +70,7 @@ steps:
     steps:
       - label: "{{matrix.image}} / {{matrix.PACKAGING_TASK}} /
           packaging-tests-windows-sample"
-        command: .buildkite\generated-scripts\c5ac3327881549b3f4e1963de55cce91.bat
+        command: .buildkite\generated-scripts\ca6b2b9c7738eac3d32fd7cd4ac2faa8.bat
         matrix:
           setup:
             image:
@@ -88,7 +88,7 @@ steps:
   - group: packaging-tests-windows
     steps:
       - label: "{{matrix.image}} / {{matrix.PACKAGING_TASK}} / packaging-tests-windows"
-        command: .buildkite\generated-scripts\c5ac3327881549b3f4e1963de55cce91.bat
+        command: .buildkite\generated-scripts\ca6b2b9c7738eac3d32fd7cd4ac2faa8.bat
         matrix:
           setup:
             image:
@@ -107,7 +107,7 @@ steps:
         env:
           PACKAGING_TASK: "{{matrix.PACKAGING_TASK}}"
   - label: part-1-windows
-    command: .buildkite\generated-scripts\7c299c2cf7a5c8d533576bc5cb20deb0.bat
+    command: .buildkite\generated-scripts\0ed44aaeab2687b9cc3da467568468e5.bat
     agents:
       provider: gcp
       image: family/core-windows-2022
@@ -115,7 +115,7 @@ steps:
       diskType: pd-ssd
       diskSizeGb: 350
   - label: part-2-windows
-    command: .buildkite\generated-scripts\7c299c2cf7a5c8d533576bc5cb20deb0.bat
+    command: .buildkite\generated-scripts\0ed44aaeab2687b9cc3da467568468e5.bat
     agents:
       provider: gcp
       image: family/core-windows-2022
@@ -123,7 +123,7 @@ steps:
       diskType: pd-ssd
       diskSizeGb: 350
   - label: part-3-windows
-    command: .buildkite\generated-scripts\7c299c2cf7a5c8d533576bc5cb20deb0.bat
+    command: .buildkite\generated-scripts\0ed44aaeab2687b9cc3da467568468e5.bat
     agents:
       provider: gcp
       image: family/core-windows-2022

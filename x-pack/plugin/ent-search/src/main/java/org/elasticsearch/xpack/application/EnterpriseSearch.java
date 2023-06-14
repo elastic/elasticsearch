@@ -20,6 +20,7 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -101,11 +102,10 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
 
     private final boolean enabled;
 
-    private final boolean queryRulesEnabled;
+    private static final FeatureFlag QUERY_RULES_FEATURE_FLAG = new FeatureFlag("query_rules");
 
     public EnterpriseSearch(Settings settings) {
         this.enabled = XPackSettings.ENTERPRISE_SEARCH_ENABLED.get(settings);
-        this.queryRulesEnabled = XPackSettings.ENTERPRISE_SEARCH_QUERY_RULES_ENABLED.get(settings);
     }
 
     protected XPackLicenseState getLicenseState() {
@@ -199,7 +199,7 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
 
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-        if (queryRulesEnabled) {
+        if (QUERY_RULES_FEATURE_FLAG.isEnabled()) {
             return Arrays.asList(
                 SearchApplicationIndexService.getSystemIndexDescriptor(),
                 QueryRulesIndexService.getSystemIndexDescriptor()

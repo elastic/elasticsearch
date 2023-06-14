@@ -78,7 +78,7 @@
 'Create Query Ruleset - Insufficient privilege':
   - skip:
       features: headers
-      
+
   - do:
       catch: forbidden
       headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user

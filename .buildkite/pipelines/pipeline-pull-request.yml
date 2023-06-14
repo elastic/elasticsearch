@@ -8,16 +8,7 @@ steps:
   - group: bwc-snapshots-windows
     steps:
       - label: "{{matrix.BWC_VERSION}} / bwc-snapshots-windows"
-        command: >
-          del /f /s /q %USERPROFILE%\.gradle\init.d\*.*
-
-          mkdir %USERPROFILE%\.gradle\init.d
-
-          copy .ci\init.gradle %USERPROFILE%\.gradle\init.d\
-
-          (
-            echo call %GRADLEW_BAT% --max-workers=4 -Dbwc.checkout.align=true v%BWC_VERSION%#bwcTest ^|^| exit /b 1
-          ) 
+        command: .buildkite\generated-scripts\bfe9a0fc79a31626a63ab3cbefbd720d.bat
         matrix:
           setup:
             BWC_VERSION:
@@ -36,16 +27,7 @@ steps:
     steps:
       - label: "{{matrix.image}} / {{matrix.PACKAGING_TASK}} /
           packaging-tests-windows-nojdk"
-        command: >
-          del /f /s /q %USERPROFILE%\.gradle\init.d\*.*
-
-          mkdir %USERPROFILE%\.gradle\init.d
-
-          copy .ci\init.gradle %USERPROFILE%\.gradle\init.d\
-
-          (
-             echo powershell.exe .\.ci\scripts\packaging-test.ps1 -GradleTasks destructiveDistroTest.%PACKAGING_TASK%   ^|^| exit /b 1
-          ) 
+        command: .buildkite\generated-scripts\c5ac3327881549b3f4e1963de55cce91.bat
         matrix:
           setup:
             image:
@@ -68,16 +50,7 @@ steps:
     steps:
       - label: "{{matrix.image}} / {{matrix.PACKAGING_TASK}} /
           packaging-tests-windows-sample-nojdk"
-        command: >
-          del /f /s /q %USERPROFILE%\.gradle\init.d\*.*
-
-          mkdir %USERPROFILE%\.gradle\init.d
-
-          copy .ci\init.gradle %USERPROFILE%\.gradle\init.d\
-
-          (
-             echo powershell.exe .\.ci\scripts\packaging-test.ps1 -GradleTasks destructiveDistroTest.%PACKAGING_TASK%   ^|^| exit /b 1
-          ) 
+        command: .buildkite\generated-scripts\c5ac3327881549b3f4e1963de55cce91.bat
         matrix:
           setup:
             image:
@@ -97,16 +70,7 @@ steps:
     steps:
       - label: "{{matrix.image}} / {{matrix.PACKAGING_TASK}} /
           packaging-tests-windows-sample"
-        command: >
-          del /f /s /q %USERPROFILE%\.gradle\init.d\*.*
-
-          mkdir %USERPROFILE%\.gradle\init.d
-
-          copy .ci\init.gradle %USERPROFILE%\.gradle\init.d\
-
-          (
-             echo powershell.exe .\.ci\scripts\packaging-test.ps1 -GradleTasks destructiveDistroTest.%PACKAGING_TASK%   ^|^| exit /b 1
-          ) 
+        command: .buildkite\generated-scripts\c5ac3327881549b3f4e1963de55cce91.bat
         matrix:
           setup:
             image:
@@ -124,16 +88,7 @@ steps:
   - group: packaging-tests-windows
     steps:
       - label: "{{matrix.image}} / {{matrix.PACKAGING_TASK}} / packaging-tests-windows"
-        command: >
-          del /f /s /q %USERPROFILE%\.gradle\init.d\*.*
-
-          mkdir %USERPROFILE%\.gradle\init.d
-
-          copy .ci\init.gradle %USERPROFILE%\.gradle\init.d\
-
-          (
-             echo powershell.exe .\.ci\scripts\packaging-test.ps1 -GradleTasks destructiveDistroTest.%PACKAGING_TASK%   ^|^| exit /b 1
-          ) 
+        command: .buildkite\generated-scripts\c5ac3327881549b3f4e1963de55cce91.bat
         matrix:
           setup:
             image:
@@ -152,16 +107,7 @@ steps:
         env:
           PACKAGING_TASK: "{{matrix.PACKAGING_TASK}}"
   - label: part-1-windows
-    command: >
-      del /f /s /q %USERPROFILE%\.gradle\init.d\*.*
-
-      mkdir %USERPROFILE%\.gradle\init.d
-
-      copy .ci\init.gradle %USERPROFILE%\.gradle\init.d\
-
-      (
-        echo call %GRADLEW_BAT% --max-workers=4 -Dbwc.checkout.align=true %GRADLE_TASK% ^|^| exit /b 1
-      ) 
+    command: .buildkite\generated-scripts\7c299c2cf7a5c8d533576bc5cb20deb0.bat
     agents:
       provider: gcp
       image: family/core-windows-2022
@@ -169,16 +115,7 @@ steps:
       diskType: pd-ssd
       diskSizeGb: 350
   - label: part-2-windows
-    command: >
-      del /f /s /q %USERPROFILE%\.gradle\init.d\*.*
-
-      mkdir %USERPROFILE%\.gradle\init.d
-
-      copy .ci\init.gradle %USERPROFILE%\.gradle\init.d\
-
-      (
-        echo call %GRADLEW_BAT% --max-workers=4 -Dbwc.checkout.align=true %GRADLE_TASK% ^|^| exit /b 1
-      ) 
+    command: .buildkite\generated-scripts\7c299c2cf7a5c8d533576bc5cb20deb0.bat
     agents:
       provider: gcp
       image: family/core-windows-2022
@@ -186,16 +123,7 @@ steps:
       diskType: pd-ssd
       diskSizeGb: 350
   - label: part-3-windows
-    command: >
-      del /f /s /q %USERPROFILE%\.gradle\init.d\*.*
-
-      mkdir %USERPROFILE%\.gradle\init.d
-
-      copy .ci\init.gradle %USERPROFILE%\.gradle\init.d\
-
-      (
-        echo call %GRADLEW_BAT% --max-workers=4 -Dbwc.checkout.align=true %GRADLE_TASK% ^|^| exit /b 1
-      ) 
+    command: .buildkite\generated-scripts\7c299c2cf7a5c8d533576bc5cb20deb0.bat
     agents:
       provider: gcp
       image: family/core-windows-2022

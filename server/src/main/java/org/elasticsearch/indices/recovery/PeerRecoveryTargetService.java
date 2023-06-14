@@ -460,7 +460,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
 
         @Override
         public void messageReceived(final RecoveryHandoffPrimaryContextRequest request, final TransportChannel channel, Task task) {
-            final RecoveryRef recoveryRef = onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId());
+            final RecoveryRef recoveryRef = getRecoveryRef(request.recoveryId(), request.shardId());
             boolean success = false;
             try {
                 recoveryRef.target()
@@ -479,6 +479,13 @@ public class PeerRecoveryTargetService implements IndexEventListener {
             }
         }
 
+    }
+
+    /**
+     * Acquire a reference to the given recovery, throwing an {@link IndexShardClosedException} if the recovery is unknown.
+     */
+    public RecoveryRef getRecoveryRef(long recoveryId, ShardId shardId) {
+        return onGoingRecoveries.getRecoverySafe(recoveryId, shardId);
     }
 
     private class TranslogOperationsRequestHandler extends RecoveryRequestHandler<RecoveryTranslogOperationsRequest> {
@@ -513,7 +520,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                     @Override
                     public void onNewClusterState(ClusterState state) {
                         threadPool.generic().execute(ActionRunnable.wrap(listener, l -> {
-                            try (RecoveryRef recoveryRef = onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId())) {
+                            try (RecoveryRef recoveryRef = getRecoveryRef(request.recoveryId(), request.shardId())) {
                                 performTranslogOps(request, l, recoveryRef.target());
                             }
                         }));
@@ -559,7 +566,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
 
         @Override
         public final void messageReceived(final T request, TransportChannel channel, Task task) throws Exception {
-            try (RecoveryRef recoveryRef = onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId())) {
+            try (RecoveryRef recoveryRef = getRecoveryRef(request.recoveryId(), request.shardId())) {
                 final RecoveryTarget recoveryTarget = recoveryRef.target();
                 final ActionListener<Void> resultListener = new ChannelActionListener<>(channel).map(responseMapping(recoveryTarget));
 

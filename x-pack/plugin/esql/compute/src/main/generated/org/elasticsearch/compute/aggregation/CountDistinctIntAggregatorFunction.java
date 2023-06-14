@@ -4,7 +4,6 @@
 // 2.0.
 package org.elasticsearch.compute.aggregation;
 
-import java.lang.Object;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
@@ -26,18 +25,21 @@ public final class CountDistinctIntAggregatorFunction implements AggregatorFunct
 
   private final int channel;
 
-  private final Object[] parameters;
+  private final BigArrays bigArrays;
+
+  private final int precision;
 
   public CountDistinctIntAggregatorFunction(int channel, HllStates.SingleState state,
-      Object[] parameters) {
+      BigArrays bigArrays, int precision) {
     this.channel = channel;
     this.state = state;
-    this.parameters = parameters;
+    this.bigArrays = bigArrays;
+    this.precision = precision;
   }
 
-  public static CountDistinctIntAggregatorFunction create(BigArrays bigArrays, int channel,
-      Object[] parameters) {
-    return new CountDistinctIntAggregatorFunction(channel, CountDistinctIntAggregator.initSingle(bigArrays, parameters), parameters);
+  public static CountDistinctIntAggregatorFunction create(int channel, BigArrays bigArrays,
+      int precision) {
+    return new CountDistinctIntAggregatorFunction(channel, CountDistinctIntAggregator.initSingle(bigArrays, precision), bigArrays, precision);
   }
 
   @Override
@@ -83,7 +85,7 @@ public final class CountDistinctIntAggregatorFunction implements AggregatorFunct
     @SuppressWarnings("unchecked") AggregatorStateVector<HllStates.SingleState> blobVector = (AggregatorStateVector<HllStates.SingleState>) vector;
     // TODO exchange big arrays directly without funny serialization - no more copying
     BigArrays bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
-    HllStates.SingleState tmpState = CountDistinctIntAggregator.initSingle(bigArrays, parameters);
+    HllStates.SingleState tmpState = CountDistinctIntAggregator.initSingle(bigArrays, precision);
     for (int i = 0; i < block.getPositionCount(); i++) {
       blobVector.get(i, tmpState);
       CountDistinctIntAggregator.combineStates(state, tmpState);

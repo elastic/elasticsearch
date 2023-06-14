@@ -1,4 +1,3 @@
 org.elasticsearch.compute.gen.AggregatorProcessor
 org.elasticsearch.compute.gen.ConsumeProcessor
 org.elasticsearch.compute.gen.EvaluatorProcessor
-org.elasticsearch.compute.gen.GroupingAggregatorProcessor

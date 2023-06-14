@@ -4,7 +4,6 @@
 // 2.0.
 package org.elasticsearch.compute.aggregation;
 
-import java.lang.Object;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
@@ -29,18 +28,21 @@ public final class CountDistinctBytesRefGroupingAggregatorFunction implements Gr
 
   private final int channel;
 
-  private final Object[] parameters;
+  private final BigArrays bigArrays;
+
+  private final int precision;
 
   public CountDistinctBytesRefGroupingAggregatorFunction(int channel, HllStates.GroupingState state,
-      Object[] parameters) {
+      BigArrays bigArrays, int precision) {
     this.channel = channel;
     this.state = state;
-    this.parameters = parameters;
+    this.bigArrays = bigArrays;
+    this.precision = precision;
   }
 
-  public static CountDistinctBytesRefGroupingAggregatorFunction create(BigArrays bigArrays,
-      int channel, Object[] parameters) {
-    return new CountDistinctBytesRefGroupingAggregatorFunction(channel, CountDistinctBytesRefAggregator.initGrouping(bigArrays, parameters), parameters);
+  public static CountDistinctBytesRefGroupingAggregatorFunction create(int channel,
+      BigArrays bigArrays, int precision) {
+    return new CountDistinctBytesRefGroupingAggregatorFunction(channel, CountDistinctBytesRefAggregator.initGrouping(bigArrays, precision), bigArrays, precision);
   }
 
   @Override
@@ -138,7 +140,7 @@ public final class CountDistinctBytesRefGroupingAggregatorFunction implements Gr
     @SuppressWarnings("unchecked") AggregatorStateVector<HllStates.GroupingState> blobVector = (AggregatorStateVector<HllStates.GroupingState>) vector;
     // TODO exchange big arrays directly without funny serialization - no more copying
     BigArrays bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
-    HllStates.GroupingState inState = CountDistinctBytesRefAggregator.initGrouping(bigArrays, parameters);
+    HllStates.GroupingState inState = CountDistinctBytesRefAggregator.initGrouping(bigArrays, precision);
     blobVector.get(0, inState);
     for (int position = 0; position < groupIdVector.getPositionCount(); position++) {
       int groupId = Math.toIntExact(groupIdVector.getLong(position));

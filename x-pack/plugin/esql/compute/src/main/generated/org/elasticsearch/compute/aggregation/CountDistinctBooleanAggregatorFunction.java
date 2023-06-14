@@ -4,7 +4,6 @@
 // 2.0.
 package org.elasticsearch.compute.aggregation;
 
-import java.lang.Object;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
@@ -27,18 +26,14 @@ public final class CountDistinctBooleanAggregatorFunction implements AggregatorF
 
   private final int channel;
 
-  private final Object[] parameters;
-
   public CountDistinctBooleanAggregatorFunction(int channel,
-      CountDistinctBooleanAggregator.SingleState state, Object[] parameters) {
+      CountDistinctBooleanAggregator.SingleState state) {
     this.channel = channel;
     this.state = state;
-    this.parameters = parameters;
   }
 
-  public static CountDistinctBooleanAggregatorFunction create(BigArrays bigArrays, int channel,
-      Object[] parameters) {
-    return new CountDistinctBooleanAggregatorFunction(channel, CountDistinctBooleanAggregator.initSingle(), parameters);
+  public static CountDistinctBooleanAggregatorFunction create(int channel) {
+    return new CountDistinctBooleanAggregatorFunction(channel, CountDistinctBooleanAggregator.initSingle());
   }
 
   @Override

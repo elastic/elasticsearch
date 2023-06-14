@@ -12,8 +12,8 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
-import org.elasticsearch.compute.aggregation.CountDistinctDoubleAggregator;
-import org.elasticsearch.compute.aggregation.CountDistinctLongAggregator;
+import org.elasticsearch.compute.aggregation.CountDistinctDoubleAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.CountDistinctLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
@@ -134,9 +134,10 @@ public class AggregatorBenchmark {
 
     private static AggregatorFunctionSupplier supplier(String op, String dataType, int dataChannel) {
         return switch (op) {
+            // TODO maybe just use the ESQL functions and let them resolve the data type so we don't have to maintain a huge switch tree
             case COUNT_DISTINCT -> switch (dataType) { // TODO add other ops......
-                case LONGS -> CountDistinctLongAggregator.supplier(BIG_ARRAYS, dataChannel, 3000);
-                case DOUBLES -> CountDistinctDoubleAggregator.supplier(BIG_ARRAYS, dataChannel, 3000);
+                case LONGS -> new CountDistinctLongAggregatorFunctionSupplier(BIG_ARRAYS, dataChannel, 3000);
+                case DOUBLES -> new CountDistinctDoubleAggregatorFunctionSupplier(BIG_ARRAYS, dataChannel, 3000);
                 default -> throw new IllegalArgumentException("unsupported aggName [" + op + "]");
             };
             default -> throw new IllegalArgumentException("unsupported data type [" + dataType + "]");

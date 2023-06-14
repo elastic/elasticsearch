@@ -7,6 +7,11 @@
 
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AvgDoubleAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AvgIntAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AvgLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
@@ -29,5 +34,20 @@ public class Avg extends NumericAggregate {
     @Override
     public Avg replaceChildren(List<Expression> newChildren) {
         return new Avg(source(), newChildren.get(0));
+    }
+
+    @Override
+    protected AggregatorFunctionSupplier longSupplier(BigArrays bigArrays, int inputChannel) {
+        return new AvgLongAggregatorFunctionSupplier(bigArrays, inputChannel);
+    }
+
+    @Override
+    protected AggregatorFunctionSupplier intSupplier(BigArrays bigArrays, int inputChannel) {
+        return new AvgIntAggregatorFunctionSupplier(bigArrays, inputChannel);
+    }
+
+    @Override
+    protected AggregatorFunctionSupplier doubleSupplier(BigArrays bigArrays, int inputChannel) {
+        return new AvgDoubleAggregatorFunctionSupplier(bigArrays, inputChannel);
     }
 }

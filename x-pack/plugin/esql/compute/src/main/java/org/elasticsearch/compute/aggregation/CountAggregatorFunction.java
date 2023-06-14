@@ -17,11 +17,29 @@ import org.elasticsearch.compute.data.Page;
 
 @Experimental
 public class CountAggregatorFunction implements AggregatorFunction {
+    public static AggregatorFunctionSupplier supplier(BigArrays bigArrays, int channel) {
+        return new AggregatorFunctionSupplier() {
+            @Override
+            public AggregatorFunction aggregator() {
+                return CountAggregatorFunction.create(channel);
+            }
+
+            @Override
+            public GroupingAggregatorFunction groupingAggregator() {
+                return CountGroupingAggregatorFunction.create(bigArrays, channel);
+            }
+
+            @Override
+            public String describe() {
+                return "count";
+            }
+        };
+    }
 
     private final LongState state;
     private final int channel;
 
-    public static CountAggregatorFunction create(BigArrays bigArrays, int inputChannel, Object[] parameters) {
+    public static CountAggregatorFunction create(int inputChannel) {
         return new CountAggregatorFunction(inputChannel, new LongState());
     }
 
@@ -32,7 +50,6 @@ public class CountAggregatorFunction implements AggregatorFunction {
 
     @Override
     public void addRawInput(Page page) {
-        assert channel >= 0;
         Block block = page.getBlock(channel);
         LongState state = this.state;
         state.longValue(state.longValue() + block.getTotalValueCount());
@@ -40,7 +57,6 @@ public class CountAggregatorFunction implements AggregatorFunction {
 
     @Override
     public void addIntermediateInput(Block block) {
-        assert channel == -1;
         if (block.asVector() != null && block.asVector() instanceof AggregatorStateVector) {
             @SuppressWarnings("unchecked")
             AggregatorStateVector<LongState> blobVector = (AggregatorStateVector) block.asVector();

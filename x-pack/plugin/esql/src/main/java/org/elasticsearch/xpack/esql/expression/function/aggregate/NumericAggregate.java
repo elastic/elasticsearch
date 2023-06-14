@@ -6,6 +6,9 @@
  */
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
+import org.elasticsearch.xpack.esql.planner.ToAggregator;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -17,7 +20,7 @@ import java.util.List;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
 
-public abstract class NumericAggregate extends AggregateFunction {
+public abstract class NumericAggregate extends AggregateFunction implements ToAggregator {
 
     NumericAggregate(Source source, Expression field, List<Expression> parameters) {
         super(source, field, parameters);
@@ -36,4 +39,25 @@ public abstract class NumericAggregate extends AggregateFunction {
     public DataType dataType() {
         return DataTypes.DOUBLE;
     }
+
+    @Override
+    public final AggregatorFunctionSupplier supplier(BigArrays bigArrays, int inputChannel) {
+        DataType type = field().dataType();
+        if (type == DataTypes.LONG) {
+            return longSupplier(bigArrays, inputChannel);
+        }
+        if (type == DataTypes.INTEGER) {
+            return intSupplier(bigArrays, inputChannel);
+        }
+        if (type == DataTypes.DOUBLE) {
+            return doubleSupplier(bigArrays, inputChannel);
+        }
+        throw new UnsupportedOperationException();
+    }
+
+    protected abstract AggregatorFunctionSupplier longSupplier(BigArrays bigArrays, int inputChannel);
+
+    protected abstract AggregatorFunctionSupplier intSupplier(BigArrays bigArrays, int inputChannel);
+
+    protected abstract AggregatorFunctionSupplier doubleSupplier(BigArrays bigArrays, int inputChannel);
 }

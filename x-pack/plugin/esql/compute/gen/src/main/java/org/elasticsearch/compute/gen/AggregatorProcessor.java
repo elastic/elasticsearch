@@ -10,9 +10,12 @@ package org.elasticsearch.compute.gen;
 import com.squareup.javapoet.JavaFile;
 
 import org.elasticsearch.compute.ann.Aggregator;
+import org.elasticsearch.compute.ann.GroupingAggregator;
 
 import java.io.IOException;
 import java.io.Writer;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Set;
 
@@ -43,7 +46,7 @@ public class AggregatorProcessor implements Processor {
 
     @Override
     public Set<String> getSupportedAnnotationTypes() {
-        return Set.of(Aggregator.class.getName());
+        return Set.of(Aggregator.class.getName(), GroupingAggregator.class.getName());
     }
 
     @Override
@@ -68,9 +71,31 @@ public class AggregatorProcessor implements Processor {
 
     @Override
     public boolean process(Set<? extends TypeElement> set, RoundEnvironment roundEnvironment) {
+        Set<TypeElement> annotatedClasses = Collections.newSetFromMap(new IdentityHashMap<>());
         for (TypeElement ann : set) {
             for (Element aggClass : roundEnvironment.getElementsAnnotatedWith(ann)) {
-                write(aggClass, "aggregator", new AggregatorImplementer(env.getElementUtils(), (TypeElement) aggClass).sourceFile(), env);
+                annotatedClasses.add((TypeElement) aggClass);
+            }
+        }
+        for (TypeElement aggClass : annotatedClasses) {
+            AggregatorImplementer implementer = null;
+            if (aggClass.getAnnotation(Aggregator.class) != null) {
+                implementer = new AggregatorImplementer(env.getElementUtils(), aggClass);
+                write(aggClass, "aggregator", implementer.sourceFile(), env);
+            }
+            GroupingAggregatorImplementer groupingAggregatorImplementer = null;
+            if (aggClass.getAnnotation(Aggregator.class) != null) {
+                groupingAggregatorImplementer = new GroupingAggregatorImplementer(env.getElementUtils(), aggClass);
+                write(aggClass, "grouping aggregator", groupingAggregatorImplementer.sourceFile(), env);
+            }
+            if (implementer != null && groupingAggregatorImplementer != null) {
+                write(
+                    aggClass,
+                    "aggregator function supplier",
+                    new AggregatorFunctionSupplierImplementer(env.getElementUtils(), aggClass, implementer, groupingAggregatorImplementer)
+                        .sourceFile(),
+                    env
+                );
             }
         }
         return true;

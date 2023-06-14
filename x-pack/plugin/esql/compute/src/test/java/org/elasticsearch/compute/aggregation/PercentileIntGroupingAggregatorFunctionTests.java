@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.aggregation;
 
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.Page;
@@ -23,7 +24,7 @@ import static org.hamcrest.Matchers.closeTo;
 
 public class PercentileIntGroupingAggregatorFunctionTests extends GroupingAggregatorFunctionTestCase {
 
-    private double percentile = 0;
+    private double percentile;
 
     @Before
     public void initParameters() {
@@ -31,13 +32,8 @@ public class PercentileIntGroupingAggregatorFunctionTests extends GroupingAggreg
     }
 
     @Override
-    protected Object[] aggregatorParameters() {
-        return new Object[] { percentile };
-    }
-
-    @Override
-    protected GroupingAggregatorFunction.Factory aggregatorFunction() {
-        return GroupingAggregatorFunction.PERCENTILE_INTS;
+    protected AggregatorFunctionSupplier aggregatorFunction(BigArrays bigArrays, int inputChannel) {
+        return new PercentileIntAggregatorFunctionSupplier(bigArrays, inputChannel, percentile);
     }
 
     @Override

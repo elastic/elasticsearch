@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.aggregation;
 
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
@@ -22,8 +23,8 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class CountGroupingAggregatorFunctionTests extends GroupingAggregatorFunctionTestCase {
     @Override
-    protected GroupingAggregatorFunction.Factory aggregatorFunction() {
-        return GroupingAggregatorFunction.COUNT;
+    protected AggregatorFunctionSupplier aggregatorFunction(BigArrays bigArrays, int inputChannel) {
+        return CountAggregatorFunction.supplier(bigArrays, inputChannel);
     }
 
     @Override

@@ -7,7 +7,11 @@
 
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.CountAggregatorFunction;
 import org.elasticsearch.compute.ann.Experimental;
+import org.elasticsearch.xpack.esql.planner.ToAggregator;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.EnclosedAgg;
@@ -19,7 +23,7 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import java.util.List;
 
 @Experimental
-public class Count extends AggregateFunction implements EnclosedAgg {
+public class Count extends AggregateFunction implements EnclosedAgg, ToAggregator {
 
     public Count(Source source, Expression field) {
         super(source, field);
@@ -43,5 +47,10 @@ public class Count extends AggregateFunction implements EnclosedAgg {
     @Override
     public DataType dataType() {
         return DataTypes.LONG;
+    }
+
+    @Override
+    public AggregatorFunctionSupplier supplier(BigArrays bigArrays, int inputChannel) {
+        return CountAggregatorFunction.supplier(bigArrays, inputChannel);
     }
 }

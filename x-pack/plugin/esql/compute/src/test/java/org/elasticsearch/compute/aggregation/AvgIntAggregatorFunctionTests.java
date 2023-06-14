@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.aggregation;
 
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.operator.SequenceIntBlockSourceOperator;
@@ -25,8 +26,8 @@ public class AvgIntAggregatorFunctionTests extends AggregatorFunctionTestCase {
     }
 
     @Override
-    protected AggregatorFunction.Factory aggregatorFunction() {
-        return AggregatorFunction.AVG_INTS;
+    protected AggregatorFunctionSupplier aggregatorFunction(BigArrays bigArrays, int inputChannel) {
+        return new AvgIntAggregatorFunctionSupplier(bigArrays, inputChannel);
     }
 
     @Override

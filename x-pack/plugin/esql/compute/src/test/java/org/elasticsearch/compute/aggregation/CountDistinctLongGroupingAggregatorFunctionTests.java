@@ -23,7 +23,7 @@ import static org.hamcrest.Matchers.closeTo;
 public class CountDistinctLongGroupingAggregatorFunctionTests extends GroupingAggregatorFunctionTestCase {
     @Override
     protected AggregatorFunctionSupplier aggregatorFunction(BigArrays bigArrays, int inputChannel) {
-        return CountDistinctLongAggregator.supplier(bigArrays, inputChannel, 40000);
+        return new CountDistinctLongAggregatorFunctionSupplier(bigArrays, inputChannel, 40000);
     }
 
     @Override

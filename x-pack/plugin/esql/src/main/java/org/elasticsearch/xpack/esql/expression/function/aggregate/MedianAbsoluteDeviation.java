@@ -7,6 +7,11 @@
 
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.MedianAbsoluteDeviationDoubleAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.MedianAbsoluteDeviationIntAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.MedianAbsoluteDeviationLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
@@ -30,5 +35,20 @@ public class MedianAbsoluteDeviation extends NumericAggregate {
     @Override
     public MedianAbsoluteDeviation replaceChildren(List<Expression> newChildren) {
         return new MedianAbsoluteDeviation(source(), newChildren.get(0));
+    }
+
+    @Override
+    protected AggregatorFunctionSupplier longSupplier(BigArrays bigArrays, int inputChannel) {
+        return new MedianAbsoluteDeviationLongAggregatorFunctionSupplier(bigArrays, inputChannel);
+    }
+
+    @Override
+    protected AggregatorFunctionSupplier intSupplier(BigArrays bigArrays, int inputChannel) {
+        return new MedianAbsoluteDeviationIntAggregatorFunctionSupplier(bigArrays, inputChannel);
+    }
+
+    @Override
+    protected AggregatorFunctionSupplier doubleSupplier(BigArrays bigArrays, int inputChannel) {
+        return new MedianAbsoluteDeviationDoubleAggregatorFunctionSupplier(bigArrays, inputChannel);
     }
 }

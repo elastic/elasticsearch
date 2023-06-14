@@ -16,8 +16,8 @@ import org.elasticsearch.compute.data.IntVector;
 @Aggregator
 @GroupingAggregator
 class PercentileIntAggregator {
-    public static QuantileStates.SingleState initSingle(Object[] parameters) {
-        return new QuantileStates.SingleState(parameters);
+    public static QuantileStates.SingleState initSingle(double percentile) {
+        return new QuantileStates.SingleState(percentile);
     }
 
     public static void combine(QuantileStates.SingleState current, int v) {
@@ -32,8 +32,8 @@ class PercentileIntAggregator {
         return state.evaluatePercentile();
     }
 
-    public static QuantileStates.GroupingState initGrouping(BigArrays bigArrays, Object[] parameters) {
-        return new QuantileStates.GroupingState(bigArrays, parameters);
+    public static QuantileStates.GroupingState initGrouping(BigArrays bigArrays, double percentile) {
+        return new QuantileStates.GroupingState(bigArrays, percentile);
     }
 
     public static void combine(QuantileStates.GroupingState state, int groupId, int v) {

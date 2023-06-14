@@ -4,7 +4,6 @@
 // 2.0.
 package org.elasticsearch.compute.aggregation;
 
-import java.lang.Object;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
@@ -27,18 +26,17 @@ public final class AvgIntGroupingAggregatorFunction implements GroupingAggregato
 
   private final int channel;
 
-  private final Object[] parameters;
+  private final BigArrays bigArrays;
 
   public AvgIntGroupingAggregatorFunction(int channel, AvgLongAggregator.GroupingAvgState state,
-      Object[] parameters) {
+      BigArrays bigArrays) {
     this.channel = channel;
     this.state = state;
-    this.parameters = parameters;
+    this.bigArrays = bigArrays;
   }
 
-  public static AvgIntGroupingAggregatorFunction create(BigArrays bigArrays, int channel,
-      Object[] parameters) {
-    return new AvgIntGroupingAggregatorFunction(channel, AvgIntAggregator.initGrouping(bigArrays), parameters);
+  public static AvgIntGroupingAggregatorFunction create(int channel, BigArrays bigArrays) {
+    return new AvgIntGroupingAggregatorFunction(channel, AvgIntAggregator.initGrouping(bigArrays), bigArrays);
   }
 
   @Override

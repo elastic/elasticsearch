@@ -7,7 +7,6 @@
 
 package org.elasticsearch.compute.aggregation;
 
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.Block;
@@ -29,55 +28,6 @@ public class Aggregator implements Releasable {
     private final int intermediateChannel;
 
     public interface Factory extends Supplier<Aggregator>, Describable {}
-
-    public record AggregatorFactory(
-        // TODO remove when no longer used
-        BigArrays bigArrays,
-        AggregationName aggName,
-        AggregationType aggType,
-        Object[] parameters,
-        AggregatorMode mode,
-        int inputChannel
-    ) implements Factory {
-
-        public AggregatorFactory(
-            BigArrays bigArrays,
-            AggregatorFunction.Factory aggFunctionFactory,
-            Object[] parameters,
-            AggregatorMode mode,
-            int inputChannel
-        ) {
-            this(bigArrays, aggFunctionFactory.name(), aggFunctionFactory.type(), parameters, mode, inputChannel);
-        }
-
-        public AggregatorFactory(
-            BigArrays bigArrays,
-            AggregatorFunction.Factory aggFunctionFactory,
-            AggregatorMode mode,
-            int inputChannel
-        ) {
-            this(bigArrays, aggFunctionFactory, EMPTY_PARAMS, mode, inputChannel);
-        }
-
-        @Override
-        public Aggregator get() {
-            return new Aggregator(bigArrays, AggregatorFunction.of(aggName, aggType), parameters, mode, inputChannel);
-        }
-
-        @Override
-        public String describe() {
-            return AggregatorFunction.of(aggName, aggType).describe();
-        }
-    }
-
-    public Aggregator(BigArrays bigArrays, AggregatorFunction.Factory factory, Object[] parameters, AggregatorMode mode, int inputChannel) {
-        assert mode.isInputPartial() || inputChannel >= 0;
-        // input channel is used both to signal the creation of the page (when the input is not partial)
-        this.aggregatorFunction = factory.build(bigArrays, mode.isInputPartial() ? UNUSED_CHANNEL : inputChannel, parameters);
-        // and to indicate the page during the intermediate phase
-        this.intermediateChannel = mode.isInputPartial() ? inputChannel : UNUSED_CHANNEL;
-        this.mode = mode;
-    }
 
     public Aggregator(AggregatorFunction aggregatorFunction, AggregatorMode mode, int inputChannel) {
         assert mode.isInputPartial() || inputChannel >= 0;

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.aggregation;
 
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.Page;
@@ -30,8 +31,8 @@ public class AvgDoubleGroupingAggregatorFunctionTests extends GroupingAggregator
     }
 
     @Override
-    protected GroupingAggregatorFunction.Factory aggregatorFunction() {
-        return GroupingAggregatorFunction.AVG_DOUBLES;
+    protected AggregatorFunctionSupplier aggregatorFunction(BigArrays bigArrays, int inputChannel) {
+        return new AvgDoubleAggregatorFunctionSupplier(bigArrays, inputChannel);
     }
 
     @Override

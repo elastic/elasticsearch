@@ -9,10 +9,10 @@ package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.compute.aggregation.Aggregator;
-import org.elasticsearch.compute.aggregation.AggregatorFunction;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
+import org.elasticsearch.compute.aggregation.AvgLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AvgLongAggregatorFunctionTests;
+import org.elasticsearch.compute.aggregation.MaxLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MaxLongAggregatorFunctionTests;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
@@ -32,10 +32,11 @@ public class AggregationOperatorTests extends ForkingOperatorTestCase {
 
     @Override
     protected Operator.OperatorFactory simpleWithMode(BigArrays bigArrays, AggregatorMode mode) {
+        int maxChannel = mode.isInputPartial() ? 1 : 0;
         return new AggregationOperator.AggregationOperatorFactory(
             List.of(
-                new Aggregator.AggregatorFactory(bigArrays, AggregatorFunction.AVG_LONGS, mode, 0),
-                new Aggregator.AggregatorFactory(bigArrays, AggregatorFunction.MAX_LONGS, mode, mode.isInputPartial() ? 1 : 0)
+                new AvgLongAggregatorFunctionSupplier(bigArrays, 0).aggregatorFactory(mode, 0),
+                new MaxLongAggregatorFunctionSupplier(bigArrays, maxChannel).aggregatorFactory(mode, maxChannel)
             ),
             mode
         );

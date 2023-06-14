@@ -4,7 +4,6 @@
 // 2.0.
 package org.elasticsearch.compute.aggregation;
 
-import java.lang.Object;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
@@ -26,17 +25,13 @@ public final class MaxIntAggregatorFunction implements AggregatorFunction {
 
   private final int channel;
 
-  private final Object[] parameters;
-
-  public MaxIntAggregatorFunction(int channel, IntState state, Object[] parameters) {
+  public MaxIntAggregatorFunction(int channel, IntState state) {
     this.channel = channel;
     this.state = state;
-    this.parameters = parameters;
   }
 
-  public static MaxIntAggregatorFunction create(BigArrays bigArrays, int channel,
-      Object[] parameters) {
-    return new MaxIntAggregatorFunction(channel, new IntState(MaxIntAggregator.init()), parameters);
+  public static MaxIntAggregatorFunction create(int channel) {
+    return new MaxIntAggregatorFunction(channel, new IntState(MaxIntAggregator.init()));
   }
 
   @Override

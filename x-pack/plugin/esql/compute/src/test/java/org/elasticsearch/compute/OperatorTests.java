@@ -35,8 +35,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.compute.aggregation.GroupingAggregator;
-import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
+import org.elasticsearch.compute.aggregation.CountAggregatorFunction;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.Block;
@@ -92,12 +91,10 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongUnaryOperator;
 
 import static org.elasticsearch.compute.aggregation.AggregatorMode.FINAL;
 import static org.elasticsearch.compute.aggregation.AggregatorMode.INITIAL;
-import static org.elasticsearch.compute.aggregation.AggregatorMode.INTERMEDIATE;
 import static org.elasticsearch.compute.operator.DriverRunner.runToCompletion;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
@@ -321,109 +318,6 @@ public class OperatorTests extends ESTestCase {
         }
     }
 
-    private Operator groupByLongs(BigArrays bigArrays, int channel, DriverContext driverContext) {
-        return new HashAggregationOperator(
-            List.of(),
-            () -> BlockHash.build(List.of(new HashAggregationOperator.GroupSpec(channel, ElementType.LONG)), bigArrays),
-            driverContext
-        );
-    }
-
-    public void testOperatorsWithLuceneGroupingCount() throws IOException {
-        BigArrays bigArrays = bigArrays();
-        final String fieldName = "value";
-        final int numDocs = 100000;
-        try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
-            Document doc = new Document();
-            NumericDocValuesField docValuesField = new NumericDocValuesField(fieldName, 0);
-            for (int i = 0; i < numDocs; i++) {
-                doc.clear();
-                docValuesField.setLongValue(i);
-                doc.add(docValuesField);
-                w.addDocument(doc);
-            }
-            w.commit();
-
-            ValuesSource vs = new ValuesSource.Numeric.FieldData(
-                new SortedNumericIndexFieldData(
-                    fieldName,
-                    IndexNumericFieldData.NumericType.LONG,
-                    IndexNumericFieldData.NumericType.LONG.getValuesSourceType(),
-                    null
-                )
-            );
-
-            try (IndexReader reader = w.getReader()) {
-                AtomicInteger pageCount = new AtomicInteger();
-                AtomicInteger rowCount = new AtomicInteger();
-                AtomicReference<Page> lastPage = new AtomicReference<>();
-                DriverContext driverContext = new DriverContext();
-                // implements cardinality on value field
-                try (
-                    Driver driver = new Driver(
-                        driverContext,
-                        new LuceneSourceOperator(reader, 0, new MatchAllDocsQuery()),
-                        List.of(
-                            new ValuesSourceReaderOperator(
-                                List.of(new ValueSourceInfo(CoreValuesSourceType.NUMERIC, vs, ElementType.LONG, reader)),
-                                0,
-                                fieldName
-                            ),
-                            new HashAggregationOperator(
-                                List.of(
-                                    new GroupingAggregator.GroupingAggregatorFactory(
-                                        bigArrays,
-                                        GroupingAggregatorFunction.COUNT,
-                                        INITIAL,
-                                        1
-                                    )
-                                ),
-                                () -> BlockHash.build(List.of(new HashAggregationOperator.GroupSpec(1, ElementType.LONG)), bigArrays),
-                                driverContext
-                            ),
-                            new HashAggregationOperator(
-                                List.of(
-                                    new GroupingAggregator.GroupingAggregatorFactory(
-                                        bigArrays,
-                                        GroupingAggregatorFunction.COUNT,
-                                        INTERMEDIATE,
-                                        1
-                                    )
-                                ),
-                                () -> BlockHash.build(List.of(new HashAggregationOperator.GroupSpec(0, ElementType.LONG)), bigArrays),
-                                driverContext
-                            ),
-                            new HashAggregationOperator(
-                                List.of(
-                                    new GroupingAggregator.GroupingAggregatorFactory(bigArrays, GroupingAggregatorFunction.COUNT, FINAL, 1)
-                                ),
-                                () -> BlockHash.build(List.of(new HashAggregationOperator.GroupSpec(0, ElementType.LONG)), bigArrays),
-                                driverContext
-                            )
-                        ),
-                        new PageConsumerOperator(page -> {
-                            logger.info("New page: {}", page);
-                            pageCount.incrementAndGet();
-                            rowCount.addAndGet(page.getPositionCount());
-                            lastPage.set(page);
-                        }),
-                        () -> {}
-                    )
-                ) {
-                    driver.run();
-                }
-                assertEquals(1, pageCount.get());
-                assertEquals(2, lastPage.get().getBlockCount());
-                assertEquals(numDocs, rowCount.get());
-                LongBlock valuesBlock = lastPage.get().getBlock(1);
-                for (int i = 0; i < numDocs; i++) {
-                    assertEquals(1, valuesBlock.getLong(i));
-                }
-                assertDriverContext(driverContext);
-            }
-        }
-    }
-
     public void testGroupingWithOrdinals() throws IOException {
         final String gField = "g";
         final int numDocs = between(100, 10000);
@@ -516,16 +410,12 @@ public class OperatorTests extends ESTestCase {
                             ),
                             0,
                             gField,
-                            List.of(
-                                new GroupingAggregator.GroupingAggregatorFactory(bigArrays, GroupingAggregatorFunction.COUNT, INITIAL, 1)
-                            ),
+                            List.of(CountAggregatorFunction.supplier(bigArrays, 1).groupingAggregatorFactory(INITIAL, 1)),
                             bigArrays,
                             driverContext
                         ),
                         new HashAggregationOperator(
-                            List.of(
-                                new GroupingAggregator.GroupingAggregatorFactory(bigArrays, GroupingAggregatorFunction.COUNT, FINAL, 1)
-                            ),
+                            List.of(CountAggregatorFunction.supplier(bigArrays, 1).groupingAggregatorFactory(FINAL, 1)),
                             () -> BlockHash.build(List.of(new HashAggregationOperator.GroupSpec(0, ElementType.BYTES_REF)), bigArrays),
                             driverContext
                         )

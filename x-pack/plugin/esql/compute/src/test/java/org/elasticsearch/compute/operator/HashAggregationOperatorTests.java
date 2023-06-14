@@ -10,9 +10,9 @@ package org.elasticsearch.compute.operator;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
+import org.elasticsearch.compute.aggregation.AvgLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AvgLongGroupingAggregatorFunctionTests;
-import org.elasticsearch.compute.aggregation.GroupingAggregator;
-import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
+import org.elasticsearch.compute.aggregation.MaxLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MaxLongGroupingAggregatorFunctionTests;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.ElementType;
@@ -35,16 +35,12 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
 
     @Override
     protected Operator.OperatorFactory simpleWithMode(BigArrays bigArrays, AggregatorMode mode) {
+        int maxChannel = mode.isInputPartial() ? 2 : 1;
         return new HashAggregationOperator.HashAggregationOperatorFactory(
             List.of(new HashAggregationOperator.GroupSpec(0, ElementType.LONG)),
             List.of(
-                new GroupingAggregator.GroupingAggregatorFactory(bigArrays, GroupingAggregatorFunction.AVG_LONGS, mode, 1),
-                new GroupingAggregator.GroupingAggregatorFactory(
-                    bigArrays,
-                    GroupingAggregatorFunction.MAX_LONGS,
-                    mode,
-                    mode.isInputPartial() ? 2 : 1
-                )
+                new AvgLongAggregatorFunctionSupplier(bigArrays, 1).groupingAggregatorFactory(mode, 1),
+                new MaxLongAggregatorFunctionSupplier(bigArrays, maxChannel).groupingAggregatorFactory(mode, maxChannel)
             ),
             bigArrays
         );

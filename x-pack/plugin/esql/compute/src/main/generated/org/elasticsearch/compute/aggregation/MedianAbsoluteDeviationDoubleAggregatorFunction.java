@@ -4,7 +4,6 @@
 // 2.0.
 package org.elasticsearch.compute.aggregation;
 
-import java.lang.Object;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
@@ -27,18 +26,14 @@ public final class MedianAbsoluteDeviationDoubleAggregatorFunction implements Ag
 
   private final int channel;
 
-  private final Object[] parameters;
-
   public MedianAbsoluteDeviationDoubleAggregatorFunction(int channel,
-      QuantileStates.SingleState state, Object[] parameters) {
+      QuantileStates.SingleState state) {
     this.channel = channel;
     this.state = state;
-    this.parameters = parameters;
   }
 
-  public static MedianAbsoluteDeviationDoubleAggregatorFunction create(BigArrays bigArrays,
-      int channel, Object[] parameters) {
-    return new MedianAbsoluteDeviationDoubleAggregatorFunction(channel, MedianAbsoluteDeviationDoubleAggregator.initSingle(), parameters);
+  public static MedianAbsoluteDeviationDoubleAggregatorFunction create(int channel) {
+    return new MedianAbsoluteDeviationDoubleAggregatorFunction(channel, MedianAbsoluteDeviationDoubleAggregator.initSingle());
   }
 
   @Override

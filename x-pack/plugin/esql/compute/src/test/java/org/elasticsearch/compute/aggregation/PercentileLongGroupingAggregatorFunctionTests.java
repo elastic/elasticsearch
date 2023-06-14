@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.aggregation;
 
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.Page;
@@ -31,13 +32,8 @@ public class PercentileLongGroupingAggregatorFunctionTests extends GroupingAggre
     }
 
     @Override
-    protected Object[] aggregatorParameters() {
-        return new Object[] { percentile };
-    }
-
-    @Override
-    protected GroupingAggregatorFunction.Factory aggregatorFunction() {
-        return GroupingAggregatorFunction.PERCENTILE_LONGS;
+    protected AggregatorFunctionSupplier aggregatorFunction(BigArrays bigArrays, int inputChannel) {
+        return new PercentileLongAggregatorFunctionSupplier(bigArrays, inputChannel, percentile);
     }
 
     @Override

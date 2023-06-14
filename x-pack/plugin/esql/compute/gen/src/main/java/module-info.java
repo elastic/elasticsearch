@@ -8,7 +8,6 @@
 import org.elasticsearch.compute.gen.AggregatorProcessor;
 import org.elasticsearch.compute.gen.ConsumeProcessor;
 import org.elasticsearch.compute.gen.EvaluatorProcessor;
-import org.elasticsearch.compute.gen.GroupingAggregatorProcessor;
 
 module org.elasticsearch.compute.gen {
     requires com.squareup.javapoet;
@@ -17,10 +16,5 @@ module org.elasticsearch.compute.gen {
 
     exports org.elasticsearch.compute.gen;
 
-    provides javax.annotation.processing.Processor
-        with
-            AggregatorProcessor,
-            ConsumeProcessor,
-            EvaluatorProcessor,
-            GroupingAggregatorProcessor;
+    provides javax.annotation.processing.Processor with AggregatorProcessor, ConsumeProcessor, EvaluatorProcessor;
 }

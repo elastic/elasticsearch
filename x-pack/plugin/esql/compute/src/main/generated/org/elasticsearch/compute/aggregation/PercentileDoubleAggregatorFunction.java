@@ -4,7 +4,6 @@
 // 2.0.
 package org.elasticsearch.compute.aggregation;
 
-import java.lang.Object;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
@@ -27,18 +26,17 @@ public final class PercentileDoubleAggregatorFunction implements AggregatorFunct
 
   private final int channel;
 
-  private final Object[] parameters;
+  private final double percentile;
 
   public PercentileDoubleAggregatorFunction(int channel, QuantileStates.SingleState state,
-      Object[] parameters) {
+      double percentile) {
     this.channel = channel;
     this.state = state;
-    this.parameters = parameters;
+    this.percentile = percentile;
   }
 
-  public static PercentileDoubleAggregatorFunction create(BigArrays bigArrays, int channel,
-      Object[] parameters) {
-    return new PercentileDoubleAggregatorFunction(channel, PercentileDoubleAggregator.initSingle(parameters), parameters);
+  public static PercentileDoubleAggregatorFunction create(int channel, double percentile) {
+    return new PercentileDoubleAggregatorFunction(channel, PercentileDoubleAggregator.initSingle(percentile), percentile);
   }
 
   @Override
@@ -84,7 +82,7 @@ public final class PercentileDoubleAggregatorFunction implements AggregatorFunct
     @SuppressWarnings("unchecked") AggregatorStateVector<QuantileStates.SingleState> blobVector = (AggregatorStateVector<QuantileStates.SingleState>) vector;
     // TODO exchange big arrays directly without funny serialization - no more copying
     BigArrays bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
-    QuantileStates.SingleState tmpState = PercentileDoubleAggregator.initSingle(parameters);
+    QuantileStates.SingleState tmpState = PercentileDoubleAggregator.initSingle(percentile);
     for (int i = 0; i < block.getPositionCount(); i++) {
       blobVector.get(i, tmpState);
       PercentileDoubleAggregator.combineStates(state, tmpState);

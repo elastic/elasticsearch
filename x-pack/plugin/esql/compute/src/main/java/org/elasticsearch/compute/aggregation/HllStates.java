@@ -68,10 +68,9 @@ final class HllStates {
         final HyperLogLogPlusPlus hll;
         private final MurmurHash3.Hash128 hash = new MurmurHash3.Hash128();
 
-        SingleState(BigArrays bigArrays, Object[] parameters) {
+        SingleState(BigArrays bigArrays, int precision) {
             this.serializer = new SingleStateSerializer();
-            int precision = HyperLogLogPlusPlus.precisionFromThreshold(((Number) parameters[0]).longValue());
-            this.hll = new HyperLogLogPlusPlus(precision, bigArrays, 1);
+            this.hll = new HyperLogLogPlusPlus(HyperLogLogPlusPlus.precisionFromThreshold(precision), bigArrays, 1);
         }
 
         void collect(long v) {
@@ -161,10 +160,9 @@ final class HllStates {
 
         final HyperLogLogPlusPlus hll;
 
-        GroupingState(BigArrays bigArrays, Object[] parameters) {
+        GroupingState(BigArrays bigArrays, int precision) {
             this.serializer = new GroupingStateSerializer();
-            int precision = HyperLogLogPlusPlus.precisionFromThreshold(((Number) parameters[0]).longValue());
-            this.hll = new HyperLogLogPlusPlus(precision, bigArrays, 1);
+            this.hll = new HyperLogLogPlusPlus(HyperLogLogPlusPlus.precisionFromThreshold(precision), bigArrays, 1);
         }
 
         void collect(int groupId, long v) {

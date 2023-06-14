@@ -27,7 +27,7 @@ public class CountDistinctDoubleAggregatorFunctionTests extends AggregatorFuncti
 
     @Override
     protected AggregatorFunctionSupplier aggregatorFunction(BigArrays bigArrays, int inputChannel) {
-        return CountDistinctDoubleAggregator.supplier(bigArrays, inputChannel, 40000);
+        return new CountDistinctDoubleAggregatorFunctionSupplier(bigArrays, inputChannel, 40000);
     }
 
     @Override

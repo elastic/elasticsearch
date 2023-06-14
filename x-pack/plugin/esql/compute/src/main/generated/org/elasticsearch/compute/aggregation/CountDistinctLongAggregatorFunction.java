@@ -4,7 +4,6 @@
 // 2.0.
 package org.elasticsearch.compute.aggregation;
 
-import java.lang.Object;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
@@ -27,18 +26,21 @@ public final class CountDistinctLongAggregatorFunction implements AggregatorFunc
 
   private final int channel;
 
-  private final Object[] parameters;
+  private final BigArrays bigArrays;
+
+  private final int precision;
 
   public CountDistinctLongAggregatorFunction(int channel, HllStates.SingleState state,
-      Object[] parameters) {
+      BigArrays bigArrays, int precision) {
     this.channel = channel;
     this.state = state;
-    this.parameters = parameters;
+    this.bigArrays = bigArrays;
+    this.precision = precision;
   }
 
-  public static CountDistinctLongAggregatorFunction create(BigArrays bigArrays, int channel,
-      Object[] parameters) {
-    return new CountDistinctLongAggregatorFunction(channel, CountDistinctLongAggregator.initSingle(bigArrays, parameters), parameters);
+  public static CountDistinctLongAggregatorFunction create(int channel, BigArrays bigArrays,
+      int precision) {
+    return new CountDistinctLongAggregatorFunction(channel, CountDistinctLongAggregator.initSingle(bigArrays, precision), bigArrays, precision);
   }
 
   @Override
@@ -84,7 +86,7 @@ public final class CountDistinctLongAggregatorFunction implements AggregatorFunc
     @SuppressWarnings("unchecked") AggregatorStateVector<HllStates.SingleState> blobVector = (AggregatorStateVector<HllStates.SingleState>) vector;
     // TODO exchange big arrays directly without funny serialization - no more copying
     BigArrays bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
-    HllStates.SingleState tmpState = CountDistinctLongAggregator.initSingle(bigArrays, parameters);
+    HllStates.SingleState tmpState = CountDistinctLongAggregator.initSingle(bigArrays, precision);
     for (int i = 0; i < block.getPositionCount(); i++) {
       blobVector.get(i, tmpState);
       CountDistinctLongAggregator.combineStates(state, tmpState);

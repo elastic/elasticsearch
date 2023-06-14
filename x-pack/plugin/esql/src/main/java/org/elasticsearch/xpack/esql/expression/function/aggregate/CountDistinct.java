@@ -9,11 +9,11 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.CountDistinctBooleanAggregator;
-import org.elasticsearch.compute.aggregation.CountDistinctBytesRefAggregator;
-import org.elasticsearch.compute.aggregation.CountDistinctDoubleAggregator;
-import org.elasticsearch.compute.aggregation.CountDistinctIntAggregator;
-import org.elasticsearch.compute.aggregation.CountDistinctLongAggregator;
+import org.elasticsearch.compute.aggregation.CountDistinctBooleanAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.CountDistinctBytesRefAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.CountDistinctDoubleAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.CountDistinctIntAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.CountDistinctLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -32,14 +32,16 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isInteger;
 @Experimental
 public class CountDistinct extends AggregateFunction implements OptionalArgument, ToAggregator {
     private static final int DEFAULT_PRECISION = 3000;
+    private final Expression precision;
 
     public CountDistinct(Source source, Expression field, Expression precision) {
         super(source, field, precision != null ? List.of(precision) : List.of());
+        this.precision = precision;
     }
 
     @Override
     protected NodeInfo<CountDistinct> info() {
-        return NodeInfo.create(this, CountDistinct::new, field(), precision());
+        return NodeInfo.create(this, CountDistinct::new, field(), precision);
     }
 
     @Override
@@ -52,11 +54,6 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
         return DataTypes.LONG;
     }
 
-    public Expression precision() {
-        return parameters().isEmpty() == false ? parameters().get(0) : null;
-
-    }
-
     @Override
     protected TypeResolution resolveType() {
         if (childrenResolved() == false) {
@@ -64,31 +61,32 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
         }
 
         TypeResolution resolution = super.resolveType();
-        if (resolution.unresolved() || precision() == null) {
+        if (resolution.unresolved() || precision == null) {
             return resolution;
         }
 
-        return isInteger(precision(), sourceText(), SECOND);
+        return isInteger(precision, sourceText(), SECOND);
     }
 
     @Override
     public AggregatorFunctionSupplier supplier(BigArrays bigArrays, int inputChannel) {
         DataType type = field().dataType();
-        int precision = precision() == null ? DEFAULT_PRECISION : (int) precision().fold();
+        int precision = this.precision == null ? DEFAULT_PRECISION : ((Number) this.precision.fold()).intValue();
         if (type == DataTypes.BOOLEAN) {
-            return CountDistinctBooleanAggregator.supplier(bigArrays, inputChannel);
+            // Booleans ignore the precision because there are only two possible values anyway
+            return new CountDistinctBooleanAggregatorFunctionSupplier(bigArrays, inputChannel);
         }
         if (type == DataTypes.DATETIME || type == DataTypes.LONG) {
-            return CountDistinctLongAggregator.supplier(bigArrays, inputChannel, precision);
+            return new CountDistinctLongAggregatorFunctionSupplier(bigArrays, inputChannel, precision);
         }
         if (type == DataTypes.INTEGER) {
-            return CountDistinctIntAggregator.supplier(bigArrays, inputChannel, precision);
+            return new CountDistinctIntAggregatorFunctionSupplier(bigArrays, inputChannel, precision);
         }
         if (type == DataTypes.DOUBLE) {
-            return CountDistinctDoubleAggregator.supplier(bigArrays, inputChannel, precision);
+            return new CountDistinctDoubleAggregatorFunctionSupplier(bigArrays, inputChannel, precision);
         }
         if (type == DataTypes.KEYWORD || type == DataTypes.IP) {
-            return CountDistinctBytesRefAggregator.supplier(bigArrays, inputChannel, precision);
+            return new CountDistinctBytesRefAggregatorFunctionSupplier(bigArrays, inputChannel, precision);
         }
         throw new UnsupportedOperationException();
     }

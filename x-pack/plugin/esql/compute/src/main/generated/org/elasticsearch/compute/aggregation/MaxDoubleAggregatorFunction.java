@@ -4,7 +4,6 @@
 // 2.0.
 package org.elasticsearch.compute.aggregation;
 
-import java.lang.Object;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
@@ -27,17 +26,13 @@ public final class MaxDoubleAggregatorFunction implements AggregatorFunction {
 
   private final int channel;
 
-  private final Object[] parameters;
-
-  public MaxDoubleAggregatorFunction(int channel, DoubleState state, Object[] parameters) {
+  public MaxDoubleAggregatorFunction(int channel, DoubleState state) {
     this.channel = channel;
     this.state = state;
-    this.parameters = parameters;
   }
 
-  public static MaxDoubleAggregatorFunction create(BigArrays bigArrays, int channel,
-      Object[] parameters) {
-    return new MaxDoubleAggregatorFunction(channel, new DoubleState(MaxDoubleAggregator.init()), parameters);
+  public static MaxDoubleAggregatorFunction create(int channel) {
+    return new MaxDoubleAggregatorFunction(channel, new DoubleState(MaxDoubleAggregator.init()));
   }
 
   @Override

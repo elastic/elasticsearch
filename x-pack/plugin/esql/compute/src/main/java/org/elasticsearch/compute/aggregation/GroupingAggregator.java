@@ -7,7 +7,6 @@
 
 package org.elasticsearch.compute.aggregation;
 
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.Block;
@@ -32,58 +31,6 @@ public class GroupingAggregator implements Releasable {
     private final int intermediateChannel;
 
     public interface Factory extends Function<DriverContext, GroupingAggregator>, Describable {}
-
-    public record GroupingAggregatorFactory(
-        // TODO remove when no longer used
-        BigArrays bigArrays,
-        AggregationName aggName,
-        AggregationType aggType,
-        Object[] parameters,
-        AggregatorMode mode,
-        int inputChannel
-    ) implements Factory {
-
-        public GroupingAggregatorFactory(
-            BigArrays bigArrays,
-            GroupingAggregatorFunction.Factory aggFunctionFactory,
-            Object[] parameters,
-            AggregatorMode mode,
-            int inputChannel
-        ) {
-            this(bigArrays, aggFunctionFactory.name(), aggFunctionFactory.type(), parameters, mode, inputChannel);
-        }
-
-        public GroupingAggregatorFactory(
-            BigArrays bigArrays,
-            GroupingAggregatorFunction.Factory aggFunctionFactory,
-            AggregatorMode mode,
-            int inputChannel
-        ) {
-            this(bigArrays, aggFunctionFactory, EMPTY_PARAMS, mode, inputChannel);
-        }
-
-        @Override
-        public GroupingAggregator apply(DriverContext driverContext) {
-            return new GroupingAggregator(bigArrays, GroupingAggregatorFunction.of(aggName, aggType), parameters, mode, inputChannel);
-        }
-
-        @Override
-        public String describe() {
-            return GroupingAggregatorFunction.of(aggName, aggType).describe();
-        }
-    }
-
-    public GroupingAggregator(
-        BigArrays bigArrays,
-        GroupingAggregatorFunction.Factory aggCreationFunc,
-        Object[] parameters,
-        AggregatorMode mode,
-        int inputChannel
-    ) {
-        this.aggregatorFunction = aggCreationFunc.build(bigArrays, mode, inputChannel, parameters);
-        this.mode = mode;
-        this.intermediateChannel = mode.isInputPartial() ? inputChannel : -1;
-    }
 
     public GroupingAggregator(GroupingAggregatorFunction aggregatorFunction, AggregatorMode mode, int inputChannel) {
         this.aggregatorFunction = aggregatorFunction;

@@ -4,7 +4,6 @@
 // 2.0.
 package org.elasticsearch.compute.aggregation;
 
-import java.lang.Object;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
@@ -27,17 +26,13 @@ public final class MinIntGroupingAggregatorFunction implements GroupingAggregato
 
   private final int channel;
 
-  private final Object[] parameters;
-
-  public MinIntGroupingAggregatorFunction(int channel, IntArrayState state, Object[] parameters) {
+  public MinIntGroupingAggregatorFunction(int channel, IntArrayState state) {
     this.channel = channel;
     this.state = state;
-    this.parameters = parameters;
   }
 
-  public static MinIntGroupingAggregatorFunction create(BigArrays bigArrays, int channel,
-      Object[] parameters) {
-    return new MinIntGroupingAggregatorFunction(channel, new IntArrayState(bigArrays, MinIntAggregator.init()), parameters);
+  public static MinIntGroupingAggregatorFunction create(int channel, BigArrays bigArrays) {
+    return new MinIntGroupingAggregatorFunction(channel, new IntArrayState(bigArrays, MinIntAggregator.init()));
   }
 
   @Override

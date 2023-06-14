@@ -18,7 +18,7 @@ import org.elasticsearch.compute.data.IntVector;
 class MedianAbsoluteDeviationDoubleAggregator {
 
     public static QuantileStates.SingleState initSingle() {
-        return new QuantileStates.SingleState(QuantileStates.MEDIAN_PARAMS);
+        return new QuantileStates.SingleState(QuantileStates.MEDIAN);
     }
 
     public static void combine(QuantileStates.SingleState current, double v) {
@@ -34,7 +34,7 @@ class MedianAbsoluteDeviationDoubleAggregator {
     }
 
     public static QuantileStates.GroupingState initGrouping(BigArrays bigArrays) {
-        return new QuantileStates.GroupingState(bigArrays, QuantileStates.MEDIAN_PARAMS);
+        return new QuantileStates.GroupingState(bigArrays, QuantileStates.MEDIAN);
     }
 
     public static void combine(QuantileStates.GroupingState state, int groupId, double v) {

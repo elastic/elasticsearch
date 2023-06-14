@@ -4,7 +4,6 @@
 // 2.0.
 package org.elasticsearch.compute.aggregation;
 
-import java.lang.Object;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
@@ -26,18 +25,21 @@ public final class PercentileLongGroupingAggregatorFunction implements GroupingA
 
   private final int channel;
 
-  private final Object[] parameters;
+  private final BigArrays bigArrays;
+
+  private final double percentile;
 
   public PercentileLongGroupingAggregatorFunction(int channel, QuantileStates.GroupingState state,
-      Object[] parameters) {
+      BigArrays bigArrays, double percentile) {
     this.channel = channel;
     this.state = state;
-    this.parameters = parameters;
+    this.bigArrays = bigArrays;
+    this.percentile = percentile;
   }
 
-  public static PercentileLongGroupingAggregatorFunction create(BigArrays bigArrays, int channel,
-      Object[] parameters) {
-    return new PercentileLongGroupingAggregatorFunction(channel, PercentileLongAggregator.initGrouping(bigArrays, parameters), parameters);
+  public static PercentileLongGroupingAggregatorFunction create(int channel, BigArrays bigArrays,
+      double percentile) {
+    return new PercentileLongGroupingAggregatorFunction(channel, PercentileLongAggregator.initGrouping(bigArrays, percentile), bigArrays, percentile);
   }
 
   @Override
@@ -131,7 +133,7 @@ public final class PercentileLongGroupingAggregatorFunction implements GroupingA
     @SuppressWarnings("unchecked") AggregatorStateVector<QuantileStates.GroupingState> blobVector = (AggregatorStateVector<QuantileStates.GroupingState>) vector;
     // TODO exchange big arrays directly without funny serialization - no more copying
     BigArrays bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
-    QuantileStates.GroupingState inState = PercentileLongAggregator.initGrouping(bigArrays, parameters);
+    QuantileStates.GroupingState inState = PercentileLongAggregator.initGrouping(bigArrays, percentile);
     blobVector.get(0, inState);
     for (int position = 0; position < groupIdVector.getPositionCount(); position++) {
       int groupId = Math.toIntExact(groupIdVector.getLong(position));

@@ -4,7 +4,6 @@
 // 2.0.
 package org.elasticsearch.compute.aggregation;
 
-import java.lang.Object;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
@@ -27,17 +26,13 @@ public final class SumLongAggregatorFunction implements AggregatorFunction {
 
   private final int channel;
 
-  private final Object[] parameters;
-
-  public SumLongAggregatorFunction(int channel, LongState state, Object[] parameters) {
+  public SumLongAggregatorFunction(int channel, LongState state) {
     this.channel = channel;
     this.state = state;
-    this.parameters = parameters;
   }
 
-  public static SumLongAggregatorFunction create(BigArrays bigArrays, int channel,
-      Object[] parameters) {
-    return new SumLongAggregatorFunction(channel, new LongState(SumLongAggregator.init()), parameters);
+  public static SumLongAggregatorFunction create(int channel) {
+    return new SumLongAggregatorFunction(channel, new LongState(SumLongAggregator.init()));
   }
 
   @Override

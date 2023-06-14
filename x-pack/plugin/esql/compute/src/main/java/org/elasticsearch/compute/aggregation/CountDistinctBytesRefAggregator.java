@@ -18,27 +18,8 @@ import org.elasticsearch.compute.data.LongBlock;
 @Aggregator
 @GroupingAggregator
 public class CountDistinctBytesRefAggregator {
-    public static AggregatorFunctionSupplier supplier(BigArrays bigArrays, int channel, int precision) {
-        return new AggregatorFunctionSupplier() {
-            @Override
-            public AggregatorFunction aggregator() {
-                return CountDistinctBytesRefAggregatorFunction.create(bigArrays, channel, new Object[] { precision });
-            }
-
-            @Override
-            public GroupingAggregatorFunction groupingAggregator() {
-                return CountDistinctBytesRefGroupingAggregatorFunction.create(bigArrays, channel, new Object[] { precision });
-            }
-
-            @Override
-            public String describe() {
-                return "count_distinct of bytes";
-            }
-        };
-    }
-
-    public static HllStates.SingleState initSingle(BigArrays bigArrays, Object[] parameters) {
-        return new HllStates.SingleState(bigArrays, parameters);
+    public static HllStates.SingleState initSingle(BigArrays bigArrays, int precision) {
+        return new HllStates.SingleState(bigArrays, precision);
     }
 
     public static void combine(HllStates.SingleState current, BytesRef v) {
@@ -54,8 +35,8 @@ public class CountDistinctBytesRefAggregator {
         return LongBlock.newConstantBlockWith(result, 1);
     }
 
-    public static HllStates.GroupingState initGrouping(BigArrays bigArrays, Object[] parameters) {
-        return new HllStates.GroupingState(bigArrays, parameters);
+    public static HllStates.GroupingState initGrouping(BigArrays bigArrays, int precision) {
+        return new HllStates.GroupingState(bigArrays, precision);
     }
 
     public static void combine(HllStates.GroupingState current, int groupId, BytesRef v) {

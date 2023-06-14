@@ -7,6 +7,11 @@
 
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.MaxDoubleAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.MaxIntAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.MaxLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
@@ -35,5 +40,20 @@ public class Max extends NumericAggregate {
     @Override
     public DataType dataType() {
         return field().dataType();
+    }
+
+    @Override
+    protected AggregatorFunctionSupplier longSupplier(BigArrays bigArrays, int inputChannel) {
+        return new MaxLongAggregatorFunctionSupplier(bigArrays, inputChannel);
+    }
+
+    @Override
+    protected AggregatorFunctionSupplier intSupplier(BigArrays bigArrays, int inputChannel) {
+        return new MaxIntAggregatorFunctionSupplier(bigArrays, inputChannel);
+    }
+
+    @Override
+    protected AggregatorFunctionSupplier doubleSupplier(BigArrays bigArrays, int inputChannel) {
+        return new MaxDoubleAggregatorFunctionSupplier(bigArrays, inputChannel);
     }
 }

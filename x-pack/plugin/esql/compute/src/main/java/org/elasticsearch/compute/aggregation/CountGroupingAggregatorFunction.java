@@ -23,7 +23,7 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
     private final LongArrayState state;
     private final int channel;
 
-    static CountGroupingAggregatorFunction create(BigArrays bigArrays, int inputChannel, Object[] parameters) {
+    public static CountGroupingAggregatorFunction create(BigArrays bigArrays, int inputChannel) {
         return new CountGroupingAggregatorFunction(inputChannel, new LongArrayState(bigArrays, 0));
     }
 
@@ -106,7 +106,6 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
 
     @Override
     public void addIntermediateInput(LongVector groupIdVector, Block block) {
-        assert channel == -1;
         Vector vector = block.asVector();
         if (vector instanceof AggregatorStateVector) {
             @SuppressWarnings("unchecked")

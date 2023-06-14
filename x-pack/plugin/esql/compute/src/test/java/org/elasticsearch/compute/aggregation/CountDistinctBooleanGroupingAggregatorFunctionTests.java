@@ -24,7 +24,7 @@ public class CountDistinctBooleanGroupingAggregatorFunctionTests extends Groupin
 
     @Override
     protected AggregatorFunctionSupplier aggregatorFunction(BigArrays bigArrays, int inputChannel) {
-        return CountDistinctBooleanAggregator.supplier(bigArrays, inputChannel);
+        return new CountDistinctBooleanAggregatorFunctionSupplier(bigArrays, inputChannel);
     }
 
     @Override

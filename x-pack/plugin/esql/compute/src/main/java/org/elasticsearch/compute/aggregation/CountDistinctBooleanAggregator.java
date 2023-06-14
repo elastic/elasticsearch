@@ -24,25 +24,6 @@ import java.util.Objects;
 @Aggregator
 @GroupingAggregator
 public class CountDistinctBooleanAggregator {
-    public static AggregatorFunctionSupplier supplier(BigArrays bigArrays, int channel) {
-        return new AggregatorFunctionSupplier() {
-            @Override
-            public AggregatorFunction aggregator() {
-                return CountDistinctBooleanAggregatorFunction.create(bigArrays, channel, new Object[] {});
-            }
-
-            @Override
-            public GroupingAggregatorFunction groupingAggregator() {
-                return CountDistinctBooleanGroupingAggregatorFunction.create(bigArrays, channel, new Object[] {});
-            }
-
-            @Override
-            public String describe() {
-                return "count_distinct of booleans";
-            }
-        };
-    }
-
     private static final byte BIT_FALSE = 0b01;
     private static final byte BIT_TRUE = 0b10;
 

@@ -4,7 +4,6 @@
 // 2.0.
 package org.elasticsearch.compute.aggregation;
 
-import java.lang.Object;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
@@ -27,17 +26,13 @@ public final class MinLongAggregatorFunction implements AggregatorFunction {
 
   private final int channel;
 
-  private final Object[] parameters;
-
-  public MinLongAggregatorFunction(int channel, LongState state, Object[] parameters) {
+  public MinLongAggregatorFunction(int channel, LongState state) {
     this.channel = channel;
     this.state = state;
-    this.parameters = parameters;
   }
 
-  public static MinLongAggregatorFunction create(BigArrays bigArrays, int channel,
-      Object[] parameters) {
-    return new MinLongAggregatorFunction(channel, new LongState(MinLongAggregator.init()), parameters);
+  public static MinLongAggregatorFunction create(int channel) {
+    return new MinLongAggregatorFunction(channel, new LongState(MinLongAggregator.init()));
   }
 
   @Override

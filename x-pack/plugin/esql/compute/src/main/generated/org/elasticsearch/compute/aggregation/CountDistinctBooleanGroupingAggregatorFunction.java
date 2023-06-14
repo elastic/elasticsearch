@@ -4,7 +4,6 @@
 // 2.0.
 package org.elasticsearch.compute.aggregation;
 
-import java.lang.Object;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
@@ -28,18 +27,18 @@ public final class CountDistinctBooleanGroupingAggregatorFunction implements Gro
 
   private final int channel;
 
-  private final Object[] parameters;
+  private final BigArrays bigArrays;
 
   public CountDistinctBooleanGroupingAggregatorFunction(int channel,
-      CountDistinctBooleanAggregator.GroupingState state, Object[] parameters) {
+      CountDistinctBooleanAggregator.GroupingState state, BigArrays bigArrays) {
     this.channel = channel;
     this.state = state;
-    this.parameters = parameters;
+    this.bigArrays = bigArrays;
   }
 
-  public static CountDistinctBooleanGroupingAggregatorFunction create(BigArrays bigArrays,
-      int channel, Object[] parameters) {
-    return new CountDistinctBooleanGroupingAggregatorFunction(channel, CountDistinctBooleanAggregator.initGrouping(bigArrays), parameters);
+  public static CountDistinctBooleanGroupingAggregatorFunction create(int channel,
+      BigArrays bigArrays) {
+    return new CountDistinctBooleanGroupingAggregatorFunction(channel, CountDistinctBooleanAggregator.initGrouping(bigArrays), bigArrays);
   }
 
   @Override

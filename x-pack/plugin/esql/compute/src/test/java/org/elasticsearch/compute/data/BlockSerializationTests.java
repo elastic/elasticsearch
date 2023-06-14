@@ -102,14 +102,14 @@ public class BlockSerializationTests extends SerializationTestCase {
         Page page = new Page(new LongArrayVector(new long[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 }, 10).asBlock());
         var bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
         var params = new Object[] {};
-        var function = AvgLongAggregatorFunction.AVG_LONGS.build(bigArrays, 0, params);
+        var function = AvgLongAggregatorFunction.create(0);
         function.addRawInput(page);
         Block origBlock = function.evaluateIntermediate();
 
         Block deserBlock = serializeDeserializeBlock(origBlock);
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(origBlock, unused -> deserBlock);
 
-        var finalAggregator = AvgLongAggregatorFunction.AVG_LONGS.build(bigArrays, -1, params);
+        var finalAggregator = AvgLongAggregatorFunction.create(-1);
         finalAggregator.addIntermediateInput(deserBlock);
         DoubleBlock finalBlock = (DoubleBlock) finalAggregator.evaluateFinal();
         assertThat(finalBlock.getDouble(0), is(5.5));

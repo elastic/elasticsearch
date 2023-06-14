@@ -19,7 +19,10 @@ import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.nio.ByteOrder;
 
-final class QuantileStates {
+public final class QuantileStates {
+    public static final double MEDIAN = 50.0;
+    static final double DEFAULT_COMPRESSION = 1000.0;
+
     private static final VarHandle doubleHandle = MethodHandles.byteArrayViewVarHandle(double[].class, ByteOrder.BIG_ENDIAN);
     private static final VarHandle intHandle = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.BIG_ENDIAN);
 
@@ -57,34 +60,19 @@ final class QuantileStates {
         return digest;
     }
 
-    private static Double percentileParam(Object[] parameters) {
-        if (parameters.length == 0) {
-            return MEDIAN; // If there are no parameters, compute the median
-        }
-
-        double p = ((Number) parameters[0]).doubleValue() / 100;
+    private static Double percentileParam(double p) {
         // Percentile must be a double between 0 and 100 inclusive
         // If percentile parameter is wrong, the aggregation will return NULL
-        return 0 <= p && p <= 1 ? p : null;
+        return 0 <= p && p <= 100 ? p : null;
     }
-
-    static final double DEFAULT_COMPRESSION = 1000.0;
-    private static final double MEDIAN = 0.5;
-    static final Object[] MEDIAN_PARAMS = new Object[] { 50.0 };
 
     static class SingleState implements AggregatorState<SingleState> {
         private TDigestState digest;
         private final Double percentile;
 
-        /**
-         *
-         * @param parameters an array of parameters. The first parameter is a double
-         *                   representing the percentile that will be computed.
-         *
-         */
-        SingleState(Object[] parameters) {
+        SingleState(double percentile) {
             this.digest = new TDigestState(DEFAULT_COMPRESSION);
-            this.percentile = percentileParam(parameters);
+            this.percentile = percentileParam(percentile);
         }
 
         @Override
@@ -115,7 +103,7 @@ final class QuantileStates {
             if (percentile == null) {
                 return DoubleBlock.newBlockBuilder(1).appendNull().build();
             }
-            double result = digest.quantile(percentile);
+            double result = digest.quantile(percentile / 100);
             return DoubleBlock.newConstantBlockWith(result, 1);
         }
 
@@ -151,11 +139,11 @@ final class QuantileStates {
         private final BigArrays bigArrays;
         private final Double percentile;
 
-        GroupingState(BigArrays bigArrays, Object[] parameters) {
+        GroupingState(BigArrays bigArrays, double percentile) {
             this.bigArrays = bigArrays;
             this.serializer = new GroupingStateSerializer();
             this.digests = bigArrays.newObjectArray(1);
-            this.percentile = percentileParam(parameters);
+            this.percentile = percentileParam(percentile);
         }
 
         private TDigestState getOrAddGroup(int groupId) {
@@ -206,7 +194,7 @@ final class QuantileStates {
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 final TDigestState digest = digests.get(selected.getInt(i));
                 if (percentile != null && digest != null && digest.size() > 0) {
-                    builder.appendDouble(digest.quantile(percentile));
+                    builder.appendDouble(digest.quantile(percentile / 100));
                 } else {
                     builder.appendNull();
                 }

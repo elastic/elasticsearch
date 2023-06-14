@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.Page;
@@ -45,8 +46,8 @@ public class MedianAbsoluteDeviationDoubleGroupingAggregatorFunctionTests extend
     }
 
     @Override
-    protected GroupingAggregatorFunction.Factory aggregatorFunction() {
-        return GroupingAggregatorFunction.MEDIAN_ABSOLUTE_DEVIATION_DOUBLES;
+    protected AggregatorFunctionSupplier aggregatorFunction(BigArrays bigArrays, int inputChannel) {
+        return new MedianAbsoluteDeviationDoubleAggregatorFunctionSupplier(bigArrays, inputChannel);
     }
 
     @Override

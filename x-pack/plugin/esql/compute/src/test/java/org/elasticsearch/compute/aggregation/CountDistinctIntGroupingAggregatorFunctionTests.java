@@ -24,7 +24,7 @@ public class CountDistinctIntGroupingAggregatorFunctionTests extends GroupingAgg
 
     @Override
     protected AggregatorFunctionSupplier aggregatorFunction(BigArrays bigArrays, int inputChannel) {
-        return CountDistinctIntAggregator.supplier(bigArrays, inputChannel, 40000);
+        return new CountDistinctIntAggregatorFunctionSupplier(bigArrays, inputChannel, 40000);
     }
 
     @Override

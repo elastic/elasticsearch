@@ -4,7 +4,6 @@
 // 2.0.
 package org.elasticsearch.compute.aggregation;
 
-import java.lang.Object;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
@@ -28,18 +27,17 @@ public final class AvgDoubleGroupingAggregatorFunction implements GroupingAggreg
 
   private final int channel;
 
-  private final Object[] parameters;
+  private final BigArrays bigArrays;
 
   public AvgDoubleGroupingAggregatorFunction(int channel,
-      AvgDoubleAggregator.GroupingAvgState state, Object[] parameters) {
+      AvgDoubleAggregator.GroupingAvgState state, BigArrays bigArrays) {
     this.channel = channel;
     this.state = state;
-    this.parameters = parameters;
+    this.bigArrays = bigArrays;
   }
 
-  public static AvgDoubleGroupingAggregatorFunction create(BigArrays bigArrays, int channel,
-      Object[] parameters) {
-    return new AvgDoubleGroupingAggregatorFunction(channel, AvgDoubleAggregator.initGrouping(bigArrays), parameters);
+  public static AvgDoubleGroupingAggregatorFunction create(int channel, BigArrays bigArrays) {
+    return new AvgDoubleGroupingAggregatorFunction(channel, AvgDoubleAggregator.initGrouping(bigArrays), bigArrays);
   }
 
   @Override

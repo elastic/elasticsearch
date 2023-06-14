@@ -25,7 +25,7 @@ public class CountDistinctBytesRefGroupingAggregatorFunctionTests extends Groupi
 
     @Override
     protected AggregatorFunctionSupplier aggregatorFunction(BigArrays bigArrays, int inputChannel) {
-        return CountDistinctBytesRefAggregator.supplier(bigArrays, inputChannel, 40000);
+        return new CountDistinctBytesRefAggregatorFunctionSupplier(bigArrays, inputChannel, 40000);
     }
 
     @Override

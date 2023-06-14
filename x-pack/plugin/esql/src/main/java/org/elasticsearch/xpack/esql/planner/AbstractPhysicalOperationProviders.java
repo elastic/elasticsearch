@@ -8,8 +8,6 @@
 package org.elasticsearch.xpack.esql.planner;
 
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.compute.aggregation.AggregationName;
-import org.elasticsearch.compute.aggregation.AggregationType;
 import org.elasticsearch.compute.aggregation.Aggregator;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
@@ -62,9 +60,6 @@ abstract class AbstractPhysicalOperationProviders implements PhysicalOperationPr
                 mode,
                 source,
                 context.bigArrays(),
-                p -> aggregatorFactories.add(
-                    new Aggregator.AggregatorFactory(context.bigArrays(), p.name, p.type, p.params, p.mode, p.channel)
-                ),
                 s -> aggregatorFactories.add(s.supplier.aggregatorFactory(s.mode, s.channel))
             );
 
@@ -128,9 +123,6 @@ abstract class AbstractPhysicalOperationProviders implements PhysicalOperationPr
                 mode,
                 source,
                 context.bigArrays(),
-                p -> aggregatorFactories.add(
-                    new GroupingAggregator.GroupingAggregatorFactory(context.bigArrays(), p.name, p.type, p.params, p.mode, p.channel)
-                ),
                 s -> aggregatorFactories.add(s.supplier.groupingAggregatorFactory(s.mode, s.channel))
             );
 
@@ -157,8 +149,6 @@ abstract class AbstractPhysicalOperationProviders implements PhysicalOperationPr
         throw new UnsupportedOperationException();
     }
 
-    private record AggFactoryContext(AggregationName name, AggregationType type, Object[] params, AggregatorMode mode, Integer channel) {}
-
     private record AggFunctionSupplierContext(AggregatorFunctionSupplier supplier, AggregatorMode mode, Integer channel) {}
 
     private void aggregatesToFactory(
@@ -166,8 +156,7 @@ abstract class AbstractPhysicalOperationProviders implements PhysicalOperationPr
         AggregateExec.Mode mode,
         PhysicalOperation source,
         BigArrays bigArrays,
-        Consumer<AggFactoryContext> consumer,
-        Consumer<AggFunctionSupplierContext> supplierConsumer
+        Consumer<AggFunctionSupplierContext> consumer
     ) {
         for (NamedExpression ne : aggregates) {
             if (ne instanceof Alias alias) {
@@ -194,19 +183,9 @@ abstract class AbstractPhysicalOperationProviders implements PhysicalOperationPr
 
                     int inputChannel = source.layout.getChannel(sourceAttr.id());
                     if (aggregateFunction instanceof ToAggregator agg) {
-                        supplierConsumer.accept(
-                            new AggFunctionSupplierContext(agg.supplier(bigArrays, inputChannel), aggMode, inputChannel)
-                        );
+                        consumer.accept(new AggFunctionSupplierContext(agg.supplier(bigArrays, inputChannel), aggMode, inputChannel));
                     } else {
-                        consumer.accept(
-                            new AggFactoryContext(
-                                AggregateMapper.mapToName(aggregateFunction),
-                                AggregateMapper.mapToType(aggregateFunction),
-                                params,
-                                aggMode,
-                                inputChannel
-                            )
-                        );
+                        throw new UnsupportedOperationException("aggregate functions must extend ToAggregator");
                     }
                 }
             }

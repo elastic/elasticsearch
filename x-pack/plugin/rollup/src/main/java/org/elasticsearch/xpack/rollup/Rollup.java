@@ -21,6 +21,7 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
@@ -90,6 +91,7 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
     public static final int CURRENT_ROLLUP_VERSION = ROLLUP_VERSION_V2;
 
     public static final String TASK_THREAD_POOL_NAME = RollupField.NAME + "_indexing";
+    public static final int TASK_THREAD_POOL_QUEUE_SIZE = 256;
 
     public static final String ROLLUP_TEMPLATE_VERSION_FIELD = "rollup-version";
 
@@ -165,8 +167,8 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
         FixedExecutorBuilder indexing = new FixedExecutorBuilder(
             settingsToUse,
             Rollup.TASK_THREAD_POOL_NAME,
-            1,
-            -1,
+            ThreadPool.searchOrGetThreadPoolSize(EsExecutors.allocatedProcessors(settingsToUse)),
+            Rollup.TASK_THREAD_POOL_QUEUE_SIZE,
             "xpack.rollup.task_thread_pool",
             false
         );

@@ -1581,6 +1581,7 @@ public class TransportReplicationActionTests extends ESTestCase {
             }
             return null;
         }).when(indexShard).acquirePrimaryOperationPermit(any(ActionListener.class), anyString(), eq(forceExecute));
+        when(indexShard.isPrimaryMode()).thenAnswer(invocation -> isPrimaryMode.get());
         doAnswer(invocation -> {
             long term = (Long) invocation.getArguments()[0];
             ActionListener<Releasable> callback = (ActionListener<Releasable>) invocation.getArguments()[3];

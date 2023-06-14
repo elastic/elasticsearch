@@ -110,14 +110,10 @@ public class SimpleRole implements Role {
 
     @Override
     public Role forWorkflow(Workflow workflow) {
-        if (workflowsRestriction.hasWorkflows()) {
-            if (workflowsRestriction.isWorkflowAllowed(workflow)) {
-                return this;
-            } else {
-                return EMPTY_RESTRICTED_BY_WORKFLOW;
-            }
-        } else {
+        if (workflowsRestriction.isWorkflowAllowed(workflow)) {
             return this;
+        } else {
+            return EMPTY_RESTRICTED_BY_WORKFLOW;
         }
     }
 

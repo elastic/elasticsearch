@@ -234,7 +234,7 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
             if (request.source() != null && request.source().rankBuilder() != null) {
                 version = TransportVersionUtils.randomVersionBetween(random(), TransportVersion.V_8_8_0, TransportVersion.current());
             }
-            if (request.source() != null && request.source().queries().isEmpty() == false) {
+            if (request.source() != null && request.source().queries().size() >= 2) {
                 version = TransportVersionUtils.randomVersionBetween(random(), TransportVersion.V_8_500_999, TransportVersion.CURRENT);
             }
             request = copyWriteable(request, namedWriteableRegistry, ShardSearchRequest::new, version);

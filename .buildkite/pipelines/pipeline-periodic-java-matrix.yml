@@ -7,7 +7,7 @@ agents:
 steps:
   - group: java-matrix
     steps:
-      - label: java-matrix
+      - label: "{{matrix.ES_RUNTIME_JAVA}} {{matrix.GRADLE_TASK}} java-matrix"
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dbwc.checkout.align=true
           $$GRADLE_TASK
         matrix:

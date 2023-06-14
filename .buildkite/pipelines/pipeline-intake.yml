@@ -24,7 +24,7 @@ steps:
       -Dscan.capture-task-input-files checkPart3
   - group: bwc-snapshots
     steps:
-      - label: bwc-snapshots
+      - label: "{{matrix.BWC_VERSION}} bwc-snapshots"
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dbwc.checkout.align=true
           -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed
           -Dscan.capture-task-input-files v$$BWC_VERSION#bwcTest

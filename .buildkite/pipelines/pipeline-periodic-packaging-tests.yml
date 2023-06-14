@@ -7,7 +7,7 @@ agents:
 steps:
   - group: packaging-tests-unix
     steps:
-      - label: packaging-tests-unix
+      - label: "{{matrix.image}} packaging-tests-unix"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           destructivePackagingTest
@@ -39,7 +39,7 @@ steps:
         env: {}
   - group: packaging-tests-upgrade
     steps:
-      - label: packaging-tests-upgrade / 7.0.0
+      - label: "{{matrix.image}} packaging-tests-upgrade / 7.0.0"
         command: ./.ci/scripts/packaging-test.sh --build-cache
           -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
           -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$$BWC_VERSION

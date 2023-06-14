@@ -7,7 +7,7 @@ agents:
 steps:
   - group: java-fips-matrix
     steps:
-      - label: java-fips-matrix
+      - label: "{{matrix.ES_RUNTIME_JAVA}} {{matrix.GRADLE_TASK}} java-fips-matrix"
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dbwc.checkout.align=true
           -Dtests.fips.enabled=true $$GRADLE_TASK
         matrix:

@@ -50,7 +50,6 @@ public class HealthMetadataService {
 
     private final ClusterService clusterService;
     private final ClusterStateListener clusterStateListener;
-    private final Settings settings;
     private final MasterServiceTaskQueue<UpsertHealthMetadataTask> taskQueue;
     private volatile boolean enabled;
 
@@ -63,7 +62,6 @@ public class HealthMetadataService {
 
     private HealthMetadataService(ClusterService clusterService, Settings settings) {
         this.clusterService = clusterService;
-        this.settings = settings;
         this.clusterStateListener = this::updateOnClusterStateChange;
         this.enabled = ENABLED_SETTING.get(settings);
         this.taskQueue = clusterService.createTaskQueue(
@@ -84,7 +82,7 @@ public class HealthMetadataService {
             this.clusterService.addListener(clusterStateListener);
         }
 
-        ClusterSettings clusterSettings = clusterService.getClusterSettings();
+        var clusterSettings = clusterService.getClusterSettings();
         Stream.of(
             CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING,
             CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING,
@@ -159,7 +157,7 @@ public class HealthMetadataService {
     }
 
     private void resetHealthMetadata(String source) {
-        taskQueue.submitTask(source, new InsertHealthMetadata(settings), null);
+        taskQueue.submitTask(source, new InsertHealthMetadata(clusterService.getClusterSettings()), null);
     }
 
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
@@ -290,9 +288,9 @@ public class HealthMetadataService {
      */
     static class InsertHealthMetadata extends UpsertHealthMetadataTask {
 
-        private final Settings settings;
+        private final ClusterSettings settings;
 
-        InsertHealthMetadata(Settings settings) {
+        InsertHealthMetadata(ClusterSettings settings) {
             this.settings = settings;
         }
 
@@ -300,16 +298,16 @@ public class HealthMetadataService {
         HealthMetadata doExecute(HealthMetadata initialHealthMetadata) {
             return new HealthMetadata(
                 new HealthMetadata.Disk(
-                    CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.get(settings),
-                    CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_MAX_HEADROOM_SETTING.get(settings),
-                    CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.get(settings),
-                    CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_MAX_HEADROOM_SETTING.get(settings),
-                    CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_WATERMARK_SETTING.get(settings),
-                    CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_MAX_HEADROOM_SETTING.get(settings)
+                    settings.get(CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING),
+                    settings.get(CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_MAX_HEADROOM_SETTING),
+                    settings.get(CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING),
+                    settings.get(CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_MAX_HEADROOM_SETTING),
+                    settings.get(CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_WATERMARK_SETTING),
+                    settings.get(CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_MAX_HEADROOM_SETTING)
                 ),
                 new HealthMetadata.ShardLimits(
-                    SETTING_CLUSTER_MAX_SHARDS_PER_NODE.get(settings),
-                    SETTING_CLUSTER_MAX_SHARDS_PER_NODE_FROZEN.get(settings)
+                    settings.get(SETTING_CLUSTER_MAX_SHARDS_PER_NODE),
+                    settings.get(SETTING_CLUSTER_MAX_SHARDS_PER_NODE_FROZEN)
                 )
             );
         }

@@ -497,7 +497,7 @@ public class ExchangeServiceTests extends ESTestCase {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(namedWriteables);
         MockTransportService service = MockTransportService.createNewService(
             Settings.EMPTY,
-            MockTransportService.newMockTransport(Settings.EMPTY, TransportVersion.CURRENT, threadPool, namedWriteableRegistry),
+            MockTransportService.newMockTransport(Settings.EMPTY, TransportVersion.current(), threadPool, namedWriteableRegistry),
             Version.CURRENT,
             threadPool,
             null,

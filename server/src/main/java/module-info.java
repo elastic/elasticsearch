@@ -28,6 +28,7 @@ module org.elasticsearch.server {
     requires org.elasticsearch.plugin;
     requires org.elasticsearch.plugin.analysis;
     requires org.elasticsearch.grok;
+    requires org.elasticsearch.tdigest;
 
     requires com.sun.jna;
     requires hppc;
@@ -35,10 +36,10 @@ module org.elasticsearch.server {
     requires jopt.simple;
     requires log4j2.ecs.layout;
     requires org.lz4.java;
-    requires t.digest;
 
     requires org.apache.logging.log4j;
     requires org.apache.logging.log4j.core;
+    requires org.apache.logging.log4j.jul;
 
     requires org.apache.lucene.analysis.common;
     requires org.apache.lucene.backward_codecs;

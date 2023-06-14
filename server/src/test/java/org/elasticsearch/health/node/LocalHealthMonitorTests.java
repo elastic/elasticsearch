@@ -249,6 +249,7 @@ public class LocalHealthMonitorTests extends ESTestCase {
                 eq(false),
                 eq(false),
                 eq(false),
+                eq(false),
                 eq(false)
             )
         ).thenReturn(nodeStats());
@@ -350,6 +351,7 @@ public class LocalHealthMonitorTests extends ESTestCase {
                 eq(false),
                 eq(false),
                 eq(false),
+                eq(false),
                 eq(false)
             )
         ).thenReturn(nodeStats(1000, 10));
@@ -372,6 +374,7 @@ public class LocalHealthMonitorTests extends ESTestCase {
                 eq(false),
                 eq(false),
                 eq(false),
+                eq(false),
                 eq(false)
             )
         ).thenReturn(nodeStats(1000, 80));
@@ -386,6 +389,7 @@ public class LocalHealthMonitorTests extends ESTestCase {
                 eq(false),
                 eq(false),
                 eq(true),
+                eq(false),
                 eq(false),
                 eq(false),
                 eq(false),
@@ -418,6 +422,7 @@ public class LocalHealthMonitorTests extends ESTestCase {
             null,
             null,
             fs,
+            null,
             null,
             null,
             null,

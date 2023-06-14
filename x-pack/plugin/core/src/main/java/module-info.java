@@ -20,6 +20,7 @@ module org.elasticsearch.xcore {
     requires org.apache.lucene.core;
     requires org.apache.lucene.join;
     requires unboundid.ldapsdk;
+    requires org.elasticsearch.tdigest;
 
     exports org.elasticsearch.index.engine.frozen;
     exports org.elasticsearch.license;

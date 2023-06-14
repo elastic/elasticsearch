@@ -7,14 +7,13 @@
 
 package org.elasticsearch.compute.aggregation;
 
-import com.tdunning.math.stats.Centroid;
-
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.search.aggregations.metrics.TDigestState;
+import org.elasticsearch.tdigest.Centroid;
 
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;

@@ -284,7 +284,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
     }
 
     private static TestMapper fromMapping(String mapping) {
-        return fromMapping(mapping, Version.CURRENT, TransportVersion.CURRENT);
+        return fromMapping(mapping, Version.CURRENT, TransportVersion.current());
     }
 
     private String toStringWithDefaults(ToXContent value) throws IOException {

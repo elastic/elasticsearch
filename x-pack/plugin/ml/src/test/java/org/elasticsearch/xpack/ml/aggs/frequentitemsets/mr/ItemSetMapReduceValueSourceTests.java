@@ -90,6 +90,6 @@ public class ItemSetMapReduceValueSourceTests extends ESTestCase {
     }
 
     private Field copyField(Field field) throws IOException {
-        return copyInstance(field, writableRegistry(), (out, value) -> value.writeTo(out), Field::new, TransportVersion.CURRENT);
+        return copyInstance(field, writableRegistry(), (out, value) -> value.writeTo(out), Field::new, TransportVersion.current());
     }
 }

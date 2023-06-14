@@ -1206,7 +1206,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             threads.get(i).start();
         }
 
-        assertTrue(rollupComplete.await(60, TimeUnit.SECONDS));
+        assertTrue(rollupComplete.await(20, TimeUnit.SECONDS));
 
         for (int i = 0; i < n; i++) {
             assertRollupIndex(sourceIndex, targets.get(i), config);

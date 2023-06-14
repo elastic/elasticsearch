@@ -21,16 +21,13 @@ import java.util.Collections;
 /** Wrapper around all the profilers that makes management easier. */
 public final class Profilers {
 
-    private final ContextIndexSearcher searcher;
     private final QueryProfiler queryProfiler;
     private final AggregationProfiler aggProfiler = new AggregationProfiler();
     private DfsProfiler dfsProfiler;
 
     public Profilers(ContextIndexSearcher searcher) {
-        this.searcher = searcher;
-        QueryProfiler profiler = new QueryProfiler();
-        searcher.setProfiler(profiler);
-        queryProfiler = profiler;
+        this.queryProfiler = new QueryProfiler();
+        searcher.setProfiler(this.queryProfiler);
     }
 
     /**

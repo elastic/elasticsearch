@@ -33,6 +33,7 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.alias.RandomAliasActionsGenerator;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.plugins.MapperPlugin;
@@ -816,28 +817,27 @@ public class MetadataTests extends ESTestCase {
 
     public void testOldestIndexComputation() {
         Metadata metadata = buildIndicesWithVersions(
-            new Version[] { Version.V_7_0_0, Version.CURRENT, Version.fromId(Version.CURRENT.id + 1) }
+            IndexVersion.V_7_0_0, IndexVersion.CURRENT, IndexVersion.fromId(IndexVersion.CURRENT.id() + 1)
         ).build();
 
-        assertEquals(Version.V_7_0_0, metadata.oldestIndexVersion());
+        assertEquals(IndexVersion.V_7_0_0, metadata.oldestIndexVersion());
 
         Metadata.Builder b = Metadata.builder();
-        assertEquals(Version.CURRENT, b.build().oldestIndexVersion());
+        assertEquals(IndexVersion.CURRENT, b.build().oldestIndexVersion());
 
         Throwable ex = expectThrows(
             IllegalArgumentException.class,
-            () -> buildIndicesWithVersions(new Version[] { Version.V_7_0_0, Version.V_EMPTY, Version.fromId(Version.CURRENT.id + 1) })
+            () -> buildIndicesWithVersions(IndexVersion.V_7_0_0, IndexVersion.ZERO, IndexVersion.fromId(IndexVersion.CURRENT.id() + 1))
                 .build()
         );
 
         assertEquals("[index.version.created] is not present in the index settings for index with UUID [null]", ex.getMessage());
     }
 
-    private Metadata.Builder buildIndicesWithVersions(Version... indexVersions) {
-
+    private Metadata.Builder buildIndicesWithVersions(IndexVersion... indexVersions) {
         int lastIndexNum = randomIntBetween(9, 50);
         Metadata.Builder b = Metadata.builder();
-        for (Version indexVersion : indexVersions) {
+        for (IndexVersion indexVersion : indexVersions) {
             IndexMetadata im = IndexMetadata.builder(DataStream.getDefaultBackingIndexName("index", lastIndexNum))
                 .settings(settings(indexVersion))
                 .numberOfShards(1)
@@ -852,7 +852,7 @@ public class MetadataTests extends ESTestCase {
 
     private static IndexMetadata.Builder buildIndexMetadata(String name, String alias, Boolean writeIndex) {
         return IndexMetadata.builder(name)
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.CURRENT))
             .creationDate(randomNonNegativeLong())
             .putAlias(AliasMetadata.builder(alias).writeIndex(writeIndex))
             .numberOfShards(1)

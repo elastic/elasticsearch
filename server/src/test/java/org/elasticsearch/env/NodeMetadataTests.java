@@ -159,6 +159,10 @@ public class NodeMetadataTests extends ESTestCase {
         return Version.fromId(between(Version.CURRENT.id + 1, 99999999));
     }
 
+    public static IndexVersion tooNewIndexVersion() {
+        return IndexVersion.fromId(between(IndexVersion.CURRENT.id() + 1, 99999999));
+    }
+
     public static Version tooOldVersion() {
         return Version.fromId(between(1, Version.CURRENT.minimumCompatibilityVersion().id - 1));
     }

@@ -136,6 +136,7 @@ public class TDigestState {
         out.writeDouble(state.compression);
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_012)) {
             out.writeString(state.type.toString());
+            out.writeVLong(state.tdigest.size());
         }
 
         out.writeVInt(state.centroidCount());
@@ -148,12 +149,17 @@ public class TDigestState {
     public static TDigestState read(StreamInput in) throws IOException {
         double compression = in.readDouble();
         TDigestState state;
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_012)) {
+        long size = 0;
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_9_0)) {
             state = new TDigestState(Type.valueOf(in.readString()), compression);
+            size = in.readVLong();
         } else {
             state = new TDigestState(Type.valueForHighAccuracy(), compression);
         }
         int n = in.readVInt();
+        if (size > 0) {
+            state.tdigest.reserve(size);
+        }
         for (int i = 0; i < n; i++) {
             state.add(in.readDouble(), in.readVInt());
         }

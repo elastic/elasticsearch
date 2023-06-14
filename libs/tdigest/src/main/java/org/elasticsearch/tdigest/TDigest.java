@@ -189,6 +189,12 @@ public abstract class TDigest {
 
     public abstract int centroidCount();
 
+    /**
+     * Prepare internal structure for loading the requested number of samples.
+     * @param size number of samples to be loaded
+     */
+    public void reserve(long size) {}
+
     public double getMin() {
         return min;
     }

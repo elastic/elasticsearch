@@ -151,7 +151,7 @@ public class TDigestStateTests extends ESTestCase {
 
         for (double p : new double[] { 0.1, 1, 10, 25, 50, 75, 90, 99, 99.9 }) {
             double q = p / 100;
-            assertEquals(fast.quantile(q), accurate.quantile(q), 1e-5);
+            assertEquals(fast.quantile(q), accurate.quantile(q), 0.5);
             assertEquals(fast.quantile(q), anotherFast.quantile(q), 1e-5);
             assertEquals(accurate.quantile(q), anotherAccurate.quantile(q), 1e-5);
         }

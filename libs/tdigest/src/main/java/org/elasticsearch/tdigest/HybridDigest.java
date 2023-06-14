@@ -31,7 +31,7 @@ import java.util.List;
  * This hybrid  approach provides the best of both worlds, i.e. speedy and accurate percentile calculations for small populations with
  * bounded memory allocation and acceptable speed and accuracy for larger ones.
  */
-public class HybridDigest extends TDigest {
+public class HybridDigest extends AbstractTDigest {
 
     // See MergingDigest's compression param.
     private final double compression;
@@ -69,20 +69,32 @@ public class HybridDigest extends TDigest {
 
     @Override
     public void add(double x, int w) {
+        reserve(w);
+        if (mergingDigest != null) {
+            mergingDigest.add(x, w);
+        } else {
+            sortingDigest.add(x, w);
+        }
+    }
+
+    @Override
+    public void reserve(long size) {
+        if (mergingDigest != null) {
+            mergingDigest.reserve(size);
+            return;
+        }
         // Check if we need to switch implementations.
-        if (mergingDigest == null && size() + w >= maxSortingSize) {
+        assert sortingDigest != null;
+        if (sortingDigest.size() + size >= maxSortingSize) {
             mergingDigest = new MergingDigest(compression);
             for (double value : sortingDigest.values) {
                 mergingDigest.add(value);
             }
+            mergingDigest.reserve(size);
             // Release the allocated SortingDigest.
             sortingDigest = null;
-        }
-        if (mergingDigest != null) {
-            mergingDigest.add(x, w);
         } else {
-            assert sortingDigest != null;
-            sortingDigest.add(x, w);
+            sortingDigest.reserve(size);
         }
     }
 
@@ -145,15 +157,6 @@ public class HybridDigest extends TDigest {
     }
 
     @Override
-    public void add(TDigest other) {
-        if (mergingDigest != null) {
-            mergingDigest.add(other);
-        } else {
-            sortingDigest.add(other);
-        }
-    }
-
-    @Override
     public int centroidCount() {
         if (mergingDigest != null) {
             return mergingDigest.centroidCount();
@@ -184,5 +187,4 @@ public class HybridDigest extends TDigest {
         }
         return sortingDigest.byteSize();
     }
-
 }

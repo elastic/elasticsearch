@@ -31,7 +31,7 @@ import java.util.List;
  * It provides perfect quantile and cdf calculations and matches or exceeds the performance of MergingDigest at least for millions of
  * samples, at the expense of allocating much more memory.
  */
-public class SortingDigest extends TDigest {
+public class SortingDigest extends AbstractTDigest {
 
     // Tracks all samples. Gets sorted on quantile and cdf calls.
     final ArrayList<Double> values = new ArrayList<>();
@@ -132,13 +132,14 @@ public class SortingDigest extends TDigest {
     }
 
     @Override
-    public void add(TDigest other) {
-        add(List.of(other));
+    public int centroidCount() {
+        return centroids().size();
     }
 
     @Override
-    public int centroidCount() {
-        return centroids().size();
+    public void reserve(long size) {
+        int newSize = (size + values.size() > Integer.MAX_VALUE) ? Integer.MAX_VALUE : values.size() + (int) size;
+        values.ensureCapacity(newSize);
     }
 
     /**

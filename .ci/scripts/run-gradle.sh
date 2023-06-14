@@ -2,6 +2,9 @@
 # drop page cache and kernel slab objects on linux
 [[ -x /usr/local/sbin/drop-caches ]] && sudo /usr/local/sbin/drop-caches
 
+GRADLE_USER_HOME="$HOME/.gradle"
+export GRADLE_USER_HOME
+
 rm -Rfv ~/.gradle/init.d
 mkdir -p ~/.gradle/init.d && cp -v $WORKSPACE/.ci/init.gradle ~/.gradle/init.d
 

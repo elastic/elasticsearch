@@ -91,7 +91,8 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
     public static final int CURRENT_ROLLUP_VERSION = ROLLUP_VERSION_V2;
 
     public static final String TASK_THREAD_POOL_NAME = RollupField.NAME + "_indexing";
-    public static final int TASK_THREAD_POOL_QUEUE_SIZE = 256;
+    public static final String DOWSAMPLE_TASK_THREAD_POOL_NAME = "downsample_indexing";
+    public static final int DOWNSAMPLE_TASK_THREAD_POOL_QUEUE_SIZE = 256;
 
     public static final String ROLLUP_TEMPLATE_VERSION_FIELD = "rollup-version";
 
@@ -164,16 +165,25 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
 
     @Override
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settingsToUse) {
-        FixedExecutorBuilder indexing = new FixedExecutorBuilder(
+        final FixedExecutorBuilder rollup = new FixedExecutorBuilder(
             settingsToUse,
             Rollup.TASK_THREAD_POOL_NAME,
-            ThreadPool.searchOrGetThreadPoolSize(EsExecutors.allocatedProcessors(settingsToUse)),
-            Rollup.TASK_THREAD_POOL_QUEUE_SIZE,
+            1,
+            -1,
             "xpack.rollup.task_thread_pool",
             false
         );
 
-        return Collections.singletonList(indexing);
+        final FixedExecutorBuilder downsample = new FixedExecutorBuilder(
+            settingsToUse,
+            Rollup.DOWSAMPLE_TASK_THREAD_POOL_NAME,
+            ThreadPool.searchOrGetThreadPoolSize(EsExecutors.allocatedProcessors(settingsToUse)),
+            Rollup.DOWNSAMPLE_TASK_THREAD_POOL_QUEUE_SIZE,
+            "xpack.downsample.thread_pool",
+            false
+        );
+
+        return List.of(rollup, downsample);
     }
 
     @Override

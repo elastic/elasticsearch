@@ -27,9 +27,13 @@ public final class ProfileCollectorManager implements CollectorManager<InternalP
     private final CollectorManager<Collector, Void> collectorManager;
     private CollectorResult collectorTree;
 
+    private ProfileCollectorManager(CollectorManager<Collector, Void> collectorManager) {
+        this.collectorManager = collectorManager;
+    }
+
     @SuppressWarnings("unchecked")
-    public ProfileCollectorManager(CollectorManager<? extends Collector, Void> collectorManager) {
-        this.collectorManager = (CollectorManager<Collector, Void>) collectorManager;
+    public static <C extends Collector> ProfileCollectorManager create(CollectorManager<C, ?> collectorManager) {
+        return new ProfileCollectorManager((CollectorManager<Collector, Void>) collectorManager);
     }
 
     @Override

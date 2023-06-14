@@ -53,8 +53,11 @@ import org.elasticsearch.xpack.application.analytics.action.TransportPostAnalyti
 import org.elasticsearch.xpack.application.analytics.action.TransportPutAnalyticsCollectionAction;
 import org.elasticsearch.xpack.application.analytics.ingest.AnalyticsEventIngestConfig;
 import org.elasticsearch.xpack.application.rules.QueryRulesIndexService;
+import org.elasticsearch.xpack.application.rules.action.GetQueryRulesetAction;
 import org.elasticsearch.xpack.application.rules.action.PutQueryRulesetAction;
+import org.elasticsearch.xpack.application.rules.action.RestGetQueryRulesetAction;
 import org.elasticsearch.xpack.application.rules.action.RestPutQueryRulesetAction;
+import org.elasticsearch.xpack.application.rules.action.TransportGetQueryRulesetAction;
 import org.elasticsearch.xpack.application.rules.action.TransportPutQueryRulesetAction;
 import org.elasticsearch.xpack.application.search.SearchApplicationIndexService;
 import org.elasticsearch.xpack.application.search.action.DeleteSearchApplicationAction;
@@ -139,7 +142,10 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
         );
 
         if (QUERY_RULES_FEATURE_FLAG.isEnabled()) {
-            actionHandlers.add(new ActionHandler<>(PutQueryRulesetAction.INSTANCE, TransportPutQueryRulesetAction.class));
+            actionHandlers.addAll(List.of(
+                new ActionHandler<>(GetQueryRulesetAction.INSTANCE, TransportGetQueryRulesetAction.class),
+                new ActionHandler<>(PutQueryRulesetAction.INSTANCE, TransportPutQueryRulesetAction.class)
+            ));
         }
 
         return Collections.unmodifiableList(actionHandlers);
@@ -176,7 +182,10 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
         );
 
         if (QUERY_RULES_FEATURE_FLAG.isEnabled()) {
-            restHandlers.add(new RestPutQueryRulesetAction(getLicenseState()));
+            restHandlers.addAll(List.of(
+                new RestGetQueryRulesetAction(getLicenseState()),
+                new RestPutQueryRulesetAction(getLicenseState())
+            ));
         }
 
         return Collections.unmodifiableList(restHandlers);

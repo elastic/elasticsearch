@@ -360,7 +360,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         if (out.getTransportVersion().before(TransportVersion.V_8_500_999)
             && out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
             List<QueryBuilder> rankQueryBuilders = new ArrayList<>();
-            if (source != null) {
+            if (source != null && source.rankBuilder() != null) {
                 for (SubSearchSourceBuilder subSearchSourceBuilder : source.queries()) {
                     rankQueryBuilders.add(subSearchSourceBuilder.getQueryBuilder());
                 }

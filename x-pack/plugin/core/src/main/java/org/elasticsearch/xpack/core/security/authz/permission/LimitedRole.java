@@ -95,7 +95,7 @@ public final class LimitedRole implements Role {
     }
 
     @Override
-    public boolean shouldAllowSameUserPermission() {
+    public boolean shouldAllowSameUserPermissions() {
         return baseRole != EMPTY_RESTRICTED_BY_WORKFLOW && limitedByRole != EMPTY_RESTRICTED_BY_WORKFLOW;
     }
 

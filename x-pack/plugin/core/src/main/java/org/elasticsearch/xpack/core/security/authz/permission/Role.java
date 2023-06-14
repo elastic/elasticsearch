@@ -66,7 +66,7 @@ public interface Role {
 
     Role forWorkflow(Workflow workflow);
 
-    boolean shouldAllowSameUserPermission();
+    boolean shouldAllowSameUserPermissions();
 
     /**
      * Whether the Role has any field or document level security enabled index privileges

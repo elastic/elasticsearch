@@ -20,9 +20,9 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.routing.PlainShardIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -96,7 +96,10 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
         if (iterator == null) {
             return null;
         }
-        return new PlainShardIterator(iterator.shardId(), iterator.getShardRoutings().stream().filter(ShardRouting::isSearchable).toList());
+        return new PlainShardIterator(
+            iterator.shardId(),
+            iterator.getShardRoutings().stream().filter(shardRouting -> OperationRouting.canSearchShard(shardRouting, state)).toList()
+        );
     }
 
     @Override
@@ -110,11 +113,13 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         IndexShard indexShard = indexService.getShard(shardId.id());
         if (indexShard.routingEntry().isPromotableToPrimary() == false) {
+            assert indexShard.indexSettings().isFastRefresh() == false
+                : "a search shard should not receive a TransportGetAction for an index with fast refresh";
             handleGetOnUnpromotableShard(request, indexShard, listener);
             return;
         }
-        assert DiscoveryNode.isStateless(clusterService.getSettings()) == false
-            : "A TransportGetAction should always be handled by a search shard in Stateless";
+        assert DiscoveryNode.isStateless(clusterService.getSettings()) == false || indexShard.indexSettings().isFastRefresh()
+            : "in Stateless a promotable to primary shard can receive a TransportGetAction only if an index has the fast refresh setting";
         if (request.realtime()) { // we are not tied to a refresh cycle here anyway
             asyncGet(request, shardId, listener);
         } else {
@@ -183,7 +188,7 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
             client.executeLocally(
                 TransportShardRefreshAction.TYPE,
                 refreshRequest,
-                ActionListener.wrap(replicationResponse -> super.asyncShardOperation(request, shardId, listener), listener::onFailure)
+                listener.delegateFailureAndWrap((l, replicationResponse) -> super.asyncShardOperation(request, shardId, l))
             );
         } else if (request.realtime()) {
             TransportGetFromTranslogAction.Request getFromTranslogRequest = new TransportGetFromTranslogAction.Request(request, shardId);
@@ -204,12 +209,12 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
                         );
                         if (r.segmentGeneration() == -1) {
                             // Nothing to wait for (no previous unsafe generation), just handle the Get locally.
-                            ActionRunnable.supply(listener, () -> shardOperation(request, shardId)).run();
+                            ActionRunnable.supply(l, () -> shardOperation(request, shardId)).run();
                         } else {
                             assert r.segmentGeneration() > -1L;
                             indexShard.waitForSegmentGeneration(
                                 r.segmentGeneration(),
-                                ActionListener.wrap(aLong -> super.asyncShardOperation(request, shardId, listener), listener::onFailure)
+                                listener.delegateFailureAndWrap((ll, aLong) -> super.asyncShardOperation(request, shardId, ll))
                             );
                         }
                     }

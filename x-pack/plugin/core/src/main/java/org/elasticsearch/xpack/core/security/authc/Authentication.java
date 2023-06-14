@@ -1200,7 +1200,7 @@ public final class Authentication implements ToXContentObject {
         // TODO assert SystemUser.is(fallbackUser);
         final Authentication.RealmRef authenticatedBy = newInternalFallbackRealmRef(nodeName);
         Authentication authentication = new Authentication(
-            new Subject(fallbackUser, authenticatedBy, TransportVersion.CURRENT, Map.of()),
+            new Subject(fallbackUser, authenticatedBy, TransportVersion.current(), Map.of()),
             Authentication.AuthenticationType.INTERNAL
         );
         return authentication;
@@ -1209,7 +1209,7 @@ public final class Authentication implements ToXContentObject {
     public static Authentication newAnonymousAuthentication(AnonymousUser anonymousUser, String nodeName) {
         final Authentication.RealmRef authenticatedBy = newAnonymousRealmRef(nodeName);
         Authentication authentication = new Authentication(
-            new Subject(anonymousUser, authenticatedBy, TransportVersion.CURRENT, Map.of()),
+            new Subject(anonymousUser, authenticatedBy, TransportVersion.current(), Map.of()),
             Authentication.AuthenticationType.ANONYMOUS
         );
         return authentication;
@@ -1219,7 +1219,7 @@ public final class Authentication implements ToXContentObject {
         // TODO make the service account user a separate class/interface
         final Authentication.RealmRef authenticatedBy = newServiceAccountRealmRef(nodeName);
         Authentication authentication = new Authentication(
-            new Subject(serviceAccountUser, authenticatedBy, TransportVersion.CURRENT, metadata),
+            new Subject(serviceAccountUser, authenticatedBy, TransportVersion.current(), metadata),
             AuthenticationType.TOKEN
         );
         return authentication;
@@ -1228,7 +1228,7 @@ public final class Authentication implements ToXContentObject {
     public static Authentication newRealmAuthentication(User user, RealmRef realmRef) {
         // TODO make the type system ensure that this is not a run-as user
         Authentication authentication = new Authentication(
-            new Subject(user, realmRef, TransportVersion.CURRENT, Map.of()),
+            new Subject(user, realmRef, TransportVersion.current(), Map.of()),
             AuthenticationType.REALM
         );
         assert false == authentication.isServiceAccount();
@@ -1245,7 +1245,7 @@ public final class Authentication implements ToXContentObject {
         assert apiKeyUser.roles().length == 0 : "The user associated to an API key authentication must have no role";
         final Authentication.RealmRef authenticatedBy = newApiKeyRealmRef(nodeName);
         Authentication authentication = new Authentication(
-            new Subject(apiKeyUser, authenticatedBy, TransportVersion.CURRENT, authResult.getMetadata()),
+            new Subject(apiKeyUser, authenticatedBy, TransportVersion.current(), authResult.getMetadata()),
             AuthenticationType.API_KEY
         );
         return authentication;
@@ -1262,7 +1262,7 @@ public final class Authentication implements ToXContentObject {
             new Subject(
                 getEffectiveSubject().getUser(),
                 authenticatedBy,
-                TransportVersion.CURRENT,
+                TransportVersion.current(),
                 crossClusterAccessSubjectInfo.copyWithCrossClusterAccessEntries(metadata)
             ),
             getAuthenticationType()

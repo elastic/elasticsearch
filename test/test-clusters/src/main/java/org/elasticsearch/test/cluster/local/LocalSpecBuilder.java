@@ -97,6 +97,11 @@ interface LocalSpecBuilder<T extends LocalSpecBuilder<?>> {
     T keystore(String key, Supplier<String> supplier, Predicate<LocalNodeSpec> predicate);
 
     /**
+     * Register a {@link SettingsProvider} for keystore settings.
+     */
+    T keystore(SettingsProvider settingsProvider);
+
+    /**
      * Sets the security setting keystore password.
      */
     T keystorePassword(String password);

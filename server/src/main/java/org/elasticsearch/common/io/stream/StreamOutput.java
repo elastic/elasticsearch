@@ -61,7 +61,7 @@ import static java.util.Map.entry;
  */
 public abstract class StreamOutput extends OutputStream {
 
-    private TransportVersion version = TransportVersion.CURRENT;
+    private TransportVersion version = TransportVersion.current();
 
     /**
      * The transport version to serialize the data as.

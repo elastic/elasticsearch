@@ -84,6 +84,7 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -1508,7 +1509,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         NamedWriteableRegistry namedWriteableRegistry,
         Writeable.Reader<T> reader
     ) throws IOException {
-        return copyWriteable(original, namedWriteableRegistry, reader, TransportVersion.CURRENT);
+        return copyWriteable(original, namedWriteableRegistry, reader, TransportVersion.current());
     }
 
     /**
@@ -1533,7 +1534,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         NamedWriteableRegistry namedWriteableRegistry,
         Class<C> categoryClass
     ) throws IOException {
-        return copyNamedWriteable(original, namedWriteableRegistry, categoryClass, TransportVersion.CURRENT);
+        return copyNamedWriteable(original, namedWriteableRegistry, categoryClass, TransportVersion.current());
     }
 
     /**
@@ -1896,7 +1897,7 @@ public abstract class ESTestCase extends LuceneTestCase {
      * @param message an additional message or link with information on the fix
      */
     protected void skipTestWaitingForLuceneFix(org.apache.lucene.util.Version luceneVersionWithFix, String message) {
-        final boolean currentVersionHasFix = Version.CURRENT.luceneVersion().onOrAfter(luceneVersionWithFix);
+        final boolean currentVersionHasFix = IndexVersion.CURRENT.luceneVersion().onOrAfter(luceneVersionWithFix);
         assumeTrue("Skipping test as it is waiting on a Lucene fix: " + message, currentVersionHasFix);
         fail("Remove call of skipTestWaitingForLuceneFix in " + RandomizedTest.getContext().getTargetMethod());
     }

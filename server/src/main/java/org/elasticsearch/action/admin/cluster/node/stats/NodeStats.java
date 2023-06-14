@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.cluster.node.stats;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -27,6 +28,7 @@ import org.elasticsearch.monitor.jvm.JvmStats;
 import org.elasticsearch.monitor.os.OsStats;
 import org.elasticsearch.monitor.process.ProcessStats;
 import org.elasticsearch.node.AdaptiveSelectionStats;
+import org.elasticsearch.repositories.RepositoriesStats;
 import org.elasticsearch.script.ScriptCacheStats;
 import org.elasticsearch.script.ScriptStats;
 import org.elasticsearch.threadpool.ThreadPoolStats;
@@ -37,6 +39,8 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
+
+import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.singleChunk;
 
 /**
  * Node statistics (dynamic, changes depending on when created).
@@ -90,6 +94,9 @@ public class NodeStats extends BaseNodeResponse implements ChunkedToXContent {
     @Nullable
     private final IndexingPressureStats indexingPressureStats;
 
+    @Nullable
+    private final RepositoriesStats repositoriesStats;
+
     public NodeStats(StreamInput in) throws IOException {
         super(in);
         timestamp = in.readVLong();
@@ -104,12 +111,17 @@ public class NodeStats extends BaseNodeResponse implements ChunkedToXContent {
         transport = in.readOptionalWriteable(TransportStats::new);
         http = in.readOptionalWriteable(HttpStats::new);
         breaker = in.readOptionalWriteable(AllCircuitBreakerStats::new);
-        scriptStats = in.readOptionalWriteable(ScriptStats::new);
+        scriptStats = in.readOptionalWriteable(ScriptStats::read);
         scriptCacheStats = scriptStats != null ? scriptStats.toScriptCacheStats() : null;
         discoveryStats = in.readOptionalWriteable(DiscoveryStats::new);
-        ingestStats = in.readOptionalWriteable(IngestStats::new);
+        ingestStats = in.readOptionalWriteable(IngestStats::read);
         adaptiveSelectionStats = in.readOptionalWriteable(AdaptiveSelectionStats::new);
         indexingPressureStats = in.readOptionalWriteable(IndexingPressureStats::new);
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_011)) {
+            repositoriesStats = in.readOptionalWriteable(RepositoriesStats::new);
+        } else {
+            repositoriesStats = null;
+        }
     }
 
     public NodeStats(
@@ -129,7 +141,8 @@ public class NodeStats extends BaseNodeResponse implements ChunkedToXContent {
         @Nullable IngestStats ingestStats,
         @Nullable AdaptiveSelectionStats adaptiveSelectionStats,
         @Nullable ScriptCacheStats scriptCacheStats,
-        @Nullable IndexingPressureStats indexingPressureStats
+        @Nullable IndexingPressureStats indexingPressureStats,
+        @Nullable RepositoriesStats repositoriesStats
     ) {
         super(node);
         this.timestamp = timestamp;
@@ -148,6 +161,7 @@ public class NodeStats extends BaseNodeResponse implements ChunkedToXContent {
         this.adaptiveSelectionStats = adaptiveSelectionStats;
         this.scriptCacheStats = scriptCacheStats;
         this.indexingPressureStats = indexingPressureStats;
+        this.repositoriesStats = repositoriesStats;
     }
 
     public long getTimestamp() {
@@ -252,6 +266,11 @@ public class NodeStats extends BaseNodeResponse implements ChunkedToXContent {
         return indexingPressureStats;
     }
 
+    @Nullable
+    public RepositoriesStats getRepositoriesStats() {
+        return repositoriesStats;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -275,6 +294,9 @@ public class NodeStats extends BaseNodeResponse implements ChunkedToXContent {
         out.writeOptionalWriteable(ingestStats);
         out.writeOptionalWriteable(adaptiveSelectionStats);
         out.writeOptionalWriteable(indexingPressureStats);
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_011)) {
+            out.writeOptionalWriteable(repositoriesStats);
+        }
     }
 
     @Override
@@ -307,38 +329,20 @@ public class NodeStats extends BaseNodeResponse implements ChunkedToXContent {
 
             ifPresent(getIndices()).toXContentChunked(outerParams),
 
-            Iterators.single((builder, params) -> {
-                ifPresent(getOs()).toXContent(builder, params);
-                ifPresent(getProcess()).toXContent(builder, params);
-                ifPresent(getJvm()).toXContent(builder, params);
-                return builder;
-            }),
+            singleChunk(ifPresent(getOs()), ifPresent(getProcess()), ifPresent(getJvm())),
 
             ifPresent(getThreadPool()).toXContentChunked(outerParams),
-
-            Iterators.single((builder, params) -> {
-                ifPresent(getFs()).toXContent(builder, params);
-                return builder;
-            }),
-
+            singleChunk(ifPresent(getFs())),
             ifPresent(getTransport()).toXContentChunked(outerParams),
             ifPresent(getHttp()).toXContentChunked(outerParams),
-
-            Iterators.single((builder, params) -> {
-                ifPresent(getBreaker()).toXContent(builder, params);
-                ifPresent(getScriptStats()).toXContent(builder, params);
-                ifPresent(getDiscoveryStats()).toXContent(builder, params);
-                return builder;
-            }),
-
+            singleChunk(ifPresent(getBreaker())),
+            ifPresent(getScriptStats()).toXContentChunked(outerParams),
+            singleChunk(ifPresent(getDiscoveryStats())),
             ifPresent(getIngestStats()).toXContentChunked(outerParams),
-
-            Iterators.single((builder, params) -> {
-                ifPresent(getAdaptiveSelectionStats()).toXContent(builder, params);
-                ifPresent(getScriptCacheStats()).toXContent(builder, params);
-                ifPresent(getIndexingPressureStats()).toXContent(builder, params);
-                return builder;
-            })
+            singleChunk(ifPresent(getAdaptiveSelectionStats())),
+            ifPresent(getScriptCacheStats()).toXContentChunked(outerParams),
+            singleChunk(ifPresent(getIndexingPressureStats())),
+            singleChunk(ifPresent(getRepositoriesStats()))
         );
     }
 

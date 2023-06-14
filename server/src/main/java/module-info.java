@@ -28,6 +28,7 @@ module org.elasticsearch.server {
     requires org.elasticsearch.plugin;
     requires org.elasticsearch.plugin.analysis;
     requires org.elasticsearch.grok;
+    requires org.elasticsearch.tdigest;
 
     requires com.sun.jna;
     requires hppc;
@@ -35,10 +36,10 @@ module org.elasticsearch.server {
     requires jopt.simple;
     requires log4j2.ecs.layout;
     requires org.lz4.java;
-    requires t.digest;
 
     requires org.apache.logging.log4j;
     requires org.apache.logging.log4j.core;
+    requires org.apache.logging.log4j.jul;
 
     requires org.apache.lucene.analysis.common;
     requires org.apache.lucene.backward_codecs;
@@ -277,6 +278,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.indices.recovery.plan;
     exports org.elasticsearch.indices.store;
     exports org.elasticsearch.ingest;
+    exports org.elasticsearch.internal to org.elasticsearch.serverless.version;
     exports org.elasticsearch.lucene.analysis.miscellaneous;
     exports org.elasticsearch.lucene.grouping;
     exports org.elasticsearch.lucene.queries;
@@ -382,6 +384,7 @@ module org.elasticsearch.server {
     uses org.elasticsearch.reservedstate.ReservedClusterStateHandlerProvider;
     uses org.elasticsearch.jdk.ModuleQualifiedExportsService;
     uses org.elasticsearch.node.internal.TerminationHandlerProvider;
+    uses org.elasticsearch.internal.VersionExtension;
 
     provides org.apache.lucene.codecs.PostingsFormat
         with

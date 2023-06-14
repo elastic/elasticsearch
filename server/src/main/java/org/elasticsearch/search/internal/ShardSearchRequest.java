@@ -279,12 +279,17 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         source = in.readOptionalWriteable(SearchSourceBuilder::new);
         if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0) && in.getTransportVersion().before(TransportVersion.V_8_500_999)) {
             List<QueryBuilder> rankQueryBuilders = in.readNamedWriteableList(QueryBuilder.class);
-            if (source != null) {
+            if (rankQueryBuilders.size() == 1) {
+                throw new IllegalStateException("[rank] requires at least [2] queries, but only found [1]");
+            }
+            if (source != null && source.rankBuilder() != null) {
                 List<SubSearchSourceBuilder> subSearchSourceBuilders = new ArrayList<>();
                 for (QueryBuilder queryBuilder : rankQueryBuilders) {
                     subSearchSourceBuilders.add(new SubSearchSourceBuilder(queryBuilder));
                 }
-                source.queries(subSearchSourceBuilders);
+                if (subSearchSourceBuilders.size() >= 2) {
+                    source.queries(subSearchSourceBuilders);
+                }
             }
         }
         if (in.getTransportVersion().before(TransportVersion.V_8_0_0)) {
@@ -357,10 +362,10 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         }
         out.writeOptionalWriteable(scroll);
         out.writeOptionalWriteable(source);
-        if (out.getTransportVersion().before(TransportVersion.V_8_500_999)
-            && out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)
+            && out.getTransportVersion().before(TransportVersion.V_8_500_999)) {
             List<QueryBuilder> rankQueryBuilders = new ArrayList<>();
-            if (source != null && source.rankBuilder() != null) {
+            if (source != null && source.rankBuilder() != null && source.queries().size() >= 2) {
                 for (SubSearchSourceBuilder subSearchSourceBuilder : source.queries()) {
                     rankQueryBuilders.add(subSearchSourceBuilder.getQueryBuilder());
                 }

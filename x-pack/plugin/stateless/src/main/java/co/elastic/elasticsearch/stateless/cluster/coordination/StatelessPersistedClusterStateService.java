@@ -113,7 +113,7 @@ public class StatelessPersistedClusterStateService extends PersistedClusterState
     private static ClusterState getInitialState(Settings settings, DiscoveryNode localNode, ClusterSettings clusterSettings) {
         return Function.<ClusterState>identity()
             .andThen(ClusterStateUpdaters::addStateNotRecoveredBlock)
-            .andThen(state -> ClusterStateUpdaters.setLocalNode(state, localNode, TransportVersion.CURRENT))
+            .andThen(state -> ClusterStateUpdaters.setLocalNode(state, localNode, TransportVersion.current()))
             .andThen(state -> ClusterStateUpdaters.upgradeAndArchiveUnknownOrInvalidSettings(state, clusterSettings))
             .andThen(ClusterStateUpdaters::recoverClusterBlocks)
             .andThen(state -> addLocalNodeVotingConfig(state, localNode))

@@ -54,7 +54,6 @@ import org.elasticsearch.xpack.application.analytics.action.TransportPutAnalytic
 import org.elasticsearch.xpack.application.analytics.ingest.AnalyticsEventIngestConfig;
 import org.elasticsearch.xpack.application.rules.QueryRulesIndexService;
 import org.elasticsearch.xpack.application.rules.action.PutQueryRulesetAction;
-import org.elasticsearch.xpack.application.rules.action.RestPutQueryRulesetAction;
 import org.elasticsearch.xpack.application.rules.action.TransportPutQueryRulesetAction;
 import org.elasticsearch.xpack.application.search.SearchApplicationIndexService;
 import org.elasticsearch.xpack.application.search.action.DeleteSearchApplicationAction;
@@ -80,6 +79,7 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -119,7 +119,8 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
         if (enabled == false) {
             return List.of(usageAction, infoAction);
         }
-        return List.of(
+
+        final List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> actionHandlers = new ArrayList<>(List.of(
             new ActionHandler<>(PutAnalyticsCollectionAction.INSTANCE, TransportPutAnalyticsCollectionAction.class),
             new ActionHandler<>(GetAnalyticsCollectionAction.INSTANCE, TransportGetAnalyticsCollectionAction.class),
             new ActionHandler<>(DeleteAnalyticsCollectionAction.INSTANCE, TransportDeleteAnalyticsCollectionAction.class),
@@ -130,10 +131,17 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
             new ActionHandler<>(PutSearchApplicationAction.INSTANCE, TransportPutSearchApplicationAction.class),
             new ActionHandler<>(QuerySearchApplicationAction.INSTANCE, TransportQuerySearchApplicationAction.class),
             new ActionHandler<>(RenderSearchApplicationQueryAction.INSTANCE, TransportRenderSearchApplicationQueryAction.class),
-            new ActionHandler<>(PutQueryRulesetAction.INSTANCE, TransportPutQueryRulesetAction.class),
             usageAction,
             infoAction
-        );
+        ));
+
+        if (QUERY_RULES_FEATURE_FLAG.isEnabled()) {
+            actionHandlers.add(
+                new ActionHandler<>(PutQueryRulesetAction.INSTANCE, TransportPutQueryRulesetAction.class)
+            );
+        }
+
+        return actionHandlers;
     }
 
     @Override
@@ -150,19 +158,27 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
         if (enabled == false) {
             return Collections.emptyList();
         }
-        return List.of(
-            new RestGetSearchApplicationAction(getLicenseState()),
-            new RestListSearchApplicationAction(getLicenseState()),
-            new RestPutSearchApplicationAction(getLicenseState()),
-            new RestDeleteSearchApplicationAction(getLicenseState()),
-            new RestQuerySearchApplicationAction(getLicenseState()),
+
+        final List<RestHandler> restHandlers = new ArrayList<>(List.of(
             new RestPutAnalyticsCollectionAction(getLicenseState()),
             new RestGetAnalyticsCollectionAction(getLicenseState()),
             new RestDeleteAnalyticsCollectionAction(getLicenseState()),
             new RestPostAnalyticsEventAction(getLicenseState()),
-            new RestRenderSearchApplicationQueryAction(getLicenseState()),
-            new RestPutQueryRulesetAction(getLicenseState())
-        );
+            new RestDeleteSearchApplicationAction(getLicenseState()),
+            new RestGetSearchApplicationAction(getLicenseState()),
+            new RestListSearchApplicationAction(getLicenseState()),
+            new RestPutSearchApplicationAction(getLicenseState()),
+            new RestQuerySearchApplicationAction(getLicenseState()),
+            new RestRenderSearchApplicationQueryAction(getLicenseState())
+        ));
+
+        if (QUERY_RULES_FEATURE_FLAG.isEnabled()) {
+            restHandlers.add(
+                new RestPutSearchApplicationAction(getLicenseState())
+            );
+        }
+
+        return restHandlers;
     }
 
     @Override

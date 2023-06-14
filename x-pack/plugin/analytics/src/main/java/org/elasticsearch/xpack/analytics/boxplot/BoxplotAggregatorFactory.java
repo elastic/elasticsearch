@@ -12,6 +12,7 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.metrics.NonCollectingMultiMetricAggregator;
+import org.elasticsearch.search.aggregations.metrics.TDigestState;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
@@ -52,7 +53,8 @@ public class BoxplotAggregatorFactory extends ValuesSourceAggregatorFactory {
     ) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metadata);
         this.compression = compression;
-        this.executionHint = executionHint;
+        this.executionHint = (executionHint.isEmpty() && context != null && context.getClusterSettings() != null)
+            ? context.getClusterSettings().get(TDigestState.EXECUTION_HINT) : executionHint;
         this.aggregatorSupplier = aggregatorSupplier;
     }
 

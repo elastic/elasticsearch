@@ -200,6 +200,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
             0,
             0,
             idxSettings,
+            null,
             bitsetFilterCache,
             indexFieldDataLookup,
             null,

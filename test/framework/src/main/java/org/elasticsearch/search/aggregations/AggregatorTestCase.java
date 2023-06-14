@@ -339,6 +339,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             0,
             -1,
             indexSettings,
+            null,
             bitsetFilterCache,
             fieldDataBuilder,
             null,

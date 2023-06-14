@@ -10,6 +10,7 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.tdigest.Centroid;
 import org.elasticsearch.tdigest.TDigest;
 
@@ -50,6 +51,14 @@ public class TDigestState {
             }
         }
     }
+
+    public static final Setting<String> EXECUTION_HINT = Setting.simpleString(
+        "search.aggs.tdigest_execution_hint",
+        "",
+        ExecutionHint::parse,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
 
     private final double compression;
 

@@ -123,6 +123,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             null,
             null,
             null,
+            null,
             MappingLookup.EMPTY,
             null,
             null,

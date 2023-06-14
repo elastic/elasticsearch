@@ -99,6 +99,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
             null,
             null,
             null,
+            null,
             MappingLookup.EMPTY,
             null,
             null,

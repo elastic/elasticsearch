@@ -1093,6 +1093,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             0,
             0,
             idxSettings,
+            null,
             bitsetFilterCache,
             indexFieldDataLookup,
             null,

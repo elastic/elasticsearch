@@ -210,6 +210,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
             null,
             null,
             null,
+            null,
             MappingLookup.EMPTY,
             null,
             null,

@@ -139,6 +139,7 @@ public class QueryParserHelperBenchmark {
             0,
             mapperService.getIndexSettings(),
             null,
+            null,
             (ft, fdc) -> ft.fielddataBuilder(fdc).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService()),
             mapperService,
             mapperService.mappingLookup(),

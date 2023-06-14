@@ -301,6 +301,7 @@ public class HighlightBuilderTests extends ESTestCase {
             null,
             null,
             null,
+            null,
             MappingLookup.EMPTY,
             null,
             null,

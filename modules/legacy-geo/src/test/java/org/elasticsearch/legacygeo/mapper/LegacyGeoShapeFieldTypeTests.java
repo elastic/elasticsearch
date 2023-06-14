@@ -9,6 +9,7 @@ package org.elasticsearch.legacygeo.mapper;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.geo.SpatialStrategy;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
@@ -35,7 +36,7 @@ public class LegacyGeoShapeFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testFetchSourceValue() throws IOException {
-        Version version = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
+        IndexVersion version = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0).indexVersion;
         MappedFieldType mapper = new LegacyGeoShapeFieldMapper.Builder("field", version, false, true).build(
             MapperBuilderContext.root(false)
         ).fieldType();

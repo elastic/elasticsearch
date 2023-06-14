@@ -271,6 +271,7 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
             ingestStats,
             null,
             null,
+            null,
             null
         );
 

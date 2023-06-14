@@ -98,7 +98,7 @@ public abstract class DisruptableMockTransport extends MockTransport {
 
                     @Override
                     public TransportVersion getTransportVersion() {
-                        return TransportVersion.CURRENT;
+                        return TransportVersion.current();
                     }
 
                     @Override

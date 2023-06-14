@@ -23,7 +23,7 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.FixedBitSet;
-import org.elasticsearch.Version;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.SearchHit;
@@ -75,7 +75,7 @@ public class PercolatorMatchedSlotSubFetchPhaseTests extends ESTestCase {
                     when(sc.query()).thenReturn(percolateQuery);
                     SearchExecutionContext sec = mock(SearchExecutionContext.class);
                     when(sc.getSearchExecutionContext()).thenReturn(sec);
-                    when(sec.indexVersionCreated()).thenReturn(Version.CURRENT);
+                    when(sec.indexVersionCreated()).thenReturn(IndexVersion.CURRENT);
 
                     FetchSubPhaseProcessor processor = phase.getProcessor(sc);
                     assertNotNull(processor);
@@ -106,7 +106,7 @@ public class PercolatorMatchedSlotSubFetchPhaseTests extends ESTestCase {
                     when(sc.query()).thenReturn(percolateQuery);
                     SearchExecutionContext sec = mock(SearchExecutionContext.class);
                     when(sc.getSearchExecutionContext()).thenReturn(sec);
-                    when(sec.indexVersionCreated()).thenReturn(Version.CURRENT);
+                    when(sec.indexVersionCreated()).thenReturn(IndexVersion.CURRENT);
 
                     FetchSubPhaseProcessor processor = phase.getProcessor(sc);
                     assertNotNull(processor);
@@ -136,7 +136,7 @@ public class PercolatorMatchedSlotSubFetchPhaseTests extends ESTestCase {
                     when(sc.query()).thenReturn(percolateQuery);
                     SearchExecutionContext sec = mock(SearchExecutionContext.class);
                     when(sc.getSearchExecutionContext()).thenReturn(sec);
-                    when(sec.indexVersionCreated()).thenReturn(Version.CURRENT);
+                    when(sec.indexVersionCreated()).thenReturn(IndexVersion.CURRENT);
 
                     FetchSubPhaseProcessor processor = phase.getProcessor(sc);
                     assertNotNull(processor);

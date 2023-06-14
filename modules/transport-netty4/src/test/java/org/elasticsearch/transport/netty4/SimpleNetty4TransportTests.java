@@ -78,7 +78,7 @@ public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase 
                 if (doHandshake) {
                     super.executeHandshake(node, channel, profile, listener);
                 } else {
-                    assert getVersion().equals(TransportVersion.CURRENT);
+                    assert getVersion().equals(TransportVersion.current());
                     listener.onResponse(TransportVersion.MINIMUM_COMPATIBLE);
                 }
             }
@@ -101,8 +101,8 @@ public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase 
     public void testDefaultKeepAliveSettings() throws IOException {
         assumeTrue("setting default keepalive options not supported on this platform", (IOUtils.LINUX || IOUtils.MAC_OS_X));
         try (
-            MockTransportService serviceC = buildService("TS_C", Version.CURRENT, TransportVersion.CURRENT, Settings.EMPTY);
-            MockTransportService serviceD = buildService("TS_D", Version.CURRENT, TransportVersion.CURRENT, Settings.EMPTY)
+            MockTransportService serviceC = buildService("TS_C", Version.CURRENT, TransportVersion.current(), Settings.EMPTY);
+            MockTransportService serviceD = buildService("TS_D", Version.CURRENT, TransportVersion.current(), Settings.EMPTY)
         ) {
 
             try (Transport.Connection connection = openConnection(serviceC, serviceD.getLocalDiscoNode(), TestProfiles.LIGHT_PROFILE)) {
@@ -145,8 +145,8 @@ public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase 
         );
 
         try (
-            MockTransportService serviceC = buildService("TS_C", Version.CURRENT, TransportVersion.CURRENT, Settings.EMPTY);
-            MockTransportService serviceD = buildService("TS_D", Version.CURRENT, TransportVersion.CURRENT, Settings.EMPTY)
+            MockTransportService serviceC = buildService("TS_C", Version.CURRENT, TransportVersion.current(), Settings.EMPTY);
+            MockTransportService serviceD = buildService("TS_D", Version.CURRENT, TransportVersion.current(), Settings.EMPTY)
         ) {
 
             try (Transport.Connection connection = openConnection(serviceC, serviceD.getLocalDiscoNode(), connectionProfile)) {
@@ -224,7 +224,7 @@ public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase 
                 TransportService service = buildService(
                     "TS_TPC",
                     Version.CURRENT,
-                    TransportVersion.CURRENT,
+                    TransportVersion.current(),
                     null,
                     Settings.EMPTY,
                     true,

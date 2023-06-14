@@ -82,6 +82,12 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
             }
         }, DATA_RETENTION_FIELD, ObjectParser.ValueType.STRING_OR_NULL);
 
+        /*
+         * We pass an explicit null marker here because we want to be able to distinguish the difference between the case when the
+         * downsampling field does not exist like {"lifecycle": {}}, and the case when the downsampling field is explicitly null like
+         * {"lifecycle": {"downsampling": null}}. In the former case the constructor will be passed null. In the latter case the
+         * constructor will be passed a singleton list with the sole value being NULL_MARKER.
+         */
         PARSER.declareObjectArrayOrNull(
             ConstructingObjectParser.optionalConstructorArg(),
             (parser, context) -> DOWNSAMPLE_PARSER.apply(parser, context).build(),
@@ -228,7 +234,6 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
             rolloverConfiguration.evaluateAndConvertToXContent(builder, params, getEffectiveDataRetention());
         }
         if (downsampling != null) {
-
             if (downsampling.downsamples != null) {
                 builder.startArray(DOWNSAMPLING_FIELD.getPreferredName());
                 for (Downsample downsample : downsampling.downsamples) {
@@ -241,7 +246,6 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
             } else {
                 builder.nullField(DOWNSAMPLING_FIELD.getPreferredName());
             }
-
         }
         builder.endObject();
         return builder;

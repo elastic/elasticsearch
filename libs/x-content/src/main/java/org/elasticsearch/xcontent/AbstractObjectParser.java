@@ -318,7 +318,9 @@ public abstract class AbstractObjectParser<Value, Context> {
         }
         declareField(
             wrappedConsumer,
-            (p, c) -> p.currentToken() == XContentParser.Token.VALUE_NULL ? List.of(nullMarker) : parseArray(p, c, objectParser),
+            (p, c) -> p.currentToken() == XContentParser.Token.VALUE_NULL
+                ? (nullMarker == null ? null : List.of(nullMarker))
+                : parseArray(p, c, objectParser),
             field,
             ValueType.OBJECT_ARRAY_OR_NULL
         );
@@ -420,7 +422,7 @@ public abstract class AbstractObjectParser<Value, Context> {
      */
     public abstract void declareExclusiveFieldSet(String... exclusiveSet);
 
-    public static <T, Context> List<T> parseArray(XContentParser parser, Context context, ContextParser<Context, T> itemParser)
+    private static <T, Context> List<T> parseArray(XContentParser parser, Context context, ContextParser<Context, T> itemParser)
         throws IOException {
         final XContentParser.Token currentToken = parser.currentToken();
         if (currentToken.isValue()

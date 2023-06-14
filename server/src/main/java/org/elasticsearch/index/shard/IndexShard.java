@@ -2733,7 +2733,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public void maybeSyncGlobalCheckpoint(final String reason) {
         verifyNotClosed();
         assert shardRouting.primary() : "only call maybeSyncGlobalCheckpoint on primary shard";
-        if (isPrimaryMode() == false) {
+        if (replicationTracker.isPrimaryMode() == false) {
             return;
         }
         assert assertPrimaryMode();

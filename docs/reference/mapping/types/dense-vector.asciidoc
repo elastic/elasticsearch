@@ -112,12 +112,7 @@ integer values between -128 to 127, inclusive for both indexing and searching.
 
 `dims`::
 (Required, integer)
-Number of vector dimensions. Can't exceed `1024` for indexed vectors
-(`"index": true`), or `2048` for non-indexed vectors.
-
-+
-experimental:[]
-The number of dimensions for indexed vectors can be extended up to `2048`.
+Number of vector dimensions. Can't exceed `2048`.
 
 `index`::
 (Optional, Boolean)

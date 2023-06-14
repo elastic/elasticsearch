@@ -82,10 +82,11 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
             }
         }, DATA_RETENTION_FIELD, ObjectParser.ValueType.STRING_OR_NULL);
 
-        PARSER.declareObjectArray(
+        PARSER.declareObjectArrayOrNull(
             ConstructingObjectParser.optionalConstructorArg(),
             (parser, context) -> DOWNSAMPLE_PARSER.apply(parser, context).build(),
-            DOWNSAMPLING_FIELD
+            DOWNSAMPLING_FIELD,
+            Downsample.NULL_MARKER
         );
         DOWNSAMPLE_PARSER.declareString(Downsample.Builder::setAfter, DOWNSAMPLING_AFTER_FIELD);
         DOWNSAMPLE_PARSER.declareString(Downsample.Builder::setFixedInterval, DOWNSAMPLING_FIXED_INTERVAL_FIELD);
@@ -119,7 +120,11 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
 
     DataLifecycle(Retention retention, List<Downsample> downsamples) {
         this.dataRetention = retention;
-        this.downsampling = downsamples == null ? null : new Downsampling(downsamples);
+        if (downsamples != null && downsamples.size() == 1 && downsamples.get(0).equals(Downsample.NULL_MARKER)) {
+            this.downsampling = new Downsampling(null);
+        } else {
+            this.downsampling = downsamples == null ? null : new Downsampling(downsamples);
+        }
     }
 
     public DataLifecycle(long timeInMills) {
@@ -223,16 +228,20 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
             rolloverConfiguration.evaluateAndConvertToXContent(builder, params, getEffectiveDataRetention());
         }
         if (downsampling != null) {
-            builder.startArray(DOWNSAMPLING_FIELD.getPreferredName());
+
             if (downsampling.downsamples != null) {
+                builder.startArray(DOWNSAMPLING_FIELD.getPreferredName());
                 for (Downsample downsample : downsampling.downsamples) {
                     builder.startObject();
                     builder.field(DOWNSAMPLING_AFTER_FIELD.getPreferredName(), downsample.after.getStringRep());
                     builder.field(DOWNSAMPLING_FIXED_INTERVAL_FIELD.getPreferredName(), downsample.fixedInterval.getStringRep());
                     builder.endObject();
                 }
+                builder.endArray();
+            } else {
+                builder.nullField(DOWNSAMPLING_FIELD.getPreferredName());
             }
-            builder.endArray();
+
         }
         builder.endObject();
         return builder;
@@ -290,7 +299,7 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
     }
 
     public record Downsampling(List<Downsample> downsamples) implements Writeable {
-        public static final Downsampling NULL = new Downsampling(List.of());
+        public static final Downsampling NULL = new Downsampling(null);
 
         public static Downsampling read(StreamInput in) throws IOException {
             return new Downsampling(in.readOptionalList(Downsample::read));
@@ -303,6 +312,8 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
     }
 
     public record Downsample(TimeValue after, TimeValue fixedInterval) implements Writeable {
+
+        public static final Downsample NULL_MARKER = new Downsample(TimeValue.MINUS_ONE, TimeValue.MINUS_ONE);
 
         public static Downsample read(StreamInput in) throws IOException {
             return new Downsample(in.readTimeValue(), in.readTimeValue());

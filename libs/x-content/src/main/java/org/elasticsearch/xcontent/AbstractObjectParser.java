@@ -299,9 +299,26 @@ public abstract class AbstractObjectParser<Value, Context> {
         ContextParser<Context, T> objectParser,
         ParseField field
     ) {
+        declareObjectArrayOrNull(consumer, objectParser, field, null);
+    }
+
+    public <T> void declareObjectArrayOrNull(
+        BiConsumer<Value, List<T>> consumer,
+        ContextParser<Context, T> objectParser,
+        ParseField field,
+        T nullMarker
+    ) {
+        BiConsumer<Value, List<T>> wrappedConsumer;
+        if (ConstructingObjectParser.isConstructorArg(consumer)) {
+            wrappedConsumer = (ConstructingObjectParser.ConstructorArgument<Value, List<T>>) (value, list) -> {
+                if (list != null) consumer.accept(value, list);
+            };
+        } else {
+            wrappedConsumer = (value, list) -> { if (list != null) consumer.accept(value, list); };
+        }
         declareField(
-            (value, list) -> { if (list != null) consumer.accept(value, list); },
-            (p, c) -> p.currentToken() == XContentParser.Token.VALUE_NULL ? null : parseArray(p, c, objectParser),
+            wrappedConsumer,
+            (p, c) -> p.currentToken() == XContentParser.Token.VALUE_NULL ? List.of(nullMarker) : parseArray(p, c, objectParser),
             field,
             ValueType.OBJECT_ARRAY_OR_NULL
         );
@@ -403,7 +420,7 @@ public abstract class AbstractObjectParser<Value, Context> {
      */
     public abstract void declareExclusiveFieldSet(String... exclusiveSet);
 
-    private static <T, Context> List<T> parseArray(XContentParser parser, Context context, ContextParser<Context, T> itemParser)
+    public static <T, Context> List<T> parseArray(XContentParser parser, Context context, ContextParser<Context, T> itemParser)
         throws IOException {
         final XContentParser.Token currentToken = parser.currentToken();
         if (currentToken.isValue()

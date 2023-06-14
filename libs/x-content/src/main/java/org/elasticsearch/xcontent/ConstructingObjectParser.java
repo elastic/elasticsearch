@@ -74,14 +74,14 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
     /**
      * Consumer that marks a field as a required constructor argument instead of a real object field.
      */
-    private static final BiConsumer<?, ?> REQUIRED_CONSTRUCTOR_ARG_MARKER = (a, b) -> {
+    private static final ConstructorArgument<?, ?> REQUIRED_CONSTRUCTOR_ARG_MARKER = (a, b) -> {
         throw new UnsupportedOperationException("I am just a marker I should never be called.");
     };
 
     /**
      * Consumer that marks a field as an optional constructor argument instead of a real object field.
      */
-    private static final BiConsumer<?, ?> OPTIONAL_CONSTRUCTOR_ARG_MARKER = (a, b) -> {
+    private static final ConstructorArgument<?, ?> OPTIONAL_CONSTRUCTOR_ARG_MARKER = (a, b) -> {
         throw new UnsupportedOperationException("I am just a marker I should never be called.");
     };
 
@@ -341,8 +341,11 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
      * Constructor arguments are detected by this "marker" consumer. It
      * keeps the API looking clean even if it is a bit sleezy.
      */
-    private static boolean isConstructorArg(BiConsumer<?, ?> consumer) {
-        return consumer == REQUIRED_CONSTRUCTOR_ARG_MARKER || consumer == OPTIONAL_CONSTRUCTOR_ARG_MARKER;
+    static boolean isConstructorArg(BiConsumer<?, ?> consumer) {
+        return consumer == REQUIRED_CONSTRUCTOR_ARG_MARKER
+            || consumer == OPTIONAL_CONSTRUCTOR_ARG_MARKER
+            || consumer instanceof ConstructingObjectParser.ConstructorArgument<?, ?>;
+
     }
 
     /**
@@ -584,4 +587,9 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
             this.required = required;
         }
     }
+
+    /**
+     * This is a marker interface for consumers used as constructor arguments.
+     */
+    interface ConstructorArgument<T, U> extends BiConsumer<T, U> {}
 }

@@ -35,7 +35,7 @@ public class MedianAbsoluteDeviationAggregator extends NumericMetricsAggregator.
 
     private final double compression;
 
-    private final boolean optimizeForAccuracy;
+    private final String executionHint;
 
     private ObjectArray<TDigestState> valueSketches;
 
@@ -47,14 +47,14 @@ public class MedianAbsoluteDeviationAggregator extends NumericMetricsAggregator.
         Aggregator parent,
         Map<String, Object> metadata,
         double compression,
-        boolean optimizeForAccuracy
+        String executionHint
     ) throws IOException {
         super(name, context, parent, metadata);
         assert config.hasValues();
         this.valuesSource = (ValuesSource.Numeric) config.getValuesSource();
         this.format = Objects.requireNonNull(format);
         this.compression = compression;
-        this.optimizeForAccuracy = optimizeForAccuracy;
+        this.executionHint = executionHint;
         this.valueSketches = context.bigArrays().newObjectArray(1);
     }
 
@@ -119,7 +119,7 @@ public class MedianAbsoluteDeviationAggregator extends NumericMetricsAggregator.
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return InternalMedianAbsoluteDeviation.empty(name, metadata(), format, compression, optimizeForAccuracy);
+        return InternalMedianAbsoluteDeviation.empty(name, metadata(), format, compression, executionHint);
     }
 
     @Override

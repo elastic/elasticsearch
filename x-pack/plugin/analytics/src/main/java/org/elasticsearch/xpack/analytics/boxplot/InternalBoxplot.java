@@ -179,11 +179,11 @@ public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValu
     static InternalBoxplot empty(
         String name,
         double compression,
-        boolean optimizeForAccuracy,
+        String executionHint,
         DocValueFormat format,
         Map<String, Object> metadata
     ) {
-        return new InternalBoxplot(name, TDigestState.create(compression, optimizeForAccuracy), format, metadata);
+        return new InternalBoxplot(name, TDigestState.create(compression, executionHint), format, metadata);
     }
 
     static final Set<String> METRIC_NAMES = Collections.unmodifiableSet(

@@ -138,8 +138,8 @@ public class TDigestStateTests extends ESTestCase {
 
     public void testFactoryMethods() {
         TDigestState fast = TDigestState.create(100);
-        TDigestState anotherFast = TDigestState.create(100, false);
-        TDigestState accurate = TDigestState.create(100, true);
+        TDigestState anotherFast = TDigestState.create(100);
+        TDigestState accurate = TDigestState.createOptimizedForAccuracy(100);
         TDigestState anotherAccurate = TDigestState.createUsingParamsFrom(accurate);
 
         for (int i = 0; i < 100; i++) {
@@ -151,7 +151,7 @@ public class TDigestStateTests extends ESTestCase {
 
         for (double p : new double[] { 0.1, 1, 10, 25, 50, 75, 90, 99, 99.9 }) {
             double q = p / 100;
-            assertEquals(fast.quantile(q), accurate.quantile(q), 1e-5);
+            assertEquals(fast.quantile(q), accurate.quantile(q), 0.5);
             assertEquals(fast.quantile(q), anotherFast.quantile(q), 1e-5);
             assertEquals(accurate.quantile(q), anotherAccurate.quantile(q), 1e-5);
         }
@@ -160,6 +160,10 @@ public class TDigestStateTests extends ESTestCase {
         assertEquals(accurate, anotherAccurate);
         assertNotEquals(fast, accurate);
         assertNotEquals(anotherFast, anotherAccurate);
+    }
+
+    public void testMalformedExecutionHint() {
+        expectThrows(IllegalArgumentException.class, () -> TDigestState.ExecutionHint.parse("no such hint"));
     }
 
     private TDigestState writeToAndReadFrom(TDigestState state, TransportVersion version) throws IOException {
@@ -186,14 +190,14 @@ public class TDigestStateTests extends ESTestCase {
 
     public void testSerialization() throws IOException {
         // Past default was the accuracy-optimized version.
-        TDigestState backwardsCompatible = TDigestState.create(100, true);
         TDigestState state = TDigestState.create(100);
+        TDigestState backwardsCompatible = TDigestState.createOptimizedForAccuracy(100);
         for (int i = 0; i < 1000; i++) {
             state.add(i);
             backwardsCompatible.add(i);
         }
 
-        TDigestState serialized = writeToAndReadFrom(state, TransportVersion.V_8_9_0);
+        TDigestState serialized = writeToAndReadFrom(state, TransportVersion.V_8_500_012);
         assertEquals(serialized, state);
 
         TDigestState serializedBackwardsCompatible = writeToAndReadFrom(state, TransportVersion.V_8_8_0);

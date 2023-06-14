@@ -166,6 +166,35 @@ GET latency/_search
 
 include::percentile-aggregation.asciidoc[tags=t-digest]
 
+==== Execution hint
+
+The default implementation of TDigest is optimized for performance, scaling to millions or even
+billions of sample values while maintaining acceptable accuracy levels (close to 1% relative error
+for millions of samples in some cases). There's an option to use an implementation optimized
+for accuracy by setting parameter `execution_hint` to value `high_accuracy`:
+
+[source,console]
+--------------------------------------------------
+GET latency/_search
+{
+  "size": 0,
+  "aggs": {
+    "load_time_boxplot": {
+      "boxplot": {
+        "field": "load_time",
+        "execution_hint": "high_accuracy"    <1>
+      }
+    }
+  }
+}
+--------------------------------------------------
+// TEST[setup:latency]
+
+<1> Optimize TDigest for accuracy, at the expense of performance
+
+This option can lead to improved accuracy (relative error close to 0.01% for millions of samples in some
+cases) but then percentile queries take 2x-10x longer to complete.
+
 ==== Missing value
 
 The `missing` parameter defines how documents that are missing a value should be treated.

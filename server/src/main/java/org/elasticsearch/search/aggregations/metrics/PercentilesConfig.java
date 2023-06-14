@@ -124,24 +124,29 @@ public abstract class PercentilesConfig implements ToXContent, Writeable {
         static final double DEFAULT_COMPRESSION = 100.0;
         private double compression;
 
-        private boolean optimizeForAccuracy;
+        private String executionHint = "";
 
         public TDigest() {
             this(DEFAULT_COMPRESSION);
         }
 
         public TDigest(double compression) {
-            this(compression, false);
+            this(compression, "");
         }
 
-        public TDigest(double compression, boolean optimizeForAccuracy) {
+        public TDigest(double compression, String executionHint) {
             super(PercentilesMethod.TDIGEST);
             setCompression(compression);
-            setOptimizeForAccuracy(optimizeForAccuracy);
+            setExecutionHint(executionHint);
         }
 
         TDigest(StreamInput in) throws IOException {
-            this(in.readDouble(), in.getTransportVersion().onOrAfter(TransportVersion.V_8_9_0) == false || in.readBoolean());
+            this(
+                in.readDouble(),
+                in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_012)
+                    ? in.readString()
+                    : TDigestState.ExecutionHint.HIGH_ACCURACY.toString()
+            );
         }
 
         public void setCompression(double compression) {
@@ -155,12 +160,12 @@ public abstract class PercentilesConfig implements ToXContent, Writeable {
             return compression;
         }
 
-        public void setOptimizeForAccuracy(boolean optimizeForAccuracy) {
-            this.optimizeForAccuracy = optimizeForAccuracy;
+        public void setExecutionHint(String executionHint) {
+            this.executionHint = executionHint;
         }
 
-        public boolean getOptimizeForAccuracy() {
-            return optimizeForAccuracy;
+        public String getExecutionHint() {
+            return executionHint;
         }
 
         @Override
@@ -181,7 +186,7 @@ public abstract class PercentilesConfig implements ToXContent, Writeable {
                 parent,
                 values,
                 compression,
-                optimizeForAccuracy,
+                executionHint,
                 keyed,
                 formatter,
                 metadata
@@ -217,7 +222,7 @@ public abstract class PercentilesConfig implements ToXContent, Writeable {
                 parent,
                 values,
                 compression,
-                optimizeForAccuracy,
+                executionHint,
                 keyed,
                 formatter,
                 metadata
@@ -232,15 +237,15 @@ public abstract class PercentilesConfig implements ToXContent, Writeable {
             DocValueFormat formatter,
             Map<String, Object> metadata
         ) {
-            return InternalTDigestPercentileRanks.empty(name, values, compression, optimizeForAccuracy, keyed, formatter, metadata);
+            return InternalTDigestPercentileRanks.empty(name, values, compression, executionHint, keyed, formatter, metadata);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeDouble(compression);
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_9_0)) {
-                out.writeBoolean(optimizeForAccuracy);
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_012)) {
+                out.writeString(executionHint);
             }
         }
 
@@ -259,12 +264,12 @@ public abstract class PercentilesConfig implements ToXContent, Writeable {
             if (super.equals(obj) == false) return false;
 
             TDigest other = (TDigest) obj;
-            return compression == other.getCompression() && optimizeForAccuracy == other.getOptimizeForAccuracy();
+            return compression == other.getCompression() && executionHint.equals(other.getExecutionHint());
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(super.hashCode(), compression, optimizeForAccuracy);
+            return Objects.hash(super.hashCode(), compression, executionHint);
         }
     }
 

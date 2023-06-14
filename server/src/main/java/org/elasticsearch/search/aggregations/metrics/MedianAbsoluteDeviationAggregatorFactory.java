@@ -25,7 +25,7 @@ public class MedianAbsoluteDeviationAggregatorFactory extends ValuesSourceAggreg
 
     private final MedianAbsoluteDeviationAggregatorSupplier aggregatorSupplier;
     private final double compression;
-    private final boolean optimizeForAccuracy;
+    private final String executionHint;
 
     MedianAbsoluteDeviationAggregatorFactory(
         String name,
@@ -35,13 +35,13 @@ public class MedianAbsoluteDeviationAggregatorFactory extends ValuesSourceAggreg
         AggregatorFactories.Builder subFactoriesBuilder,
         Map<String, Object> metadata,
         double compression,
-        boolean optimizeForAccuracy,
+        String executionHint,
         MedianAbsoluteDeviationAggregatorSupplier aggregatorSupplier
     ) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metadata);
         this.aggregatorSupplier = aggregatorSupplier;
         this.compression = compression;
-        this.optimizeForAccuracy = optimizeForAccuracy;
+        this.executionHint = executionHint;
     }
 
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {
@@ -60,7 +60,7 @@ public class MedianAbsoluteDeviationAggregatorFactory extends ValuesSourceAggreg
             metadata,
             config.format(),
             compression,
-            optimizeForAccuracy
+            executionHint
         );
         return new NonCollectingSingleMetricAggregator(name, context, parent, empty, metadata);
     }
@@ -68,6 +68,6 @@ public class MedianAbsoluteDeviationAggregatorFactory extends ValuesSourceAggreg
     @Override
     protected Aggregator doCreateInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
         throws IOException {
-        return aggregatorSupplier.build(name, config, config.format(), context, parent, metadata, compression, optimizeForAccuracy);
+        return aggregatorSupplier.build(name, config, config.format(), context, parent, metadata, compression, executionHint);
     }
 }

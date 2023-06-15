@@ -9,6 +9,8 @@ package org.elasticsearch.search.fetch.subphase.highlight;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
+import net.bytebuddy.utility.RandomString;
+
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
@@ -3507,31 +3509,30 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         // check that constant_keyword highlighting works
         String index = "test";
         String constantKeywordFieldName = "level";
+        String constantValue = new RandomString(5).nextString();
 
-        XContentBuilder mappings = prepareConstantKeywordMappings(constantKeywordFieldName);
+        XContentBuilder mappings = prepareConstantKeywordMappings(constantKeywordFieldName, constantValue);
         assertAcked(prepareCreate(index).setMapping(mappings));
 
         XContentBuilder document = jsonBuilder().startObject()
             .field("message", "some text")
-            .field("level", "DEBUG")
+            .field("level", constantValue)
             .endObject();
         saveDocumentIntoIndex(index, "1", document);
 
-        SearchResponse search = prepareConstantKeywordSearch(QueryBuilders.queryStringQuery("DEBUG"));
+        SearchResponse search = prepareConstantKeywordSearch(QueryBuilders.queryStringQuery(constantValue));
 
         assertNoFailures(search);
-        assertThat(
-            getHighlightedStringFromSearch(search, constantKeywordFieldName),
-            equalTo("<em>DEBUG</em>")
-        );
+        assertHighlight(search, 0, constantKeywordFieldName, 0, 1, equalTo("<em>%s</em>".formatted(constantValue)));
     }
 
     public void testImplicitConstantKeywordFieldHighlighting() throws IOException {
         //Constant field value is defined by the mapping
         String index = "test";
         String constantKeywordFieldName = "level";
+        String constantValue = new RandomString(5).nextString();
 
-        XContentBuilder mappings = prepareConstantKeywordMappings(constantKeywordFieldName);
+        XContentBuilder mappings = prepareConstantKeywordMappings(constantKeywordFieldName, constantValue);
         assertAcked(prepareCreate(index).setMapping(mappings));
 
         XContentBuilder document = jsonBuilder().startObject()
@@ -3539,20 +3540,19 @@ public class HighlighterSearchIT extends ESIntegTestCase {
             .endObject();
         saveDocumentIntoIndex(index, "1", document);
 
-        SearchResponse search = prepareConstantKeywordSearch(QueryBuilders.queryStringQuery("DEBUG"));
+        SearchResponse search = prepareConstantKeywordSearch(QueryBuilders.queryStringQuery(constantValue));
 
         assertNoFailures(search);
-        assertThat(
-            getHighlightedStringFromSearch(search, constantKeywordFieldName),
-            equalTo("<em>DEBUG</em>")
-        );
+        assertHighlight(search, 0, constantKeywordFieldName, 0, 1, equalTo("<em>%s</em>".formatted(constantValue)));
     }
 
     public void testConstantKeywordFieldPartialNoHighlighting() throws IOException {
         String index = "test";
         String constantKeywordFieldName = "level";
+        String constantValue = new RandomString(5).nextString();
+        String partialConstantValue = constantValue.substring(0, 3);
 
-        XContentBuilder mappings = prepareConstantKeywordMappings(constantKeywordFieldName);
+        XContentBuilder mappings = prepareConstantKeywordMappings(constantKeywordFieldName, constantValue);
         assertAcked(prepareCreate(index).setMapping(mappings));
 
         XContentBuilder document = jsonBuilder().startObject()
@@ -3560,41 +3560,40 @@ public class HighlighterSearchIT extends ESIntegTestCase {
             .endObject();
         saveDocumentIntoIndex(index, "1", document);
 
-        SearchResponse search = prepareConstantKeywordSearch(QueryBuilders.queryStringQuery("DEB"));
+        SearchResponse search = prepareConstantKeywordSearch(QueryBuilders.queryStringQuery(partialConstantValue));
 
         assertNoFailures(search);
-        assertEquals(0, search.getHits().getHits().length);
+        assertHitCount(search, 0);
     }
 
     public void testConstantKeywordFieldPartialWithWildcardHighlighting() throws IOException {
-        // check that constant_keyword highlighting works
-        XContentBuilder mappings = prepareConstantKeywordMappings("level");
+        String index = "test";
+        String constantKeywordFieldName = "level";
+        String constantValue = new RandomString(5).nextString();
+        String partialConstantValueWithWildCard = "%s*".formatted(constantValue.substring(0, 3));
 
-        assertAcked(prepareCreate("test").setMapping(mappings));
+        XContentBuilder mappings = prepareConstantKeywordMappings(constantKeywordFieldName, constantValue);
+        assertAcked(prepareCreate(index).setMapping(mappings));
 
         XContentBuilder document = jsonBuilder().startObject()
             .field("message", "some text")
             .endObject();
+        saveDocumentIntoIndex(index, "1", document);
 
-        saveDocumentIntoIndex("test", "1", document);
-
-        SearchResponse search = prepareConstantKeywordSearch(QueryBuilders.queryStringQuery("DEB*"));
+        SearchResponse search = prepareConstantKeywordSearch(QueryBuilders.queryStringQuery(partialConstantValueWithWildCard));
 
         assertNoFailures(search);
-        assertThat(
-            getHighlightedStringFromSearch(search, "level"),
-            equalTo("<em>DEBUG</em>")
-        );
+        assertHighlight(search, 0, constantKeywordFieldName, 0, 1, equalTo("<em>%s</em>".formatted(constantValue)));
     }
 
-    private XContentBuilder prepareConstantKeywordMappings(String constantKeywordFieldName) throws IOException {
+    private XContentBuilder prepareConstantKeywordMappings(String constantKeywordFieldName, String constantValue) throws IOException {
         XContentBuilder mappings = jsonBuilder();
         mappings.startObject();
         mappings.startObject("_doc")
             .startObject("properties")
             .startObject(constantKeywordFieldName)
             .field("type", "constant_keyword")
-            .field("value", "DEBUG")
+            .field("value", constantValue)
             .endObject()
             .startObject("message")
             .field("type", "text")

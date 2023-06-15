@@ -280,7 +280,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0) && in.getTransportVersion().before(TransportVersion.V_8_500_999)) {
             List<QueryBuilder> rankQueryBuilders = in.readNamedWriteableList(QueryBuilder.class);
             if (rankQueryBuilders.size() == 1) {
-                throw new IllegalStateException("[rank] requires at least [2] queries, but only found [1]");
+                throw new IllegalStateException("[rank] requires at least [2] s, but only found [1]");
             }
             if (source != null && source.rankBuilder() != null) {
                 List<SubSearchSourceBuilder> subSearchSourceBuilders = new ArrayList<>();

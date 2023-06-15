@@ -293,7 +293,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_999)) {
             out.writeList(subSearchSourceBuilders);
         } else if (out.getTransportVersion().before(TransportVersion.V_8_8_0) && subSearchSourceBuilders.size() >= 2) {
-            throw new IllegalArgumentException("cannot serialize multiple queries to version [" + out.getTransportVersion() + "]");
+            throw new IllegalArgumentException("cannot serialize [sub_searches] to version [" + out.getTransportVersion() + "]");
         } else {
             out.writeOptionalNamedWriteable(query());
         }
@@ -382,10 +382,10 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      * Gets the query for this request.
      *
      * @return This will return {@code null} if there are no
-     * queries, a single {@link QueryBuilder} if there is only
-     * one query, and a combined {@link BoolQueryBuilder} if
-     * there are multiple queries where each query becomes
-     * a should clause.
+     * sub searches, a single {@link QueryBuilder} if there is only
+     * one sub search, and a combined {@link BoolQueryBuilder} if
+     * there are multiple sub searches where each sub search becomes
+     * a query with a should clause.
      */
     public QueryBuilder query() {
         if (subSearchSourceBuilders.isEmpty()) {
@@ -402,7 +402,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     }
 
     /**
-     * Sets the queries for this request.
+     * Sets the sub searches for this request.
      */
     public SearchSourceBuilder subSearches(List<SubSearchSourceBuilder> subSearchSourceBuilders) {
         this.subSearchSourceBuilders = subSearchSourceBuilders;
@@ -410,7 +410,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     }
 
     /**
-     * Gets the queries for this request.
+     * Gets the sub searches for this request.
      */
     public List<SubSearchSourceBuilder> subSearches() {
         return subSearchSourceBuilders;
@@ -1565,7 +1565,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                         } else {
                             throw new XContentParseException(
                                 parser.getTokenLocation(),
-                                "malformed query within the [queries] field; found " + token
+                                "malformed query within the [sub_searches] field; found " + token
                             );
                         }
                     }

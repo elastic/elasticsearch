@@ -47,7 +47,7 @@ public final class ProfileCollectorManager implements CollectorManager<InternalP
         List<CollectorResult> resultsPerProfiler = profileCollectors.stream()
             .map(ipc -> ipc.getCollectorTree())
             .collect(Collectors.toList());
-        this.collectorTree = new CollectorResult(this.getClass().getSimpleName(), "parent_collector_manager", 0, resultsPerProfiler);
+        this.collectorTree = new CollectorResult(this.getClass().getSimpleName(), "segment_search", 0, resultsPerProfiler);
         return null;
     }
 

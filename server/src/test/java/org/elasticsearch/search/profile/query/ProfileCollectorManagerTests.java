@@ -102,7 +102,7 @@ public class ProfileCollectorManagerTests extends ESTestCase {
 
             CollectorResult parent = profileCollectorManager.getCollectorTree();
             assertEquals("ProfileCollectorManager", parent.getName());
-            assertEquals("parent_collector_manager", parent.getReason());
+            assertEquals("segment_search", parent.getReason());
             assertEquals(0, parent.getTime());
             List<ProfilerCollectorResult> delegateCollectorResults = parent.getProfiledChildren();
             assertEquals(numSlices, delegateCollectorResults.size());

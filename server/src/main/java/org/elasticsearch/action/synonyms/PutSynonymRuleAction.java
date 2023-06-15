@@ -74,7 +74,7 @@ public class PutSynonymRuleAction extends ActionType<SynonymUpdateResponse> {
         @Override
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = null;
-            if (Strings.isEmpty(synonymsSetId)) {
+            if (Strings.isNullOrEmpty(synonymsSetId)) {
                 validationException = ValidateActions.addValidationError("synonyms set must be specified", validationException);
             }
             if (Strings.isNullOrEmpty(synonymRule.id())) {

@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml.job.process.autodetect.output;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -43,36 +44,42 @@ public class FlushAcknowledgement implements ToXContentObject, Writeable {
 
     private final String id;
     private final Instant lastFinalizedBucketEnd;
-    private final Boolean refreshRequired;
+    private final boolean refreshRequired;
 
-    public FlushAcknowledgement(String id, Long lastFinalizedBucketEndMs, Boolean refreshRequired) {
+    public FlushAcknowledgement(String id, Long lastFinalizedBucketEndMs, boolean refreshRequired) {
         this.id = id;
         // The C++ passes 0 when last finalized bucket end is not available, so treat 0 as null
         this.lastFinalizedBucketEnd = (lastFinalizedBucketEndMs != null && lastFinalizedBucketEndMs > 0)
             ? Instant.ofEpochMilli(lastFinalizedBucketEndMs)
             : null;
-        this.refreshRequired = refreshRequired == null || refreshRequired;
+        this.refreshRequired = refreshRequired;
     }
 
-    public FlushAcknowledgement(String id, Instant lastFinalizedBucketEnd, Boolean refreshRequired) {
+    public FlushAcknowledgement(String id, Instant lastFinalizedBucketEnd, boolean refreshRequired) {
         this.id = id;
         // Round to millisecond accuracy to ensure round-tripping via XContent results in an equal object
         long epochMillis = (lastFinalizedBucketEnd != null) ? lastFinalizedBucketEnd.toEpochMilli() : 0;
         this.lastFinalizedBucketEnd = (epochMillis > 0) ? Instant.ofEpochMilli(epochMillis) : null;
-        this.refreshRequired = refreshRequired == null || refreshRequired;
+        this.refreshRequired = refreshRequired;
     }
 
     public FlushAcknowledgement(StreamInput in) throws IOException {
         id = in.readString();
         lastFinalizedBucketEnd = in.readOptionalInstant();
-        refreshRequired = in.readOptionalBoolean();
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_012)) {
+            refreshRequired = in.readBoolean();
+        } else {
+            refreshRequired = true;
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(id);
         out.writeOptionalInstant(lastFinalizedBucketEnd);
-        out.writeOptionalBoolean(refreshRequired);
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_012)) {
+            out.writeBoolean(refreshRequired);
+        }
     }
 
     public String getId() {
@@ -83,7 +90,7 @@ public class FlushAcknowledgement implements ToXContentObject, Writeable {
         return lastFinalizedBucketEnd;
     }
 
-    public Boolean getRefreshRequired() {
+    public boolean getRefreshRequired() {
         return refreshRequired;
     }
 
@@ -119,6 +126,6 @@ public class FlushAcknowledgement implements ToXContentObject, Writeable {
         FlushAcknowledgement other = (FlushAcknowledgement) obj;
         return Objects.equals(id, other.id)
             && Objects.equals(lastFinalizedBucketEnd, other.lastFinalizedBucketEnd)
-            && Objects.equals(refreshRequired, other.refreshRequired);
+            && refreshRequired == refreshRequired;
     }
 }

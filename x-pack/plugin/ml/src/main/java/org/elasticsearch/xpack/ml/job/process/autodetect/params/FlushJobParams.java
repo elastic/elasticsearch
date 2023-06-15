@@ -100,7 +100,7 @@ public class FlushJobParams {
         return waitForNormalization;
     }
 
-    public Boolean refreshRequired() {
+    public boolean refreshRequired() {
         return refreshRequired;
     }
 

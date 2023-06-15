@@ -100,7 +100,7 @@ public class FlushJobParams {
         return waitForNormalization;
     }
 
-    public boolean refreshRequired() {
+    public boolean isRefreshRequired() {
         return refreshRequired;
     }
 
@@ -116,12 +116,14 @@ public class FlushJobParams {
         return calcInterim == that.calcInterim
             && Objects.equals(timeRange, that.timeRange)
             && Objects.equals(advanceTimeSeconds, that.advanceTimeSeconds)
-            && Objects.equals(skipTimeSeconds, that.skipTimeSeconds);
+            && Objects.equals(skipTimeSeconds, that.skipTimeSeconds)
+            && waitForNormalization == that.waitForNormalization
+            && refreshRequired == that.refreshRequired;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(calcInterim, timeRange, advanceTimeSeconds, skipTimeSeconds);
+        return Objects.hash(calcInterim, timeRange, advanceTimeSeconds, skipTimeSeconds, waitForNormalization, refreshRequired);
     }
 
     public static class Builder {

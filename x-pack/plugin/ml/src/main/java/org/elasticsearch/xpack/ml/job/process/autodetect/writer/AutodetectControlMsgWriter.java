@@ -148,7 +148,7 @@ public class AutodetectControlMsgWriter extends AbstractControlMsgWriter {
         if (params.shouldCalculateInterim()) {
             writeControlCodeFollowedByTimeRange(INTERIM_MESSAGE_CODE, params.getStart(), params.getEnd());
         }
-        writeMessage(REFRESH_REQUIRED_MESSAGE_CODE + params.refreshRequired());
+        writeMessage(REFRESH_REQUIRED_MESSAGE_CODE + params.isRefreshRequired());
     }
 
     /**

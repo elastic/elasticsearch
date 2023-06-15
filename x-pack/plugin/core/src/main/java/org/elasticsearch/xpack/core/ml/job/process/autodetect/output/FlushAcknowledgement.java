@@ -46,21 +46,21 @@ public class FlushAcknowledgement implements ToXContentObject, Writeable {
     private final Instant lastFinalizedBucketEnd;
     private final boolean refreshRequired;
 
-    public FlushAcknowledgement(String id, Long lastFinalizedBucketEndMs, boolean refreshRequired) {
+    public FlushAcknowledgement(String id, Long lastFinalizedBucketEndMs, Boolean refreshRequired) {
         this.id = id;
         // The C++ passes 0 when last finalized bucket end is not available, so treat 0 as null
         this.lastFinalizedBucketEnd = (lastFinalizedBucketEndMs != null && lastFinalizedBucketEndMs > 0)
             ? Instant.ofEpochMilli(lastFinalizedBucketEndMs)
             : null;
-        this.refreshRequired = refreshRequired;
+        this.refreshRequired = refreshRequired == null || refreshRequired;
     }
 
-    public FlushAcknowledgement(String id, Instant lastFinalizedBucketEnd, boolean refreshRequired) {
+    public FlushAcknowledgement(String id, Instant lastFinalizedBucketEnd, Boolean refreshRequired) {
         this.id = id;
         // Round to millisecond accuracy to ensure round-tripping via XContent results in an equal object
         long epochMillis = (lastFinalizedBucketEnd != null) ? lastFinalizedBucketEnd.toEpochMilli() : 0;
         this.lastFinalizedBucketEnd = (epochMillis > 0) ? Instant.ofEpochMilli(epochMillis) : null;
-        this.refreshRequired = refreshRequired;
+        this.refreshRequired = refreshRequired == null || refreshRequired;
     }
 
     public FlushAcknowledgement(StreamInput in) throws IOException {
@@ -126,6 +126,6 @@ public class FlushAcknowledgement implements ToXContentObject, Writeable {
         FlushAcknowledgement other = (FlushAcknowledgement) obj;
         return Objects.equals(id, other.id)
             && Objects.equals(lastFinalizedBucketEnd, other.lastFinalizedBucketEnd)
-            && refreshRequired == refreshRequired;
+            && refreshRequired == other.refreshRequired;
     }
 }

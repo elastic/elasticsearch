@@ -227,7 +227,7 @@ public class ClusterStateChanges {
             @Override
             public Transport.Connection getConnection(DiscoveryNode node) {
                 Transport.Connection conn = mock(Transport.Connection.class);
-                when(conn.getTransportVersion()).thenReturn(TransportVersion.CURRENT);
+                when(conn.getTransportVersion()).thenReturn(TransportVersion.current());
                 return conn;
             }
         };

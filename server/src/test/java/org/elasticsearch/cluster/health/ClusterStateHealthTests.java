@@ -22,7 +22,6 @@ import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -119,9 +118,7 @@ public class ClusterStateHealthTests extends ESTestCase {
 
         setState(
             clusterService,
-            ClusterState.builder(clusterService.state())
-                .nodes(DiscoveryNodes.builder(clusterService.state().nodes()).masterNodeId(null))
-                .build()
+            ClusterState.builder(clusterService.state()).nodes(clusterService.state().nodes().withMasterNodeId(null)).build()
         );
 
         clusterService.addStateApplier(event -> {
@@ -139,7 +136,7 @@ public class ClusterStateHealthTests extends ESTestCase {
             .onNewClusterState(
                 "restore master",
                 () -> ClusterState.builder(currentState)
-                    .nodes(DiscoveryNodes.builder(currentState.nodes()).masterNodeId(currentState.nodes().getLocalNodeId()))
+                    .nodes(currentState.nodes().withMasterNodeId(currentState.nodes().getLocalNodeId()))
                     .incrementVersion()
                     .build(),
                 ActionListener.noop()

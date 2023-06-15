@@ -12,7 +12,6 @@ import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -24,17 +23,20 @@ import java.util.stream.Collectors;
  */
 public final class ProfileCollectorManager implements CollectorManager<InternalProfileCollector, Void> {
 
-    private final CollectorManager<Collector, Void> collectorManager;
+
+    private final CollectorManager<Collector, ?> collectorManager;
+    private final String reason;
     private CollectorResult collectorTree;
 
     @SuppressWarnings("unchecked")
-    public ProfileCollectorManager(CollectorManager<? extends Collector, Void> collectorManager) {
-        this.collectorManager = (CollectorManager<Collector, Void>) collectorManager;
+    public ProfileCollectorManager(CollectorManager<? extends Collector, ?> collectorManager, String reason) {
+        this.collectorManager = (CollectorManager<Collector, ?>) collectorManager;
+        this.reason = reason;
     }
 
     @Override
     public InternalProfileCollector newCollector() throws IOException {
-        return new InternalProfileCollector(collectorManager.newCollector(), CollectorResult.REASON_SEARCH_TOP_HITS);
+        return new InternalProfileCollector(collectorManager.newCollector(), reason);
     }
 
     public Void reduce(Collection<InternalProfileCollector> profileCollectors) throws IOException {
@@ -43,21 +45,11 @@ public final class ProfileCollectorManager implements CollectorManager<InternalP
             .collect(Collectors.toList());
         collectorManager.reduce(unwrapped);
 
-        List<CollectorResult> resultsPerProfiler = new ArrayList<>(profileCollectors.size());
-        long maxTime = 0;
-        for (InternalProfileCollector ipc : profileCollectors) {
-            CollectorResult ct = ipc.getCollectorTree();
-            resultsPerProfiler.add(ct);
-            if (maxTime < ct.getTime()) {
-                maxTime = ct.getTime();
-            }
-        }
-        this.collectorTree = new CollectorResult(
-            this.getClass().getSimpleName(),
-            CollectorResult.REASON_SEARCH_TOP_HITS + "_max",
-            maxTime,
-            resultsPerProfiler
-        );
+
+        List<CollectorResult> resultsPerProfiler = profileCollectors.stream()
+            .map(ipc -> ipc.getCollectorTree())
+            .collect(Collectors.toList());
+        this.collectorTree = new CollectorResult(this.getClass().getSimpleName(), "segment_search", 0, resultsPerProfiler);
         return null;
     }
 

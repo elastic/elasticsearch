@@ -15,7 +15,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.Version.CURRENT;
+import static org.elasticsearch.index.IndexVersion.CURRENT;
 
 public class ShapeFieldTypeTests extends FieldTypeTestCase {
 

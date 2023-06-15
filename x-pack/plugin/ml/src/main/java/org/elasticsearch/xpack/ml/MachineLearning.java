@@ -32,7 +32,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -1604,10 +1603,12 @@ public class MachineLearning extends Plugin
 
     @Override
     public Map<String, AnalysisProvider<CharFilterFactory>> getCharFilters() {
-        return MapBuilder.<String, AnalysisProvider<CharFilterFactory>>newMapBuilder()
-            .put(FirstNonBlankLineCharFilter.NAME, FirstNonBlankLineCharFilterFactory::new)
-            .put(FirstLineWithLettersCharFilter.NAME, FirstLineWithLettersCharFilterFactory::new)
-            .map();
+        return Map.of(
+            FirstNonBlankLineCharFilter.NAME,
+            FirstNonBlankLineCharFilterFactory::new,
+            FirstLineWithLettersCharFilter.NAME,
+            FirstLineWithLettersCharFilterFactory::new
+        );
     }
 
     @Override

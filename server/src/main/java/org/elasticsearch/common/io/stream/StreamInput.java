@@ -1160,8 +1160,8 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
-     * Reads a set of objects. The set is expected to have been written using {@link StreamOutput#writeCollection(Collection)}}.
-     * The returned set is immutable.
+     * Reads a set of objects. The set is expected to have been written using {@link StreamOutput#writeCollection(Collection)}} with
+     * a collection that contains no duplicates. The returned set is immutable.
      *
      * @return the set of objects
      * @throws IOException if an I/O exception occurs reading the set

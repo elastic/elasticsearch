@@ -1,14 +1,14 @@
 = Elasticsearch
 
-Elasticsearch is the distributed, RESTful search and analytics engine at the
-heart of the https://www.elastic.co/products[Elastic Stack]. You can use
-Elasticsearch to store, search, and manage data for:
+Elasticsearch is a distributed, RESTful search engine optimized for speed and relevance on production-scale workloads. You can use Elasticsearch to perform real-time search over massive datasets for applications including:
 
+* Vector Search
+* Full-text search
 * Logs
 * Metrics
-* A search backend
-* Application monitoring
-* Endpoint security
+* Application performance monitoring
+* Security logs
+
 
 \... and more!
 

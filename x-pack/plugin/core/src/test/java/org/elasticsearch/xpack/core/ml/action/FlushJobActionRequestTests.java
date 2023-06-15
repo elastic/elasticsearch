@@ -10,7 +10,6 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.core.ml.action.FlushJobAction.Request;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertJapaneseTokenization;
 
 public class FlushJobActionRequestTests extends AbstractBWCWireSerializationTestCase<Request> {
 

@@ -1093,20 +1093,20 @@ public abstract class StreamInput extends InputStream {
     public <T> List<T> readImmutableList(final Writeable.Reader<T> reader) throws IOException {
         int count = readArraySize();
         // special cases small arrays, just like in java.util.List.of(...)
-        if (count == 0) {
-            return List.of();
-        } else if (count == 1) {
-            return List.of(reader.read(this));
-        } else if (count == 2) {
-            return List.of(reader.read(this), reader.read(this));
-        }
-        Object[] entries = new Object[count];
-        for (int i = 0; i < count; i++) {
-            entries[i] = reader.read(this);
-        }
-        @SuppressWarnings("unchecked")
-        T[] typedEntries = (T[]) entries;
-        return List.of(typedEntries);
+        return switch (count) {
+            case 0 -> List.of();
+            case 1 -> List.of(reader.read(this));
+            case 2 -> List.of(reader.read(this), reader.read(this));
+            default -> {
+                Object[] entries = new Object[count];
+                for (int i = 0; i < count; i++) {
+                    entries[i] = reader.read(this);
+                }
+                @SuppressWarnings("unchecked")
+                T[] typedEntries = (T[]) entries;
+                yield List.of(typedEntries);
+            }
+        };
     }
 
     /**
@@ -1169,20 +1169,20 @@ public abstract class StreamInput extends InputStream {
     public <T> Set<T> readImmutableSet(final Writeable.Reader<T> reader) throws IOException {
         int count = readArraySize();
         // special cases small arrays, just like in java.util.Set.of(...)
-        if (count == 0) {
-            return Set.of();
-        } else if (count == 1) {
-            return Set.of(reader.read(this));
-        } else if (count == 2) {
-            return Set.of(reader.read(this), reader.read(this));
-        }
-        Object[] entries = new Object[count];
-        for (int i = 0; i < count; i++) {
-            entries[i] = reader.read(this);
-        }
-        @SuppressWarnings("unchecked")
-        T[] typedEntries = (T[]) entries;
-        return Set.of(typedEntries);
+        return switch (count) {
+            case 0 -> Set.of();
+            case 1 -> Set.of(reader.read(this));
+            case 2 -> Set.of(reader.read(this), reader.read(this));
+            default -> {
+                Object[] entries = new Object[count];
+                for (int i = 0; i < count; i++) {
+                    entries[i] = reader.read(this);
+                }
+                @SuppressWarnings("unchecked")
+                T[] typedEntries = (T[]) entries;
+                yield Set.of(typedEntries);
+            }
+        };
     }
 
     /**

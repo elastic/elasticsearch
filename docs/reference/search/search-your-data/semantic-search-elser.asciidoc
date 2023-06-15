@@ -65,7 +65,7 @@ PUT my-index
 <1> The field that contains the prediction is a `rank_features` field.
 <2> The name of the text field from which to create the sparse vector 
 representation. In this example, the name of the text field is `text`.
-<3> The field type. It must be text.
+<3> The field type which is text in this example.
 
 
 [discrete]

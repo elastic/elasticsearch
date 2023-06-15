@@ -1583,7 +1583,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
 
         public PrimaryContext(StreamInput in) throws IOException {
             clusterStateVersion = in.readVLong();
-            checkpoints = in.readMap(StreamInput::readString, CheckpointState::new);
+            checkpoints = in.readMap(CheckpointState::new);
             routingTable = IndexShardRoutingTable.Builder.readFrom(in).build();
         }
 

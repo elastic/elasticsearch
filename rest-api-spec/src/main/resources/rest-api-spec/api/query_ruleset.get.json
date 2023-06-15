@@ -5,7 +5,8 @@
       "description": "Returns the details about a query ruleset."
     },
     "stability": "experimental",
-    "visibility": "public",
+    "visibility": "feature_flag",
+    "feature_flag": "es.query_rules_feature_flag_enabled",
     "headers": {
       "accept": [
         "application/json"

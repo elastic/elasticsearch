@@ -75,6 +75,8 @@ import java.util.stream.IntStream;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING;
 import static org.elasticsearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
+import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING;
+import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.MAX_RESTORE_BYTES_PER_SEC;
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.READONLY_SETTING_KEY;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -445,13 +447,17 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         final String repositoryName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
 
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        assertAcked(prepareCreate(indexName, indexSettingsNoReplicas(between(1, 3)).put(INDEX_SOFT_DELETES_SETTING.getKey(), true)));
+
+        Settings.Builder indexSettings = indexSettingsNoReplicas(between(1, 3)).put(INDEX_SOFT_DELETES_SETTING.getKey(), true);
+
+        assertAcked(prepareCreate(indexName, indexSettings));
+
         final int nbDocs = between(10, 50);
         indexRandom(
             true,
             false,
             IntStream.range(0, nbDocs)
-                .mapToObj(i -> client().prepareIndex(indexName).setSource("foo", randomBoolean() ? "bar" : "baz"))
+                .mapToObj(i -> client().prepareIndex(indexName).setSource("foo", randomAlphaOfLength(1048)))
                 .collect(Collectors.toList())
         );
         refresh(indexName);
@@ -460,14 +466,22 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         final Settings.Builder repositorySettings = Settings.builder().put("location", randomRepoPath());
         final boolean useRateLimits = randomBoolean();
         if (useRateLimits) {
-            // we compute the min across all the max shard sizes by node in order to
+            // we compute the min across all the max shard (minimax) sizes by node in order to
             // trigger the rate limiter in all nodes. We could just use the min shard size
             // but that would make this test too slow.
-            long rateLimitInBytes = getMaxShardSizeByNodeInBytes(indexName).values().stream().min(Long::compareTo).get();
-            repositorySettings.put("max_restore_bytes_per_sec", ByteSizeValue.ofBytes(rateLimitInBytes));
+            // Setting rate limit at a 90% of minimax value to increase probability to engage rate limiting mechanism
+            // which is defined in RateLimitingInputStream (see details in https://github.com/elastic/elasticsearch/pull/96444)
+            long minimax = getMaxShardSizeByNodeInBytes(indexName).values().stream().min(Long::compareTo).get();
+            long rateLimitInBytes = (long) (0.9 * minimax);
+            repositorySettings.put(MAX_RESTORE_BYTES_PER_SEC.getKey(), ByteSizeValue.ofBytes(rateLimitInBytes));
         } else {
-            repositorySettings.put("max_restore_bytes_per_sec", ByteSizeValue.ZERO);
+            repositorySettings.put(MAX_RESTORE_BYTES_PER_SEC.getKey(), ByteSizeValue.ZERO);
+            // Disable rate limiter which is defined in RecoverySettings
+            // BlobStoreRepository#maybeRateLimitRestores uses two rate limiters and a single callback listener
+            // which is asserted in this test. Both rate limiter should be switched off
+            updateClusterSettings(Settings.builder().put(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), ByteSizeValue.ZERO));
         }
+
         createRepository(repositoryName, "fs", repositorySettings);
 
         final String restoredIndexName = randomBoolean() ? indexName : randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
@@ -505,6 +519,11 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
                     useRateLimits ? greaterThan(0L) : equalTo(0L)
                 );
             }
+        }
+
+        if (useRateLimits == false) {
+            // compensate setting change from above
+            updateClusterSettings(Settings.builder().putNull(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey()));
         }
 
         assertAcked(client().admin().indices().prepareDelete(restoredIndexName));

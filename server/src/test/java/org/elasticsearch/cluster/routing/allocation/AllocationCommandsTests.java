@@ -804,7 +804,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
             buildNewFakeTransportAddress(),
             emptyMap(),
             MASTER_DATA_ROLES,
-            Version.CURRENT
+            null
         );
         DiscoveryNode node2 = new DiscoveryNode(
             "node2",
@@ -815,7 +815,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
             buildNewFakeTransportAddress(),
             emptyMap(),
             new HashSet<>(randomSubsetOf(Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.INGEST_ROLE))),
-            Version.CURRENT
+            null
         );
 
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(node1).add(node2)).build();
@@ -872,7 +872,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
             buildNewFakeTransportAddress(),
             emptyMap(),
             MASTER_DATA_ROLES,
-            Version.CURRENT
+            null
         );
         DiscoveryNode node2 = new DiscoveryNode(
             "node2",
@@ -883,7 +883,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
             buildNewFakeTransportAddress(),
             emptyMap(),
             new HashSet<>(randomSubsetOf(Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.INGEST_ROLE))),
-            Version.CURRENT
+            null
         );
 
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(node1).add(node2)).build();

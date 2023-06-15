@@ -61,6 +61,7 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.env.ShardLockObtainFailedException;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.CombinedDeletionPolicy;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -817,7 +818,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                     }
                 }
                 if (maxVersion == null) {
-                    maxVersion = org.elasticsearch.Version.CURRENT.minimumIndexCompatibilityVersion().luceneVersion;
+                    maxVersion = IndexVersion.MINIMUM_COMPATIBLE.luceneVersion();
                 }
                 final String segmentsFile = segmentCommitInfos.getSegmentsFileName();
                 checksumFromLuceneFile(
@@ -859,7 +860,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
         public static MetadataSnapshot readFrom(StreamInput in) throws IOException {
             final Map<String, StoreFileMetadata> metadata = in.readMapValues(StoreFileMetadata::new, StoreFileMetadata::name);
-            final var commitUserData = in.readMap(StreamInput::readString, StreamInput::readString);
+            final var commitUserData = in.readMap(StreamInput::readString);
             final var numDocs = in.readLong();
 
             if (metadata.size() == 0 && commitUserData.size() == 0 && numDocs == 0) {
@@ -1470,7 +1471,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * creates an empty lucene index and a corresponding empty translog. Any existing data will be deleted.
      */
     public void createEmpty() throws IOException {
-        Version luceneVersion = indexSettings.getIndexVersionCreated().luceneVersion;
+        Version luceneVersion = indexSettings.getIndexVersionCreated().luceneVersion();
         metadataLock.writeLock().lock();
         try (IndexWriter writer = newTemporaryEmptyIndexWriter(directory, luceneVersion)) {
             final Map<String, String> map = new HashMap<>();

@@ -18,7 +18,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -139,7 +139,12 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
      * @return a new {@link SharedBlobCacheService} instance configured with default settings
      */
     protected SharedBlobCacheService<CacheKey> defaultFrozenCacheService() {
-        return new SharedBlobCacheService<>(nodeEnvironment, Settings.EMPTY, threadPool);
+        return new SharedBlobCacheService<>(
+            nodeEnvironment,
+            Settings.EMPTY,
+            threadPool,
+            SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME
+        );
     }
 
     protected SharedBlobCacheService<CacheKey> randomFrozenCacheService() {
@@ -156,7 +161,12 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
         if (randomBoolean()) {
             cacheSettings.put(SharedBlobCacheService.SHARED_CACHE_RECOVERY_RANGE_SIZE_SETTING.getKey(), randomFrozenCacheRangeSize());
         }
-        return new SharedBlobCacheService<>(singlePathNodeEnvironment, cacheSettings.build(), threadPool);
+        return new SharedBlobCacheService<>(
+            singlePathNodeEnvironment,
+            cacheSettings.build(),
+            threadPool,
+            SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME
+        );
     }
 
     /**
@@ -178,7 +188,8 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
                 .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), cacheSize)
                 .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), cacheRangeSize)
                 .build(),
-            threadPool
+            threadPool,
+            SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME
         );
     }
 
@@ -234,7 +245,7 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
                 new IndexId("some_index", UUIDs.randomBase64UUID(random()))
             )
         );
-        DiscoveryNode targetNode = TestDiscoveryNode.create("local");
+        DiscoveryNode targetNode = DiscoveryNodeUtils.create("local");
         SearchableSnapshotRecoveryState recoveryState = new SearchableSnapshotRecoveryState(shardRouting, targetNode, null);
 
         recoveryState.setStage(RecoveryState.Stage.INIT)
@@ -254,8 +265,8 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
     protected static void assertThreadPoolNotBusy(ThreadPool threadPool) throws Exception {
         assertBusy(() -> {
             for (ThreadPoolStats.Stats stat : threadPool.stats()) {
-                assertEquals(stat.getActive(), 0);
-                assertEquals(stat.getQueue(), 0);
+                assertEquals(stat.active(), 0);
+                assertEquals(stat.queue(), 0);
             }
         }, 30L, TimeUnit.SECONDS);
     }

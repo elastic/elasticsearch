@@ -17,7 +17,6 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Strings;
@@ -331,34 +330,22 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
                 Arrays.asList(
                     new OneHotEncoding(
                         ALIAS_TO_KEYWORD_FIELD,
-                        MapBuilder.<String, String>newMapBuilder()
-                            .put(KEYWORD_FIELD_VALUES.get(0), "cat_column_custom")
-                            .put(KEYWORD_FIELD_VALUES.get(1), "dog_column_custom")
-                            .map(),
+                        Map.of(KEYWORD_FIELD_VALUES.get(0), "cat_column_custom", KEYWORD_FIELD_VALUES.get(1), "dog_column_custom"),
                         true
                     ),
                     new OneHotEncoding(
                         ALIAS_TO_NESTED_FIELD,
-                        MapBuilder.<String, String>newMapBuilder()
-                            .put(KEYWORD_FIELD_VALUES.get(0), "cat_column_custom_1")
-                            .put(KEYWORD_FIELD_VALUES.get(1), "dog_column_custom_1")
-                            .map(),
+                        Map.of(KEYWORD_FIELD_VALUES.get(0), "cat_column_custom_1", KEYWORD_FIELD_VALUES.get(1), "dog_column_custom_1"),
                         true
                     ),
                     new OneHotEncoding(
                         NESTED_FIELD,
-                        MapBuilder.<String, String>newMapBuilder()
-                            .put(KEYWORD_FIELD_VALUES.get(0), "cat_column_custom_2")
-                            .put(KEYWORD_FIELD_VALUES.get(1), "dog_column_custom_2")
-                            .map(),
+                        Map.of(KEYWORD_FIELD_VALUES.get(0), "cat_column_custom_2", KEYWORD_FIELD_VALUES.get(1), "dog_column_custom_2"),
                         true
                     ),
                     new OneHotEncoding(
                         TEXT_FIELD,
-                        MapBuilder.<String, String>newMapBuilder()
-                            .put(KEYWORD_FIELD_VALUES.get(0), "cat_column_custom_3")
-                            .put(KEYWORD_FIELD_VALUES.get(1), "dog_column_custom_3")
-                            .map(),
+                        Map.of(KEYWORD_FIELD_VALUES.get(0), "cat_column_custom_3", KEYWORD_FIELD_VALUES.get(1), "dog_column_custom_3"),
                         true
                     )
                 ),
@@ -1032,18 +1019,12 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
                 Arrays.asList(
                     new OneHotEncoding(
                         NESTED_FIELD,
-                        MapBuilder.<String, String>newMapBuilder()
-                            .put(KEYWORD_FIELD_VALUES.get(0), "cat_column_custom_2")
-                            .put(KEYWORD_FIELD_VALUES.get(1), "dog_column_custom_2")
-                            .map(),
+                        Map.of(KEYWORD_FIELD_VALUES.get(0), "cat_column_custom_2", KEYWORD_FIELD_VALUES.get(1), "dog_column_custom_2"),
                         true
                     ),
                     new OneHotEncoding(
                         TEXT_FIELD,
-                        MapBuilder.<String, String>newMapBuilder()
-                            .put(KEYWORD_FIELD_VALUES.get(0), "cat_column_custom_3")
-                            .put(KEYWORD_FIELD_VALUES.get(1), "dog_column_custom_3")
-                            .map(),
+                        Map.of(KEYWORD_FIELD_VALUES.get(0), "cat_column_custom_3", KEYWORD_FIELD_VALUES.get(1), "dog_column_custom_3"),
                         true
                     )
                 ),

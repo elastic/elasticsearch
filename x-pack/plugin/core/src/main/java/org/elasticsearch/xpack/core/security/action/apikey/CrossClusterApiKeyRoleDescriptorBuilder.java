@@ -11,8 +11,11 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 
@@ -20,9 +23,9 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 
 public class CrossClusterApiKeyRoleDescriptorBuilder {
 
-    private static final String[] CCS_CLUSTER_PRIVILEGE_NAMES = { "cross_cluster_search" };
-    private static final String[] CCR_CLUSTER_PRIVILEGE_NAMES = { "cross_cluster_replication" };
-    private static final String[] CCS_AND_CCR_CLUSTER_PRIVILEGE_NAMES = { "cross_cluster_search", "cross_cluster_replication" };
+    public static final String[] CCS_CLUSTER_PRIVILEGE_NAMES = { "cross_cluster_search" };
+    public static final String[] CCR_CLUSTER_PRIVILEGE_NAMES = { "cross_cluster_replication" };
+    public static final String[] CCS_AND_CCR_CLUSTER_PRIVILEGE_NAMES = { "cross_cluster_search", "cross_cluster_replication" };
     private static final String[] CCS_INDICES_PRIVILEGE_NAMES = { "read", "read_cross_cluster", "view_index_metadata" };
     private static final String[] CCR_INDICES_PRIVILEGE_NAMES = { "cross_cluster_replication", "cross_cluster_replication_internal" };
     private static final String ROLE_DESCRIPTOR_NAME = "cross_cluster";
@@ -83,6 +86,13 @@ public class CrossClusterApiKeyRoleDescriptorBuilder {
             ROLE_DESCRIPTOR_NAME,
             clusterPrivileges,
             CollectionUtils.concatLists(search, replication).toArray(RoleDescriptor.IndicesPrivileges[]::new),
+            null
+        );
+    }
+
+    public static CrossClusterApiKeyRoleDescriptorBuilder parse(String access) throws IOException {
+        return CrossClusterApiKeyRoleDescriptorBuilder.PARSER.parse(
+            JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, access),
             null
         );
     }

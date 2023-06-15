@@ -11,6 +11,8 @@ import de.thetaphi.forbiddenapis.cli.CliMain;
 
 import org.apache.commons.io.output.NullOutputStream;
 import org.elasticsearch.gradle.OS;
+import org.elasticsearch.gradle.VersionProperties;
+import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.JavaVersion;
 import org.gradle.api.file.ArchiveOperations;
@@ -54,6 +56,8 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import javax.inject.Inject;
+
+import static org.gradle.api.JavaVersion.VERSION_20;
 
 @CacheableTask
 public abstract class ThirdPartyAuditTask extends DefaultTask {
@@ -333,6 +337,10 @@ public abstract class ThirdPartyAuditTask extends DefaultTask {
                 spec.setExecutable(javaHome.get() + "/bin/java");
             }
             spec.classpath(getForbiddenAPIsClasspath(), classpath);
+            // Enable explicitly for each release as appropriate. Just JDK 20 for now, and just the vector module.
+            if (isJava20()) {
+                spec.jvmArgs("--add-modules", "jdk.incubator.vector");
+            }
             spec.jvmArgs("-Xmx1g");
             spec.getMainClass().set("de.thetaphi.forbiddenapis.cli.CliMain");
             spec.args("-f", getSignatureFile().getAbsolutePath(), "-d", getJarExpandDir(), "--debug", "--allowmissingclasses");
@@ -353,6 +361,18 @@ public abstract class ThirdPartyAuditTask extends DefaultTask {
             throw new IllegalStateException("Forbidden APIs cli failed: " + forbiddenApisOutput);
         }
         return forbiddenApisOutput;
+    }
+
+    /** Returns true iff the Java version is 20. */
+    private boolean isJava20() {
+        if (BuildParams.getIsRuntimeJavaHomeSet()) {
+            if (VERSION_20.equals(BuildParams.getRuntimeJavaVersion())) {
+                return true;
+            }
+        } else if ("20".equals(VersionProperties.getBundledJdkMajorVersion())) {
+            return true;
+        }
+        return false;
     }
 
     private Set<String> runJdkJarHellCheck() throws IOException {

@@ -89,7 +89,7 @@ public class IndexRecoveryMonitoringDocTests extends BaseMonitoringDocTestCase<I
             new TransportAddress(TransportAddress.META_ADDRESS, 9300),
             singletonMap("attr", "value_0"),
             singleton(DiscoveryNodeRole.MASTER_ROLE),
-            Version.CURRENT
+            null
         );
 
         final DiscoveryNode discoveryNodeOne = new DiscoveryNode(

@@ -222,7 +222,10 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                         mandatoryKeys.stream().map(m -> new IsNotNull(m.source(), m)).collect(toList())
                     );
                     Filter joinKeyNotNull = new Filter(join.source(), k.child(), constraint);
-                    filters.set(i, new KeyedFilter(k.source(), joinKeyNotNull, k.keys(), k.timestamp(), k.tiebreaker()));
+                    filters.set(
+                        i,
+                        new KeyedFilter(k.source(), joinKeyNotNull, k.keys(), k.timestamp(), k.tiebreaker(), k.isMissingEventFilter())
+                    );
                 }
             }
             if (changed) {
@@ -433,7 +436,14 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             );
 
             return constraint != null
-                ? new KeyedFilter(k.source(), new Filter(k.source(), k.child(), constraint), k.keys(), k.timestamp(), k.tiebreaker())
+                ? new KeyedFilter(
+                    k.source(),
+                    new Filter(k.source(), k.child(), constraint),
+                    k.keys(),
+                    k.timestamp(),
+                    k.tiebreaker(),
+                    k.isMissingEventFilter()
+                )
                 : k;
         }
     }
@@ -489,10 +499,12 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                     boolean baseFilter = true;
                     for (KeyedFilter filter : queries) {
                         // preserve the order for the base query, everything else needs to be ascending
-                        List<Order> pushedOrder = baseFilter ? orderBy.order() : ascendingOrders;
+                        List<Order> pushedOrder = baseFilter && filter.isMissingEventFilter() == false ? orderBy.order() : ascendingOrders;
                         OrderBy order = new OrderBy(filter.source(), filter.child(), pushedOrder);
                         orderedQueries.add(filter.replaceChild(order));
-                        baseFilter = false;
+                        if (filter.isMissingEventFilter() == false) {
+                            baseFilter = false;
+                        }
                     }
 
                     KeyedFilter until = join.until();

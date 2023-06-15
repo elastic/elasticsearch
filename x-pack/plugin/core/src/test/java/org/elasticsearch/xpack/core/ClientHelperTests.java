@@ -420,7 +420,7 @@ public class ClientHelperTests extends ESTestCase {
         }
 
         // No rewriting for current version
-        when(clusterState.getMinTransportVersion()).thenReturn(TransportVersion.CURRENT);
+        when(clusterState.getMinTransportVersion()).thenReturn(TransportVersion.current());
         final Map<String, String> headers1;
         if (randomBoolean()) {
             headers1 = ClientHelper.getPersistableSafeSecurityHeaders(threadContext, clusterState);

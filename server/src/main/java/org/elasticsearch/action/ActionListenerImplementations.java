@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action;
 
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.Releasable;
@@ -149,6 +150,30 @@ class ActionListenerImplementations {
         @Override
         public void onResponse(T t) {
             bc.accept(delegate, t);
+        }
+
+        @Override
+        public String toString() {
+            return super.toString() + "/" + bc;
+        }
+    }
+
+    static final class ResponseWrappingActionListener<T, R> extends DelegatingActionListener<T, R> {
+
+        private final CheckedBiConsumer<ActionListener<R>, T, ? extends Exception> bc;
+
+        ResponseWrappingActionListener(ActionListener<R> delegate, CheckedBiConsumer<ActionListener<R>, T, ? extends Exception> bc) {
+            super(delegate);
+            this.bc = bc;
+        }
+
+        @Override
+        public void onResponse(T t) {
+            try {
+                bc.accept(delegate, t);
+            } catch (Exception e) {
+                onFailure(e);
+            }
         }
 
         @Override

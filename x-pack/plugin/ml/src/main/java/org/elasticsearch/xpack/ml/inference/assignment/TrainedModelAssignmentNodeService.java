@@ -23,6 +23,7 @@ import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskAwareRequest;
 import org.elasticsearch.tasks.TaskId;
@@ -277,7 +278,7 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
         NlpInferenceInput input,
         boolean skipQueue,
         TimeValue timeout,
-        Task parentActionTask,
+        CancellableTask parentActionTask,
         ActionListener<InferenceResults> listener
     ) {
         deploymentManager.infer(task, config, input, skipQueue, timeout, parentActionTask, listener);

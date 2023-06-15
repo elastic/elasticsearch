@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.analytics.boxplot;
 
-import com.tdunning.math.stats.Centroid;
-
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
@@ -16,6 +14,7 @@ import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.metrics.TDigestState;
+import org.elasticsearch.tdigest.Centroid;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -120,6 +119,15 @@ public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValu
             return Metrics.valueOf(name.toUpperCase(Locale.ROOT));
         }
 
+        public static boolean hasMetric(String name) {
+            try {
+                InternalBoxplot.Metrics.resolve(name);
+                return true;
+            } catch (IllegalArgumentException iae) {
+                return false;
+            }
+        }
+
         public String value() {
             return name().toLowerCase(Locale.ROOT);
         }
@@ -168,6 +176,10 @@ public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValu
         return results;
     }
 
+    static InternalBoxplot empty(String name, double compression, DocValueFormat format, Map<String, Object> metadata) {
+        return new InternalBoxplot(name, new TDigestState(compression), format, metadata);
+    }
+
     static final Set<String> METRIC_NAMES = Collections.unmodifiableSet(
         Stream.of(Metrics.values()).map(m -> m.name().toLowerCase(Locale.ROOT)).collect(Collectors.toSet())
     );
@@ -177,6 +189,7 @@ public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValu
     InternalBoxplot(String name, TDigestState state, DocValueFormat formatter, Map<String, Object> metadata) {
         super(name, formatter, metadata);
         this.state = state;
+        this.state.compress();
     }
 
     /**
@@ -185,6 +198,7 @@ public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValu
     public InternalBoxplot(StreamInput in) throws IOException {
         super(in);
         state = TDigestState.read(in);
+        state.compress();
     }
 
     @Override

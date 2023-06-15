@@ -21,7 +21,7 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -256,7 +256,7 @@ public class DeploymentManager {
         NlpInferenceInput input,
         boolean skipQueue,
         TimeValue timeout,
-        Task parentActionTask,
+        CancellableTask parentActionTask,
         ActionListener<InferenceResults> listener
     ) {
         var processContext = getProcessContext(task, listener::onFailure);
@@ -446,7 +446,14 @@ public class DeploymentManager {
             isStopped = true;
             resultProcessor.stop();
             stateStreamer.cancel();
-            priorityProcessWorker.shutdown();
+
+            if (priorityProcessWorker.isShutdown()) {
+                // most likely there was a crash or exception that caused the
+                // thread to stop. Notify any waiting requests in the work queue
+                priorityProcessWorker.notifyQueueRunnables();
+            } else {
+                priorityProcessWorker.shutdown();
+            }
             killProcessIfPresent();
             if (nlpTaskProcessor.get() != null) {
                 nlpTaskProcessor.get().close();

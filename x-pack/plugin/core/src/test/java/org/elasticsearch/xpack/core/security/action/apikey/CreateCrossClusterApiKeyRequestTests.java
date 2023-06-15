@@ -11,50 +11,21 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xcontent.json.JsonXContent.jsonXContent;
-
 public class CreateCrossClusterApiKeyRequestTests extends AbstractWireSerializingTestCase<CreateCrossClusterApiKeyRequest> {
-
-    private static final List<String> ACCESS_CANDIDATES = List.of("""
-        {
-          "search": [ {"names": ["logs"]} ]
-        }""", """
-        {
-          "search": [ {"names": ["logs"], "query": "abc" } ]
-        }""", """
-        {
-          "search": [ {"names": ["logs"], "field_security": {"grant": ["*"], "except": ["private"]} } ]
-        }""", """
-        {
-          "search": [ {"names": ["logs"], "query": "abc", "field_security": {"grant": ["*"], "except": ["private"]} } ]
-        }""", """
-        {
-          "replication": [ {"names": ["archive"], "allow_restricted_indices": true } ]
-        }""", """
-        {
-          "replication": [ {"names": ["archive"]} ]
-        }""", """
-        {
-          "search": [ {"names": ["logs"]} ],
-          "replication": [ {"names": ["archive"]} ]
-        }""");
 
     private String access;
     private CrossClusterApiKeyRoleDescriptorBuilder roleDescriptorBuilder;
 
     @Before
-    public void init() {
-        access = randomFrom(ACCESS_CANDIDATES);
-        roleDescriptorBuilder = parseForCrossClusterApiKeyRoleDescriptorBuilder(access);
+    public void init() throws IOException {
+        access = randomCrossClusterApiKeyAccessField();
+        roleDescriptorBuilder = CrossClusterApiKeyRoleDescriptorBuilder.parse(access);
     }
 
     @Override
@@ -86,7 +57,9 @@ public class CreateCrossClusterApiKeyRequestTests extends AbstractWireSerializin
             case 2 -> {
                 return new CreateCrossClusterApiKeyRequest(
                     instance.getName(),
-                    parseForCrossClusterApiKeyRoleDescriptorBuilder(randomValueOtherThan(access, () -> randomFrom(ACCESS_CANDIDATES))),
+                    CrossClusterApiKeyRoleDescriptorBuilder.parse(
+                        randomValueOtherThan(access, CreateCrossClusterApiKeyRequestTests::randomCrossClusterApiKeyAccessField)
+                    ),
                     instance.getExpiration(),
                     instance.getMetadata()
                 );
@@ -110,15 +83,6 @@ public class CreateCrossClusterApiKeyRequestTests extends AbstractWireSerializin
         }
     }
 
-    private CrossClusterApiKeyRoleDescriptorBuilder parseForCrossClusterApiKeyRoleDescriptorBuilder(String access) {
-        try {
-            final XContentParser parser = jsonXContent.createParser(XContentParserConfiguration.EMPTY, access);
-            return CrossClusterApiKeyRoleDescriptorBuilder.PARSER.parse(parser, null);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
-    }
-
     private static TimeValue randomExpiration() {
         return randomFrom(TimeValue.timeValueHours(randomIntBetween(1, 999)), null);
     }
@@ -135,5 +99,33 @@ public class CreateCrossClusterApiKeyRequestTests extends AbstractWireSerializin
             ),
             null
         );
+    }
+
+    private static final List<String> ACCESS_CANDIDATES = List.of("""
+        {
+          "search": [ {"names": ["logs"]} ]
+        }""", """
+        {
+          "search": [ {"names": ["logs"], "query": "abc" } ]
+        }""", """
+        {
+          "search": [ {"names": ["logs"], "field_security": {"grant": ["*"], "except": ["private"]} } ]
+        }""", """
+        {
+          "search": [ {"names": ["logs"], "query": "abc", "field_security": {"grant": ["*"], "except": ["private"]} } ]
+        }""", """
+        {
+          "replication": [ {"names": ["archive"], "allow_restricted_indices": true } ]
+        }""", """
+        {
+          "replication": [ {"names": ["archive"]} ]
+        }""", """
+        {
+          "search": [ {"names": ["logs"]} ],
+          "replication": [ {"names": ["archive"]} ]
+        }""");
+
+    public static String randomCrossClusterApiKeyAccessField() {
+        return randomFrom(ACCESS_CANDIDATES);
     }
 }

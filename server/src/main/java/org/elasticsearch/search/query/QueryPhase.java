@@ -237,9 +237,9 @@ public class QueryPhase {
                     collector
                 );
             }
-            if (searchContext.getAggsCollectorManager() != null) {
+            if (searchContext.aggregations() != null) {
                 final Collector collector = collectorManager.newCollector();
-                final Collector aggsCollector = searchContext.getAggsCollectorManager().newCollector();
+                final Collector aggsCollector = searchContext.aggregations().getAggsCollectorManager().newCollector();
                 collectorManager = wrapWithProfilerCollectorManagerIfNeeded(
                     searchContext.getProfilers(),
                     new SingleThreadCollectorManager(MultiCollector.wrap(collector, aggsCollector)),
@@ -312,7 +312,9 @@ public class QueryPhase {
         boolean timeoutSet
     ) throws IOException {
         if (searchContext.getProfilers() != null) {
-            searchContext.getProfilers().getCurrentQueryProfiler().setCollectorManager((InternalProfileCollectorManager) collectorManager);
+            searchContext.getProfilers()
+                .getCurrentQueryProfiler()
+                .setCollectorManager(((InternalProfileCollectorManager) collectorManager)::getCollectorTree);
         }
         QuerySearchResult queryResult = searchContext.queryResult();
         try {

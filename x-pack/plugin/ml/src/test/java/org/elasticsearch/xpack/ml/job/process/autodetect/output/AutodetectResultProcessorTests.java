@@ -38,7 +38,7 @@ import org.elasticsearch.xpack.core.ml.job.results.CategoryDefinition;
 import org.elasticsearch.xpack.core.ml.job.results.ForecastRequestStats;
 import org.elasticsearch.xpack.core.ml.job.results.Influencer;
 import org.elasticsearch.xpack.core.ml.job.results.ModelPlot;
-import org.elasticsearch.xpack.core.security.user.XPackUser;
+import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcess;
@@ -373,7 +373,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
             .setAnnotation("Categorization status changed to 'warn' for partition 'foo'")
             .setEvent(Annotation.Event.CATEGORIZATION_STATUS_CHANGE)
             .setCreateTime(new Date())
-            .setCreateUsername(XPackUser.NAME)
+            .setCreateUsername(InternalUsers.XPACK_USER.principal())
             .setTimestamp(new Date())
             .setPartitionFieldName("part")
             .setPartitionFieldValue("foo")
@@ -405,12 +405,12 @@ public class AutodetectResultProcessorTests extends ESTestCase {
 
         Annotation expectedAnnotation = new Annotation.Builder().setAnnotation("Job model snapshot with id [a_snapshot_id] stored")
             .setCreateTime(Date.from(CURRENT_TIME))
-            .setCreateUsername(XPackUser.NAME)
+            .setCreateUsername(InternalUsers.XPACK_USER.principal())
             .setTimestamp(Date.from(Instant.ofEpochMilli(1000_000_000)))
             .setEndTimestamp(Date.from(Instant.ofEpochMilli(1000_000_000)))
             .setJobId(JOB_ID)
             .setModifiedTime(Date.from(CURRENT_TIME))
-            .setModifiedUsername(XPackUser.NAME)
+            .setModifiedUsername(InternalUsers.XPACK_USER.principal())
             .setType(Annotation.Type.ANNOTATION)
             .setEvent(Annotation.Event.MODEL_SNAPSHOT_STORED)
             .build();

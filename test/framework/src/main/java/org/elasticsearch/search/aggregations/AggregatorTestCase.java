@@ -66,6 +66,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.cache.query.DisabledQueryCache;
@@ -262,12 +263,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
      */
     @Deprecated
     protected <A extends Aggregator> A createAggregator(AggregationBuilder builder, AggregationContext context) throws IOException {
-        QueryRewriteContext rewriteContext = new QueryRewriteContext(
-            parserConfig(),
-            new NamedWriteableRegistry(List.of()),
-            null,
-            context::nowInMillis
-        );
+        QueryRewriteContext rewriteContext = new QueryRewriteContext(parserConfig(), null, context::nowInMillis);
         @SuppressWarnings("unchecked")
         A aggregator = (A) Rewriteable.rewrite(builder, rewriteContext, true).build(context, null).create(null, CardinalityUpperBound.ONE);
         return aggregator;
@@ -1219,7 +1215,18 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
     private static class MockParserContext extends MappingParserContext {
         MockParserContext(IndexSettings indexSettings) {
-            super(null, null, null, Version.CURRENT, () -> TransportVersion.CURRENT, null, ScriptCompiler.NONE, null, indexSettings, null);
+            super(
+                null,
+                null,
+                null,
+                IndexVersion.CURRENT,
+                () -> TransportVersion.current(),
+                null,
+                ScriptCompiler.NONE,
+                null,
+                indexSettings,
+                null
+            );
         }
 
         @Override

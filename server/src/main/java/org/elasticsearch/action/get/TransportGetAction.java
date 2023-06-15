@@ -123,7 +123,7 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
         if (request.realtime()) { // we are not tied to a refresh cycle here anyway
             asyncGet(request, shardId, listener);
         } else {
-            indexShard.awaitShardSearchActive(b -> {
+            indexShard.ensureShardSearchActive(b -> {
                 try {
                     asyncGet(request, shardId, listener);
                 } catch (Exception ex) {

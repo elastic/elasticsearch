@@ -212,8 +212,13 @@ public class TimeSeriesIndexSearcher {
         int tsidOrd;
         long timestamp;
 
-        LeafWalker(LeafReaderContext context, Scorer scorer, Float minimumScore, BucketCollector bucketCollector, IntSupplier tsidOrdSupplier)
-            throws IOException {
+        LeafWalker(
+            LeafReaderContext context,
+            Scorer scorer,
+            Float minimumScore,
+            BucketCollector bucketCollector,
+            IntSupplier tsidOrdSupplier
+        ) throws IOException {
             AggregationExecutionContext aggCtx = new AggregationExecutionContext(context, scratch::get, () -> timestamp, tsidOrdSupplier);
             this.collector = bucketCollector.getLeafCollector(aggCtx);
             liveDocs = context.reader().getLiveDocs();
@@ -237,8 +242,8 @@ public class TimeSeriesIndexSearcher {
             }
             do {
                 docId = iterator.nextDoc();
-            } while (docId != DocIdSetIterator.NO_MORE_DOCS &&
-                (isInvalidDoc(docId) || (minimumScore != null && scorer.score() < minimumScore)));
+            } while (docId != DocIdSetIterator.NO_MORE_DOCS
+                && (isInvalidDoc(docId) || (minimumScore != null && scorer.score() < minimumScore)));
             if (docId != DocIdSetIterator.NO_MORE_DOCS) {
                 timestamp = timestamps.nextValue();
             }

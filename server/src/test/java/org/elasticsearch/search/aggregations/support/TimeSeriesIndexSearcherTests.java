@@ -19,7 +19,6 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedDocValues;
-import org.apache.lucene.queryparser.xml.builders.MatchAllDocsQueryBuilder;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -29,26 +28,22 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.lucene.search.function.LeafScoreFunction;
 import org.elasticsearch.common.lucene.search.function.ScoreFunction;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
-import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
-import org.elasticsearch.index.query.functionscore.RandomScoreFunctionBuilder;
+import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.index.query.functionscore.*;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -59,12 +54,9 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static java.util.Collections.emptyMap;
 import static org.elasticsearch.index.IndexSortConfig.TIME_SERIES_SORT;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class TimeSeriesIndexSearcherTests extends ESTestCase {
 
@@ -140,7 +132,6 @@ public class TimeSeriesIndexSearcherTests extends ESTestCase {
 
         IndexReader reader = DirectoryReader.open(dir);
         IndexSearcher searcher = new IndexSearcher(reader);
-
 
         TimeSeriesIndexSearcher indexSearcher = new TimeSeriesIndexSearcher(searcher, List.of());
         indexSearcher.setMinimumScore(0.99f);
@@ -218,8 +209,7 @@ public class TimeSeriesIndexSearcherTests extends ESTestCase {
             }
         };
 
-        FunctionScoreQueryBuilder functionScoreQuery = new FunctionScoreQueryBuilder(new MatchAllQueryBuilder(),
-            scoreFunctionBuilder);
+        FunctionScoreQueryBuilder functionScoreQuery = new FunctionScoreQueryBuilder(new MatchAllQueryBuilder(), scoreFunctionBuilder);
         SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
         indexSearcher.search(functionScoreQuery.toQuery(searchExecutionContext), collector);
         collector.postCollection();

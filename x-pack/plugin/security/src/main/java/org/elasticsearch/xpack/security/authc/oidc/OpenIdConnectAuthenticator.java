@@ -17,9 +17,6 @@ import com.nimbusds.jose.jwk.source.JWKSource;
 import com.nimbusds.jose.proc.BadJOSEException;
 import com.nimbusds.jose.proc.JWSVerificationKeySelector;
 import com.nimbusds.jose.proc.SecurityContext;
-import com.nimbusds.jose.shaded.json.JSONStyle;
-import com.nimbusds.jose.shaded.json.JSONValue;
-import com.nimbusds.jose.shaded.json.reader.JsonWriterI;
 import com.nimbusds.jose.util.IOUtils;
 import com.nimbusds.jwt.JWT;
 import com.nimbusds.jwt.JWTClaimsSet;
@@ -137,15 +134,6 @@ import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectReal
  * exchanges the code in the authentication response for an ID Token at the token endpoint of the OpenID Connect Provider.
  */
 public class OpenIdConnectAuthenticator {
-
-    static {
-        JSONValue.registerWriter(Nonce.class, new JsonWriterI<Nonce>() {
-            @Override
-            public <E extends Nonce> void writeJSONString(E e, Appendable appendable, JSONStyle jsonStyle) throws IOException {
-                appendable.append(e.toJSONString());
-            }
-        });
-    }
 
     private final RealmConfig realmConfig;
     private final OpenIdConnectProviderConfiguration opConfig;

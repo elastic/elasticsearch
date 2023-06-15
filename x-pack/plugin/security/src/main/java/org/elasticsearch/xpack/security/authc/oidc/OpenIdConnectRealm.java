@@ -7,6 +7,9 @@
 package org.elasticsearch.xpack.security.authc.oidc;
 
 import com.nimbusds.jose.JWSAlgorithm;
+import com.nimbusds.jose.shaded.json.JSONStyle;
+import com.nimbusds.jose.shaded.json.JSONValue;
+import com.nimbusds.jose.shaded.json.reader.JsonWriterI;
 import com.nimbusds.jwt.JWT;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.oauth2.sdk.ParseException;
@@ -46,6 +49,7 @@ import org.elasticsearch.xpack.security.authc.TokenService;
 import org.elasticsearch.xpack.security.authc.support.ClaimParser;
 import org.elasticsearch.xpack.security.authc.support.DelegatedAuthorizationSupport;
 
+import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Collection;
@@ -117,6 +121,7 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
             sslService,
             watcherService
         );
+        registerCustomJsonWriters();
     }
 
     // For testing
@@ -132,6 +137,7 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
         this.nameAttribute = ClaimParser.forSetting(logger, NAME_CLAIM, config, false);
         this.mailAttribute = ClaimParser.forSetting(logger, MAIL_CLAIM, config, false);
         this.populateUserMetadata = config.getSetting(POPULATE_USER_METADATA);
+        registerCustomJsonWriters();
     }
 
     @Override
@@ -430,4 +436,12 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
                 && ((Collection<?>) o).stream().allMatch(c -> c instanceof String || c instanceof Boolean || c instanceof Number)));
     }
 
+    private void registerCustomJsonWriters() {
+        JSONValue.registerWriter(Nonce.class, new JsonWriterI<Nonce>() {
+            @Override
+            public <E extends Nonce> void writeJSONString(E e, Appendable appendable, JSONStyle jsonStyle) throws IOException {
+                appendable.append(e.toJSONString());
+            }
+        });
+    }
 }

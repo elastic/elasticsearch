@@ -62,7 +62,7 @@ public class BoxplotAggregationBuilderTests extends AbstractXContentSerializingT
             aggregationBuilder.compression(randomDoubleBetween(0, 100, true));
         }
         if (randomBoolean()) {
-            aggregationBuilder.parseExecutionHint(TDigestExecutionHint.HIGH_ACCURACY.toString());
+            aggregationBuilder.parseExecutionHint(randomFrom(TDigestExecutionHint.values()).toString());
         }
         return aggregationBuilder;
     }

@@ -51,7 +51,7 @@ public class TDigestPreAggregatedPercentileRanksAggregatorTests extends Aggregat
             tdigestConfig.setCompression(randomDoubleBetween(50, 200, true));
         }
         if (randomBoolean()) {
-            tdigestConfig.parseExecutionHint(TDigestExecutionHint.HIGH_ACCURACY.toString());
+            tdigestConfig.parseExecutionHint(randomFrom(TDigestExecutionHint.values()).toString());
         }
         return new PercentileRanksAggregationBuilder("tdigest_percentiles", new double[] { 1.0 }).field(fieldName)
             .percentilesConfig(tdigestConfig);

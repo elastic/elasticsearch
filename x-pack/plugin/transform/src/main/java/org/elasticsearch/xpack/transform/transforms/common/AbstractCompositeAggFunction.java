@@ -89,7 +89,7 @@ public abstract class AbstractCompositeAggFunction implements Function {
                         return;
                     }
                     final CompositeAggregation agg = aggregations.get(COMPOSITE_AGGREGATION_NAME);
-                    if  (agg == null || agg.getBuckets().isEmpty()) {
+                    if (agg == null || agg.getBuckets().isEmpty()) {
                         listener.onResponse(Collections.emptyList());
                         return;
                     }

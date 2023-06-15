@@ -266,7 +266,7 @@ public class PivotTests extends ESTestCase {
         assertThat(pivot.processSearchResponse(searchResponseFromAggs(aggs), null, null, null, null, null), is(nullValue()));
     }
 
-    public void testPreviewForEmptyAggregation() throws Exception{
+    public void testPreviewForEmptyAggregation() throws Exception {
         Function pivot = new Pivot(
             PivotConfigTests.randomPivotConfig(),
             SettingsConfigTests.randomSettingsConfig(),
@@ -275,29 +275,29 @@ public class PivotTests extends ESTestCase {
         );
 
         CountDownLatch latch = new CountDownLatch(1);
-        final  AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
+        final AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
         final AtomicReference<List<Map<String, Object>>> response = new AtomicReference<>();
 
         Client emptyAggregationClient = new MyMockClientWithEmptyAggregation("empty aggregation test for preview");
-        pivot.preview(emptyAggregationClient,null, new HashMap<>(), new SourceConfig("test"), null, 1, ActionListener.wrap(r -> {
+        pivot.preview(emptyAggregationClient, null, new HashMap<>(), new SourceConfig("test"), null, 1, ActionListener.wrap(r -> {
             response.set(r);
             latch.countDown();
-            }, e -> {
+        }, e -> {
             exceptionHolder.set(e);
             latch.countDown();
         }));
         latch.await();
         emptyAggregationClient.close();
 
-        if (exceptionHolder.get() != null){
+        if (exceptionHolder.get() != null) {
             throw exceptionHolder.get();
         }
-        if(response.get().isEmpty() == false){
+        if (response.get().isEmpty() == false) {
             fail("testPreview failed as the response for myMockClientWithEmptyAggregation client should be empty");
         }
     }
 
-    public void testPreviewForCompositeAggregation() throws Exception{
+    public void testPreviewForCompositeAggregation() throws Exception {
         Function pivot = new Pivot(
             PivotConfigTests.randomPivotConfig(),
             SettingsConfigTests.randomSettingsConfig(),
@@ -306,11 +306,11 @@ public class PivotTests extends ESTestCase {
         );
 
         CountDownLatch latch = new CountDownLatch(1);
-        final  AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
+        final AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
         final AtomicReference<List<Map<String, Object>>> response = new AtomicReference<>();
 
         Client compositeAggregationClient = new MyMockClientWithCompositeAggregation("composite aggregation test for preview");
-        pivot.preview(compositeAggregationClient,null, new HashMap<>(), new SourceConfig("test"), null, 1, ActionListener.wrap(r -> {
+        pivot.preview(compositeAggregationClient, null, new HashMap<>(), new SourceConfig("test"), null, 1, ActionListener.wrap(r -> {
             response.set(r);
             latch.countDown();
         }, e -> {
@@ -320,10 +320,10 @@ public class PivotTests extends ESTestCase {
         latch.await();
         compositeAggregationClient.close();
 
-        if (exceptionHolder.get() != null){
+        if (exceptionHolder.get() != null) {
             throw exceptionHolder.get();
         }
-        if(response.get().isEmpty() == false){
+        if (response.get().isEmpty() == false) {
             fail("testPreview failed as the response for compositeAggregationClient client should be empty");
         }
     }
@@ -426,7 +426,6 @@ public class PivotTests extends ESTestCase {
             listener.onResponse((Response) response);
         }
     }
-
 
     private PivotConfig getValidPivotConfig() throws IOException {
         return new PivotConfig(GroupConfigTests.randomGroupConfig(), getValidAggregationConfig(), null);

@@ -27,31 +27,6 @@ import java.util.List;
  */
 public class TDigestState {
 
-    /**
-     * Indicates which implementation is used in TDigestState.
-     */
-    public enum ExecutionHint {
-        HIGH_ACCURACY,
-        DEFAULT;
-
-        /**
-         * Case-insensitive wrapper for valueOf()
-         * @param value input string value
-         * @return an ExecutionHint
-         */
-        public static ExecutionHint parse(String value) {
-            try {
-                return switch (value) {
-                    case "high_accuracy" -> HIGH_ACCURACY;
-                    case "default", "" -> DEFAULT;
-                    default -> valueOf(value);
-                };
-            } catch (IllegalArgumentException e) {
-                throw new IllegalArgumentException("Invalid execution_hint [" + value + "], valid values are [high_accuracy]");
-            }
-        }
-    }
-
     public static final Setting<String> EXECUTION_HINT = Setting.simpleString(
         "search.aggs.tdigest_execution_hint",
         "",

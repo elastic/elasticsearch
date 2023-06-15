@@ -25,7 +25,7 @@ class TDigestPercentileRanksAggregator extends AbstractTDigestPercentilesAggrega
         Aggregator parent,
         double[] percents,
         double compression,
-        String executionHint,
+        TDigestExecutionHint executionHint,
         boolean keyed,
         DocValueFormat formatter,
         Map<String, Object> metadata

@@ -35,7 +35,7 @@ public class MedianAbsoluteDeviationAggregator extends NumericMetricsAggregator.
 
     private final double compression;
 
-    private final String executionHint;
+    private final TDigestExecutionHint executionHint;
 
     private ObjectArray<TDigestState> valueSketches;
 
@@ -47,7 +47,7 @@ public class MedianAbsoluteDeviationAggregator extends NumericMetricsAggregator.
         Aggregator parent,
         Map<String, Object> metadata,
         double compression,
-        String executionHint
+        TDigestExecutionHint executionHint
     ) throws IOException {
         super(name, context, parent, metadata);
         assert config.hasValues();

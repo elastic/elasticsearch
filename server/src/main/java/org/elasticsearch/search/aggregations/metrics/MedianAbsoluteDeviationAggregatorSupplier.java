@@ -24,6 +24,6 @@ public interface MedianAbsoluteDeviationAggregatorSupplier {
         Aggregator parent,
         Map<String, Object> metadata,
         double compression,
-        String executionHint
+        TDigestExecutionHint executionHint
     ) throws IOException;
 }

@@ -180,9 +180,6 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPe
 
             out.writeVInt(numberOfSignificantValueDigits);
             out.writeDouble(compression);
-            if (percentilesConfig.getMethod().equals(PercentilesMethod.TDIGEST)) {
-                out.writeString(((PercentilesConfig.TDigest) percentilesConfig).getExecutionHint());
-            }
             percentilesConfig.getMethod().writeTo(out);
         }
     }

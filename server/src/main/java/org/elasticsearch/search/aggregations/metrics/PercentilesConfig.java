@@ -124,28 +124,28 @@ public abstract class PercentilesConfig implements ToXContent, Writeable {
         static final double DEFAULT_COMPRESSION = 100.0;
         private double compression;
 
-        private String executionHint = "";
+        private TDigestExecutionHint executionHint = TDigestExecutionHint.DEFAULT;
 
         public TDigest() {
             this(DEFAULT_COMPRESSION);
         }
 
         public TDigest(double compression) {
-            this(compression, "");
+            this(compression, TDigestExecutionHint.DEFAULT);
         }
 
-        public TDigest(double compression, String executionHint) {
+        public TDigest(double compression, TDigestExecutionHint executionHint) {
             super(PercentilesMethod.TDIGEST);
+            this.executionHint = executionHint;
             setCompression(compression);
-            setExecutionHint(executionHint);
         }
 
         TDigest(StreamInput in) throws IOException {
             this(
                 in.readDouble(),
                 in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_012)
-                    ? in.readString()
-                    : TDigestState.ExecutionHint.HIGH_ACCURACY.toString()
+                    ? TDigestExecutionHint.readFrom(in)
+                    : TDigestExecutionHint.HIGH_ACCURACY
             );
         }
 
@@ -160,11 +160,11 @@ public abstract class PercentilesConfig implements ToXContent, Writeable {
             return compression;
         }
 
-        public void setExecutionHint(String executionHint) {
-            this.executionHint = executionHint;
+        public void parseExecutionHint(String executionHint) {
+            this.executionHint = TDigestExecutionHint.parse(executionHint);
         }
 
-        public String getExecutionHint() {
+        public TDigestExecutionHint getExecutionHint() {
             return executionHint;
         }
 
@@ -245,7 +245,7 @@ public abstract class PercentilesConfig implements ToXContent, Writeable {
             super.writeTo(out);
             out.writeDouble(compression);
             if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_012)) {
-                out.writeString(executionHint);
+                executionHint.writeTo(out);
             }
         }
 

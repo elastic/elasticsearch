@@ -215,7 +215,7 @@ public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
         MedianAbsoluteDeviationAggregationBuilder builder = new MedianAbsoluteDeviationAggregationBuilder("mad").field(FIELD_NAME)
             .compression(randomDoubleBetween(20, 1000, true));
         if (randomBoolean()) {
-            builder.executionHint(TDigestState.ExecutionHint.HIGH_ACCURACY.toString());
+            builder.parseExecutionHint(TDigestExecutionHint.HIGH_ACCURACY.toString());
         }
 
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(FIELD_NAME, NumberFieldMapper.NumberType.LONG);

@@ -12,7 +12,7 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.metrics.NonCollectingMultiMetricAggregator;
-import org.elasticsearch.search.aggregations.metrics.TDigestState;
+import org.elasticsearch.search.aggregations.metrics.TDigestExecutionHint;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
@@ -28,7 +28,7 @@ import java.util.function.Predicate;
 public class BoxplotAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     private final double compression;
-    private final String executionHint;
+    private final TDigestExecutionHint executionHint;
     private final BoxplotAggregatorSupplier aggregatorSupplier;
 
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {
@@ -44,7 +44,7 @@ public class BoxplotAggregatorFactory extends ValuesSourceAggregatorFactory {
         String name,
         ValuesSourceConfig config,
         double compression,
-        String executionHint,
+        TDigestExecutionHint executionHint,
         AggregationContext context,
         AggregatorFactory parent,
         AggregatorFactories.Builder subFactoriesBuilder,

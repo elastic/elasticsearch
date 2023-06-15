@@ -21,7 +21,7 @@ import org.elasticsearch.search.aggregations.metrics.PercentileRanks;
 import org.elasticsearch.search.aggregations.metrics.PercentileRanksAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.PercentilesConfig;
 import org.elasticsearch.search.aggregations.metrics.PercentilesMethod;
-import org.elasticsearch.search.aggregations.metrics.TDigestState;
+import org.elasticsearch.search.aggregations.metrics.TDigestExecutionHint;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
@@ -51,7 +51,7 @@ public class TDigestPreAggregatedPercentileRanksAggregatorTests extends Aggregat
             tdigestConfig.setCompression(randomDoubleBetween(50, 200, true));
         }
         if (randomBoolean()) {
-            tdigestConfig.setExecutionHint(TDigestState.ExecutionHint.HIGH_ACCURACY.toString());
+            tdigestConfig.parseExecutionHint(TDigestExecutionHint.HIGH_ACCURACY.toString());
         }
         return new PercentileRanksAggregationBuilder("tdigest_percentiles", new double[] { 1.0 }).field(fieldName)
             .percentilesConfig(tdigestConfig);

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.analytics.boxplot;
 
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.metrics.TDigestExecutionHint;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
@@ -22,7 +23,7 @@ public interface BoxplotAggregatorSupplier {
         ValuesSourceConfig config,
         DocValueFormat formatter,
         double compression,
-        String executionHint,
+        TDigestExecutionHint executionHint,
         AggregationContext context,
         Aggregator parent,
         Map<String, Object> metadata

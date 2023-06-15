@@ -162,11 +162,7 @@ public class TDigestStateTests extends ESTestCase {
         // assertNotEquals(anotherFast, anotherAccurate);
     }
 
-    public void testMalformedExecutionHint() {
-        expectThrows(IllegalArgumentException.class, () -> TDigestState.ExecutionHint.parse("no such hint"));
-    }
-
-    private TDigestState writeToAndReadFrom(TDigestState state, TransportVersion version) throws IOException {
+    private static TDigestState writeToAndReadFrom(TDigestState state, TransportVersion version) throws IOException {
         BytesRef serializedAggs = serialize(state, version);
         try (
             StreamInput in = new NamedWriteableAwareStreamInput(
@@ -180,7 +176,7 @@ public class TDigestStateTests extends ESTestCase {
         }
     }
 
-    private BytesRef serialize(TDigestState state, TransportVersion version) throws IOException {
+    private static BytesRef serialize(TDigestState state, TransportVersion version) throws IOException {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.setTransportVersion(version);
             TDigestState.write(state, out);

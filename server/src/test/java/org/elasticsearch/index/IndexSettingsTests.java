@@ -31,7 +31,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
-import static org.elasticsearch.index.IndexSettings.NODE_DEFAULT_REFRESH_INTERVAL_SETTING;
 import static org.elasticsearch.index.IndexSettings.TIME_SERIES_END_TIME;
 import static org.elasticsearch.index.IndexSettings.TIME_SERIES_START_TIME;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -299,38 +298,6 @@ public class IndexSettingsTests extends ESTestCase {
         assertEquals(
             TimeValue.parseTimeValue(
                 refreshInterval,
-                new TimeValue(1, TimeUnit.DAYS),
-                IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey()
-            ),
-            settings.getRefreshInterval()
-        );
-        String newRefreshInterval = getRandomTimeString();
-        settings.updateIndexMetadata(
-            newIndexMeta("index", Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), newRefreshInterval).build())
-        );
-        assertEquals(
-            TimeValue.parseTimeValue(
-                newRefreshInterval,
-                new TimeValue(1, TimeUnit.DAYS),
-                IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey()
-            ),
-            settings.getRefreshInterval()
-        );
-    }
-
-    public void testNodeDefaultRefreshInterval() {
-        String defaultRefreshInterval = getRandomTimeString();
-        IndexMetadata metadata = newIndexMeta(
-            "index",
-            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build()
-        );
-        IndexSettings settings = new IndexSettings(
-            metadata,
-            Settings.builder().put(NODE_DEFAULT_REFRESH_INTERVAL_SETTING.getKey(), defaultRefreshInterval).build()
-        );
-        assertEquals(
-            TimeValue.parseTimeValue(
-                defaultRefreshInterval,
                 new TimeValue(1, TimeUnit.DAYS),
                 IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey()
             ),

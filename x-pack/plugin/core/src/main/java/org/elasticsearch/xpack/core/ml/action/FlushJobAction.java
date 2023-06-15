@@ -41,7 +41,6 @@ public class FlushJobAction extends ActionType<FlushJobAction.Response> {
         public static final ParseField END = new ParseField("end");
         public static final ParseField ADVANCE_TIME = new ParseField("advance_time");
         public static final ParseField SKIP_TIME = new ParseField("skip_time");
-        public static final ParseField REFRESH_REQUIRED = new ParseField("refresh_required");
 
         private static final ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
 
@@ -52,7 +51,6 @@ public class FlushJobAction extends ActionType<FlushJobAction.Response> {
             PARSER.declareString(Request::setEnd, END);
             PARSER.declareString(Request::setAdvanceTime, ADVANCE_TIME);
             PARSER.declareString(Request::setSkipTime, SKIP_TIME);
-            PARSER.declareBoolean(Request::setRefreshRequired, REFRESH_REQUIRED);
         }
 
         public static Request parseRequest(String jobId, XContentParser parser) {
@@ -212,7 +210,6 @@ public class FlushJobAction extends ActionType<FlushJobAction.Response> {
             if (skipTime != null) {
                 builder.field(SKIP_TIME.getPreferredName(), skipTime);
             }
-            builder.field(REFRESH_REQUIRED.getPreferredName(), refreshRequired);
             builder.endObject();
             return builder;
         }

@@ -75,7 +75,8 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
         @Nullable String localNodeId,
         Version minNonClientNodeVersion,
         Version maxNodeVersion,
-        Version minNodeVersion
+        Version minNodeVersion,
+        Set<String> availableRoles
     ) {
         this.nodeLeftGeneration = nodeLeftGeneration;
         this.nodes = nodes;
@@ -91,11 +92,24 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
         this.minNodeVersion = minNodeVersion;
         this.maxNodeVersion = maxNodeVersion;
         assert (localNodeId == null) == (localNode == null);
-        this.availableRoles = dataNodes.values()
-            .stream()
-            .flatMap(n -> n.getRoles().stream())
-            .map(DiscoveryNodeRole::roleName)
-            .collect(Collectors.toUnmodifiableSet());
+        this.availableRoles = availableRoles;
+    }
+
+    public DiscoveryNodes withMasterNodeId(@Nullable String masterNodeId) {
+        assert masterNodeId == null || nodes.containsKey(masterNodeId) : "unknown node [" + masterNodeId + "]";
+        return new DiscoveryNodes(
+            nodeLeftGeneration,
+            nodes,
+            dataNodes,
+            masterNodes,
+            ingestNodes,
+            masterNodeId,
+            localNodeId,
+            minNonClientNodeVersion,
+            maxNodeVersion,
+            minNodeVersion,
+            availableRoles
+        );
     }
 
     @Override
@@ -808,17 +822,23 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
                 newNodeLeftGeneration = oldNodeLeftGeneration;
             }
 
+            var dataNodes = filteredNodes(nodes, DiscoveryNode::canContainData);
             return new DiscoveryNodes(
                 newNodeLeftGeneration,
                 Map.copyOf(nodes),
-                filteredNodes(nodes, DiscoveryNode::canContainData),
+                dataNodes,
                 filteredNodes(nodes, DiscoveryNode::isMasterNode),
                 filteredNodes(nodes, DiscoveryNode::isIngestNode),
                 masterNodeId,
                 localNodeId,
                 minNonClientNodeVersion == null ? Version.CURRENT : minNonClientNodeVersion,
                 maxNodeVersion == null ? Version.CURRENT : maxNodeVersion,
-                minNodeVersion == null ? Version.CURRENT.minimumCompatibilityVersion() : minNodeVersion
+                minNodeVersion == null ? Version.CURRENT.minimumCompatibilityVersion() : minNodeVersion,
+                dataNodes.values()
+                    .stream()
+                    .flatMap(n -> n.getRoles().stream())
+                    .map(DiscoveryNodeRole::roleName)
+                    .collect(Collectors.toUnmodifiableSet())
             );
         }
 

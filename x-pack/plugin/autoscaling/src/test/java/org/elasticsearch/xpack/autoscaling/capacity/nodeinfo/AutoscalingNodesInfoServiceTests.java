@@ -199,9 +199,7 @@ public class AutoscalingNodesInfoServiceTests extends AutoscalingTestCase {
         client.assertNoResponder();
         assertMatchesResponse(nodes, response, responseInfo);
 
-        ClusterState notMasterState = ClusterState.builder(masterState)
-            .nodes(DiscoveryNodes.builder(masterState.nodes()).masterNodeId(null))
-            .build();
+        ClusterState notMasterState = ClusterState.builder(masterState).nodes(masterState.nodes().withMasterNodeId(null)).build();
 
         // client throws if called.
         service.onClusterChanged(new ClusterChangedEvent("test", notMasterState, masterState));
@@ -442,6 +440,7 @@ public class AutoscalingNodesInfoServiceTests extends AutoscalingTestCase {
             null,
             null,
             null,
+            null,
             null
         );
     }
@@ -450,7 +449,7 @@ public class AutoscalingNodesInfoServiceTests extends AutoscalingTestCase {
         OsInfo osInfo = new OsInfo(randomLong(), processors, Processors.of((double) processors), null, null, null, null);
         return new org.elasticsearch.action.admin.cluster.node.info.NodeInfo(
             Version.CURRENT,
-            TransportVersion.CURRENT,
+            TransportVersion.current(),
             Build.CURRENT,
             node,
             null,

@@ -33,6 +33,7 @@
   },
   "_meta": {
     "description": "default policy for Elastic Universal Profiling",
-    "managed": true
+    "managed": true,
+    "version": ${xpack.profiling.template.version}
   }
 }

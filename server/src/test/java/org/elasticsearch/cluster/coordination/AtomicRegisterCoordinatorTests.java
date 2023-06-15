@@ -20,7 +20,6 @@ import org.elasticsearch.cluster.coordination.stateless.SingleNodeReconfigurator
 import org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -529,7 +528,7 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
                                     )
                             )
                             .version(latestClusterState.version())
-                            .nodes(DiscoveryNodes.builder(latestAcceptedState.nodes()).masterNodeId(null))
+                            .nodes(latestAcceptedState.nodes().withMasterNodeId(null))
                             .build()
                     )
                 );

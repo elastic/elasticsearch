@@ -26,12 +26,8 @@ public class Enrich extends UnaryPlan {
     private final Expression policyName;
     private final NamedExpression matchField;
     private final EnrichPolicyResolution policy;
-    private List<Attribute> enrichFields;
+    private List<NamedExpression> enrichFields;
     private List<Attribute> output;
-
-    public Enrich(Source source, LogicalPlan child, Expression policyName, NamedExpression matchField) {
-        this(source, child, policyName, matchField, null, null);
-    }
 
     public Enrich(
         Source source,
@@ -39,7 +35,7 @@ public class Enrich extends UnaryPlan {
         Expression policyName,
         NamedExpression matchField,
         EnrichPolicyResolution policy,
-        List<Attribute> enrichFields
+        List<NamedExpression> enrichFields
     ) {
         super(source, child);
         this.policyName = policyName;
@@ -52,7 +48,7 @@ public class Enrich extends UnaryPlan {
         return matchField;
     }
 
-    public List<Attribute> enrichFields() {
+    public List<NamedExpression> enrichFields() {
         return enrichFields;
     }
 

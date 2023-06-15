@@ -23,7 +23,7 @@ public class EnrichExec extends UnaryExec {
     private final String policyName;
     private final String policyMatchField;
     private final EsIndex enrichIndex;
-    private final List<Attribute> enrichFields;
+    private final List<NamedExpression> enrichFields;
 
     /**
      *
@@ -42,7 +42,7 @@ public class EnrichExec extends UnaryExec {
         String policyName,
         String policyMatchField,
         EsIndex enrichIndex,
-        List<Attribute> enrichFields
+        List<NamedExpression> enrichFields
     ) {
         super(source, child);
         this.matchField = matchField;
@@ -70,7 +70,7 @@ public class EnrichExec extends UnaryExec {
         return enrichIndex;
     }
 
-    public List<Attribute> enrichFields() {
+    public List<NamedExpression> enrichFields() {
         return enrichFields;
     }
 

@@ -118,8 +118,9 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
                         attributes.removeAll(ree.extractedFields());
                     }
                     if (p instanceof EnrichExec ee) {
-                        // TODO double-check
-                        attributes.removeAll(ee.enrichFields());
+                        for (NamedExpression enrichField : ee.enrichFields()) {
+                            attributes.remove(enrichField instanceof Alias a ? a.child() : enrichField);
+                        }
                     }
                 }
                 if (p instanceof ExchangeExec exec) {

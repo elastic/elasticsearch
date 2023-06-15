@@ -408,8 +408,8 @@ public class LocalExecutionPlanner {
     private PhysicalOperation planEnrich(EnrichExec enrich, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(enrich.child(), context);
         Layout.Builder layoutBuilder = source.layout.builder();
-        List<Attribute> extractedFields = enrich.enrichFields();
-        for (Attribute attr : extractedFields) {
+        List<NamedExpression> extractedFields = enrich.enrichFields();
+        for (NamedExpression attr : extractedFields) {
             layoutBuilder.appendChannel(attr.id());
         }
         Layout layout = layoutBuilder.build();

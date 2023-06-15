@@ -599,7 +599,7 @@ public class StatementParserTests extends ESTestCase {
 
     public void testEnrich() {
         assertEquals(
-            new Enrich(EMPTY, PROCESSING_CMD_INPUT, new Literal(EMPTY, "countries", KEYWORD), new EmptyAttribute(EMPTY)),
+            new Enrich(EMPTY, PROCESSING_CMD_INPUT, new Literal(EMPTY, "countries", KEYWORD), new EmptyAttribute(EMPTY), null, List.of()),
             processingCommand("enrich countries")
         );
 
@@ -608,9 +608,22 @@ public class StatementParserTests extends ESTestCase {
                 EMPTY,
                 PROCESSING_CMD_INPUT,
                 new Literal(EMPTY, "countries", KEYWORD),
-                new UnresolvedAttribute(EMPTY, "country_code")
+                new UnresolvedAttribute(EMPTY, "country_code"),
+                null,
+                List.of()
             ),
             processingCommand("enrich countries ON country_code")
+        );
+
+        expectError("from a | enrich countries on foo* ", "Using wildcards (*) in ENRICH WITH projections is not allowed [foo*]");
+        expectError("from a | enrich countries on foo with bar*", "Using wildcards (*) in ENRICH WITH projections is not allowed [bar*]");
+        expectError(
+            "from a | enrich countries on foo with x = bar* ",
+            "Using wildcards (*) in ENRICH WITH projections is not allowed [bar*]"
+        );
+        expectError(
+            "from a | enrich countries on foo with x* = bar ",
+            "Using wildcards (*) in ENRICH WITH projections is not allowed [x*]"
         );
     }
 

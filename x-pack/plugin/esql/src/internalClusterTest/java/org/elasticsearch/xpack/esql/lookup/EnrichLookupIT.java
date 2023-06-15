@@ -28,8 +28,8 @@ import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupOperator;
 import org.elasticsearch.xpack.esql.plugin.TransportEsqlQueryAction;
-import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
+import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.EsField;
@@ -71,7 +71,7 @@ public class EnrichLookupIT extends AbstractEsqlIntegTestCase {
         }
         client().admin().indices().prepareForceMerge("users").setMaxNumSegments(1).get();
         client().admin().indices().prepareRefresh("users").get();
-        List<Attribute> enrichAttributes = List.of(
+        List<NamedExpression> enrichAttributes = List.of(
             new FieldAttribute(Source.EMPTY, "name", new EsField("name", DataTypes.KEYWORD, Map.of(), true)),
             new FieldAttribute(Source.EMPTY, "city", new EsField("city", DataTypes.KEYWORD, Map.of(), true)),
             new FieldAttribute(Source.EMPTY, "joined", new EsField("joined", DataTypes.DATETIME, Map.of(), true))

@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.EmptyAttribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
@@ -226,9 +227,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 ? new UnresolvedAttribute(plan.source(), policy.getMatchField())
                 : plan.matchField();
 
-            List<Attribute> enrichFields = policy == null || idx == null
+            List<NamedExpression> enrichFields = policy == null || idx == null
                 ? (plan.enrichFields() == null ? List.of() : plan.enrichFields())
-                : calculateEnrichFields(plan.source(), mappingAsAttributes(plan.source(), idx.get().mapping()), policy.getEnrichFields());
+                : calculateEnrichFields(
+                    plan.source(),
+                    policyName,
+                    mappingAsAttributes(plan.source(), idx.get().mapping()),
+                    plan.enrichFields(),
+                    policy
+                );
 
             return new Enrich(plan.source(), plan.child(), policyNameExp, matchField, policyRes, enrichFields);
         }
@@ -244,19 +251,49 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return msg;
         }
 
-        public static List<Attribute> calculateEnrichFields(Source source, List<Attribute> mapping, List<String> enrichFields) {
+        public static List<NamedExpression> calculateEnrichFields(
+            Source source,
+            String policyName,
+            List<Attribute> mapping,
+            List<NamedExpression> enrichFields,
+            EnrichPolicy policy
+        ) {
             Map<String, Attribute> fieldMap = mapping.stream().collect(Collectors.toMap(NamedExpression::name, Function.identity()));
-            List<Attribute> result = new ArrayList<>();
-            for (String enrichField : enrichFields) {
-                Attribute mappedField = fieldMap.get(enrichField);
-                if (mappedField == null) {
-                    throw new IllegalStateException("Enrich policy field [" + enrichField + "] not found in index mapping");
+            fieldMap.remove(policy.getMatchField());
+            List<NamedExpression> result = new ArrayList<>();
+            if (enrichFields == null || enrichFields.isEmpty()) {
+                // use the policy to infer the enrich fields
+                for (String enrichFieldName : policy.getEnrichFields()) {
+                    result.add(createEnrichFieldExpression(source, policyName, fieldMap, enrichFieldName));
                 }
-                result.add(new ReferenceAttribute(source, enrichField, mappedField.dataType()));
+            } else {
+                for (NamedExpression enrichField : enrichFields) {
+                    String enrichFieldName = Expressions.name(enrichField instanceof Alias a ? a.child() : enrichField);
+                    NamedExpression field = createEnrichFieldExpression(source, policyName, fieldMap, enrichFieldName);
+                    result.add(enrichField instanceof Alias a ? new Alias(a.source(), a.name(), field) : field);
+                }
             }
             return result;
         }
 
+        private static NamedExpression createEnrichFieldExpression(
+            Source source,
+            String policyName,
+            Map<String, Attribute> fieldMap,
+            String enrichFieldName
+        ) {
+            Attribute mappedField = fieldMap.get(enrichFieldName);
+            if (mappedField == null) {
+                String msg = "Enrich field [" + enrichFieldName + "] not found in enrich policy [" + policyName + "]";
+                List<String> similar = StringUtils.findSimilar(enrichFieldName, fieldMap.keySet());
+                if (CollectionUtils.isEmpty(similar) == false) {
+                    msg += ", did you mean " + (similar.size() == 1 ? "[" + similar.get(0) + "]" : "any of " + similar) + "?";
+                }
+                return new UnresolvedAttribute(source, enrichFieldName, null, msg);
+            } else {
+                return new ReferenceAttribute(source, enrichFieldName, mappedField.dataType());
+            }
+        }
     }
 
     private static class ResolveRefs extends BaseAnalyzerRule {

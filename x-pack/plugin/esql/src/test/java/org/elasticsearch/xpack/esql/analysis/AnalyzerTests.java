@@ -1194,12 +1194,18 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("unresolved enrich policy [language], did you mean [languages]"));
     }
 
-    public void testEnrichPolicyWrongMatchField() {
-        var e = expectThrows(VerificationException.class, () -> analyze("""
-            from test
-            | enrich languages on bar
-            """));
-        assertThat(e.getMessage(), containsString("Unknown column [bar]"));
+    public void testEnrichPolicyMatchFieldName() {
+        verifyUnsupported("from test | enrich languages on bar", "Unknown column [bar]");
+        verifyUnsupported("from test | enrich languages on keywords", "Unknown column [keywords], did you mean [keyword]?");
+        verifyUnsupported("from test | enrich languages on keyword with foo", "Enrich field [foo] not found in enrich policy [languages]");
+        verifyUnsupported(
+            "from test | enrich languages on keyword with language_namez",
+            "Enrich field [language_namez] not found in enrich policy [languages], did you mean [language_name]"
+        );
+        verifyUnsupported(
+            "from test | enrich languages on keyword with x = language_namez",
+            "Enrich field [language_namez] not found in enrich policy [languages], did you mean [language_name]"
+        );
     }
 
     public void testEnrichWrongMatchFieldType() {
@@ -1221,6 +1227,20 @@ public class AnalyzerTests extends ESTestCase {
             | enrich languages on x
             | project first_name, language_name
             """, "first_name", "language_name");
+
+        assertProjection("""
+            from test
+            | eval x = to_string(languages)
+            | enrich languages on x with language_name
+            | project first_name, language_name
+            """, "first_name", "language_name");
+
+        assertProjection("""
+            from test
+            | eval x = to_string(languages)
+            | enrich languages on x with y = language_name
+            | project first_name, y
+            """, "first_name", "y");
     }
 
     public void testEnrichExcludesPolicyKey() {

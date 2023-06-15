@@ -226,5 +226,10 @@ showCommand
     ;
 
 enrichCommand
-    : ENRICH policyName=sourceIdentifier (ON matchField=sourceIdentifier)?
+    : ENRICH policyName=sourceIdentifier (ON matchField=sourceIdentifier)? (WITH enrichWithClause (COMMA enrichWithClause)*)?
+    ;
+
+enrichWithClause
+
+    : (newName=sourceIdentifier ASSIGN)? enrichField=sourceIdentifier
     ;

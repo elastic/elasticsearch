@@ -387,7 +387,7 @@ public final class PlanNamedTypes {
             in.readString(),
             in.readString(),
             readEsIndex(in),
-            readAttributes(in)
+            readNamedExpressions(in)
         );
     }
 
@@ -397,7 +397,7 @@ public final class PlanNamedTypes {
         out.writeString(enrich.policyName());
         out.writeString(enrich.policyMatchField());
         writeEsIndex(out, enrich.enrichIndex());
-        writeAttributes(out, enrich.enrichFields());
+        writeNamedExpressions(out, enrich.enrichFields());
     }
 
     static ExchangeExec readExchangeExec(PlanStreamInput in) throws IOException {
@@ -592,7 +592,7 @@ public final class PlanNamedTypes {
             in.readExpression(),
             in.readNamedExpression(),
             new EnrichPolicyResolution(in.readString(), new EnrichPolicy(in), IndexResolution.valid(readEsIndex(in))),
-            readAttributes(in)
+            readNamedExpressions(in)
         );
     }
 
@@ -603,7 +603,7 @@ public final class PlanNamedTypes {
         out.writeString(enrich.policy().policyName());
         enrich.policy().policy().writeTo(out);
         writeEsIndex(out, enrich.policy().index().get());
-        writeAttributes(out, enrich.enrichFields());
+        writeNamedExpressions(out, enrich.enrichFields());
     }
 
     static Filter readFilter(PlanStreamInput in) throws IOException {

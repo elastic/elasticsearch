@@ -157,6 +157,7 @@ SRC_CLOSING_BRACKET : ']' -> popMode, popMode, type(CLOSING_BRACKET);
 SRC_COMMA : ',' -> type(COMMA);
 SRC_ASSIGN : '=' -> type(ASSIGN);
 ON : 'on';
+WITH : 'with';
 
 SRC_UNQUOTED_IDENTIFIER
     : SRC_UNQUOTED_IDENTIFIER_PART+

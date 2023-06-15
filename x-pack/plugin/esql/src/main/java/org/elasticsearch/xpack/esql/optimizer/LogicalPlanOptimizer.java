@@ -405,7 +405,7 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
                 plan = maybePushDownPastUnary(filter, re, e -> e instanceof Attribute && attributes.contains(e));
             } else if (child instanceof Enrich enrich) {
                 // Push down filters that do not rely on attributes created by Enrich
-                List<Attribute> attributes = new ArrayList<>(enrich.enrichFields());
+                List<NamedExpression> attributes = new ArrayList<>(enrich.enrichFields());
                 plan = maybePushDownPastUnary(filter, enrich, e -> attributes.contains(e));
             } else if (child instanceof Project) {
                 return pushDownPastProject(filter);
@@ -500,7 +500,8 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
                 return orderBy.replaceChild(re.replaceChild(orderBy.child()));
             } else if (child instanceof Project) {
                 var projectWithChild = pushDownPastProject(re);
-                return projectWithChild.withProjections(mergeOutputExpressions(re.enrichFields(), projectWithChild.projections()));
+                var attrs = asAttributes(re.enrichFields());
+                return projectWithChild.withProjections(mergeOutputExpressions(attrs, projectWithChild.projections()));
             }
 
             return re;

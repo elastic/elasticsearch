@@ -73,7 +73,12 @@ public final class AnalyzerTestUtils {
     }
 
     public static EnrichResolution defaultEnrichResolution() {
-        EnrichPolicyResolution policyRes = loadEnrichPolicyResolution("languages", "id", "languages_idx", "mapping-languages.json");
+        EnrichPolicyResolution policyRes = loadEnrichPolicyResolution(
+            "languages",
+            "language_code",
+            "languages_idx",
+            "mapping-languages.json"
+        );
         return new EnrichResolution(Set.of(policyRes), Set.of("languages"));
     }
 

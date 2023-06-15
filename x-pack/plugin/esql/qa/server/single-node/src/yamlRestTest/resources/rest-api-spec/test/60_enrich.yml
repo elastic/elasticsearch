@@ -81,3 +81,41 @@ setup:
   - match: { values.1: [ "Bob", "New York", "USA" ] }
   - match: { values.2: [ "Denise", null, null ] }
   - match: { values.3: [ "Mario", "Rome", "Italy" ] }
+
+
+  - do:
+      esql.query:
+        body:
+          query: 'from test | project name, city_id | enrich cities_policy on city_id with country | sort name'
+
+  - match: { columns.0.name: "name" }
+  - match: { columns.0.type: "keyword" }
+  - match: { columns.1.name: "city_id" }
+  - match: { columns.1.type: "keyword" }
+  - match: { columns.2.name: "country" }
+  - match: { columns.2.type: "keyword" }
+
+  - length: { values: 4 }
+  - match: { values.0: [ "Alice", "nyc", "USA" ] }
+  - match: { values.1: [ "Bob", "nyc", "USA" ] }
+  - match: { values.2: [ "Denise", "sgn", null ] }
+  - match: { values.3: [ "Mario", "rom", "Italy" ] }
+
+
+  - do:
+      esql.query:
+        body:
+          query: 'from test | project name, city_id | enrich cities_policy on city_id with country_name = country | sort name'
+
+  - match: { columns.0.name: "name" }
+  - match: { columns.0.type: "keyword" }
+  - match: { columns.1.name: "city_id" }
+  - match: { columns.1.type: "keyword" }
+  - match: { columns.2.name: "country_name" }
+  - match: { columns.2.type: "keyword" }
+
+  - length: { values: 4 }
+  - match: { values.0: [ "Alice", "nyc", "USA" ] }
+  - match: { values.1: [ "Bob", "nyc", "USA" ] }
+  - match: { values.2: [ "Denise", "sgn", null ] }
+  - match: { values.3: [ "Mario", "rom", "Italy" ] }

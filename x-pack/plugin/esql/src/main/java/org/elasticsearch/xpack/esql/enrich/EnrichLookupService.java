@@ -57,7 +57,8 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.expression.Alias;
+import org.elasticsearch.xpack.ql.expression.NamedExpression;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -112,7 +113,7 @@ public class EnrichLookupService {
         String index,
         String matchType,
         String matchField,
-        List<Attribute> extractFields,
+        List<NamedExpression> extractFields,
         Page inputPage,
         ActionListener<Page> listener
     ) {
@@ -153,7 +154,7 @@ public class EnrichLookupService {
         String matchType,
         String matchField,
         Page inputPage,
-        List<Attribute> extractFields,
+        List<NamedExpression> extractFields,
         ActionListener<Page> listener
     ) {
         Block inputBlock = inputPage.getBlock(0);
@@ -175,10 +176,10 @@ public class EnrichLookupService {
                 default -> throw new UnsupportedOperationException("unsupported match type " + matchType);
             };
             List<Operator> extractOperators = new ArrayList<>(extractFields.size() + 2);
-            for (Attribute extractField : extractFields) {
+            for (NamedExpression extractField : extractFields) {
                 var sources = ValueSources.sources(
                     List.of(searchContext),
-                    extractField.name(),
+                    extractField instanceof Alias a ? ((NamedExpression) a.child()).name() : extractField.name(),
                     EsqlDataTypes.isUnsupported(extractField.dataType()),
                     LocalExecutionPlanner.toElementType(extractField.dataType())
                 );
@@ -220,7 +221,7 @@ public class EnrichLookupService {
         }
     }
 
-    private static Page createNullResponse(int positionCount, List<Attribute> extractFields) {
+    private static Page createNullResponse(int positionCount, List<NamedExpression> extractFields) {
         final Block[] blocks = new Block[extractFields.size()];
         for (int i = 0; i < extractFields.size(); i++) {
             blocks[i] = Block.constantNullBlock(positionCount);
@@ -251,7 +252,7 @@ public class EnrichLookupService {
         private final String matchType;
         private final String matchField;
         private final Page inputPage;
-        private final List<Attribute> extractFields;
+        private final List<NamedExpression> extractFields;
 
         LookupRequest(
             String sessionId,
@@ -259,7 +260,7 @@ public class EnrichLookupService {
             String matchType,
             String matchField,
             Page inputPage,
-            List<Attribute> extractFields
+            List<NamedExpression> extractFields
         ) {
             this.sessionId = sessionId;
             this.shardId = shardId;
@@ -277,7 +278,7 @@ public class EnrichLookupService {
             this.matchField = in.readString();
             this.inputPage = new Page(in);
             PlanStreamInput planIn = new PlanStreamInput(in, PlanNameRegistry.INSTANCE, in.namedWriteableRegistry());
-            this.extractFields = planIn.readList(readerFromPlanReader(PlanStreamInput::readAttribute));
+            this.extractFields = planIn.readList(readerFromPlanReader(PlanStreamInput::readNamedExpression));
         }
 
         @Override
@@ -289,7 +290,7 @@ public class EnrichLookupService {
             out.writeString(matchField);
             out.writeWriteable(inputPage);
             PlanStreamOutput planOut = new PlanStreamOutput(out, PlanNameRegistry.INSTANCE);
-            planOut.writeCollection(extractFields, writerFromPlanWriter(PlanStreamOutput::writeAttribute));
+            planOut.writeCollection(extractFields, writerFromPlanWriter(PlanStreamOutput::writeNamedExpression));
         }
 
         @Override
@@ -318,7 +319,7 @@ public class EnrichLookupService {
         ShardId shardId,
         String matchType,
         String matchField,
-        List<Attribute> extractFields,
+        List<NamedExpression> extractFields,
         int positionCount
     ) {
         return "ENRICH_LOOKUP("

@@ -14,7 +14,7 @@ import org.elasticsearch.compute.operator.AsyncOperator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.tasks.CancellableTask;
-import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.expression.NamedExpression;
 
 import java.util.List;
 
@@ -26,7 +26,7 @@ public final class EnrichLookupOperator extends AsyncOperator {
     private final String enrichIndex;
     private final String matchType;
     private final String matchField;
-    private final List<Attribute> enrichFields;
+    private final List<NamedExpression> enrichFields;
 
     public record Factory(
         String sessionId,
@@ -37,7 +37,7 @@ public final class EnrichLookupOperator extends AsyncOperator {
         String enrichIndex,
         String matchType,
         String matchField,
-        List<Attribute> enrichFields
+        List<NamedExpression> enrichFields
     ) implements OperatorFactory {
         @Override
         public String describe() {
@@ -77,7 +77,7 @@ public final class EnrichLookupOperator extends AsyncOperator {
         String enrichIndex,
         String matchType,
         String matchField,
-        List<Attribute> enrichFields
+        List<NamedExpression> enrichFields
     ) {
         super(maxOutstandingRequests);
         this.sessionId = sessionId;

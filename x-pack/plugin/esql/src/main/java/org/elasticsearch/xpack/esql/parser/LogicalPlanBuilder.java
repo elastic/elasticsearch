@@ -287,8 +287,40 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             NamedExpression matchField = ctx.ON() != null
                 ? new UnresolvedAttribute(source(ctx.matchField), visitSourceIdentifier(ctx.matchField))
                 : new EmptyAttribute(source);
-            return new Enrich(source, p, new Literal(source(ctx.policyName), policyName, DataTypes.KEYWORD), matchField);
+            if (matchField.name().contains("*")) {
+                throw new ParsingException(
+                    source(ctx),
+                    "Using wildcards (*) in ENRICH WITH projections is not allowed [{}]",
+                    matchField.name()
+                );
+            }
+            List<NamedExpression> keepClauses = visitList(this, ctx.enrichWithClause(), NamedExpression.class);
+            return new Enrich(
+                source,
+                p,
+                new Literal(source(ctx.policyName), policyName, DataTypes.KEYWORD),
+                matchField,
+                null,
+                keepClauses.isEmpty() ? List.of() : keepClauses
+            );
         };
+    }
+
+    @Override
+    public NamedExpression visitEnrichWithClause(EsqlBaseParser.EnrichWithClauseContext ctx) {
+        Source src = source(ctx);
+        String enrichField = enrichFieldName(ctx.enrichField);
+        String newName = enrichFieldName(ctx.newName);
+        UnresolvedAttribute enrichAttr = new UnresolvedAttribute(src, enrichField);
+        return newName == null ? enrichAttr : new Alias(src, newName, enrichAttr);
+    }
+
+    private String enrichFieldName(EsqlBaseParser.SourceIdentifierContext ctx) {
+        String name = ctx == null ? null : visitSourceIdentifier(ctx);
+        if (name != null && name.contains(WILDCARD)) {
+            throw new ParsingException(source(ctx), "Using wildcards (*) in ENRICH WITH projections is not allowed [{}]", name);
+        }
+        return name;
     }
 
     interface PlanFactory extends Function<LogicalPlan, LogicalPlan> {}

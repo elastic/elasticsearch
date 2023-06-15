@@ -1581,6 +1581,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         // Composable Z: "lifecycle": {"retention": "45d"}
         // Result: "lifecycle": {"retention": "45d"}
         assertLifecycleResolution(service, state, List.of(ct30d, ctNullLifecycle), lifecycle45d, lifecycle45d);
+
+        //TODO: downsampling
     }
 
     private ClusterState addComponentTemplate(

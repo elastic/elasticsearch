@@ -70,7 +70,7 @@ import java.util.stream.Collectors;
  */
 public class DataLifecycleService implements ClusterStateListener, Closeable, SchedulerEngine.Listener {
 
-    public static final String DLM_POLL_INTERVAL = "indices.dlm.poll_interval";
+    public static final String DLM_POLL_INTERVAL = "data_streams.lifecycle.poll_interval";
     public static final Setting<TimeValue> DLM_POLL_INTERVAL_SETTING = Setting.timeSetting(
         DLM_POLL_INTERVAL,
         TimeValue.timeValueMinutes(10),

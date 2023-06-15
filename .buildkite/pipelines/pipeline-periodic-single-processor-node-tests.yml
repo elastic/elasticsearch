@@ -1,10 +1,10 @@
-agents:
-  provider: gcp
-  image: family/brian-elasticsearch-ubuntu-2004
-  imageProject: elastic-images-qa
-  buildDirectory: /dev/shm/bk
-  machineType: custom-32-98304
 steps:
   - label: single-processor-node-tests
     command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dbwc.checkout.align=true
       -Dtests.configure_test_clusters_with_one_processor=true check
+    agents:
+      provider: gcp
+      image: family/brian-elasticsearch-ubuntu-2004
+      imageProject: elastic-images-qa
+      buildDirectory: /dev/shm/bk
+      machineType: custom-32-98304

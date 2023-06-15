@@ -1,9 +1,3 @@
-agents:
-  provider: gcp
-  image: family/brian-elasticsearch-ubuntu-2004
-  imageProject: elastic-images-qa
-  buildDirectory: /dev/shm/bk
-  machineType: custom-32-98304
 steps:
   - group: platform-support-unix
     steps:

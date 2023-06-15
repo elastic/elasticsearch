@@ -1,9 +1,3 @@
-agents:
-  provider: gcp
-  image: family/brian-elasticsearch-ubuntu-2004
-  imageProject: elastic-images-qa
-  buildDirectory: /dev/shm/bk
-  machineType: custom-32-98304
 steps:
   - label: release-tests
     command: >-
@@ -41,3 +35,9 @@ steps:
 
       $$WORKSPACE/.ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dbuild.snapshot=false -Dbuild.ml_cpp.repo=file://$${ML_IVY_REPO} \
         -Dtests.jvm.argline=-Dbuild.snapshot=false -Dlicense.key=$${WORKSPACE}/x-pack/license-tools/src/test/resources/public.key -Dbuild.id=deadbeef build
+    agents:
+      provider: gcp
+      image: family/brian-elasticsearch-ubuntu-2004
+      imageProject: elastic-images-qa
+      buildDirectory: /dev/shm/bk
+      machineType: custom-32-98304

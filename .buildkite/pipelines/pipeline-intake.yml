@@ -1,27 +1,45 @@
-agents:
-  provider: gcp
-  image: family/brian-elasticsearch-ubuntu-2004
-  imageProject: elastic-images-qa
-  buildDirectory: /dev/shm/bk
-  machineType: custom-32-98304
 steps:
   - label: sanity-check
     command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dbwc.checkout.align=true
       -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed
       -Dscan.capture-task-input-files precommit
+    agents:
+      provider: gcp
+      image: family/brian-elasticsearch-ubuntu-2004
+      imageProject: elastic-images-qa
+      buildDirectory: /dev/shm/bk
+      machineType: custom-32-98304
   - wait: null
   - label: part1
     command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dbwc.checkout.align=true
       -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed
       -Dscan.capture-task-input-files checkPart1
+    agents:
+      provider: gcp
+      image: family/brian-elasticsearch-ubuntu-2004
+      imageProject: elastic-images-qa
+      buildDirectory: /dev/shm/bk
+      machineType: custom-32-98304
   - label: part2
     command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dbwc.checkout.align=true
       -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed
       -Dscan.capture-task-input-files checkPart2
+    agents:
+      provider: gcp
+      image: family/brian-elasticsearch-ubuntu-2004
+      imageProject: elastic-images-qa
+      buildDirectory: /dev/shm/bk
+      machineType: custom-32-98304
   - label: part3
     command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dbwc.checkout.align=true
       -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed
       -Dscan.capture-task-input-files checkPart3
+    agents:
+      provider: gcp
+      image: family/brian-elasticsearch-ubuntu-2004
+      imageProject: elastic-images-qa
+      buildDirectory: /dev/shm/bk
+      machineType: custom-32-98304
   - group: bwc-snapshots
     steps:
       - label: "{{matrix.BWC_VERSION}} / bwc-snapshots"
@@ -34,12 +52,24 @@ steps:
               - 7.17.11
               - 8.8.2
               - 8.9.0
+        agents:
+          provider: gcp
+          image: family/brian-elasticsearch-ubuntu-2004
+          imageProject: elastic-images-qa
+          buildDirectory: /dev/shm/bk
+          machineType: custom-32-98304
         env:
           BWC_VERSION: "{{matrix.BWC_VERSION}}"
   - label: rest-compat
     command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dbwc.checkout.align=true
       -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed
       -Dscan.capture-task-input-files checkRestCompat
+    agents:
+      provider: gcp
+      image: family/brian-elasticsearch-ubuntu-2004
+      imageProject: elastic-images-qa
+      buildDirectory: /dev/shm/bk
+      machineType: custom-32-98304
   - wait: null
   - label: dra-snapshot
     command: >-
@@ -115,6 +145,12 @@ steps:
              --artifact-set main \
              --dependency beats:https://artifacts-$${WORKFLOW}.elastic.co/beats/$${BEATS_BUILD_ID}/manifest-$${ES_VERSION}$${VERSION_SUFFIX}.json \
              --dependency ml-cpp:https://artifacts-$${WORKFLOW}.elastic.co/ml-cpp/$${ML_CPP_BUILD_ID}/manifest-$${ES_VERSION}$${VERSION_SUFFIX}.json
+    agents:
+      provider: gcp
+      image: family/brian-elasticsearch-ubuntu-2004
+      imageProject: elastic-images-qa
+      buildDirectory: /dev/shm/bk
+      machineType: custom-32-98304
   - wait: null
   - label: update-last-good-commit
     command: /usr/bin/true

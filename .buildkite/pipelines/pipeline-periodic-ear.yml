@@ -1,9 +1,3 @@
-agents:
-  provider: gcp
-  image: family/brian-elasticsearch-ubuntu-2004
-  imageProject: elastic-images-qa
-  buildDirectory: /dev/shm/bk
-  machineType: custom-32-98304
 steps:
   - label: ear
     command: >-
@@ -47,3 +41,9 @@ steps:
 
 
       $$WORKSPACE/.ci/scripts/run-gradle.sh -Dbwc.checkout.align=true check
+    agents:
+      provider: gcp
+      image: family/brian-elasticsearch-ubuntu-2004
+      imageProject: elastic-images-qa
+      buildDirectory: /dev/shm/bk
+      machineType: custom-32-98304

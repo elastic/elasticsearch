@@ -1,9 +1,3 @@
-agents:
-  provider: gcp
-  image: family/brian-elasticsearch-ubuntu-2004
-  imageProject: elastic-images-qa
-  buildDirectory: /dev/shm/bk
-  machineType: custom-32-98304
 steps:
   - group: java-fips-matrix
     steps:
@@ -20,6 +14,12 @@ steps:
               - checkPart3
               - bwcTestSnapshots
               - checkRestCompat
+        agents:
+          provider: gcp
+          image: family/brian-elasticsearch-ubuntu-2004
+          imageProject: elastic-images-qa
+          buildDirectory: /dev/shm/bk
+          machineType: custom-32-98304
         env:
           ES_RUNTIME_JAVA: "{{matrix.ES_RUNTIME_JAVA}}"
           GRADLE_TASK: "{{matrix.GRADLE_TASK}}"

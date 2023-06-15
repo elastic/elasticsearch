@@ -10,18 +10,16 @@ package org.elasticsearch.common.logging;
 
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.logging.Level;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 
 import java.util.Map;
 import java.util.NavigableMap;
-import java.util.TreeMap;
 import java.util.logging.Handler;
 import java.util.logging.LogRecord;
-import java.util.stream.Collectors;
 
 /**
- * A Java Util Logging handler that writes log messages to log4j.
+ * A Java Util Logging handler that writes log messages to the Elasticsearch logging framework.
  */
 class JULBridge extends Handler {
 

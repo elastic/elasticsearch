@@ -7,9 +7,6 @@
 package org.elasticsearch.xpack.security.authc.oidc;
 
 import com.carrotsearch.randomizedtesting.annotations.Repeat;
-import com.nimbusds.jose.shaded.json.JSONStyle;
-import com.nimbusds.jose.shaded.json.JSONValue;
-import com.nimbusds.jose.shaded.json.reader.JsonWriterI;
 import com.nimbusds.jwt.JWT;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.oauth2.sdk.id.State;
@@ -42,8 +39,6 @@ import org.hamcrest.Matchers;
 import org.junit.Before;
 import org.mockito.stubbing.Answer;
 
-import java.io.IOException;
-import java.security.AccessControlException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -456,22 +451,6 @@ public class OpenIdConnectRealmTests extends OpenIdConnectTestCase {
                 + "&client_id=rp-my"
         );
         assertThat(response.getRealmName(), equalTo(REALM_NAME));
-    }
-
-    public void testCanWriteClaimsWithCustomRegisteredWriters() {
-        assertNotNull(new Nonce().toString());
-        expectThrows(
-            AccessControlException.class,
-            () -> new JWTClaimsSet.Builder().jwtID(randomAlphaOfLength(8)).claim("nonce", new Nonce()).build().toString()
-        );
-        JSONValue.registerWriter(Nonce.class, new JsonWriterI<Nonce>() {
-            @Override
-            public <E extends Nonce> void writeJSONString(E e, Appendable appendable, JSONStyle jsonStyle) throws IOException {
-                appendable.append(e.toJSONString());
-            }
-        });
-        JWTClaimsSet claimsSet = new JWTClaimsSet.Builder().jwtID(randomAlphaOfLength(8)).claim("nonce", new Nonce()).build();
-        assertNotNull(claimsSet.toString());
     }
 
     private void assertEqualUrlStrings(String actual, String expected) {

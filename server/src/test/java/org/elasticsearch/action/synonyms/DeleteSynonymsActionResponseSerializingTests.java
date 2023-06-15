@@ -10,36 +10,36 @@ package org.elasticsearch.action.synonyms;
 
 import org.elasticsearch.action.admin.indices.analyze.ReloadAnalyzersResponse;
 import org.elasticsearch.action.admin.indices.analyze.ReloadAnalyzersResponseTests;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.synonyms.SynonymsManagementAPIService.UpdateSynonymsResultStatus;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 
-import static org.elasticsearch.synonyms.SynonymsManagementAPIService.UpdateSynonymsResultStatus.CREATED;
-import static org.elasticsearch.synonyms.SynonymsManagementAPIService.UpdateSynonymsResultStatus.UPDATED;
-
-public class PutSynonymsActionResponseSerializingTests extends AbstractWireSerializingTestCase<PutSynonymsAction.Response> {
+public class DeleteSynonymsActionResponseSerializingTests extends AbstractWireSerializingTestCase<DeleteSynonymsAction.Response> {
 
     @Override
-    protected Writeable.Reader<PutSynonymsAction.Response> instanceReader() {
-        return PutSynonymsAction.Response::new;
+    protected Writeable.Reader<DeleteSynonymsAction.Response> instanceReader() {
+        return DeleteSynonymsAction.Response::new;
     }
 
     @Override
-    protected PutSynonymsAction.Response createTestInstance() {
-        UpdateSynonymsResultStatus updateStatus = randomFrom(CREATED, UPDATED);
+    protected DeleteSynonymsAction.Response createTestInstance() {
         Map<String, ReloadAnalyzersResponse.ReloadDetails> reloadedIndicesDetails = ReloadAnalyzersResponseTests
             .createRandomReloadDetails();
-        return new PutSynonymsAction.Response(updateStatus, new ReloadAnalyzersResponse(10, 10, 0, null, reloadedIndicesDetails));
+        AcknowledgedResponse acknowledgedResponse = AcknowledgedResponse.of(randomBoolean());
+        return new DeleteSynonymsAction.Response(
+            acknowledgedResponse,
+            new ReloadAnalyzersResponse(10, 10, 0, null, reloadedIndicesDetails)
+        );
     }
 
     @Override
-    protected PutSynonymsAction.Response mutateInstance(PutSynonymsAction.Response instance) throws IOException {
+    protected DeleteSynonymsAction.Response mutateInstance(DeleteSynonymsAction.Response instance) throws IOException {
         return randomValueOtherThan(instance, this::createTestInstance);
     }
 
@@ -49,12 +49,13 @@ public class PutSynonymsActionResponseSerializingTests extends AbstractWireSeria
             new ReloadAnalyzersResponse.ReloadDetails("index", Collections.singleton("nodeId"), Collections.singleton("my_analyzer"))
         );
         ReloadAnalyzersResponse reloadAnalyzersResponse = new ReloadAnalyzersResponse(10, 5, 0, null, reloadedIndicesNodes);
-        PutSynonymsAction.Response response = new PutSynonymsAction.Response(CREATED, reloadAnalyzersResponse);
+        AcknowledgedResponse acknowledgedResponse = AcknowledgedResponse.of(true);
+        DeleteSynonymsAction.Response response = new DeleteSynonymsAction.Response(acknowledgedResponse, reloadAnalyzersResponse);
 
         String output = Strings.toString(response);
         assertEquals(XContentHelper.stripWhitespace("""
             {
-              "result": "created",
+              "acknowledged": true,
               "reload_analyzers_details": {
                 "_shards": {
                   "total": 10,

@@ -43,7 +43,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.TreeSet;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
@@ -123,7 +122,6 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
             .stepRules(
                 stepRuleFullChecks(WaitForDataTierStep.NAME, ONE_DAY, MAX_RETRIES),
                 stepRuleFullChecks(WaitForIndexColorStep.NAME, ONE_DAY, MAX_RETRIES),
-                // The no-follower step is added here because an `UnfollowAction` is added before the `shrinkAction` in the follower cluster
                 stepRuleOnlyCheckRetries(WaitForNoFollowersStep.NAME, MAX_RETRIES)
             ),
         //
@@ -133,8 +131,6 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
         ShrinkAction.NAME,
         actionRule(ShrinkAction.NAME).maxTimeOnAction(ONE_DAY)
             .stepRules(
-                // The no-follower step is added here because an `unfollowAction` is added before the `shrinkAction` in the follower
-                // cluster.
                 stepRuleOnlyCheckRetries(WaitForNoFollowersStep.NAME, MAX_RETRIES)
             ),
         //
@@ -145,8 +141,8 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
         actionRule(ForceMergeAction.NAME).maxTimeOnAction(ONE_DAY)
             .stepRules(
                 stepRuleFullChecks(WaitForIndexColorStep.NAME, ONE_DAY, MAX_RETRIES),
-                stepRuleFullChecks(ForceMergeStep.NAME, ONE_DAY, 100L),
-                stepRuleFullChecks(SegmentCountStep.NAME, ONE_DAY, 100L)
+                stepRuleFullChecks(ForceMergeStep.NAME, ONE_DAY, MAX_RETRIES),
+                stepRuleFullChecks(SegmentCountStep.NAME, ONE_DAY, MAX_RETRIES)
             )
         //
         // The next rule has to be commented because of this issue https://github.com/elastic/elasticsearch/issues/96705
@@ -414,13 +410,17 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
      */
     public record StepRule(String step, TimeValue maxTimeOn, Long maxRetries) implements RuleConfig {
 
+        public StepRule {
+            if (maxTimeOn == null && maxRetries == null) {
+                throw new IllegalArgumentException("At least one of [maxTimeOne or maxRetries] must be defined.");
+            }
+        }
+
         static StepRule stepRuleFullChecks(String name, TimeValue maxTimeOn, long maxRetries) {
-            Objects.requireNonNull(maxTimeOn);
             return new StepRule(name, maxTimeOn, maxRetries);
         }
 
         static StepRule stepRuleOnlyCheckPassedTime(String name, TimeValue maxTimeOn) {
-            Objects.requireNonNull(maxTimeOn);
             return new StepRule(name, maxTimeOn, null);
         }
 

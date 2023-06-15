@@ -439,7 +439,7 @@ public class CompositeRolesStore {
             }
 
             if (descriptor.hasWorkflowsRestriction()) {
-                if (roleDescriptors.size() == 1) {
+                if (roleDescriptors.size() != 1) {
                     throw new IllegalArgumentException("only single role descriptor with workflow restriction is allowed");
                 }
                 workflows.addAll(List.of(descriptor.getRestriction().getWorkflows()));

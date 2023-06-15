@@ -252,22 +252,40 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
         });
     }
 
+    /**
+     * Retrieve list of pipelines that have at least one geoip processor.
+     * @param clusterState Cluster state.
+     * @param downloadDatabaseOnPipelineCreation Filter the list to include only pipeline with the download_database_on_pipeline_creation matching the param.
+     * @return A list of {@link PipelineConfiguration} matching criteria.
+     */
     @SuppressWarnings("unchecked")
     private static List<PipelineConfiguration> pipelineConfigurationsWithGeoIpProcessor(
-        ClusterState state,
+        ClusterState clusterState,
         boolean downloadDatabaseOnPipelineCreation
     ) {
-        List<PipelineConfiguration> pipelineDefinitions = IngestService.getPipelines(state);
+        List<PipelineConfiguration> pipelineDefinitions = IngestService.getPipelines(clusterState);
         return pipelineDefinitions.stream().filter(pipelineConfig -> {
             List<Map<String, Object>> processors = (List<Map<String, Object>>) pipelineConfig.getConfigAsMap().get(Pipeline.PROCESSORS_KEY);
             return hasAtLeastOneGeoipProcessor(processors, downloadDatabaseOnPipelineCreation);
         }).collect(Collectors.toList());
     }
 
+    /**
+     * Check if a list of processor contains at least a geoip processor.
+     * @param processors List of processors.
+     * @param downloadDatabaseOnPipelineCreation Should the download_database_on_pipeline_creation of the geoip processor be true or false.
+     * @return true if a geoip processor is found in the processor list.
+     */
     private static boolean hasAtLeastOneGeoipProcessor(List<Map<String, Object>> processors, boolean downloadDatabaseOnPipelineCreation) {
         return processors != null && processors.stream().anyMatch(p -> hasAtLeastOneGeoipProcessor(p, downloadDatabaseOnPipelineCreation));
     }
 
+    /**
+     * Check if a processor config is a geoip processor or contains at least a geoip processor.
+     * @param processor Processor config.
+     * @param downloadDatabaseOnPipelineCreation Should the download_database_on_pipeline_creation of the geoip processor be true or false.
+     * @return true if a geoip processor is found in the processor list.
+     */
     @SuppressWarnings("unchecked")
     private static boolean hasAtLeastOneGeoipProcessor(Map<String, Object> processor, boolean downloadDatabaseOnPipelineCreation) {
         if (processor == null) {
@@ -283,6 +301,12 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
             || isForeachProcessorWithGeoipProcessor(processor, downloadDatabaseOnPipelineCreation);
     }
 
+    /**
+     * Check if a processor config is has an on_failure clause containing at least a geoip processor.
+     * @param processor Processor config.
+     * @param downloadDatabaseOnPipelineCreation Should the download_database_on_pipeline_creation of the geoip processor be true or false.
+     * @return true if a geoip processor is found in the processor list.
+     */
     @SuppressWarnings("unchecked")
     private static boolean isProcessorWithOnFailureGeoIpProcessor(
         Map<String, Object> processor,
@@ -300,6 +324,12 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
                 );
     }
 
+    /**
+     * Check if a processor is a foreach processor containing at least a geoip processor.
+     * @param processor Processor config.
+     * @param downloadDatabaseOnPipelineCreation Should the download_database_on_pipeline_creation of the geoip processor be true or false.
+     * @return true if a geoip processor is found in the processor list.
+     */
     @SuppressWarnings("unchecked")
     private static boolean isForeachProcessorWithGeoipProcessor(Map<String, Object> processor, boolean downloadDatabaseOnPipelineCreation) {
         return processor.containsKey("foreach")

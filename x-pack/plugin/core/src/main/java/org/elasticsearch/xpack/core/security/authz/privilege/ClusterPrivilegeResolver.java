@@ -277,7 +277,6 @@ public class ClusterPrivilegeResolver {
         "manage_search_application",
         MANAGE_SEARCH_APPLICATION_PATTERN
     );
-
     public static final NamedClusterPrivilege MANAGE_BEHAVIORAL_ANALYTICS = new ActionClusterPrivilege(
         "manage_behavioral_analytics",
         MANAGE_BEHAVIORAL_ANALYTICS_PATTERN

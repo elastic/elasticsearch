@@ -8,7 +8,6 @@
 
 package org.elasticsearch.repositories;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -101,7 +100,7 @@ public final class RepositoriesModule {
                         "the snapshot was created with Elasticsearch version ["
                             + version
                             + "] which is below the current versions minimum index compatibility version ["
-                            + Version.CURRENT.minimumIndexCompatibilityVersion()
+                            + IndexVersion.MINIMUM_COMPATIBLE
                             + "]"
                     );
                 }

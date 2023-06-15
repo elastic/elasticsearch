@@ -1104,9 +1104,9 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
         createSnapshot.setJsonEntity("{\"indices\": \"" + index + "\"}");
         client().performRequest(createSnapshot);
 
-        checkSnapshot("old_snap", count, getOldClusterVersion().indexVersion);
+        checkSnapshot("old_snap", count, getOldClusterVersion());
         if (false == isRunningAgainstOldCluster()) {
-            checkSnapshot("new_snap", count, IndexVersion.CURRENT);
+            checkSnapshot("new_snap", count, Version.CURRENT);
         }
     }
 
@@ -1296,14 +1296,16 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
     }
 
     @SuppressWarnings("unchecked")
-    private void checkSnapshot(final String snapshotName, final int count, final IndexVersion tookOnVersion) throws IOException {
+    private void checkSnapshot(final String snapshotName, final int count, final Version tookOnVersion) throws IOException {
         // Check the snapshot metadata, especially the version
         Request listSnapshotRequest = new Request("GET", "/_snapshot/repo/" + snapshotName);
         Map<String, Object> snapResponse = entityAsMap(client().performRequest(listSnapshotRequest));
 
+        String snapshotToString = tookOnVersion.before(Version.V_8_9_0) ? tookOnVersion.toString() : tookOnVersion.indexVersion.toString();
+
         assertEquals(singletonList(snapshotName), XContentMapValues.extractValue("snapshots.snapshot", snapResponse));
         assertEquals(singletonList("SUCCESS"), XContentMapValues.extractValue("snapshots.state", snapResponse));
-        assertEquals(singletonList(tookOnVersion.toString()), XContentMapValues.extractValue("snapshots.version", snapResponse));
+        assertEquals(singletonList(snapshotToString), XContentMapValues.extractValue("snapshots.version", snapResponse));
 
         // Remove the routing setting and template so we can test restoring them.
         Request clearRoutingFromSettings = new Request("PUT", "/_cluster/settings");

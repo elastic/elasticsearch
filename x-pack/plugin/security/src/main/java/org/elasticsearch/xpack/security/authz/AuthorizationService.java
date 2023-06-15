@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.authz;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchAccessRestrictedException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
@@ -56,7 +57,6 @@ import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AsyncSupp
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationContext;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationResult;
-import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.DeniedAuthorizationInfo;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.EmptyAuthorizationInfo;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.IndexAuthorizationResult;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.ParentActionAuthorization;
@@ -317,27 +317,18 @@ public class AuthorizationService {
                     parentAuthorization
                 );
                 final AuthorizationEngine engine = getAuthorizationEngine(authentication);
-                final ActionListener<AuthorizationInfo> authzInfoListener = wrapPreservingContext(
-                    listener.delegateFailureAndWrap((l, authorizationInfo) -> {
-                        if (authorizationInfo == DeniedAuthorizationInfo.INSTANCE) {
-                            // TODO: add audit log and dedicated denial message
-                            l.onFailure(
-                                actionDenied(
-                                    authentication,
-                                    authorizationInfo,
-                                    action,
-                                    unwrappedRequest,
-                                    "because access is denied to a workflow",
-                                    null
-                                )
-                            );
-                        } else {
-                            threadContext.putTransient(AUTHORIZATION_INFO_KEY, authorizationInfo);
-                            maybeAuthorizeRunAs(requestInfo, auditId, authorizationInfo, l);
-                        }
-                    }),
-                    threadContext
-                );
+                final ActionListener<AuthorizationInfo> authzInfoListener = wrapPreservingContext(ActionListener.wrap(authorizationInfo -> {
+                    threadContext.putTransient(AUTHORIZATION_INFO_KEY, authorizationInfo);
+                    maybeAuthorizeRunAs(requestInfo, auditId, authorizationInfo, listener);
+                }, e -> {
+                    if (e instanceof ElasticsearchAccessRestrictedException) {
+                        auditTrailService.get()
+                            .accessDenied(auditId, authentication, action, unwrappedRequest, EmptyAuthorizationInfo.INSTANCE);
+                        listener.onFailure(actionDenied(authentication, EmptyAuthorizationInfo.INSTANCE, action, unwrappedRequest, e));
+                    } else {
+                        listener.onFailure(e);
+                    }
+                }), threadContext);
                 engine.resolveAuthorizationInfo(requestInfo, authzInfoListener);
             }
         }

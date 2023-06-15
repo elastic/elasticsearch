@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
+import org.elasticsearch.ElasticsearchAccessRestrictedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.AliasesRequest;
@@ -143,8 +144,8 @@ public class RBACEngine implements AuthorizationEngine {
     public void resolveAuthorizationInfo(RequestInfo requestInfo, ActionListener<AuthorizationInfo> listener) {
         final Authentication authentication = requestInfo.getAuthentication();
         rolesStore.getRoles(authentication, listener.delegateFailureAndWrap((l, roleTuple) -> {
-            if (roleTuple.v1() == Role.EMPTY_RESTRICTED_BY_WORKFLOW || roleTuple.v2() == Role.EMPTY_RESTRICTED_BY_WORKFLOW) {
-                l.onResponse(DeniedAuthorizationInfo.INSTANCE);
+            if (roleTuple.v1() == Role.EMPTY_RESTRICTED_BY_WORKFLOW) {
+                l.onFailure(new ElasticsearchAccessRestrictedException("access restricted by workflow"));
             } else {
                 l.onResponse(new RBACAuthorizationInfo(roleTuple.v1(), roleTuple.v2()));
             }

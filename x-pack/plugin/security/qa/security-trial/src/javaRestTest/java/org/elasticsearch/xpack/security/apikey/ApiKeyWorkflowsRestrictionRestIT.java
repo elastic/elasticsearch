@@ -164,6 +164,7 @@ public class ApiKeyWorkflowsRestrictionRestIT extends SecurityOnTrialLicenseRest
         ResponseException e = expectThrows(ResponseException.class, () -> performRequestWithApiKey(searchRequest, apiKeyEncoded));
         assertEquals(403, e.getResponse().getStatusLine().getStatusCode());
         assertThat(e.getMessage(), containsString("action [indices:data/read/search] is unauthorized for API key "));
+        assertThat(e.getMessage(), containsString("access restricted by workflow"));
 
         // Check that "same user permissions" are denied.
         final Request getApiKeyRequest = new Request("GET", "/_security/api_key");
@@ -171,6 +172,7 @@ public class ApiKeyWorkflowsRestrictionRestIT extends SecurityOnTrialLicenseRest
         e = expectThrows(ResponseException.class, () -> performRequestWithApiKey(getApiKeyRequest, apiKeyEncoded));
         assertEquals(403, e.getResponse().getStatusLine().getStatusCode());
         assertThat(e.getMessage(), containsString("action [cluster:admin/xpack/security/api_key/get] is unauthorized for API key "));
+        assertThat(e.getMessage(), containsString("access restricted by workflow"));
 
         final Request hasPrivilegeRequest = new Request("POST", "/_security/user/_has_privileges");
         hasPrivilegeRequest.setJsonEntity("""
@@ -189,11 +191,13 @@ public class ApiKeyWorkflowsRestrictionRestIT extends SecurityOnTrialLicenseRest
             e.getMessage(),
             containsString("action [cluster:admin/xpack/security/user/has_privileges] is unauthorized for API key ")
         );
+        assertThat(e.getMessage(), containsString("access restricted by workflow"));
 
         final Request authenticateRequest = new Request("GET", "/_security/_authenticate");
         e = expectThrows(ResponseException.class, () -> performRequestWithApiKey(authenticateRequest, apiKeyEncoded));
         assertEquals(403, e.getResponse().getStatusLine().getStatusCode());
         assertThat(e.getMessage(), containsString("action [cluster:admin/xpack/security/user/authenticate] is unauthorized for API key "));
+        assertThat(e.getMessage(), containsString("access restricted by workflow"));
     }
 
     private Response performRequestWithUser(Request request, String username) throws IOException {

@@ -1,0 +1,5 @@
+pr: 94954
+summary: Asset tracking - geo_line for TSDB
+area: Geo
+type: enhancement
+issues: []

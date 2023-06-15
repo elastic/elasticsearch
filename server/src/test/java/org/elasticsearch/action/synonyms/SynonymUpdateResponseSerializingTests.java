@@ -16,20 +16,20 @@ import java.io.IOException;
 import static org.elasticsearch.synonyms.SynonymsManagementAPIService.UpdateSynonymsResult.CREATED;
 import static org.elasticsearch.synonyms.SynonymsManagementAPIService.UpdateSynonymsResult.UPDATED;
 
-public class PutSynonymsActionResponseSerializingTests extends AbstractWireSerializingTestCase<PutSynonymsAction.Response> {
+public class SynonymUpdateResponseSerializingTests extends AbstractWireSerializingTestCase<SynonymUpdateResponse> {
 
     @Override
-    protected Writeable.Reader<PutSynonymsAction.Response> instanceReader() {
-        return PutSynonymsAction.Response::new;
+    protected Writeable.Reader<SynonymUpdateResponse> instanceReader() {
+        return SynonymUpdateResponse::new;
     }
 
     @Override
-    protected PutSynonymsAction.Response createTestInstance() {
-        return new PutSynonymsAction.Response(randomBoolean() ? CREATED : UPDATED);
+    protected SynonymUpdateResponse createTestInstance() {
+        return new SynonymUpdateResponse(randomBoolean() ? CREATED : UPDATED);
     }
 
     @Override
-    protected PutSynonymsAction.Response mutateInstance(PutSynonymsAction.Response instance) throws IOException {
+    protected SynonymUpdateResponse mutateInstance(SynonymUpdateResponse instance) throws IOException {
         return randomValueOtherThan(instance, this::createTestInstance);
     }
 }

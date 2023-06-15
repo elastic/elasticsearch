@@ -21,6 +21,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
@@ -243,7 +244,7 @@ public class VotingOnlyNodePluginTests extends ESIntegTestCase {
         assertThat(snapshotInfos.size(), Matchers.equalTo(1));
         SnapshotInfo snapshotInfo = snapshotInfos.get(0);
         assertThat(snapshotInfo.state(), Matchers.equalTo(SnapshotState.SUCCESS));
-        assertThat(snapshotInfo.version(), Matchers.equalTo(Version.CURRENT));
+        assertThat(snapshotInfo.version(), Matchers.equalTo(IndexVersion.CURRENT));
 
         logger.info("--> close indices");
         client.admin().indices().prepareClose("test-idx-1", "test-idx-2").get();

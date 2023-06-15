@@ -35,6 +35,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.FinalizeSnapshotContext;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -367,6 +368,15 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         }
     }
 
+    private static String versionString(Version version) {
+        if (version.before(Version.V_8_9_0)) {
+            // add back the "" for a json String
+            return "\"" + version + "\"";
+        } else {
+            return version.indexVersion.toString();
+        }
+    }
+
     /**
      * Workaround to simulate BwC situation: taking a snapshot without indices here so that we don't create any new version shard
      * generations (the existence of which would short-circuit checks for the repo containing old version snapshots)
@@ -388,7 +398,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         final RepositoryData downgradedRepoData = RepositoryData.snapshotsFromXContent(
             JsonXContent.jsonXContent.createParser(
                 XContentParserConfiguration.EMPTY,
-                Strings.toString(jsonBuilder).replace(Version.CURRENT.toString(), version.toString())
+                Strings.toString(jsonBuilder).replace(IndexVersion.CURRENT.toString(), versionString(version))
             ),
             repositoryData.getGenId(),
             randomBoolean()
@@ -403,7 +413,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
             JsonXContent.jsonXContent.createParser(
                 XContentParserConfiguration.EMPTY,
                 Strings.toString(snapshotInfo, ChecksumBlobStoreFormat.SNAPSHOT_ONLY_FORMAT_PARAMS)
-                    .replace(String.valueOf(Version.CURRENT.id), String.valueOf(version.id))
+                    .replace(String.valueOf(IndexVersion.CURRENT.id()), String.valueOf(version.id))
             )
         );
         final BlobStoreRepository blobStoreRepository = getRepositoryOnMaster(repoName);

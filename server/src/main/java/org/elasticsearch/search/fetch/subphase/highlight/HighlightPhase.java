@@ -70,7 +70,7 @@ public class HighlightPhase implements FetchSubPhase {
                 for (String field : contextBuilders.keySet()) {
                     FieldHighlightContext fieldContext = contextBuilders.get(field).apply(hitContext);
                     Highlighter highlighter = getHighlighter(fieldContext.field);
-                    HighlightField highlightField = highlighter.highlight(fieldContext); //field context query should have also original query
+                    HighlightField highlightField = highlighter.highlight(fieldContext);
                     if (highlightField != null) {
                         // Note that we make sure to use the original field name in the response. This is because the
                         // original field could be an alias, and highlighter implementations may instead reference the
@@ -144,13 +144,8 @@ public class HighlightPhase implements FetchSubPhase {
                 }
 
                 Query highlightQuery = field.fieldOptions().highlightQuery();
-                if (fieldType instanceof ConstantFieldType){
-                    highlightQuery = new TermQuery(
-                        new Term(
-                            fieldType.name(),
-                            getValueForConstantFieldType(context, fieldType)
-                        )
-                    );
+                if (fieldType instanceof ConstantFieldType) {
+                    highlightQuery = new TermQuery(new Term(fieldType.name(), getValueForConstantFieldType(context, fieldType)));
                 }
                 Query finalHighlightQuery = highlightQuery;
                 builders.put(
@@ -171,9 +166,9 @@ public class HighlightPhase implements FetchSubPhase {
         return new FieldContext(storedFieldsSpec, builders);
     }
 
-    private String getValueForConstantFieldType(FetchContext context, MappedFieldType fieldType){ //TODO Move this somewhere-else
+    private String getValueForConstantFieldType(FetchContext context, MappedFieldType fieldType) {
         try {
-            return (String) fieldType.valueFetcher(context.getSearchExecutionContext(), null).fetchValues(null,0, List.of()).get(0);
+            return (String) fieldType.valueFetcher(context.getSearchExecutionContext(), null).fetchValues(null, 0, List.of()).get(0);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }

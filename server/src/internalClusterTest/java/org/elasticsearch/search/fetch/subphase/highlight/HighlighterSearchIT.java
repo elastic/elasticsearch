@@ -7,9 +7,9 @@
  */
 package org.elasticsearch.search.fetch.subphase.highlight;
 
-import com.carrotsearch.randomizedtesting.generators.RandomPicks;
-
 import net.bytebuddy.utility.RandomString;
+
+import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenFilter;
@@ -27,7 +27,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.analysis.AbstractIndexAnalyzerProvider;
@@ -47,7 +46,6 @@ import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder.BoundaryScannerType;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder.Field;
@@ -3514,10 +3512,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         XContentBuilder mappings = prepareConstantKeywordMappings(constantKeywordFieldName, constantValue);
         assertAcked(prepareCreate(index).setMapping(mappings));
 
-        XContentBuilder document = jsonBuilder().startObject()
-            .field("message", "some text")
-            .field("level", constantValue)
-            .endObject();
+        XContentBuilder document = jsonBuilder().startObject().field("message", "some text").field("level", constantValue).endObject();
         saveDocumentIntoIndex(index, "1", document);
 
         SearchResponse search = prepareConstantKeywordSearch(QueryBuilders.queryStringQuery(constantValue));
@@ -3527,7 +3522,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
     }
 
     public void testImplicitConstantKeywordFieldHighlighting() throws IOException {
-        //Constant field value is defined by the mapping
+        // Constant field value is defined by the mapping
         String index = "test";
         String constantKeywordFieldName = "level";
         String constantValue = new RandomString(5).nextString();
@@ -3535,9 +3530,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         XContentBuilder mappings = prepareConstantKeywordMappings(constantKeywordFieldName, constantValue);
         assertAcked(prepareCreate(index).setMapping(mappings));
 
-        XContentBuilder document = jsonBuilder().startObject()
-            .field("message", "some text")
-            .endObject();
+        XContentBuilder document = jsonBuilder().startObject().field("message", "some text").endObject();
         saveDocumentIntoIndex(index, "1", document);
 
         SearchResponse search = prepareConstantKeywordSearch(QueryBuilders.queryStringQuery(constantValue));
@@ -3555,9 +3548,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         XContentBuilder mappings = prepareConstantKeywordMappings(constantKeywordFieldName, constantValue);
         assertAcked(prepareCreate(index).setMapping(mappings));
 
-        XContentBuilder document = jsonBuilder().startObject()
-            .field("message", "some text")
-            .endObject();
+        XContentBuilder document = jsonBuilder().startObject().field("message", "some text").endObject();
         saveDocumentIntoIndex(index, "1", document);
 
         SearchResponse search = prepareConstantKeywordSearch(QueryBuilders.queryStringQuery(partialConstantValue));
@@ -3575,9 +3566,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         XContentBuilder mappings = prepareConstantKeywordMappings(constantKeywordFieldName, constantValue);
         assertAcked(prepareCreate(index).setMapping(mappings));
 
-        XContentBuilder document = jsonBuilder().startObject()
-            .field("message", "some text")
-            .endObject();
+        XContentBuilder document = jsonBuilder().startObject().field("message", "some text").endObject();
         saveDocumentIntoIndex(index, "1", document);
 
         SearchResponse search = prepareConstantKeywordSearch(QueryBuilders.queryStringQuery(partialConstantValueWithWildCard));
@@ -3604,22 +3593,14 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         return mappings;
     }
 
-    private SearchResponse prepareConstantKeywordSearch(QueryBuilder query){
+    private SearchResponse prepareConstantKeywordSearch(QueryBuilder query) {
         return client().prepareSearch()
-            .setSource(
-                new SearchSourceBuilder().query(query)
-                    .highlighter(new HighlightBuilder().field("*"))
-            )
+            .setSource(new SearchSourceBuilder().query(query).highlighter(new HighlightBuilder().field("*")))
             .get();
     }
 
-    private void saveDocumentIntoIndex(String index, String id, XContentBuilder document){
-        client().prepareIndex(index)
-            .setId(id)
-            .setSource(
-                document
-            )
-            .get();
+    private void saveDocumentIntoIndex(String index, String id, XContentBuilder document) {
+        client().prepareIndex(index).setId(id).setSource(document).get();
         refresh();
     }
 
@@ -3671,6 +3652,5 @@ public class HighlighterSearchIT extends ESIntegTestCase {
             });
         }
     }
-
 
 }

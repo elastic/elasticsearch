@@ -1104,9 +1104,9 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
         createSnapshot.setJsonEntity("{\"indices\": \"" + index + "\"}");
         client().performRequest(createSnapshot);
 
-        checkSnapshot("old_snap", count, getOldClusterVersion());
+        checkSnapshot("old_snap", count, getOldClusterVersion().indexVersion);
         if (false == isRunningAgainstOldCluster()) {
-            checkSnapshot("new_snap", count, Version.CURRENT);
+            checkSnapshot("new_snap", count, IndexVersion.CURRENT);
         }
     }
 
@@ -1296,7 +1296,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
     }
 
     @SuppressWarnings("unchecked")
-    private void checkSnapshot(final String snapshotName, final int count, final Version tookOnVersion) throws IOException {
+    private void checkSnapshot(final String snapshotName, final int count, final IndexVersion tookOnVersion) throws IOException {
         // Check the snapshot metadata, especially the version
         Request listSnapshotRequest = new Request("GET", "/_snapshot/repo/" + snapshotName);
         Map<String, Object> snapResponse = entityAsMap(client().performRequest(listSnapshotRequest));

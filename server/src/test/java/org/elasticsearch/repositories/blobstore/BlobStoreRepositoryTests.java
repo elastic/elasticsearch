@@ -308,7 +308,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
 
         final Consumer<RepositoryData.SnapshotDetails> snapshotDetailsAsserter = snapshotDetails -> {
             assertThat(snapshotDetails.getSnapshotState(), equalTo(SnapshotState.PARTIAL));
-            assertThat(snapshotDetails.getVersion(), equalTo(Version.CURRENT));
+            assertThat(snapshotDetails.getVersion(), equalTo(IndexVersion.CURRENT));
             assertThat(snapshotDetails.getStartTimeMillis(), allOf(greaterThanOrEqualTo(beforeStartTime), lessThanOrEqualTo(afterEndTime)));
             assertThat(
                 snapshotDetails.getEndTimeMillis(),

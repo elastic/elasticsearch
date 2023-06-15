@@ -84,9 +84,7 @@ public class ArchiveLicenseIntegTests extends AbstractArchiveTestCase {
         );
         assertThat(
             e.getMessage(),
-            containsString(
-                "the snapshot was created with Elasticsearch version [2.0.0] " + "which isn't supported by the archive functionality"
-            )
+            containsString("the snapshot has indices of version [2000099] which isn't supported by the archive functionality")
         );
     }
 

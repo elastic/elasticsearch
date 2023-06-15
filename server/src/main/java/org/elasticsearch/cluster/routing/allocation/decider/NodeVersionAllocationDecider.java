@@ -125,7 +125,7 @@ public class NodeVersionAllocationDecider extends AllocationDecider {
                 NAME,
                 "node version [%s] is the same or newer than snapshot version [%s]",
                 target.node().getVersion(),
-                recoverySource.version()
+                recoverySource.version().toVersion()
             );
         } else {
             return allocation.decision(
@@ -133,7 +133,7 @@ public class NodeVersionAllocationDecider extends AllocationDecider {
                 NAME,
                 "node version [%s] is older than the snapshot version [%s]",
                 target.node().getVersion(),
-                recoverySource.version()
+                recoverySource.version().toVersion()
             );
         }
     }

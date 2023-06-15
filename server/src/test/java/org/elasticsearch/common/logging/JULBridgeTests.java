@@ -8,8 +8,6 @@
 
 package org.elasticsearch.common.logging;
 
-import net.bytebuddy.implementation.bytecode.Throw;
-
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -116,24 +114,23 @@ public class JULBridgeTests extends ESTestCase {
     public void testThrowable() {
         JULBridge.install();
         java.util.logging.Logger logger = java.util.logging.Logger.getLogger("");
-        assertLogged(() -> logger.log(java.util.logging.Level.SEVERE, "error msg", new Exception("some error")),
-            new LoggingExpectation() {
-                boolean matched = false;
+        assertLogged(() -> logger.log(java.util.logging.Level.SEVERE, "error msg", new Exception("some error")), new LoggingExpectation() {
+            boolean matched = false;
 
-                @Override
-                public void match(LogEvent event) {
-                    Throwable thrown = event.getThrown();
-                    matched = event.getLoggerName().equals("") &&
-                        event.getMessage().getFormattedMessage().equals("error msg") &&
-                        thrown != null &&
-                        thrown.getMessage().equals("some error");
-                }
+            @Override
+            public void match(LogEvent event) {
+                Throwable thrown = event.getThrown();
+                matched = event.getLoggerName().equals("")
+                    && event.getMessage().getFormattedMessage().equals("error msg")
+                    && thrown != null
+                    && thrown.getMessage().equals("some error");
+            }
 
-                @Override
-                public void assertMatched() {
-                    assertThat("expected to see error message but did not", matched, equalTo(true));
-                }
-            });
+            @Override
+            public void assertMatched() {
+                assertThat("expected to see error message but did not", matched, equalTo(true));
+            }
+        });
     }
 
     public void testChildLogger() {

@@ -40,9 +40,9 @@ class JULBridge extends Handler {
         Level.ALL
     );
 
-    private static final NavigableMap<Integer, Level> sortedLevelMap =
-        levelMap.entrySet().stream().collect(Maps.toUnmodifiableSortedMap(e -> e.getKey().intValue(), Map.Entry::getValue)
-    );
+    private static final NavigableMap<Integer, Level> sortedLevelMap = levelMap.entrySet()
+        .stream()
+        .collect(Maps.toUnmodifiableSortedMap(e -> e.getKey().intValue(), Map.Entry::getValue));
 
     public static void install() {
         var rootJulLogger = java.util.logging.LogManager.getLogManager().getLogger("");

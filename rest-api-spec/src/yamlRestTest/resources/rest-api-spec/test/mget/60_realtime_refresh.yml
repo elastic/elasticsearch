@@ -9,7 +9,7 @@
           settings:
             index:
               refresh_interval: -1
-              number_of_replicas: 0
+              auto_expand_replicas: 0-1
 
  - do:
       cluster.health:

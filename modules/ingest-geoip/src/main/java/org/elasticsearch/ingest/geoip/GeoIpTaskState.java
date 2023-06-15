@@ -67,10 +67,7 @@ class GeoIpTaskState implements PersistentTaskState, VersionedNamedWriteable {
     }
 
     GeoIpTaskState(StreamInput input) throws IOException {
-        databases = input.readImmutableMap(StreamInput::readString, in -> {
-            long lastUpdate = in.readLong();
-            return new Metadata(lastUpdate, in.readVInt(), in.readVInt(), in.readString(), in.readLong());
-        });
+        databases = input.readImmutableMap(in -> new Metadata(in.readLong(), in.readVInt(), in.readVInt(), in.readString(), in.readLong()));
     }
 
     public GeoIpTaskState put(String name, Metadata metadata) {

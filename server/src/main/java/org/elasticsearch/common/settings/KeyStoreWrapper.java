@@ -179,7 +179,7 @@ public class KeyStoreWrapper implements SecureSettings {
         formatVersion = input.readInt();
         hasPassword = input.readBoolean();
         dataBytes = input.readOptionalByteArray();
-        entries.set(input.readMap(StreamInput::readString, Entry::new));
+        entries.set(input.readMap(Entry::new));
         closed = input.readBoolean();
     }
 

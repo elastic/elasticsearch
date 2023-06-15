@@ -130,9 +130,7 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
         //
         ShrinkAction.NAME,
         actionRule(ShrinkAction.NAME).maxTimeOnAction(ONE_DAY)
-            .stepRules(
-                stepRuleOnlyCheckRetries(WaitForNoFollowersStep.NAME, MAX_RETRIES)
-            ),
+            .stepRules(stepRuleOnlyCheckRetries(WaitForNoFollowersStep.NAME, MAX_RETRIES)),
         //
         AllocateAction.NAME,
         actionRule(AllocateAction.NAME).maxTimeOnAction(ONE_DAY).noStepRules(),

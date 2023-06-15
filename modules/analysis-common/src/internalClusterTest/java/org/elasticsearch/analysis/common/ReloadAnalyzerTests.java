@@ -1,22 +1,24 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
- * 2.0; you may not use this file except in compliance with the Elastic License
- * 2.0.
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
-package org.elasticsearch.xpack.core.action;
+package org.elasticsearch.analysis.common;
 
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction.AnalyzeToken;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction.Response;
+import org.elasticsearch.action.admin.indices.analyze.ReloadAnalyzerAction;
+import org.elasticsearch.action.admin.indices.analyze.ReloadAnalyzersRequest;
+import org.elasticsearch.action.admin.indices.analyze.ReloadAnalyzersResponse;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -40,7 +42,7 @@ public class ReloadAnalyzerTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Arrays.asList(LocalStateCompositeXPackPlugin.class, CommonAnalysisPlugin.class);
+        return Arrays.asList(CommonAnalysisPlugin.class);
     }
 
     public void testSynonymsUpdateable() throws IOException {

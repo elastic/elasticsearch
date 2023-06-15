@@ -40,8 +40,8 @@ to index the ELSER output.
 
 NOTE: ELSER output must be ingested into a field with the `rank_features` field 
 type. Otherwise, {es} interprets the token-weight pairs as a massive amount of 
-fields in a document. If you get an error similar than this `"Limit of total 
-fields [1000] has been exceeded while adding new fields"` than the ELSER output 
+fields in a document. If you get an error similar to this `"Limit of total 
+fields [1000] has been exceeded while adding new fields"` then the ELSER output 
 field is not mapped properly and it has a field type different than 
 `rank_features`.
 

@@ -73,6 +73,7 @@ import java.util.function.Function;
 
 import static org.elasticsearch.index.IndexMode.TIME_SERIES;
 import static org.elasticsearch.index.mapper.TimeSeriesParams.MetricType.POSITION;
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -281,6 +282,30 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
         TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("groups").field("group_id")
             .subAggregation(lineAggregationBuilder);
         testCase(aggregationBuilder, iw -> {}, terms -> { assertTrue(terms.getBuckets().isEmpty()); });
+    }
+
+    public void testMissingSort() throws IOException {
+        int size = randomIntBetween(1, GeoLineAggregationBuilder.MAX_PATH_SIZE);
+        MultiValuesSourceFieldConfig valueConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName("value_field").build();
+        GeoLineAggregationBuilder glAggBuilder = new GeoLineAggregationBuilder("track").point(valueConfig)
+            .sortOrder(SortOrder.ASC)
+            .size(size);
+
+        // geo_line requires 'sort'
+        var e = expectThrows(IllegalArgumentException.class, () -> testCase(glAggBuilder, iw -> {}, result -> {}));
+        assertThat("geo_line", e.getMessage(), containsString("missing field [sort]"));
+
+        // geo_line requires 'sort' inside terms agg
+        TermsAggregationBuilder termsAggBuilder = new TermsAggregationBuilder("groups").field("group_id").subAggregation(glAggBuilder);
+        e = expectThrows(IllegalArgumentException.class, () -> testCase(termsAggBuilder, iw -> {}, result -> {}));
+        assertThat("terms->geo_line", e.getMessage(), containsString("missing field [sort]"));
+
+        // geo_line does not require 'sort' inside time-series agg
+        TimeSeriesAggregationBuilder tsAggBuilder = new TimeSeriesAggregationBuilder("ts").subAggregation(glAggBuilder);
+        testCase(tsAggBuilder, iw -> {}, result -> {
+            assertThat(result.getName(), equalTo("ts"));
+            assertThat(result.getBuckets().size(), equalTo(0));
+        });
     }
 
     public void testOnePoint() throws IOException {

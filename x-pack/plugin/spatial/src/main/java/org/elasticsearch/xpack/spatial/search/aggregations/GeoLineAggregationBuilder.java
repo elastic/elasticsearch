@@ -155,8 +155,8 @@ public class GeoLineAggregationBuilder extends MultiValuesSourceAggregationBuild
     }
 
     private void validateTimeSeriesConfigs(AggregationContext context, Map<String, ValuesSourceConfig> configs) {
+        ValuesSourceConfig sourceConfig = configs.get(SORT_FIELD.getPreferredName());
         if (context.isInSortOrderExecutionRequired()) {
-            ValuesSourceConfig sourceConfig = configs.get(SORT_FIELD.getPreferredName());
             if (sourceConfig == null) {
                 var fieldConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName(TIMESTAMP_FIELD.getName()).build();
                 sourceConfig = ValuesSourceConfig.resolveUnregistered(
@@ -171,7 +171,6 @@ public class GeoLineAggregationBuilder extends MultiValuesSourceAggregationBuild
                 );
                 configs.put(SORT_FIELD.getPreferredName(), sourceConfig);
             } else if (sourceConfig.fieldContext().field().equals(TIMESTAMP_FIELD.getName()) == false) {
-                // TODO: Decide if this is an error or just reverting to classic geo_line code
                 throw new IllegalArgumentException(
                     "invalid field ["
                         + SORT_FIELD.getPreferredName()
@@ -180,6 +179,10 @@ public class GeoLineAggregationBuilder extends MultiValuesSourceAggregationBuild
                         + "' configured for time-series aggregations"
                 );
             }
+        } else if (sourceConfig == null) {
+            throw new IllegalArgumentException(
+                "missing field [" + SORT_FIELD.getPreferredName() + "] configured for geo_line aggregations"
+            );
         }
     }
 

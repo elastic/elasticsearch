@@ -51,9 +51,7 @@ public final class LimitedRole implements Role {
     public LimitedRole(Role baseRole, Role limitedByRole) {
         this.baseRole = Objects.requireNonNull(baseRole);
         this.limitedByRole = Objects.requireNonNull(limitedByRole, "limited by role is required to create limited role");
-        if (limitedByRole.hasWorkflowsRestriction()) {
-            throw new IllegalArgumentException("limited-by role must not have workflows restriction");
-        }
+        assert false == limitedByRole.hasWorkflowsRestriction() : "limited-by role must not have workflows restriction";
     }
 
     @Override

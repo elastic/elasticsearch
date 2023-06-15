@@ -203,7 +203,9 @@ public class TDigestState {
      * API documentation for each method below.
      */
 
-    public void add(TDigestState other) { tdigest.add(other.tdigest); }
+    public void add(TDigestState other) {
+        tdigest.add(other.tdigest);
+    }
 
     public void add(double x, int w) {
         tdigest.add(x, w);

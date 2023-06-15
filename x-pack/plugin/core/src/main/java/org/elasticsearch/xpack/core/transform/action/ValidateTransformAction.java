@@ -105,7 +105,7 @@ public class ValidateTransformAction extends ActionType<ValidateTransformAction.
         }
 
         public Response(StreamInput in) throws IOException {
-            this.destIndexMappings = in.readMap(StreamInput::readString, StreamInput::readString);
+            this.destIndexMappings = in.readMap(StreamInput::readString);
         }
 
         @Override

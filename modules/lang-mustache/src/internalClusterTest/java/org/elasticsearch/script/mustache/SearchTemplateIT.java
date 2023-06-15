@@ -377,7 +377,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
         );
         assertThat(ex.getCause().getMessage(), containsString("'search.check_ccs_compatibility' setting is enabled."));
         assertEquals(
-            "This query isn't serializable with transport versions before " + TransportVersion.CURRENT,
+            "This query isn't serializable with transport versions before " + TransportVersion.current(),
             ex.getCause().getCause().getMessage()
         );
     }

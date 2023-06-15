@@ -1,10 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
- * 2.0; you may not use this file except in compliance with the Elastic License
- * 2.0.
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
-package org.elasticsearch.xpack.core.action;
+
+package org.elasticsearch.action.admin.indices.analyze;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -31,8 +33,6 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.action.ReloadAnalyzersResponse.ReloadDetails;
-import org.elasticsearch.xpack.core.action.TransportReloadAnalyzersAction.ReloadResult;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -48,7 +48,7 @@ import java.util.Set;
 public class TransportReloadAnalyzersAction extends TransportBroadcastByNodeAction<
     ReloadAnalyzersRequest,
     ReloadAnalyzersResponse,
-    ReloadResult> {
+    TransportReloadAnalyzersAction.ReloadResult> {
 
     private static final Logger logger = LogManager.getLogger(TransportReloadAnalyzersAction.class);
     private final IndicesService indicesService;
@@ -85,14 +85,18 @@ public class TransportReloadAnalyzersAction extends TransportBroadcastByNodeActi
         ClusterState clusterState
     ) {
         return (totalShards, successfulShards, failedShards, responses, shardFailures) -> {
-            Map<String, ReloadDetails> reloadedIndicesDetails = new HashMap<>();
+            Map<String, ReloadAnalyzersResponse.ReloadDetails> reloadedIndicesDetails = new HashMap<>();
             for (ReloadResult result : responses) {
                 if (reloadedIndicesDetails.containsKey(result.index)) {
                     reloadedIndicesDetails.get(result.index).merge(result);
                 } else {
                     HashSet<String> nodeIds = new HashSet<>();
                     nodeIds.add(result.nodeId);
-                    ReloadDetails details = new ReloadDetails(result.index, nodeIds, new HashSet<>(result.reloadedSearchAnalyzers));
+                    ReloadAnalyzersResponse.ReloadDetails details = new ReloadAnalyzersResponse.ReloadDetails(
+                        result.index,
+                        nodeIds,
+                        new HashSet<>(result.reloadedSearchAnalyzers)
+                    );
                     reloadedIndicesDetails.put(result.index, details);
                 }
             }

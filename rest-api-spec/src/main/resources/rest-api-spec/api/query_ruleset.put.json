@@ -1,0 +1,39 @@
+{
+  "query_ruleset.put": {
+    "documentation": {
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/put-query-ruleset.html",
+      "description": "Creates or updates a query ruleset."
+    },
+    "stability": "experimental",
+    "visibility": "feature_flag",
+    "feature_flag": "es.query_rules_feature_flag_enabled",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_query_rules/{ruleset_id}",
+          "methods": [
+            "PUT"
+          ],
+          "parts": {
+            "ruleset_id": {
+              "type": "string",
+              "description": "The unique identifier of the ruleset to be created or updated."
+            }
+          }
+        }
+      ]
+    },
+    "body": {
+      "description": "The query ruleset configuration, including `rules`",
+      "required": true
+    }
+  }
+}

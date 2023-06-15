@@ -26,16 +26,14 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Map;
 
-public class StatelessAutoscalingMetrics implements ToXContentObject, Writeable {
-
-    private final Map<String, TierMetrics> tiers;
+public record StatelessAutoscalingMetrics(Map<String, TierMetrics> tiers) implements ToXContentObject, Writeable {
 
     public StatelessAutoscalingMetrics(Map<String, TierMetrics> tiers) {
-        this.tiers = tiers;
+        this.tiers = Map.copyOf(tiers);
     }
 
     public StatelessAutoscalingMetrics(final StreamInput input) throws IOException {
-        this(input.readMap(StreamInput::readString, TierMetrics::new));
+        this(input.readImmutableMap(StreamInput::readString, TierMetrics::new));
     }
 
     @Override

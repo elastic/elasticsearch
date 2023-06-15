@@ -40,6 +40,9 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.Map;
 
+import static co.elastic.elasticsearch.stateless.autoscaling.model.Metric.array;
+import static co.elastic.elasticsearch.stateless.autoscaling.model.Metric.exact;
+
 /**
  * Transport for GetStatelessAutoscalingMetricsAction. Entrance point for calculation of stateless autoscaling metrics
  */
@@ -84,11 +87,9 @@ public class TransportGetStatelessAutoscalingMetricsAction extends TransportMast
                 new StatelessAutoscalingMetrics(
                     Map.of(
                         "index-tier",
-                        new TierMetrics(
-                            Map.ofEntries(Map.entry("indexing_load", new int[] { 4, 10, 20 }), Map.entry("min_memory_in_bytes", 1000))
-                        ),
+                        new TierMetrics(Map.of("indexing_load", array(exact(4), exact(10), exact(20)), "min_memory_in_bytes", exact(1000))),
                         "search-tier",
-                        new TierMetrics(Map.ofEntries(Map.entry("interactive_load", 10), Map.entry("non_interactive_load", 0)))
+                        new TierMetrics(Map.of("interactive_load", exact(10), "non_interactive_load", exact(0)))
                     )
                 )
             )

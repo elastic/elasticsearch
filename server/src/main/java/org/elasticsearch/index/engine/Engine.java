@@ -38,6 +38,7 @@ import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndVersion;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
+import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -77,6 +78,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Condition;
@@ -1046,11 +1048,11 @@ public abstract class Engine implements Closeable {
     }
 
     /**
-     * Synchronously refreshes the engine for new search operations to reflect the latest
+     * Asynchronously refreshes the engine for new search operations to reflect the latest
      * changes unless another thread is already refreshing the engine concurrently.
      */
     @Nullable
-    public abstract RefreshResult maybeRefresh(String source) throws EngineException;
+    public abstract void maybeRefresh(String source, ActionListener<RefreshResult> listener) throws EngineException;
 
     /**
      * Called when our engine is using too much heap and should move buffered indexed/deleted documents to disk.
@@ -1912,12 +1914,52 @@ public abstract class Engine implements Closeable {
 
     /**
      * Performs recovery from the transaction log up to {@code recoverUpToSeqNo} (inclusive).
-     * This operation will close the engine if the recovery fails.
+     * This operation will close the engine if the recovery fails. Use EngineTestCase#recoverFromTranslog for test usages
      *
      * @param translogRecoveryRunner the translog recovery runner
      * @param recoverUpToSeqNo       the upper bound, inclusive, of sequence number to be recovered
      */
-    public abstract Engine recoverFromTranslog(TranslogRecoveryRunner translogRecoveryRunner, long recoverUpToSeqNo) throws IOException;
+    // TODO make all the production usages fully async
+    public final void recoverFromTranslog(TranslogRecoveryRunner translogRecoveryRunner, long recoverUpToSeqNo) throws IOException {
+        final var future = new PlainActionFuture<Void>();
+        recoverFromTranslog(translogRecoveryRunner, recoverUpToSeqNo, future);
+        try {
+            future.get();
+        } catch (ExecutionException e) {
+            // This is a (temporary) adapter between the older synchronous (blocking) code and the newer (async) API. Callers expect
+            // exceptions to be thrown directly, but Future#get adds an ExecutionException wrapper which we must remove to preserve the
+            // expected exception semantics.
+            if (e.getCause() instanceof IOException ioException) {
+                throw ioException;
+            } else if (e.getCause() instanceof RuntimeException runtimeException) {
+                throw runtimeException;
+            } else {
+                // the old code was "throws IOException" so we shouldn't see any other exception types here
+                logger.error("checked non-IOException unexpectedly thrown", e);
+                assert false : e;
+                throw new UncategorizedExecutionException("recoverFromTranslog", e);
+            }
+        } catch (InterruptedException e) {
+            // We don't really use interrupts in this area so this is somewhat unexpected (unless perhaps we're shutting down), just treat
+            // it like any other exception.
+            Thread.currentThread().interrupt();
+            throw new RuntimeException(e);
+        }
+    }
+
+    /**
+     * Performs recovery from the transaction log up to {@code recoverUpToSeqNo} (inclusive).
+     * This operation will close the engine if the recovery fails.
+     *
+     * @param translogRecoveryRunner the translog recovery runner
+     * @param recoverUpToSeqNo       the upper bound, inclusive, of sequence number to be recovered
+     * @param listener               listener notified on completion of the recovery, whether successful or otherwise
+     */
+    public abstract void recoverFromTranslog(
+        TranslogRecoveryRunner translogRecoveryRunner,
+        long recoverUpToSeqNo,
+        ActionListener<Void> listener
+    );
 
     /**
      * Do not replay translog operations, but make the engine be ready.

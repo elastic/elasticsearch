@@ -20,8 +20,6 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static java.util.Collections.unmodifiableSet;
-
 public class ClusterBlockException extends ElasticsearchException {
     private final Set<ClusterBlock> blocks;
 
@@ -37,7 +35,7 @@ public class ClusterBlockException extends ElasticsearchException {
 
     public ClusterBlockException(StreamInput in) throws IOException {
         super(in);
-        this.blocks = unmodifiableSet(in.readSet(ClusterBlock::new));
+        this.blocks = in.readImmutableSet(ClusterBlock::new);
     }
 
     @Override

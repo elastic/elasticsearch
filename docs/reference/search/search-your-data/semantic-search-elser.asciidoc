@@ -38,6 +38,12 @@ that the model created based on your text - must be created.  The destination
 index must have a field with the <<rank-features, `rank_features`>> field type 
 to index the ELSER output.
 
+NOTE: ELSER output must be ingested into a field with the `rank_features` field 
+type. Otherwise, {es} interprets the token-weight pairs as a massive amount of 
+fields in a document. If you get an error similar to this `"Limit of total fields [1000] has been exceeded while adding
+new fields"` then the ELSER output field is not mapped properly and it has a 
+field type different than `rank_features`.
+
 [source,console]
 ----
 PUT my-index
@@ -47,8 +53,8 @@ PUT my-index
       "ml.tokens": {
         "type": "rank_features" <1>
       },
-      "text_field": {
-        "type": "text" <2>
+      "text": { <2>
+        "type": "text" <3>
       }
     }
   }
@@ -56,7 +62,9 @@ PUT my-index
 ----
 // TEST[skip:TBD]
 <1> The field that contains the prediction is a `rank_features` field.
-<2> The text field from which to create the sparse vector representation.
+<2> The name of the field from which to create the sparse vector representation. 
+In this example, the name of the field is `text`.
+<3> The field type which is text in this example.
 
 
 [discrete]
@@ -76,11 +84,11 @@ PUT _ingest/pipeline/elser-v1-test
       "inference": {
         "model_id": ".elser_model_1",
         "target_field": "ml",
-        "field_map": {
+        "field_map": { <1>
           "text": "text_field"
         },
         "inference_config": {
-          "text_expansion": { <1>
+          "text_expansion": { <2>
             "results_field": "tokens"
           }
         }
@@ -90,7 +98,10 @@ PUT _ingest/pipeline/elser-v1-test
 }
 ----
 // TEST[skip:TBD]
-<1> The `text_expansion` inference type needs to be used in the {infer} ingest 
+<1> The `field_map` object maps the input document field name (which is `text` 
+in this example) to the name of the field that the model expects (which is 
+always `text_field`).
+<2> The `text_expansion` inference type needs to be used in the {infer} ingest 
 processor.
 
 
@@ -126,7 +137,8 @@ pipeline that uses ELSER as the inference model.
 POST _reindex?wait_for_completion=false
 {
   "source": {
-    "index": "test-data"
+    "index": "test-data",
+    "size": 50 <1>
   },
   "dest": {
     "index": "my-index",
@@ -135,6 +147,9 @@ POST _reindex?wait_for_completion=false
 }
 ----
 // TEST[skip:TBD]
+<1> The default batch size for reindexing is 1000. Reducing `size` to a smaller 
+number makes the update of the reindexing process quicker which enables you to 
+follow the progress closely and detect errors early.
 
 The call returns a task ID to monitor the progress:
 
@@ -242,7 +257,7 @@ GET my-index/_search
       "should": [
         {
           "text_expansion": { 
-            "ml.token": {
+            "ml.tokens": {
               "model_text": "How to avoid muscle soreness after running?",
               "model_id": ".elser_model_1",
               "boost": 1 <2>

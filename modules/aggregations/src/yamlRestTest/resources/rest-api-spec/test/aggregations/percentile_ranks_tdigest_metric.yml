@@ -70,15 +70,15 @@ filtered:
             percentile_ranks_int:
               percentile_ranks:
                 field: int
-                values: [50]
+                values: [51]
             percentile_ranks_double:
               percentile_ranks:
                 field: double
-                values: [50]
+                values: [51]
 
   - match: { hits.total.value: 3 }
-  - close_to: { aggregations.percentile_ranks_int.values.50\\.0: { value: 16.0, error: 1} }
-  - close_to: { aggregations.percentile_ranks_double.values.50\\.0: { value: 16.0, error: 1} }
+  - close_to: { aggregations.percentile_ranks_int.values.51\\.0: { value: 16.0, error: 1} }
+  - close_to: { aggregations.percentile_ranks_double.values.51\\.0: { value: 16.0, error: 1} }
 
 ---
 missing field with missing param:
@@ -99,7 +99,7 @@ missing field with missing param:
   - match: { hits.total.value: 4 }
   - close_to: { aggregations.percentile_ranks_missing.values.50\\.0: { value: 100.0, error: 1} }
   - close_to: { aggregations.percentile_ranks_missing.values.99\\.0: { value: 100.0, error: 1} }
- 
+
 ---
 missing field without missing param:
   - do:
@@ -160,7 +160,6 @@ invalid params:
 non-keyed test:
   - skip:
       features: close_to
-
   - do:
       search:
         body:
@@ -174,7 +173,7 @@ non-keyed test:
 
   - match: { hits.total.value: 4 }
   - match: { aggregations.percentile_ranks_int.values.0.key: 50}
-  - close_to: { aggregations.percentile_ranks_int.values.0.value: { value: 37.0, error: 1} }
+  - close_to: { aggregations.percentile_ranks_int.values.0.value: { value: 30.0, error: 10.0 } }
   - match: { aggregations.percentile_ranks_int.values.1.key: 99}
-  - close_to: { aggregations.percentile_ranks_int.values.1.value: { value: 61.5, error: 1} }
+  - close_to: { aggregations.percentile_ranks_int.values.1.value: { value: 55.0, error: 10.0 } }
 

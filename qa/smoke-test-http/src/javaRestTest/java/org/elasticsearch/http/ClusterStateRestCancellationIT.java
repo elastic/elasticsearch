@@ -108,7 +108,7 @@ public class ClusterStateRestCancellationIT extends HttpSmokeTestCase {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersion.CURRENT;
+            return TransportVersion.current();
         }
 
         @Override

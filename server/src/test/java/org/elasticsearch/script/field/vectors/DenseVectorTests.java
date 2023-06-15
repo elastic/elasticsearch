@@ -9,14 +9,13 @@
 package org.elasticsearch.script.field.vectors;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.vectors.BinaryDenseVectorScriptDocValuesTests;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
 import org.elasticsearch.test.ESTestCase;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 
@@ -68,7 +67,7 @@ public class DenseVectorTests extends ESTestCase {
         assertEquals(knn.cosineSimilarity(arrayQV), knn.cosineSimilarity(listQV), 0.001f);
         assertEquals(knn.cosineSimilarity((Object) listQV), knn.cosineSimilarity((Object) arrayQV), 0.001f);
 
-        for (Version indexVersion : Arrays.asList(Version.V_7_4_0, Version.CURRENT)) {
+        for (IndexVersion indexVersion : List.of(IndexVersion.V_7_4_0, IndexVersion.CURRENT)) {
             BytesRef value = BinaryDenseVectorScriptDocValuesTests.mockEncodeDenseVector(docVector, ElementType.FLOAT, indexVersion);
             BinaryDenseVector bdv = new BinaryDenseVector(docVector, value, dims, indexVersion);
 
@@ -114,7 +113,7 @@ public class DenseVectorTests extends ESTestCase {
         assertEquals(knn.cosineSimilarity(arrayQV), knn.cosineSimilarity(listQV), 0.001f);
         assertEquals(knn.cosineSimilarity((Object) listQV), knn.cosineSimilarity((Object) arrayQV), 0.001f);
 
-        BytesRef value = BinaryDenseVectorScriptDocValuesTests.mockEncodeDenseVector(floatVector, ElementType.BYTE, Version.CURRENT);
+        BytesRef value = BinaryDenseVectorScriptDocValuesTests.mockEncodeDenseVector(floatVector, ElementType.BYTE, IndexVersion.CURRENT);
         byte[] byteVectorValue = new byte[dims];
         System.arraycopy(value.bytes, value.offset, byteVectorValue, 0, dims);
         ByteBinaryDenseVector bdv = new ByteBinaryDenseVector(byteVectorValue, value, dims);
@@ -221,7 +220,7 @@ public class DenseVectorTests extends ESTestCase {
         e = expectThrows(UnsupportedOperationException.class, () -> knn.cosineSimilarity((Object) queryVector));
         assertEquals(e.getMessage(), "use [double cosineSimilarity(float[] queryVector, boolean normalizeQueryVector)] instead");
 
-        BinaryDenseVector binary = new BinaryDenseVector(docVector, new BytesRef(docBuffer.array()), dims, Version.CURRENT);
+        BinaryDenseVector binary = new BinaryDenseVector(docVector, new BytesRef(docBuffer.array()), dims, IndexVersion.CURRENT);
 
         e = expectThrows(UnsupportedOperationException.class, () -> binary.dotProduct(queryVector));
         assertEquals(e.getMessage(), "use [double dotProduct(float[] queryVector)] instead");

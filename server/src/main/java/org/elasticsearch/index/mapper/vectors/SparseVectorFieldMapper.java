@@ -9,9 +9,9 @@
 package org.elasticsearch.index.mapper.vectors;
 
 import org.apache.lucene.search.Query;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -65,7 +65,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
     }
 
     public static final TypeParser PARSER = new TypeParser((n, c) -> {
-        if (c.indexVersionCreated().onOrAfter(Version.V_8_0_0)) {
+        if (c.indexVersionCreated().onOrAfter(IndexVersion.V_8_0_0)) {
             throw new IllegalArgumentException(ERROR_MESSAGE);
         } else {
             deprecationLogger.warn(DeprecationCategory.MAPPINGS, "sparse_vector", ERROR_MESSAGE_7X);

@@ -230,18 +230,13 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
 
         if (seedNodesSuppliers.hasNext()) {
             final Consumer<Exception> onFailure = e -> {
-                if (isRetryableException(e)) {
-                    if (seedNodesSuppliers.hasNext()) {
-                        logger.debug(
-                            () -> format("fetching nodes from external cluster [%s] failed moving to next seed node", clusterAlias),
-                            e
-                        );
-                        collectRemoteNodes(seedNodesSuppliers, listener);
-                        return;
-                    }
+                if (isRetryableException(e) && seedNodesSuppliers.hasNext()) {
+                    logger.debug(() -> "fetching nodes from external cluster [" + clusterAlias + "] failed moving to next seed node", e);
+                    collectRemoteNodes(seedNodesSuppliers, listener);
+                } else {
+                    logger.warn(() -> "fetching nodes from external cluster [" + clusterAlias + "] failed", e);
+                    listener.onFailure(e);
                 }
-                logger.warn(() -> "fetching nodes from external cluster [" + clusterAlias + "] failed", e);
-                listener.onFailure(e);
             };
 
             final DiscoveryNode seedNode = seedNodesSuppliers.next().get();

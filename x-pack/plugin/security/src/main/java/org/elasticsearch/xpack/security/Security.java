@@ -1610,7 +1610,13 @@ public class Security extends Plugin
         if (enabled == false || transportClientMode) {
             return null;
         }
-        return handler -> new SecurityRestFilter(getLicenseState(), threadContext, secondayAuthc.get(), auditTrailService.get(), handler);
+        return handler -> new SecurityRestFilter(
+            getLicenseState(),
+            authcService.get(),
+            secondayAuthc.get(),
+            auditTrailService.get(),
+            handler
+        );
     }
 
     @Override

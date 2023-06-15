@@ -14,7 +14,9 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.logging.HeaderWarning;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.http.HttpPipelinedRequest;
+import org.elasticsearch.http.HttpRequest;
+import org.elasticsearch.http.nio.NioHttpRequest;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
@@ -23,6 +25,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.RestRequestFilter;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
+import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator;
 
 import java.io.IOException;
@@ -33,20 +36,20 @@ public class SecurityRestFilter implements RestHandler {
     private static final Logger logger = LogManager.getLogger(SecurityRestFilter.class);
 
     private final RestHandler restHandler;
+    private final AuthenticationService authenticationService;
     private final SecondaryAuthenticator secondaryAuthenticator;
     private final XPackLicenseState licenseState;
     private final AuditTrailService auditTrailService;
-    private final ThreadContext threadContext;
 
     public SecurityRestFilter(
         XPackLicenseState licenseState,
-        ThreadContext threadContext,
+        AuthenticationService authenticationService,
         SecondaryAuthenticator secondaryAuthenticator,
         AuditTrailService auditTrailService,
         RestHandler restHandler
     ) {
         this.licenseState = licenseState;
-        this.threadContext = threadContext;
+        this.authenticationService = authenticationService;
         this.secondaryAuthenticator = secondaryAuthenticator;
         this.auditTrailService = auditTrailService;
         this.restHandler = restHandler;
@@ -64,13 +67,15 @@ public class SecurityRestFilter implements RestHandler {
 
             final String requestUri = request.uri();
             final RestRequest wrappedRequest = maybeWrapRestRequest(request);
-            auditTrailService.get().authenticationSuccess(wrappedRequest);
-            secondaryAuthenticator.authenticateAndAttachToContext(wrappedRequest, ActionListener.wrap(secondaryAuthentication -> {
-                if (secondaryAuthentication != null) {
-                    logger.trace("Found secondary authentication {} in REST request [{}]", secondaryAuthentication, requestUri);
-                }
-                restHandler.handleRequest(request, channel, client);
-            }, e -> handleException("Secondary authentication", request, channel, e)));
+            authenticateOnlyNioHttpRequests(wrappedRequest.getHttpRequest(), ActionListener.wrap(ignored -> {
+                auditTrailService.get().authenticationSuccess(wrappedRequest);
+                secondaryAuthenticator.authenticateAndAttachToContext(wrappedRequest, ActionListener.wrap(secondaryAuthentication -> {
+                    if (secondaryAuthentication != null) {
+                        logger.trace("Found secondary authentication {} in REST request [{}]", secondaryAuthentication, requestUri);
+                    }
+                    restHandler.handleRequest(request, channel, client);
+                }, e -> handleException("Secondary authentication", request, channel, e)));
+            }, e -> handleException("Authentication", request, channel, e)));
         } else {
             if (request.method() != Method.OPTIONS) {
                 HeaderWarning.addWarning(
@@ -84,6 +89,20 @@ public class SecurityRestFilter implements RestHandler {
                 );
             }
             restHandler.handleRequest(request, channel, client);
+        }
+    }
+
+    private void authenticateOnlyNioHttpRequests(HttpRequest request, ActionListener<Void> listener) {
+        if (request instanceof HttpPipelinedRequest) {
+            request = ((HttpPipelinedRequest) request).getDelegateRequest();
+        }
+        if (request instanceof NioHttpRequest) {
+            this.authenticationService.authenticate(
+                request,
+                ActionListener.wrap(ignored -> listener.onResponse(null), listener::onFailure)
+            );
+        } else {
+            listener.onResponse(null);
         }
     }
 

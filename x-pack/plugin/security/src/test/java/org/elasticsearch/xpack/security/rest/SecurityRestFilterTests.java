@@ -85,7 +85,7 @@ public class SecurityRestFilterTests extends ESTestCase {
         );
         filter = new SecurityRestFilter(
             licenseState,
-            threadContext,
+            mock(AuthenticationService.class),
             secondaryAuthenticator,
             new AuditTrailService(Arrays.asList(mock(AuditTrail.class)), licenseState),
             restHandler
@@ -207,7 +207,7 @@ public class SecurityRestFilterTests extends ESTestCase {
         licenseState.update(License.OperationMode.GOLD, true, null);
         filter = new SecurityRestFilter(
             licenseState,
-            threadContext,
+            mock(AuthenticationService.class),
             secondaryAuthenticator,
             new AuditTrailService(Arrays.asList(auditTrail), licenseState),
             restHandler

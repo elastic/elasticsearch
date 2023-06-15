@@ -37,7 +37,6 @@
 'Create Query Ruleset - Resource already exists':
   - do:
       query_ruleset.put:
-        create: true
         ruleset_id: test-query-ruleset-recreating
         body:
           ruleset_id: 'test-query-ruleset-recreating'
@@ -55,9 +54,7 @@
   - match: { result: 'created' }
 
   - do:
-      catch: conflict
       query_ruleset.put:
-        create: true
         ruleset_id: test-query-ruleset-recreating
         body:
           ruleset_id: 'test-query-ruleset-recreating'
@@ -72,7 +69,7 @@
               ids:
                 - 'id2'
 
-  - match: { error.type: 'version_conflict_engine_exception' }
+  - match: { result: 'updated' }
 
 ---
 'Create Query Ruleset - Insufficient privilege':
@@ -84,7 +81,6 @@
       headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
       query_ruleset.put:
         ruleset_id: forbidden-query-ruleset
-        create: true
         body:
           ruleset_id: 'forbidden-query-ruleset'
           rules:

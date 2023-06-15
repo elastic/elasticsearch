@@ -207,15 +207,13 @@ public class QueryRulesIndexService {
      * Creates or updates the {@link QueryRuleset} in the underlying index.
      *
      * @param queryRuleset The query ruleset object.
-     * @param create If true, a query ruleset with the specified unique identifier must not already exist
      * @param listener The action listener to invoke on response/failure.
      */
-    public void putQueryRuleset(QueryRuleset queryRuleset, boolean create, ActionListener<IndexResponse> listener) {
+    public void putQueryRuleset(QueryRuleset queryRuleset, ActionListener<IndexResponse> listener) {
         try {
-            DocWriteRequest.OpType opType = (create ? DocWriteRequest.OpType.CREATE : DocWriteRequest.OpType.INDEX);
             final IndexRequest indexRequest = new IndexRequest(QUERY_RULES_ALIAS_NAME).opType(DocWriteRequest.OpType.INDEX)
                 .id(queryRuleset.id())
-                .opType(opType)
+                .opType(DocWriteRequest.OpType.INDEX)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .source(queryRuleset.toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS));
             clientWithOrigin.index(indexRequest, listener);

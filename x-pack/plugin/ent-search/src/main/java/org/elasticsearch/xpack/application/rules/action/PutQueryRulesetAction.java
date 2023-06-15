@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -19,10 +20,14 @@ import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.application.rules.QueryRule;
 import org.elasticsearch.xpack.application.rules.QueryRuleset;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Objects;
+
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 public class PutQueryRulesetAction extends ActionType<PutQueryRulesetAction.Response> {
 
@@ -58,7 +63,14 @@ public class PutQueryRulesetAction extends ActionType<PutQueryRulesetAction.Resp
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = null;
 
-            // TODO: validate query ruleset
+            if (Strings.isNullOrEmpty(queryRuleset.id())) {
+                validationException = addValidationError("ruleset_id cannot be null or empty", validationException);
+            }
+
+            List<QueryRule> rules = queryRuleset.rules();
+            if (rules == null || rules.isEmpty()) {
+                validationException = addValidationError("rules cannot be null or empty", validationException);
+            }
 
             return validationException;
         }

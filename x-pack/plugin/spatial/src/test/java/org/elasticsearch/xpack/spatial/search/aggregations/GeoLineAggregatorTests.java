@@ -943,7 +943,8 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
                 fieldTypes.add(TimeSeriesIdFieldMapper.FIELD_TYPE);
                 fieldTypes.add(new DateFieldMapper.DateFieldType("@timestamp"));
                 fieldTypes.add(new DateFieldMapper.DateFieldType("time_field"));
-                fieldTypes.add(new GeoPointFieldMapper.GeoPointFieldType("value_field", POSITION, TIME_SERIES));
+                var metricType = randomBoolean() ? POSITION : null; // metric type does not affect geo_line behaviour
+                fieldTypes.add(new GeoPointFieldMapper.GeoPointFieldType("value_field", metricType, TIME_SERIES));
             } else {
                 fieldTypes.add(new GeoPointFieldMapper.GeoPointFieldType("value_field"));
             }

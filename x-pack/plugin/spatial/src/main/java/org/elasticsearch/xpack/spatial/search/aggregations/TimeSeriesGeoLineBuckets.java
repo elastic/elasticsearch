@@ -278,7 +278,7 @@ class TimeSeriesGeoLineBuckets implements Releasable {
         private final MultiGeoPointValues docGeoPointValues;
 
         protected Leaf(LeafReaderContext ctx) throws IOException {
-            // TODO: Should the sort field be hard-coded for time-series? Or just validated earlier on?
+            // For time_series this is forced to be `@timestamp` so we do not need to validate here
             docSortValues = valuesSources.getNumericField(SORT_FIELD.getPreferredName(), ctx);
             docGeoPointValues = valuesSources.getGeoPointField(GeoLineAggregationBuilder.POINT_FIELD.getPreferredName(), ctx);
         }

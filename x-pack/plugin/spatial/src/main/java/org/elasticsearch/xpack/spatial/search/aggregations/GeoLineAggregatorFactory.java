@@ -14,17 +14,11 @@ import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoLineMultiValuesSource;
 
 import java.io.IOException;
 import java.util.Map;
-
-import static org.elasticsearch.cluster.metadata.DataStream.TIMESTAMP_FIELD;
-import static org.elasticsearch.search.aggregations.support.TimeSeriesValuesSourceType.POSITION;
-import static org.elasticsearch.xpack.spatial.search.aggregations.GeoLineAggregationBuilder.POINT_FIELD;
-import static org.elasticsearch.xpack.spatial.search.aggregations.GeoLineAggregationBuilder.SORT_FIELD;
 
 final class GeoLineAggregatorFactory extends MultiValuesSourceAggregatorFactory {
 
@@ -64,23 +58,11 @@ final class GeoLineAggregatorFactory extends MultiValuesSourceAggregatorFactory 
         Map<String, Object> metaData
     ) throws IOException {
         GeoLineMultiValuesSource valuesSources = new GeoLineMultiValuesSource(configs);
-        if (context.isInSortOrderExecutionRequired() && isValidTimeSeriesConfig(configs)) {
-            // We require both that this aggregation is a sub-aggregation of time-series, and that the sort field is '@timestamp'
+        if (context.isInSortOrderExecutionRequired()) {
             return new GeoLineAggregator.TimeSeries(name, valuesSources, context, parent, metaData, includeSort, sortOrder, size);
         } else {
             return new GeoLineAggregator.Normal(name, valuesSources, context, parent, metaData, includeSort, sortOrder, size);
         }
-    }
-
-    private boolean isValidTimeSeriesConfig(Map<String, ValuesSourceConfig> configs) {
-        // TODO: Some combinations should result in error
-        ValuesSourceConfig sortConfig = configs.get(SORT_FIELD.getPreferredName());
-        if (sortConfig.fieldContext().field().equals(TIMESTAMP_FIELD.getName()) == false) {
-            return false;
-        }
-        ValuesSourceType pointFieldType = configs.get(POINT_FIELD.getPreferredName()).fieldContext().indexFieldData().getValuesSourceType();
-        // TODO: We could activate the optimized geo_line for GEOPOINT field also, but need to consider BWC
-        return pointFieldType == POSITION;  // Only support position metric
     }
 
     @Override

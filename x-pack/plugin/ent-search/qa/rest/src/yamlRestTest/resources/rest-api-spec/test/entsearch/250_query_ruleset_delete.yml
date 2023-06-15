@@ -20,13 +20,6 @@ setup:
                   - 'id2'
 
 ---
-teardown:
-  - do:
-      query_ruleset.delete:
-        ruleset_id: test-query-ruleset-to-delete
-        ignore: 404
-
----
 "Delete Query Ruleset":
   - do:
       query_ruleset.delete:

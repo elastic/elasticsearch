@@ -118,7 +118,7 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
         if (request.realtime()) { // we are not tied to a refresh cycle here anyway
             asyncShardMultiGet(request, shardId, listener);
         } else {
-            indexShard.awaitShardSearchActive(b -> {
+            indexShard.ensureShardSearchActive(b -> {
                 try {
                     asyncShardMultiGet(request, shardId, listener);
                 } catch (Exception ex) {

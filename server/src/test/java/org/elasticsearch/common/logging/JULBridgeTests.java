@@ -8,9 +8,12 @@
 
 package org.elasticsearch.common.logging;
 
+import net.bytebuddy.implementation.bytecode.Throw;
+
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.LogEvent;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.MockLogAppender.LoggingExpectation;
@@ -21,6 +24,8 @@ import org.junit.BeforeClass;
 
 import java.util.logging.ConsoleHandler;
 
+import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -106,6 +111,29 @@ public class JULBridgeTests extends ESTestCase {
         assertMessage("above info", julLevel(java.util.logging.Level.INFO.intValue() + 1), Level.INFO);
         assertMessage("above fine", julLevel(java.util.logging.Level.FINE.intValue() + 1), Level.DEBUG);
         assertMessage("above finest", julLevel(java.util.logging.Level.FINEST.intValue() + 1), Level.TRACE);
+    }
+
+    public void testThrowable() {
+        JULBridge.install();
+        java.util.logging.Logger logger = java.util.logging.Logger.getLogger("");
+        assertLogged(() -> logger.log(java.util.logging.Level.SEVERE, "error msg", new Exception("some error")),
+            new LoggingExpectation() {
+                boolean matched = false;
+
+                @Override
+                public void match(LogEvent event) {
+                    Throwable thrown = event.getThrown();
+                    matched = event.getLoggerName().equals("") &&
+                        event.getMessage().getFormattedMessage().equals("error msg") &&
+                        thrown != null &&
+                        thrown.getMessage().equals("some error");
+                }
+
+                @Override
+                public void assertMatched() {
+                    assertThat("expected to see error message but did not", matched, equalTo(true));
+                }
+            });
     }
 
     public void testChildLogger() {

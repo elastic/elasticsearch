@@ -8,11 +8,13 @@
 
 package org.elasticsearch.common.logging;
 
-import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.logging.Level;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.LogManager;
 
 import java.util.Map;
+import java.util.NavigableMap;
 import java.util.TreeMap;
 import java.util.logging.Handler;
 import java.util.logging.LogRecord;
@@ -40,8 +42,8 @@ class JULBridge extends Handler {
         Level.ALL
     );
 
-    private static final TreeMap<Integer, Level> sortedLevelMap = new TreeMap<>(
-        levelMap.entrySet().stream().collect(Collectors.toMap(e -> e.getKey().intValue(), Map.Entry::getValue))
+    private static final NavigableMap<Integer, Level> sortedLevelMap =
+        levelMap.entrySet().stream().collect(Maps.toUnmodifiableSortedMap(e -> e.getKey().intValue(), Map.Entry::getValue)
     );
 
     public static void install() {
@@ -59,9 +61,12 @@ class JULBridge extends Handler {
     public void publish(LogRecord record) {
         Logger logger = LogManager.getLogger(record.getLoggerName());
         Level level = translateJulLevel(record.getLevel());
-        String message = record.getMessage();
         Throwable thrown = record.getThrown();
-        logger.log(level, message, thrown);
+        if (thrown == null) {
+            logger.log(level, record.getMessage());
+        } else {
+            logger.log(level, record::getMessage, thrown);
+        }
     }
 
     private Level translateJulLevel(java.util.logging.Level julLevel) {

@@ -10,7 +10,6 @@ package org.elasticsearch.search.dfs;
 
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.CollectionStatistics;
-import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
@@ -28,6 +27,7 @@ import org.elasticsearch.search.profile.query.InternalProfileCollector;
 import org.elasticsearch.search.profile.query.InternalProfileCollectorManager;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 import org.elasticsearch.search.query.SingleThreadCollectorManager;
+import org.elasticsearch.search.query.TwoPhaseCollector;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
@@ -179,7 +179,9 @@ public class DfsPhase {
         for (int i = 0; i < knnSearch.size(); i++) {
             Query knnQuery = searchExecutionContext.toQuery(knnVectorQueryBuilders.get(i)).query();
             TopScoreDocCollector topScoreDocCollector = TopScoreDocCollector.create(knnSearch.get(i).k(), Integer.MAX_VALUE);
-            CollectorManager<Collector, Void> collectorManager = new SingleThreadCollectorManager(topScoreDocCollector);
+            CollectorManager<TwoPhaseCollector, Void> collectorManager = new SingleThreadCollectorManager(
+                TwoPhaseCollector.wrap(topScoreDocCollector)
+            );
             if (context.getProfilers() != null) {
                 InternalProfileCollectorManager ipcm = new InternalProfileCollectorManager(
                     new InternalProfileCollector(collectorManager.newCollector(), CollectorResult.REASON_SEARCH_TOP_HITS)

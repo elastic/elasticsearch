@@ -12,6 +12,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.ScoreMode;
+import org.elasticsearch.search.query.TwoPhaseCollector;
 
 import java.io.IOException;
 
@@ -42,7 +43,7 @@ public abstract class BucketCollector {
         }
     };
 
-    public static final Collector NO_OP_COLLECTOR = new Collector() {
+    public static final TwoPhaseCollector NO_OP_COLLECTOR = new TwoPhaseCollector() {
 
         @Override
         public LeafCollector getLeafCollector(LeafReaderContext context) {
@@ -52,6 +53,16 @@ public abstract class BucketCollector {
         @Override
         public ScoreMode scoreMode() {
             return ScoreMode.COMPLETE_NO_SCORES;
+        }
+
+        @Override
+        public void postCollection() {
+
+        }
+
+        @Override
+        public Collector getCollector() {
+            return this;
         }
     };
 
@@ -75,11 +86,11 @@ public abstract class BucketCollector {
     /**
      * Return this BucketCollector wrapped as a {@link Collector}
      */
-    public final Collector asCollector() {
+    public final TwoPhaseCollector asCollector() {
         return new BucketCollectorWrapper(this);
     }
 
-    private record BucketCollectorWrapper(BucketCollector bucketCollector) implements Collector {
+    private record BucketCollectorWrapper(BucketCollector bucketCollector) implements TwoPhaseCollector {
 
         @Override
         public LeafCollector getLeafCollector(LeafReaderContext context) throws IOException {
@@ -89,6 +100,16 @@ public abstract class BucketCollector {
         @Override
         public ScoreMode scoreMode() {
             return bucketCollector.scoreMode();
+        }
+
+        @Override
+        public void postCollection() throws IOException {
+            bucketCollector.postCollection();
+        }
+
+        @Override
+        public Collector getCollector() {
+            return this;
         }
     }
 }

@@ -45,7 +45,7 @@ public class ReloadAnalyzersResponse extends BroadcastResponse {
 
     public ReloadAnalyzersResponse(StreamInput in) throws IOException {
         super(in);
-        this.reloadDetails = in.readMap(StreamInput::readString, ReloadDetails::new);
+        this.reloadDetails = in.readMap(ReloadDetails::new);
     }
 
     public ReloadAnalyzersResponse(

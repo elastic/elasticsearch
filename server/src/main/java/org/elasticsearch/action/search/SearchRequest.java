@@ -268,7 +268,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             minCompatibleShardNode = null;
         }
         if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_16_0)) {
-            waitForCheckpoints = in.readMap(StreamInput::readString, StreamInput::readLongArray);
+            waitForCheckpoints = in.readMap(StreamInput::readLongArray);
             waitForCheckpointsTimeout = in.readTimeValue();
         }
         if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {

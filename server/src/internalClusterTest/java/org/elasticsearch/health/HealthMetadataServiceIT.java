@@ -29,6 +29,7 @@ import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings
 import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_MAX_HEADROOM_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING;
+import static org.elasticsearch.common.settings.Settings.EMPTY;
 import static org.elasticsearch.indices.ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE;
 import static org.elasticsearch.indices.ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE_FROZEN;
 import static org.elasticsearch.test.NodeRoles.onlyRoles;
@@ -70,7 +71,11 @@ public class HealthMetadataServiceIT extends ESIntegTestCase {
                 // `cluster.routing.allocation.disk.watermark.high`. Check {@link CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_MAX_HEADROOM_SETTING}
                 assertThat(
                     diskMetadata.highMaxHeadroom(),
-                    equalTo(percentageMode ? maxHeadroomByNode.get(electedMaster) : ByteSizeValue.ofGb(150))
+                    equalTo(
+                        percentageMode
+                            ? maxHeadroomByNode.get(electedMaster)
+                            : CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_MAX_HEADROOM_SETTING.getDefault(EMPTY)
+                    )
                 );
 
                 var shardLimitsMetadata = healthMetadata.getShardLimitsMetadata();
@@ -91,7 +96,11 @@ public class HealthMetadataServiceIT extends ESIntegTestCase {
                 // Check {@link DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_MAX_HEADROOM_SETTING}
                 assertThat(
                     diskMetadata.highMaxHeadroom(),
-                    equalTo(percentageMode ? maxHeadroomByNode.get(electedMaster) : ByteSizeValue.ofGb(150))
+                    equalTo(
+                        percentageMode
+                            ? maxHeadroomByNode.get(electedMaster)
+                            : CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_MAX_HEADROOM_SETTING.getDefault(EMPTY)
+                    )
                 );
 
                 var shardLimitsMetadata = healthMetadata.getShardLimitsMetadata();
@@ -137,7 +146,12 @@ public class HealthMetadataServiceIT extends ESIntegTestCase {
                 // The value of the setting `cluster.routing.allocation.disk.watermark.high.max_headroom` depends upon the existence of
                 // `cluster.routing.allocation.disk.watermark.high`.
                 // Check {@link DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_MAX_HEADROOM_SETTING}
-                assertThat(diskMetadata.highMaxHeadroom(), equalTo(percentageMode ? initialMaxHeadroom : ByteSizeValue.ofGb(150)));
+                assertThat(
+                    diskMetadata.highMaxHeadroom(),
+                    equalTo(
+                        percentageMode ? initialMaxHeadroom : CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_MAX_HEADROOM_SETTING.getDefault(EMPTY)
+                    )
+                );
 
                 var shardLimitsMetadata = healthMetadata.getShardLimitsMetadata();
                 assertEquals(shardLimitsMetadata, initialShardLimits);
@@ -167,7 +181,14 @@ public class HealthMetadataServiceIT extends ESIntegTestCase {
                 // The value of the setting `cluster.routing.allocation.disk.watermark.high.max_headroom` depends upon the existence of
                 // `cluster.routing.allocation.disk.watermark.high`.
                 // Check {@link DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_MAX_HEADROOM_SETTING}
-                assertThat(diskMetadata.highMaxHeadroom(), equalTo(percentageMode ? updatedHighMaxHeadroom : ByteSizeValue.ofGb(150)));
+                assertThat(
+                    diskMetadata.highMaxHeadroom(),
+                    equalTo(
+                        percentageMode
+                            ? updatedHighMaxHeadroom
+                            : CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_MAX_HEADROOM_SETTING.getDefault(EMPTY)
+                    )
+                );
                 assertThat(diskMetadata.describeFloodStageWatermark(), equalTo(updatedFloodStageWatermark));
 
                 // The value of the setting `cluster.routing.allocation.disk.watermark.flood_stage.max_headroom` depends upon the existence
@@ -175,7 +196,11 @@ public class HealthMetadataServiceIT extends ESIntegTestCase {
                 // Check{@link DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_MAX_HEADROOM_SETTING}
                 assertThat(
                     diskMetadata.floodStageMaxHeadroom(),
-                    equalTo(percentageMode ? updatedFloodStageMaxHeadroom : ByteSizeValue.ofGb(100))
+                    equalTo(
+                        percentageMode
+                            ? updatedFloodStageMaxHeadroom
+                            : CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_MAX_HEADROOM_SETTING.getDefault(EMPTY)
+                    )
                 );
 
                 var shardLimitsMetadata = healthMetadata.getShardLimitsMetadata();
@@ -202,19 +227,17 @@ public class HealthMetadataServiceIT extends ESIntegTestCase {
 
     private Settings createWatermarkSettings(String highWatermark, String highMaxHeadroom) {
         // We define both thresholds to avoid inconsistencies over the type of the thresholds
-        Settings.Builder settings = Settings.builder()
+        var settings = Settings.builder()
             .put(CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), percentageMode ? "85%" : "20b")
             .put(CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), highWatermark)
             .put(CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(), percentageMode ? "95%" : "1b")
             .put(CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_WATERMARK_SETTING.getKey(), percentageMode ? "95%" : "5b");
 
         if (percentageMode) {
-            settings = settings.put(CLUSTER_ROUTING_ALLOCATION_LOW_DISK_MAX_HEADROOM_SETTING.getKey(), "20b")
+            settings.put(CLUSTER_ROUTING_ALLOCATION_LOW_DISK_MAX_HEADROOM_SETTING.getKey(), "20b")
                 .put(CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_MAX_HEADROOM_SETTING.getKey(), "1b")
-                .put(CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_MAX_HEADROOM_SETTING.getKey(), "5b");
-            if (highMaxHeadroom.equals("-1") == false) {
-                settings = settings.put(CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_MAX_HEADROOM_SETTING.getKey(), highMaxHeadroom);
-            }
+                .put(CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_MAX_HEADROOM_SETTING.getKey(), "5b")
+                .put(CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_MAX_HEADROOM_SETTING.getKey(), highMaxHeadroom);
         }
         return settings.build();
     }

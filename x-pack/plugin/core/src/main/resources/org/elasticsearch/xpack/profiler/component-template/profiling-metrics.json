@@ -19,6 +19,7 @@
       "_source": {
         "enabled": false
       },
+      "dynamic": false,
       "properties": {
         "ecs.version": {
           "type": "keyword",

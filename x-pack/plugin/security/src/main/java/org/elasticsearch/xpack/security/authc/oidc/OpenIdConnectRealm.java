@@ -429,4 +429,5 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
             || (o instanceof Collection
                 && ((Collection<?>) o).stream().allMatch(c -> c instanceof String || c instanceof Boolean || c instanceof Number)));
     }
+
 }

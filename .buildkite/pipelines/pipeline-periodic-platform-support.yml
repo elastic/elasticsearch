@@ -9,12 +9,6 @@ steps:
     steps:
       - label: "{{matrix.image}} / platform-support-unix"
         command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dbwc.checkout.align=true check
-        agents:
-          provider: gcp
-          image: "{{matrix.image}}"
-          imageProject: elastic-images-qa
-          buildDirectory: /dev/shm/bk
-          machineType: custom-32-98304
         matrix:
           setup:
             image:
@@ -34,18 +28,18 @@ steps:
               - family/brian-elasticsearch-rhel-8
               - family/brian-elasticsearch-rhel-9
               - family/brian-elasticsearch-almalinux-8
-        env: {}
-  - group: platform-support-arm
-    steps:
-      - label: "{{matrix.image}} / {{matrix.GRADLE_TASK}} / platform-support-arm"
-        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dbwc.checkout.align=true
-          $$GRADLE_TASK
         agents:
           provider: gcp
           image: "{{matrix.image}}"
           imageProject: elastic-images-qa
           buildDirectory: /dev/shm/bk
           machineType: custom-32-98304
+        env: {}
+  - group: platform-support-arm
+    steps:
+      - label: "{{matrix.image}} / {{matrix.GRADLE_TASK}} / platform-support-arm"
+        command: $$WORKSPACE/.ci/scripts/run-gradle.sh -Dbwc.checkout.align=true
+          $$GRADLE_TASK
         matrix:
           setup:
             image: []
@@ -55,5 +49,11 @@ steps:
               - checkPart3
               - bwcTestSnapshots
               - checkRestCompat
+        agents:
+          provider: gcp
+          image: "{{matrix.image}}"
+          imageProject: elastic-images-qa
+          buildDirectory: /dev/shm/bk
+          machineType: custom-32-98304
         env:
           GRADLE_TASK: "{{matrix.GRADLE_TASK}}"

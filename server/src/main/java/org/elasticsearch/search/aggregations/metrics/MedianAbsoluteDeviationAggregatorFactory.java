@@ -41,8 +41,8 @@ public class MedianAbsoluteDeviationAggregatorFactory extends ValuesSourceAggreg
         super(name, config, context, parent, subFactoriesBuilder, metadata);
         this.aggregatorSupplier = aggregatorSupplier;
         this.compression = compression;
-        this.executionHint = (executionHint.isEmpty() && context.getClusterSettings() != null)
-            ? context.getClusterSettings().get(TDigestState.EXECUTION_HINT)
+        this.executionHint = (executionHint.equals(TDigestExecutionHint.DEFAULT))
+            ? TDigestExecutionHint.parse(TDigestState.EXECUTION_HINT.get(context.getIndexSettings().getNodeSettings()))
             : executionHint;
     }
 

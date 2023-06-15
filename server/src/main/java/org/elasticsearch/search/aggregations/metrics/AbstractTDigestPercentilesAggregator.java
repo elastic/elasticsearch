@@ -55,10 +55,9 @@ abstract class AbstractTDigestPercentilesAggregator extends NumericMetricsAggreg
         this.states = context.bigArrays().newObjectArray(1);
         this.keys = keys;
         this.compression = compression;
-        this.executionHint = (executionHint.isEmpty() && context.getClusterSettings() != null)
-            ? context.getClusterSettings().get(TDigestState.EXECUTION_HINT)
+        this.executionHint = (executionHint.equals(TDigestExecutionHint.DEFAULT))
+            ? TDigestExecutionHint.parse(TDigestState.EXECUTION_HINT.get(context.getIndexSettings().getNodeSettings()))
             : executionHint;
-
     }
 
     @Override

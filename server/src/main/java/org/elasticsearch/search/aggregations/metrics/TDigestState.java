@@ -30,7 +30,7 @@ public class TDigestState {
     public static final Setting<String> EXECUTION_HINT = Setting.simpleString(
         "search.aggs.tdigest_execution_hint",
         "",
-        ExecutionHint::parse,
+        TDigestExecutionHint::parse,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -84,8 +84,8 @@ public class TDigestState {
      * @param executionHint controls which implementation is used; accepted values are 'high_accuracy' and '' (default)
      * @return a TDigestState object
      */
-    public static TDigestState create(double compression, String executionHint) {
-        return switch (ExecutionHint.parse(executionHint)) {
+    public static TDigestState create(double compression, TDigestExecutionHint executionHint) {
+        return switch (executionHint) {
             case HIGH_ACCURACY -> createOptimizedForAccuracy(compression);
             case DEFAULT -> create(compression);
         };

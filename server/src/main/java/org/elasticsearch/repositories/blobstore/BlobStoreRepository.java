@@ -77,6 +77,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardRestoreFailedException;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotFailedException;
@@ -1373,7 +1374,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 final String slmPolicy = slmPolicy(snapshotInfo);
                 final SnapshotDetails snapshotDetails = new SnapshotDetails(
                     snapshotInfo.state(),
-                    Version.CURRENT,
+                    IndexVersion.CURRENT,
                     snapshotInfo.startTime(),
                     snapshotInfo.endTime(),
                     slmPolicy

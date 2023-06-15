@@ -2168,7 +2168,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         for (SnapshotId snapshotId : snapshotIds.stream()
             .filter(excluded == null ? sn -> true : Predicate.not(excluded::contains))
             .toList()) {
-            final Version known = repositoryData.getVersion(snapshotId);
+            final Version known = repositoryData.getVersion(snapshotId).toVersion();
             // If we don't have the version cached in the repository data yet we load it from the snapshot info blobs
             if (known == null) {
                 assert repositoryData.shardGenerations().totalShards() == 0

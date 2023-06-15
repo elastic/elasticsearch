@@ -36,6 +36,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.ShardLockObtainFailedException;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.Snapshot;
@@ -475,7 +476,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
                 new SnapshotRecoverySource(
                     UUIDs.randomBase64UUID(),
                     snapshot,
-                    Version.CURRENT,
+                    IndexVersion.CURRENT,
                     new IndexId(shardId.getIndexName(), UUIDs.randomBase64UUID(random()))
                 )
             )

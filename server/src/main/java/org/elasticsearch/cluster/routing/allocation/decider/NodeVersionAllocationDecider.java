@@ -118,7 +118,7 @@ public class NodeVersionAllocationDecider extends AllocationDecider {
         final RoutingNode target,
         final RoutingAllocation allocation
     ) {
-        if (target.node().getVersion().onOrAfter(recoverySource.version())) {
+        if (target.node().getVersion().onOrAfter(recoverySource.version().toVersion())) {
             /* we can allocate if we can restore from a snapshot that is older or on the same version */
             return allocation.decision(
                 Decision.YES,

@@ -33,6 +33,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
@@ -352,7 +353,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
                         new SnapshotRecoverySource(
                             UUIDs.randomBase64UUID(),
                             new Snapshot("rep1", new SnapshotId("snp1", UUIDs.randomBase64UUID())),
-                            Version.CURRENT,
+                            IndexVersion.CURRENT,
                             new IndexId("test", UUIDs.randomBase64UUID(random()))
                         ),
                         new HashSet<>()
@@ -436,7 +437,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
                         new SnapshotRecoverySource(
                             UUIDs.randomBase64UUID(),
                             new Snapshot("rep1", new SnapshotId("snp1", UUIDs.randomBase64UUID())),
-                            Version.CURRENT,
+                            IndexVersion.CURRENT,
                             new IndexId("test", UUIDs.randomBase64UUID(random()))
                         )
                     )

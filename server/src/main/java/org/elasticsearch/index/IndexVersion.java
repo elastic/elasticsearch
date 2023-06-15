@@ -10,8 +10,11 @@ package org.elasticsearch.index;
 
 import org.apache.lucene.util.Version;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Assertions;
 
+import java.io.IOException;
 import java.lang.reflect.Field;
 import java.util.Collection;
 import java.util.Collections;
@@ -245,6 +248,10 @@ public record IndexVersion(int id, Version luceneVersion) implements Comparable<
         return VERSION_IDS.values();
     }
 
+    public static IndexVersion readVersion(StreamInput in) throws IOException {
+        return fromId(in.readVInt());
+    }
+
     public static IndexVersion fromId(int id) {
         IndexVersion known = VERSION_IDS.get(id);
         if (known != null) {
@@ -262,6 +269,10 @@ public record IndexVersion(int id, Version luceneVersion) implements Comparable<
             : Version.fromBits(VERSION_IDS.firstEntry().getValue().luceneVersion.major - 1, 0, 0);
 
         return new IndexVersion(id, luceneVersion);
+    }
+
+    public static void writeVersion(IndexVersion version, StreamOutput out) throws IOException {
+        out.writeVInt(version.id);
     }
 
     @Deprecated(forRemoval = true)

@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ccr.action;
 
 import org.apache.lucene.store.IOContext;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
@@ -36,6 +35,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.EngineTestCase;
@@ -515,7 +515,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                     new RecoverySource.SnapshotRecoverySource(
                         UUIDs.randomBase64UUID(),
                         snapshot,
-                        Version.CURRENT,
+                        IndexVersion.CURRENT,
                         new IndexId("test", UUIDs.randomBase64UUID(random()))
                     )
                 );

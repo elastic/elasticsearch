@@ -46,6 +46,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
@@ -449,7 +450,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
                 RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
                     .addAsRestore(
                         metadata.index("test"),
-                        new SnapshotRecoverySource(UUIDs.randomBase64UUID(), snapshot, Version.CURRENT, indexId)
+                        new SnapshotRecoverySource(UUIDs.randomBase64UUID(), snapshot, IndexVersion.CURRENT, indexId)
                     )
                     .build()
             )
@@ -608,13 +609,13 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
         final SnapshotRecoverySource newVersionSnapshot = new SnapshotRecoverySource(
             UUIDs.randomBase64UUID(),
             new Snapshot("rep1", new SnapshotId("snp1", UUIDs.randomBase64UUID())),
-            newNode.node().getVersion(),
+            newNode.node().getVersion().indexVersion,
             indexId
         );
         final SnapshotRecoverySource oldVersionSnapshot = new SnapshotRecoverySource(
             UUIDs.randomBase64UUID(),
             new Snapshot("rep1", new SnapshotId("snp1", UUIDs.randomBase64UUID())),
-            oldNode.node().getVersion(),
+            oldNode.node().getVersion().indexVersion,
             indexId
         );
 

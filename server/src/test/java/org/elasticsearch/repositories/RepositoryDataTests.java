@@ -13,6 +13,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESTestCase;
@@ -110,7 +111,7 @@ public class RepositoryDataTests extends ESTestCase {
             newSnapshot,
             new RepositoryData.SnapshotDetails(
                 randomFrom(SnapshotState.SUCCESS, SnapshotState.PARTIAL, SnapshotState.FAILED),
-                randomFrom(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion()),
+                randomFrom(IndexVersion.CURRENT, Version.CURRENT.minimumCompatibilityVersion().indexVersion),
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
                 randomAlphaOfLength(10)
@@ -142,7 +143,7 @@ public class RepositoryDataTests extends ESTestCase {
                 snapshotId.getUUID(),
                 new RepositoryData.SnapshotDetails(
                     randomFrom(SnapshotState.values()),
-                    randomFrom(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion()),
+                    randomFrom(IndexVersion.CURRENT, Version.CURRENT.minimumCompatibilityVersion().indexVersion),
                     randomNonNegativeLong(),
                     randomNonNegativeLong(),
                     randomAlphaOfLength(10)
@@ -210,7 +211,7 @@ public class RepositoryDataTests extends ESTestCase {
             snapshotId,
             new RepositoryData.SnapshotDetails(
                 state,
-                randomFrom(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion()),
+                randomFrom(IndexVersion.CURRENT, Version.CURRENT.minimumCompatibilityVersion().indexVersion),
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
                 randomAlphaOfLength(10)
@@ -392,7 +393,7 @@ public class RepositoryDataTests extends ESTestCase {
 
         final RepositoryData.SnapshotDetails details = new RepositoryData.SnapshotDetails(
             SnapshotState.SUCCESS,
-            Version.CURRENT,
+            IndexVersion.CURRENT,
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomAlphaOfLength(10)
@@ -455,7 +456,7 @@ public class RepositoryDataTests extends ESTestCase {
                 snapshotId,
                 new RepositoryData.SnapshotDetails(
                     randomFrom(SnapshotState.values()),
-                    randomFrom(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion()),
+                    randomFrom(IndexVersion.CURRENT, Version.CURRENT.minimumCompatibilityVersion().indexVersion),
                     randomNonNegativeLong(),
                     randomNonNegativeLong(),
                     randomAlphaOfLength(10)

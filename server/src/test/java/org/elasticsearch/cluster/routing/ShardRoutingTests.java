@@ -8,11 +8,11 @@
 
 package org.elasticsearch.cluster.routing;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardIdTests;
 import org.elasticsearch.repositories.IndexId;
@@ -345,7 +345,7 @@ public class ShardRoutingTests extends AbstractWireSerializingTestCase<ShardRout
                             new RecoverySource.SnapshotRecoverySource(
                                 UUIDs.randomBase64UUID(),
                                 new Snapshot("test", new SnapshotId("s1", UUIDs.randomBase64UUID())),
-                                Version.CURRENT,
+                                IndexVersion.CURRENT,
                                 new IndexId("test", UUIDs.randomBase64UUID(random()))
                             ),
                             otherRouting.unassignedInfo(),

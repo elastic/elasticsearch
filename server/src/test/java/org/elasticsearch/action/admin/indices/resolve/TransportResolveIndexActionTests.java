@@ -52,7 +52,7 @@ public class TransportResolveIndexActionTests extends ESTestCase {
             TransportService transportService = MockTransportService.createNewService(
                 Settings.EMPTY,
                 Version.CURRENT,
-                TransportVersion.CURRENT,
+                TransportVersion.current(),
                 threadPool
             );
 
@@ -60,9 +60,9 @@ public class TransportResolveIndexActionTests extends ESTestCase {
                 @Override
                 public void writeTo(StreamOutput out) throws IOException {
                     super.writeTo(out);
-                    if (out.getTransportVersion().before(TransportVersion.CURRENT)) {
+                    if (out.getTransportVersion().before(TransportVersion.current())) {
                         throw new IllegalArgumentException(
-                            "This request isn't serializable before transport version " + TransportVersion.CURRENT
+                            "This request isn't serializable before transport version " + TransportVersion.current()
                         );
                     }
                 }
@@ -90,7 +90,7 @@ public class TransportResolveIndexActionTests extends ESTestCase {
             assertThat(ex.getMessage(), containsString("not compatible with version"));
             assertThat(ex.getMessage(), containsString("and the 'search.check_ccs_compatibility' setting is enabled."));
             assertEquals(
-                "This request isn't serializable before transport version " + TransportVersion.CURRENT,
+                "This request isn't serializable before transport version " + TransportVersion.current(),
                 ex.getCause().getMessage()
             );
         } finally {

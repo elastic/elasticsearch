@@ -228,11 +228,14 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
 
     private KeyedFilter defaultUntil(Source source) {
         // no until declared means no results
-        return new KeyedFilter(source, new LocalRelation(source, emptyList()), emptyList(), UNSPECIFIED_FIELD, UNSPECIFIED_FIELD);
+        return new KeyedFilter(source, new LocalRelation(source, emptyList()), emptyList(), UNSPECIFIED_FIELD, UNSPECIFIED_FIELD, false);
     }
 
     public KeyedFilter visitJoinTerm(JoinTermContext ctx, List<Attribute> joinKeys, Attribute timestampField, Attribute tiebreakerField) {
-        return keyedFilter(joinKeys, ctx, ctx.by, ctx.subquery(), timestampField, tiebreakerField);
+        if (ctx.subquery().MISSING_EVENT_OPEN() != null) {
+            throw new ParsingException("Missing events are supported only for sequences");
+        }
+        return keyedFilter(joinKeys, ctx, ctx.by, ctx.subquery(), timestampField, tiebreakerField, false);
     }
 
     private KeyedFilter keyedFilter(
@@ -241,11 +244,12 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
         JoinKeysContext joinCtx,
         SubqueryContext subqueryCtx,
         Attribute timestampField,
-        Attribute tiebreakerField
+        Attribute tiebreakerField,
+        boolean missingEvent
     ) {
         List<Attribute> keys = CollectionUtils.combine(joinKeys, visitJoinKeys(joinCtx));
         LogicalPlan eventQuery = visitEventFilter(subqueryCtx.eventFilter());
-        return new KeyedFilter(source(ctx), eventQuery, keys, timestampField, tiebreakerField);
+        return new KeyedFilter(source(ctx), eventQuery, keys, timestampField, tiebreakerField, missingEvent);
     }
 
     @Override
@@ -330,11 +334,27 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
             until = defaultUntil(source);
         }
 
+        if (maxSpan.duration() < 0 && queries.stream().anyMatch(x -> x.isMissingEventFilter())) {
+            throw new ParsingException(source, "[maxspan] is required for sequences with missing events queries; found none");
+        }
+
+        if (queries.stream().allMatch(KeyedFilter::isMissingEventFilter)) {
+            throw new IllegalStateException("A sequence requires at least one positive event query; found none");
+        }
+
         return new Sequence(source, queries, until, maxSpan, fieldTimestamp(), fieldTiebreaker(), resultPosition());
     }
 
     private KeyedFilter visitSequenceTerm(SequenceTermContext ctx, List<Attribute> joinKeys) {
-        return keyedFilter(joinKeys, ctx, ctx.by, ctx.subquery(), fieldTimestamp(), fieldTiebreaker());
+        return keyedFilter(
+            joinKeys,
+            ctx,
+            ctx.by,
+            ctx.subquery(),
+            fieldTimestamp(),
+            fieldTiebreaker(),
+            ctx.subquery().MISSING_EVENT_OPEN() != null
+        );
     }
 
     @Override

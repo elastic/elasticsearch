@@ -20,6 +20,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.hamcrest.Matchers;
 
 import java.util.Arrays;
@@ -41,9 +42,9 @@ import static org.hamcrest.object.HasToString.hasToString;
 public class IndexSettingsTests extends ESTestCase {
 
     public void testRunListener() {
-        Version version = VersionUtils.getPreviousVersion();
+        IndexVersion version = IndexVersionUtils.getPreviousVersion();
         Settings theSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, version)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, version.id())
             .put(IndexMetadata.SETTING_INDEX_UUID, "0xdeadbeef")
             .build();
         final AtomicInteger integer = new AtomicInteger(0);
@@ -67,9 +68,9 @@ public class IndexSettingsTests extends ESTestCase {
     }
 
     public void testSettingsUpdateValidator() {
-        Version version = VersionUtils.getPreviousVersion();
+        IndexVersion version = IndexVersionUtils.getPreviousVersion();
         Settings theSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, version)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, version.id())
             .put(IndexMetadata.SETTING_INDEX_UUID, "0xdeadbeef")
             .build();
         final AtomicInteger integer = new AtomicInteger(0);
@@ -139,8 +140,8 @@ public class IndexSettingsTests extends ESTestCase {
     }
 
     public void testSettingsConsistency() {
-        Version version = VersionUtils.getPreviousVersion();
-        IndexMetadata metadata = newIndexMeta("index", Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build());
+        IndexVersion version = IndexVersionUtils.getPreviousVersion();
+        IndexMetadata metadata = newIndexMeta("index", Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version.id()).build());
         IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
         assertEquals(version, settings.getIndexVersionCreated());
         assertEquals("_na_", settings.getUUID());
@@ -161,8 +162,8 @@ public class IndexSettingsTests extends ESTestCase {
                 newIndexMeta(
                     "index",
                     Settings.builder()
-                        .put(IndexMetadata.SETTING_VERSION_CREATED, version)
-                        .put(IndexMetadata.SETTING_VERSION_COMPATIBILITY, Version.CURRENT)
+                        .put(IndexMetadata.SETTING_VERSION_CREATED, version.id())
+                        .put(IndexMetadata.SETTING_VERSION_COMPATIBILITY, IndexVersion.CURRENT.id())
                         .put("index.test.setting.int", 42)
                         .build()
                 )
@@ -175,7 +176,7 @@ public class IndexSettingsTests extends ESTestCase {
         // use version number that is unknown
         metadata = newIndexMeta("index", Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.fromId(999999)).build());
         settings = new IndexSettings(metadata, Settings.EMPTY);
-        assertEquals(Version.fromId(999999), settings.getIndexVersionCreated());
+        assertEquals(IndexVersion.fromId(999999), settings.getIndexVersionCreated());
         assertEquals("_na_", settings.getUUID());
         settings.updateIndexMetadata(
             newIndexMeta(

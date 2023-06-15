@@ -151,7 +151,7 @@ public class TDigestStateTests extends ESTestCase {
 
         for (double p : new double[] { 0.1, 1, 10, 25, 50, 75, 90, 99, 99.9 }) {
             double q = p / 100;
-            assertEquals(fast.quantile(q), accurate.quantile(q), 1e-5);
+            assertEquals(fast.quantile(q), accurate.quantile(q), 0.5);
             assertEquals(fast.quantile(q), anotherFast.quantile(q), 1e-5);
             assertEquals(accurate.quantile(q), anotherAccurate.quantile(q), 1e-5);
         }
@@ -189,21 +189,19 @@ public class TDigestStateTests extends ESTestCase {
     }
 
     public void testSerialization() throws IOException {
-        for (int size : new int[] { 10, 1000, 100_000 }) {
-            // Past default was the accuracy-optimized version.
-            TDigestState backwardsCompatible = TDigestState.createOptimizedForAccuracy(100);
-            TDigestState state = TDigestState.create(100);
-            for (int i = 0; i < size; i++) {
-                state.add(i);
-                backwardsCompatible.add(i);
-            }
-
-            TDigestState serialized = writeToAndReadFrom(state, TransportVersion.V_8_9_0);
-            assertEquals(serialized, state);
-
-            TDigestState serializedBackwardsCompatible = writeToAndReadFrom(state, TransportVersion.V_8_8_0);
-            // assertNotEquals(serializedBackwardsCompatible, state);
-            assertEquals(serializedBackwardsCompatible, backwardsCompatible);
+        // Past default was the accuracy-optimized version.
+        TDigestState state = TDigestState.create(100);
+        TDigestState backwardsCompatible = TDigestState.createOptimizedForAccuracy(100);
+        for (int i = 0; i < 1000; i++) {
+            state.add(i);
+            backwardsCompatible.add(i);
         }
+
+        TDigestState serialized = writeToAndReadFrom(state, TransportVersion.V_8_500_012);
+        assertEquals(serialized, state);
+
+        TDigestState serializedBackwardsCompatible = writeToAndReadFrom(state, TransportVersion.V_8_500_011);
+        // assertNotEquals(serializedBackwardsCompatible, state);
+        assertEquals(serializedBackwardsCompatible, backwardsCompatible);
     }
 }

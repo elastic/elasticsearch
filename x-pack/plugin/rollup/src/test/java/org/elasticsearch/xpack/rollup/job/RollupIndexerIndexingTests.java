@@ -20,7 +20,6 @@ import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -35,6 +34,7 @@ import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -743,7 +743,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
                     ScriptCompiler.NONE,
                     false,
                     false,
-                    Version.CURRENT,
+                    IndexVersion.CURRENT,
                     null
                 ).build(MapperBuilderContext.root(false)).fieldType();
                 fieldTypes.put(ft.name(), ft);
@@ -752,7 +752,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
 
         if (job.getGroupConfig().getTerms() != null) {
             for (String field : job.getGroupConfig().getTerms().getFields()) {
-                MappedFieldType ft = new KeywordFieldMapper.Builder(field, Version.CURRENT).build(MapperBuilderContext.root(false))
+                MappedFieldType ft = new KeywordFieldMapper.Builder(field, IndexVersion.CURRENT).build(MapperBuilderContext.root(false))
                     .fieldType();
                 fieldTypes.put(ft.name(), ft);
             }
@@ -766,7 +766,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
                     ScriptCompiler.NONE,
                     false,
                     false,
-                    Version.CURRENT,
+                    IndexVersion.CURRENT,
                     null
                 ).build(MapperBuilderContext.root(false)).fieldType();
                 fieldTypes.put(ft.name(), ft);

@@ -639,7 +639,7 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
             }
             newCustomMetadata.put(FORCE_MERGE_COMPLETED_TIMESTAMP_METADATA_KEY, Long.toString(threadPool.absoluteTimeInMillis()));
             IndexMetadata updatededIndexMetadata = new IndexMetadata.Builder(indexMetadata).putCustom(
-                    LIFECYCLE_CUSTOM_INDEX_METADATA_KEY,
+                LIFECYCLE_CUSTOM_INDEX_METADATA_KEY,
                 newCustomMetadata
             ).build();
             Metadata metadata = Metadata.builder(currentState.metadata()).put(updatededIndexMetadata, true).build();

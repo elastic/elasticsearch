@@ -41,8 +41,8 @@ class JULBridge extends Handler {
     );
 
     private static final TreeMap<Integer, Level> sortedLevelMap = new TreeMap<>(
-        levelMap.entrySet().stream().collect(
-            Collectors.toMap(e -> e.getKey().intValue(), Map.Entry::getValue)));
+        levelMap.entrySet().stream().collect(Collectors.toMap(e -> e.getKey().intValue(), Map.Entry::getValue))
+    );
 
     public static void install() {
         var rootJulLogger = java.util.logging.LogManager.getLogManager().getLogger("");

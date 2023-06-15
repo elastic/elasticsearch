@@ -17,6 +17,9 @@ import com.nimbusds.jose.jwk.source.JWKSource;
 import com.nimbusds.jose.proc.BadJOSEException;
 import com.nimbusds.jose.proc.JWSVerificationKeySelector;
 import com.nimbusds.jose.proc.SecurityContext;
+import com.nimbusds.jose.shaded.json.JSONStyle;
+import com.nimbusds.jose.shaded.json.JSONValue;
+import com.nimbusds.jose.shaded.json.reader.JsonWriterI;
 import com.nimbusds.jose.util.IOUtils;
 import com.nimbusds.jwt.JWT;
 import com.nimbusds.jwt.JWTClaimsSet;
@@ -135,6 +138,15 @@ import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectReal
  */
 public class OpenIdConnectAuthenticator {
 
+    static {
+        JSONValue.registerWriter(Nonce.class, new JsonWriterI<Nonce>() {
+            @Override
+            public <E extends Nonce> void writeJSONString(E e, Appendable appendable, JSONStyle jsonStyle) throws IOException {
+                appendable.append(e.toJSONString());
+            }
+        });
+    }
+
     private final RealmConfig realmConfig;
     private final OpenIdConnectProviderConfiguration opConfig;
     private final RelyingPartyConfiguration rpConfig;
@@ -190,6 +202,7 @@ public class OpenIdConnectAuthenticator {
      */
     public void authenticate(OpenIdConnectToken token, final ActionListener<JWTClaimsSet> listener) {
         try {
+
             AuthenticationResponse authenticationResponse = AuthenticationResponseParser.parse(new URI(token.getRedirectUrl()));
             final Nonce expectedNonce = token.getNonce();
             State expectedState = token.getState();

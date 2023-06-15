@@ -63,7 +63,7 @@ public class MedianAbsoluteDeviationAggregationBuilder extends SingleMetricAggre
     public MedianAbsoluteDeviationAggregationBuilder(StreamInput in) throws IOException {
         super(in);
         compression = in.readDouble();
-        executionHint = in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_012)
+        executionHint = in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_013)
             ? TDigestExecutionHint.readFrom(in)
             : TDigestExecutionHint.HIGH_ACCURACY;
     }
@@ -124,7 +124,7 @@ public class MedianAbsoluteDeviationAggregationBuilder extends SingleMetricAggre
     @Override
     protected void innerWriteTo(StreamOutput out) throws IOException {
         out.writeDouble(compression);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_012)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_013)) {
             executionHint.writeTo(out);
         }
     }

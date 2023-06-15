@@ -152,6 +152,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
     @TestLogging(value = "org.elasticsearch.ingest.geoip:TRACE", reason = "https://github.com/elastic/elasticsearch/issues/75221")
     public void testInvalidTimestamp() throws Exception {
         assumeTrue("only test with fixture to have stable results", getEndpoint() != null);
+        setupDatabasesInConfigDirectory();
         putGeoIpPipeline();
         updateClusterSettings(Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), true));
         assertBusy(() -> {
@@ -293,6 +294,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         deleteDatabasesInConfigDirectory();
 
         // Enabling the downloader.
+        putGeoIpPipeline("_id", false);
         updateClusterSettings(Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), true));
         assertBusy(() -> assertNotNull(getTask()));
 
@@ -487,7 +489,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
      * @throws IOException
      */
     private void putGeoIpPipeline(String pipelineId) throws IOException {
-        putGeoIpPipeline(pipelineId, false);
+        putGeoIpPipeline(pipelineId, true);
     }
 
     /**

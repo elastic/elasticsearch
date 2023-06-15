@@ -31,8 +31,9 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.action.get.MultiGetResponse;
+import org.elasticsearch.action.get.MultiGetItemResponse;
 import org.elasticsearch.action.get.TransportGetFromTranslogAction;
+import org.elasticsearch.action.get.TransportShardMultiGetFomTranslogAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchTransportService;
@@ -77,6 +78,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
@@ -326,8 +328,6 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
     }
 
     public void testRealTimeMGet() {
-        // Currently this test depends on routing requests to indexing shards. However, eventually these
-        // requests will route to search shards and fall back to indexing shards in certain circumstances.
         startIndexNodes(numShards);
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(
@@ -355,13 +355,81 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         }
         BulkResponse response = bulkRequest.get();
         assertNoFailures(response);
-        var items = randomSubsetOf(2, IntStream.range(0, numOfIndexRequests).boxed().toList());
-        String id1 = response.getItems()[items.get(0)].getResponse().getId();
-        String id2 = response.getItems()[items.get(1)].getResponse().getId();
 
-        MultiGetResponse multiGetResponse = client().prepareMultiGet().addIds(indexName, id1, id2).get();
-        assertTrue(multiGetResponse.getResponses()[0].getResponse().isExists());
-        assertTrue(multiGetResponse.getResponses()[1].getResponse().isExists());
+        final AtomicInteger getFromTranslogActionsSent = new AtomicInteger();
+        final AtomicInteger shardRefreshActionsSent = new AtomicInteger();
+        for (var transportService : internalCluster().getInstances(TransportService.class)) {
+            MockTransportService mockTransportService = (MockTransportService) transportService;
+            mockTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
+                if (action.equals(TransportShardMultiGetFomTranslogAction.NAME)) {
+                    getFromTranslogActionsSent.incrementAndGet();
+                } else if (action.equals(TransportShardRefreshAction.NAME)) {
+                    shardRefreshActionsSent.incrementAndGet();
+                }
+                connection.sendRequest(requestId, action, request, options);
+            });
+        }
+
+        var items = randomSubsetOf(2, IntStream.range(0, numOfIndexRequests).boxed().toList());
+        var bulkResponse1 = response.getItems()[items.get(0)].getResponse();
+        var bulkResponse2 = response.getItems()[items.get(1)].getResponse();
+        // Depending on how many shards the chosen IDs cover, number of ShardRefreshAction and ShardMultiGetFomTranslogAction
+        // sent increment by this number.
+        var distinctShards = bulkResponse1.getShardId().equals(bulkResponse2.getShardId()) ? 1 : 2;
+
+        var multiGetResponse = client().prepareMultiGet().addIds(indexName, bulkResponse1.getId(), bulkResponse2.getId()).get();
+        var multiGetResponses = multiGetResponse.getResponses();
+        assertThat(multiGetResponses.length, equalTo(2));
+        assertTrue(Arrays.stream(multiGetResponses).map(MultiGetItemResponse::getFailure).allMatch(Objects::isNull));
+        assertThat(multiGetResponses[0].getResponse().getId(), equalTo(bulkResponse1.getId()));
+        assertTrue(multiGetResponses[0].getResponse().isExists());
+        assertThat(multiGetResponses[0].getResponse().getVersion(), equalTo(bulkResponse1.getVersion()));
+        assertThat(multiGetResponses[1].getResponse().getId(), equalTo(bulkResponse2.getId()));
+        assertTrue(multiGetResponses[1].getResponse().isExists());
+        assertThat(multiGetResponses[1].getResponse().getVersion(), equalTo(bulkResponse2.getVersion()));
+        assertThat(getFromTranslogActionsSent.get(), equalTo(distinctShards));
+        assertThat(shardRefreshActionsSent.get(), equalTo(0));
+
+        // Since we refresh, whether the get is real-time or not should not matter
+        multiGetResponse = client().prepareMultiGet()
+            .addIds(indexName, bulkResponse1.getId(), bulkResponse2.getId())
+            .setRefresh(true)
+            .setRealtime(randomBoolean())
+            .get();
+        assertThat(multiGetResponse.getResponses().length, equalTo(2));
+        assertTrue(Arrays.stream(multiGetResponses).map(MultiGetItemResponse::getFailure).allMatch(Objects::isNull));
+        assertTrue(Arrays.stream(multiGetResponses).map(r -> r.getResponse().isExists()).allMatch(b -> b.equals(true)));
+        assertThat(getFromTranslogActionsSent.get(), equalTo(distinctShards));
+        assertThat(shardRefreshActionsSent.get(), equalTo(distinctShards));
+
+        // A non realtime get, shouldn't cause any ShardMultiGetFomTranslogAction
+        multiGetResponse = client().prepareMultiGet()
+            .addIds(indexName, bulkResponse1.getId(), bulkResponse2.getId())
+            .setRealtime(false)
+            .get();
+        assertThat(multiGetResponse.getResponses().length, equalTo(2));
+
+        assertThat(getFromTranslogActionsSent.get(), equalTo(distinctShards));
+        assertThat(shardRefreshActionsSent.get(), equalTo(distinctShards));
+
+        // Test with a doc that has also a newer value after refresh
+        var updateResponse = client().prepareBulk()
+            .add(new UpdateRequest().index(indexName).id(bulkResponse1.getId()).doc("field", "value2"))
+            .get();
+        assertNoFailures(updateResponse);
+        multiGetResponse = client().prepareMultiGet().addIds(indexName, bulkResponse1.getId(), bulkResponse2.getId()).get();
+        multiGetResponses = multiGetResponse.getResponses();
+        assertThat(multiGetResponses.length, equalTo(2));
+        assertTrue(Arrays.stream(multiGetResponses).map(MultiGetItemResponse::getFailure).allMatch(Objects::isNull));
+        assertThat(multiGetResponses[0].getResponse().getId(), equalTo(bulkResponse1.getId()));
+        assertTrue(multiGetResponses[0].getResponse().isExists());
+        assertThat(multiGetResponses[0].getResponse().getVersion(), equalTo(updateResponse.getItems()[0].getResponse().getVersion()));
+        assertThat(multiGetResponses[0].getResponse().getSource().get("field"), equalTo("value2"));
+        assertThat(multiGetResponses[1].getResponse().getId(), equalTo(bulkResponse2.getId()));
+        assertTrue(multiGetResponses[1].getResponse().isExists());
+        assertThat(multiGetResponses[1].getResponse().getVersion(), equalTo(bulkResponse2.getVersion()));
+        assertThat(getFromTranslogActionsSent.get(), equalTo(distinctShards * 2));
+        assertThat(shardRefreshActionsSent.get(), equalTo(distinctShards));
     }
 
     public void testBulkRequestFailureWithWaitUntilRefresh() throws Exception {

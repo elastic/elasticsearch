@@ -193,7 +193,7 @@ it should be treated as if it had the `N/A` value.
 
 The request results in the following response:
 
-[source,js]
+[source,console-result]
 ----
 {
   "aggregations": {
@@ -212,7 +212,6 @@ The request results in the following response:
   }
 }
 ----
-// TESTRESPONSE
 
 
 ==== `size`

@@ -39,7 +39,6 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivileg
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
-import org.elasticsearch.xpack.core.security.authz.restriction.Workflow;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.authz.store.RoleKey;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
@@ -289,7 +288,7 @@ public class CompositeRolesStore {
                 }
             }, failureHandler));
         } else {
-            Workflow workflow = workflowService.readWorkflowFromThreadContext(threadContext);
+            String workflow = workflowService.readWorkflowFromThreadContext(threadContext);
             roleActionListener.onResponse(existing.forWorkflow(workflow));
         }
     }
@@ -340,7 +339,7 @@ public class CompositeRolesStore {
                     negativeLookupCache.computeIfAbsent(missingRole, s -> Boolean.TRUE);
                 }
             }
-            Workflow workflow = workflowService.readWorkflowFromThreadContext(threadContext);
+            String workflow = workflowService.readWorkflowFromThreadContext(threadContext);
             listener.onResponse(role.forWorkflow(workflow));
         }, listener::onFailure));
     }

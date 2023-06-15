@@ -7,44 +7,46 @@
 
 package org.elasticsearch.xpack.core.security.authz.restriction;
 
-import java.util.HashSet;
+import org.elasticsearch.xpack.core.security.support.StringMatcher;
+
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Predicate;
 
-public record WorkflowsRestriction(Set<Workflow> workflows) {
+public final class WorkflowsRestriction {
 
     /**
      * Default behaviour is to allow access to all workflows if none are provided.
      */
-    public static final WorkflowsRestriction ALLOW_ALL = new WorkflowsRestriction(Set.of());
+    public static final WorkflowsRestriction NONE = new WorkflowsRestriction(Set.of());
 
-    public WorkflowsRestriction(Set<Workflow> workflows) {
-        this.workflows = Objects.requireNonNull(workflows);
+    private final Set<String> names;
+    private final Predicate<String> predicate;
+
+    public WorkflowsRestriction(Set<String> names) {
+        this.names = Objects.requireNonNull(names);
+        this.predicate = StringMatcher.of(names);
     }
 
     public boolean hasWorkflows() {
-        return this.workflows.size() > 0;
+        return this.names.size() > 0;
     }
 
-    public boolean isWorkflowAllowed(Workflow workflow) {
-        if (workflows.isEmpty()) {
+    public boolean isWorkflowAllowed(String workflow) {
+        if (names.isEmpty()) {
             return true;
         }
         if (workflow == null) {
             return false;
         }
-        return workflows.contains(workflow);
+        return predicate.test(workflow);
     }
 
     public static WorkflowsRestriction resolve(Set<String> names) {
         if (names == null || names.isEmpty()) {
-            return WorkflowsRestriction.ALLOW_ALL;
+            return WorkflowsRestriction.NONE;
         }
-        final Set<Workflow> workflows = new HashSet<>(names.size());
-        for (String name : names) {
-            workflows.add(WorkflowResolver.resolveWorkflowByName(name));
-        }
-        return new WorkflowsRestriction(workflows);
+        return new WorkflowsRestriction(names);
     }
 
 }

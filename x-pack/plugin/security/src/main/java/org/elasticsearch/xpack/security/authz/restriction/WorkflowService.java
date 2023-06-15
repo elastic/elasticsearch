@@ -33,12 +33,12 @@ public class WorkflowService {
         return workflow;
     }
 
-    public Workflow readWorkflowFromThreadContext(ThreadContext threadContext) {
+    public String readWorkflowFromThreadContext(ThreadContext threadContext) {
         String workflowName = threadContext.getHeader(WORKFLOW_HEADER);
         if (workflowName == null) {
             return null;
         }
-        return WorkflowResolver.resolveWorkflowByName(workflowName);
+        return workflowName;
     }
 
     private Workflow resolveWorkflow(RestHandler restHandler) {

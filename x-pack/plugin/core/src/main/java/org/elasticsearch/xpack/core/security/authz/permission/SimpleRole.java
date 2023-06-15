@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessCo
 import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission.IsResourceAuthorizedPredicate;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
-import org.elasticsearch.xpack.core.security.authz.restriction.Workflow;
 import org.elasticsearch.xpack.core.security.authz.restriction.WorkflowsRestriction;
 
 import java.util.ArrayList;
@@ -109,7 +108,7 @@ public class SimpleRole implements Role {
     }
 
     @Override
-    public Role forWorkflow(Workflow workflow) {
+    public Role forWorkflow(String workflow) {
         if (workflowsRestriction.isWorkflowAllowed(workflow)) {
             return this;
         } else {

@@ -780,11 +780,11 @@ public class LimitedRoleTests extends ESTestCase {
             Role limitedBy = Role.builder(EMPTY_RESTRICTED_INDICES, "role-b").add(IndexPrivilege.READ, "index-a").build();
             Role role = baseRole.limitedBy(limitedBy);
             assertThat(role.hasWorkflowsRestriction(), equalTo(true));
-            assertThat(role.forWorkflow(workflow), equalTo(role));
+            assertThat(role.forWorkflow(workflow.name()), equalTo(role));
         }
         // Test restriction when role is not restricted regardless of originating workflow
         {
-            Workflow originatingWorkflow = randomBoolean() ? null : WorkflowResolver.SEARCH_APPLICATION_QUERY_WORKFLOW;
+            String originatingWorkflow = randomBoolean() ? null : WorkflowResolver.SEARCH_APPLICATION_QUERY_WORKFLOW.name();
             Role baseRole = Role.builder(EMPTY_RESTRICTED_INDICES, "role-a").add(IndexPrivilege.READ, "index-a").build();
             Role limitedBy = Role.builder(EMPTY_RESTRICTED_INDICES, "role-b").add(IndexPrivilege.READ, "index-a").build();
             Role role = baseRole.limitedBy(limitedBy);

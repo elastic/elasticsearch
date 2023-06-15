@@ -27,7 +27,6 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeRes
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
-import org.elasticsearch.xpack.core.security.authz.restriction.Workflow;
 import org.elasticsearch.xpack.core.security.authz.restriction.WorkflowsRestriction;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 
@@ -64,7 +63,7 @@ public interface Role {
 
     boolean hasWorkflowsRestriction();
 
-    Role forWorkflow(Workflow workflow);
+    Role forWorkflow(String workflow);
 
     /**
      * Whether the Role has any field or document level security enabled index privileges
@@ -211,7 +210,7 @@ public interface Role {
         private final Map<Set<String>, List<IndicesPermissionGroupDefinition>> remoteGroups = new HashMap<>();
         private final List<Tuple<ApplicationPrivilege, Set<String>>> applicationPrivs = new ArrayList<>();
         private final RestrictedIndices restrictedIndices;
-        private WorkflowsRestriction workflowsRestriction = WorkflowsRestriction.ALLOW_ALL;
+        private WorkflowsRestriction workflowsRestriction = WorkflowsRestriction.NONE;
 
         private Builder(RestrictedIndices restrictedIndices, String[] names) {
             this.restrictedIndices = restrictedIndices;

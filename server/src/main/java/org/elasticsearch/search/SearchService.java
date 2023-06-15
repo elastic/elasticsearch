@@ -944,7 +944,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         final IndexShard shard = indexService.getShard(shardId.id());
         final SearchOperationListener searchOperationListener = shard.getSearchOperationListener();
-        shard.awaitShardSearchActive(ignored -> {
+        shard.ensureShardSearchActive(ignored -> {
             Engine.SearcherSupplier searcherSupplier = null;
             ReaderContext readerContext = null;
             try {
@@ -1654,8 +1654,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             if (request.readerId() != null) {
                 l.onResponse(request);
             } else {
-                // now we need to check if there is a pending refresh and register
-                shard.awaitShardSearchActive(b -> l.onResponse(request));
+                shard.ensureShardSearchActive(b -> l.onResponse(request));
             }
         });
         // we also do rewrite on the coordinating node (TransportSearchService) but we also need to do it here for BWC as well as

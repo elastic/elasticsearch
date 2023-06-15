@@ -7,7 +7,7 @@
         "refresh_interval": "10s",
         "sort": {
           "field": [
-            "project.id",
+            "profiling.project.id",
             "@timestamp",
             "host.id"
           ]
@@ -24,7 +24,7 @@
           "type": "keyword",
           "index": true
         },
-        "project.id": {
+        "profiling.project.id": {
           "type": "keyword"
         },
         "host.id": {

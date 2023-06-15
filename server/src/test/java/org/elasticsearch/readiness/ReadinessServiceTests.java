@@ -238,9 +238,7 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
         previousState = newState;
         tcpReadinessProbeTrue(readinessService);
 
-        ClusterState noMasterState = ClusterState.builder(previousState)
-            .nodes(DiscoveryNodes.builder(previousState.nodes()).masterNodeId(null))
-            .build();
+        ClusterState noMasterState = ClusterState.builder(previousState).nodes(previousState.nodes().withMasterNodeId(null)).build();
         event = new ClusterChangedEvent("test", noMasterState, previousState);
         readinessService.clusterChanged(event);
         assertFalse(readinessService.ready());

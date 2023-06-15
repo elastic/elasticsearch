@@ -23,7 +23,6 @@ import java.util.stream.Collectors;
  */
 public final class ProfileCollectorManager implements CollectorManager<InternalProfileCollector, Void> {
 
-
     private final CollectorManager<Collector, ?> collectorManager;
     private final String reason;
     private CollectorResult collectorTree;
@@ -44,7 +43,6 @@ public final class ProfileCollectorManager implements CollectorManager<InternalP
             .map(InternalProfileCollector::getWrappedCollector)
             .collect(Collectors.toList());
         collectorManager.reduce(unwrapped);
-
 
         List<CollectorResult> resultsPerProfiler = profileCollectors.stream()
             .map(ipc -> ipc.getCollectorTree())

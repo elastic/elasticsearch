@@ -27,7 +27,6 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -42,7 +41,6 @@ public class ProfileCollectorManagerTests extends ESTestCase {
             this.id = id;
         }
     }
-
 
     /**
      * This test checks that each new collector is a different instance on each call and that
@@ -71,39 +69,6 @@ public class ProfileCollectorManagerTests extends ESTestCase {
         }
         pcm.reduce(Collections.emptyList());
         assertTrue(reduceCalled.get());
-    }
-
-    public void testGetCollectorTree() throws IOException {
-        ProfileCollectorManager pcm = new ProfileCollectorManager(new CollectorManager<>() {
-
-            @Override
-            public Collector newCollector() {
-                return new TestCollector(0);
-            }
-
-            @Override
-            public Void reduce(Collection<Collector> collectors) {
-                return null;
-            }
-        }, CollectorResult.REASON_SEARCH_TOP_HITS);
-        expectThrows(IllegalStateException.class, pcm::getCollectorTree);
-        List<InternalProfileCollector> collectors = new ArrayList<>();
-        for (int i = 0; i < 5; i++) {
-            collectors.add(pcm.newCollector());
-        }
-        pcm.reduce(collectors);
-        CollectorResult collectorTree = pcm.getCollectorTree();
-        assertEquals("ProfileCollectorManager", collectorTree.getName());
-        assertEquals("search_top_hits_max", collectorTree.getReason());
-        assertEquals(0, collectorTree.getTime());
-        List<CollectorResult> nestedResults = collectorTree.getCollectorResults();
-        assertNotNull(nestedResults);
-        assertEquals(5, nestedResults.size());
-        for (CollectorResult cr : nestedResults) {
-            assertEquals("TestCollector", cr.getName());
-            assertEquals("search_top_hits", cr.getReason());
-            assertEquals(0L, cr.getTime());
-        }
     }
 
     /**

@@ -21,9 +21,12 @@ import org.apache.lucene.search.TopScoreDocCollector;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.profile.dfs.DfsProfiler;
 import org.elasticsearch.search.profile.dfs.DfsTimingType;
+import org.elasticsearch.search.profile.query.CollectorResult;
 import org.elasticsearch.search.profile.query.ProfileCollectorManager;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 import org.elasticsearch.search.rescore.RescoreContext;
@@ -176,42 +179,47 @@ public class DfsPhase {
         List<DfsKnnResults> knnResults = new ArrayList<>(knnVectorQueryBuilders.size());
         for (int i = 0; i < knnSearch.size(); i++) {
             Query knnQuery = searchExecutionContext.toQuery(knnVectorQueryBuilders.get(i)).query();
-            int numHits = knnSearch.get(i).k();
-            final TopDocs[] topDocs = new TopDocs[1];
-            CollectorManager<TopScoreDocCollector, Void> topDocsCollectorManager = new CollectorManager<>() {
-
-                final CollectorManager<TopScoreDocCollector, TopDocs> wrapped = TopScoreDocCollector.createSharedManager(
-                    numHits,
-                    null,
-                    Integer.MAX_VALUE
-                );
-
-                @Override
-                public TopScoreDocCollector newCollector() throws IOException {
-                    return wrapped.newCollector();
-                }
-
-                @Override
-                public Void reduce(Collection<TopScoreDocCollector> collectors) throws IOException {
-                    topDocs[0] = wrapped.reduce(collectors);
-                    return null;
-                }
-            };
-            CollectorManager<? extends Collector, Void> cm = topDocsCollectorManager;
-            if (context.getProfilers() != null) {
-                ProfileCollectorManager ipcm = new ProfileCollectorManager(topDocsCollectorManager);
-                QueryProfiler knnProfiler = context.getProfilers().getDfsProfiler().addQueryProfiler(ipcm);
-                cm = ipcm;
-                // Set the current searcher profiler to gather query profiling information for gathering top K docs
-                context.searcher().setProfiler(knnProfiler);
-            }
-            context.searcher().search(knnQuery, cm);
-            knnResults.add(new DfsKnnResults(topDocs[0].scoreDocs));
-        }
-        // Set profiler back after running KNN searches
-        if (context.getProfilers() != null) {
-            context.searcher().setProfiler(context.getProfilers().getCurrentQueryProfiler());
+            knnResults.add(singleKnnSearch(knnQuery, knnSearch.get(i).k(), context.getProfilers(), context.searcher()));
         }
         context.dfsResult().knnResults(knnResults);
+    }
+
+    static DfsKnnResults singleKnnSearch(Query knnQuery, int numHits, Profilers profilers, ContextIndexSearcher searcher)
+        throws IOException {
+        final TopDocs[] topDocs = new TopDocs[1];
+        CollectorManager<TopScoreDocCollector, Void> topDocsCollectorManager = new CollectorManager<>() {
+
+            final CollectorManager<TopScoreDocCollector, TopDocs> wrapped = TopScoreDocCollector.createSharedManager(
+                numHits,
+                null,
+                Integer.MAX_VALUE
+            );
+
+            @Override
+            public TopScoreDocCollector newCollector() throws IOException {
+                return wrapped.newCollector();
+            }
+
+            @Override
+            public Void reduce(Collection<TopScoreDocCollector> collectors) throws IOException {
+                topDocs[0] = wrapped.reduce(collectors);
+                return null;
+            }
+        };
+        CollectorManager<? extends Collector, Void> cm = topDocsCollectorManager;
+        if (profilers != null) {
+            ProfileCollectorManager ipcm = new ProfileCollectorManager(topDocsCollectorManager, CollectorResult.REASON_SEARCH_TOP_HITS);
+            QueryProfiler knnProfiler = profilers.getDfsProfiler().addQueryProfiler(ipcm);
+            cm = ipcm;
+            // Set the current searcher profiler to gather query profiling information for gathering top K docs
+            searcher.setProfiler(knnProfiler);
+        }
+        searcher.search(knnQuery, cm);
+
+        // Set profiler back after running KNN searches
+        if (profilers != null) {
+            searcher.setProfiler(profilers.getCurrentQueryProfiler());
+        }
+        return new DfsKnnResults(topDocs[0].scoreDocs);
     }
 }

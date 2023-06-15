@@ -3764,7 +3764,7 @@ public class IndexShardTests extends IndexShardTestCase {
         assertBusy(() -> assertTrue(primary.isSearchIdle()));
         do {
             // now loop until we are fast enough... shouldn't take long
-            primary.awaitShardSearchActive(aBoolean -> {});
+            primary.ensureShardSearchActive(aBoolean -> {});
             if (primary.isSearchIdle()) {
                 assertTrue(primary.searchIdleTime() >= tenMillis.millis());
             }
@@ -3782,6 +3782,7 @@ public class IndexShardTests extends IndexShardTestCase {
     }
 
     public void testScheduledRefresh() throws Exception {
+        // Setup and make shard search idle:
         Settings settings = indexSettings(Version.CURRENT, 1, 1).build();
         IndexMetadata metadata = IndexMetadata.builder("test").putMapping("""
             { "properties": { "foo":  { "type": "text"}}}""").settings(settings).primaryTerm(0, 1).build();
@@ -3796,27 +3797,26 @@ public class IndexShardTests extends IndexShardTestCase {
         settings = Settings.builder().put(settings).put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), TimeValue.ZERO).build();
         scopedSettings.applySettings(settings);
 
+        // Index document and ensure refresh is needed but not performed:
         assertFalse(primary.getEngine().refreshNeeded());
         indexDoc(primary, "_doc", "1", "{\"foo\" : \"bar\"}");
         assertTrue(primary.getEngine().refreshNeeded());
         long lastSearchAccess = primary.getLastSearcherAccess();
+        // Now since shard is search idle scheduleRefresh(...) shouldn't refresh even if a refresh is needed:
         PlainActionFuture<Boolean> future2 = PlainActionFuture.newFuture();
         primary.scheduledRefresh(future2);
         assertFalse(future2.actionGet());
         assertEquals(lastSearchAccess, primary.getLastSearcherAccess());
         // wait until the thread-pool has moved the timestamp otherwise we can't assert on this below
         assertBusy(() -> assertThat(primary.getThreadPool().relativeTimeInMillis(), greaterThan(lastSearchAccess)));
-        CountDownLatch latch = new CountDownLatch(10);
-        for (int i = 0; i < 10; i++) {
-            primary.awaitShardSearchActive(refreshed -> {
-                assertTrue(refreshed);
-                try (Engine.Searcher searcher = primary.acquireSearcher("test")) {
-                    assertEquals(2, searcher.getIndexReader().numDocs());
-                } finally {
-                    latch.countDown();
-                }
-            });
-        }
+
+        // Make shard search active again and ensure previously index document is visible:
+        CountDownLatch latch = new CountDownLatch(1);
+        primary.ensureShardSearchActive(refreshed -> {
+            assertTrue(refreshed);
+            latch.countDown();
+        });
+        latch.await();
         assertNotEquals(
             "awaitShardSearchActive must access a searcher to remove search idle state",
             lastSearchAccess,
@@ -3824,15 +3824,13 @@ public class IndexShardTests extends IndexShardTestCase {
         );
         assertTrue(lastSearchAccess < primary.getLastSearcherAccess());
         try (Engine.Searcher searcher = primary.acquireSearcher("test")) {
-            assertEquals(1, searcher.getIndexReader().numDocs());
+            assertEquals(2, searcher.getIndexReader().numDocs());
         }
-        assertTrue(primary.getEngine().refreshNeeded());
-        PlainActionFuture<Boolean> future3 = PlainActionFuture.newFuture();
-        primary.scheduledRefresh(future3);
-        assertTrue(future3.actionGet());
-        latch.await();
+
+        // No documents were added and shard is search active so makeShardSearchActive(...) should behave like a noop:
+        assertFalse(primary.getEngine().refreshNeeded());
         CountDownLatch latch1 = new CountDownLatch(1);
-        primary.awaitShardSearchActive(refreshed -> {
+        primary.ensureShardSearchActive(refreshed -> {
             assertFalse(refreshed);
             try (Engine.Searcher searcher = primary.acquireSearcher("test")) {
                 assertEquals(2, searcher.getIndexReader().numDocs());
@@ -3843,6 +3841,7 @@ public class IndexShardTests extends IndexShardTestCase {
         });
         latch1.await();
 
+        // Index a document while shard is search active and ensure scheduleRefresh(...) makes documen visible:
         indexDoc(primary, "_doc", "2", "{\"foo\" : \"bar\"}");
         PlainActionFuture<Boolean> future4 = PlainActionFuture.newFuture();
         primary.scheduledRefresh(future4);

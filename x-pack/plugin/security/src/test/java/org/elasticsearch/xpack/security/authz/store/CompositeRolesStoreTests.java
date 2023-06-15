@@ -1854,7 +1854,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         );
         AuditUtil.getOrGenerateRequestId(threadContext);
         final TransportVersion version = randomFrom(
-            TransportVersion.CURRENT,
+            TransportVersion.current(),
             TransportVersionUtils.randomVersionBetween(random(), TransportVersion.V_7_0_0, TransportVersion.V_7_8_1)
         );
         final Authentication authentication = createApiKeyAuthentication(
@@ -1873,7 +1873,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         Role role = roleFuture.actionGet();
         assertThat(effectiveRoleDescriptors.get(), is(nullValue()));
 
-        if (version == TransportVersion.CURRENT) {
+        if (version == TransportVersion.current()) {
             verify(apiKeyService, times(1)).parseRoleDescriptorsBytes(anyString(), any(BytesReference.class), any());
         } else {
             verify(apiKeyService, times(1)).parseRoleDescriptors(anyString(), anyMap(), any());
@@ -1937,7 +1937,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         );
         AuditUtil.getOrGenerateRequestId(threadContext);
         final TransportVersion version = randomFrom(
-            TransportVersion.CURRENT,
+            TransportVersion.current(),
             TransportVersionUtils.randomVersionBetween(random(), TransportVersion.V_7_0_0, TransportVersion.V_7_8_1)
         );
         final Authentication authentication = createApiKeyAuthentication(
@@ -1957,7 +1957,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         Role role = roleFuture.actionGet();
         assertThat(role.checkClusterAction("cluster:admin/foo", Empty.INSTANCE, AuthenticationTestHelper.builder().build()), is(false));
         assertThat(effectiveRoleDescriptors.get(), is(nullValue()));
-        if (version == TransportVersion.CURRENT) {
+        if (version == TransportVersion.current()) {
             verify(apiKeyService).parseRoleDescriptorsBytes(
                 apiKeyId,
                 (BytesReference) authentication.getAuthenticatingSubject().getMetadata().get(API_KEY_ROLE_DESCRIPTORS_KEY),

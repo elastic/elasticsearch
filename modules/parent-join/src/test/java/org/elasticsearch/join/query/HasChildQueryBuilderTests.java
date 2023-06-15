@@ -22,10 +22,10 @@ import org.apache.lucene.search.similarities.PerFieldSimilarityWrapper;
 import org.apache.lucene.search.similarities.Similarity;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Uid;
@@ -368,7 +368,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
             ScoreMode.None
         );
         LateParsingQuery query = (LateParsingQuery) hasChildQueryBuilder.toQuery(searchExecutionContext);
-        Similarity expected = SimilarityService.BUILT_IN.get(similarity).apply(Settings.EMPTY, Version.CURRENT, null);
+        Similarity expected = SimilarityService.BUILT_IN.get(similarity).apply(Settings.EMPTY, IndexVersion.CURRENT, null);
         assertThat(((PerFieldSimilarityWrapper) query.getSimilarity()).get("custom_string"), instanceOf(expected.getClass()));
     }
 

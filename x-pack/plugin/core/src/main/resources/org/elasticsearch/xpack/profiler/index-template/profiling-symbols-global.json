@@ -4,7 +4,8 @@
   ],
   "composed_of": [
     "profiling-symbols",
-    "profiling-ilm"
+    "profiling-ilm",
+    "profiling-hot-tier"
   ],
   "template": {
     "settings": {

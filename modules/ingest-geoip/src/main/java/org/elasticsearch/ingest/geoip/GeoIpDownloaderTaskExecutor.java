@@ -44,6 +44,7 @@ import org.elasticsearch.transport.RemoteTransportException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
@@ -237,9 +238,9 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
             return true;
         }
 
-        List<String> checkReferencedPipelines = pipelineConfigurationsWithGeoIpProcessor(clusterState, false).stream()
+        Set<String> checkReferencedPipelines = pipelineConfigurationsWithGeoIpProcessor(clusterState, false).stream()
             .map(PipelineConfiguration::getId)
-            .collect(Collectors.toList());
+            .collect(Collectors.toSet());
 
         if (checkReferencedPipelines.isEmpty()) {
             return false;

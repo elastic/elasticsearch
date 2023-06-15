@@ -1,15 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
- * 2.0; you may not use this file except in compliance with the Elastic License
- * 2.0.
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
+package org.elasticsearch.action.admin.indices.analyze;
 
-package org.elasticsearch.xpack.core.action;
-
+import org.elasticsearch.action.admin.indices.analyze.ReloadAnalyzersResponse.ReloadDetails;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.core.action.ReloadAnalyzersResponse.ReloadDetails;
 
 import java.util.HashSet;
 import java.util.Set;

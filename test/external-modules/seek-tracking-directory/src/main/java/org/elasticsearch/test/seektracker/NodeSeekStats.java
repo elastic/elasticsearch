@@ -31,7 +31,7 @@ public class NodeSeekStats extends BaseNodeResponse implements ToXContentFragmen
 
     public NodeSeekStats(StreamInput in) throws IOException {
         super(in);
-        this.seeks = in.readMap(StreamInput::readString, (s -> s.readList(ShardSeekStats::new)));
+        this.seeks = in.readMap(s -> s.readList(ShardSeekStats::new));
     }
 
     @Override

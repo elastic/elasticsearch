@@ -312,7 +312,9 @@ public class QueryPhase {
         boolean timeoutSet
     ) throws IOException {
         if (searchContext.getProfilers() != null) {
-            searchContext.getProfilers().getCurrentQueryProfiler().setCollectorManager((InternalProfileCollectorManager) collectorManager);
+            searchContext.getProfilers()
+                .getCurrentQueryProfiler()
+                .setCollectorManager(((InternalProfileCollectorManager) collectorManager)::getCollectorTree);
         }
         QuerySearchResult queryResult = searchContext.queryResult();
         try {

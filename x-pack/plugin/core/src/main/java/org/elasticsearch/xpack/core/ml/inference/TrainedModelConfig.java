@@ -256,7 +256,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         modelSize = in.readVLong();
         estimatedOperations = in.readVLong();
         licenseLevel = License.OperationMode.parse(in.readString());
-        this.defaultFieldMap = in.readBoolean() ? in.readImmutableMap(StreamInput::readString, StreamInput::readString) : null;
+        this.defaultFieldMap = in.readBoolean() ? in.readImmutableMap(StreamInput::readString) : null;
 
         this.inferenceConfig = in.readOptionalNamedWriteable(InferenceConfig.class);
         if (in.getTransportVersion().onOrAfter(VERSION_3RD_PARTY_CONFIG_ADDED)) {

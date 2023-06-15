@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.cluster.coordination.votingonly;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;

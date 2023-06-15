@@ -26,31 +26,6 @@ import java.util.List;
  */
 public class TDigestState {
 
-    /**
-     * Indicates which implementation is used in TDigestState.
-     */
-    public enum ExecutionHint {
-        HIGH_ACCURACY,
-        DEFAULT;
-
-        /**
-         * Case-insensitive wrapper for valueOf()
-         * @param value input string value
-         * @return an ExecutionHint
-         */
-        public static ExecutionHint parse(String value) {
-            try {
-                return switch (value) {
-                    case "high_accuracy" -> HIGH_ACCURACY;
-                    case "default", "" -> DEFAULT;
-                    default -> valueOf(value);
-                };
-            } catch (IllegalArgumentException e) {
-                throw new IllegalArgumentException("Invalid execution_hint [" + value + "], valid values are [high_accuracy]");
-            }
-        }
-    }
-
     private final double compression;
 
     private final TDigest tdigest;
@@ -100,10 +75,13 @@ public class TDigestState {
      * @param executionHint controls which implementation is used; accepted values are 'high_accuracy' and '' (default)
      * @return a TDigestState object
      */
-    public static TDigestState create(double compression, String executionHint) {
-        return switch (ExecutionHint.parse(executionHint)) {
+    public static TDigestState create(double compression, TDigestExecutionHint executionHint) {
+        return switch (executionHint) {
             case HIGH_ACCURACY -> createOptimizedForAccuracy(compression);
             case DEFAULT -> create(compression);
+            default -> throw new IllegalArgumentException(
+                "Unexpected TDigestExecutionHint in TDigestState initialization: " + executionHint
+            );
         };
     }
 
@@ -123,6 +101,7 @@ public class TDigestState {
             case AVL_TREE -> TDigest.createAvlTreeDigest(compression);
             case SORTING -> TDigest.createSortingDigest();
             case MERGING -> TDigest.createMergingDigest(compression);
+            default -> throw new IllegalArgumentException("Unexpected TDigestState type: " + type);
         };
         this.type = type;
         this.compression = compression;

@@ -64,6 +64,9 @@ public class HybridDigest extends AbstractTDigest {
      * @param compression The compression factor for the MergingDigest
      */
     HybridDigest(double compression) {
+        // The default maxSortingSize is calculated so that the SortingDigest will have comparable size with the MergingDigest
+        // at the point where implementations switch, e.g. for default compression 100 SortingDigest allocates ~16kB and MergingDigest
+        // allocates ~15kB.
         this(compression, Math.round(compression) * 20);
     }
 

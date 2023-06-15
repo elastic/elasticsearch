@@ -20,6 +20,7 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
 import org.elasticsearch.search.aggregations.metrics.PercentilesConfig;
+import org.elasticsearch.search.aggregations.metrics.TDigestExecutionHint;
 import org.elasticsearch.search.aggregations.metrics.TDigestState;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -36,7 +37,7 @@ abstract class AbstractHistoBackedTDigestPercentilesAggregator extends NumericMe
     protected final DocValueFormat formatter;
     protected ObjectArray<TDigestState> states;
     protected final double compression;
-    protected final String executionHint;
+    protected final TDigestExecutionHint executionHint;
     protected final boolean keyed;
 
     AbstractHistoBackedTDigestPercentilesAggregator(
@@ -46,7 +47,7 @@ abstract class AbstractHistoBackedTDigestPercentilesAggregator extends NumericMe
         Aggregator parent,
         double[] keys,
         double compression,
-        String executionHint,
+        TDigestExecutionHint executionHint,
         boolean keyed,
         DocValueFormat formatter,
         Map<String, Object> metadata

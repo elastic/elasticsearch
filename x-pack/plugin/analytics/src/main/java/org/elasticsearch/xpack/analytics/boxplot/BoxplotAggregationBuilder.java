@@ -14,7 +14,7 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.metrics.PercentilesMethod;
-import org.elasticsearch.search.aggregations.metrics.TDigestState;
+import org.elasticsearch.search.aggregations.metrics.TDigestExecutionHint;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
@@ -47,11 +47,11 @@ public class BoxplotAggregationBuilder extends ValuesSourceAggregationBuilder.Me
     static {
         ValuesSourceAggregationBuilder.declareFields(PARSER, true, true, false);
         PARSER.declareDouble(BoxplotAggregationBuilder::compression, COMPRESSION_FIELD);
-        PARSER.declareString(BoxplotAggregationBuilder::executionHint, EXECUTION_HINT_FIELD);
+        PARSER.declareString(BoxplotAggregationBuilder::parseExecutionHint, EXECUTION_HINT_FIELD);
     }
 
     private double compression = 100.0;
-    private String executionHint = "";
+    private TDigestExecutionHint executionHint = TDigestExecutionHint.DEFAULT;
 
     public BoxplotAggregationBuilder(String name) {
         super(name);
@@ -83,8 +83,8 @@ public class BoxplotAggregationBuilder extends ValuesSourceAggregationBuilder.Me
         super(in);
         compression = in.readDouble();
         executionHint = in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_012)
-            ? in.readString()
-            : TDigestState.ExecutionHint.HIGH_ACCURACY.toString();
+            ? TDigestExecutionHint.readFrom(in)
+            : TDigestExecutionHint.HIGH_ACCURACY;
     }
 
     @Override
@@ -96,7 +96,7 @@ public class BoxplotAggregationBuilder extends ValuesSourceAggregationBuilder.Me
     protected void innerWriteTo(StreamOutput out) throws IOException {
         out.writeDouble(compression);
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_012)) {
-            out.writeString(executionHint);
+            executionHint.writeTo(out);
         }
     }
 
@@ -119,8 +119,8 @@ public class BoxplotAggregationBuilder extends ValuesSourceAggregationBuilder.Me
         return this;
     }
 
-    public BoxplotAggregationBuilder executionHint(String executionHint) {
-        this.executionHint = executionHint;
+    public BoxplotAggregationBuilder parseExecutionHint(String executionHint) {
+        this.executionHint = TDigestExecutionHint.parse(executionHint);
         return this;
     }
 

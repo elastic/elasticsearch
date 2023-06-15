@@ -13,6 +13,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
+import org.elasticsearch.search.aggregations.metrics.TDigestExecutionHint;
 import org.elasticsearch.search.aggregations.metrics.TDigestState;
 import org.elasticsearch.tdigest.Centroid;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -179,7 +180,7 @@ public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValu
     static InternalBoxplot empty(
         String name,
         double compression,
-        String executionHint,
+        TDigestExecutionHint executionHint,
         DocValueFormat format,
         Map<String, Object> metadata
     ) {

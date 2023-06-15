@@ -118,6 +118,6 @@ public class PercentilesTests extends BaseAggregationTestCase<PercentilesAggrega
         assertEquals(PercentilesMethod.TDIGEST, parsed.percentilesConfig().getMethod());
         var tdigestConfig = (PercentilesConfig.TDigest) parsed.percentilesConfig();
         assertEquals(200.0, tdigestConfig.getCompression(), 0);
-        assertEquals(TDigestState.ExecutionHint.HIGH_ACCURACY, TDigestState.ExecutionHint.parse(tdigestConfig.getExecutionHint()));
+        assertEquals(TDigestExecutionHint.HIGH_ACCURACY, tdigestConfig.getExecutionHint());
     }
 }

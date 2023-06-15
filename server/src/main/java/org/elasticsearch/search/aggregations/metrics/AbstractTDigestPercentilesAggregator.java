@@ -32,7 +32,7 @@ abstract class AbstractTDigestPercentilesAggregator extends NumericMetricsAggreg
     protected final DocValueFormat formatter;
     protected ObjectArray<TDigestState> states;
     protected final double compression;
-    protected final String executionHint;
+    protected final TDigestExecutionHint executionHint;
     protected final boolean keyed;
 
     AbstractTDigestPercentilesAggregator(
@@ -42,7 +42,7 @@ abstract class AbstractTDigestPercentilesAggregator extends NumericMetricsAggreg
         Aggregator parent,
         double[] keys,
         double compression,
-        String executionHint,
+        TDigestExecutionHint executionHint,
         boolean keyed,
         DocValueFormat formatter,
         Map<String, Object> metadata

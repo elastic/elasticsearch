@@ -21,6 +21,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
+import org.elasticsearch.search.aggregations.metrics.TDigestExecutionHint;
 import org.elasticsearch.search.aggregations.metrics.TDigestState;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -36,14 +37,14 @@ public class BoxplotAggregator extends NumericMetricsAggregator.MultiValue {
     private final DocValueFormat format;
     protected ObjectArray<TDigestState> states;
     protected final double compression;
-    protected final String executionHint;
+    protected final TDigestExecutionHint executionHint;
 
     BoxplotAggregator(
         String name,
         ValuesSourceConfig config,
         DocValueFormat formatter,
         double compression,
-        String executionHint,
+        TDigestExecutionHint executionHint,
         AggregationContext context,
         Aggregator parent,
         Map<String, Object> metadata

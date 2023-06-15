@@ -20,7 +20,7 @@ public class MedianAbsoluteDeviationTests extends AbstractNumericMetricTestCase<
             builder.compression(randomDoubleBetween(0, 1000.0, false));
         }
         if (randomBoolean()) {
-            builder.executionHint(TDigestState.ExecutionHint.HIGH_ACCURACY.toString());
+            builder.parseExecutionHint(TDigestExecutionHint.HIGH_ACCURACY.toString());
         }
 
         if (randomBoolean()) {

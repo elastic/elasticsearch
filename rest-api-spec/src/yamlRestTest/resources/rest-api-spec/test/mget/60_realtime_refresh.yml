@@ -9,6 +9,11 @@
           settings:
             index:
               refresh_interval: -1
+              auto_expand_replicas: 0-1
+
+ - do:
+      cluster.health:
+          wait_for_status: green
 
  - do:
       index:

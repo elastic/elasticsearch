@@ -8,6 +8,11 @@ routing:
             index:
               number_of_shards: 5
               number_of_routing_shards: 5
+              auto_expand_replicas: 0-1
+
+  - do:
+      cluster.health:
+          wait_for_status: green
 
   - do:
       index:
@@ -46,9 +51,14 @@ requires routing:
           settings:
             index:
               number_of_shards: 5
+              auto_expand_replicas: 0-1
           mappings:
             _routing:
               required: true
+
+  - do:
+      cluster.health:
+        wait_for_status: green
 
   - do:
       index:

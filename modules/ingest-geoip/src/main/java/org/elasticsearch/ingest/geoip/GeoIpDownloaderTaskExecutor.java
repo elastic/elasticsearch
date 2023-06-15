@@ -255,7 +255,8 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
     /**
      * Retrieve list of pipelines that have at least one geoip processor.
      * @param clusterState Cluster state.
-     * @param downloadDatabaseOnPipelineCreation Filter the list to include only pipeline with the download_database_on_pipeline_creation matching the param.
+     * @param downloadDatabaseOnPipelineCreation Filter the list to include only pipeline with the download_database_on_pipeline_creation
+     *                                           matching the param.
      * @return A list of {@link PipelineConfiguration} matching criteria.
      */
     @SuppressWarnings("unchecked")

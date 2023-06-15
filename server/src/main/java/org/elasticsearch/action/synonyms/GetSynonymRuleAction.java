@@ -43,7 +43,7 @@ public class GetSynonymRuleAction extends ActionType<GetSynonymRuleAction.Respon
             this.synonymRuleId = in.readString();
         }
 
-        public Request(String synonymsSetId, String synonymRuleId) throws IOException {
+        public Request(String synonymsSetId, String synonymRuleId) {
             this.synonymsSetId = synonymsSetId;
             this.synonymRuleId = synonymRuleId;
         }
@@ -111,6 +111,19 @@ public class GetSynonymRuleAction extends ActionType<GetSynonymRuleAction.Respon
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             synonymRule.toXContent(builder, params);
             return builder;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Response response = (Response) o;
+            return Objects.equals(synonymRule, response.synonymRule);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(synonymRule);
         }
     }
 }

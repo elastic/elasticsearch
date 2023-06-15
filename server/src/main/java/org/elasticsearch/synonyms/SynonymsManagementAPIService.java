@@ -203,7 +203,7 @@ public class SynonymsManagementAPIService {
     }
 
     public void putSynonymsSet(String resourceName, SynonymRule[] synonymsSet, ActionListener<UpdateSynonymsResult> listener) {
-        deleteSynonymSetRules(resourceName, listener.delegateFailure((deleteByQueryResponseListener, bulkByScrollResponse) -> {
+        deleteSynonymsSetRules(resourceName, listener.delegateFailure((deleteByQueryResponseListener, bulkByScrollResponse) -> {
             boolean created = bulkByScrollResponse.getDeleted() == 0;
             final List<BulkItemResponse.Failure> bulkFailures = bulkByScrollResponse.getBulkFailures();
             if (bulkFailures.isEmpty() == false) {
@@ -239,10 +239,10 @@ public class SynonymsManagementAPIService {
         }));
     }
 
-    public void putSynonymRule(String synonymSetId, SynonymRule synonymRule, ActionListener<UpdateSynonymsResult> listener) {
-        checkSynonymSetExists(synonymSetId, listener.delegateFailure((l1, obj) -> {
+    public void putSynonymRule(String synonymsSetId, SynonymRule synonymRule, ActionListener<UpdateSynonymsResult> listener) {
+        checkSynonymSetExists(synonymsSetId, listener.delegateFailure((l1, obj) -> {
             try {
-                IndexRequest indexRequest = createSynonymRuleIndexRequest(synonymSetId, synonymRule).setRefreshPolicy(
+                IndexRequest indexRequest = createSynonymRuleIndexRequest(synonymsSetId, synonymRule).setRefreshPolicy(
                     WriteRequest.RefreshPolicy.IMMEDIATE
                 );
                 client.index(indexRequest, l1.delegateFailure((l2, indexResponse) -> {
@@ -274,14 +274,14 @@ public class SynonymsManagementAPIService {
         }
     }
 
-    private <T> void checkSynonymSetExists(String synonymSetId, ActionListener<T> listener) {
+    private <T> void checkSynonymSetExists(String synonymsSetId, ActionListener<T> listener) {
         client.prepareSearch(SYNONYMS_ALIAS_NAME)
-            .setQuery(QueryBuilders.termQuery(SYNONYMS_SET_FIELD, synonymSetId))
+            .setQuery(QueryBuilders.termQuery(SYNONYMS_SET_FIELD, synonymsSetId))
             .setSize(1)
             .setPreference(Preference.LOCAL.type())
-            .execute(new DelegatingIndexNotFoundActionListener<>(synonymSetId, listener, (l, searchResponse) -> {
+            .execute(new DelegatingIndexNotFoundActionListener<>(synonymsSetId, listener, (l, searchResponse) -> {
                 if (searchResponse.getHits().getTotalHits().value == 0) {
-                    l.onFailure(new ResourceNotFoundException("Synonym set [" + synonymSetId + "] not found"));
+                    l.onFailure(new ResourceNotFoundException("Synonym set [" + synonymsSetId + "] not found"));
                     return;
                 }
                 l.onResponse(null);
@@ -289,7 +289,7 @@ public class SynonymsManagementAPIService {
     }
 
     // Deletes a synonym set rules, using the supplied listener
-    private void deleteSynonymSetRules(String resourceName, ActionListener<BulkByScrollResponse> listener) {
+    private void deleteSynonymsSetRules(String resourceName, ActionListener<BulkByScrollResponse> listener) {
         // Delete synonyms set if it existed previously. Avoid catching an index not found error by ignoring unavailable indices
         DeleteByQueryRequest dbqRequest = new DeleteByQueryRequest(SYNONYMS_ALIAS_NAME).setQuery(
             QueryBuilders.termQuery(SYNONYMS_SET_FIELD, resourceName)
@@ -299,7 +299,7 @@ public class SynonymsManagementAPIService {
     }
 
     public void deleteSynonymsSet(String resourceName, ActionListener<AcknowledgedResponse> listener) {
-        deleteSynonymSetRules(resourceName, listener.delegateFailure((l, bulkByScrollResponse) -> {
+        deleteSynonymsSetRules(resourceName, listener.delegateFailure((l, bulkByScrollResponse) -> {
             if (bulkByScrollResponse.getDeleted() == 0) {
                 // If nothing was deleted, synonym set did not exist
                 l.onFailure(new ResourceNotFoundException("Synonym set [" + resourceName + "] not found"));
@@ -322,12 +322,12 @@ public class SynonymsManagementAPIService {
 
     // Retrieves the internal synonym rule ID to store it in the index. As the same synonym rule ID
     // can be used in different synonym sets, we prefix the ID with the synonym set to avoid collisions
-    private static String internalSynonymRuleId(String synonymSetId, SynonymRule synonymRule) {
+    private static String internalSynonymRuleId(String synonymsSetId, SynonymRule synonymRule) {
         String synonymRuleId = synonymRule.id();
         if (synonymRuleId == null) {
             synonymRuleId = UUIDs.base64UUID();
         }
-        final String id = synonymSetId + SYNONYM_RULE_ID_SEPARATOR + synonymRuleId;
+        final String id = synonymsSetId + SYNONYM_RULE_ID_SEPARATOR + synonymRuleId;
         return id;
     }
 

@@ -32,6 +32,7 @@ admin:
 user:
   cluster:
     - post_behavioral_analytics_event
+    - manage_api_key
   indices:
     - names: [
       "test-search-application",

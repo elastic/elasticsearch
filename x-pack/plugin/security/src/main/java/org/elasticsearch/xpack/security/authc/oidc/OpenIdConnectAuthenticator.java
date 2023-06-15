@@ -202,7 +202,6 @@ public class OpenIdConnectAuthenticator {
      */
     public void authenticate(OpenIdConnectToken token, final ActionListener<JWTClaimsSet> listener) {
         try {
-
             AuthenticationResponse authenticationResponse = AuthenticationResponseParser.parse(new URI(token.getRedirectUrl()));
             final Nonce expectedNonce = token.getNonce();
             State expectedState = token.getState();

@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.security.authc.oidc;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import com.nimbusds.jwt.JWT;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.oauth2.sdk.id.State;
@@ -367,7 +366,6 @@ public class OpenIdConnectRealmTests extends OpenIdConnectTestCase {
         assertThat(parameters, hasKey("state"));
     }
 
-    @Repeat(iterations = 100)
     public void testBuildLogoutResponseFromEndsessionEndpointWithExistingParameters() throws Exception {
         final Settings.Builder realmSettingsWithFunkyEndpoint = getBasicRealmSettings();
         realmSettingsWithFunkyEndpoint.put(

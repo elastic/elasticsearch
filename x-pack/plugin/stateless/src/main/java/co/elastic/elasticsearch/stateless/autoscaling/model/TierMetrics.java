@@ -26,21 +26,19 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Map;
 
-public class TierMetrics implements ToXContentObject, Writeable {
+public record TierMetrics(Map<String, Metric> metrics) implements ToXContentObject, Writeable {
 
-    private final Map<String, Object> metrics;
-
-    public TierMetrics(Map<String, Object> metrics) {
-        this.metrics = metrics;
+    public TierMetrics(Map<String, Metric> metrics) {
+        this.metrics = Map.copyOf(metrics);
     }
 
     public TierMetrics(StreamInput input) throws IOException {
-        this(input.readMap(StreamInput::readString, StreamInput::readGenericValue));
+        this(input.readImmutableMap(StreamInput::readString, Metric::readFrom));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(metrics, StreamOutput::writeString, StreamOutput::writeGenericValue);
+        out.writeMap(metrics, StreamOutput::writeString, StreamOutput::writeWriteable);
     }
 
     @Override

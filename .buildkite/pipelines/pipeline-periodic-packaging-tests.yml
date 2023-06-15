@@ -34,7 +34,6 @@ steps:
           provider: gcp
           image: "{{matrix.image}}"
           imageProject: elastic-images-qa
-          buildDirectory: /dev/shm/bk
           machineType: custom-16-32768
         env: {}
   - group: packaging-tests-upgrade

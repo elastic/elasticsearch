@@ -199,12 +199,11 @@ public class TDigestState {
     }
 
     /*
-     * Expose the parts of the TDigest API that are used in the ES codebase. Refer to the TDigest API documentation for each.
+     * Expose the parts of the {@link org.elasticsearch.tdigest.TDigest} API that are used in the ES codebase. Refer to the TDigest
+     * API documentation for each method below.
      */
 
-    public void add(TDigestState other) {
-        tdigest.add(other.tdigest);
-    }
+    public void add(TDigestState other) { tdigest.add(other.tdigest); }
 
     public void add(double x, int w) {
         tdigest.add(x, w);

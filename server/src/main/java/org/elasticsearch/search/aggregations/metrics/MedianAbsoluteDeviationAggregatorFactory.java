@@ -25,7 +25,7 @@ public class MedianAbsoluteDeviationAggregatorFactory extends ValuesSourceAggreg
 
     private final MedianAbsoluteDeviationAggregatorSupplier aggregatorSupplier;
     private final double compression;
-    private final String executionHint;
+    private final TDigestExecutionHint executionHint;
 
     MedianAbsoluteDeviationAggregatorFactory(
         String name,
@@ -35,7 +35,7 @@ public class MedianAbsoluteDeviationAggregatorFactory extends ValuesSourceAggreg
         AggregatorFactories.Builder subFactoriesBuilder,
         Map<String, Object> metadata,
         double compression,
-        String executionHint,
+        TDigestExecutionHint executionHint,
         MedianAbsoluteDeviationAggregatorSupplier aggregatorSupplier
     ) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metadata);

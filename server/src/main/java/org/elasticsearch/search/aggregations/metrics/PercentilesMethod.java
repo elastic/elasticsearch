@@ -48,7 +48,7 @@ public enum PercentilesMethod implements Writeable {
     static {
         TDIGEST_PARSER = new ObjectParser<>(PercentilesMethod.TDIGEST.getParseField().getPreferredName(), PercentilesConfig.TDigest::new);
         TDIGEST_PARSER.declareDouble(PercentilesConfig.TDigest::setCompression, COMPRESSION_FIELD);
-        TDIGEST_PARSER.declareString(PercentilesConfig.TDigest::setExecutionHint, EXECUTION_HINT_FIELD);
+        TDIGEST_PARSER.declareString(PercentilesConfig.TDigest::parseExecutionHint, EXECUTION_HINT_FIELD);
     }
 
     public static final ObjectParser<PercentilesConfig.Hdr, String> HDR_PARSER;

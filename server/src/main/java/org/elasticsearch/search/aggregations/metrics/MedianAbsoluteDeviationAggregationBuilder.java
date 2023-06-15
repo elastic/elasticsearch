@@ -46,7 +46,7 @@ public class MedianAbsoluteDeviationAggregationBuilder extends SingleMetricAggre
     static {
         ValuesSourceAggregationBuilder.declareFields(PARSER, true, true, false);
         PARSER.declareDouble(MedianAbsoluteDeviationAggregationBuilder::compression, COMPRESSION_FIELD);
-        PARSER.declareString(MedianAbsoluteDeviationAggregationBuilder::executionHint, EXECUTION_HINT_FIELD);
+        PARSER.declareString(MedianAbsoluteDeviationAggregationBuilder::parseExecutionHint, EXECUTION_HINT_FIELD);
     }
 
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
@@ -54,7 +54,7 @@ public class MedianAbsoluteDeviationAggregationBuilder extends SingleMetricAggre
     }
 
     private double compression = 1000d;
-    private String executionHint = "";
+    private TDigestExecutionHint executionHint = TDigestExecutionHint.DEFAULT;
 
     public MedianAbsoluteDeviationAggregationBuilder(String name) {
         super(name);
@@ -64,8 +64,8 @@ public class MedianAbsoluteDeviationAggregationBuilder extends SingleMetricAggre
         super(in);
         compression = in.readDouble();
         executionHint = in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_012)
-            ? in.readString()
-            : TDigestState.ExecutionHint.HIGH_ACCURACY.toString();
+            ? TDigestExecutionHint.readFrom(in)
+            : TDigestExecutionHint.HIGH_ACCURACY;
     }
 
     protected MedianAbsoluteDeviationAggregationBuilder(
@@ -101,8 +101,8 @@ public class MedianAbsoluteDeviationAggregationBuilder extends SingleMetricAggre
     /**
      * Use a version of t-digest that's optimized for accuracy, not performance.
      */
-    public MedianAbsoluteDeviationAggregationBuilder executionHint(String executionHint) {
-        this.executionHint = executionHint;
+    public MedianAbsoluteDeviationAggregationBuilder parseExecutionHint(String executionHint) {
+        this.executionHint = TDigestExecutionHint.parse(executionHint);
         return this;
     }
 
@@ -125,7 +125,7 @@ public class MedianAbsoluteDeviationAggregationBuilder extends SingleMetricAggre
     protected void innerWriteTo(StreamOutput out) throws IOException {
         out.writeDouble(compression);
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_012)) {
-            out.writeString(executionHint);
+            executionHint.writeTo(out);
         }
     }
 

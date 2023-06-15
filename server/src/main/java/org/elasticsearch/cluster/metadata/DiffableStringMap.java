@@ -89,7 +89,7 @@ public class DiffableStringMap extends AbstractMap<String, String> implements Di
 
     public static Diff<DiffableStringMap> readDiffFrom(StreamInput in) throws IOException {
         final List<String> deletes = in.readStringList();
-        final Map<String, String> upserts = in.readMap(StreamInput::readString, StreamInput::readString);
+        final Map<String, String> upserts = in.readMap(StreamInput::readString);
         return getDiff(deletes, upserts);
     }
 

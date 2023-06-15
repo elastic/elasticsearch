@@ -45,7 +45,7 @@ public class InternalTDigestPercentileRanks extends AbstractInternalTDigestPerce
         String name,
         double[] keys,
         double compression,
-        String executionHint,
+        TDigestExecutionHint executionHint,
         boolean keyed,
         DocValueFormat format,
         Map<String, Object> metadata

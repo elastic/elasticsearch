@@ -40,9 +40,9 @@ public class HasPrivilegesResponse extends ActionResponse implements ToXContentO
     public HasPrivilegesResponse(StreamInput in) throws IOException {
         super(in);
         completeMatch = in.readBoolean();
-        cluster = in.readMap(StreamInput::readString, StreamInput::readBoolean);
+        cluster = in.readMap(StreamInput::readBoolean);
         index = readResourcePrivileges(in);
-        application = in.readMap(StreamInput::readString, HasPrivilegesResponse::readResourcePrivileges);
+        application = in.readMap(HasPrivilegesResponse::readResourcePrivileges);
         username = in.readString();
     }
 
@@ -119,7 +119,7 @@ public class HasPrivilegesResponse extends ActionResponse implements ToXContentO
         final Set<ResourcePrivileges> set = new TreeSet<>(Comparator.comparing(o -> o.getResource()));
         for (int i = 0; i < count; i++) {
             final String index = in.readString();
-            final Map<String, Boolean> privileges = in.readMap(StreamInput::readString, StreamInput::readBoolean);
+            final Map<String, Boolean> privileges = in.readMap(StreamInput::readBoolean);
             set.add(ResourcePrivileges.builder(index).addPrivileges(privileges).build());
         }
         return set;

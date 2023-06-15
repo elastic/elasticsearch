@@ -42,7 +42,7 @@ public class TDigestPercentilesAggregatorTests extends AggregatorTestCase {
             tdigestConfig.setCompression(randomDoubleBetween(50, 200, true));
         }
         if (randomBoolean()) {
-            tdigestConfig.setExecutionHint(TDigestState.ExecutionHint.HIGH_ACCURACY.toString());
+            tdigestConfig.parseExecutionHint(randomFrom(TDigestExecutionHint.values()).toString());
         }
         return new PercentilesAggregationBuilder("tdist_percentiles").field(fieldName).percentilesConfig(tdigestConfig);
     }

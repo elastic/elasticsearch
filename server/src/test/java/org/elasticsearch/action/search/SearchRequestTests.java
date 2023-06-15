@@ -246,7 +246,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             ActionRequestValidationException validationErrors = searchRequest.validate();
             assertNotNull(validationErrors);
             assertEquals(1, validationErrors.validationErrors().size());
-            assertEquals("[queries] requires [rank]", validationErrors.validationErrors().get(0));
+            assertEquals("[sub_searches] requires [rank]", validationErrors.validationErrors().get(0));
         }
         {
             // Rescore is not allowed on scroll requests
@@ -331,7 +331,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             assertNotNull(validationErrors);
             assertEquals(validationErrors.validationErrors().toString(), 1, validationErrors.validationErrors().size());
             assertEquals(
-                "[rank] requires a minimum of [2] result sets using a combination of queries and/or knn searches",
+                "[rank] requires a minimum of [2] result sets using a combination of sub searches and/or knn searches",
                 validationErrors.validationErrors().get(0)
             );
         }

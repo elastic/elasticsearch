@@ -25,48 +25,50 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.List;
 import java.util.Objects;
 
-public class PutSynonymsAction extends ActionType<SynonymUpdateResponse> {
+public class PutSynonymRuleAction extends ActionType<SynonymUpdateResponse> {
 
-    public static final PutSynonymsAction INSTANCE = new PutSynonymsAction();
-    public static final String NAME = "cluster:admin/synonyms/put";
+    public static final PutSynonymRuleAction INSTANCE = new PutSynonymRuleAction();
+    public static final String NAME = "cluster:admin/synonym_rules/put";
 
-    public PutSynonymsAction() {
+    public PutSynonymRuleAction() {
         super(NAME, SynonymUpdateResponse::new);
     }
 
     public static class Request extends ActionRequest {
         private final String synonymsSetId;
-        private final SynonymRule[] synonymRules;
 
-        public static final ParseField SYNONYMS_SET_FIELD = new ParseField(SynonymsManagementAPIService.SYNONYMS_SET_FIELD);
-        private static final ConstructingObjectParser<SynonymRule[], Void> PARSER = new ConstructingObjectParser<>("synonyms_set", args -> {
-            @SuppressWarnings("unchecked")
-            final List<SynonymRule> synonyms = (List<SynonymRule>) args[0];
-            return synonyms.toArray(new SynonymRule[synonyms.size()]);
-        });
+        private final SynonymRule synonymRule;
+
+        public static final ParseField SYNONYMS_FIELD = new ParseField(SynonymsManagementAPIService.SYNONYMS_FIELD);
+        private static final ConstructingObjectParser<SynonymRule, String> PARSER = new ConstructingObjectParser<>(
+            "synonyms",
+            false,
+            (params, synonymRuleId) -> new SynonymRule(synonymRuleId, (String) params[0])
+        );
 
         static {
-            PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> SynonymRule.fromXContent(p), SYNONYMS_SET_FIELD);
+            PARSER.declareString(ConstructingObjectParser.constructorArg(), SYNONYMS_FIELD);
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
             this.synonymsSetId = in.readString();
-            this.synonymRules = in.readArray(SynonymRule::new, SynonymRule[]::new);
+            this.synonymRule = new SynonymRule(in);
         }
 
-        public Request(String synonymsSetId, BytesReference content, XContentType contentType) throws IOException {
+        public Request(String synonymsSetId, String synonymRuleId, BytesReference content, XContentType contentType) throws IOException {
             this.synonymsSetId = synonymsSetId;
-            this.synonymRules = PARSER.apply(XContentHelper.createParser(XContentParserConfiguration.EMPTY, content, contentType), null);
+            this.synonymRule = PARSER.apply(
+                XContentHelper.createParser(XContentParserConfiguration.EMPTY, content, contentType),
+                synonymRuleId
+            );
         }
 
-        Request(String synonymsSetId, SynonymRule[] synonymRules) {
+        Request(String synonymsSetId, SynonymRule synonymRule) {
             this.synonymsSetId = synonymsSetId;
-            this.synonymRules = synonymRules;
+            this.synonymRule = synonymRule;
         }
 
         @Override
@@ -75,12 +77,14 @@ public class PutSynonymsAction extends ActionType<SynonymUpdateResponse> {
             if (Strings.isEmpty(synonymsSetId)) {
                 validationException = ValidateActions.addValidationError("synonyms set must be specified", validationException);
             }
-            for (SynonymRule synonymRule : synonymRules) {
-                String error = synonymRule.validate();
-                if (error != null) {
-                    validationException = ValidateActions.addValidationError(error, validationException);
-                }
+            if (Strings.isNullOrEmpty(synonymRule.id())) {
+                validationException = ValidateActions.addValidationError("synonym rule id must be specified", validationException);
             }
+            String error = synonymRule.validate();
+            if (error != null) {
+                validationException = ValidateActions.addValidationError(error, validationException);
+            }
+
             return validationException;
         }
 
@@ -88,15 +92,15 @@ public class PutSynonymsAction extends ActionType<SynonymUpdateResponse> {
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(synonymsSetId);
-            out.writeArray(synonymRules);
+            synonymRule.writeTo(out);
         }
 
         public String synonymsSetId() {
             return synonymsSetId;
         }
 
-        public SynonymRule[] synonymRules() {
-            return synonymRules;
+        public SynonymRule synonymRule() {
+            return synonymRule;
         }
 
         @Override
@@ -104,12 +108,12 @@ public class PutSynonymsAction extends ActionType<SynonymUpdateResponse> {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Objects.equals(synonymsSetId, request.synonymsSetId) && Arrays.equals(synonymRules, request.synonymRules);
+            return Objects.equals(synonymsSetId, request.synonymsSetId) && Objects.equals(synonymRule, request.synonymRule);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(synonymsSetId, Arrays.hashCode(synonymRules));
+            return Objects.hash(synonymsSetId, synonymRule);
         }
     }
 }

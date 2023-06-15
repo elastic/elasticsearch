@@ -53,7 +53,7 @@ public class BoxplotAggregatorFactory extends ValuesSourceAggregatorFactory {
     ) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metadata);
         this.compression = compression;
-        this.executionHint = (executionHint.isEmpty() && context != null && context.getClusterSettings() != null)
+        this.executionHint = (executionHint.isEmpty() && context.getClusterSettings() != null)
             ? context.getClusterSettings().get(TDigestState.EXECUTION_HINT) : executionHint;
         this.aggregatorSupplier = aggregatorSupplier;
     }

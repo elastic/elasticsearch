@@ -53,7 +53,7 @@ import java.util.TreeMap;
  * Each transport version should only be used in a single merged commit (apart from BwC versions copied from {@link Version}).
  * <p>
  * To add a new transport version, add a new constant at the bottom of the list that is one greater than the current highest version,
- * ensure it has a unique id, and update the {@link #CURRENT} constant to point to the new version.
+ * ensure it has a unique id, and update the {@link CurrentHolder#CURRENT} constant to point to the new version.
  * <h2>Reverting a transport version</h2>
  * If you revert a commit with a transport version change, you <em>must</em> ensure there is a <em>new</em> transport version
  * representing the reverted change. <em>Do not</em> let the transport version go backwards, it must <em>always</em> be incremented.
@@ -135,8 +135,20 @@ public record TransportVersion(int id) implements Comparable<TransportVersion> {
     public static final TransportVersion V_8_500_009 = registerTransportVersion(8_500_009, "35091358-fd41-4106-a6e2-d2a1315494c1");
     public static final TransportVersion V_8_500_010 = registerTransportVersion(8_500_010, "9818C628-1EEC-439B-B943-468F61460675");
     public static final TransportVersion V_8_500_011 = registerTransportVersion(8_500_011, "2209F28D-B52E-4BC4-9889-E780F291C32E");
+    public static final TransportVersion V_8_500_012 = registerTransportVersion(8_500_012, "BB6F4AF1-A860-4FD4-A138-8150FFBE0ABD");
 
-    private static final TransportVersion CURRENT = findCurrent(V_8_500_011);
+    private static class CurrentHolder {
+        private static final TransportVersion CURRENT = findCurrent(V_8_500_012);
+
+        // finds the pluggable current version, or uses the given fallback
+        private static TransportVersion findCurrent(TransportVersion fallback) {
+            var versionExtension = VersionExtension.load();
+            if (versionExtension == null) {
+                return fallback;
+            }
+            return new TransportVersion(versionExtension.getCurrentTransportVersionId());
+        }
+    }
 
     /**
      * Reference to the earliest compatible transport version to this version of the codebase.
@@ -244,7 +256,7 @@ public record TransportVersion(int id) implements Comparable<TransportVersion> {
      * This should be the transport version with the highest id.
      */
     public static TransportVersion current() {
-        return CURRENT;
+        return CurrentHolder.CURRENT;
     }
 
     public boolean after(TransportVersion version) {
@@ -270,15 +282,6 @@ public record TransportVersion(int id) implements Comparable<TransportVersion> {
 
     public static TransportVersion fromString(String str) {
         return TransportVersion.fromId(Integer.parseInt(str));
-    }
-
-    // finds the pluggable current version, or uses the given fallback
-    private static TransportVersion findCurrent(TransportVersion fallback) {
-        var versionExtension = VersionExtension.load();
-        if (versionExtension == null) {
-            return fallback;
-        }
-        return new TransportVersion(versionExtension.getCurrentTransportVersionId());
     }
 
     @Override

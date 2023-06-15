@@ -59,7 +59,7 @@ public class ComponentTemplateMetadata implements Metadata.Custom {
     }
 
     public ComponentTemplateMetadata(StreamInput in) throws IOException {
-        this.componentTemplates = in.readMap(StreamInput::readString, ComponentTemplate::new);
+        this.componentTemplates = in.readMap(ComponentTemplate::new);
     }
 
     public Map<String, ComponentTemplate> componentTemplates() {

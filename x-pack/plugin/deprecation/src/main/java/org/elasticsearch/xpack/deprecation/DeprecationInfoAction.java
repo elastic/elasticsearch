@@ -153,13 +153,13 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
             super(in);
             clusterSettingsIssues = in.readList(DeprecationIssue::new);
             nodeSettingsIssues = in.readList(DeprecationIssue::new);
-            indexSettingsIssues = in.readMapOfLists(StreamInput::readString, DeprecationIssue::new);
+            indexSettingsIssues = in.readMapOfLists(DeprecationIssue::new);
             if (in.getTransportVersion().before(TransportVersion.V_7_11_0)) {
                 List<DeprecationIssue> mlIssues = in.readList(DeprecationIssue::new);
                 pluginSettingsIssues = new HashMap<>();
                 pluginSettingsIssues.put("ml_settings", mlIssues);
             } else {
-                pluginSettingsIssues = in.readMapOfLists(StreamInput::readString, DeprecationIssue::new);
+                pluginSettingsIssues = in.readMapOfLists(DeprecationIssue::new);
             }
         }
 

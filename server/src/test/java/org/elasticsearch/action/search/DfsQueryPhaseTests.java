@@ -316,9 +316,9 @@ public class DfsQueryPhaseTests extends ESTestCase {
         assertEquals(
             List.of(bm25, ksdqb0, ksdqb1),
             List.of(
-                ssr.source().queries().get(0).getQueryBuilder(),
-                ssr.source().queries().get(1).getQueryBuilder(),
-                ssr.source().queries().get(2).getQueryBuilder()
+                ssr.source().subSearches().get(0).getQueryBuilder(),
+                ssr.source().subSearches().get(1).getQueryBuilder(),
+                ssr.source().subSearches().get(2).getQueryBuilder()
             )
         );
     }

@@ -102,7 +102,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             // tests version prior to 8.8 so remove possible rank builder
             searchRequest.source().rankBuilder(null);
             // tests version prior to 8_500_999 so remove possible multiple queries
-            searchRequest.source().queries(new ArrayList<>());
+            searchRequest.source().subSearches(new ArrayList<>());
         }
         searchRequest.source()
             .knnSearch(
@@ -155,7 +155,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         }
         if (version.before(TransportVersion.V_8_500_999) && searchRequest.source() != null) {
             // Versions before 8_500_999 don't support queries
-            searchRequest.source().queries(new ArrayList<>());
+            searchRequest.source().subSearches(new ArrayList<>());
         }
         SearchRequest deserializedRequest = copyWriteable(searchRequest, namedWriteableRegistry, SearchRequest::new, version);
         assertEquals(searchRequest.isCcsMinimizeRoundtrips(), deserializedRequest.isCcsMinimizeRoundtrips());
@@ -237,7 +237,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
                 searchRequest.requestCache(false);
             }
             searchRequest.source()
-                .queries(
+                .subSearches(
                     List.of(
                         new SubSearchSourceBuilder(new TermQueryBuilder("three", "four")),
                         new SubSearchSourceBuilder(new TermQueryBuilder("five", "six"))

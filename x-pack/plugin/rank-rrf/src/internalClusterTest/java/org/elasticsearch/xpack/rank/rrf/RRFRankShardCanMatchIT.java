@@ -154,7 +154,7 @@ public class RRFRankShardCanMatchIT extends ESIntegTestCase {
             .setPreFilterShardSize(1)
             .setRankBuilder(new RRFRankBuilder(20, 1))
             .setTrackTotalHits(false)
-            .setQueries(
+            .setSubSearches(
                 List.of(
                     new SubSearchSourceBuilder(new SkipShardPlugin.SkipShardQueryBuilder(shardA, shardB, "value", "9")),
                     new SubSearchSourceBuilder(new SkipShardPlugin.SkipShardQueryBuilder(shardA, shardB, "value", "19"))
@@ -174,7 +174,7 @@ public class RRFRankShardCanMatchIT extends ESIntegTestCase {
             .setPreFilterShardSize(1)
             .setRankBuilder(new RRFRankBuilder(20, 1))
             .setTrackTotalHits(false)
-            .setQueries(
+            .setSubSearches(
                 List.of(
                     new SubSearchSourceBuilder(new SkipShardPlugin.SkipShardQueryBuilder(shardA, shardB, "value", "30")),
                     new SubSearchSourceBuilder(new SkipShardPlugin.SkipShardQueryBuilder(shardA, shardB, "value", "19"))
@@ -194,7 +194,7 @@ public class RRFRankShardCanMatchIT extends ESIntegTestCase {
             .setPreFilterShardSize(1)
             .setRankBuilder(new RRFRankBuilder(20, 1))
             .setTrackTotalHits(false)
-            .setQueries(
+            .setSubSearches(
                 List.of(
                     new SubSearchSourceBuilder(new SkipShardPlugin.SkipShardQueryBuilder(shardA, shardB, "value", "30")),
                     new SubSearchSourceBuilder(new SkipShardPlugin.SkipShardQueryBuilder(shardA, shardB, "value", "40"))
@@ -214,7 +214,7 @@ public class RRFRankShardCanMatchIT extends ESIntegTestCase {
             .setPreFilterShardSize(1)
             .setRankBuilder(new RRFRankBuilder(20, 1))
             .setTrackTotalHits(false)
-            .setQueries(
+            .setSubSearches(
                 List.of(
                     new SubSearchSourceBuilder(new SkipShardPlugin.SkipShardQueryBuilder(shardA, shardB, "value", "15")),
                     new SubSearchSourceBuilder(new SkipShardPlugin.SkipShardQueryBuilder(shardA, shardB, "value", "16"))
@@ -234,7 +234,7 @@ public class RRFRankShardCanMatchIT extends ESIntegTestCase {
             .setPreFilterShardSize(1)
             .setRankBuilder(new RRFRankBuilder(20, 1))
             .setTrackTotalHits(false)
-            .setQueries(
+            .setSubSearches(
                 List.of(
                     new SubSearchSourceBuilder(new SkipShardPlugin.SkipShardQueryBuilder(shardA, shardB, "value", "8")),
                     new SubSearchSourceBuilder(new SkipShardPlugin.SkipShardQueryBuilder(shardA, shardB, "value", "8"))

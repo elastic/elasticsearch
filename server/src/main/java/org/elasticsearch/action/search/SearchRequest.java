@@ -359,7 +359,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             }
         }
         if (source != null) {
-            if (source.queries().size() >= 2 && source.rankBuilder() == null) {
+            if (source.subSearches().size() >= 2 && source.rankBuilder() == null) {
                 validationException = addValidationError("[queries] requires [rank]", validationException);
             }
             if (source.aggregations() != null) {
@@ -381,7 +381,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
                         validationException
                     );
                 }
-                int queryCount = source.queries().size() + source.knnSearch().size();
+                int queryCount = source.subSearches().size() + source.knnSearch().size();
                 if (queryCount < 2) {
                     validationException = addValidationError(
                         "[rank] requires a minimum of [2] result sets using a combination of queries and/or knn searches",

@@ -551,7 +551,7 @@ public class RRFRankMultiShardIT extends ESIntegTestCase {
                 .setSearchType(searchType)
                 .setRankBuilder(new RRFRankBuilder(8, 1))
                 .setTrackTotalHits(false)
-                .setQueries(
+                .setSubSearches(
                     List.of(
                         new SubSearchSourceBuilder(
                             QueryBuilders.boolQuery()
@@ -621,7 +621,7 @@ public class RRFRankMultiShardIT extends ESIntegTestCase {
                 .setSearchType(searchType)
                 .setRankBuilder(new RRFRankBuilder(8, 1))
                 .setTrackTotalHits(false)
-                .setQueries(
+                .setSubSearches(
                     List.of(
                         new SubSearchSourceBuilder(
                             QueryBuilders.boolQuery()
@@ -708,7 +708,7 @@ public class RRFRankMultiShardIT extends ESIntegTestCase {
             .setRankBuilder(new RRFRankBuilder(101, 1))
             .setTrackTotalHits(false)
             .setKnnSearch(List.of(knnSearch))
-            .setQueries(
+            .setSubSearches(
                 List.of(
                     new SubSearchSourceBuilder(
                         QueryBuilders.boolQuery()
@@ -765,7 +765,7 @@ public class RRFRankMultiShardIT extends ESIntegTestCase {
             .setRankBuilder(new RRFRankBuilder(101, 1))
             .setTrackTotalHits(false)
             .setKnnSearch(List.of(knnSearch))
-            .setQueries(
+            .setSubSearches(
                 List.of(
                     new SubSearchSourceBuilder(
                         QueryBuilders.boolQuery()
@@ -840,7 +840,7 @@ public class RRFRankMultiShardIT extends ESIntegTestCase {
             .setRankBuilder(new RRFRankBuilder(101, 1))
             .setTrackTotalHits(false)
             .setKnnSearch(List.of(knnSearchAsc, knnSearchDesc))
-            .setQueries(
+            .setSubSearches(
                 List.of(
                     new SubSearchSourceBuilder(
                         QueryBuilders.boolQuery()
@@ -901,7 +901,7 @@ public class RRFRankMultiShardIT extends ESIntegTestCase {
             .setRankBuilder(new RRFRankBuilder(101, 1))
             .setTrackTotalHits(false)
             .setKnnSearch(List.of(knnSearchAsc, knnSearchDesc))
-            .setQueries(
+            .setSubSearches(
                 List.of(
                     new SubSearchSourceBuilder(
                         QueryBuilders.boolQuery()

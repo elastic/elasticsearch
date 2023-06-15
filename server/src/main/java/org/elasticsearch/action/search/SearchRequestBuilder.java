@@ -167,10 +167,10 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
-     * Constructs a new search source builder with a list of search queries.
+     * Constructs a new search source builder with a list of sub searches.
      */
-    public SearchRequestBuilder setQueries(List<SubSearchSourceBuilder> queries) {
-        sourceBuilder().queries(queries);
+    public SearchRequestBuilder setSubSearches(List<SubSearchSourceBuilder> subSearches) {
+        sourceBuilder().subSearches(subSearches);
         return this;
     }
 

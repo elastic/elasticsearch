@@ -140,7 +140,7 @@ public class RRFRankCoordinatorCanMatchIT extends ESIntegTestCase {
             .setPreFilterShardSize(1)
             .setRankBuilder(new RRFRankBuilder(20, 1))
             .setTrackTotalHits(false)
-            .setQueries(
+            .setSubSearches(
                 List.of(
                     new SubSearchSourceBuilder(QueryBuilders.rangeQuery("@timestamp").gt(495).lte(499)),
                     new SubSearchSourceBuilder(QueryBuilders.rangeQuery("@timestamp").gte(500).lt(505))
@@ -160,7 +160,7 @@ public class RRFRankCoordinatorCanMatchIT extends ESIntegTestCase {
             .setPreFilterShardSize(1)
             .setRankBuilder(new RRFRankBuilder(20, 1))
             .setTrackTotalHits(false)
-            .setQueries(
+            .setSubSearches(
                 List.of(
                     new SubSearchSourceBuilder(QueryBuilders.rangeQuery("@timestamp").gt(495).lte(505)),
                     new SubSearchSourceBuilder(QueryBuilders.rangeQuery("@timestamp").gte(497).lt(507))
@@ -180,7 +180,7 @@ public class RRFRankCoordinatorCanMatchIT extends ESIntegTestCase {
             .setPreFilterShardSize(1)
             .setRankBuilder(new RRFRankBuilder(20, 1))
             .setTrackTotalHits(false)
-            .setQueries(
+            .setSubSearches(
                 List.of(
                     new SubSearchSourceBuilder(QueryBuilders.rangeQuery("@timestamp").gt(501).lte(505)),
                     new SubSearchSourceBuilder(QueryBuilders.rangeQuery("@timestamp").gte(10000).lt(10005))
@@ -200,7 +200,7 @@ public class RRFRankCoordinatorCanMatchIT extends ESIntegTestCase {
             .setPreFilterShardSize(1)
             .setRankBuilder(new RRFRankBuilder(20, 1))
             .setTrackTotalHits(false)
-            .setQueries(
+            .setSubSearches(
                 List.of(
                     new SubSearchSourceBuilder(QueryBuilders.rangeQuery("@timestamp").gt(4000).lte(5000)),
                     new SubSearchSourceBuilder(QueryBuilders.rangeQuery("@timestamp").gte(10000).lt(10005))
@@ -220,7 +220,7 @@ public class RRFRankCoordinatorCanMatchIT extends ESIntegTestCase {
             .setPreFilterShardSize(1)
             .setRankBuilder(new RRFRankBuilder(20, 1))
             .setTrackTotalHits(false)
-            .setQueries(
+            .setSubSearches(
                 List.of(
                     new SubSearchSourceBuilder(QueryBuilders.rangeQuery("@timestamp").gt(600).lte(605)),
                     new SubSearchSourceBuilder(QueryBuilders.rangeQuery("@timestamp").gte(700).lt(705))
@@ -240,7 +240,7 @@ public class RRFRankCoordinatorCanMatchIT extends ESIntegTestCase {
             .setPreFilterShardSize(1)
             .setRankBuilder(new RRFRankBuilder(20, 1))
             .setTrackTotalHits(false)
-            .setQueries(
+            .setSubSearches(
                 List.of(
                     new SubSearchSourceBuilder(QueryBuilders.rangeQuery("@timestamp").gt(600).lte(605)),
                     new SubSearchSourceBuilder(QueryBuilders.rangeQuery("@timestamp").gte(600).lt(605))

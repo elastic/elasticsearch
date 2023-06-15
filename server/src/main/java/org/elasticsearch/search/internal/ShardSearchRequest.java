@@ -288,7 +288,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
                     subSearchSourceBuilders.add(new SubSearchSourceBuilder(queryBuilder));
                 }
                 if (subSearchSourceBuilders.size() >= 2) {
-                    source.queries(subSearchSourceBuilders);
+                    source.subSearches(subSearchSourceBuilders);
                 }
             }
         }
@@ -365,8 +365,8 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)
             && out.getTransportVersion().before(TransportVersion.V_8_500_999)) {
             List<QueryBuilder> rankQueryBuilders = new ArrayList<>();
-            if (source != null && source.rankBuilder() != null && source.queries().size() >= 2) {
-                for (SubSearchSourceBuilder subSearchSourceBuilder : source.queries()) {
+            if (source != null && source.rankBuilder() != null && source.subSearches().size() >= 2) {
+                for (SubSearchSourceBuilder subSearchSourceBuilder : source.subSearches()) {
                     rankQueryBuilders.add(subSearchSourceBuilder.getQueryBuilder());
                 }
             }

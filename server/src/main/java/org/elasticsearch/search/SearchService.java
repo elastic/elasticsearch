@@ -1372,7 +1372,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
         if (source.rankBuilder() != null) {
             List<Query> queries = new ArrayList<>();
-            for (SubSearchSourceBuilder subSearchSourceBuilder : source.queries()) {
+            for (SubSearchSourceBuilder subSearchSourceBuilder : source.subSearches()) {
                 queries.add(subSearchSourceBuilder.toSearchQuery(context.getSearchExecutionContext()));
             }
             context.rankShardContext(source.rankBuilder().buildRankShardContext(queries, context.from()));
@@ -1629,7 +1629,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         boolean canMatch = request.getAliasFilter().getQueryBuilder() instanceof MatchNoneQueryBuilder == false;
         if (canRewriteToMatchNone(request.source())) {
             canMatch &= request.source()
-                .queries()
+                .subSearches()
                 .stream()
                 .anyMatch(sqwb -> sqwb.getQueryBuilder() instanceof MatchNoneQueryBuilder == false);
         }
@@ -1645,8 +1645,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         if (source == null || source.suggest() != null) {
             return false;
         }
-        if (source.queries().isEmpty()
-            || source.queries().stream().anyMatch(sqwb -> sqwb.getQueryBuilder() instanceof MatchAllQueryBuilder)) {
+        if (source.subSearches().isEmpty()
+            || source.subSearches().stream().anyMatch(sqwb -> sqwb.getQueryBuilder() instanceof MatchAllQueryBuilder)) {
             return false;
         }
         AggregatorFactories.Builder aggregations = source.aggregations();

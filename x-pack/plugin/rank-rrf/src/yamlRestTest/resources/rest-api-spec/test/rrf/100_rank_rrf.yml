@@ -89,7 +89,7 @@ setup:
   - match: { hits.hits.2.fields.text.0: "other" }
 
 ---
-"Simple rank with multiple bm25 queries":
+"Simple rank with multiple bm25 sub searches":
 
   - do:
       search:
@@ -97,7 +97,7 @@ setup:
         body:
           track_total_hits: true
           fields: [ "text" ]
-          queries: [
+          sub_searches: [
             {
               "query": {
                 "term": {
@@ -130,7 +130,7 @@ setup:
   - match: { hits.hits.1.fields.text.0: "term term" }
 
 ---
-"Simple rank with multiple bm25 queries and a knn search":
+"Simple rank with multiple bm25 sub_searches and a knn search":
 
   - do:
       search:
@@ -143,7 +143,7 @@ setup:
             query_vector: [ 0.0 ]
             k: 3
             num_candidates: 3
-          queries: [
+          sub_searches: [
             {
               "query": {
                 "term": {

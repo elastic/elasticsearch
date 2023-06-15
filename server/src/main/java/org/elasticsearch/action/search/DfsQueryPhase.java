@@ -137,7 +137,7 @@ final class DfsQueryPhase extends SearchPhase {
             return request;
         }
 
-        List<SubSearchSourceBuilder> subSearchSourceBuilders = new ArrayList<>(source.queries());
+        List<SubSearchSourceBuilder> subSearchSourceBuilders = new ArrayList<>(source.subSearches());
 
         for (DfsKnnResults dfsKnnResults : knnResults) {
             List<ScoreDoc> scoreDocs = new ArrayList<>();
@@ -151,7 +151,7 @@ final class DfsQueryPhase extends SearchPhase {
             subSearchSourceBuilders.add(new SubSearchSourceBuilder(knnQuery));
         }
 
-        source = source.shallowCopy().queries(subSearchSourceBuilders).knnSearch(List.of());
+        source = source.shallowCopy().subSearches(subSearchSourceBuilders).knnSearch(List.of());
         request.source(source);
 
         return request;

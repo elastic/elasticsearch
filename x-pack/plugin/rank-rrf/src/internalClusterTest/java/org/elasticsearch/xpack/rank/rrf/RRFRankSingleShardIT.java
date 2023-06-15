@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.rank.rrf;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
@@ -17,9 +18,10 @@ import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
 import org.elasticsearch.search.builder.SubSearchSourceBuilder;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
-import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.junit.Before;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -27,39 +29,17 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-
-@ESIntegTestCase.ClusterScope(maxNumDataNodes = 3)
-@ESIntegTestCase.SuiteScopeTestCase
-public class RRFRankSingleShardIT extends ESIntegTestCase {
+public class RRFRankSingleShardIT extends ESSingleNodeTestCase {
 
     @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
+    protected Collection<Class<? extends Plugin>> getPlugins() {
         return List.of(RRFRankPlugin.class);
     }
 
-    @Override
-    protected int minimumNumberOfShards() {
-        return 1;
-    }
+    @Before
+    public void setupIndices() throws Exception {
 
-    @Override
-    protected int maximumNumberOfShards() {
-        return 1;
-    }
-
-    @Override
-    protected int minimumNumberOfReplicas() {
-        return 0;
-    }
-
-    @Override
-    protected int maximumNumberOfReplicas() {
-        return 0;
-    }
-
-    @Override
-    public void setupSuiteScopeCluster() throws Exception {
+        Settings indexSettings = Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0).build();
 
         // Set up an index with a very small number of documents to
         // test sizing limits and issues with empty data.
@@ -79,7 +59,7 @@ public class RRFRankSingleShardIT extends ESIntegTestCase {
             .endObject()
             .endObject();
 
-        assertAcked(prepareCreate("tiny_index").setMapping(builder));
+        createIndex("tiny_index", indexSettings, builder);
         ensureGreen("tiny_index");
 
         client().prepareIndex("tiny_index").setSource("vector", new float[] { 0.0f }, "text", "term term").get();
@@ -118,7 +98,7 @@ public class RRFRankSingleShardIT extends ESIntegTestCase {
             .endObject()
             .endObject();
 
-        assertAcked(prepareCreate("nrd_index").setMapping(builder));
+        createIndex("nrd_index", indexSettings, builder);
         ensureGreen(TimeValue.timeValueSeconds(120), "nrd_index");
 
         for (int doc = 0; doc < 1001; ++doc) {
@@ -551,7 +531,7 @@ public class RRFRankSingleShardIT extends ESIntegTestCase {
                 .setSearchType(searchType)
                 .setRankBuilder(new RRFRankBuilder(8, 1))
                 .setTrackTotalHits(false)
-                .setQueries(
+                .setSubSearches(
                     List.of(
                         new SubSearchSourceBuilder(
                             QueryBuilders.boolQuery()
@@ -621,7 +601,7 @@ public class RRFRankSingleShardIT extends ESIntegTestCase {
                 .setSearchType(searchType)
                 .setRankBuilder(new RRFRankBuilder(8, 1))
                 .setTrackTotalHits(false)
-                .setQueries(
+                .setSubSearches(
                     List.of(
                         new SubSearchSourceBuilder(
                             QueryBuilders.boolQuery()
@@ -708,7 +688,7 @@ public class RRFRankSingleShardIT extends ESIntegTestCase {
             .setRankBuilder(new RRFRankBuilder(101, 1))
             .setTrackTotalHits(false)
             .setKnnSearch(List.of(knnSearch))
-            .setQueries(
+            .setSubSearches(
                 List.of(
                     new SubSearchSourceBuilder(
                         QueryBuilders.boolQuery()
@@ -765,7 +745,7 @@ public class RRFRankSingleShardIT extends ESIntegTestCase {
             .setRankBuilder(new RRFRankBuilder(101, 1))
             .setTrackTotalHits(false)
             .setKnnSearch(List.of(knnSearch))
-            .setQueries(
+            .setSubSearches(
                 List.of(
                     new SubSearchSourceBuilder(
                         QueryBuilders.boolQuery()
@@ -840,7 +820,7 @@ public class RRFRankSingleShardIT extends ESIntegTestCase {
             .setRankBuilder(new RRFRankBuilder(101, 1))
             .setTrackTotalHits(false)
             .setKnnSearch(List.of(knnSearchAsc, knnSearchDesc))
-            .setQueries(
+            .setSubSearches(
                 List.of(
                     new SubSearchSourceBuilder(
                         QueryBuilders.boolQuery()
@@ -901,7 +881,7 @@ public class RRFRankSingleShardIT extends ESIntegTestCase {
             .setRankBuilder(new RRFRankBuilder(101, 1))
             .setTrackTotalHits(false)
             .setKnnSearch(List.of(knnSearchAsc, knnSearchDesc))
-            .setQueries(
+            .setSubSearches(
                 List.of(
                     new SubSearchSourceBuilder(
                         QueryBuilders.boolQuery()

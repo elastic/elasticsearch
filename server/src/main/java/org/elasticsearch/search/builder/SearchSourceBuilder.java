@@ -84,7 +84,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     public static final ParseField TIMEOUT_FIELD = new ParseField("timeout");
     public static final ParseField TERMINATE_AFTER_FIELD = new ParseField("terminate_after");
     public static final ParseField QUERY_FIELD = new ParseField("query");
-    public static final ParseField QUERIES_FIELD = new ParseField("queries");
+    public static final ParseField SUB_SEARCHES_FIELD = new ParseField("sub_searches");
     public static final ParseField POST_FILTER_FIELD = new ParseField("post_filter");
     public static final ParseField KNN_FIELD = new ParseField("knn");
     public static final ParseField RANK_FIELD = new ParseField("rank");
@@ -398,7 +398,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     /**
      * Sets the queries for this request.
      */
-    public SearchSourceBuilder queries(List<SubSearchSourceBuilder> subSearchSourceBuilders) {
+    public SearchSourceBuilder subSearches(List<SubSearchSourceBuilder> subSearchSourceBuilders) {
         this.subSearchSourceBuilders = subSearchSourceBuilders;
         return this;
     }
@@ -406,7 +406,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     /**
      * Gets the queries for this request.
      */
-    public List<SubSearchSourceBuilder> queries() {
+    public List<SubSearchSourceBuilder> subSearches() {
         return subSearchSourceBuilders;
     }
 
@@ -1331,7 +1331,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 if (QUERY_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     if (subSearchSourceBuilders.isEmpty() == false) {
                         throw new IllegalArgumentException(
-                            "cannot specify field [" + currentFieldName + "] and field [" + QUERIES_FIELD.getPreferredName() + "]"
+                            "cannot specify field [" + currentFieldName + "] and field [" + SUB_SEARCHES_FIELD.getPreferredName() + "]"
                         );
                     }
                     QueryBuilder queryBuilder = parseTopLevelQuery(parser, searchUsage::trackQueryUsage);
@@ -1547,7 +1547,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                         }
                     }
                     searchUsage.trackSectionUsage(KNN_FIELD.getPreferredName());
-                } else if (QUERIES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                } else if (SUB_SEARCHES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     if (subSearchSourceBuilders.isEmpty() == false) {
                         throw new IllegalArgumentException(
                             "cannot specify field [" + currentFieldName + "] and field [" + QUERY_FIELD.getPreferredName() + "]"
@@ -1563,7 +1563,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                             );
                         }
                     }
-                    searchUsage.trackSectionUsage(QUERIES_FIELD.getPreferredName());
+                    searchUsage.trackSectionUsage(SUB_SEARCHES_FIELD.getPreferredName());
                 } else {
                     throw new ParsingException(
                         parser.getTokenLocation(),
@@ -1609,7 +1609,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             if (subSearchSourceBuilders.size() == 1) {
                 builder.field(QUERY_FIELD.getPreferredName(), subSearchSourceBuilders.get(0).getQueryBuilder());
             } else {
-                builder.array(QUERIES_FIELD.getPreferredName(), subSearchSourceBuilders);
+                builder.array(SUB_SEARCHES_FIELD.getPreferredName(), subSearchSourceBuilders);
             }
         }
 

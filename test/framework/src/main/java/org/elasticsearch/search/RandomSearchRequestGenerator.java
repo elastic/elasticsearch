@@ -246,7 +246,7 @@ public class RandomSearchRequestGenerator {
         if (randomBoolean()) {
             builder.query(QueryBuilders.termQuery(randomAlphaOfLengthBetween(5, 20), randomAlphaOfLengthBetween(5, 20)));
         } else if (randomBoolean()) {
-            builder.queries(
+            builder.subSearches(
                 List.of(
                     new SubSearchSourceBuilder(
                         QueryBuilders.termQuery(randomAlphaOfLengthBetween(5, 20), randomAlphaOfLengthBetween(5, 20))

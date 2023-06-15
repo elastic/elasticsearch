@@ -3506,13 +3506,17 @@ public class HighlighterSearchIT extends ESIntegTestCase {
     public void testConstantKeywordFieldHighlighting() throws IOException {
         // check that constant_keyword highlighting works
         String index = "test";
-        String constantKeywordFieldName = "level";
-        String constantValue = new RandomString(5).nextString();
+        RandomString randomStringGenerator = new RandomString(5);
+        String constantKeywordFieldName = randomStringGenerator.nextString();
+        String constantValue = randomStringGenerator.nextString();
 
         XContentBuilder mappings = prepareConstantKeywordMappings(constantKeywordFieldName, constantValue);
         assertAcked(prepareCreate(index).setMapping(mappings));
 
-        XContentBuilder document = jsonBuilder().startObject().field("message", "some text").field("level", constantValue).endObject();
+        XContentBuilder document = jsonBuilder().startObject()
+            .field("foo", "bar")
+            .field(constantKeywordFieldName, constantValue)
+            .endObject();
         saveDocumentIntoIndex(index, "1", document);
 
         SearchResponse search = prepareConstantKeywordSearch(QueryBuilders.queryStringQuery(constantValue));
@@ -3524,13 +3528,14 @@ public class HighlighterSearchIT extends ESIntegTestCase {
     public void testImplicitConstantKeywordFieldHighlighting() throws IOException {
         // Constant field value is defined by the mapping
         String index = "test";
-        String constantKeywordFieldName = "level";
-        String constantValue = new RandomString(5).nextString();
+        RandomString randomStringGenerator = new RandomString(5);
+        String constantKeywordFieldName = randomStringGenerator.nextString();
+        String constantValue = randomStringGenerator.nextString();
 
         XContentBuilder mappings = prepareConstantKeywordMappings(constantKeywordFieldName, constantValue);
         assertAcked(prepareCreate(index).setMapping(mappings));
 
-        XContentBuilder document = jsonBuilder().startObject().field("message", "some text").endObject();
+        XContentBuilder document = jsonBuilder().startObject().field("foo", "bar").endObject();
         saveDocumentIntoIndex(index, "1", document);
 
         SearchResponse search = prepareConstantKeywordSearch(QueryBuilders.queryStringQuery(constantValue));
@@ -3541,14 +3546,15 @@ public class HighlighterSearchIT extends ESIntegTestCase {
 
     public void testConstantKeywordFieldPartialNoHighlighting() throws IOException {
         String index = "test";
-        String constantKeywordFieldName = "level";
-        String constantValue = new RandomString(5).nextString();
+        RandomString randomStringGenerator = new RandomString(5);
+        String constantKeywordFieldName = randomStringGenerator.nextString();
+        String constantValue = randomStringGenerator.nextString();
         String partialConstantValue = constantValue.substring(0, 3);
 
         XContentBuilder mappings = prepareConstantKeywordMappings(constantKeywordFieldName, constantValue);
         assertAcked(prepareCreate(index).setMapping(mappings));
 
-        XContentBuilder document = jsonBuilder().startObject().field("message", "some text").endObject();
+        XContentBuilder document = jsonBuilder().startObject().field("foo", "bar").endObject();
         saveDocumentIntoIndex(index, "1", document);
 
         SearchResponse search = prepareConstantKeywordSearch(QueryBuilders.queryStringQuery(partialConstantValue));
@@ -3559,14 +3565,15 @@ public class HighlighterSearchIT extends ESIntegTestCase {
 
     public void testConstantKeywordFieldPartialWithWildcardHighlighting() throws IOException {
         String index = "test";
-        String constantKeywordFieldName = "level";
-        String constantValue = new RandomString(5).nextString();
+        RandomString randomStringGenerator = new RandomString(5);
+        String constantKeywordFieldName = randomStringGenerator.nextString();
+        String constantValue = randomStringGenerator.nextString();
         String partialConstantValueWithWildCard = "%s*".formatted(constantValue.substring(0, 3));
 
         XContentBuilder mappings = prepareConstantKeywordMappings(constantKeywordFieldName, constantValue);
         assertAcked(prepareCreate(index).setMapping(mappings));
 
-        XContentBuilder document = jsonBuilder().startObject().field("message", "some text").endObject();
+        XContentBuilder document = jsonBuilder().startObject().field("foo", "bar").endObject();
         saveDocumentIntoIndex(index, "1", document);
 
         SearchResponse search = prepareConstantKeywordSearch(QueryBuilders.queryStringQuery(partialConstantValueWithWildCard));
@@ -3584,7 +3591,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
             .field("type", "constant_keyword")
             .field("value", constantValue)
             .endObject()
-            .startObject("message")
+            .startObject("foo")
             .field("type", "text")
             .endObject()
             .endObject()

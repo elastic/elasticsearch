@@ -145,13 +145,9 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
         );
 
         if (QUERY_RULES_FEATURE_FLAG.isEnabled()) {
-            actionHandlers.addAll(
-                List.of(
-                    new ActionHandler<>(DeleteQueryRulesetAction.INSTANCE, TransportDeleteQueryRulesetAction.class),
-                    new ActionHandler<>(GetQueryRulesetAction.INSTANCE, TransportGetQueryRulesetAction.class),
-                    new ActionHandler<>(PutQueryRulesetAction.INSTANCE, TransportPutQueryRulesetAction.class)
-                )
-            );
+            actionHandlers.add(new ActionHandler<>(DeleteQueryRulesetAction.INSTANCE, TransportDeleteQueryRulesetAction.class));
+            actionHandlers.add(new ActionHandler<>(GetQueryRulesetAction.INSTANCE, TransportGetQueryRulesetAction.class));
+            actionHandlers.add(new ActionHandler<>(PutQueryRulesetAction.INSTANCE, TransportPutQueryRulesetAction.class));
         }
 
         return Collections.unmodifiableList(actionHandlers);
@@ -188,13 +184,9 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
         );
 
         if (QUERY_RULES_FEATURE_FLAG.isEnabled()) {
-            restHandlers.addAll(
-                List.of(
-                    new RestDeleteQueryRulesetAction(getLicenseState()),
-                    new RestGetQueryRulesetAction(getLicenseState()),
-                    new RestPutQueryRulesetAction(getLicenseState())
-                )
-            );
+            restHandlers.add(new RestDeleteQueryRulesetAction(getLicenseState()));
+            restHandlers.add(new RestGetQueryRulesetAction(getLicenseState()));
+            restHandlers.add(new RestPutQueryRulesetAction(getLicenseState()));
         }
 
         return Collections.unmodifiableList(restHandlers);

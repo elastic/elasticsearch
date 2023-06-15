@@ -39,7 +39,6 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
-import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.query.RangeQueryBuilder;
@@ -80,7 +79,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
-import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
 import static org.hamcrest.number.OrderingComparison.greaterThan;
@@ -92,28 +90,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
     @Before
     private void setup() {
         settings = createIndexSettings();
-        searchExecutionContext = new SearchExecutionContext(
-            0,
-            0,
-            settings,
-            null,
-            null,
-            null,
-            null,
-            MappingLookup.EMPTY,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            () -> 0L,
-            null,
-            null,
-            () -> true,
-            null,
-            emptyMap()
-        );
+        searchExecutionContext = SearchExecutionContext.newDummyForTests(settings, null, null);
     }
 
     public void testSimpleDateHisto() throws Exception {

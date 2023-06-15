@@ -60,7 +60,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
 
-import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -611,28 +610,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         DirectoryReader reader = DirectoryReader.open(w);
         IndexSearcher searcher = newSearcher(reader);
 
-        SearchExecutionContext context = new SearchExecutionContext(
-            0,
-            0,
-            indexSettings,
-            null,
-            null,
-            null,
-            null,
-            MappingLookup.EMPTY,
-            null,
-            null,
-            parserConfig(),
-            writableRegistry(),
-            null,
-            null,
-            () -> 0L,
-            null,
-            null,
-            () -> true,
-            null,
-            emptyMap()
-        );
+        SearchExecutionContext context = SearchExecutionContext.newDummyForTests(indexSettings, parserConfig(), writableRegistry());
 
         final int iters = 10;
         for (int iter = 0; iter < iters; ++iter) {

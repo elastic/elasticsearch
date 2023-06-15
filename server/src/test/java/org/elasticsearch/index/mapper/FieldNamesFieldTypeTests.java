@@ -21,7 +21,6 @@ import java.util.List;
 import java.util.stream.Stream;
 
 import static java.util.Collections.emptyList;
-import static java.util.Collections.emptyMap;
 
 public class FieldNamesFieldTypeTests extends ESTestCase {
 
@@ -36,28 +35,7 @@ public class FieldNamesFieldTypeTests extends ESTestCase {
         );
         List<FieldMapper> mappers = Stream.of(fieldNamesFieldType, fieldType).<FieldMapper>map(MockFieldMapper::new).toList();
         MappingLookup mappingLookup = MappingLookup.fromMappers(Mapping.EMPTY, mappers, emptyList(), emptyList());
-        SearchExecutionContext searchExecutionContext = new SearchExecutionContext(
-            0,
-            0,
-            indexSettings,
-            null,
-            null,
-            null,
-            null,
-            mappingLookup,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            () -> 0L,
-            null,
-            null,
-            () -> true,
-            null,
-            emptyMap()
-        );
+        SearchExecutionContext searchExecutionContext = SearchExecutionContext.newDummyForTests(indexSettings, null, null);
         Query termQuery = fieldNamesFieldType.termQuery("field_name", searchExecutionContext);
         assertEquals(new TermQuery(new Term(FieldNamesFieldMapper.CONTENT_TYPE, "field_name")), termQuery);
         assertWarnings("terms query on the _field_names field is deprecated and will be removed, use exists query instead");

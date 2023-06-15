@@ -552,7 +552,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 0,
                 0,
                 idxSettings,
-                clusterSettings,
+                clusterSettings == null ? ClusterSettings.createBuiltInClusterSettings() : clusterSettings,
                 bitsetFilterCache,
                 indexFieldDataService::getForField,
                 mapperService,

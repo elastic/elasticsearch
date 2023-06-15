@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -650,7 +651,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             shardId,
             shardRequestIndex,
             indexSettings,
-            clusterService != null ? clusterService.getClusterSettings() : null,
+            clusterService != null ? clusterService.getClusterSettings() : ClusterSettings.createBuiltInClusterSettings(),
             indexCache.bitsetFilterCache(),
             indexFieldData::getForField,
             mapperService(),

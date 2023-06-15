@@ -43,7 +43,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -203,28 +202,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
     private SearchExecutionContext createContext() {
         Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(randomAlphaOfLengthBetween(1, 10), indexSettings);
-        return new SearchExecutionContext(
-            0,
-            0,
-            idxSettings,
-            null,
-            null,
-            null,
-            null,
-            MappingLookup.EMPTY,
-            null,
-            null,
-            parserConfig(),
-            writableRegistry(),
-            null,
-            null,
-            () -> nowInMillis,
-            null,
-            null,
-            () -> true,
-            null,
-            emptyMap()
-        );
+        return SearchExecutionContext.newDummyForTests(idxSettings, parserConfig(), writableRegistry());
     }
 
     public void testDateRangeQueryUsingMappingFormat() {

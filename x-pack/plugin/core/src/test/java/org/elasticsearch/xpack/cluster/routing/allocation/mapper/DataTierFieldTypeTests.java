@@ -17,7 +17,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
-import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -30,7 +29,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.function.Predicate;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.containsString;
 
@@ -114,28 +112,7 @@ public class DataTierFieldTypeTests extends MapperServiceTestCase {
         IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
 
         Predicate<String> indexNameMatcher = pattern -> Regex.simpleMatch(pattern, "index");
-        return new SearchExecutionContext(
-            0,
-            0,
-            indexSettings,
-            null,
-            null,
-            null,
-            null,
-            MappingLookup.EMPTY,
-            null,
-            null,
-            parserConfig(),
-            writableRegistry(),
-            null,
-            null,
-            System::currentTimeMillis,
-            null,
-            indexNameMatcher,
-            () -> true,
-            null,
-            emptyMap()
-        );
+        return SearchExecutionContext.newDummyForTests(indexSettings, parserConfig(), writableRegistry());
     }
 
     private SearchExecutionContext createContextWithoutSetting() {
@@ -145,27 +122,6 @@ public class DataTierFieldTypeTests extends MapperServiceTestCase {
             .numberOfReplicas(0)
             .build();
         IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
-        return new SearchExecutionContext(
-            0,
-            0,
-            indexSettings,
-            null,
-            null,
-            null,
-            null,
-            MappingLookup.EMPTY,
-            null,
-            null,
-            parserConfig(),
-            writableRegistry(),
-            null,
-            null,
-            System::currentTimeMillis,
-            null,
-            value -> true,
-            () -> true,
-            null,
-            emptyMap()
-        );
+        return SearchExecutionContext.newDummyForTests(indexSettings, parserConfig(), writableRegistry());
     }
 }

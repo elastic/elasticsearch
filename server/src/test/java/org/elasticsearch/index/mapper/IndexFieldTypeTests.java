@@ -12,15 +12,16 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Collections;
 import java.util.function.Predicate;
 
-import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.containsString;
 
 public class IndexFieldTypeTests extends ESTestCase {
@@ -64,7 +65,7 @@ public class IndexFieldTypeTests extends ESTestCase {
             0,
             0,
             indexSettings,
-            null,
+            ClusterSettings.createBuiltInClusterSettings(),
             null,
             null,
             null,
@@ -80,7 +81,7 @@ public class IndexFieldTypeTests extends ESTestCase {
             indexNameMatcher,
             () -> true,
             null,
-            emptyMap()
+            Collections.emptyMap()
         );
     }
 }

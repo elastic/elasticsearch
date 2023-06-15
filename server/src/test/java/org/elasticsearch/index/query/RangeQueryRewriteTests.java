@@ -13,6 +13,7 @@ import org.apache.lucene.index.MultiReader;
 import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.MappedFieldType.Relation;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
@@ -33,7 +34,7 @@ public class RangeQueryRewriteTests extends ESSingleNodeTestCase {
             0,
             0,
             indexService.getIndexSettings(),
-            null,
+            ClusterSettings.createBuiltInClusterSettings(),
             null,
             null,
             indexService.mapperService(),
@@ -117,7 +118,7 @@ public class RangeQueryRewriteTests extends ESSingleNodeTestCase {
             0,
             0,
             indexService.getIndexSettings(),
-            null,
+            ClusterSettings.createBuiltInClusterSettings(),
             null,
             null,
             indexService.mapperService(),

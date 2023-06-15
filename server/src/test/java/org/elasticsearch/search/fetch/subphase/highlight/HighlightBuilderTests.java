@@ -15,6 +15,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
@@ -298,7 +299,7 @@ public class HighlightBuilderTests extends ESTestCase {
             0,
             0,
             idxSettings,
-            null,
+            ClusterSettings.createBuiltInClusterSettings(),
             null,
             null,
             null,

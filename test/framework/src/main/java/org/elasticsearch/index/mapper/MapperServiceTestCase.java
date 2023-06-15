@@ -636,17 +636,22 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
         final SimilarityService similarityService = new SimilarityService(indexSettings, null, Map.of());
         final long nowInMillis = randomNonNegativeLong();
-        return new SearchExecutionContext(0, 0, indexSettings, null, new BitsetFilterCache(indexSettings, new BitsetFilterCache.Listener() {
-            @Override
-            public void onCache(ShardId shardId, Accountable accountable) {
+        return new SearchExecutionContext(
+            0,
+            0,
+            indexSettings,
+            ClusterSettings.createBuiltInClusterSettings(),
+            new BitsetFilterCache(indexSettings, new BitsetFilterCache.Listener() {
+                @Override
+                public void onCache(ShardId shardId, Accountable accountable) {
 
-            }
+                }
 
-            @Override
-            public void onRemoval(ShardId shardId, Accountable accountable) {
+                @Override
+                public void onRemoval(ShardId shardId, Accountable accountable) {
 
-            }
-        }),
+                }
+            }),
             (ft, fdc) -> ft.fielddataBuilder(fdc).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService()),
             mapperService,
             mapperService.mappingLookup(),

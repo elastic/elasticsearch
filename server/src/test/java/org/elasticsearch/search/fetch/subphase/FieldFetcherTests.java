@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -1265,7 +1266,7 @@ public class FieldFetcherTests extends MapperServiceTestCase {
             0,
             0,
             indexSettings,
-            null,
+            ClusterSettings.createBuiltInClusterSettings(),
             null,
             indexFieldDataLookup,
             mapperService,

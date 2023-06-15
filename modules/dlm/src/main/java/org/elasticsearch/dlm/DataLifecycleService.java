@@ -66,13 +66,14 @@ import java.util.stream.Collectors;
 
 /**
  * This service will implement the needed actions (e.g. rollover, retention) to manage the data streams with a DLM lifecycle configured.
- * It runs on the master node and it schedules a job according to the configured {@link DataLifecycleService#DLM_POLL_INTERVAL_SETTING}.
+ * It runs on the master node and it schedules a job according to the configured
+ * {@link DataLifecycleService#DATA_STREAM_LIFECYCLE_POLL_INTERVAL_SETTING}.
  */
 public class DataLifecycleService implements ClusterStateListener, Closeable, SchedulerEngine.Listener {
 
-    public static final String DLM_POLL_INTERVAL = "data_streams.lifecycle.poll_interval";
-    public static final Setting<TimeValue> DLM_POLL_INTERVAL_SETTING = Setting.timeSetting(
-        DLM_POLL_INTERVAL,
+    public static final String DATA_STREAM_LIFECYCLE_POLL_INTERVAL = "data_streams.lifecycle.poll_interval";
+    public static final Setting<TimeValue> DATA_STREAM_LIFECYCLE_POLL_INTERVAL_SETTING = Setting.timeSetting(
+        DATA_STREAM_LIFECYCLE_POLL_INTERVAL,
         TimeValue.timeValueMinutes(10),
         TimeValue.timeValueSeconds(1),
         Setting.Property.Dynamic,
@@ -83,11 +84,11 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
     /**
      * Name constant for the job DLM schedules
      */
-    private static final String DATA_LIFECYCLE_JOB_NAME = "dlm";
+    private static final String DATA_LIFECYCLE_JOB_NAME = "data_stream_lifecycle";
     /*
      * This is the key for DLM-related custom index metadata.
      */
-    static final String DLM_CUSTOM_INDEX_METADATA_KEY = "dlm";
+    static final String DLM_CUSTOM_INDEX_METADATA_KEY = "data_stream_lifecycle";
     static final String FORCE_MERGE_COMPLETED_TIMESTAMP_METADATA_KEY = "force_merge_completed_timestamp";
 
     private final Settings settings;
@@ -137,8 +138,8 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
         this.nowSupplier = nowSupplier;
         this.errorStore = errorStore;
         this.scheduledJob = null;
-        this.pollInterval = DLM_POLL_INTERVAL_SETTING.get(settings);
-        this.rolloverConfiguration = clusterService.getClusterSettings().get(DataLifecycle.CLUSTER_DLM_DEFAULT_ROLLOVER_SETTING);
+        this.pollInterval = DATA_STREAM_LIFECYCLE_POLL_INTERVAL_SETTING.get(settings);
+        this.rolloverConfiguration = clusterService.getClusterSettings().get(DataLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING);
         this.forceMergeClusterStateUpdateTaskQueue = clusterService.createTaskQueue(
             "dlm-forcemerge-state-update",
             Priority.LOW,
@@ -151,9 +152,10 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
      */
     public void init() {
         clusterService.addListener(this);
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(DLM_POLL_INTERVAL_SETTING, this::updatePollInterval);
         clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(DataLifecycle.CLUSTER_DLM_DEFAULT_ROLLOVER_SETTING, this::updateRolloverConfiguration);
+            .addSettingsUpdateConsumer(DATA_STREAM_LIFECYCLE_POLL_INTERVAL_SETTING, this::updatePollInterval);
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(DataLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING, this::updateRolloverConfiguration);
     }
 
     @Override
@@ -501,8 +503,9 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
     }
 
     /*
-     * This method sets the value of the custom index metadata field "force_merge_completed_timestamp" within the field "dlm" to value. The
-     * method returns immediately, but the update happens asynchronously and listener is notified on success or failure.
+     * This method sets the value of the custom index metadata field "force_merge_completed_timestamp" within the field
+     * "data_stream_lifecycle" to value. The method returns immediately, but the update happens asynchronously and listener is notified on
+     * success or failure.
      */
     private void setForceMergeCompletedTimestamp(String targetIndex, ActionListener<Void> listener) {
         forceMergeClusterStateUpdateTaskQueue.submitTask(
@@ -513,7 +516,8 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
     }
 
     /*
-     * Returns true if a value has been set for the custom index metadata field "force_merge_completed_timestamp" within the field "dlm".
+     * Returns true if a value has been set for the custom index metadata field "force_merge_completed_timestamp" within the field
+     * "data_stream_lifecycle".
      */
     private boolean isForceMergeComplete(IndexMetadata backingIndex) {
         Map<String, String> customMetadata = backingIndex.getCustomData(DLM_CUSTOM_INDEX_METADATA_KEY);

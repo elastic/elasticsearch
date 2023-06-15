@@ -3503,52 +3503,67 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         }
     }
 
-    public void testImplicitConstantKeywordFieldHighlighting() throws IOException {
-        //Constant field value is defined by the mapping
-        XContentBuilder mappings = prepareConstantKeywordMappings("level");
+    public void testConstantKeywordFieldHighlighting() throws IOException {
+        // check that constant_keyword highlighting works
+        String index = "test";
+        String constantKeywordFieldName = "level";
 
-        assertAcked(prepareCreate("test").setMapping(mappings));
+        XContentBuilder mappings = prepareConstantKeywordMappings(constantKeywordFieldName);
+        assertAcked(prepareCreate(index).setMapping(mappings));
 
-        client().prepareIndex("test")
-            .setId("1")
-            .setSource(
-                jsonBuilder().startObject()
-                    .field("message", "some text")
-                    .endObject()
-            )
-            .get();
-        refresh();
+        XContentBuilder document = jsonBuilder().startObject()
+            .field("message", "some text")
+            .field("level", "DEBUG")
+            .endObject();
+        saveDocumentIntoIndex(index, "1", document);
 
         SearchResponse search = prepareConstantKeywordSearch(QueryBuilders.queryStringQuery("DEBUG"));
+
         assertNoFailures(search);
         assertThat(
-            getHighlighedStringFromSearch(search, "level"),
+            getHighlightedStringFromSearch(search, constantKeywordFieldName),
             equalTo("<em>DEBUG</em>")
         );
     }
 
-    public void testConstantKeywordFieldHighlighting() throws IOException {
-        // check that constant_keyword highlighting works
-        XContentBuilder mappings = prepareConstantKeywordMappings("level");
+    public void testImplicitConstantKeywordFieldHighlighting() throws IOException {
+        //Constant field value is defined by the mapping
+        String index = "test";
+        String constantKeywordFieldName = "level";
 
-        assertAcked(prepareCreate("test").setMapping(mappings));
+        XContentBuilder mappings = prepareConstantKeywordMappings(constantKeywordFieldName);
+        assertAcked(prepareCreate(index).setMapping(mappings));
 
-        client().prepareIndex("test")
-            .setId("1")
-            .setSource(
-                jsonBuilder().startObject()
-                    .field("message", "some text")
-                    .field("level", "DEBUG")
-                    .endObject()
-            )
-            .get();
-        refresh();
+        XContentBuilder document = jsonBuilder().startObject()
+            .field("message", "some text")
+            .endObject();
+        saveDocumentIntoIndex(index, "1", document);
+
         SearchResponse search = prepareConstantKeywordSearch(QueryBuilders.queryStringQuery("DEBUG"));
+
         assertNoFailures(search);
         assertThat(
-            getHighlighedStringFromSearch(search, "level"),
+            getHighlightedStringFromSearch(search, constantKeywordFieldName),
             equalTo("<em>DEBUG</em>")
         );
+    }
+
+    public void testConstantKeywordFieldPartialNoHighlighting() throws IOException {
+        String index = "test";
+        String constantKeywordFieldName = "level";
+
+        XContentBuilder mappings = prepareConstantKeywordMappings(constantKeywordFieldName);
+        assertAcked(prepareCreate(index).setMapping(mappings));
+
+        XContentBuilder document = jsonBuilder().startObject()
+            .field("message", "some text")
+            .endObject();
+        saveDocumentIntoIndex(index, "1", document);
+
+        SearchResponse search = prepareConstantKeywordSearch(QueryBuilders.queryStringQuery("DEB"));
+
+        assertNoFailures(search);
+        assertEquals(0, search.getHits().getHits().length);
     }
 
     public void testConstantKeywordFieldPartialWithWildcardHighlighting() throws IOException {
@@ -3557,22 +3572,17 @@ public class HighlighterSearchIT extends ESIntegTestCase {
 
         assertAcked(prepareCreate("test").setMapping(mappings));
 
-        client().prepareIndex("test")
-            .setId("1")
-            .setSource(
-                jsonBuilder()
-                    .startObject()
-                    .field("message", "some text")
-                    .endObject()
-            )
-            .get();
-        refresh();
+        XContentBuilder document = jsonBuilder().startObject()
+            .field("message", "some text")
+            .endObject();
+
+        saveDocumentIntoIndex("test", "1", document);
 
         SearchResponse search = prepareConstantKeywordSearch(QueryBuilders.queryStringQuery("DEB*"));
 
         assertNoFailures(search);
         assertThat(
-            getHighlighedStringFromSearch(search, "level"),
+            getHighlightedStringFromSearch(search, "level"),
             equalTo("<em>DEBUG</em>")
         );
     }
@@ -3604,7 +3614,17 @@ public class HighlighterSearchIT extends ESIntegTestCase {
             .get();
     }
 
-    private String getHighlighedStringFromSearch(SearchResponse search, String fieldName){
+    private void saveDocumentIntoIndex(String index, String id, XContentBuilder document){
+        client().prepareIndex(index)
+            .setId(id)
+            .setSource(
+                document
+            )
+            .get();
+        refresh();
+    }
+
+    private String getHighlightedStringFromSearch(SearchResponse search, String fieldName){
         SearchHits hits = search.getHits();
         assertEquals("We expect this test search to find exactly one hit", 1, hits.getHits().length);
 

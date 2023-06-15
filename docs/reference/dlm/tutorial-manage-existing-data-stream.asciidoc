@@ -81,11 +81,11 @@ The response will look like:
 // TEST[continued]
 // TESTRESPONSE[skip:the result is for illustrating purposes only]
 <1> The name of the backing index.
-<2> This index is managed by {dlm-init}.
+<2> This index is managed by the built-in data stream lifecycle.
 <3> The time that has passed since this index has been created.
 <4> The data retention for this index is at least 30 days, as it was recently updated.
 <5> The name of the backing index.
-<6> This index is managed by {dlm-init}.
+<6> This index is managed by the built-in data stream lifecycle.
 <7> The time that has passed since this index has been created.
 <8> The time that has passed since this index was <<index-rollover,rolled over>>.
 <9> The time that will be used to determine when it's safe to delete this index and all its data.
@@ -95,8 +95,9 @@ The response will look like:
 [[delete-lifecycle]]
 ==== Remove lifecycle for a data stream
 
-To remove the lifecycle of a data stream you can use the <<dlm-delete-lifecycle-request,delete lifecycle API>>, removing
-the lifecycle would render this data stream and all its backing indices not managed by {dlm-init}. For example:
+To remove the lifecycle of a data stream you can use the <<dlm-delete-lifecycle-request,delete lifecycle API>>, as consequence,
+the maintainance operations that were applied by the lifecycle will no longer be applied to the data stream and all its
+backing indices will. For example:
 
 [source,console]
 --------------------------------------------------
@@ -104,8 +105,7 @@ DELETE _data_stream/my-data-stream/_lifecycle
 --------------------------------------------------
 // TEST[continued]
 
-You can then use the <<dlm-explain-lifecycle, explain API>> again to see that the indices are no longer managed by
-{dlm-init}.
+You can then use the <<dlm-explain-lifecycle, explain API>> again to see that the indices are no longer managed.
 
 [source,console]
 --------------------------------------------------
@@ -131,6 +131,6 @@ GET .ds-my-data-stream-*/_lifecycle/explain
 --------------------------------------------------
 // TESTRESPONSE[skip:the result is for illustrating purposes only]
 <1> The name of the backing index.
-<2> Indication that the index is not managed by {dlm-init}.
+<2> Indication that the index is not managed by the data stream lifecycle.
 <3> The name of another backing index.
-<4> Indication that the index is not managed by {dlm-init}.
+<4> Indication that the index is not managed by the data stream lifecycle.

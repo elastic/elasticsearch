@@ -22,21 +22,23 @@ and backwards incompatible mapping changes.
 [[dlm-how-it-works]]
 === How does it work?
 
-In intervals configured by <<indices-dlm-poll-interval,`indices.dlm.poll_interval`>> {es} goes over each data stream and
-performs the following steps:
+In intervals configured by <<data-streams-lifecycle-poll-interval,`data_streams.lifecycle.poll_interval`>>, {es} goes over
+each data stream and performs the following steps:
 
 . Checks if the data stream has a data lifecycle configured. If it does, then
 . it will rollover the write backing index of the data stream, given it fulfills the conditions defined by
-<<cluster-dlm-default-rollover,`cluster.dlm.default.rollover`>>,
+<<cluster-lifecycle-default-rollover,`cluster.lifecycle.default.rollover`>>,
 . it will apply retention to the remaining backing indices. This means that it will delete the backing indices whose
 `generation_time` is longer than the retention period. The `generation_time` is only applicable to rolled over backing
 indices and it is either the time since the backing index got rolled over or the time since
-<<index-dlm-origination-date,`index.lifecycle.origination_date`>> (when defined). We use the `generation_time` instead
-of the creation time because this ensures that all data in the backing index have passed the retention period. As a result,
-the retention period is not the exact time data gets deleted, but the minimum time data will be stored.
+<<index-data-stream-lifecycle-origination-date,`index.lifecycle.origination_date`>> (when defined).
+
+IMPORTANT: We use the `generation_time` instead of the creation time because this ensures that all data in the backing
+index have passed the retention period. As a result, the retention period is not the exact time data gets deleted, but
+the minimum time data will be stored.
 
 NOTE: The steps `2` and `3` apply only to backing indices that are not already managed by {ilm-init}, meaning that these indices either do
-not have an {ilm-init} policy defined, or if they do, they have <<index-dlm-prefer-ilm, `index.lifecycle.prefer_ilm`>>
+not have an {ilm-init} policy defined, or if they do, they have <<index-lifecycle-prefer-ilm,`index.lifecycle.prefer_ilm`>>
 set to `false`.
 
 [discrete]

@@ -1,27 +1,27 @@
 [role="xpack"]
-[[dlm-settings]]
-=== {dlm-cap} settings in {es}
+[[data-stream-lifecyclesettings]]
+=== Data stream lifecycle settings in {es}
 [subs="attributes"]
 ++++
-<titleabbrev>{dlm-cap} settings</titleabbrev>
+<titleabbrev>Data stream lifecycle settings</titleabbrev>
 ++++
 
 preview::[]
 
-These are the settings available for configuring <<data-stream-lifecycle, {dlm}>> ({dlm-init}).
+These are the settings available for configuring <<data-stream-lifecycle, data stream lifecycle>>.
 
 ==== Cluster level settings
 
-[[indices-dlm-poll-interval]]
-`indices.dlm.poll_interval`::
+[[data-streams-lifecycle-poll-interval]]
+`data_streams.lifecycle.poll_interval`::
 (<<dynamic-cluster-setting,Dynamic>>, <<time-units, time unit value>>)
-How often {dlm} checks what is the next action for all managed data streams. Defaults to `10m`.
+How often {es} checks what is the next action for all data streams with a built-in lifecycle. Defaults to `10m`.
 
-[[cluster-dlm-default-rollover]]
-`cluster.dlm.default.rollover`::
+[[cluster-lifecycle-default-rollover]]
+`cluster.lifecycle.default.rollover`::
 (<<dynamic-cluster-setting,Dynamic>>, string)
 This property accepts a key value pair formatted string and configures the conditions that would trigger a data stream
-to <<index-rollover,rollover>> when managed by {dlm-init}. This property is an implementation detail and subjects to
+to <<index-rollover,rollover>> when it has `lifecycle` configured. This property is an implementation detail and subjects to
 change. Currently, it defaults to `max_age=auto,max_primary_shard_size=50gb,min_docs=1,max_primary_shard_docs=200000000`,
 this means that your data stream will rollover if any of the following conditions are met:
 
@@ -31,16 +31,17 @@ this means that your data stream will rollover if any of the following condition
 * **and** has at least one document.
 
 ==== Index level settings
-The following index-level {dlm-init} settings are typically configured on the backing indices of a data stream.
+The following index-level settings are typically configured on the backing indices of a data stream.
 
-[[index-dlm-prefer-ilm]]
+[[index-lifecycle-prefer-ilm]]
 `index.lifecycle.prefer_ilm`::
 (<<indices-update-settings,Dynamic>>, boolean)
 This setting determines which feature is managing the backing index of a data stream if, and only if, the backing index
-has an <<index-lifecycle-management,{ilm}>> ({ilm-init}) policy and the data stream has a {dlm-init} lifecycle. When
-`true` this index is managed by {ilm-init}, when `false` the backing index is managed by {dlm-init}. Defaults to `true`.
+has an <<index-lifecycle-management,{ilm}>> ({ilm-init}) policy and the data stream has also a built-in lifecycle. When
+`true` this index is managed by {ilm-init}, when `false` the backing index is managed by the data stream lifecycle.
+Defaults to `true`.
 
-[[index-dlm-origination-date]]
+[[index-data-stream-lifecycle-origination-date]]
 `index.lifecycle.origination_date`::
 (<<indices-update-settings,Dynamic>>, long)
 If specified, this is the timestamp used to calculate the backing index generation age after this backing index has been

@@ -1,10 +1,10 @@
 [role="xpack"]
 [[tutorial-manage-new-data-stream]]
-=== Tutorial: Create a managed data stream
+=== Tutorial: Create a data stream with a lifecycle
 
 preview::[]
 
-To create a data stream managed by {dlm-init}, follow these steps:
+To create a data stream with a built-in lifecycle, follow these steps:
 
 . <<create-index-template-with-lifecycle>>
 . <<create-data-stream-with-lifecycle>>
@@ -15,14 +15,14 @@ To create a data stream managed by {dlm-init}, follow these steps:
 ==== Create an index template
 
 A data stream requires a matching <<index-templates,index template>>. The same way you use index
-templates for mappings and index settings you can use them to configure {dlm}, the respective
+templates for mappings and index settings you can use them to configure the data stream lifecycle, the respective
 template is called `lifecycle`. You can define an index template that sets a lifecycle as follows:
 
-* Include the `data_stream` object to enable data streams. {dlm-init} is only supported by data streams.
+* Include the `data_stream` object to enable data streams.
 
 * Define the lifecycle in the template section or include a composable template that defines the lifecycle.
 
-* A priority higher than `200` to avoid collisions with built-in templates.
+* Use a priority higher than `200` to avoid collisions with built-in templates.
 See <<avoid-index-pattern-collisions>>.
 
 You can use the <<indices-put-template,create index template API>>.
@@ -40,7 +40,7 @@ PUT _index_template/my-index-template
     }
   },
   "_meta": {
-    "description": "Template for my DLM managed data stream"
+    "description": "Template for with data stream lifecycle"
   }
 }
 --------------------------------------------------
@@ -105,7 +105,7 @@ The result will look like this:
 <2> The retention period of the data indexed in this data stream, this means that the data in this data stream will
 be kept at least for 7 days. After that {es} can delete it at its own discretion.
 
-If you want to see more information about how the individual backing indices are managed by {dlm-init} use the
+If you want to see more information about how the data stream lifecycle is applied on individual backing indices use the
 <<dlm-explain-lifecycle,explain data lifecycle>> API:
 
 [source,console]
@@ -133,7 +133,7 @@ The result will look like this:
 --------------------------------------------------
 // TESTRESPONSE[skip:the result is for illustrating purposes only]
 <1> The name of the backing index.
-<2> If it is managed by {dlm-init}.
+<2> If it is managed by the built-in data stream lifecycle.
 <3> Time since the index was created.
 <4> The lifecycle configuration that is applied on this backing index.
 

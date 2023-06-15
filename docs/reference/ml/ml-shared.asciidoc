@@ -948,9 +948,29 @@ values are
 --
 end::inference-config-nlp-tokenization[]
 
+tag::inference-config-nlp-tokenization-text-embedding[]
+Indicates the tokenization to perform and the desired settings.
+The default tokenization configuration is `bert`. Valid tokenization
+values are
++
+--
+* `bert`: Use for BERT-style models
+* `mpnet`: Use for MPNet-style models
+* `roberta`: Use for RoBERTa-style and BART-style models
+* `xlm_roberta`: Use for XLMRoBERTa-style models
+* experimental:[] `bert-ja`: Use for BERT-style models trained for the Japanese
+language.
+--
+end::inference-config-nlp-tokenization-text-embedding[]
+
 tag::inference-config-nlp-tokenization-bert[]
 BERT-style tokenization is to be performed with the enclosed settings.
 end::inference-config-nlp-tokenization-bert[]
+
+tag::inference-config-nlp-tokenization-bert-ja[]
+experimental:[] BERT-style tokenization for Japanese text is to be performed 
+with the enclosed settings.
+end::inference-config-nlp-tokenization-bert-ja[]
 
 tag::inference-config-nlp-tokenization-do-lower-case[]
 Specifies if the tokenization lower case the text sequence when building the
@@ -992,6 +1012,10 @@ Tokenize with special tokens. The tokens typically included in BERT-style tokeni
 * `[SEP]`: Indicates sequence separation.
 --
 end::inference-config-nlp-tokenization-bert-with-special-tokens[]
+
+tag::inference-config-nlp-tokenization-bert-ja-with-special-tokens[]
+Tokenize with special tokens if `true`.
+end::inference-config-nlp-tokenization-bert-ja-with-special-tokens[]
 
 tag::inference-config-nlp-tokenization-max-sequence-length[]
 Specifies the maximum number of tokens allowed to be output by the tokenizer.

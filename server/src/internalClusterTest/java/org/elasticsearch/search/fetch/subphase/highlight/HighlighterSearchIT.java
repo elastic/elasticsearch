@@ -3623,19 +3623,6 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         refresh();
     }
 
-    private String getHighlightedStringFromSearch(SearchResponse search, String fieldName){
-        SearchHits hits = search.getHits();
-        assertEquals("We expect this test search to find exactly one hit", 1, hits.getHits().length);
-
-        Map<String, HighlightField> highlightFields = hits.getAt(0).getHighlightFields();
-        assertTrue("We expect to find an highlighted field of name [ %s ]".formatted(fieldName), highlightFields.containsKey(fieldName));
-
-        Text[] fragments = highlightFields.get(fieldName).getFragments();
-        assertEquals("We expect to have exactly one fragment", 1, fragments.length);
-
-        return fragments[0].toString();
-    }
-
     public static class MockAnalysisPlugin extends Plugin implements AnalysisPlugin {
 
         public final class MockSnowBall extends TokenFilter {

@@ -64,7 +64,7 @@ public class AutoscalingDeciderResults implements ToXContentObject, Writeable {
         this.currentNodes = in.readSet(DiscoveryNode::new)
             .stream()
             .collect(Collectors.toCollection(() -> new TreeSet<>(DISCOVERY_NODE_COMPARATOR)));
-        this.results = new TreeMap<>(in.readMap(StreamInput::readString, AutoscalingDeciderResult::new));
+        this.results = new TreeMap<>(in.readMap(AutoscalingDeciderResult::new));
     }
 
     @Override

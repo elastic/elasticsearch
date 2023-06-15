@@ -380,6 +380,12 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
     /**
      * Gets the query for this request.
+     *
+     * @return This will return {@code null} if there are no
+     * queries, a single {@link QueryBuilder} if there is only
+     * one query, and a combined {@link BoolQueryBuilder} if
+     * there are multiple queries where each query becomes
+     * a should clause.
      */
     public QueryBuilder query() {
         if (subSearchSourceBuilders.isEmpty()) {

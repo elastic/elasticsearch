@@ -405,6 +405,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      * Sets the sub searches for this request.
      */
     public SearchSourceBuilder subSearches(List<SubSearchSourceBuilder> subSearchSourceBuilders) {
+        Objects.requireNonNull(subSearchSourceBuilders);
         this.subSearchSourceBuilders = subSearchSourceBuilders;
         return this;
     }

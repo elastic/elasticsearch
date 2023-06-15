@@ -58,9 +58,9 @@ public class RankSearchContext extends SearchContext {
     private final int windowSize;
     private final QuerySearchResult querySearchResult;
 
-    public RankSearchContext(SearchContext parent, Query query, int windowSize) {
+    public RankSearchContext(SearchContext parent, Query rankQuery, int windowSize) {
         this.parent = parent;
-        this.rankQuery = parent.buildFilteredQuery(query);
+        this.rankQuery = parent.buildFilteredQuery(rankQuery);
         this.windowSize = windowSize;
         this.querySearchResult = new QuerySearchResult(parent.readerContext().id(), parent.shardTarget(), parent.request());
     }
